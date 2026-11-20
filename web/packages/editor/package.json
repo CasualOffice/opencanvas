@@ -1,0 +1,53 @@
+{
+  "name": "@opencanvas/editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.7.0",
+    "@fontsource/geist": "^5.2.0",
+    "@fontsource/geist-mono": "^5.2.0",
+    "@opencanvas/board": "workspace:*",
+    "@opencanvas/database": "workspace:*",
+    "@opencanvas/ui": "workspace:*",
+    "@tiptap/core": "^3.10.0",
+    "@tiptap/extension-code-block": "^3.10.0",
+    "@tiptap/extension-collaboration": "^3.10.0",
+    "@tiptap/extension-collaboration-caret": "^3.10.0",
+    "@tiptap/extension-drag-handle": "^3.10.0",
+    "@tiptap/extension-drag-handle-react": "^3.10.0",
+    "@tiptap/extension-highlight": "^3.10.0",
+    "@tiptap/extension-image": "^3.10.0",
+    "@tiptap/extension-list": "^3.10.0",
+    "@tiptap/extension-mention": "^3.10.0",
+    "@tiptap/extension-node-range": "^3.10.0",
+    "@tiptap/extension-table": "^3.10.0",
+    "@tiptap/extensions": "^3.10.0",
+    "@tiptap/pm": "^3.10.0",
+    "@tiptap/react": "^3.10.0",
+    "@tiptap/starter-kit": "^3.10.0",
+    "@tiptap/suggestion": "^3.10.0",
+    "@tiptap/y-tiptap": "^3.0.0",
+    "lib0": "^0.2.114",
+    "lucide-react": "^0.540.0",
+    "marked": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "y-protocols": "^1.0.6",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0"
+  }
+}
