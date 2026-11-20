@@ -102,7 +102,16 @@ button.ocdb-cin:disabled{cursor:default;background:none}
 .ocdb-khead .kc{font-variant-numeric:tabular-nums}
 .ocdb-khead .ocdb-ib{width:26px;height:26px;margin-left:auto}
 .ocdb-kcard{background:var(--app);border-radius:10px;padding:10px 12px;box-shadow:inset 0 0 0 1px var(--line),var(--sh-1);display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:box-shadow .25s var(--ease),transform .25s var(--ease),opacity .2s;text-align:left;border:0;width:100%;color:inherit}
-.ocdb-kcard[draggable="true"]{cursor:grab}
+.ocdb-kcard.movable{cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.ocdb-kcard.picked{box-shadow:0 0 0 2px var(--accent),var(--sh-card);transform:translateY(-1px)}
+.ocdb-kan.dragging{scroll-snap-type:none}
+.ocdb-kan.dragging .ocdb-kcard{cursor:grabbing}
+.ocdb-kan.dragging .ocdb-kcard:hover{transform:none}
+.ocdb-kdrop{height:3px;border-radius:2px;background:var(--accent);margin:-4px 4px;flex:none;animation:ocdb-kdrop .15s var(--ease)}
+@keyframes ocdb-kdrop{from{opacity:0;transform:scaleX(.6)}}
+.ocdb-kghost{position:fixed;z-index:2000;pointer-events:none;font-family:var(--font);color:var(--fg);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;background:var(--app);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 0 0 1px var(--line-2),var(--sh-pop);transform:rotate(1.5deg) scale(1.02);opacity:.96}
+.ocdb-kghost svg.lucide{flex:none;display:block}
+.ocdb-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .ocdb-kcard:hover{box-shadow:inset 0 0 0 1px var(--line-2),var(--sh-card);transform:translateY(-1px)}
 .ocdb-kcard.dragging{opacity:.4}
 .ocdb-kt{font-size:14px;font-weight:500;line-height:1.4;overflow-wrap:anywhere}

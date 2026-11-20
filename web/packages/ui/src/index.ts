@@ -23,6 +23,11 @@ export interface BlockEnv {
   compact: boolean;
   /** Show a short toast in the editor chrome. */
   toast: (message: string, action?: { label: string; run: () => void }) => void;
+  /**
+   * Optional: store a file (image dropped on a board, …) and return its URL. Without it blocks
+   * fall back to an inline data: URL (capped at 2 MB).
+   */
+  upload?: (file: File) => Promise<{ url: string }>;
 }
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];

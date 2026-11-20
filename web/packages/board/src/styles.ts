@@ -32,6 +32,13 @@ export const CSS = `
 .ocbd-swatch button[data-c][aria-pressed="true"]{box-shadow:inset 0 0 0 1px var(--line-2),0 0 0 2px var(--pop),0 0 0 3.5px var(--accent)}
 .ocbd-swatch .ocbd-ib{width:28px;height:28px}
 .ocbd-swatch .sep{width:1px;height:18px;background:var(--line-2);margin:0 2px}
+.ocbd-menu{position:absolute;right:12px;top:52px;min-width:200px;padding:5px;border-radius:12px;background:var(--pop);box-shadow:var(--sh-pop);z-index:5;display:flex;flex-direction:column;animation:ocbd-menu .18s var(--ease)}
+.ocbd-mi{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:0;background:none;border-radius:8px;font-size:13.5px;color:var(--fg);text-align:left;white-space:nowrap}
+.ocbd-mi svg{color:var(--fg-2)}
+.ocbd-mi:hover,.ocbd-mi:focus-visible{background:var(--hover)}
+.ocbd-msep{height:1px;background:var(--line);margin:4px 6px}
+.ocbd-scrim{position:absolute;inset:0;z-index:4}
+.ocbd-ep{transition:r .15s var(--ease)}
 .ocbd-cover{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px;z-index:4;background:linear-gradient(to top,color-mix(in srgb,var(--panel) 70%,transparent),transparent 50%);border:0;width:100%;cursor:pointer}
 .ocbd-cover span{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;background:var(--fg);color:var(--app);font-weight:500;font-size:14px;box-shadow:var(--sh-pop)}
 .ocbd-edit{position:absolute;z-index:3;border:0;outline:none;resize:none;background:transparent;color:inherit;font-family:var(--font);padding:0;margin:0;overflow:hidden;line-height:1.43;box-shadow:0 0 0 1.5px var(--accent);border-radius:4px}
@@ -43,16 +50,19 @@ export const CSS = `
 .ocbd.ocbd-full .ocbd-tool{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 
 .ocbd-compact .ocbd-svg{height:300px}
-.ocbd-compact:not(.active):not(.ocbd-full) :is(.ocbd-tool,.ocbd-zoom,.ocbd-top,.ocbd-swatch){display:none}
+.ocbd-compact:not(.active):not(.ocbd-full) :is(.ocbd-tool,.ocbd-zoom,.ocbd-top,.ocbd-swatch,.ocbd-menu){display:none}
 .ocbd-compact .ocbd-tool .ocbd-ib{width:40px;height:40px}
 .ocbd-compact .ocbd-ib{width:38px;height:38px}
-.ocbd-compact .ocbd-zoom{bottom:auto;top:12px;right:60px}
+.ocbd-compact .ocbd-zoom{bottom:auto;top:12px;right:100px}
+.ocbd-compact .ocbd-mi{height:44px;font-size:15px}
+.ocbd-compact .ocbd-menu{top:58px}
 .ocbd-compact .ocbd-zoom .ocbd-ib{width:38px;height:38px}
 .ocbd-compact .ocbd-zl{height:38px}
 .ocbd-compact .ocbd-swatch button[data-c]{width:30px;height:30px}
 .ocbd-compact .ocbd-swatch .ocbd-ib{width:38px;height:38px}
 .ocbd-compact .ocbd-edit{font-size:16px}
 
+@keyframes ocbd-menu{from{opacity:0;transform:translateY(-4px) scale(.98)}}
 @keyframes ocbd-pop{from{opacity:0;transform:translate(-50%,calc(-100% + 4px)) scale(.98)}}
 @media (prefers-reduced-motion:reduce){.ocbd *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 `;

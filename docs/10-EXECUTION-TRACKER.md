@@ -75,10 +75,10 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | ID | Item | Status | Notes |
 |---|---|---|---|
 | DB-01 | Database block model in Yjs + table view | Done | `web/packages/database`: contract §4 layout; cell editors, header menu, filter/sort/search chips (shared via `views`), footer totals; viewers keep view/prefs local |
-| DB-02 | Board, calendar, gallery views; row peek | Done | Kanban drag between groups, month grid (agenda when compact), gallery cards, peek side panel / full sheet with notes |
+| DB-02 | Board, calendar, gallery views; row peek | Done | Kanban: pointer drag (mouse, touch long-press 250 ms, auto-scroll), reorder within a column via `order` (`moveRow`), keyboard (Space/arrows/Escape) with live announcements; calendar month shared via `views.calendar.cal`; presets map sample people onto real users (`createDatabase(doc, preset, users)`); gallery, peek |
 | DB-03 | CSV import/export with type detection | Done | `parseCsv` (quotes, CRLF, TSV, BOM), type detection incl. tags/progress/person, `CsvImportDialog`, download export, import→export round-trip tested |
 | BRD-01 | Board block: shapes, pen, text, sticky, select/transform | Done | `web/packages/board`: 9 tools, move/resize, swatch, inline text edit, zoom/pinch, full screen, compact cover, awareness pointers, per-view undo |
-| BRD-02 | Connectors, frames, images on board, PNG/SVG export | Todo | Plain arrows only; no bound connectors, images or export yet |
+| BRD-02 | Connectors, frames, images on board, PNG/SVG export | Review | Bound connectors (`start`/`end` `{shapeId, anchor}`, 5 anchors, snap while dragging an end, follow on move/resize, unbind when dragged away or moved by body), straight/elbow toggle; images by drop/paste/menu via optional `env.upload` (data URL ≤ 2 MB fallback); `exportBoardSvg`/`exportBoardPng` (fit to content, light palette) + Export in the board menu. Checked in Chrome via a temp harness. |
 
 ## Integration log
 

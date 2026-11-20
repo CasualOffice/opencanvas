@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import {
@@ -9,8 +9,8 @@ import {
 import type { BlockEnv, OcUser } from "@opencanvas/ui";
 import { CsvImportDialog } from "./CsvImportDialog";
 import {
-  addField, addOption, addRow, appendCsv, databasesRoot, databaseToCsv, databaseToMarkdown, deleteField, deleteRow, FIELD_LABEL,
-  getDbMap, readDb, renameField, restoreField, restoreRow, setCell, setDbMeta, setNote, setPrefs, setView,
+  addField, addOption, addRow, appendCsv, databasesRoot, databaseToCsv, databaseToMarkdown, DB_ORIGIN, deleteField, deleteRow, FIELD_LABEL,
+  getDbMap, moveRow, readDb, renameField, restoreField, restoreRow, setCell, setDbMeta, setNote, setPrefs, setView,
 } from "./model";
 import { DEMO_PEOPLE } from "./presets";
 import {
@@ -653,44 +653,292 @@ function cardMeta(ctx: Ctx, r: DbRow, skip?: string): ReactNode[] {
     });
 }
 
+/** Long-press delay before a touch drag picks a card up. */
+export const LONG_PRESS_MS = 250;
+
+interface KDrag {
+  id: string;
+  /** pointer position (client px) */
+  x: number;
+  y: number;
+  /** grab offset inside the card, and its size */
+  ox: number;
+  oy: number;
+  w: number;
+  /** drop target: group value + card to insert before (null = end of column) */
+  to: string;
+  before: string | null;
+}
+
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let p = el?.parentElement ?? null; p; p = p.parentElement) {
+    const oy = getComputedStyle(p).overflowY;
+    if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? null;
+}
+
 function KanbanView({ ctx }: { ctx: Ctx }) {
-  const { db, rows, edit, doc, newRow, setPeek, compact } = ctx;
+  const { db, rows, edit, doc, newRow, setPeek } = ctx;
   const g = groupField(db);
-  const [drag, setDrag] = useState<string | null>(null);
-  const [over, setOver] = useState<string | null>(null);
+  const [drag, setDragState] = useState<KDrag | null>(null);
+  const dragRef = useRef<KDrag | null>(null);
+  const setDrag = (d: KDrag | null) => {
+    dragRef.current = d;
+    setDragState(d);
+  };
+  /** Keyboard pick-up: the card being moved and where it came from (for Escape). */
+  const [kb, setKb] = useState<{ id: string; v: CellValue; next: string | null } | null>(null);
+  const [live, setLive] = useState("");
+  const kanRef = useRef<HTMLDivElement>(null);
+  const suppressClick = useRef(false);
+  const gesture = useRef<(() => void) | null>(null);
+  useEffect(() => () => gesture.current?.(), []);
+
+  // Keep focus on a keyboard-moved card (it remounts when it changes column).
+  useLayoutEffect(() => {
+    if (!kb) return;
+    const el = kanRef.current?.querySelector<HTMLElement>(`[data-kcard="${kb.id}"]`);
+    if (el && document.activeElement !== el) el.focus({ preventScroll: false });
+  });
+
   if (!g) return <p className="ocdb-hint">Add a Status or Select field to use the board view.</p>;
   const tf = titleField(db);
   const known = new Set((g.options ?? []).map((o) => o.v));
-  const groups = [...(g.options ?? []).map((o) => o.v), ""];
+  const groupOf = (r: DbRow) => {
+    const v = r.v[g.id];
+    return v && known.has(String(v)) ? String(v) : "";
+  };
+  const cols = [...(g.options ?? []).map((o) => o.v), ""]
+    .map((gv) => ({ gv, items: rows.filter((r) => groupOf(r) === gv) }))
+    .filter((c) => c.gv !== "" || c.items.length || drag?.to === "");
+  const titleOf = (rid: string) => String(db.rows.find((r) => r.id === rid)?.v[tf.id] ?? "") || "Untitled";
+  const colName = (gv: string) => gv || `No ${g.name.toLowerCase()}`;
+
+  /** Put `rid` into column `gv`, before `before` (null = after the column's last card). */
+  const place = (rid: string, gv: string, before: string | null) => {
+    const col = cols.find((c) => c.gv === gv);
+    const others = (col?.items ?? []).filter((r) => r.id !== rid);
+    let target: string | null | undefined;
+    if (before && before !== rid) target = before;
+    else if (others.length) {
+      const idx = db.rows.findIndex((r) => r.id === others[others.length - 1].id);
+      target = db.rows.slice(idx + 1).find((r) => r.id !== rid)?.id ?? null;
+    }
+    const row = db.rows.find((r) => r.id === rid);
+    doc.transact(() => {
+      if (target !== undefined) moveRow(doc, db.id, rid, target);
+      if (row && groupOf(row) !== gv) setCell(doc, db.id, rid, g.id, gv || null);
+    }, DB_ORIGIN);
+  };
+
+  /* ---- pointer drag (mouse: move 4px; touch/pen: long-press) ---- */
+  const hitTest = (x: number, y: number, d: KDrag): Pick<KDrag, "to" | "before"> => {
+    const hit = typeof document.elementFromPoint === "function" ? document.elementFromPoint(x, y) : null;
+    const colEl = hit?.closest<HTMLElement>("[data-kcol]");
+    if (!colEl || !kanRef.current?.contains(colEl)) return { to: d.to, before: d.before };
+    const to = colEl.getAttribute("data-kcol") ?? "";
+    let before: string | null = null;
+    for (const c of colEl.querySelectorAll<HTMLElement>("[data-kcard]")) {
+      const id = c.getAttribute("data-kcard")!;
+      if (id === d.id) continue;
+      const r = c.getBoundingClientRect();
+      if (y < r.top + r.height / 2) {
+        before = id;
+        break;
+      }
+    }
+    return { to, before };
+  };
+
+  const onCardPointerDown = (e: React.PointerEvent<HTMLButtonElement>, r: DbRow) => {
+    if (!edit || kb || (e.pointerType === "mouse" && e.button !== 0)) return;
+    gesture.current?.();
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const touch = e.pointerType !== "mouse";
+    let started = false;
+    let px = sx, py = sy;
+    let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const begin = () => {
+      started = true;
+      try { navigator.vibrate?.(8); } catch { /* not allowed */ }
+      const d: KDrag = { id: r.id, x: px, y: py, ox: sx - rect.left, oy: sy - rect.top, w: rect.width, to: groupOf(r), before: null };
+      Object.assign(d, hitTest(px, py, d));
+      setDrag(d);
+      raf = requestAnimationFrame(autoScroll);
+    };
+    const autoScroll = () => {
+      const d = dragRef.current;
+      const kan = kanRef.current;
+      if (!d || !kan) return;
+      const k = kan.getBoundingClientRect();
+      const edge = 48, speed = (dist: number) => Math.ceil(((edge - dist) / edge) * 14);
+      let moved = false;
+      if (px < k.left + edge && kan.scrollLeft > 0) (kan.scrollLeft -= speed(px - k.left)), (moved = true);
+      else if (px > k.right - edge && kan.scrollLeft < kan.scrollWidth - kan.clientWidth) (kan.scrollLeft += speed(k.right - px)), (moved = true);
+      const sp = scrollParent(kan);
+      if (sp) {
+        const top = sp === document.scrollingElement ? 0 : sp.getBoundingClientRect().top;
+        const bottom = sp === document.scrollingElement ? window.innerHeight : sp.getBoundingClientRect().bottom;
+        if (py < top + edge) (sp.scrollTop -= speed(py - top)), (moved = true);
+        else if (py > bottom - edge) (sp.scrollTop += speed(bottom - py)), (moved = true);
+      }
+      if (moved) {
+        const next = { ...d, ...hitTest(px, py, d) };
+        if (next.to !== d.to || next.before !== d.before) setDrag(next);
+      }
+      raf = requestAnimationFrame(autoScroll);
+    };
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      px = ev.clientX;
+      py = ev.clientY;
+      if (!started) {
+        const dist = Math.hypot(px - sx, py - sy);
+        if (touch) {
+          if (dist > 8) end(); // it's a scroll, not a long-press
+        } else if (dist > 4) begin();
+        return;
+      }
+      const d = dragRef.current!;
+      setDrag({ ...d, x: px, y: py, ...hitTest(px, py, d) });
+    };
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      const d = dragRef.current;
+      if (started && d && ev.type === "pointerup") {
+        place(d.id, d.to, d.before);
+        setLive(`Moved ${titleOf(d.id)} to ${colName(d.to)}`);
+      }
+      if (started) {
+        suppressClick.current = true;
+        setTimeout(() => (suppressClick.current = false), 0);
+      }
+      end();
+    };
+    // While dragging by touch, stop the page from scrolling under the finger.
+    const touchMove = (ev: TouchEvent) => {
+      if (started) ev.preventDefault();
+    };
+    const noMenu = (ev: Event) => {
+      if (started || touch) ev.preventDefault();
+    };
+    const end = () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      document.removeEventListener("touchmove", touchMove);
+      card.removeEventListener("contextmenu", noMenu);
+      gesture.current = null;
+      if (started) setDrag(null);
+    };
+    gesture.current = end;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    document.addEventListener("touchmove", touchMove, { passive: false });
+    card.addEventListener("contextmenu", noMenu);
+    if (touch) timer = setTimeout(begin, LONG_PRESS_MS);
+  };
+
+  /* ---- keyboard: Space picks up, arrows move, Space/Enter drops, Escape cancels ---- */
+  const onCardKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, r: DbRow) => {
+    if (!edit) return;
+    const picked = kb?.id === r.id;
+    if (!picked) {
+      if (e.key === " ") {
+        e.preventDefault();
+        suppressClick.current = true;
+        const idx = db.rows.findIndex((x) => x.id === r.id);
+        setKb({ id: r.id, v: r.v[g.id] ?? null, next: db.rows[idx + 1]?.id ?? null });
+        setLive(`Picked up ${titleOf(r.id)}. Use the arrow keys to move it, Space to drop, Escape to cancel.`);
+      }
+      return;
+    }
+    const ci = cols.findIndex((c) => c.gv === groupOf(r));
+    const items = cols[ci]?.items ?? [];
+    const i = items.findIndex((x) => x.id === r.id);
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      suppressClick.current = true;
+      setKb(null);
+      setLive(`Dropped ${titleOf(r.id)} in ${colName(groupOf(r))}, position ${i + 1} of ${items.length}`);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      doc.transact(() => {
+        moveRow(doc, db.id, r.id, kb!.next);
+        setCell(doc, db.id, r.id, g.id, kb!.v);
+      }, DB_ORIGIN);
+      setKb(null);
+      setLive(`Cancelled. ${titleOf(r.id)} is back where it was.`);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      if (e.key === "ArrowUp" && i > 0) place(r.id, groupOf(r), items[i - 1].id);
+      else if (e.key === "ArrowDown" && i < items.length - 1) place(r.id, groupOf(r), items[i + 2]?.id ?? null);
+      else return;
+      setLive(`${titleOf(r.id)}: position ${e.key === "ArrowUp" ? i : i + 2} of ${items.length} in ${colName(groupOf(r))}`);
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const to = cols[ci + (e.key === "ArrowLeft" ? -1 : 1)];
+      if (!to) return;
+      const others = to.items;
+      place(r.id, to.gv, others[Math.min(i, others.length)]?.id ?? null);
+      setLive(`${titleOf(r.id)} moved to ${colName(to.gv)}`);
+    }
+  };
+
+  const dragRow = drag ? db.rows.find((r) => r.id === drag.id) : undefined;
+  const marker = <div className="ocdb-kdrop" key="__drop" aria-hidden="true" />;
+
   return (
-    <div className="ocdb-kan">
-      {groups.map((gv) => {
-        const items = rows.filter((r) => {
-          const v = r.v[g.id];
-          return gv === "" ? !v || !known.has(String(v)) : v === gv;
-        });
-        if (gv === "" && !items.length) return null;
+    <div className={"ocdb-kan" + (drag ? " dragging" : "")} ref={kanRef}>
+      {cols.map(({ gv, items }) => {
         const o = optOf(g, gv);
+        const target = drag && drag.to === gv;
+        const cards: ReactNode[] = [];
+        for (const r of items) {
+          if (target && drag.before === r.id) cards.push(marker);
+          const title = String(r.v[tf.id] ?? "");
+          const picked = kb?.id === r.id;
+          cards.push(
+            <button
+              key={r.id}
+              data-kcard={r.id}
+              className={"ocdb-kcard" + (drag?.id === r.id ? " dragging" : "") + (picked ? " picked" : "") + (edit ? " movable" : "")}
+              aria-roledescription={edit ? "Movable card" : undefined}
+              aria-pressed={edit ? picked : undefined}
+              aria-keyshortcuts={edit ? "Space" : undefined}
+              onPointerDown={(e) => onCardPointerDown(e, r)}
+              onKeyDown={(e) => onCardKeyDown(e, r)}
+              onBlur={() => {
+                if (!picked) return;
+                setTimeout(() => {
+                  if ((document.activeElement as HTMLElement | null)?.getAttribute?.("data-kcard") !== r.id) setKb((k) => (k?.id === r.id ? null : k));
+                }, 0);
+              }}
+              onClick={() => {
+                if (suppressClick.current || picked) {
+                  suppressClick.current = false;
+                  return;
+                }
+                setPeek(r.id);
+              }}
+            >
+              <span className={"ocdb-kt" + (title ? "" : " untitled")}>{title || "Untitled"}</span>
+              <span className="ocdb-km">{cardMeta(ctx, r, g.id)}</span>
+            </button>,
+          );
+        }
+        if (target && drag.before === null) cards.push(marker);
         return (
-          <div
-            key={gv || "__none"}
-            className={"ocdb-kcol" + (over === gv && drag ? " over" : "")}
-            onDragOver={(e) => {
-              if (!drag) return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "move";
-              if (over !== gv) setOver(gv);
-            }}
-            onDragLeave={(e) => {
-              if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setOver((x) => (x === gv ? null : x));
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (drag) setCell(doc, db.id, drag, g.id, gv || null);
-              setDrag(null);
-              setOver(null);
-            }}
-          >
+          <div key={gv || "__none"} data-kcol={gv} className={"ocdb-kcol" + (target ? " over" : "")}>
             <div className="ocdb-khead">
               {o ? <Pill label={o.v} c={o.c} st /> : <Pill label={`No ${g.name.toLowerCase()}`} />}
               <span className="kc">{items.length}</span>
@@ -700,29 +948,7 @@ function KanbanView({ ctx }: { ctx: Ctx }) {
                 </button>
               ) : null}
             </div>
-            {items.map((r) => {
-              const title = String(r.v[tf.id] ?? "");
-              return (
-                <button
-                  key={r.id}
-                  className={"ocdb-kcard" + (drag === r.id ? " dragging" : "")}
-                  draggable={edit && !compact}
-                  onDragStart={(e) => {
-                    setDrag(r.id);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", r.id);
-                  }}
-                  onDragEnd={() => {
-                    setDrag(null);
-                    setOver(null);
-                  }}
-                  onClick={() => setPeek(r.id)}
-                >
-                  <span className={"ocdb-kt" + (title ? "" : " untitled")}>{title || "Untitled"}</span>
-                  <span className="ocdb-km">{cardMeta(ctx, r, g.id)}</span>
-                </button>
-              );
-            })}
+            {cards}
             {edit ? (
               <button className="ocdb-kadd" onClick={() => newRow({ [g.id]: gv || null }, true)}>
                 <Ic i={Plus} s={14} />
@@ -732,6 +958,16 @@ function KanbanView({ ctx }: { ctx: Ctx }) {
           </div>
         );
       })}
+      <div className="ocdb-sr" aria-live="assertive" role="status">{live}</div>
+      {drag && dragRow && typeof document !== "undefined"
+        ? createPortal(
+            <div className="ocdb-kghost" style={{ left: drag.x - drag.ox, top: drag.y - drag.oy, width: drag.w }} aria-hidden="true">
+              <span className={"ocdb-kt" + (dragRow.v[tf.id] ? "" : " untitled")}>{String(dragRow.v[tf.id] ?? "") || "Untitled"}</span>
+              <span className="ocdb-km">{cardMeta(ctx, dragRow, g.id)}</span>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -741,7 +977,9 @@ function KanbanView({ ctx }: { ctx: Ctx }) {
 function CalendarView({ ctx }: { ctx: Ctx }) {
   const { db, rows, compact, setPeek, edit, newRow, people } = ctx;
   const df = dateField(db);
-  const [month, setMonth] = useState(() => ctx.prefs.cal ?? defaultMonth(db));
+  // The shown month lives in the view prefs (`views.calendar.cal`) so collaborators see the same month.
+  const month = ctx.prefs.cal && /^\d{4}-\d{2}$/.test(ctx.prefs.cal) ? ctx.prefs.cal : defaultMonth(db);
+  const setMonth = (m: string) => m !== month && ctx.patchPrefs({ cal: m });
   if (!df) return <p className="ocdb-hint">Add a Date field to use the calendar view.</p>;
   const tf = titleField(db);
   const g = groupField(db);

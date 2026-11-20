@@ -1,6 +1,7 @@
 import * as Y from "yjs";
+import type { ArrowRoute, Binding } from "./connectors";
 
-export type ShapeType = "sticky" | "rect" | "ellipse" | "diamond" | "text" | "arrow" | "pen" | "swatch";
+export type ShapeType = "sticky" | "rect" | "ellipse" | "diamond" | "text" | "arrow" | "pen" | "swatch" | "image";
 export type StickyFill = "y" | "p" | "b" | "g";
 export type Pt = [number, number];
 
@@ -24,6 +25,15 @@ export interface Shape {
   pts?: Pt[];
   /** "accent" for pen strokes */
   stroke?: string;
+  /** arrow: shape + anchor the tail / head is attached to (see connectors.ts) */
+  start?: Binding;
+  end?: Binding;
+  /** arrow: "elbow" for an orthogonal route; "straight" (or unset with a binding) for a line */
+  route?: ArrowRoute;
+  /** image: URL (host asset or data: URL) */
+  src?: string;
+  /** image: alt text / file name */
+  alt?: string;
 }
 
 export type BoardPreset = "blank" | "flow" | "brainstorm" | "mindmap" | "journey" | "moodboard" | "flowchart";
@@ -219,6 +229,9 @@ export function deleteShape(doc: Y.Doc, boardId: string, sid: string, origin?: u
 export function duplicateShape(doc: Y.Doc, boardId: string, s: Shape, dx = 24, dy = 24, origin?: unknown): string {
   const n: Shape = JSON.parse(JSON.stringify(s));
   n.id = nid("s");
+  // A copy of a bound connector is a free arrow at the same (offset) place.
+  delete n.start;
+  delete n.end;
   if (n.pts) n.pts = n.pts.map((p) => [p[0] + dx, p[1] + dy]);
   else {
     n.x = (n.x ?? 0) + dx;
