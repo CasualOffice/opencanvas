@@ -109,9 +109,13 @@ mod tests {
     #[test]
     fn stale_state_adds_nothing_but_edits_do() {
         let doc = base();
-        let empty = Doc::new().transact().encode_state_as_update_v1(&StateVector::default());
+        let empty = Doc::new()
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default());
         assert!(adds_nothing(&doc, &empty));
-        let full = doc.transact().encode_state_as_update_v1(&StateVector::default());
+        let full = doc
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default());
         assert!(adds_nothing(&doc, &full));
         let edit = edit(&doc, |c| {
             let f = c.get_or_insert_xml_fragment("content");
