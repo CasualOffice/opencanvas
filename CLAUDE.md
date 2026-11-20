@@ -9,5 +9,5 @@ Essentials:
 - **SQLite by default. MySQL/MariaDB when `DATABASE_URL` is set** (ADR-004).
 - Check means running it. Every fix ships with a test that was seen to fail first.
 
-Current state: **P0. The docs are written and in review. UI-02 prototype is
-awaiting approval.** No code has been written yet.
+Current state: **P1 alpha. Server, editor, blocks and sample host run end to end;
+see the tracker integration log.**
