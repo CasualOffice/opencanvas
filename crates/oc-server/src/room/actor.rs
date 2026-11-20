@@ -329,11 +329,23 @@ impl Room {
                         self.send(conn, protocol::awareness(update));
                     }
                 }
-                Message::Custom(protocol::MSG_CONTROL, body) => {
-                    tracing::debug!(room = %self.id, conn, bytes = body.len(), "client control message ignored");
-                }
+                Message::Custom(protocol::MSG_CONTROL, body) => self.on_control(conn, &body),
                 Message::Auth(_) | Message::Custom(..) => {}
             }
+        }
+    }
+
+    /// Client control JSON. Only `{"t":"save"}` (the "Retry now" button) is acted on:
+    /// it skips the retry backoff so the next tick saves straight away.
+    fn on_control(&mut self, conn: ConnId, body: &[u8]) {
+        let wants_save = std::str::from_utf8(body)
+            .ok()
+            .and_then(|s| serde_json::from_str::<Value>(s).ok())
+            .is_some_and(|v| v["t"] == "save");
+        let can_write = self.peers.get(&conn).is_some_and(|p| p.grant.can_write());
+        if wants_save && can_write && self.dirty_since.is_some() && !self.save.conflict {
+            self.save.retry_at = None;
+            self.dirty_since = Some(Instant::now() - self.ctx.cfg.autosave_max);
         }
     }
 
@@ -370,6 +382,9 @@ impl Room {
         let Some(grant) = self.peers.get(&conn).map(|p| p.grant.clone()) else {
             return;
         };
+        if grant.role != Role::Edit && filter::adds_nothing(&self.doc, &bytes) {
+            return;
+        }
         match grant.role {
             Role::View => return self.deny(conn, "read-only session"),
             Role::Comment if !filter::touches_only_comments(&self.doc, &bytes) => {

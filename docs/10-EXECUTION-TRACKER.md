@@ -79,3 +79,14 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | DB-03 | CSV import/export with type detection | Done | `parseCsv` (quotes, CRLF, TSV, BOM), type detection incl. tags/progress/person, `CsvImportDialog`, download export, import→export round-trip tested |
 | BRD-01 | Board block: shapes, pen, text, sticky, select/transform | Done | `web/packages/board`: 9 tools, move/resize, swatch, inline text edit, zoom/pinch, full screen, compact cover, awareness pointers, per-view undo |
 | BRD-02 | Connectors, frames, images on board, PNG/SVG export | Todo | Plain arrows only; no bound connectors, images or export yet |
+
+## Integration log
+
+| Date | Item | Result |
+|---|---|---|
+| 2026-11-21 | Merged server, database/board, editor branches into main | cargo test (30) + vitest (131) + typecheck + editor build green |
+| 2026-11-21 | Two-browser live test via sample host (Priya edit, Sam view) | Template applied; content, cursors, avatars both ways; DB checkbox live to viewer; autosaves v1–v3 landed in host |
+| 2026-11-21 | Fix: viewers' empty sync step 2 was answered with "permission denied" | `filter::adds_nothing`; non-writes from view/comment are ignored silently |
+| 2026-11-21 | Fix: `{"t":"save"}` control (Retry now) was ignored | skips backoff, saves on next tick |
+| 2026-11-21 | Fix: MySQL 8.4 could not connect (caching_sha2 needs RSA or TLS) | sqlx `mysql-rsa` + rustls features |
+| 2026-11-21 | `scripts/e2e-db.sh` on SQLite, MariaDB 11.4, MySQL 8.4 | PASS on all three |

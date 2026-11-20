@@ -44,6 +44,29 @@ pub fn touches_only_comments(doc: &Doc, update: &[u8]) -> bool {
     !foreign_change && !new_root && !pending
 }
 
+/// True when `update` carries nothing the room does not already have. Read-only clients
+/// send their (empty or stale) state as sync step 2 on every connect; that is not a write.
+pub fn adds_nothing(doc: &Doc, update: &[u8]) -> bool {
+    let Ok(update) = Update::decode_v1(update) else {
+        return false;
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return false;
+    }
+    let before = scratch.transact().state_vector();
+    let mut txn = scratch.transact_mut();
+    if txn.apply_update(update).is_err() {
+        return false;
+    }
+    txn.commit();
+    let pending = txn.store().pending_update().is_some() || txn.store().pending_ds().is_some();
+    txn.changed_parent_types().is_empty() && txn.state_vector() == before && !pending
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,6 +104,20 @@ mod tests {
             m.insert(&mut c.transact_mut(), "t1", "nice");
         });
         assert!(touches_only_comments(&doc, &u));
+    }
+
+    #[test]
+    fn stale_state_adds_nothing_but_edits_do() {
+        let doc = base();
+        let empty = Doc::new().transact().encode_state_as_update_v1(&StateVector::default());
+        assert!(adds_nothing(&doc, &empty));
+        let full = doc.transact().encode_state_as_update_v1(&StateVector::default());
+        assert!(adds_nothing(&doc, &full));
+        let edit = edit(&doc, |c| {
+            let f = c.get_or_insert_xml_fragment("content");
+            f.push_back(&mut c.transact_mut(), XmlTextPrelim::new("spam"));
+        });
+        assert!(!adds_nothing(&doc, &edit));
     }
 
     #[test]
