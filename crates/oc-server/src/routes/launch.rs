@@ -12,7 +12,7 @@ use serde_json::json;
 use super::{ApiError, session};
 use crate::metrics::Metrics;
 use crate::util::{now_ms, now_secs};
-use crate::{SharedState, TicketUse, jwt};
+use crate::{SharedState, TicketUse};
 
 #[derive(Deserialize)]
 pub struct LaunchParams {
@@ -44,7 +44,10 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
         tracing::info!(reason = %msg, "launch rejected");
         ApiError::new(StatusCode::UNAUTHORIZED, code, msg)
     };
-    let (host, claims) = jwt::verify(token, &state.hosts, now)
+    let (host, claims) = state
+        .jwks
+        .verify(token, &state.hosts, now)
+        .await
         .map_err(|e| reject("TOKEN_INVALID", e.to_string()))?;
     let exp = claims.exp;
     if !state

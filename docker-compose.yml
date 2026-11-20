@@ -11,6 +11,9 @@ services:
       OC_PUBLIC_URL: http://localhost:8080
       OC_HOSTS_FILE: /etc/opencanvas/hosts.toml
       OC_CALLBACK_BASE_OVERRIDE: http://sample-host:4000/api/opencanvas
+      # Development stack: no OC_KEK, so tokens at rest are not encrypted. Production sets
+      # OC_KEK (openssl rand -base64 32) and drops OC_DEV.
+      OC_DEV: "1"
     volumes:
       - oc-data:/data
       - ./opencanvas.hosts.toml:/etc/opencanvas/hosts.toml:ro
@@ -21,6 +24,8 @@ services:
     ports: ["4000:4000"]
     environment:
       OC_SERVER: http://localhost:8080
+      OC_SERVER_INTERNAL: http://opencanvas:8080
+      OC_API_KEY: dev-api-key-change-me
       PUBLIC_URL: http://localhost:4000
     volumes:
       - ./examples/sample-host:/app

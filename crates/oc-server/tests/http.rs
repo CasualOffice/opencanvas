@@ -265,3 +265,41 @@ async fn websocket_rejects_wrong_room_and_bad_ticket() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn frame_flood_closes_the_socket_with_1008() {
+    let (base, _host) = mock_host().await;
+    let addr = serve(&base).await;
+    let loc = launch(&addr, &token("edit")).await.headers()["location"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    let ticket = loc.trim_start_matches("/app/#t=").to_string();
+    let s: Value = http()
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let room = s["room"].as_str().unwrap();
+    let (mut ws, _) =
+        tokio_tungstenite::connect_async(format!("ws://{addr}/v1/collab/{room}?ticket={ticket}"))
+            .await
+            .unwrap();
+    // 200 frames at once: more than the burst of 120 (refill 60/s).
+    for _ in 0..200 {
+        if ws.send(WsMessage::Binary(vec![3u8].into())).await.is_err() {
+            break;
+        }
+    }
+    let closed = loop {
+        match tokio::time::timeout(Duration::from_secs(3), ws.next()).await {
+            Ok(Some(Ok(WsMessage::Close(Some(f))))) => break Some(u16::from(f.code)),
+            Ok(Some(Ok(_))) => continue,
+            _ => break None,
+        }
+    };
+    assert_eq!(closed, Some(1008));
+}
