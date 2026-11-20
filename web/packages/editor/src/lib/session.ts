@@ -59,7 +59,8 @@ export type Control =
   | { t: "closed"; reason?: string };
 
 export const MESSAGE_CONTROL = 100;
-const MESSAGE_AUTH = 3;
+// y-protocols auth message (docs/15 §3): [2, 0 = permission denied, reason]
+const MESSAGE_AUTH = 2;
 
 export type ConnState = "connecting" | "connected" | "reconnecting" | "offline";
 
@@ -107,7 +108,7 @@ export function connectCollab(s: Session): Collab {
     }
   };
   provider.messageHandlers[MESSAGE_AUTH] = (_enc, dec) => {
-    // [3, 0 = permission denied, reason]
+    // [2, 0 = permission denied, reason]
     const kind = decoding.readVarUint(dec);
     if (kind === 0) denied.emit(decoding.readVarString(dec));
   };

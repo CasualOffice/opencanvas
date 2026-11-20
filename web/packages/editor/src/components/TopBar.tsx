@@ -27,6 +27,7 @@ export function TopBar(props: {
   commentsOpen: boolean;
   wide: boolean;
   canExport: boolean;
+  canDownload: boolean;
   onGallery(): void;
   onFollow(p: Peer): void;
   onComments(): void;
@@ -112,25 +113,33 @@ export function TopBar(props: {
       ) : null}
       {pop?.kind === "more" ? (
         <Popover anchor={pop.anchor} onClose={close} title="Canvas" alignRight minWidth={240}>
-          {props.canExport ? (
+          {props.canExport || props.canDownload ? (
             <>
               <div className="mh">Export</div>
-              <button className="mi" onClick={() => (close(), props.onExport("md"))}>
-                <Ic name="file-text" />
-                Markdown<span className="mk">.md</span>
-              </button>
-              <button className="mi" onClick={() => (close(), props.onExport("html"))}>
-                <Ic name="code-xml" />
-                Web page<span className="mk">.html</span>
-              </button>
-              <button className="mi" onClick={() => (close(), props.onExport("ocanvas"))}>
-                <Ic name="pen-tool" />
-                OpenCanvas file<span className="mk">.ocanvas</span>
-              </button>
-              <button className="mi" onClick={() => (close(), props.onExport("json"))}>
-                <Ic name="file-down" />
-                JSON<span className="mk">.json</span>
-              </button>
+              {props.canExport ? (
+                <>
+                  <button className="mi" onClick={() => (close(), props.onExport("md"))}>
+                    <Ic name="file-text" />
+                    Markdown<span className="mk">.md</span>
+                  </button>
+                  <button className="mi" onClick={() => (close(), props.onExport("html"))}>
+                    <Ic name="code-xml" />
+                    Web page<span className="mk">.html</span>
+                  </button>
+                </>
+              ) : null}
+              {props.canDownload ? (
+                <button className="mi" onClick={() => (close(), props.onExport("ocanvas"))}>
+                  <Ic name="pen-tool" />
+                  OpenCanvas file<span className="mk">.ocanvas</span>
+                </button>
+              ) : null}
+              {props.canExport ? (
+                <button className="mi" onClick={() => (close(), props.onExport("json"))}>
+                  <Ic name="file-down" />
+                  JSON<span className="mk">.json</span>
+                </button>
+              ) : null}
               <div className="msep" />
             </>
           ) : null}

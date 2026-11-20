@@ -3,7 +3,7 @@
 // and rendered as skeleton thumbnails in the template gallery.
 import type { JSONContent } from "@tiptap/core";
 import type * as Y from "yjs";
-import { createDatabase, type DatabasePreset } from "@opencanvas/database";
+import { createDatabase, type DbPreset as DatabasePreset } from "@opencanvas/database";
 import { createBoard, type BoardPreset } from "@opencanvas/board";
 import type { Tone } from "@opencanvas/ui";
 

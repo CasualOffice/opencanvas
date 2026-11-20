@@ -29,16 +29,16 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | MOD-01 | `oc-model`: block schema + validation | Todo | |
 | MOD-02 | `.ocanvas` reader/writer, unknown-block preservation, zip limits | Todo | |
 | MOD-03 | Markdown/HTML import & export | Todo | |
-| STO-01 | Migrations (sqlite + mysql dialects), repositories | Todo | |
-| HOST-01 | JWT verify (HS256/RS256/EdDSA), jti cache | Todo | |
-| HOST-02 | Callback client (load/save/assets/users), HMAC signing, retries | Todo | |
+| STO-01 | Migrations (sqlite + mysql dialects), repositories | Review | `migrations/{sqlite,mysql}/0001_init.sql`, `oc-server/src/store.rs` (sqlx Any, SQLite WAL pragmas). Added `launch_jti`; `hosts`/`unfurl_cache` not created (TOML registry; P2). `commit_outbox` created but unused (saves retry in memory). Tested on SQLite only; MySQL/MariaDB CI not run yet. |
+| HOST-01 | JWT verify (HS256/RS256/EdDSA), jti cache | Review | `jwt.rs`: alg pinned by host, iss/aud/exp/nbf, ≤10 h, single-use jti in DB. 5 accept/reject tests incl. alg=none and HS512. RS256/EdDSA via `jwt_public_key` PEM, untested; no JWKS. |
+| HOST-02 | Callback client (load/save/assets/users), HMAC signing, retries | Review | `host_client.rs`; signature checked against an openssl vector and against `examples/sample-host` live (load, PUT v1→v3, users). Save backoff 1/2/5/10 s lives in the room actor. `OC_CALLBACK_BASE_OVERRIDE` supported. |
 | HOST-03 | `examples/sample-host` | Todo | |
-| COL-01 | Room actor, yrs doc, y-protocols sync + awareness | Todo | |
-| COL-02 | WAL + snapshot compaction + recovery | Todo | |
-| COL-03 | Role filter (view/comment/edit) with failing-first tests | Todo | |
-| COL-04 | Convergence fuzz harness (10k iters in CI) | Todo | |
-| CMT-01 | Commit engine: autosave/idle/manual/last-leave, outbox, 409 policy | Todo | |
-| SRV-01 | axum routes, launch, tickets, WS upgrade, ops endpoints | Todo | |
+| COL-01 | Room actor, yrs doc, y-protocols sync + awareness | Review | `room/actor.rs`, yrs 0.28 `sync` encoding (stock y-websocket wire). Awareness `user` stamped from grant. Auth frame is type 2 (docs/15 §3 corrected). Tests: convergence, awareness spoofing, full WS round trip. |
+| COL-02 | WAL + snapshot compaction + recovery | Review | WAL append before fan-out; compaction every 500 updates / 30 s; dirty rooms rebuilt from snapshot+WAL. Test kills the actor mid-edit and recovers without touching the host. |
+| COL-03 | Role filter (view/comment/edit) with failing-first tests | Review | `room/filter.rs` scratch-doc apply + changed root inspection. Seen failing: removing the filter fails `view_role_cannot_write` and `comment_role_cannot_change_content`; an always-reject filter fails `comment_role_can_write_comments`. |
+| COL-04 | Convergence fuzz harness (10k iters in CI) | In progress | `tests/fuzz.rs`: seeded, 3 peers × 3 seeds, random text/map/array ops with delayed delivery through a real room. Scaling to 10k iterations in CI still to do. |
+| CMT-01 | Commit engine: autosave/idle/manual/last-leave, outbox, 409 policy | Review | Debounce 2 s / max 10 s / last leave / SIGTERM, serialized per room, `saving/saved/save_error/conflict` controls, idempotency key reused while content is unchanged. Verified live: SIGTERM final save reached the sample host. No DB outbox (in-memory retry); 409 only stops autosave (no copy policy yet). |
+| SRV-01 | axum routes, launch, tickets, WS upgrade, ops endpoints | Review | Launch POST/GET → 303 `/app/#t=`, sessions (isNew), WS with 1009/1008 limits and 60 s connect window, export md/html/json/ocanvas, assets/users proxy, healthz/readyz/metrics, SPA at `/app/` with CSP frame-ancestors. `deploy/Dockerfile` builds and serves. Smoke client: `cargo run -p oc-server --example smoke`. |
 | WEB-01 | Editor core: text, lists, headings, quote, callout, code, divider | In progress | |
 | WEB-02 | Tables | In progress | |
 | WEB-03 | Images/files via asset proxy | In progress | |
@@ -69,3 +69,13 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | API-01 | Role / patch / commit / close REST | Todo |
 | TPL-01 | Host-supplied team templates callback | Todo |
 | OPS-01 | Helm chart, dashboards | Todo |
+
+## Block packages status (database / board session, 2026-11-21)
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| DB-01 | Database block model in Yjs + table view | Done | `web/packages/database`: contract §4 layout; cell editors, header menu, filter/sort/search chips (shared via `views`), footer totals; viewers keep view/prefs local |
+| DB-02 | Board, calendar, gallery views; row peek | Done | Kanban drag between groups, month grid (agenda when compact), gallery cards, peek side panel / full sheet with notes |
+| DB-03 | CSV import/export with type detection | Done | `parseCsv` (quotes, CRLF, TSV, BOM), type detection incl. tags/progress/person, `CsvImportDialog`, download export, import→export round-trip tested |
+| BRD-01 | Board block: shapes, pen, text, sticky, select/transform | Done | `web/packages/board`: 9 tools, move/resize, swatch, inline text edit, zoom/pinch, full screen, compact cover, awareness pointers, per-view undo |
+| BRD-02 | Connectors, frames, images on board, PNG/SVG export | Todo | Plain arrows only; no bound connectors, images or export yet |

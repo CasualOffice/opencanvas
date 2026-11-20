@@ -590,6 +590,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
               commentsOpen={side === "comments"}
               wide={wide}
               canExport={session.perms.export !== false}
+              canDownload={session.perms.download !== false}
               onGallery={() => setScreen("gallery")}
               onFollow={follow}
               onComments={() => (side ? closeSide() : setSide("comments"))}
