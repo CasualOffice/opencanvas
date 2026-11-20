@@ -39,17 +39,17 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | COL-04 | Convergence fuzz harness (10k iters in CI) | In progress | `tests/fuzz.rs`: seeded, 3 peers × 3 seeds, random text/map/array ops with delayed delivery through a real room. Scaling to 10k iterations in CI still to do. |
 | CMT-01 | Commit engine: autosave/idle/manual/last-leave, outbox, 409 policy | Review | Debounce 2 s / max 10 s / last leave / SIGTERM, serialized per room, `saving/saved/save_error/conflict` controls, idempotency key reused while content is unchanged. Verified live: SIGTERM final save reached the sample host. No DB outbox (in-memory retry); 409 only stops autosave (no copy policy yet). |
 | SRV-01 | axum routes, launch, tickets, WS upgrade, ops endpoints | Review | Launch POST/GET → 303 `/app/#t=`, sessions (isNew), WS with 1009/1008 limits and 60 s connect window, export md/html/json/ocanvas, assets/users proxy, healthz/readyz/metrics, SPA at `/app/` with CSP frame-ancestors. `deploy/Dockerfile` builds and serves. Smoke client: `cargo run -p oc-server --example smoke`. |
-| WEB-01 | Editor core: text, lists, headings, quote, callout, code, divider | In progress | |
-| WEB-02 | Tables | In progress | |
-| WEB-03 | Images/files via asset proxy | In progress | |
-| WEB-04 | Links, link cards, embeds (allow-list) | In progress | |
-| WEB-05 | Presence: avatars, cursors, selections, follow | In progress | |
-| WEB-06 | Autosave status + popover (no Save button) | In progress | |
+| WEB-01 | Editor core: text, lists, headings, quote, callout, code, divider | Review | `web/packages/editor`: Tiptap v3 + Yjs (`content` field), custom nodes per docs/15 §4 (callout, toggle, columns, bookmark, embed, fileAttachment, database, board, mention, commentMark), slash menu, markdown rules (incl. `>>` toggle), hover gutter + block menu with undo toast, selection toolbar. `#demo` review mode. Verified in headless Chrome (desktop + 390 px). |
+| WEB-02 | Tables | Review | TableKit (resizable), slash "Simple table"; template tables. |
+| WEB-03 | Images/files via asset proxy | Review | Image (caption, drop/replace) and file blocks upload via `POST /v1/assets?ticket=`; not yet exercised against the sample host. |
+| WEB-04 | Links, link cards, embeds (allow-list) | Review | Paste-a-URL menu (link / preview / embed); embeds: YouTube (nocookie), Vimeo, Loom, Figma, Maps in sandboxed iframes, click-to-load. Link-card titles are the hostname until UNF-01. |
+| WEB-05 | Presence: avatars, cursors, selections, follow | Review | CollaborationCaret labels, block peer bars, avatar stack with typing dot / viewer eye, follow mode. Live run: a client that joins later is not shown to clients already in the room (awareness from late joiners not delivered); needs a server-side look. |
+| WEB-06 | Autosave status + popover (no Save button) | Review | Control channel (type 100) drives Saving/Saved/Retrying/Offline/Reconnecting; banners for view/comment/offline/save-failing/role-changed, modals for conflict/closed. Verified live: sample host received v2 after edits. |
 | DB-01 | Database block model in Yjs + table view | In progress | |
 | DB-02 | Board, calendar, gallery views; row peek | In progress | |
 | DB-03 | CSV import/export with type detection | Todo | |
-| TPL-02 | Template gallery + 40 built-in `.ocanvas` templates | In progress | |
-| SDK-01 | `@opencanvas/embed` web component + postMessage | Todo | |
+| TPL-02 | Template gallery + 40 built-in `.ocanvas` templates | Review | 40 templates ported from UI-02 with skeleton thumbnails, categories, search, chips (compact), preview modal, blank starts + Import (md/html/csv). Shown for `isNew` edit sessions (verified live). |
+| SDK-01 | `@opencanvas/embed` web component + postMessage | Review | `public/sdk/embed.js` (served at `/app/sdk/embed.js`): `<open-canvas server token theme>` form-POSTs the token, maps postMessage to `oc:*` events, `commit/setReadOnly/refresh/export/setTheme`. Not yet tested in a host page. |
 | RND-01 | Preview SSR + `@opencanvas/preview` | Todo | |
 | UNF-01 | SSRF-safe unfurl | Todo | |
 | E2E-01 | Playwright two-browser suite | Todo | |
