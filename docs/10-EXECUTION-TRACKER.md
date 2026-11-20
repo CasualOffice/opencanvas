@@ -90,3 +90,4 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | 2026-11-21 | Fix: `{"t":"save"}` control (Retry now) was ignored | skips backoff, saves on next tick |
 | 2026-11-21 | Fix: MySQL 8.4 could not connect (caching_sha2 needs RSA or TLS) | sqlx `mysql-rsa` + rustls features |
 | 2026-11-21 | `scripts/e2e-db.sh` on SQLite, MariaDB 11.4, MySQL 8.4 | PASS on all three |
+| 2026-11-21 | Merged board/database finishing (connectors, board images, SVG/PNG export, touch kanban, shared calendar, real people in presets) | board 42 + database 138 pass; one board test failed once under parallel load and did not reproduce in 9 reruns, watch in CI |
