@@ -28,7 +28,7 @@ function read(aw: Awareness): Peer[] {
       name: u.name,
       color: u.color ?? "#6b7280",
       avatar: u.avatar,
-      role: u.role ?? "edit",
+      role: (st.role as Role | undefined) ?? u.role ?? "edit",
       typing: !!st.typing,
       me,
       hasCursor: !!st.cursor,

@@ -98,7 +98,8 @@ export function connectCollab(s: Session): Collab {
     params: { ticket: s.ticket },
     maxBackoffTime: 10000,
   });
-  provider.awareness.setLocalStateField("user", { id: s.user.id, name: s.user.name, color: s.user.color, role: s.role });
+  // The server rewrites `user` from the grant (id, name, color, avatar), so the role travels beside it.
+  provider.awareness.setLocalState({ user: { id: s.user.id, name: s.user.name, color: s.user.color }, role: s.role });
 
   provider.messageHandlers[MESSAGE_CONTROL] = (_enc, dec) => {
     try {
@@ -127,6 +128,13 @@ export function connectCollab(s: Session): Collab {
         offlineTimer = window.setTimeout(() => conn.emit("offline"), 30000);
       }
     }
+  });
+
+  // Re-announce presence once the handshake completes: an awareness frame sent
+  // on socket open can reach the room before this connection is registered.
+  provider.on("sync", (ok: boolean) => {
+    const st = provider.awareness.getLocalState();
+    if (ok && st) provider.awareness.setLocalState({ ...st });
   });
 
   const synced = new Promise<void>((resolve) => {

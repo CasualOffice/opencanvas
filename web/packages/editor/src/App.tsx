@@ -135,6 +135,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   const [importing, setImporting] = useState(false);
   const [confirmTpl, setConfirmTpl] = useState<(() => void) | null>(null);
   const pendingThread = useRef<string | null>(null);
+  const modified = useRef(false);
 
   const effectiveRole: Role = forcedReadOnly ? "view" : role;
   const meta = useMeta(doc);
@@ -204,7 +205,8 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
           case "saved":
             setSave({ kind: "saved", at: c.at, version: c.version });
             postToHost("Doc_Saved", { commitId: c.version ?? null, hostVersion: c.version ?? null });
-            postToHost("Doc_ModifiedStatus", { Modified: false });
+            if (modified.current) postToHost("Doc_ModifiedStatus", { Modified: false });
+            modified.current = false;
             break;
           case "save_error":
             setSave({ kind: "error", message: c.message, retryInMs: c.retryInMs });
@@ -248,7 +250,8 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
       }
       setLastEditBy(null);
       setSave((s) => (s.kind === "saved" ? { kind: "unsaved" } : s));
-      postToHost("Doc_ModifiedStatus", { Modified: true });
+      if (!modified.current) postToHost("Doc_ModifiedStatus", { Modified: true });
+      modified.current = true;
     };
     doc.on("update", onUpdate);
     return () => {
