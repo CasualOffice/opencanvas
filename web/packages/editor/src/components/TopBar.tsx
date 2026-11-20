@@ -4,6 +4,7 @@ import { Ic } from "../icons";
 import type { Peer } from "../lib/presence";
 import { rel, useTick, type Meta } from "../lib/meta";
 import { Avatar, Popover, useShell, type Anchor } from "./overlay";
+import type { ExportFormat } from "../lib/exports";
 
 export type SaveState =
   | { kind: "connecting" }
@@ -32,7 +33,7 @@ export function TopBar(props: {
   onFollow(p: Peer): void;
   onComments(): void;
   onWide(): void;
-  onExport(fmt: "md" | "html" | "ocanvas" | "json"): void;
+  onExport(fmt: ExportFormat): void;
   onHistory(): void;
   onRetry(): void;
 }) {
@@ -125,6 +126,10 @@ export function TopBar(props: {
                   <button className="mi" onClick={() => (close(), props.onExport("html"))}>
                     <Ic name="code-xml" />
                     Web page<span className="mk">.html</span>
+                  </button>
+                  <button className="mi" onClick={() => (close(), props.onExport("pdf"))}>
+                    <Ic name="printer" />
+                    Print or save as PDF<span className="mk">.pdf</span>
                   </button>
                 </>
               ) : null}

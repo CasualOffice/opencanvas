@@ -2,8 +2,9 @@
 import { Extension, type Editor, type JSONContent, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
-import { createDatabase, importCsvToDatabase } from "@opencanvas/database";
-import { createBoard } from "@opencanvas/board";
+import { insertUploads } from "../lib/uploads";
+import { tableJSON } from "./table";
+import { loadBoard, loadDatabase } from "./blockdata";
 import { bridge } from "../lib/bridge";
 import { hostOf, resolveEmbed } from "../lib/embeds";
 import { suggestRender } from "./suggest";
@@ -17,6 +18,14 @@ export interface SlashItem {
   md?: string;
   keywords?: string;
   run(editor: Editor, range: Range | null): void;
+}
+
+/** Like insertBlock, for blocks whose data model loads on demand: the slash text goes now, the block when ready. */
+function insertLater(editor: Editor, range: Range | null, make: () => Promise<JSONContent | JSONContent[]>) {
+  if (range) editor.chain().focus().deleteRange(range).run();
+  make()
+    .then((node) => editor.chain().focus().insertContent(node).run())
+    .catch(() => bridge.env.toast("That block couldn't load. Check your connection and try again."));
 }
 
 /** Replaces the current (empty) block or inserts after it. */
@@ -58,19 +67,16 @@ export const SLASH: SlashItem[] = [
   { group: "Basic", id: "divider", icon: "minus", title: "Divider", desc: "Separate sections", md: "---", keywords: "hr rule", run: (e, r) => setBlock(e, r, (c) => c.setHorizontalRule()) },
   {
     group: "Data", id: "db", icon: "database", title: "Database", desc: "Table, board, calendar, gallery", keywords: "table kanban",
-    run: (e, r) => insertBlock(e, r, [{ type: "database", attrs: { dbId: createDatabase(bridge.doc, "blank") } }, { type: "paragraph" }]),
+    run: (e, r) => insertLater(e, r, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).createDatabase(bridge.doc, "blank") } }, { type: "paragraph" }]),
   },
   {
     group: "Data", id: "csv", icon: "file-spreadsheet", title: "Import CSV", desc: "Turn a CSV into a database", keywords: "spreadsheet",
     run: (e, r) => {
       if (r) e.chain().focus().deleteRange(r).run();
-      bridge.importCsv((csv) => {
-        const id = importCsvToDatabase(bridge.doc, csv);
-        e.chain().focus().insertContent([{ type: "database", attrs: { dbId: id } }, { type: "paragraph" }]).run();
-      });
+      bridge.importCsv((csv) => insertLater(e, null, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).importCsvToDatabase(bridge.doc, csv) } }, { type: "paragraph" }]));
     },
   },
-  { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => setBlock(e, r, (c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })) },
+  { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => insertBlock(e, r, [tableJSON(3, 3), { type: "paragraph" }]) },
   {
     group: "Media", id: "image", icon: "image", title: "Image", desc: "Upload or paste", keywords: "photo picture",
     run: (e, r) => insertBlock(e, r, [{ type: "image", attrs: { src: "", alt: "", caption: "" } }, { type: "paragraph" }]),
@@ -79,14 +85,7 @@ export const SLASH: SlashItem[] = [
     group: "Media", id: "file", icon: "paperclip", title: "File", desc: "Attach any file", keywords: "upload pdf attachment",
     run: (e, r) => {
       if (r) e.chain().focus().deleteRange(r).run();
-      bridge.pickFile("*/*", async (f) => {
-        try {
-          const up = await bridge.upload(f);
-          e.chain().focus().insertContent([{ type: "fileAttachment", attrs: { name: up.name, size: up.size, url: up.url, mime: up.mime } }, { type: "paragraph" }]).run();
-        } catch {
-          bridge.env.toast("The file didn't upload. Try again.");
-        }
-      });
+      bridge.pickFile("*/*", (f) => insertUploads(e, [f], undefined, "file"));
     },
   },
   {
@@ -109,7 +108,7 @@ export const SLASH: SlashItem[] = [
   { group: "Media", id: "code", icon: "code-xml", title: "Code", desc: "With syntax highlighting", md: "```", run: (e, r) => setBlock(e, r, (c) => c.setCodeBlock()) },
   {
     group: "Layout", id: "board", icon: "shapes", title: "Whiteboard", desc: "Sketch inside the canvas", keywords: "draw diagram",
-    run: (e, r) => insertBlock(e, r, [{ type: "board", attrs: { boardId: createBoard(bridge.doc, "blank") } }, { type: "paragraph" }]),
+    run: (e, r) => insertLater(e, r, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(bridge.doc, "blank") } }, { type: "paragraph" }]),
   },
   {
     group: "Layout", id: "cols", icon: "columns-2", title: "Two columns", desc: "Side by side",

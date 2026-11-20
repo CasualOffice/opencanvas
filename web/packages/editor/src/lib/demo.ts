@@ -60,7 +60,8 @@ function demoBlocks(): TB[] {
 export interface Demo {
   collab: Collab;
   /** Seeds the doc through the editor (so Tiptap owns the schema), then starts peers. */
-  seed(setContent: (json: object) => void): void;
+  seed(setContent: (json: object) => void): Promise<void>;
+  users: typeof DEMO_USERS;
   simulate(s: string): void;
   destroy(): void;
 }
@@ -120,10 +121,10 @@ export function createDemo(role: Role): Demo {
     return aw;
   };
 
-  const seed = (setContent: (json: object) => void) => {
+  const seed = async (setContent: (json: object) => void) => {
     const people = Object.fromEntries(Object.values(DEMO_USERS).map((u) => [u.id, u.name]));
     setMeta(doc, { title: "Sprint 42 planning", icon: "rocket", tone: "blue", template: "demo" });
-    setContent(buildDoc(demoBlocks(), { doc, people, me: { id: s.user.id, name: s.user.name } }));
+    setContent(await buildDoc(demoBlocks(), { doc, people, me: { id: s.user.id, name: s.user.name } }));
     createThread(doc, "t_demo1", "Autosave runs every 60 seconds by default");
     const a = DEMO_USERS.ravi, b = DEMO_USERS.asha;
     addMessage(doc, "t_demo1", { user: a.id, name: a.name, color: a.color, text: "Can hosts set this per channel, or only per tenant?" });
@@ -187,6 +188,7 @@ export function createDemo(role: Role): Demo {
   return {
     collab,
     seed,
+    users: DEMO_USERS,
     simulate(v: string) {
       sim = v;
       window.clearTimeout(saveT);

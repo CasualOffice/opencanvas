@@ -1,27 +1,50 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { yUndoPluginKey } from "@tiptap/y-tiptap";
-import { marked } from "marked";
-import { CsvImportDialog, importCsvToDatabase } from "@opencanvas/database";
 import type { BlockEnv, OcUser, Role } from "@opencanvas/ui";
-import { Ic } from "./icons";
+import { Ic, loadExtraIcons } from "./icons";
 import { CanvasEditor } from "./editor/CanvasEditor";
-import { BOARD, DB, P, buildDoc, type TB } from "./editor/content";
+import { loadDatabase } from "./editor/blockdata";
+import type { TB } from "./editor/content";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
 import { deleteThread, useThreads } from "./lib/comments";
-import { createDemo, DEMO_USERS, demoSession, type Demo } from "./lib/demo";
+import type { Demo } from "./lib/demo";
+import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
 import { setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { usePeers, type Peer } from "./lib/presence";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
 import { toast } from "./lib/store";
-import { CommentsPanel } from "./components/CommentsPanel";
 import { DocHeader } from "./components/DocHeader";
-import { ImportDialog, UrlPrompt, type ImportResult } from "./components/Dialogs";
-import { Gallery } from "./components/Gallery";
+import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
 import type { Template } from "./templates";
+
+// Everything below is off the first paint (docs/02 §7 bundle budget): it loads
+// when first shown.
+const Gallery = lazy(() => import("./components/Gallery").then((m) => ({ default: m.Gallery })));
+const CommentsPanel = lazy(() => import("./components/CommentsPanel").then((m) => ({ default: m.CommentsPanel })));
+const ImportDialog = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.ImportDialog })));
+const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.UrlPrompt })));
+const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
+
+const EXPORTS = new Set(["md", "html", "ocanvas", "json", "pdf"]);
+
+function Splash() {
+  return (
+    <div className="splash" aria-busy="true" aria-label="Loading canvas">
+      <div className="skel">
+        <i style={{ width: 52, height: 52, borderRadius: 14 }} />
+        <i style={{ width: "55%", height: 30, borderRadius: 8 }} />
+        <i style={{ width: "30%" }} />
+        <i style={{ width: "92%", marginTop: 18 }} />
+        <i style={{ width: "84%" }} />
+        <i style={{ width: "66%" }} />
+      </div>
+    </div>
+  );
+}
 
 type Boot =
   | { phase: "loading" }
@@ -43,8 +66,10 @@ export default function App() {
     (async () => {
       if (demo) {
         const role = (["view", "comment", "edit"].includes(params.get("role") ?? "") ? params.get("role") : "edit") as Role;
-        d = createDemo(role);
-        setBoot({ phase: "ready", session: demoSession(role), collab: d.collab, demo: d });
+        const m = await import("./lib/demo");
+        if (cancelled) return;
+        d = m.createDemo(role);
+        setBoot({ phase: "ready", session: m.demoSession(role), collab: d.collab, demo: d });
         return;
       }
       if (!ticket) {
@@ -71,19 +96,7 @@ export default function App() {
     };
   }, []);
 
-  if (boot.phase === "loading")
-    return (
-      <div className="splash" aria-busy="true" aria-label="Loading canvas">
-        <div className="skel">
-          <i style={{ width: 52, height: 52, borderRadius: 14 }} />
-          <i style={{ width: "55%", height: 30, borderRadius: 8 }} />
-          <i style={{ width: "30%" }} />
-          <i style={{ width: "92%", marginTop: 18 }} />
-          <i style={{ width: "84%" }} />
-          <i style={{ width: "66%" }} />
-        </div>
-      </div>
-    );
+  if (boot.phase === "loading") return <Splash />;
   if (boot.phase === "error")
     return (
       <div className="splash">
@@ -146,6 +159,12 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
 
   const me: OcUser = useMemo(() => ({ id: session.user.id, name: session.user.name, color: session.user.color, avatar: session.user.avatar ?? undefined }), [session.user]);
 
+  // Template / picker icons: fetch right after first paint (the header may use one).
+  useEffect(() => {
+    const t = window.setTimeout(() => void loadExtraIcons(), 300);
+    return () => window.clearTimeout(t);
+  }, []);
+
   // ---------- layout ----------
   useEffect(() => {
     const el = rootRef.current;
@@ -158,8 +177,8 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
 
   // ---------- people (mentions, assignees) ----------
   useEffect(() => {
-    if (session.demo) {
-      setUsers(Object.values(DEMO_USERS).map(({ id, name, color }) => ({ id, name, color })));
+    if (demo) {
+      setUsers(Object.values(demo.users).map(({ id, name, color }) => ({ id, name, color })));
       return;
     }
     fetch(`/v1/users?ticket=${encodeURIComponent(session.ticket)}&q=`)
@@ -168,7 +187,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
         setUsers(list.map((u, i) => ({ id: u.id, name: u.name, avatar: u.avatar, color: u.color ?? ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78"][i % 5] }))),
       )
       .catch(() => undefined);
-  }, [session]);
+  }, [session, demo]);
 
   const allUsers = useMemo(() => {
     const m = new Map<string, OcUser>();
@@ -268,16 +287,16 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   }, [peers]);
 
   // ---------- host page commands ----------
+  const titleRef = useRef("");
+  titleRef.current = meta.title || session.file.name;
   const doExport = useCallback(
     (fmt: string) => {
-      if (session.demo) return toast("Exports download from the server. They're not available in the demo.", { icon: "download" });
-      const a = document.createElement("a");
-      a.href = `/v1/export/${fmt}?ticket=${encodeURIComponent(session.ticket)}`;
-      a.download = "";
-      document.body.append(a);
-      a.click();
-      a.remove();
-      toast(`Exporting as .${fmt}`, { icon: "download" });
+      if (!EXPORTS.has(fmt)) return;
+      const f = fmt as ExportFormat;
+      const allowed = f === "ocanvas" ? session.perms.download !== false : session.perms.export !== false;
+      if (!allowed) return toast("Exports are turned off for this canvas", { icon: "lock" });
+      if (f !== "pdf" && session.demo) return toast("Exports download from the server. They're not available in the demo.", { icon: "download" });
+      void import("./lib/exports").then((m) => (f === "pdf" ? m.printPdf() : m.downloadExport(session.ticket, f, titleRef.current)));
     },
     [session],
   );
@@ -304,11 +323,14 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
     if (!editor || seeded.current) return;
     seeded.current = true;
     if (demo && editor.isEmpty) {
-      demo.seed((json) => editor.commands.setContent(json));
-      yUndoPluginKey.getState(editor.state)?.undoManager.clear();
-      const sim = new URLSearchParams(window.location.hash.slice(1)).get("sim");
-      if (sim) window.setTimeout(() => demo.simulate(sim), 300);
-      window.setTimeout(() => toast("Lin is typing in Decisions", { avatar: { name: "Lin Zhou", color: DEMO_USERS.lin.color } }), 2400);
+      void demo
+        .seed((json) => editor.commands.setContent(json))
+        .then(() => {
+          yUndoPluginKey.getState(editor.state)?.undoManager.clear();
+          const sim = new URLSearchParams(window.location.hash.slice(1)).get("sim");
+          if (sim) window.setTimeout(() => demo.simulate(sim), 300);
+          window.setTimeout(() => toast("Lin is typing in Decisions", { avatar: { name: "Lin Zhou", color: demo.users.lin.color } }), 2400);
+        });
       return;
     }
     if (role === "edit" && !meta.title && session.file.name) setMeta(doc, { title: session.file.name });
@@ -322,9 +344,20 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
     [effectiveRole, me, allUsers, compact],
   );
 
+  const failedOnce = useRef(false);
   const upload = useCallback(
-    async (f: File): Promise<Uploaded> => {
+    async (f: File, onProgress?: (p: number) => void): Promise<Uploaded> => {
       if (session.demo) {
+        // No server in the demo: simulate the transfer, then keep the bytes inline.
+        // `#demo&sim=uploadfail` fails the first attempt to show the retry chip.
+        for (let p = 0.1; p < 1; p += 0.15) {
+          onProgress?.(p);
+          await new Promise((r) => window.setTimeout(r, 120));
+        }
+        if (/sim=uploadfail/.test(window.location.hash) && !failedOnce.current) {
+          failedOnce.current = true;
+          throw new Error("simulated failure");
+        }
         const url = await new Promise<string>((res, rej) => {
           if (f.size > 4 * 1024 * 1024) return res(URL.createObjectURL(f));
           const r = new FileReader();
@@ -332,14 +365,27 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
           r.onerror = rej;
           r.readAsDataURL(f);
         });
+        onProgress?.(1);
         return { url, mime: f.type, size: f.size, name: f.name };
       }
-      const fd = new FormData();
-      fd.append("file", f, f.name);
-      const r = await fetch(`/v1/assets?ticket=${encodeURIComponent(session.ticket)}`, { method: "POST", body: fd });
-      if (!r.ok) throw new Error("upload failed " + r.status);
-      const j = (await r.json()) as { url: string; mime?: string; size?: number };
-      return { url: j.url, mime: j.mime ?? f.type, size: j.size ?? f.size, name: f.name };
+      // XHR rather than fetch: fetch can't report upload progress.
+      return new Promise<Uploaded>((resolve, reject) => {
+        const x = new XMLHttpRequest();
+        x.open("POST", `/v1/assets?ticket=${encodeURIComponent(session.ticket)}`);
+        x.responseType = "json";
+        x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+        x.onload = () => {
+          const j = x.response as { url?: string; mime?: string; size?: number } | null;
+          if (x.status < 200 || x.status >= 300 || !j?.url) return reject(new Error("upload failed " + x.status));
+          onProgress?.(1);
+          resolve({ url: j.url, mime: j.mime ?? f.type, size: j.size ?? f.size, name: f.name });
+        };
+        x.onerror = () => reject(new Error("network"));
+        x.onabort = () => reject(new Error("aborted"));
+        const fd = new FormData();
+        fd.append("file", f, f.name);
+        x.send(fd);
+      });
     },
     [session],
   );
@@ -473,16 +519,23 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   const applyBlocks = useCallback(
     (blocks: TB[], m: { title: string; icon: string; tone: string; template: string }) => {
       if (!editor) return;
-      const run = () => {
+      const run = async () => {
+        let content;
+        try {
+          const { buildDoc } = await import("./editor/content");
+          content = await buildDoc(blocks, { doc, me: { id: me.id, name: me.name } });
+        } catch {
+          return toast("That template couldn't load. Check your connection and try again.", { icon: "triangle-alert" });
+        }
         setMeta(doc, { title: m.title, icon: m.icon, tone: m.tone as never, template: m.template });
-        editor.commands.setContent(buildDoc(blocks, { doc, me: { id: me.id, name: me.name } }));
+        editor.commands.setContent(content);
         setScreen("editor");
         window.setTimeout(() => {
           if (!compact) editor.commands.focus("start");
         }, 50);
       };
-      if (editor.isEmpty) run();
-      else setConfirmTpl(() => run);
+      if (editor.isEmpty) void run();
+      else setConfirmTpl(() => () => void run());
     },
     [editor, doc, me, compact],
   );
@@ -492,27 +545,32 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   };
   const start = (k: "blank" | "dbblank" | "boardblank" | "import") => {
     if (k === "import") return setImporting(true);
-    const map: Record<string, [string, string, TB[]]> = { blank: ["file-text", "gray", [P("")]], dbblank: ["database", "blue", [DB("blank")]], boardblank: ["shapes", "purple", [BOARD("blank")]] };
+    const map: Record<string, [string, string, TB[]]> = { blank: ["file-text", "gray", [{ k: "p", html: "" }]], dbblank: ["database", "blue", [{ k: "db", preset: "blank" }]], boardblank: ["shapes", "purple", [{ k: "board", preset: "blank" }]] };
     const [icon, tone, blocks] = map[k];
     applyBlocks(blocks, { title: meta.title, icon, tone, template: k });
   };
   const doImport = (r: ImportResult) => {
     if (!editor) return;
-    const run = () => {
-      if (r.kind === "csv") {
-        const id = importCsvToDatabase(doc, r.text, r.name);
-        editor.commands.setContent({ type: "doc", content: [{ type: "database", attrs: { dbId: id } }, { type: "paragraph" }] });
-        setMeta(doc, { title: r.name, icon: "database", tone: "green", template: "import" });
-      } else {
-        const html = r.kind === "md" ? (marked.parse(r.text, { async: false }) as string) : r.text;
-        editor.commands.setContent(html);
-        setMeta(doc, { title: r.name, icon: "file-text", tone: "green", template: "import" });
+    const run = async () => {
+      try {
+        if (r.kind === "csv") {
+          const { importCsvToDatabase } = await loadDatabase();
+          const id = importCsvToDatabase(doc, r.text, r.name);
+          editor.commands.setContent({ type: "doc", content: [{ type: "database", attrs: { dbId: id } }, { type: "paragraph" }] });
+          setMeta(doc, { title: r.name, icon: "database", tone: "green", template: "import" });
+        } else {
+          const html = r.kind === "md" ? ((await import("marked")).marked.parse(r.text, { async: false }) as string) : r.text;
+          editor.commands.setContent(html);
+          setMeta(doc, { title: r.name, icon: "file-text", tone: "green", template: "import" });
+        }
+      } catch {
+        return toast("The import didn't work. Check your connection and try again.", { icon: "triangle-alert" });
       }
       setScreen("editor");
       toast(`Imported “${r.name}”`, { icon: "upload" });
     };
-    if (editor.isEmpty) run();
-    else setConfirmTpl(() => run);
+    if (editor.isEmpty) void run();
+    else setConfirmTpl(() => () => void run());
   };
 
   // ---------- derived ----------
@@ -568,6 +626,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
         <div className={"app oc-root" + (compact ? " compact" : "") + (effectiveRole !== "edit" ? " ro" : "")} ref={rootRef}>
           <style>{threadCss}</style>
           {screen === "gallery" ? (
+            <Suspense fallback={<Splash />}>
             <Gallery
               parent={parent}
               canBack
@@ -579,6 +638,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
                 toast(`Your team's saved templates come from ${hostName}`, { icon: "users-round" });
               }}
             />
+            </Suspense>
           ) : null}
           <div className={screen === "gallery" ? "hidden" : "wsp"}>
             <TopBar
@@ -632,12 +692,15 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
                 </div>
               </div>
               {side === "comments" ? (
-                <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} onActivate={setActive} onJump={jump} onClose={closeSide} />
+                <Suspense fallback={<aside className="side" aria-label="Comments" aria-busy="true" />}>
+                  <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} onActivate={setActive} onJump={jump} onClose={closeSide} />
+                </Suspense>
               ) : null}
             </div>
           </div>
           <Toasts />
 
+          <Suspense fallback={null}>
           {csv ? (
             <CsvImportDialog
               open
@@ -660,6 +723,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
               }
             />
           ) : null}
+          </Suspense>
           {confirmTpl ? (
             <Modal onClose={() => setConfirmTpl(null)} label="Replace canvas">
               <ModalHead title="Replace this canvas?" sub="Everyone here sees the change right away. You can undo it with ⌘Z." icon="layout-template" tone="amber" />
