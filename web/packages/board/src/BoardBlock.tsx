@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import {
-  ArrowUpRight, Circle, Copy, Diamond, Hand, Maximize2, Minimize2, Minus, MousePointer2, Pencil, Plus, Shapes, Square,
-  StickyNote, Trash2, Type, type LucideIcon,
+  ArrowUpRight, Circle, Copy, CornerDownRight, Diamond, Ellipsis, FileCode2, FileImage, Hand, ImagePlus, Maximize2, Minimize2, Minus,
+  MousePointer2, MoveUpRight, Pencil, Plus, Shapes, Square, StickyNote, Trash2, Type, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
@@ -12,6 +12,9 @@ import {
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
+import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, withResolvedArrows, type ArrowRoute, type Binding } from "./connectors";
+import { exportBoardPng, exportBoardSvg } from "./export";
+import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 
 type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text";
 const TOOLS: [Tool, LucideIcon, string, string][] = [
@@ -29,7 +32,7 @@ const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "s
 const STICKY: Record<string, string> = { y: "var(--sticky-y)", p: "var(--sticky-p)", b: "var(--sticky-b)", g: "var(--sticky-g)" };
 const SWATCH: Record<string, string> = { accent: "var(--accent)", amber: "var(--amber-fg)", green: "var(--green-fg)", pink: "var(--pink-fg)", purple: "var(--purple-fg)", red: "var(--red-fg)", blue: "var(--blue-fg)" };
 const TEXTUAL: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "text"];
-const SIZED: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "swatch"];
+const SIZED: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "swatch", "image"];
 const SW = 1.75;
 const ZMIN = 0.25, ZMAX = 3;
 
@@ -126,9 +129,13 @@ type Drag =
   | { kind: "resize"; sid: string; ox: number; oy: number; orig: Shape; moved: boolean }
   | { kind: "pen" }
   | { kind: "arrow" }
+  | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
   | { kind: "pinch"; d0: number; c0: [number, number]; v: View };
 
-function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: string; env: BlockEnv; awareness?: Awareness; shapes: Shape[] }) {
+function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boardId: string; env: BlockEnv; awareness?: Awareness; shapes: Shape[] }) {
+  // Arrows bound to shapes are drawn (and hit-tested, moved, exported) from their resolved points.
+  const shapes = useMemo(() => withResolvedArrows(raw), [raw]);
+  const byId = useMemo(() => new Map(shapes.map((s) => [s.id, s])), [shapes]);
   const edit = env.role === "edit";
   const compact = env.compact;
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -152,6 +159,11 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     setEditingState(v);
   };
   const [dragging, setDragging] = useState(false);
+  /** Shape + anchor an arrow end would attach to (shown while dragging an end). */
+  const [hint, setHint] = useState<Binding | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [route, setRoute] = useState<ArrowRoute>("straight");
+  const fileRef = useRef<HTMLInputElement>(null);
   const peers = usePeers(awareness, boardId);
   const rootRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -281,6 +293,74 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     setSel(duplicateShape(doc, boardId, s, 24, 24, origin));
   };
 
+  /* ---- images ---- */
+  const viewCenter = (): Pt => {
+    const svg = svgRef.current;
+    const v = S.current.view;
+    return svg ? [(svg.clientWidth / 2 - v.tx) / v.z, (svg.clientHeight / 2 - v.ty) / v.z] : [200, 150];
+  };
+  const insertImages = async (files: File[], at: Pt) => {
+    if (!S.current.edit) return;
+    let i = 0;
+    for (const file of files) {
+      let src: string;
+      try {
+        src = await imageSource(file, env.upload);
+      } catch (err) {
+        env.toast(err instanceof ImageError ? err.message : "Couldn't add the image");
+        continue;
+      }
+      const [nw, nh] = await imageSize(src);
+      const [w, h] = fitImage(nw, nh);
+      const off = i++ * 24;
+      um?.stopCapturing();
+      const sid = addShape(doc, boardId, { type: "image", x: Math.round(at[0] - w / 2 + off), y: Math.round(at[1] - h / 2 + off), w, h, src, alt: file.name || "Image" }, origin);
+      setSel(sid);
+    }
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    if (!S.current.edit || ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onDrop = (e: React.DragEvent) => {
+    if (!S.current.edit) return;
+    const files = imageFiles(e.dataTransfer);
+    if (!files.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void insertImages(files, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter());
+  };
+  const onPaste = (e: React.ClipboardEvent) => {
+    if (!S.current.edit || editRef.current) return;
+    const files = imageFiles(e.clipboardData);
+    if (!files.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void insertImages(files, viewCenter());
+  };
+
+  /* ---- export ---- */
+  const save = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  const exportAs = async (fmt: "svg" | "png") => {
+    setMenu(false);
+    try {
+      if (fmt === "svg") save(new Blob([exportBoardSvg(doc, boardId)], { type: "image/svg+xml" }), "board.svg");
+      else save(await exportBoardPng(doc, boardId, 2), "board.png");
+    } catch {
+      env.toast(`Couldn't export the board as ${fmt.toUpperCase()}`);
+    }
+  };
+
   /* ---- pointer ---- */
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current!;
@@ -292,6 +372,7 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
       const [a, b] = [...pointers.current.values()];
       const r = svg.getBoundingClientRect();
       if (drag.current?.kind === "pen" || drag.current?.kind === "arrow") setDraft(null);
+      setHint(null);
       flush();
       drag.current = { kind: "pinch", d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, c0: [(a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top], v: S.current.view };
       try { svg.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
@@ -317,7 +398,9 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
         if (s && S.current.edit) {
           um?.stopCapturing();
           const rz = (e.target as Element).classList?.contains("ocbd-rz");
-          drag.current = { kind: rz ? "resize" : "move", sid, ox: x, oy: y, orig: JSON.parse(JSON.stringify(s)), moved: false };
+          const end = (e.target as Element).getAttribute?.("data-end");
+          if (end === "start" || end === "end") drag.current = { kind: "end", sid, which: end, orig: JSON.parse(JSON.stringify(s)), moved: false };
+          else drag.current = { kind: rz ? "resize" : "move", sid, ox: x, oy: y, orig: JSON.parse(JSON.stringify(s)), moved: false };
           cap();
         }
       } else {
@@ -335,7 +418,11 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
       return;
     }
     if (t === "arrow") {
-      setDraft({ id: "draft", type: "arrow", pts: [[x, y], [x, y]] });
+      const b0 = snapTarget(S.current.shapes, [x, y], 18 / S.current.view.z);
+      const s0 = b0 ? S.current.shapes.find((q) => q.id === b0.shapeId) : undefined;
+      const p0: Pt = s0 ? anchorPoint(s0, b0!.anchor) : [x, y];
+      setDraft({ id: "draft", type: "arrow", pts: [p0, p0], ...(b0 ? { start: b0 } : {}), ...(route === "elbow" ? { route } : {}) });
+      setHint(b0);
       drag.current = { kind: "arrow" };
       cap();
       return;
@@ -384,7 +471,30 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     }
     if (d.kind === "arrow") {
       const p = draftRef.current;
-      if (p?.pts) setDraft({ ...p, pts: [p.pts[0], snapArrow(p.pts[0], [x, y], e.shiftKey)] });
+      if (!p?.pts) return;
+      const b = snapTarget(S.current.shapes, [x, y], 18 / S.current.view.z, p.start?.shapeId);
+      const s1 = b ? S.current.shapes.find((q) => q.id === b.shapeId) : undefined;
+      const { end: _drop, ...rest } = p;
+      void _drop;
+      setDraft({ ...rest, pts: [p.pts[0], s1 ? anchorPoint(s1, b!.anchor) : snapArrow(p.pts[0], [x, y], e.shiftKey)], ...(b ? { end: b } : {}) });
+      setHint(b);
+      return;
+    }
+    if (d.kind === "end") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      const o = d.orig;
+      const other = d.which === "start" ? o.end : o.start;
+      const b = snapTarget(S.current.shapes, [x, y], 18 / S.current.view.z, other?.shapeId ?? o.id);
+      const target = b ? S.current.shapes.find((q) => q.id === b.shapeId) : undefined;
+      const p: Pt = target ? anchorPoint(target, b!.anchor) : [Math.round(x), Math.round(y)];
+      const pts = (o.pts ?? []).map((q) => [q[0], q[1]] as Pt);
+      if (pts.length < 2) return;
+      // A bound or routed arrow is just its two ends; a free polyline keeps its middle points.
+      const two = !!(b || other || o.route);
+      const next: Pt[] = two ? (d.which === "start" ? [p, pts[pts.length - 1]] : [pts[0], p]) : d.which === "start" ? [p, ...pts.slice(1)] : [...pts.slice(0, -1), p];
+      schedule(d.sid, { pts: next, [d.which]: b ?? undefined });
+      setHint(b);
       return;
     }
     const dx = x - d.ox, dy = y - d.oy;
@@ -393,9 +503,14 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     d.moved = true;
     const o = d.orig;
     if (d.kind === "resize") {
-      schedule(d.sid, { w: Math.max(40, (o.w ?? 0) + dx), h: Math.max(30, (o.h ?? 0) + dy) });
+      if (o.type === "image" && o.w && o.h && !e.shiftKey) {
+        // Images keep their aspect ratio (Shift frees it).
+        const k = Math.max(40 / o.w, 30 / o.h, Math.max((o.w + dx) / o.w, (o.h + dy) / o.h));
+        schedule(d.sid, { w: Math.round(o.w * k), h: Math.round(o.h * k) });
+      } else schedule(d.sid, { w: Math.max(40, (o.w ?? 0) + dx), h: Math.max(30, (o.h ?? 0) + dy) });
     } else if (o.pts) {
-      schedule(d.sid, { pts: o.pts.map((p) => [p[0] + dx, p[1] + dy] as Pt) });
+      // Moving a connector by its body detaches it.
+      schedule(d.sid, { pts: o.pts.map((p) => [p[0] + dx, p[1] + dy] as Pt), ...(o.start || o.end ? { start: undefined, end: undefined } : {}) });
     } else {
       schedule(d.sid, { x: (o.x ?? 0) + dx, y: (o.y ?? 0) + dy });
     }
@@ -411,7 +526,11 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     drag.current = null;
     setDragging(false);
     if (!d) return;
-    if (d.kind === "move" || d.kind === "resize") flush();
+    setHint(null);
+    if (d.kind === "move" || d.kind === "resize" || d.kind === "end") {
+      flush();
+      if (d.moved) syncBoundArrows(doc, boardId, origin);
+    }
     const p = draftRef.current;
     if (d.kind === "pen") {
       setDraft(null);
@@ -422,8 +541,17 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     }
     if (d.kind === "arrow") {
       setDraft(null);
-      if (p?.pts && Math.hypot(p.pts[1][0] - p.pts[0][0], p.pts[1][1] - p.pts[0][1]) > 6) {
-        setSel(addShape(doc, boardId, { type: "arrow", pts: p.pts.map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt) }, origin));
+      if (p?.pts) {
+        const bound = !!(p.start && p.end && p.start.shapeId !== p.end.shapeId);
+        const pts = resolveArrow(p, byId);
+        const a = pts[0], b = pts[pts.length - 1];
+        if (bound || (a && b && Math.hypot(b[0] - a[0], b[1] - a[1]) > 6)) {
+          const s: Omit<Shape, "id"> = { type: "arrow", pts: pts.map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt) };
+          if (p.start) s.start = p.start;
+          if (p.end && p.end.shapeId !== p.start?.shapeId) s.end = p.end;
+          if (p.route) s.route = p.route;
+          setSel(addShape(doc, boardId, s, origin));
+        }
       }
       setTool("select");
     }
@@ -471,7 +599,8 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     if (t.closest("textarea,input,[contenteditable='true']")) return;
     const mod = e.metaKey || e.ctrlKey;
     if (e.key === "Escape") {
-      if (S.current.sel) setSel(null);
+      if (menu) setMenu(false);
+      else if (S.current.sel) setSel(null);
       else if (full) exitFull();
       return;
     }
@@ -526,8 +655,9 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
       const step = e.shiftKey ? 10 : 1;
       const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
       const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-      if (sel.pts) updateShape(doc, boardId, sel.id, { pts: sel.pts.map((p) => [p[0] + dx, p[1] + dy] as Pt) }, origin);
+      if (sel.pts) updateShape(doc, boardId, sel.id, { pts: sel.pts.map((p) => [p[0] + dx, p[1] + dy] as Pt), ...(sel.start || sel.end ? { start: undefined, end: undefined } : {}) }, origin);
       else updateShape(doc, boardId, sel.id, { x: (sel.x ?? 0) + dx, y: (sel.y ?? 0) + dy }, origin);
+      syncBoundArrows(doc, boardId, origin);
       return;
     }
     if (!mod && !e.altKey && KEY_TOOL[e.key.toLowerCase()]) setTool(KEY_TOOL[e.key.toLowerCase()]);
@@ -581,7 +711,37 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
     const b = bbox(selShape);
     selection = (
       <>
-        <rect x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={1.5 / z} pointerEvents="none" />
+        {selShape.type === "arrow" ? null : (
+          <rect x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={1.5 / z} pointerEvents="none" />
+        )}
+        {selShape.type === "arrow" && selShape.pts && selShape.pts.length >= 2 ? (
+          <>
+            <path d={"M" + selShape.pts.map((q) => q.join(" ")).join(" L")} fill="none" stroke="var(--accent)" strokeWidth={1.5 / z} strokeOpacity={0.5} pointerEvents="none" />
+            {edit
+              ? (["start", "end"] as const).map((which) => {
+                  const q = which === "start" ? selShape.pts![0] : selShape.pts![selShape.pts!.length - 1];
+                  const bound = !!selShape[which];
+                  return (
+                    <circle
+                      key={which}
+                      className="ocbd-ep"
+                      data-s={selShape.id}
+                      data-end={which}
+                      cx={q[0]}
+                      cy={q[1]}
+                      r={(compact ? 10 : 6) / z}
+                      fill={bound ? "var(--accent)" : "var(--app)"}
+                      stroke="var(--accent)"
+                      strokeWidth={1.5 / z}
+                      style={{ cursor: "crosshair" }}
+                    >
+                      <title>{bound ? "Drag away to detach" : "Drag onto a shape to connect"}</title>
+                    </circle>
+                  );
+                })
+              : null}
+          </>
+        ) : null}
         {edit && SIZED.includes(selShape.type) ? (
           <rect
             className="ocbd-rz"
@@ -598,6 +758,22 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
           />
         ) : null}
       </>
+    );
+  }
+
+  let hintDots: ReactNode = null;
+  const hintShape = hint ? byId.get(hint.shapeId) : undefined;
+  if (hint && hintShape) {
+    const b = bbox(hintShape);
+    hintDots = (
+      <g pointerEvents="none" className="ocbd-hint">
+        <rect x={b[0] - 4} y={b[1] - 4} width={b[2] - b[0] + 8} height={b[3] - b[1] + 8} rx={8} fill="none" stroke="var(--accent)" strokeOpacity={0.45} strokeWidth={1.5 / z} />
+        {ANCHORS.map((a) => {
+          const q = anchorPoint(hintShape, a);
+          const on = a === hint.anchor;
+          return <circle key={a} data-anchor={a} cx={q[0]} cy={q[1]} r={(on ? 5.5 : 3.5) / z} fill={on ? "var(--accent)" : "var(--app)"} stroke="var(--accent)" strokeWidth={1.5 / z} />;
+        })}
+      </g>
     );
   }
 
@@ -630,6 +806,26 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
             ))}
             <span className="sep" />
           </>
+        ) : selShape.type === "arrow" ? (
+          <>
+            {([["straight", MoveUpRight, "Straight connector"], ["elbow", CornerDownRight, "Elbow connector"]] as const).map(([r, I, label]) => (
+              <button
+                key={r}
+                className="ocbd-ib"
+                title={label}
+                aria-label={label}
+                aria-pressed={(raw.find((q) => q.id === selShape.id)?.route ?? "straight") === r}
+                onClick={() => {
+                  setRoute(r);
+                  updateShape(doc, boardId, selShape.id, { route: r }, origin);
+                  syncBoundArrows(doc, boardId, origin);
+                }}
+              >
+                <I size={14} strokeWidth={SW} />
+              </button>
+            ))}
+            <span className="sep" />
+          </>
         ) : null}
         {TEXTUAL.includes(selShape.type) ? (
           <button className="ocbd-ib" title="Edit text" aria-label="Edit text" onClick={() => startEdit(selShape)}>
@@ -659,6 +855,9 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerLeave={() => !drag.current && publish(null)}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onPaste={onPaste}
       data-board={boardId}
     >
       <svg
@@ -685,8 +884,9 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
         <rect width="100%" height="100%" fill={`url(#${dots})`} />
         <g transform={`translate(${tx} ${ty}) scale(${z})`}>
           {shapes.map((s) => <ShapeView key={s.id} s={s} ah={ah} hideText={editing?.id === s.id} />)}
-          {draft ? <ShapeView s={draft} ah={ah} /> : null}
+          {draft ? <ShapeView s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
           {selection}
+          {hintDots}
         </g>
         <g pointerEvents="none">
           {peers.map((p) => {
@@ -711,10 +911,50 @@ function Board({ doc, boardId, env, awareness, shapes }: { doc: Y.Doc; boardId: 
       ) : null}
 
       <div className="ocbd-top">
+        <button className="ocbd-ib" title="Board options" aria-label="Board options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+          <Ellipsis size={16} strokeWidth={SW} />
+        </button>
         <button className="ocbd-ib" title={full ? "Exit full screen (Esc)" : "Full screen"} aria-label={full ? "Exit full screen" : "Full screen"} onClick={() => (full ? exitFull() : (setFull(true), setActive(true)))}>
           {full ? <Minimize2 size={16} strokeWidth={SW} /> : <Maximize2 size={16} strokeWidth={SW} />}
         </button>
       </div>
+
+      {menu ? (
+        <>
+          <div className="ocbd-scrim" onPointerDown={() => setMenu(false)} />
+          <div className="ocbd-menu" role="menu" aria-label="Board options">
+            {edit ? (
+              <button role="menuitem" className="ocbd-mi" onClick={() => { setMenu(false); fileRef.current?.click(); }}>
+                <ImagePlus size={16} strokeWidth={SW} />
+                Insert image
+              </button>
+            ) : null}
+            {edit ? <span className="ocbd-msep" /> : null}
+            <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("png")}>
+              <FileImage size={16} strokeWidth={SW} />
+              Export as PNG
+            </button>
+            <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("svg")}>
+              <FileCode2 size={16} strokeWidth={SW} />
+              Export as SVG
+            </button>
+          </div>
+        </>
+      ) : null}
+      {edit ? (
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+            e.target.value = "";
+            if (files.length) void insertImages(files, viewCenter());
+          }}
+        />
+      ) : null}
 
       <div className="ocbd-tool" role="toolbar" aria-label="Board tools">
         {TOOLS.filter(([t]) => edit || t === "select" || t === "hand").map(([t, I, label, key], i) => (
@@ -834,6 +1074,23 @@ function ShapeView({ s, ah, hideText }: { s: Shape; ah: string; hideText?: boole
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
           <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill="var(--app)" stroke={stroke} strokeWidth={1.5} strokeLinejoin="round" />
           {text ? <Lines text={text} x={cx} y={centered(s, 18)} lh={18} anchor /> : null}
+        </g>
+      );
+    }
+    case "image": {
+      const clip = `${ah}-c-${s.id}`;
+      return (
+        <g data-s={s.id} style={{ cursor: "move" }}>
+          <clipPath id={clip}>
+            <rect x={x} y={y} width={w} height={h} rx={8} />
+          </clipPath>
+          <rect x={x} y={y} width={w} height={h} rx={8} fill="var(--sunk)" />
+          {s.src ? (
+            <image href={s.src} x={x} y={y} width={w} height={h} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`}>
+              <title>{s.alt ?? "Image"}</title>
+            </image>
+          ) : null}
+          <rect x={x} y={y} width={w} height={h} rx={8} fill="none" stroke="var(--line-2)" />
         </g>
       );
     }

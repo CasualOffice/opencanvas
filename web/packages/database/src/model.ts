@@ -78,13 +78,35 @@ function writeDb(doc: Y.Doc, d: NewDb): string {
   return id;
 }
 
-/** Create a database from a preset (default `blank`). Returns the new dbId. */
-export function createDatabase(doc: Y.Doc, preset: DbPreset = "blank"): string {
+/**
+ * How preset sample people map onto real users: an id the host knows is kept; every other
+ * sample person takes the next real user (in `users` order, skipping users already matched
+ * by id, wrapping when there are fewer users than sample people). No users → empty cells.
+ */
+export function presetPeopleMap(users: OcUser[]): Map<string, string | null> {
+  const known = new Set(users.map((u) => u.id));
+  const demoIds = new Set(DEMO_PEOPLE.map((d) => d.id));
+  const free = users.filter((u) => !demoIds.has(u.id));
+  const pool = free.length ? free : users;
+  const out = new Map<string, string | null>();
+  let i = 0;
+  for (const d of DEMO_PEOPLE) out.set(d.id, known.has(d.id) ? d.id : pool.length ? pool[i++ % pool.length].id : null);
+  return out;
+}
+
+/**
+ * Create a database from a preset (default `blank`). Returns the new dbId.
+ * Pass `users` (the host's people) so sample rows are assigned to real people instead of
+ * the built-in sample names; see `presetPeopleMap`.
+ */
+export function createDatabase(doc: Y.Doc, preset: DbPreset = "blank", users?: OcUser[]): string {
   const p = PRESETS[preset] ?? PRESETS.blank;
   const fields = p.fields.map((f) => ({ ...f, options: f.options?.map((o) => ({ ...o })) }));
+  const people = users ? presetPeopleMap(users) : null;
   const rows = p.rows.map((r) => {
     const v: Record<string, CellValue> = {};
     fields.forEach((f, i) => (v[f.id] = r[i] === undefined || r[i] === "" ? (f.type === "title" ? "" : emptyValue(f.type)) : r[i]));
+    if (people) for (const f of fields) if (f.type === "person" && typeof v[f.id] === "string" && people.has(v[f.id] as string)) v[f.id] = people.get(v[f.id] as string)!;
     return v;
   });
   return writeDb(doc, { name: p.name, icon: p.icon, tone: p.tone, view: p.view, fields, rows });
@@ -272,6 +294,23 @@ export function deleteRow(doc: Y.Doc, dbId: string, rowId: string): RowBackup | 
     notesOf(m).delete(rowId);
   });
   return backup;
+}
+
+/**
+ * Move a row in `order` to just before `beforeId` (or to the end when `beforeId` is null /
+ * missing). Used by board-view reordering. Duplicates left by concurrent moves are removed.
+ */
+export function moveRow(doc: Y.Doc, dbId: string, rowId: string, beforeId: string | null) {
+  if (rowId === beforeId) return;
+  tx(doc, dbId, (m) => {
+    if (!rowsOf(m).has(rowId)) return;
+    const order = orderOf(m);
+    let arr = order.toArray();
+    for (let i = arr.length - 1; i >= 0; i--) if (arr[i] === rowId) order.delete(i, 1);
+    arr = order.toArray();
+    const at = beforeId ? arr.indexOf(beforeId) : -1;
+    order.insert(at >= 0 ? at : arr.length, [rowId]);
+  });
 }
 
 export function restoreRow(doc: Y.Doc, dbId: string, b: RowBackup) {
