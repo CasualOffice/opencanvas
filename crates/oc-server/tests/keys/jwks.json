@@ -1,0 +1,20 @@
+{
+ "keys": [
+  {
+   "kty": "RSA",
+   "kid": "rsa-1",
+   "alg": "RS256",
+   "use": "sig",
+   "n": "xK6ThjbM5ECI5PtNh55FeL18eDau3mgn1JEOWmWrEPdG0Fh5i2mI9OjDH2TTwS273Ug2_cYaErdO25m4WWakwIOvPPqLObRF8cAHzNob434kt5WDZHYgn3FuS-oJwxRdqCQdKC9VtPsmGx36yLeqF7B9854sMYO1Bxv28o-4tRlaZnH8EHOTu1MCtjXKiHbekrnT0kbt2Vk_h-tjIfna2oP312Q_LD377Q2DRozmGnZyN-JjMTPuM4uZgPcSUSe-nubqANHCNkaX3l_w2Af3sUKeGyZBehMYMfeQz4aepviIAYNt-iKICjMwL-sZz_9KjRKLqq5bN6iSdUGWTlM3vw",
+   "e": "AQAB"
+  },
+  {
+   "kty": "OKP",
+   "crv": "Ed25519",
+   "kid": "ed-1",
+   "alg": "EdDSA",
+   "use": "sig",
+   "x": "cXTn4QvzMD9AuYI0gn6PiSP4hQ5uZxNQeqf3nq2iEh4"
+  }
+ ]
+}

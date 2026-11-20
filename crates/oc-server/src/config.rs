@@ -3,6 +3,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::crypto::{Kek, load_kek};
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bind: String,
@@ -11,6 +13,8 @@ pub struct Config {
     pub hosts_file: PathBuf,
     pub web_dir: PathBuf,
     pub callback_base_override: Option<String>,
+    /// Key-encryption key for secrets at rest; `None` only with `OC_DEV=1`.
+    pub kek: Option<Kek>,
     pub rooms: RoomConfig,
 }
 
@@ -50,9 +54,15 @@ fn num(name: &str, default: u64) -> u64 {
 }
 
 impl Config {
-    pub fn from_env() -> Self {
+    /// Reads the environment; fails when `OC_KEK` is missing or invalid (unless `OC_DEV=1`).
+    pub fn from_env() -> anyhow::Result<Self> {
         let d = RoomConfig::default();
-        Self {
+        let dev = var("OC_DEV").is_some_and(|v| v == "1" || v == "true");
+        let kek = load_kek(var("OC_KEK").as_deref(), dev)?;
+        if kek.is_none() {
+            tracing::warn!("OC_DEV=1 and no OC_KEK: callback tokens are stored unencrypted");
+        }
+        Ok(Self {
             bind: var("OC_BIND").unwrap_or_else(|| "0.0.0.0:8080".into()),
             public_url: var("OC_PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string()),
             database_url: var("DATABASE_URL")
@@ -64,6 +74,7 @@ impl Config {
                 .unwrap_or_else(|| "web/packages/editor/dist".into())
                 .into(),
             callback_base_override: var("OC_CALLBACK_BASE_OVERRIDE"),
+            kek,
             rooms: RoomConfig {
                 autosave_debounce: Duration::from_millis(num("OC_AUTOSAVE_DEBOUNCE_MS", 2000)),
                 autosave_max: Duration::from_millis(num("OC_AUTOSAVE_MAX_MS", 10_000)),
@@ -72,6 +83,6 @@ impl Config {
                 max_doc_bytes: num("OC_MAX_DOC_MB", 20) as usize * 1024 * 1024,
                 ..d
             },
-        }
+        })
     }
 }

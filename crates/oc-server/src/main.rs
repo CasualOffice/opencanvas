@@ -14,12 +14,26 @@ async fn main() -> anyhow::Result<()> {
         .json()
         .init();
 
-    let cfg = Config::from_env();
+    let cfg = Config::from_env()?;
     let hosts = Hosts::load(&cfg.hosts_file, cfg.callback_base_override.as_deref())?;
     if !cfg.web_dir.join("index.html").exists() {
         tracing::warn!(dir = %cfg.web_dir.display(), "web app not built; /app/ will 404");
     }
     let state = AppState::new(cfg.clone(), hosts).await?;
+
+    let sweeper = state.clone();
+    tokio::spawn(async move {
+        // Startup sweep of commits that never reached the host, then a slow safety net.
+        let mut every = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            every.tick().await;
+            match sweeper.resume_outbox().await {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(rooms = n, "resumed pending commits"),
+                Err(e) => tracing::warn!(error = %e, "outbox sweep failed"),
+            }
+        }
+    });
 
     let janitor = state.clone();
     tokio::spawn(async move {

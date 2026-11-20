@@ -41,6 +41,10 @@ pub struct HostState {
     pub puts: Vec<RecordedPut>,
     pub gets: usize,
     pub conflict: bool,
+    /// PUTs answer 500 while set (host outage).
+    pub fail: bool,
+    /// Bodies POSTed to `/files/{id}/copies` (conflict policy `copy`).
+    pub copies: Vec<RecordedPut>,
 }
 
 pub type Shared = Arc<Mutex<HostState>>;
@@ -104,6 +108,12 @@ async fn put_file(
         .get("if-match")
         .and_then(|v| v.to_str().ok())
         .map(|v| v.trim_matches('"').to_string());
+    if st.fail {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({"error": "down"})),
+        );
+    }
     if st.conflict || if_match.is_some_and(|m| m != current.to_string()) {
         return (
             StatusCode::CONFLICT,
@@ -114,6 +124,27 @@ async fn put_file(
     (
         StatusCode::OK,
         axum::Json(json!({"version": (current + 1).to_string()})),
+    )
+}
+
+async fn post_copy(
+    State(s): State<Shared>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> impl IntoResponse {
+    let mut st = s.lock().unwrap();
+    let signature_ok = verify(&headers, &body);
+    st.copies.push(RecordedPut {
+        headers,
+        body: body.to_vec(),
+        signature_ok,
+    });
+    let new_id = format!("{id}_copy{}", st.copies.len());
+    st.files.insert(new_id.clone(), (body.to_vec(), 1));
+    (
+        StatusCode::CREATED,
+        axum::Json(json!({"fileId": new_id, "url": format!("http://host/files/{new_id}")})),
     )
 }
 
@@ -132,6 +163,7 @@ pub async fn mock_host() -> (String, Shared) {
     let state: Shared = Arc::default();
     let app = Router::new()
         .route("/api/files/{id}", get(get_file).put(put_file))
+        .route("/api/files/{id}/copies", axum::routing::post(post_copy))
         .route("/api/users", get(users))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -148,6 +180,7 @@ pub fn host_config(base: &str) -> HostConfig {
         jwt_alg: "HS256".into(),
         jwt_secret: Some(SECRET.into()),
         jwt_public_key: None,
+        jwt_jwks_url: None,
         callback_secret: None,
         api_key: None,
         callback_base: base.into(),
@@ -165,8 +198,26 @@ pub fn room_cfg() -> RoomConfig {
     }
 }
 
+pub fn temp_db() -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("oc-test-{}.db", ulid::Ulid::new()))
+}
+
+/// A fixed test key-encryption key, so a second `AppState` on the same DB can read the first's rows.
+pub const TEST_KEK: &str = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
 pub async fn app(base: &str, rooms: RoomConfig) -> SharedState {
-    let db = std::env::temp_dir().join(format!("oc-test-{}.db", ulid::Ulid::new()));
+    app_custom(base, rooms, &temp_db(), |_| {}).await
+}
+
+/// Like `app` with an explicit DB file and a hook to adjust the host entry.
+pub async fn app_custom(
+    base: &str,
+    rooms: RoomConfig,
+    db: &std::path::Path,
+    tweak: impl FnOnce(&mut HostConfig),
+) -> SharedState {
+    let mut host = host_config(base);
+    tweak(&mut host);
     let cfg = Config {
         bind: "127.0.0.1:0".into(),
         public_url: None,
@@ -174,9 +225,10 @@ pub async fn app(base: &str, rooms: RoomConfig) -> SharedState {
         hosts_file: "unused".into(),
         web_dir: "unused".into(),
         callback_base_override: None,
+        kek: Some(oc_server::crypto::Kek::from_b64(TEST_KEK).unwrap()),
         rooms,
     };
-    AppState::new(cfg, Hosts::from_list(vec![host_config(base)]))
+    AppState::new(cfg, Hosts::from_list(vec![host]))
         .await
         .unwrap()
 }
@@ -214,6 +266,8 @@ pub struct Peer {
     pub controls: Vec<Value>,
     pub denied: usize,
     pub awareness: Vec<yrs::sync::AwarenessUpdate>,
+    /// Close code the server sent, if any.
+    pub closed: Option<u16>,
 }
 
 impl Peer {
@@ -229,6 +283,7 @@ impl Peer {
             controls: vec![],
             denied: 0,
             awareness: vec![],
+            closed: None,
         };
         let sv = peer.doc.transact().state_vector();
         peer.send(protocol::step1(sv));
@@ -271,8 +326,9 @@ impl Peer {
         while let Ok(Some(out)) =
             tokio::time::timeout(Duration::from_millis(150), self.rx.recv()).await
         {
-            if let Outbound::Frame(f) = out {
-                self.on_frame(&f);
+            match out {
+                Outbound::Frame(f) => self.on_frame(&f),
+                Outbound::Close(code, _) => self.closed = Some(code),
             }
         }
     }
@@ -309,6 +365,27 @@ pub async fn server_json(state: &SharedState) -> Value {
     let d = oc_model::new_doc();
     oc_model::ocanvas::apply_update_bytes(&d, &bytes).unwrap();
     oc_model::doc_to_json(&d)
+}
+
+/// Serves the router for `state` on a random port; returns `127.0.0.1:<port>`.
+pub async fn serve_state(state: SharedState) -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, oc_server::router(state))
+            .await
+            .unwrap()
+    });
+    format!("127.0.0.1:{}", addr.port())
+}
+
+pub fn ocanvas_text(bytes: &[u8]) -> String {
+    let doc = oc_model::read_ocanvas(bytes).unwrap().doc;
+    let v = oc_model::doc_to_json(&doc);
+    v["content"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|n| n["text"].as_str()).collect())
+        .unwrap_or_default()
 }
 
 pub async fn wait_until(mut f: impl FnMut() -> bool) {

@@ -17,6 +17,8 @@ pub enum HostError {
     Status(StatusCode),
     #[error("bad callback url")]
     Url,
+    #[error("unexpected host answer: {0}")]
+    Body(String),
 }
 
 pub enum Fetched {
@@ -189,6 +191,34 @@ impl HostClient {
                 Ok(PutOutcome::Saved { version })
             }
             s => Err(HostError::Status(s)),
+        }
+    }
+
+    /// Conflict policy `copy`: `POST /files/{id}/copies` with the session's `.ocanvas`.
+    /// Returns the new file's id and URL.
+    pub async fn post_copy(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        file_id: &str,
+        body: Vec<u8>,
+        idempotency_key: &str,
+    ) -> Result<(String, String), HostError> {
+        let url = Self::url(host, &["files", file_id, "copies"])?;
+        let res = self
+            .request(host, token, Method::POST, url, body, 10)
+            .header(header::CONTENT_TYPE, "application/vnd.opencanvas+zip")
+            .header("Idempotency-Key", idempotency_key)
+            .send()
+            .await?;
+        if !res.status().is_success() {
+            return Err(HostError::Status(res.status()));
+        }
+        let v: serde_json::Value = res.json().await?;
+        let field = |k: &str| v.get(k).and_then(|x| x.as_str()).map(String::from);
+        match (field("fileId"), field("url")) {
+            (Some(id), url) => Ok((id, url.unwrap_or_default())),
+            _ => Err(HostError::Body("copy response without fileId".into())),
         }
     }
 

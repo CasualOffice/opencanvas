@@ -4,6 +4,8 @@
 //
 //   node server.mjs            # http://localhost:4000
 //   OC_SERVER=http://localhost:8080 OC_SECRET=dev-secret-change-me node server.mjs
+//   OC_SERVER_INTERNAL  where this process reaches OpenCanvas (default OC_SERVER; compose: http://opencanvas:8080)
+//   OC_API_KEY          the host api_key from opencanvas.hosts.toml (server-to-server role API)
 
 import http from "node:http";
 import crypto from "node:crypto";
@@ -14,6 +16,8 @@ const PORT = Number(process.env.PORT || 4000);
 const OC_SERVER = process.env.OC_SERVER || "http://localhost:8080";
 const SECRET = process.env.OC_SECRET || "dev-secret-change-me";
 const HOST_ID = process.env.OC_HOST_ID || "sample";
+const OC_INTERNAL = process.env.OC_SERVER_INTERNAL || OC_SERVER;
+const API_KEY = process.env.OC_API_KEY || "dev-api-key-change-me";
 const DATA = path.resolve(process.env.DATA_DIR || "./data");
 const SELF = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 fs.mkdirSync(path.join(DATA, "files"), { recursive: true });
@@ -73,6 +77,18 @@ function launchToken(fileId, userId) {
   });
 }
 
+// ---------- server-to-server: host → OpenCanvas (docs/05 §7) ----------
+async function pushRole(fileId, userId, role) {
+  try {
+    const r = await fetch(`${OC_INTERNAL}/v1/files/${encodeURIComponent(fileId)}/role`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-opencanvas-host": HOST_ID, "x-opencanvas-key": API_KEY },
+      body: JSON.stringify({ userId, role }),
+    });
+    console.log(`role ${fileId} ${userId}=${role} -> ${r.status} ${await r.text()}`);
+  } catch (e) { console.warn(`role API unreachable: ${e.message}`); }
+}
+
 // ---------- http plumbing ----------
 const readBody = req => new Promise((res, rej) => { const c = []; req.on("data", d => c.push(d)); req.on("end", () => res(Buffer.concat(c))); req.on("error", rej); });
 const send = (res, code, body, headers = {}) => { res.writeHead(code, { "content-type": "application/json", ...headers }); res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body)); };
@@ -99,10 +115,11 @@ function parseMultipart(buf, ctype) {
 
 // ---------- callbacks: OpenCanvas → host ----------
 async function callbacks(req, res, url) {
-  const m = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)(\/assets)?$/);
+  const m = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)(\/assets|\/copies)?$/);
   const body = req.method === "GET" ? Buffer.alloc(0) : await readBody(req);
   if (m) {
-    const [, fileId, assets] = m;
+    const [, fileId, sub] = m;
+    const assets = sub === "/assets", copies = sub === "/copies";
     const f = meta.files[fileId];
     if (!f) return send(res, 404, { error: "no such file" });
     const auth = checkCallback(req, fileId, body);
@@ -121,6 +138,16 @@ async function callbacks(req, res, url) {
       saveMeta();
       console.log(`saved ${fileId} v${f.version} (${body.length} bytes, autosave=${req.headers["x-opencanvas-autosave"] || 0})`);
       return send(res, 200, { version: String(f.version) });
+    }
+    if (copies && req.method === "POST") {
+      // Conflict policy "copy": keep the session's version as a new file with the same ACL.
+      if (f.acl[auth.userId] !== "edit" && f.acl[auth.userId] !== "comment") return send(res, 403, { error: "read only" });
+      const id = "doc_" + crypto.randomBytes(4).toString("hex");
+      meta.files[id] = { id, name: `${f.name} (copy)`, version: 1, updatedAt: new Date().toISOString(), acl: { ...f.acl } };
+      fs.writeFileSync(filePath(id), body);
+      saveMeta();
+      console.log(`copied ${fileId} -> ${id} after a conflict (${body.length} bytes)`);
+      return send(res, 201, { fileId: id, url: `${SELF}/files/${id}` });
     }
     if (assets && req.method === "POST") {
       const part = parseMultipart(body, req.headers["content-type"]);
@@ -208,9 +235,16 @@ http.createServer(async (req, res) => {
     const acl = url.pathname.match(/^\/files\/([\w-]+)\/acl$/);
     if (req.method === "POST" && acl && meta.files[acl[1]]) {
       const form = new URLSearchParams((await readBody(req)).toString());
-      for (const u of Object.keys(USERS)) { const r = form.get(u); if (r === "none") delete meta.files[acl[1]].acl[u]; else if (r) meta.files[acl[1]].acl[u] = r; }
+      const file = meta.files[acl[1]], changed = [];
+      for (const u of Object.keys(USERS)) {
+        const r = form.get(u), before = file.acl[u] || "none";
+        if (!r || r === before) continue;
+        if (r === "none") delete file.acl[u]; else file.acl[u] = r;
+        changed.push([u, r]);
+      }
       saveMeta();
-      // Tell OpenCanvas about live role changes (docs/05 §7); ignore failures in the demo.
+      // Tell OpenCanvas about live role changes (docs/05 §7): open sessions switch at once.
+      await Promise.all(changed.map(([userId, role]) => pushRole(file.id, userId, role)));
       res.writeHead(303, { location: "/" }); return res.end();
     }
     const fm = url.pathname.match(/^\/files\/([\w-]+)$/);

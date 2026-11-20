@@ -30,6 +30,7 @@ hex.workspace = true
 ulid.workspace = true
 base64.workspace = true
 futures.workspace = true
+aes-gcm.workspace = true
 bytes = "1"
 
 [dev-dependencies]

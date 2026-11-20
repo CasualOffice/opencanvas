@@ -1,6 +1,7 @@
 //! OpenCanvas server: launch, sessions, collaboration rooms, autosave and exports.
 
 pub mod config;
+pub mod crypto;
 pub mod grant;
 pub mod host_client;
 pub mod hosts;
@@ -29,6 +30,8 @@ pub struct AppState {
     pub host: HostClient,
     pub rooms: Arc<Rooms>,
     pub metrics: Arc<Metrics>,
+    /// Launch-token verification incl. the JWKS cache.
+    pub jwks: jwt::Jwks,
     /// First `GET /v1/sessions` per ticket, for the 60 s WebSocket connect window.
     pub tickets: Mutex<HashMap<String, TicketUse>>,
 }
@@ -43,7 +46,7 @@ pub type SharedState = Arc<AppState>;
 
 impl AppState {
     pub async fn new(cfg: Config, hosts: Hosts) -> anyhow::Result<SharedState> {
-        let store = Store::connect(&cfg.database_url).await?;
+        let store = Store::connect(&cfg.database_url, cfg.kek.clone()).await?;
         let metrics = Arc::new(Metrics::default());
         let host = HostClient::new();
         let rooms = Rooms::new(Arc::new(Ctx {
@@ -59,8 +62,48 @@ impl AppState {
             host,
             rooms,
             metrics,
+            jwks: jwt::Jwks::new(),
             tickets: Mutex::default(),
         }))
+    }
+}
+
+impl AppState {
+    /// Startup sweeper: reopens every room that has a pending commit so its save is retried
+    /// (with the same idempotency key). Returns how many rooms were resumed.
+    pub async fn resume_outbox(&self) -> anyhow::Result<usize> {
+        let mut resumed = std::collections::HashSet::new();
+        for row in self.store.outbox_all_pending().await? {
+            if resumed.contains(&row.room_id) || self.rooms.is_live(&row.room_id) {
+                continue;
+            }
+            let Some(host) = self.hosts.get(&row.host_id) else {
+                tracing::warn!(room = %row.room_id, host = %row.host_id, "pending commit for an unknown host");
+                continue;
+            };
+            let grant = grant::Grant {
+                host_id: row.host_id.clone(),
+                room: row.room_id.clone(),
+                role: grant::Role::Edit,
+                user: grant::User {
+                    id: "opencanvas".into(),
+                    name: "OpenCanvas".into(),
+                    color: "#71717a".into(),
+                    avatar: None,
+                },
+                file: grant::FileRef {
+                    id: row.file_id.clone(),
+                    name: row.file_id.clone(),
+                    version: row.base_version.clone(),
+                },
+                perms: grant::Perms::default(),
+                callback_token: row.token.clone(),
+            };
+            tracing::info!(room = %row.room_id, attempts = row.attempts, "resuming pending commit");
+            self.rooms.open(&host, &grant);
+            resumed.insert(row.room_id);
+        }
+        Ok(resumed.len())
     }
 }
 
