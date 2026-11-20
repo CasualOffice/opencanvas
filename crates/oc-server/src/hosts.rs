@@ -1,0 +1,166 @@
+//! Static host registry from `opencanvas.hosts.toml` (docs/05 §2).
+
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
+
+use anyhow::{Context, bail};
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HostConfig {
+    pub id: String,
+    pub name: String,
+    #[serde(default = "default_mode")]
+    pub mode: String,
+    #[serde(default = "default_alg")]
+    pub jwt_alg: String,
+    /// HS256 secret; also the HMAC key for callback signatures unless `callback_secret` is set.
+    #[serde(default)]
+    pub jwt_secret: Option<String>,
+    /// PEM public key for RS256 / EdDSA.
+    #[serde(default)]
+    pub jwt_public_key: Option<String>,
+    #[serde(default)]
+    pub callback_secret: Option<String>,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    pub callback_base: String,
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
+    #[serde(default)]
+    pub flags: toml::Table,
+}
+
+fn default_mode() -> String {
+    "jwt".into()
+}
+fn default_alg() -> String {
+    "HS256".into()
+}
+
+impl HostConfig {
+    pub fn signing_secret(&self) -> &[u8] {
+        self.callback_secret
+            .as_deref()
+            .or(self.jwt_secret.as_deref())
+            .unwrap_or_default()
+            .as_bytes()
+    }
+}
+
+#[derive(Deserialize)]
+struct HostsFile {
+    #[serde(default)]
+    host: Vec<HostConfig>,
+}
+
+/// Resolves `env:NAME` and `file:/path` indirections for secrets.
+fn resolve(value: Option<String>) -> anyhow::Result<Option<String>> {
+    let Some(v) = value else { return Ok(None) };
+    if let Some(name) = v.strip_prefix("env:") {
+        return std::env::var(name)
+            .map(Some)
+            .with_context(|| format!("env var {name} not set"));
+    }
+    if let Some(path) = v.strip_prefix("file:") {
+        return std::fs::read_to_string(path)
+            .map(Some)
+            .with_context(|| format!("cannot read {path}"));
+    }
+    Ok(Some(v))
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Hosts(HashMap<String, Arc<HostConfig>>);
+
+impl Hosts {
+    pub fn from_list(list: Vec<HostConfig>) -> Self {
+        Self(
+            list.into_iter()
+                .map(|h| (h.id.clone(), Arc::new(h)))
+                .collect(),
+        )
+    }
+
+    pub fn parse(src: &str, callback_override: Option<&str>) -> anyhow::Result<Self> {
+        let file: HostsFile = toml::from_str(src).context("invalid hosts file")?;
+        let mut list = Vec::new();
+        for mut h in file.host {
+            h.jwt_secret = resolve(h.jwt_secret)?;
+            h.jwt_public_key = resolve(h.jwt_public_key)?;
+            h.callback_secret = resolve(h.callback_secret)?;
+            h.api_key = resolve(h.api_key)?;
+            if h.jwt_alg == "HS256" && h.jwt_secret.is_none() {
+                bail!("host {}: HS256 requires jwt_secret", h.id);
+            }
+            if let Some(base) = callback_override {
+                tracing::warn!(host = %h.id, "OC_CALLBACK_BASE_OVERRIDE replaces callback_base (dev/compose only)");
+                h.callback_base = base.to_string();
+            }
+            h.callback_base = h.callback_base.trim_end_matches('/').to_string();
+            list.push(h);
+        }
+        Ok(Self::from_list(list))
+    }
+
+    pub fn load(path: &Path, callback_override: Option<&str>) -> anyhow::Result<Self> {
+        if !path.exists() {
+            tracing::warn!(path = %path.display(), "hosts file not found; no host can launch");
+            return Ok(Self::default());
+        }
+        let src =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        Self::parse(&src, callback_override)
+    }
+
+    pub fn get(&self, id: &str) -> Option<Arc<HostConfig>> {
+        self.0.get(id).cloned()
+    }
+
+    pub fn allowed_origins(&self) -> Vec<String> {
+        let mut v: Vec<String> = self
+            .0
+            .values()
+            .flat_map(|h| h.allowed_origins.iter().cloned())
+            .collect();
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_overrides_callback_base() {
+        let src = r#"
+            [[host]]
+            id = "sample"
+            name = "Sample"
+            jwt_secret = "s3cret"
+            callback_base = "http://localhost:4000/api/opencanvas/"
+            allowed_origins = ["http://localhost:4000"]
+        "#;
+        let hosts = Hosts::parse(src, None).unwrap();
+        assert_eq!(
+            hosts.get("sample").unwrap().callback_base,
+            "http://localhost:4000/api/opencanvas"
+        );
+        let hosts = Hosts::parse(src, Some("http://sample-host:4000/api/opencanvas")).unwrap();
+        assert_eq!(
+            hosts.get("sample").unwrap().callback_base,
+            "http://sample-host:4000/api/opencanvas"
+        );
+    }
+}
