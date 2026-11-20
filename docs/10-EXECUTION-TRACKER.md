@@ -69,3 +69,13 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | API-01 | Role / patch / commit / close REST | Todo |
 | TPL-01 | Host-supplied team templates callback | Todo |
 | OPS-01 | Helm chart, dashboards | Todo |
+
+## Block packages status (database / board session, 2026-11-21)
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| DB-01 | Database block model in Yjs + table view | Done | `web/packages/database`: contract §4 layout; cell editors, header menu, filter/sort/search chips (shared via `views`), footer totals; viewers keep view/prefs local |
+| DB-02 | Board, calendar, gallery views; row peek | Done | Kanban drag between groups, month grid (agenda when compact), gallery cards, peek side panel / full sheet with notes |
+| DB-03 | CSV import/export with type detection | Done | `parseCsv` (quotes, CRLF, TSV, BOM), type detection incl. tags/progress/person, `CsvImportDialog`, download export, import→export round-trip tested |
+| BRD-01 | Board block: shapes, pen, text, sticky, select/transform | Done | `web/packages/board`: 9 tools, move/resize, swatch, inline text edit, zoom/pinch, full screen, compact cover, awareness pointers, per-view undo |
+| BRD-02 | Connectors, frames, images on board, PNG/SVG export | Todo | Plain arrows only; no bound connectors, images or export yet |
