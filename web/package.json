@@ -1,0 +1,12 @@
+{
+  "name": "opencanvas-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --filter ./packages/editor... build",
+    "dev": "pnpm --filter @opencanvas/editor dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "packageManager": "pnpm@9.15.9"
+}
