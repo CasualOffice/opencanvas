@@ -1,0 +1,247 @@
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import {
+  AlignLeft, BookOpen, Bug, Calendar, CalendarDays, CircleChevronDown, CircleDot, ClipboardList, Database, FileSpreadsheet,
+  Gauge, Handshake, Hash, Link2, ListChecks, ListTodo, Map as MapIcon, MessageSquare, PartyPopper, Repeat, SquareCheck,
+  SquareKanban, Tags, Target, Text, UserPlus, UserRound, X, type LucideIcon, type LucideProps,
+} from "lucide-react";
+import { initials, type OcUser } from "@opencanvas/ui";
+import type { FieldType } from "./types";
+
+export const SW = 1.75;
+
+/** Lucide icon with the house stroke width. */
+export function Ic({ i: I, s = 16, ...rest }: { i: LucideIcon; s?: number } & Omit<LucideProps, "ref">) {
+  return <I size={s} strokeWidth={SW} aria-hidden="true" {...rest} />;
+}
+
+export const DB_ICONS: Record<string, LucideIcon> = {
+  "list-todo": ListTodo, bug: Bug, handshake: Handshake, "user-plus": UserPlus, target: Target, "calendar-days": CalendarDays,
+  "book-open": BookOpen, "message-square": MessageSquare, map: MapIcon, "list-checks": ListChecks, repeat: Repeat,
+  "party-popper": PartyPopper, "clipboard-list": ClipboardList, database: Database, "square-kanban": SquareKanban,
+  "file-spreadsheet": FileSpreadsheet,
+};
+export const dbIcon = (name: string): LucideIcon => DB_ICONS[name] ?? Database;
+
+export const TYPE_ICON: Record<FieldType, LucideIcon> = {
+  title: Text, text: AlignLeft, status: CircleDot, select: CircleChevronDown, tags: Tags, person: UserRound,
+  date: Calendar, number: Hash, checkbox: SquareCheck, url: Link2, progress: Gauge,
+};
+
+export function Avatar({ u, size = "" }: { u: OcUser; size?: "" | "xs" | "md" }) {
+  return (
+    <span className={"ocdb-av " + size} style={{ background: u.color }} aria-hidden="true">
+      {u.avatar ? <img src={u.avatar} alt="" /> : initials(u.name)}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------ popover */
+
+export type Anchor = HTMLElement | DOMRect;
+
+interface PopProps {
+  anchor: Anchor;
+  compact: boolean;
+  title?: string;
+  onClose: () => void;
+  alignRight?: boolean;
+  children: ReactNode;
+  label?: string;
+}
+
+/** Anchored popover on desktop, bottom sheet with scrim when compact. Portaled to body. */
+export function Pop({ anchor, compact, title, onClose, alignRight, children, label }: PopProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+
+  useLayoutEffect(() => {
+    if (compact) return;
+    const place = () => {
+      const el = ref.current;
+      if (!el) return;
+      const r = anchor instanceof DOMRect ? anchor : anchor.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const pw = el.offsetWidth, ph = el.offsetHeight;
+      let left = alignRight ? r.right - pw : r.left;
+      let top = r.bottom + 6;
+      if (top + ph > vh - 8) top = Math.max(8, r.top - ph - 6);
+      left = Math.max(8, Math.min(left, vw - pw - 8));
+      setPos((p) => (p && p.left === left && p.top === top ? p : { left, top }));
+    };
+    place();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
+    if (ro && ref.current) ro.observe(ref.current);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchor, compact, alignRight]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close.current();
+      }
+    };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (ref.current?.contains(t)) return;
+      if (!(anchor instanceof DOMRect) && anchor.contains(t)) return;
+      close.current();
+    };
+    document.addEventListener("keydown", onKey, true);
+    if (!compact) document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [anchor, compact]);
+
+  if (typeof document === "undefined") return null;
+  if (compact) {
+    return createPortal(
+      <>
+        <div className="ocdb-scrim ocdb-layer" onClick={onClose} />
+        <div ref={ref} className="ocdb-sheet ocdb-layer ocdb-compact" role="dialog" aria-label={label ?? title}>
+          <div className="ocdb-grab" />
+          {title ? <div className="ocdb-sht">{title}</div> : null}
+          {children}
+        </div>
+      </>,
+      document.body,
+    );
+  }
+  return createPortal(
+    <div
+      ref={ref}
+      className="ocdb-pop ocdb-layer"
+      role="dialog"
+      aria-label={label ?? title}
+      style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: -9999 }}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+/* -------------------------------------------------------------- modal */
+
+interface ModalProps {
+  compact: boolean;
+  title: string;
+  sub?: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer: ReactNode;
+}
+
+export function Modal({ compact, title, sub, onClose, children, footer }: ModalProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close.current();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    ref.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      prev?.focus?.();
+    };
+  }, []);
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <>
+      <div className="ocdb-scrim ocdb-layer" onClick={onClose} />
+      <div ref={ref} tabIndex={-1} className={"ocdb-modal ocdb-layer" + (compact ? " ocdb-compact" : "")} role="dialog" aria-modal="true" aria-label={title} style={{ outline: "none" }}>
+        {compact ? <div className="ocdb-grab" /> : null}
+        <div className="ocdb-mhd">
+          <div>
+            <h2>{title}</h2>
+            {sub ? <p>{sub}</p> : null}
+          </div>
+          <button className="ocdb-ib" onClick={onClose} aria-label="Close">
+            <Ic i={X} />
+          </button>
+        </div>
+        <div className="ocdb-mbd">{children}</div>
+        <div className="ocdb-mft">{footer}</div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+/* ---------------------------------------------------- committed input */
+
+interface CommitInputProps {
+  value: string;
+  onCommit: (v: string) => void;
+  readOnly?: boolean;
+  placeholder?: string;
+  className?: string;
+  inputMode?: "decimal" | "text" | "url";
+  ariaLabel?: string;
+  autoFocus?: boolean;
+  onEnter?: () => void;
+}
+
+/**
+ * Text input that keeps a local draft while focused and commits on blur / Enter.
+ * While not focused it always shows the shared (Yjs) value, so remote edits appear live.
+ */
+export function CommitInput({ value, onCommit, readOnly, placeholder, className, inputMode, ariaLabel, autoFocus, onEnter }: CommitInputProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const skip = useRef(false);
+  const commit = () => {
+    if (draft !== null && draft !== value) onCommit(draft);
+    setDraft(null);
+  };
+  return (
+    <input
+      className={className ?? "ocdb-ce"}
+      value={draft ?? value}
+      readOnly={readOnly}
+      placeholder={placeholder}
+      inputMode={inputMode}
+      aria-label={ariaLabel}
+      autoFocus={autoFocus}
+      spellCheck={false}
+      onFocus={() => !readOnly && setDraft(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (skip.current) {
+          skip.current = false;
+          setDraft(null);
+          return;
+        }
+        commit();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+          skip.current = true;
+          (e.target as HTMLInputElement).blur();
+          onEnter?.();
+        } else if (e.key === "Escape") {
+          skip.current = true;
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+}
