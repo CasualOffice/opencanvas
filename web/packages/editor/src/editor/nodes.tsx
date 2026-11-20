@@ -5,13 +5,14 @@ import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type ReactNode
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
-import { useEffect, useRef, useState, type DragEvent } from "react";
-import { DatabaseBlock } from "@opencanvas/database";
-import { BoardBlock } from "@opencanvas/board";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type DragEvent } from "react";
+import type * as Y from "yjs";
 import { Ic } from "../icons";
 import { useBridge, bridge } from "../lib/bridge";
 import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from "../lib/embeds";
-import { toast } from "../lib/store";
+import { toast, useStore } from "../lib/store";
+import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
+import { loadBoard, loadDatabase } from "./blockdata";
 
 const TONES = ["blue", "green", "amber", "red", "purple", "pink", "gray"] as const;
 const CALLOUT_ICONS = ["lightbulb", "info", "target", "triangle-alert", "sparkles", "clock", "calendar", "flag", "star", "map-pin"];
@@ -331,21 +332,54 @@ function fileTone(mime: string, name: string): string {
   return "blue";
 }
 
+/** Local upload state for a node's transient `upload` attr (only the uploader has it). */
+function useUpload(node: ReactNodeViewProps["node"]): [string | null, UploadState | undefined] {
+  const id = (node.attrs.upload as string | null) ?? null;
+  const all = useStore(uploadStore);
+  return [id, id ? all[id] : undefined];
+}
+
+function UploadStatus({ id, up, label }: { id: string; up: UploadState; label: string }) {
+  if (up.state === "error")
+    return (
+      <span className="upchip bad" role="status">
+        <Ic name="triangle-alert" size={13} />
+        <span className="ut">{label} didn't upload</span>
+        <button onClick={() => retryUpload(id)}>
+          <Ic name="rotate-ccw" size={13} />
+          Retry
+        </button>
+        <button className="x" onClick={() => cancelUpload(id)} aria-label="Remove" title="Remove">
+          <Ic name="x" size={13} />
+        </button>
+      </span>
+    );
+  return (
+    <span className="upchip" role="status" aria-label={`Uploading, ${Math.round(up.progress * 100)}%`}>
+      <Ic name="loader-circle" size={13} className="spin" />
+      <span className="ut">Uploading {Math.round(up.progress * 100)}%</span>
+    </span>
+  );
+}
+
 function FileView({ node }: ReactNodeViewProps) {
   const { name, size, url, mime } = node.attrs as { name: string; size: number; url: string; mime: string };
   const b = useBridge();
+  const [upId, up] = useUpload(node);
   const ext = (name.split(".").pop() ?? "").toUpperCase();
   return (
     <NodeViewWrapper>
-      <div className="attach" contentEditable={false}>
+      <div className={"attach" + (up ? " uploading" : "")} contentEditable={false}>
         <span className={`ftile tone-${fileTone(mime, name)}`}>
           <Ic name={/^image\//.test(mime) ? "image" : /sheet|csv/.test(mime) ? "file-spreadsheet" : "file-text"} />
         </span>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div className="fname">{name || "Untitled file"}</div>
           <div className="fmeta">{[ext, fmtSize(Number(size))].filter(Boolean).join(" · ") || "File"}</div>
         </div>
-        {url && b.session?.perms?.download !== false ? (
+        {up && upId ? (
+          <UploadStatus id={upId} up={up} label="File" />
+        ) : url && b.session?.perms?.download !== false ? (
           <a className="ib" href={url} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
             <Ic name="download" />
           </a>
@@ -354,15 +388,19 @@ function FileView({ node }: ReactNodeViewProps) {
             <Ic name="paperclip" />
           </span>
         )}
+        {up?.state === "uploading" ? <span className="upbar" style={{ transform: `scaleX(${Math.max(0.04, up.progress)})` }} /> : null}
       </div>
     </NodeViewWrapper>
   );
 }
 
+/** Transient attr: the local upload id while bytes are in flight. Never part of exports. */
+const uploadAttr = { upload: { default: null, rendered: false, keepOnSplit: false } };
+
 export const FileAttachment = Node.create({
   name: "fileAttachment",
   ...atom,
-  addAttributes: () => ({ name: { default: "" }, size: { default: 0 }, url: { default: "" }, mime: { default: "" } }),
+  addAttributes: () => ({ name: { default: "" }, size: { default: 0 }, url: { default: "" }, mime: { default: "" }, ...uploadAttr }),
   parseHTML: () => [{ tag: 'div[data-type="fileAttachment"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "fileAttachment" })],
   addNodeView() {
@@ -376,27 +414,33 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
   const { src, alt, caption } = node.attrs as { src: string; alt: string; caption: string };
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [upId, up] = useUpload(node);
   const b = useBridge();
-  const take = async (f: File | undefined) => {
+  const fill = (f: File | undefined) => {
+    if (!f || !/^image\//.test(f.type)) return;
+    uploadInto(editor, f, (a) => updateAttributes({ ...a, alt: alt || f.name.replace(/\.[^.]+$/, "") }));
+  };
+  const replace = async (f: File | undefined) => {
     if (!f || !/^image\//.test(f.type)) return;
     setBusy(true);
     try {
-      const up = await b.upload(f);
-      updateAttributes({ src: up.url, alt: alt || f.name });
+      const r = await uploadNow(f);
+      updateAttributes({ src: r.url });
     } catch {
       toast("The image didn't upload. Try again.", { icon: "triangle-alert" });
     } finally {
       setBusy(false);
     }
   };
-  if (!src) {
+  const shown = up?.preview ?? src;
+  if (!shown) {
     return (
       <NodeViewWrapper>
         <button
           className={"upl" + (over ? " over" : "")}
           contentEditable={false}
-          disabled={!editor.isEditable || busy}
-          onClick={() => b.pickFile("image/*", take)}
+          disabled={!editor.isEditable || !!up}
+          onClick={() => b.pickFile("image/*", fill)}
           onDragOver={(e: DragEvent) => {
             e.preventDefault();
             setOver(true);
@@ -404,12 +448,13 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
           onDragLeave={() => setOver(false)}
           onDrop={(e: DragEvent) => {
             e.preventDefault();
+            e.stopPropagation();
             setOver(false);
-            void take(e.dataTransfer.files[0]);
+            fill(e.dataTransfer.files[0]);
           }}
         >
-          <Ic name={busy ? "loader-circle" : "image-plus"} className={busy ? "spin" : ""} />
-          {busy ? "Uploading…" : editor.isEditable ? "Upload an image or drop one here" : "Image"}
+          <Ic name="image-plus" />
+          {editor.isEditable ? "Upload an image or drop one here" : "Image"}
         </button>
       </NodeViewWrapper>
     );
@@ -417,12 +462,17 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
   return (
     <NodeViewWrapper>
       <figure className="figure" style={{ outline: selected ? "2px solid var(--accent-ring)" : undefined, borderRadius: 10 }}>
-        <div className="fwrap" contentEditable={false}>
-          <img src={src} alt={alt || caption || ""} draggable={false} />
-          {editor.isEditable ? (
+        <div className={"fwrap" + (up ? " uploading" : "")} contentEditable={false}>
+          <img src={shown} alt={alt || caption || ""} draggable={false} />
+          {up && upId ? (
+            <div className="fup">
+              <UploadStatus id={upId} up={up} label="Image" />
+              {up.state === "uploading" ? <span className="upbar" style={{ transform: `scaleX(${Math.max(0.04, up.progress)})` }} /> : null}
+            </div>
+          ) : editor.isEditable ? (
             <div className="fbar">
-              <button className="ib" title="Replace" aria-label="Replace image" onClick={() => b.pickFile("image/*", take)}>
-                <Ic name="image-plus" size={14} />
+              <button className="ib" title="Replace" aria-label="Replace image" disabled={busy} onClick={() => b.pickFile("image/*", replace)}>
+                <Ic name={busy ? "loader-circle" : "image-plus"} size={14} className={busy ? "spin" : ""} />
               </button>
             </div>
           ) : null}
@@ -463,7 +513,7 @@ function CaptionInput({ value, editable, onChange }: { value: string; editable: 
 export const OcImage = Image.extend({
   draggable: true,
   addAttributes() {
-    return { ...this.parent?.(), caption: { default: "", parseHTML: (el: HTMLElement) => el.getAttribute("data-caption") ?? "", renderHTML: (a: Record<string, unknown>) => ({ "data-caption": a.caption }) } };
+    return { ...this.parent?.(), caption: { default: "", parseHTML: (el: HTMLElement) => el.getAttribute("data-caption") ?? "", renderHTML: (a: Record<string, unknown>) => ({ "data-caption": a.caption }) }, ...uploadAttr };
   },
   addNodeView() {
     return ReactNodeViewRenderer(ImageView, ownEvents);
@@ -507,14 +557,97 @@ export const OcCodeBlock = CodeBlock.extend({
   },
 });
 
-// ---------- database & board (rendered by their packages) ----------
+// ---------- database & board (rendered by their packages, loaded on demand) ----------
+
+const DatabaseBlock = lazy(() => loadDatabase().then((m) => ({ default: m.DatabaseBlock })));
+const BoardBlock = lazy(() => loadBoard().then((m) => ({ default: m.BoardBlock })));
+
+/**
+ * Database and board blocks break out of the 760px text column to a wider
+ * measure (CSS `.wideblock`). Tables scroll sideways inside; this marks each
+ * scroller with which edges hide more content so CSS can fade them.
+ */
+function useEdgeFade() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        host.querySelectorAll<HTMLElement>(".ocdb-gw, .ocdb-kan, .ocdb-tabs").forEach((el) => {
+          const max = el.scrollWidth - el.clientWidth;
+          const l = String(el.scrollLeft > 2);
+          const r = String(max - el.scrollLeft > 2);
+          if (el.dataset.fadeL !== l) el.dataset.fadeL = l;
+          if (el.dataset.fadeR !== r) el.dataset.fadeR = r;
+        });
+      });
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(host);
+    const mo = new MutationObserver(measure);
+    mo.observe(host, { childList: true, subtree: true });
+    host.addEventListener("scroll", measure, { capture: true, passive: true });
+    measure();
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      mo.disconnect();
+      host.removeEventListener("scroll", measure, { capture: true });
+    };
+  }, []);
+  return ref;
+}
+
+/** Placeholder with roughly the block's final size, so loading doesn't shift the page. */
+function BlockSkeleton({ kind, rows = 3, view = "table" }: { kind: "db" | "board"; rows?: number; view?: string }) {
+  if (kind === "board") return <div className="bskel board" aria-busy="true" aria-label="Loading whiteboard" />;
+  const lines = Math.min(Math.max(rows, 1), 12);
+  return (
+    <div className="bskel db" aria-busy="true" aria-label="Loading database">
+      <div className="bsh">
+        <i style={{ width: 24, height: 24, borderRadius: 7 }} />
+        <i style={{ width: 160, height: 14 }} />
+      </div>
+      <div className="bsb">
+        <i style={{ width: 56 }} />
+        <i style={{ width: 56 }} />
+        <i style={{ width: 56 }} />
+      </div>
+      {view === "table" ? (
+        <div className="bst">
+          {Array.from({ length: lines + 1 }, (_, i) => (
+            <div key={i} className={i ? "r" : "r h"}>
+              <i style={{ width: "30%" }} />
+              <i style={{ width: "16%" }} />
+              <i style={{ width: "20%" }} />
+              <i style={{ width: "12%" }} />
+            </div>
+          ))}
+          <div className="f" />
+        </div>
+      ) : (
+        <i className="bsg" style={{ height: view === "calendar" ? 520 : 300 }} />
+      )}
+    </div>
+  );
+}
 
 function DatabaseView({ node }: ReactNodeViewProps) {
   const b = useBridge();
+  const ref = useEdgeFade();
+  const dbId = String(node.attrs.dbId);
+  const m = b.doc.getMap("databases").get(dbId) as Y.Map<unknown> | undefined;
+  const rows = (m?.get("order") as Y.Array<unknown> | undefined)?.length ?? 3;
+  const view = String(m?.get("view") ?? "table");
   return (
-    <NodeViewWrapper className="stubhost" data-db={node.attrs.dbId}>
-      <div contentEditable={false}>
-        <DatabaseBlock doc={b.doc} dbId={String(node.attrs.dbId)} env={b.env} />
+    <NodeViewWrapper className="stubhost wideblock" data-db={node.attrs.dbId}>
+      <div contentEditable={false} ref={ref}>
+        <Suspense fallback={<BlockSkeleton kind="db" rows={rows} view={view} />}>
+          <DatabaseBlock doc={b.doc} dbId={dbId} env={b.env} />
+        </Suspense>
       </div>
     </NodeViewWrapper>
   );
@@ -534,9 +667,11 @@ export const Database = Node.create({
 function BoardView({ node }: ReactNodeViewProps) {
   const b = useBridge();
   return (
-    <NodeViewWrapper className="stubhost" data-board={node.attrs.boardId}>
+    <NodeViewWrapper className="stubhost wideblock" data-board={node.attrs.boardId}>
       <div contentEditable={false}>
-        <BoardBlock doc={b.doc} boardId={String(node.attrs.boardId)} env={b.env} awareness={b.awareness} />
+        <Suspense fallback={<BlockSkeleton kind="board" />}>
+          <BoardBlock doc={b.doc} boardId={String(node.attrs.boardId)} env={b.env} awareness={b.awareness} />
+        </Suspense>
       </div>
     </NodeViewWrapper>
   );

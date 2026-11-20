@@ -213,6 +213,49 @@ button.cic:hover{transform:scale(1.06)}
 .blockwrap{position:relative}
 .stubhost{margin:14px 0 18px}
 
+/* Database and board blocks break out of the text column to a wider measure,
+   centred in the scroll area, with 16px gutters on small screens. Only top-level
+   blocks: inside columns or toggles they keep their parent's width. */
+.scroll{container-type:inline-size}
+.ProseMirror>.react-renderer>.wideblock{--bw:max(100%, min(1100px, 100cqw - 32px));width:var(--bw);margin-left:calc((100% - var(--bw)) / 2)}
+/* Sideways scrollers fade at an edge that hides more columns. */
+.wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs){--fl:0px;--fr:0px}
+.wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs)[data-fade-l="true"]{--fl:44px}
+.wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs)[data-fade-r="true"]{--fr:44px}
+.wideblock .ocdb-tabs[data-fade-l="true"]{--fl:28px}
+.wideblock .ocdb-tabs[data-fade-r="true"]{--fr:28px}
+.wideblock .ocdb-compact .ocdb-gw[data-fade-l="true"]{--fl:0px}
+.wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs):is([data-fade-l="true"],[data-fade-r="true"]){-webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%)}
+
+/* Skeletons shown while the database / board code loads. */
+.bskel i{display:block;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--sunk),var(--hover),var(--sunk));background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+.bskel.db{margin:14px 0 18px}
+.bskel .bsh{display:flex;align-items:center;gap:10px;height:30px;margin-bottom:6px}
+.bskel .bsb{display:flex;gap:14px;align-items:center;height:41px;border-bottom:1px solid var(--line);padding:0 4px}
+.bskel .bst .r{display:flex;gap:18px;align-items:center;height:41px;border-bottom:1px solid var(--line);padding:0 10px}
+.bskel .bst .r.h{height:37px}
+.bskel .bst .r.h i{height:8px;opacity:.7}
+.bskel .bst .f{height:73px}
+.bskel .bsg{height:300px;border-radius:var(--r);margin-top:12px}
+.bskel.board{height:440px;margin:14px 0;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--line);background:linear-gradient(90deg,var(--panel),var(--sunk),var(--panel));background-size:200% 100%;animation:shimmer 1.8s linear infinite}
+.app.compact .bskel.board{height:300px}
+
+/* Uploads: progress over the local preview, retry chip on failure. */
+.upchip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 4px 0 11px;border-radius:999px;background:var(--pop);box-shadow:var(--sh-pop);font-size:12.5px;color:var(--fg-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.upchip:not(.bad){padding-right:13px}
+.upchip.bad{color:var(--red-fg)}
+.upchip .ut{margin-right:2px}
+.upchip button{display:inline-flex;align-items:center;gap:5px;height:24px;border:0;border-radius:999px;padding:0 10px;background:var(--hover);color:var(--fg);font-size:12px;font-weight:500;transition:background .2s var(--ease)}
+.upchip button:hover{background:var(--press)}
+.upchip button.x{padding:0;width:24px;justify-content:center;background:none;color:var(--fg-3)}
+.upchip button.x:hover{background:var(--hover);color:var(--fg)}
+.upbar{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--accent);transform-origin:left;transition:transform .25s var(--ease)}
+.figure .fwrap.uploading img{opacity:.55;filter:saturate(.7)}
+.figure .fup{position:absolute;inset:0;display:grid;place-items:center}
+.figure .fwrap img{min-height:80px}
+.attach{position:relative;overflow:hidden}
+.attach.uploading .fname{color:var(--fg-2)}
+
 /* ---------- block gutter (drag handle) ---------- */
 .drag-handle{z-index:5;transition:opacity .2s var(--ease)}
 .gut{display:flex;align-items:center}
@@ -421,3 +464,20 @@ button.cic:hover{transform:scale(1.06)}
 .ProseMirror a.ib{color:var(--fg-2);text-decoration:none}
 .av{margin-left:-5px}
 .av:first-child{margin-left:0}
+
+/* ---------- print / Save as PDF ---------- */
+@media print{
+  @page{margin:16mm 14mm}
+  html,body,#root{height:auto;background:#fff}
+  .app,.wsp,.body{display:block;height:auto;overflow:visible}
+  .scroll{overflow:visible;container-type:normal}
+  .doc,.doc.wide{max-width:none;margin:0;padding:0}
+  .top,.banner,.side,.toasts,.mbar,.drag-handle,.gut,.peerbar,.ftb,.pop,.scrim,.fbar,.fup,.code .chead .ib,.collaboration-carets__caret,.ocbd-tool,.ocbd-zoom{display:none!important}
+  .collaboration-carets__selection{background:none!important}
+  .ProseMirror>.react-renderer>.wideblock{width:auto;margin-left:0}
+  .wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs){overflow:visible!important;-webkit-mask-image:none!important;mask-image:none!important}
+  .figure,.attach,.callout,.bookmark,.embed,.code,.ProseMirror table,.ocbd,.ocdb-gw tr{break-inside:avoid}
+  .ProseMirror h1,.ProseMirror h2,.ProseMirror h3{break-after:avoid}
+  .figure .fwrap.uploading img{opacity:1;filter:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

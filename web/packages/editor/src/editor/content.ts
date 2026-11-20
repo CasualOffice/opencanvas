@@ -3,9 +3,10 @@
 // and rendered as skeleton thumbnails in the template gallery.
 import type { JSONContent } from "@tiptap/core";
 import type * as Y from "yjs";
-import { createDatabase, type DbPreset as DatabasePreset } from "@opencanvas/database";
-import { createBoard, type BoardPreset } from "@opencanvas/board";
+import type { DbPreset as DatabasePreset } from "@opencanvas/database";
+import type { BoardPreset } from "@opencanvas/board";
 import type { Tone } from "@opencanvas/ui";
+import { loadBlockData, type BlockData } from "./blockdata";
 
 export type DbPreset = DatabasePreset;
 export type BdPreset = BoardPreset;
@@ -103,6 +104,8 @@ export interface BuildCtx {
   people?: Record<string, string>;
   /** who "me" refers to in templates */
   me?: { id: string; name: string };
+  /** database/board model functions, loaded on demand (see blockdata.ts) */
+  data?: BlockData;
 }
 
 function setView(doc: Y.Doc, id: string, view?: string) {
@@ -157,12 +160,12 @@ export function toJSON(b: TB, ctx: BuildCtx): JSONContent {
         ],
       };
     case "db": {
-      const id = createDatabase(ctx.doc, b.preset);
+      const id = ctx.data!.createDatabase(ctx.doc, b.preset);
       setView(ctx.doc, id, b.view);
       return { type: "database", attrs: { dbId: id } };
     }
     case "board":
-      return { type: "board", attrs: { boardId: createBoard(ctx.doc, b.preset) } };
+      return { type: "board", attrs: { boardId: ctx.data!.createBoard(ctx.doc, b.preset) } };
     case "image":
       return { type: "image", attrs: { src: artDataUri(b.art ?? "flow"), alt: b.caption, caption: b.caption } };
     case "link":
@@ -193,7 +196,9 @@ export function toJSON(b: TB, ctx: BuildCtx): JSONContent {
   }
 }
 
-export function buildDoc(blocks: TB[], ctx: BuildCtx): JSONContent {
+/** Builds Tiptap JSON; loads the database/board models first when a block needs them. */
+export async function buildDoc(blocks: TB[], ctx: BuildCtx): Promise<JSONContent> {
+  if (!ctx.data && blocks.some((b) => b.k === "db" || b.k === "board")) ctx = { ...ctx, data: await loadBlockData() };
   const content = blocks.map((b) => toJSON(b, ctx));
   if (!content.length || content[content.length - 1].type !== "paragraph") content.push({ type: "paragraph" });
   return { type: "doc", content };

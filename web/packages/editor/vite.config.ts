@@ -17,6 +17,32 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: true,
-    chunkSizeWarningLimit: 1400,
+    // Never inline font subsets into the render-blocking CSS: the browser only
+    // fetches the unicode ranges a page actually uses.
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
+    // Budget (docs/02 §7): the initial JS (entry + vendor chunks) stays under
+    // 300 KB gzip. Database, board, gallery, comments, dialogs, exports, the
+    // Markdown parser and the demo seed are dynamic imports.
+    chunkSizeWarningLimit: 500,
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks that change less often than app code. Only
+        // packages the entry needs anyway go here: putting a lazily used package
+        // (lucide for the blocks, marked) in a manual chunk would pull it into
+        // the initial load.
+        manualChunks(id) {
+          // Name the lazy block chunks after their packages.
+          if (/[\\/]packages[\\/]database[\\/]src[\\/]/.test(id)) return "database";
+          if (/[\\/]packages[\\/]board[\\/]src[\\/]/.test(id)) return "board";
+          if (!id.includes("node_modules")) return undefined;
+          // Loaded lazily: desktop editing chrome (chrome.tsx) and table editing (table.ts).
+          if (/[\\/]node_modules[\\/](@floating-ui[\\/]|@tiptap[\\/](extension-drag-handle|extension-drag-handle-react|extension-node-range|extension-bubble-menu|extension-floating-menu)[\\/]|@tiptap[\\/]react[\\/]dist[\\/]menus|prosemirror-tables[\\/]|@tiptap[\\/]pm[\\/]dist[\\/]tables)/.test(id)) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "react";
+          if (/[\\/]node_modules[\\/](yjs|lib0|y-protocols|y-websocket|@tiptap[\\/]y-tiptap)[\\/]/.test(id)) return "yjs";
+          if (/[\\/]node_modules[\\/](prosemirror-[^\\/]+|@tiptap[\\/](core|pm|react|starter-kit|extension-[^\\/]+|extensions|suggestion)|linkifyjs|@floating-ui[\\/][^\\/]+|orderedmap|rope-sequence|w3c-keyname|fast-equals|use-sync-external-store)[\\/]/.test(id)) return "tiptap";
+          return undefined;
+        },
+      },
+    },
   },
 });

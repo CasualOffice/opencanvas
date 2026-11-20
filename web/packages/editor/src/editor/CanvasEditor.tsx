@@ -1,30 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { TableKit } from "@tiptap/extension-table";
+import { TableNodes } from "./table";
 import Highlight from "@tiptap/extension-highlight";
 import Mention from "@tiptap/extension-mention";
 import { Placeholder } from "@tiptap/extensions";
-import DragHandle from "@tiptap/extension-drag-handle-react";
-import { offset } from "@floating-ui/dom";
-import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Extension } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import * as Y from "yjs";
+import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import type { OcUser, Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
-import { createThread, newThreadId } from "../lib/comments";
+
 import { hostOf, resolveEmbed } from "../lib/embeds";
-import { createStore, toast, useStore } from "../lib/store";
-import { Popover, useShell, type Anchor } from "../components/overlay";
+import { createStore, useStore } from "../lib/store";
+import { insertUploads } from "../lib/uploads";
+import { loadBoard, loadDatabase } from "./blockdata";
+import { Popover, useShell } from "../components/overlay";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
-import { SlashCommand, TURN, bookmarkNode, currentKind, turnInto, type SlashItem } from "./slash";
+import { SlashCommand, bookmarkNode, type SlashItem } from "./slash";
+
+const Gutter = lazy(() => import("./chrome").then((m) => ({ default: m.Gutter })));
+const MobileBar = lazy(() => import("./mobilebar").then((m) => ({ default: m.MobileBar })));
+const SelectionToolbar = lazy(() => import("./chrome").then((m) => ({ default: m.SelectionToolbar })));
 import { dismissSuggest, suggestRender, suggestStore } from "./suggest";
 
 export interface EditorProps {
@@ -66,6 +68,39 @@ const PasteUrl = Extension.create({
             const c = view.coordsAtPos(to);
             pasteStore.set({ url: text, from, to, rect: new DOMRect(c.left, c.top, 1, c.bottom - c.top) });
             return true;
+          },
+        },
+      }),
+    ];
+  },
+});
+
+// ---------- paste / drop files → upload (WEB-03) ----------
+
+const FileDrop = Extension.create({
+  name: "fileDrop",
+  addProseMirrorPlugins() {
+    const editor = this.editor;
+    return [
+      new Plugin({
+        key: new PluginKey("fileDrop"),
+        props: {
+          handlePaste(_view, event) {
+            const files = Array.from(event.clipboardData?.files ?? []);
+            if (!files.length || !editor.isEditable) return false;
+            return insertUploads(editor, files);
+          },
+          handleDrop(view, event, _slice, moved) {
+            const files = Array.from(event.dataTransfer?.files ?? []);
+            if (moved || !files.length || !editor.isEditable) return false;
+            event.preventDefault();
+            let pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+            if (pos !== undefined) {
+              // Drop between blocks, not inside a word.
+              const $p = view.state.doc.resolve(pos);
+              if ($p.depth > 0) pos = $p.after(1);
+            }
+            return insertUploads(editor, files, pos);
           },
         },
       }),
@@ -132,7 +167,7 @@ export function CanvasEditor(p: EditorProps) {
         }),
         TaskList,
         TaskItem.configure({ nested: true }),
-        TableKit.configure({ table: { resizable: true, cellMinWidth: 80 } }),
+        ...TableNodes,
         Highlight,
         Placeholder.configure({
           includeChildren: true,
@@ -173,6 +208,7 @@ export function CanvasEditor(p: EditorProps) {
         Board,
         CommentMark,
         SlashCommand,
+        FileDrop,
         PasteUrl,
       ],
     },
@@ -182,6 +218,15 @@ export function CanvasEditor(p: EditorProps) {
   useEffect(() => {
     editor.setEditable(editable);
   }, [editor, editable]);
+
+  // Warm the database/board chunks once the page is idle so inserting one is instant.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void loadDatabase().catch(() => undefined);
+      void loadBoard().catch(() => undefined);
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     p.onReady(editor);
@@ -208,343 +253,14 @@ export function CanvasEditor(p: EditorProps) {
   return (
     <>
       <EditorContent editor={editor} />
-      {editable && !compact ? <Gutter editor={editor} onComment={p.onComment} /> : null}
-      {!compact && p.role !== "view" ? <SelectionToolbar editor={editor} role={p.role} onComment={p.onComment} /> : null}
+      <Suspense fallback={null}>
+        {editable && !compact ? <Gutter editor={editor} onComment={p.onComment} /> : null}
+        {!compact && p.role !== "view" ? <SelectionToolbar editor={editor} role={p.role} onComment={p.onComment} /> : null}
+      </Suspense>
       <SuggestMenu editor={editor} />
       <PasteMenu editor={editor} />
       <PeerBars editor={editor} awareness={p.awareness} />
-      {compact && p.role !== "view" && root ? <MobileBar editor={editor} role={p.role} onComment={p.onComment} /> : null}
-    </>
-  );
-}
-
-// ---------- comments from the editor ----------
-
-export function startComment(editor: Editor, role: Role, onComment: (id: string) => void, range?: { from: number; to: number }) {
-  const { from, to } = range ?? editor.state.selection;
-  const quote = editor.state.doc.textBetween(from, to, " ").trim();
-  if (!quote) return toast("Select some text to comment on", { icon: "message-square-plus" });
-  const id = newThreadId();
-  createThread(bridge.doc, id, quote);
-  if (role === "edit") editor.chain().setTextSelection({ from, to }).setMark("commentMark", { threadId: id }).run();
-  onComment(id);
-}
-
-// ---------- block gutter: + and grip, with the block menu ----------
-
-function Gutter({ editor, onComment }: { editor: Editor; onComment(id: string): void }) {
-  const cur = useRef<{ node: PMNode | null; pos: number }>({ node: null, pos: -1 });
-  const [menu, setMenu] = useState<{ anchor: Anchor; node: PMNode; pos: number } | null>(null);
-  const pos = useMemo(() => ({ placement: "left-start" as const, strategy: "absolute" as const, middleware: [offset({ mainAxis: 6, crossAxis: 3 })] }), []);
-
-  const close = () => {
-    setMenu(null);
-    editor.commands.setMeta("lockDragHandle", false);
-  };
-
-  return (
-    <>
-      <DragHandle editor={editor} computePositionConfig={pos} onNodeChange={({ node, pos }) => (cur.current = { node, pos })}>
-        <div className="gut">
-          <button
-            title="Insert below"
-            aria-label="Insert block below"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              const { node, pos } = cur.current;
-              if (!node) return;
-              if (node.type.name === "paragraph" && node.content.size === 0) {
-                editor.chain().focus().setTextSelection(pos + 1).insertContent("/").run();
-                return;
-              }
-              const at = pos + node.nodeSize;
-              editor.chain().focus().insertContentAt(at, { type: "paragraph", content: [{ type: "text", text: "/" }] }).setTextSelection(at + 2).run();
-            }}
-          >
-            <Ic name="plus" size={15} />
-          </button>
-          <button
-            className="grip"
-            title="Drag to move, click for options"
-            aria-label="Block options"
-            onClick={(e) => {
-              const { node, pos } = cur.current;
-              if (!node) return;
-              editor.commands.setMeta("lockDragHandle", true);
-              setMenu({ anchor: (e.currentTarget as HTMLElement).getBoundingClientRect(), node, pos });
-            }}
-          >
-            <Ic name="grip-vertical" size={15} />
-          </button>
-        </div>
-      </DragHandle>
-      {menu ? <BlockMenu editor={editor} anchor={menu.anchor} node={menu.node} pos={menu.pos} onClose={close} onComment={onComment} /> : null}
-    </>
-  );
-}
-
-const TEXTY = new Set(["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "callout"]);
-
-function cloneEmbeddedData(json: Record<string, unknown>): Record<string, unknown> {
-  // Duplicated database/board blocks get their own copy of the data.
-  const walk = (n: Record<string, unknown>) => {
-    const attrs = n.attrs as Record<string, unknown> | undefined;
-    if (n.type === "database" && attrs?.dbId) {
-      const root = bridge.doc.getMap("databases");
-      const src = root.get(String(attrs.dbId)) as Y.Map<unknown> | undefined;
-      if (src) {
-        const id = "db_" + Math.random().toString(36).slice(2, 10);
-        root.set(id, src.clone());
-        attrs.dbId = id;
-      }
-    }
-    if (n.type === "board" && attrs?.boardId) {
-      const root = bridge.doc.getMap("boards");
-      const src = root.get(String(attrs.boardId)) as Y.Map<unknown> | undefined;
-      if (src) {
-        const id = "brd_" + Math.random().toString(36).slice(2, 10);
-        root.set(id, src.clone());
-        attrs.boardId = id;
-      }
-    }
-    (n.content as Record<string, unknown>[] | undefined)?.forEach(walk);
-  };
-  walk(json);
-  return json;
-}
-
-export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { editor: Editor; anchor: Anchor; node: PMNode; pos: number; onClose(): void; onComment(id: string): void }) {
-  const texty = TEXTY.has(node.type.name);
-  const selectInside = () => editor.chain().focus().setTextSelection(Math.min(pos + 1, editor.state.doc.content.size)).run();
-  const kind = (() => {
-    if (!texty) return "";
-    selectInside();
-    return currentKind(editor);
-  })();
-  const run = (fn: () => void) => {
-    onClose();
-    fn();
-  };
-  const doc = editor.state.doc;
-  const idx = (() => {
-    let i = -1;
-    doc.forEach((_n, off, j) => {
-      if (off === pos) i = j;
-    });
-    return i;
-  })();
-  const move = (dir: -1 | 1) => {
-    const j = idx + dir;
-    if (idx < 0 || j < 0 || j >= doc.childCount) return;
-    const other = doc.child(j);
-    editor
-      .chain()
-      .command(({ tr }) => {
-        if (dir === -1) {
-          const target = pos - other.nodeSize;
-          tr.delete(pos, pos + node.nodeSize);
-          tr.insert(target, node);
-        } else {
-          tr.delete(pos, pos + node.nodeSize);
-          tr.insert(pos + other.nodeSize, node);
-        }
-        return true;
-      })
-      .run();
-  };
-  return (
-    <Popover anchor={anchor} onClose={onClose} title="Block" minWidth={230}>
-      {texty ? (
-        <>
-          <div className="mh">Turn into</div>
-          {TURN.map(([id, icon, label]) => (
-            <button key={id} className="mi" onClick={() => run(() => (selectInside(), turnInto(editor, id)))}>
-              <Ic name={icon} />
-              {label}
-              {kind === id ? (
-                <span className="chk">
-                  <Ic name="check" size={14} />
-                </span>
-              ) : null}
-            </button>
-          ))}
-          <div className="msep" />
-        </>
-      ) : null}
-      <button
-        className="mi"
-        onClick={() =>
-          run(() => {
-            const json = cloneEmbeddedData(node.toJSON());
-            editor.chain().focus().insertContentAt(pos + node.nodeSize, json).run();
-          })
-        }
-      >
-        <Ic name="copy" />
-        Duplicate
-        <span className="mk">⌘D</span>
-      </button>
-      <button
-        className="mi"
-        onClick={() =>
-          run(() => {
-            const link = `${bridge.session?.file?.name ?? "Canvas"} · block ${idx + 1}`;
-            void navigator.clipboard?.writeText(link).catch(() => undefined);
-            toast("Link to block copied", { icon: "link" });
-          })
-        }
-      >
-        <Ic name="link" />
-        Copy link to block
-      </button>
-      <button
-        className="mi"
-        onClick={() =>
-          run(() => {
-            const from = pos + 1;
-            const to = pos + node.nodeSize - 1;
-            if (node.isTextblock || texty) startComment(editor, "edit", onComment, { from, to });
-            else {
-              const id = newThreadId();
-              createThread(bridge.doc, id, node.type.name === "database" ? "Database" : node.type.name === "board" ? "Whiteboard" : node.textContent || "Block");
-              onComment(id);
-            }
-          })
-        }
-      >
-        <Ic name="message-square-plus" />
-        Comment
-      </button>
-      <button className="mi" disabled={idx <= 0} onClick={() => run(() => move(-1))}>
-        <Ic name="arrow-up" />
-        Move up
-      </button>
-      <button className="mi" disabled={idx < 0 || idx >= doc.childCount - 1} onClick={() => run(() => move(1))}>
-        <Ic name="arrow-down" />
-        Move down
-      </button>
-      <div className="msep" />
-      <button
-        className="mi danger"
-        onClick={() =>
-          run(() => {
-            editor.chain().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
-            toast("Block deleted", { icon: "trash-2", action: { label: "Undo", run: () => editor.commands.undo() } });
-          })
-        }
-      >
-        <Ic name="trash-2" />
-        Delete
-      </button>
-    </Popover>
-  );
-}
-
-// ---------- floating selection toolbar ----------
-
-function SelectionToolbar({ editor, role, onComment }: { editor: Editor; role: Role; onComment(id: string): void }) {
-  const [linkMode, setLinkMode] = useState(false);
-  const [href, setHref] = useState("");
-  const [turn, setTurn] = useState<{ anchor: Anchor; pos: number; node: PMNode } | null>(null);
-  const st = useEditorState({
-    editor,
-    selector: ({ editor: e }) => ({
-      bold: e.isActive("bold"),
-      italic: e.isActive("italic"),
-      underline: e.isActive("underline"),
-      strike: e.isActive("strike"),
-      code: e.isActive("code"),
-      mark: e.isActive("highlight"),
-      link: e.isActive("link"),
-    }),
-  });
-  const edit = role === "edit";
-  const btn = (key: keyof typeof st, icon: string, label: string, run: () => void) => (
-    <button className={"ib" + (st[key] ? " on" : "")} title={label} aria-label={label} aria-pressed={st[key]} onClick={run}>
-      <Ic name={icon} />
-    </button>
-  );
-  const applyLink = () => {
-    const v = href.trim();
-    if (!v) editor.chain().focus().extendMarkRange("link").unsetLink().run();
-    else editor.chain().focus().extendMarkRange("link").setLink({ href: /^(https?:|mailto:)/.test(v) ? v : "https://" + v }).run();
-    setLinkMode(false);
-  };
-  return (
-    <>
-      <BubbleMenu
-        editor={editor}
-        className="ftb"
-        updateDelay={0}
-        options={{ placement: "top", offset: 8, flip: true }}
-        shouldShow={({ editor: e, state, from, to }) => {
-          if (from === to || state.selection instanceof NodeSelection) return false;
-          if (!e.isFocused && !linkMode) return false;
-          const $f = state.selection.$from;
-          if ($f.parent.type.spec.code) return false;
-          return true;
-        }}
-      >
-        {linkMode ? (
-          <>
-            <input
-              autoFocus
-              placeholder="Paste a link and press Enter"
-              aria-label="Link URL"
-              value={href}
-              onChange={(e) => setHref(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  applyLink();
-                }
-                if (e.key === "Escape") {
-                  setLinkMode(false);
-                  editor.commands.focus();
-                }
-              }}
-            />
-            <button className="ib" aria-label="Apply link" onClick={applyLink}>
-              <Ic name="check" />
-            </button>
-          </>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 1 }} onMouseDown={(e) => e.preventDefault()}>
-            {edit ? (
-              <>
-                <button
-                  className="tsel"
-                  onClick={(e) => {
-                    const $f = editor.state.selection.$from;
-                    const p = $f.before(1);
-                    const node = editor.state.doc.nodeAt(p);
-                    if (node) setTurn({ anchor: (e.currentTarget as HTMLElement).getBoundingClientRect(), pos: p, node });
-                  }}
-                >
-                  Turn into
-                  <Ic name="chevron-down" size={12} />
-                </button>
-                <span className="vs" />
-                {btn("bold", "bold", "Bold (⌘B)", () => editor.chain().focus().toggleBold().run())}
-                {btn("italic", "italic", "Italic (⌘I)", () => editor.chain().focus().toggleItalic().run())}
-                {btn("underline", "underline", "Underline (⌘U)", () => editor.chain().focus().toggleUnderline().run())}
-                {btn("strike", "strikethrough", "Strikethrough", () => editor.chain().focus().toggleStrike().run())}
-                {btn("code", "code-xml", "Inline code", () => editor.chain().focus().toggleCode().run())}
-                {btn("mark", "highlighter", "Highlight", () => editor.chain().focus().toggleHighlight().run())}
-                {btn("link", "link", "Link (⌘K)", () => {
-                  setHref(editor.getAttributes("link").href ?? "");
-                  setLinkMode(true);
-                })}
-                <span className="vs" />
-              </>
-            ) : null}
-            <button className="ib" title="Comment" aria-label="Comment" onClick={() => startComment(editor, role, onComment)}>
-              <Ic name="message-square-plus" />
-            </button>
-          </div>
-        )}
-      </BubbleMenu>
-      {turn ? <BlockMenu editor={editor} anchor={turn.anchor} node={turn.node} pos={turn.pos} onClose={() => setTurn(null)} onComment={onComment} /> : null}
+      <Suspense fallback={null}>{compact && p.role !== "view" && root ? <MobileBar editor={editor} role={p.role} onComment={p.onComment} /> : null}</Suspense>
     </>
   );
 }
@@ -719,82 +435,3 @@ function PeerBars({ editor, awareness }: { editor: Editor; awareness: Awareness 
   );
 }
 
-// ---------- mobile editing toolbar (above the keyboard) ----------
-
-function MobileBar({ editor, role, onComment }: { editor: Editor; role: Role; onComment(id: string): void }) {
-  const st = useEditorState({
-    editor,
-    selector: ({ editor: e }) => ({ focused: e.isFocused, sel: !e.state.selection.empty && !(e.state.selection instanceof NodeSelection) }),
-  });
-  const [bottom, setBottom] = useState(8);
-  const [turn, setTurn] = useState<{ pos: number; node: PMNode } | null>(null);
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const f = () => setBottom(Math.max(8, window.innerHeight - (vv.height + vv.offsetTop) + 8));
-    vv.addEventListener("resize", f);
-    vv.addEventListener("scroll", f);
-    f();
-    return () => {
-      vv.removeEventListener("resize", f);
-      vv.removeEventListener("scroll", f);
-    };
-  }, []);
-  const [keep, setKeep] = useState(false);
-  useEffect(() => {
-    if (st.focused) setKeep(true);
-    else {
-      const t = window.setTimeout(() => setKeep(false), 150);
-      return () => window.clearTimeout(t);
-    }
-  }, [st.focused]);
-  const edit = role === "edit";
-  if ((!keep && !turn) || (!edit && !st.sel && !turn)) return null;
-  const b = (icon: string, label: string, run: () => void, on = false) => (
-    <button className={"ib" + (on ? " on" : "")} aria-label={label} title={label} onClick={run}>
-      <Ic name={icon} size={18} />
-    </button>
-  );
-  const blockAt = () => {
-    const p = editor.state.selection.$from.before(1);
-    const node = editor.state.doc.nodeAt(p);
-    return node ? { pos: p, node } : null;
-  };
-  return (
-    <>
-      <div className="mbar" role="toolbar" aria-label="Editing tools" style={{ bottom }} onMouseDown={(e) => e.preventDefault()}>
-        {st.sel ? (
-          <>
-            {edit ? (
-              <>
-                {b("bold", "Bold", () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
-                {b("italic", "Italic", () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
-                {b("underline", "Underline", () => editor.chain().focus().toggleUnderline().run(), editor.isActive("underline"))}
-                {b("strikethrough", "Strikethrough", () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"))}
-                {b("highlighter", "Highlight", () => editor.chain().focus().toggleHighlight().run(), editor.isActive("highlight"))}
-                {b("link", "Link", () => {
-                  const v = window.prompt("Link", editor.getAttributes("link").href ?? "https://");
-                  if (v !== null) editor.chain().focus().extendMarkRange("link").setLink({ href: v }).run();
-                })}
-                <span className="vs" />
-              </>
-            ) : null}
-            {b("message-square-plus", "Comment", () => startComment(editor, role, onComment))}
-          </>
-        ) : edit ? (
-          <>
-            {b("plus", "Insert block", () => editor.chain().focus().insertContent("/").run())}
-            {b("type", "Turn into", () => setTurn(blockAt()))}
-            {b("list-todo", "Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList"))}
-            {b("list", "Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
-            {b("image", "Image", () => editor.chain().focus().insertContent([{ type: "image", attrs: { src: "" } }, { type: "paragraph" }]).run())}
-            {b("at-sign", "Mention someone", () => editor.chain().focus().insertContent("@").run())}
-            <span className="vs" />
-            {b("keyboard", "Done editing", () => editor.commands.blur())}
-          </>
-        ) : null}
-      </div>
-      {turn ? <BlockMenu editor={editor} anchor={new DOMRect(0, 0, 0, 0)} node={turn.node} pos={turn.pos} onClose={() => setTurn(null)} onComment={onComment} /> : null}
-    </>
-  );
-}

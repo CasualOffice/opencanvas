@@ -54,7 +54,9 @@ export type Control =
   | { t: "saving" }
   | { t: "saved"; at: number; version?: string }
   | { t: "save_error"; retryInMs?: number; message?: string }
-  | { t: "conflict" }
+  /** docs/15 §3: `copy` → a copy was saved to the host (`fileId`, `url`) and the room is read-only;
+   *  `reload` → `closed` and close 1012 follow, and the client must start over from the server. */
+  | { t: "conflict"; policy?: "copy" | "reload"; fileId?: string; url?: string }
   | { t: "role"; role: Role }
   | { t: "closed"; reason?: string };
 
@@ -74,6 +76,9 @@ export interface Collab {
   onControl(fn: (c: Control) => void): () => void;
   onConn(fn: (s: ConnState) => void): () => void;
   onDenied(fn: (reason: string) => void): () => void;
+  /** The server ended the session for good (close 1000 host closed, 1008 access revoked, or
+   *  1012 after a `reload` conflict). The provider does not reconnect. */
+  onTerminal(fn: (e: { code: number; reason: string }) => void): () => void;
   destroy(): void;
 }
 
@@ -94,16 +99,24 @@ export function connectCollab(s: Session): Collab {
   const control = new Emitter<Control>();
   const conn = new Emitter<ConnState>();
   const denied = new Emitter<string>();
+  const terminal = new Emitter<{ code: number; reason: string }>();
+  // After a `reload` conflict the room holds the host's version: reconnecting this Y.Doc would
+  // merge stale local state back in, so the 1012 that follows is terminal too.
+  let reloading = false;
   const provider = new WebsocketProvider(s.wsUrl, s.room, doc, {
     params: { ticket: s.ticket },
     maxBackoffTime: 10000,
+    shouldReconnect: (e: CloseEvent) => !(e.code === 1000 || e.code === 1008 || (e.code === 1012 && reloading) || (e.code >= 4400 && e.code < 4500)),
   });
+  provider.on("closed", (e: { code: number; reason: string }) => terminal.emit(e));
   // The server rewrites `user` from the grant (id, name, color, avatar), so the role travels beside it.
   provider.awareness.setLocalState({ user: { id: s.user.id, name: s.user.name, color: s.user.color }, role: s.role });
 
   provider.messageHandlers[MESSAGE_CONTROL] = (_enc, dec) => {
     try {
-      control.emit(JSON.parse(decoding.readVarString(dec)) as Control);
+      const c = JSON.parse(decoding.readVarString(dec)) as Control;
+      if (c.t === "conflict" && c.policy === "reload") reloading = true;
+      control.emit(c);
     } catch (e) {
       console.warn("bad control frame", e);
     }
@@ -158,6 +171,7 @@ export function connectCollab(s: Session): Collab {
     onControl: (f) => control.on(f),
     onConn: (f) => conn.on(f),
     onDenied: (f) => denied.on(f),
+    onTerminal: (f) => terminal.on(f),
     destroy() {
       window.clearTimeout(offlineTimer);
       provider.destroy();
@@ -186,6 +200,7 @@ export function localCollab(user: Session["user"], role: Role): Collab {
     onControl: (f) => control.on(f),
     onConn: (f) => conn.on(f),
     onDenied: (f) => denied.on(f),
+    onTerminal: () => () => undefined,
     destroy() {
       awareness.destroy();
       doc.destroy();

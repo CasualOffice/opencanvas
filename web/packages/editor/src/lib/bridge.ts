@@ -25,7 +25,8 @@ export interface Bridge {
   promptUrl(kind: "bookmark" | "embed", onUrl: (url: string) => void): void;
   /** Opens a native file picker. */
   pickFile(accept: string, onFile: (f: File) => void): void;
-  upload(f: File): Promise<Uploaded>;
+  /** Uploads through `POST /v1/assets?ticket=`; `onProgress` gets 0..1. */
+  upload(f: File, onProgress?: (p: number) => void): Promise<Uploaded>;
   openThread(threadId: string): void;
   /** Tell the host page about a link click (it decides navigation). */
   linkClick(url: string): void;
