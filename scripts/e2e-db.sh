@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end check against one database: launch through the sample host, edit over
 # the WebSocket with the smoke client, and confirm the autosave reached the host.
+# Also checks: the server refuses to start without OC_KEK, callback tokens are stored
+# encrypted, the commit outbox row is marked done, and the host role API answers.
 #
 #   scripts/e2e-db.sh sqlite
 #   scripts/e2e-db.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
@@ -8,12 +10,19 @@ set -u
 LABEL=$1; DB=${2:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd); cd "$ROOT"
 BIN=target/release/opencanvas; SMOKE=target/release/examples/smoke
-[ -x "$BIN" ] && [ -x "$SMOKE" ] || cargo build -q --release -p oc-server --bins --examples
+cargo build -q --release -p oc-server --bins --examples || exit 1
 WORK=$(mktemp -d)
 pkill -f "$BIN" 2>/dev/null; pkill -f "sample-host/server.mjs" 2>/dev/null; sleep 0.5
 
+DBURL="${DB:-sqlite://$WORK/oc.db?mode=rwc}"
+env -u OC_KEK -u OC_DEV DATABASE_URL="$DBURL" OC_HOSTS_FILE=opencanvas.hosts.toml OC_BIND=127.0.0.1:8081 \
+  "$BIN" > "$WORK/nokek.log" 2>&1 &
+NOKEK=$!; sleep 2
+if kill -0 "$NOKEK" 2>/dev/null; then kill "$NOKEK"; echo "FAIL [$LABEL]: server started without OC_KEK"; exit 1; fi
+grep -q "OC_KEK is required" "$WORK/nokek.log" || { echo "FAIL [$LABEL]: no OC_KEK error"; cat "$WORK/nokek.log"; exit 1; }
+
 DATA_DIR=$WORK/host node examples/sample-host/server.mjs > "$WORK/host.log" 2>&1 &
-env ${DB:+DATABASE_URL=$DB} DATABASE_URL="${DB:-sqlite://$WORK/oc.db?mode=rwc}" \
+env -u OC_DEV DATABASE_URL="$DBURL" OC_KEK="$(openssl rand -base64 32)" \
   OC_HOSTS_FILE=opencanvas.hosts.toml OC_BIND=127.0.0.1:8080 OC_PUBLIC_URL=http://localhost:8080 \
   OC_AUTOSAVE_DEBOUNCE_MS=500 "$BIN" > "$WORK/oc.log" 2>&1 &
 for _ in $(seq 1 60); do curl -sf localhost:8080/readyz >/dev/null && curl -sf localhost:4000/healthz >/dev/null && break; sleep 0.5; done
@@ -28,6 +37,19 @@ ROOM=$(curl -s "localhost:8080/v1/sessions/$TICKET" | node -pe 'JSON.parse(requi
 sleep 1
 grep -q "saved doc_welcome" "$WORK/host.log" || fail "no autosave reached the host"
 curl -s "localhost:8080/v1/export/md?ticket=$TICKET" | grep -q "Hello from $LABEL" || fail "export missing the edit"
+ROLE=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8080/v1/files/doc_welcome/role \
+  -H 'content-type: application/json' -H 'x-opencanvas-host: sample' -H 'x-opencanvas-key: dev-api-key-change-me' \
+  -d '{"userId":"u_sam","role":"view"}')
+[ "$ROLE" = 200 ] || fail "role API answered $ROLE"
+BADKEY=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8080/v1/files/doc_welcome/role \
+  -H 'content-type: application/json' -H 'x-opencanvas-host: sample' -H 'x-opencanvas-key: wrong' -d '{"userId":"u_sam","role":"edit"}')
+[ "$BADKEY" = 401 ] || fail "role API accepted a wrong key ($BADKEY)"
+if [ -z "$DB" ]; then
+  RAW=$(sqlite3 "$WORK/oc.db" "SELECT grant_json FROM sessions LIMIT 1" 2>/dev/null)
+  echo "$RAW" | grep -q '"callback_token":"enc:v1:' || fail "callback token not sealed: ${RAW:-no session row}"
+  OUT=$(sqlite3 "$WORK/oc.db" "SELECT count(*) FROM commit_outbox WHERE status = 'done'"),$(sqlite3 "$WORK/oc.db" "SELECT count(*) FROM commit_outbox WHERE status <> 'done'")
+  case "$OUT" in [1-9]*,0) ;; *) fail "outbox rows (done,other) = $OUT";; esac
+fi
 pkill -f "$BIN"; sleep 1; pkill -f sample-host/server.mjs
 grep -qiE 'panic' "$WORK/oc.log" && fail "server panicked"
 echo "PASS [$LABEL]: $(grep -c 'saved doc_welcome' "$WORK/host.log") saves reached the host, export contains the edit"

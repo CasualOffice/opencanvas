@@ -1,5 +1,6 @@
 //! HTTP surface (docs/15 §2, §3, §6).
 
+mod api;
 mod collab;
 mod export;
 mod launch;
@@ -12,7 +13,7 @@ use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use serde_json::json;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
@@ -135,6 +136,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/export/{fmt}", get(export::export))
         .route("/v1/assets", post(proxy::upload_asset).layer(DefaultBodyLimit::max(MAX_ASSET_BYTES)))
         .route("/v1/users", get(proxy::users))
+        .route("/v1/files/{file_id}/role", post(api::set_role))
+        .route("/v1/files/{file_id}/session", delete(api::close_session))
         .route("/healthz", get(ops::healthz))
         .route("/readyz", get(ops::readyz))
         .route("/metrics", get(ops::metrics))

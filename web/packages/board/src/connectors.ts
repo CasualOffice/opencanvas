@@ -1,0 +1,170 @@
+// Bound connectors: arrows whose ends attach to an anchor of another shape.
+//
+// An arrow keeps `pts` (the last known geometry, so readers that ignore bindings still draw
+// something sensible) plus optional `start` / `end` bindings `{ shapeId, anchor }` and `route`.
+// The rendered geometry is always derived from the bound shapes, so a shape moved by one peer
+// and an arrow re-bound by another converge without anyone rewriting the other's data.
+import * as Y from "yjs";
+import { bbox, getBoardMap, moveShapes, readShapes, type Pt, type Shape, type ShapeType } from "./model";
+
+export type Anchor = "top" | "right" | "bottom" | "left" | "center";
+export const ANCHORS: Anchor[] = ["top", "right", "bottom", "left", "center"];
+export interface Binding {
+  shapeId: string;
+  anchor: Anchor;
+}
+export type ArrowRoute = "straight" | "elbow";
+
+/** Shapes an arrow end can attach to. */
+export const BINDABLE: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "text", "swatch", "image"];
+
+export function isBinding(b: unknown): b is Binding {
+  return !!b && typeof b === "object" && typeof (b as Binding).shapeId === "string" && ANCHORS.includes((b as Binding).anchor);
+}
+
+export function anchorPoint(s: Shape, a: Anchor): Pt {
+  const [x0, y0, x1, y1] = bbox(s);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  switch (a) {
+    case "top":
+      return [cx, y0];
+    case "bottom":
+      return [cx, y1];
+    case "left":
+      return [x0, cy];
+    case "right":
+      return [x1, cy];
+    default:
+      return [cx, cy];
+  }
+}
+
+/** Point where the ray from the shape's centre towards `to` leaves its outline. */
+export function boundaryToward(s: Shape, to: Pt): Pt {
+  const [x0, y0, x1, y1] = bbox(s);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const hw = Math.max(1, (x1 - x0) / 2), hh = Math.max(1, (y1 - y0) / 2);
+  const dx = to[0] - cx, dy = to[1] - cy;
+  if (!dx && !dy) return [cx, cy];
+  let t: number;
+  if (s.type === "ellipse") t = 1 / Math.sqrt((dx * dx) / (hw * hw) + (dy * dy) / (hh * hh));
+  else if (s.type === "diamond") t = 1 / (Math.abs(dx) / hw + Math.abs(dy) / hh);
+  else t = Math.min(Math.abs(dx) ? hw / Math.abs(dx) : Infinity, Math.abs(dy) ? hh / Math.abs(dy) : Infinity);
+  t = Math.min(1, t);
+  return [cx + dx * t, cy + dy * t];
+}
+
+/**
+ * The binding an arrow end dragged to `p` should snap to: the topmost bindable shape whose box
+ * (grown by `pad`) contains `p`, and its anchor closest to `p`. `null` when nothing is near.
+ */
+export function snapTarget(shapes: Shape[], p: Pt, pad = 18, exclude?: string): Binding | null {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    if (s.id === exclude || !BINDABLE.includes(s.type)) continue;
+    const [x0, y0, x1, y1] = bbox(s);
+    if (p[0] < x0 - pad || p[0] > x1 + pad || p[1] < y0 - pad || p[1] > y1 + pad) continue;
+    let best: Anchor = "center", bd = Infinity;
+    for (const a of ANCHORS) {
+      const q = anchorPoint(s, a);
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < bd) {
+        bd = d;
+        best = a;
+      }
+    }
+    return { shapeId: s.id, anchor: best };
+  }
+  return null;
+}
+
+const horiz = (a: Anchor) => a === "left" || a === "right";
+function facing(s: Shape, other: Pt): Anchor {
+  const [x0, y0, x1, y1] = bbox(s);
+  const dx = other[0] - (x0 + x1) / 2, dy = other[1] - (y0 + y1) / 2;
+  return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : dy >= 0 ? "bottom" : "top";
+}
+
+/** Orthogonal route from `a` to `b`. Sides say which way each end leaves its shape. */
+export function elbow(a: Pt, b: Pt, sa?: Anchor, sb?: Anchor): Pt[] {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const hA = sa && sa !== "center" ? horiz(sa) : Math.abs(dx) >= Math.abs(dy);
+  const hB = sb && sb !== "center" ? horiz(sb) : hA;
+  let out: Pt[];
+  if (hA && hB) {
+    const mx = (a[0] + b[0]) / 2;
+    out = [a, [mx, a[1]], [mx, b[1]], b];
+  } else if (!hA && !hB) {
+    const my = (a[1] + b[1]) / 2;
+    out = [a, [a[0], my], [b[0], my], b];
+  } else if (hA) out = [a, [b[0], a[1]], b];
+  else out = [a, [a[0], b[1]], b];
+  // drop repeated points, then middle points on a straight run (aligned cases)
+  const eq = (u: number, v: number) => Math.abs(u - v) < 0.01;
+  const dedup = out.filter((p, i) => i === 0 || !eq(p[0], out[i - 1][0]) || !eq(p[1], out[i - 1][1]));
+  return dedup.filter((p, i) => {
+    if (i === 0 || i === dedup.length - 1) return true;
+    const [u, w] = [dedup[i - 1], dedup[i + 1]];
+    return !((eq(u[0], p[0]) && eq(p[0], w[0])) || (eq(u[1], p[1]) && eq(p[1], w[1])));
+  });
+}
+
+const r1 = (p: Pt): Pt => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10];
+
+/** The points an arrow is drawn with, following any bound shapes. */
+export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
+  const pts = s.pts ?? [];
+  if (pts.length < 2 && !(s.start && s.end)) return pts;
+  const bs = isBinding(s.start) ? byId.get(s.start.shapeId) : undefined;
+  const be = isBinding(s.end) ? byId.get(s.end.shapeId) : undefined;
+  const route = s.route;
+  if (!bs && !be && !route) return pts;
+  let a: Pt = pts[0] ?? [0, 0];
+  let b: Pt = pts[pts.length - 1] ?? a;
+  let aa: Anchor | undefined = bs ? (s.start as Binding).anchor : undefined;
+  let ab: Anchor | undefined = be ? (s.end as Binding).anchor : undefined;
+  if (bs && aa !== "center") a = anchorPoint(bs, aa!);
+  if (be && ab !== "center") b = anchorPoint(be, ab!);
+  const rawA = bs && aa === "center" ? anchorPoint(bs, "center") : a;
+  const rawB = be && ab === "center" ? anchorPoint(be, "center") : b;
+  if (route === "elbow") {
+    if (bs && aa === "center") {
+      aa = facing(bs, rawB);
+      a = anchorPoint(bs, aa);
+    }
+    if (be && ab === "center") {
+      ab = facing(be, a);
+      b = anchorPoint(be, ab);
+    }
+    return elbow(r1(a), r1(b), aa, ab);
+  }
+  if (bs && aa === "center") a = boundaryToward(bs, rawB);
+  if (be && ab === "center") b = boundaryToward(be, rawA);
+  return [r1(a), r1(b)];
+}
+
+/** Shapes with every arrow's `pts` replaced by its resolved geometry (for bounds, export, hit boxes). */
+export function withResolvedArrows(shapes: Shape[]): Shape[] {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  return shapes.map((s) => (s.type === "arrow" && (s.start || s.end || s.route) ? { ...s, pts: resolveArrow(s, byId) } : s));
+}
+
+const samePts = (a: Pt[] | undefined, b: Pt[]) => !!a && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
+
+/**
+ * Rewrite the stored `pts` of bound arrows to match their shapes, so readers that ignore bindings
+ * (server export, previews) stay close. Only arrows whose geometry changed are written.
+ */
+export function syncBoundArrows(doc: Y.Doc, boardId: string, origin?: unknown) {
+  const m = getBoardMap(doc, boardId);
+  if (!m) return;
+  const shapes = readShapes(m);
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const moves: { id: string; patch: Partial<Shape> }[] = [];
+  for (const s of shapes) {
+    if (s.type !== "arrow" || !(isBinding(s.start) || isBinding(s.end))) continue;
+    const pts = resolveArrow(s, byId);
+    if (pts.length >= 2 && !samePts(s.pts, pts)) moves.push({ id: s.id, patch: { pts } });
+  }
+  if (moves.length) moveShapes(doc, boardId, moves, origin);
+}

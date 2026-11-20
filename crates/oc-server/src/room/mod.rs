@@ -14,8 +14,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::AbortHandle;
 
 use crate::config::RoomConfig;
-use crate::grant::Grant;
-use crate::host_client::{HostClient, PutOutcome};
+use crate::grant::{Grant, Role};
+use crate::host_client::{Fetched, HostClient, PutOutcome};
 use crate::hosts::HostConfig;
 use crate::metrics::Metrics;
 use crate::store::Store;
@@ -54,12 +54,29 @@ pub(crate) enum Cmd {
         reply: oneshot::Sender<Vec<u8>>,
     },
     SaveDone {
-        seq: i64,
+        id: String,
         result: Result<PutOutcome, String>,
     },
+    ConflictDone {
+        result: Result<ConflictOutcome, String>,
+    },
+    /// Live role change from the host; `None` revokes access. Replies with the number of
+    /// connections affected.
+    SetRole {
+        user_id: String,
+        role: Option<Role>,
+        reply: oneshot::Sender<usize>,
+    },
+    /// Final save, then close every connection. `by_host` = `DELETE /v1/files/:id/session`.
     Shutdown {
+        by_host: bool,
         reply: oneshot::Sender<()>,
     },
+}
+
+pub(crate) enum ConflictOutcome {
+    Copied { file_id: String, url: String },
+    Reloaded(Fetched),
 }
 
 pub struct Ctx {
@@ -223,11 +240,73 @@ impl Rooms {
             .collect();
         let waits = senders.into_iter().map(|tx| async move {
             let (reply, rx) = oneshot::channel();
-            if tx.send(Cmd::Shutdown { reply }).is_ok() {
+            if tx
+                .send(Cmd::Shutdown {
+                    by_host: false,
+                    reply,
+                })
+                .is_ok()
+            {
                 let _ = tokio::time::timeout(Duration::from_secs(20), rx).await;
             }
         });
         futures::future::join_all(waits).await;
+    }
+
+    fn live(&self, room: &str) -> Option<mpsc::UnboundedSender<Cmd>> {
+        self.map
+            .lock()
+            .expect("rooms lock")
+            .get(room)
+            .filter(|e| !e.tx.is_closed())
+            .map(|e| e.tx.clone())
+    }
+
+    pub fn is_live(&self, room: &str) -> bool {
+        self.live(room).is_some()
+    }
+
+    /// Starts the room actor if it is not running (startup sweeper for pending commits).
+    pub fn open(&self, host: &Arc<HostConfig>, grant: &Grant) {
+        self.sender(host, grant);
+    }
+
+    /// Applies a role change to the live connections of `user`; 0 when the room is not live.
+    pub async fn set_role(&self, room: &str, user_id: &str, role: Option<Role>) -> usize {
+        let Some(tx) = self.live(room) else { return 0 };
+        let (reply, rx) = oneshot::channel();
+        let cmd = Cmd::SetRole {
+            user_id: user_id.to_string(),
+            role,
+            reply,
+        };
+        if tx.send(cmd).is_err() {
+            return 0;
+        }
+        tokio::time::timeout(Duration::from_secs(10), rx)
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or(0)
+    }
+
+    /// Saves and closes a live room for the host; false when it was not live.
+    pub async fn close(&self, room: &str) -> bool {
+        let Some(tx) = self.live(room) else {
+            return false;
+        };
+        let (reply, rx) = oneshot::channel();
+        if tx
+            .send(Cmd::Shutdown {
+                by_host: true,
+                reply,
+            })
+            .is_err()
+        {
+            return false;
+        }
+        let _ = tokio::time::timeout(Duration::from_secs(30), rx).await;
+        true
     }
 
     /// Kills a room actor without saving, as a crash would (tests only).

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  OC_DEV: "1"
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "clippy, rustfmt" }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+      - run: pnpm --filter @opencanvas/editor build
+      - uses: actions/upload-artifact@v4
+        with: { name: editor-dist, path: web/packages/editor/dist }
+
+  e2e:
+    # Launch → edit over WebSocket → autosave lands in the host → export, on every supported database.
+    needs: [rust, web]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - { name: sqlite, url: "" }
+          - { name: mariadb, url: "mysql://root:root@127.0.0.1:33061/opencanvas" }
+          - { name: mysql, url: "mysql://root:root@127.0.0.1:33062/opencanvas" }
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env: { MARIADB_ROOT_PASSWORD: root, MARIADB_DATABASE: opencanvas }
+        ports: ["33061:3306"]
+        options: --health-cmd="healthcheck.sh --connect" --health-interval=5s --health-retries=20
+      mysql:
+        image: mysql:8.4
+        env: { MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: opencanvas }
+        ports: ["33062:3306"]
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: cargo build --release -p oc-server --bins --examples
+      - run: scripts/e2e-db.sh ${{ matrix.db.name }} ${{ matrix.db.url }}

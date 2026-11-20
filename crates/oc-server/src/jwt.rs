@@ -1,10 +1,13 @@
 //! Launch token verification (docs/05 §3, docs/07 §2).
 
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -13,6 +16,10 @@ use crate::hosts::{HostConfig, Hosts};
 
 pub const AUDIENCE: &str = "opencanvas";
 pub const MAX_TTL_SECS: i64 = 10 * 3600;
+/// How long a fetched JWKS is trusted.
+pub const JWKS_TTL: Duration = Duration::from_secs(600);
+/// An unknown `kid` refetches the set at most this often (key rotation without a stampede).
+const JWKS_MIN_REFRESH: Duration = Duration::from_secs(30);
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum JwtError {
@@ -115,6 +122,15 @@ fn peek_issuer(token: &str) -> Result<String, JwtError> {
         .ok_or(JwtError::Malformed)
 }
 
+fn pinned_alg(host: &HostConfig) -> Result<Algorithm, JwtError> {
+    match host.jwt_alg.as_str() {
+        "HS256" => Ok(Algorithm::HS256),
+        "RS256" => Ok(Algorithm::RS256),
+        "EdDSA" => Ok(Algorithm::EdDSA),
+        _ => Err(JwtError::NoKey),
+    }
+}
+
 fn key_for(host: &HostConfig) -> Result<(Algorithm, DecodingKey), JwtError> {
     let pem = || {
         host.jwt_public_key
@@ -144,8 +160,9 @@ fn key_for(host: &HostConfig) -> Result<(Algorithm, DecodingKey), JwtError> {
     })
 }
 
-/// Verifies signature (algorithm pinned by host config), `iss`, `aud`, `exp`, `nbf` and max lifetime.
-/// The caller enforces single-use `jti`.
+/// Verifies a token for a host whose key is in its config (HS256 secret or PEM).
+/// Signature (algorithm pinned by host config), `iss`, `aud`, `exp`, `nbf` and max lifetime are
+/// checked; the caller enforces single-use `jti`. JWKS hosts go through [`Jwks::verify`].
 pub fn verify(
     token: &str,
     hosts: &Hosts,
@@ -155,6 +172,16 @@ pub fn verify(
         .get(&peek_issuer(token)?)
         .ok_or(JwtError::UnknownHost)?;
     let (alg, key) = key_for(&host)?;
+    check(token, host, alg, &key, now)
+}
+
+fn check(
+    token: &str,
+    host: Arc<HostConfig>,
+    alg: Algorithm,
+    key: &DecodingKey,
+    now: i64,
+) -> Result<(Arc<HostConfig>, LaunchClaims), JwtError> {
     let mut v = Validation::new(alg);
     v.set_audience(&[AUDIENCE]);
     v.set_issuer(&[host.id.as_str()]);
@@ -162,7 +189,7 @@ pub fn verify(
     v.validate_nbf = true;
     v.leeway = 30;
     let data =
-        decode::<LaunchClaims>(token, &key, &v).map_err(|e| JwtError::Invalid(e.to_string()))?;
+        decode::<LaunchClaims>(token, key, &v).map_err(|e| JwtError::Invalid(e.to_string()))?;
     if data.claims.exp - now > MAX_TTL_SECS {
         return Err(JwtError::TooLong);
     }
@@ -170,6 +197,114 @@ pub fn verify(
         return Err(JwtError::Invalid("missing jti".into()));
     }
     Ok((host, data.claims))
+}
+
+/// Launch-token verifier with a per-URL JWKS cache (`jwt_jwks_url`, 10 min, `kid` match).
+pub struct Jwks {
+    http: reqwest::Client,
+    cache: tokio::sync::Mutex<HashMap<String, (Instant, JwkSet)>>,
+}
+
+impl Default for Jwks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Jwks {
+    pub fn new() -> Self {
+        let http = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::limited(3))
+            .build()
+            .expect("http client");
+        Self {
+            http,
+            cache: tokio::sync::Mutex::default(),
+        }
+    }
+
+    async fn fetch(&self, url: &str) -> Result<JwkSet, JwtError> {
+        let res = self
+            .http
+            .get(url)
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|e| {
+                tracing::warn!(error = %e, "JWKS fetch failed");
+                JwtError::NoKey
+            })?;
+        res.json::<JwkSet>().await.map_err(|e| {
+            tracing::warn!(error = %e, "JWKS is not a valid key set");
+            JwtError::NoKey
+        })
+    }
+
+    /// The key for `kid` from the host's JWKS; the key type must fit the pinned algorithm.
+    async fn key(&self, url: &str, alg: Algorithm, kid: &str) -> Result<DecodingKey, JwtError> {
+        let mut cache = self.cache.lock().await;
+        let fresh = |at: &Instant, ttl| at.elapsed() < ttl;
+        let stale = cache.get(url).is_none_or(|(at, set)| {
+            !fresh(at, JWKS_TTL) || (set.find(kid).is_none() && !fresh(at, JWKS_MIN_REFRESH))
+        });
+        if stale {
+            let set = self.fetch(url).await?;
+            cache.insert(url.to_string(), (Instant::now(), set));
+        }
+        let jwk = cache
+            .get(url)
+            .and_then(|(_, set)| set.find(kid))
+            .ok_or(JwtError::NoKey)?;
+        let fits = matches!(
+            (&jwk.algorithm, alg),
+            (AlgorithmParameters::RSA(_), Algorithm::RS256)
+                | (AlgorithmParameters::OctetKeyPair(_), Algorithm::EdDSA)
+        );
+        let alg_ok = jwk
+            .common
+            .key_algorithm
+            .is_none_or(|a| a.to_string() == format!("{alg:?}"));
+        if !fits || !alg_ok {
+            return Err(JwtError::Invalid(
+                "key does not match the host algorithm".into(),
+            ));
+        }
+        DecodingKey::from_jwk(jwk).map_err(|_| JwtError::NoKey)
+    }
+
+    /// Like [`verify`], also for hosts that publish their keys as a JWKS.
+    pub async fn verify(
+        &self,
+        token: &str,
+        hosts: &Hosts,
+        now: i64,
+    ) -> Result<(Arc<HostConfig>, LaunchClaims), JwtError> {
+        let host = hosts
+            .get(&peek_issuer(token)?)
+            .ok_or(JwtError::UnknownHost)?;
+        let alg = pinned_alg(&host)?;
+        let url = host
+            .jwt_jwks_url
+            .clone()
+            .filter(|_| alg != Algorithm::HS256 && host.jwt_public_key.is_none());
+        let Some(url) = url else {
+            let (alg, key) = key_for(&host)?;
+            return check(token, host, alg, &key, now);
+        };
+        let header = decode_header(token).map_err(|_| JwtError::Malformed)?;
+        if header.alg != alg {
+            return Err(JwtError::Invalid(
+                "algorithm not allowed for this host".into(),
+            ));
+        }
+        let kid = header
+            .kid
+            .ok_or_else(|| JwtError::Invalid("token has no kid".into()))?;
+        let key = self.key(&url, alg, &kid).await?;
+        check(token, host, alg, &key, now)
+    }
 }
 
 #[cfg(test)]
@@ -273,6 +408,147 @@ pub mod tests {
         let mut c = claims("edit");
         c["nbf"] = json!(now() + 3600);
         assert!(check(&c).is_err());
+    }
+
+    const RSA_PRIV: &str = include_str!("../tests/keys/rsa.pem");
+    const RSA_PUB: &str = include_str!("../tests/keys/rsa.pub");
+    const ED_PRIV: &str = include_str!("../tests/keys/ed.pem");
+    const ED_PUB: &str = include_str!("../tests/keys/ed.pub");
+    const JWKS: &str = include_str!("../tests/keys/jwks.json");
+
+    fn pem_host(alg: &str, public_key: &str) -> Hosts {
+        Hosts::parse(
+            &format!(
+                "[[host]]\nid = \"sample\"\nname = \"Sample\"\njwt_alg = \"{alg}\"\njwt_public_key = '''{public_key}'''\ncallback_base = \"http://127.0.0.1:9/api\"\n"
+            ),
+            None,
+        )
+        .unwrap()
+    }
+
+    fn jwks_host(alg: &str, url: &str) -> Hosts {
+        Hosts::parse(
+            &format!(
+                "[[host]]\nid = \"sample\"\nname = \"Sample\"\njwt_alg = \"{alg}\"\njwt_jwks_url = \"{url}\"\ncallback_base = \"http://127.0.0.1:9/api\"\n"
+            ),
+            None,
+        )
+        .unwrap()
+    }
+
+    fn sign_with(c: &Value, alg: Algorithm, key: &EncodingKey, kid: Option<&str>) -> String {
+        let mut h = Header::new(alg);
+        h.kid = kid.map(String::from);
+        encode(&h, c, key).unwrap()
+    }
+
+    fn rsa() -> EncodingKey {
+        EncodingKey::from_rsa_pem(RSA_PRIV.as_bytes()).unwrap()
+    }
+
+    fn ed() -> EncodingKey {
+        EncodingKey::from_ed_pem(ED_PRIV.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn rs256_with_pem_key() {
+        let hosts = pem_host("RS256", RSA_PUB);
+        let t = sign_with(&claims("edit"), Algorithm::RS256, &rsa(), None);
+        assert!(verify(&t, &hosts, now()).is_ok());
+        let forged = sign_with(&claims("edit"), Algorithm::EdDSA, &ed(), None);
+        assert!(verify(&forged, &hosts, now()).is_err(), "other algorithm");
+    }
+
+    #[test]
+    fn eddsa_with_pem_key() {
+        let hosts = pem_host("EdDSA", ED_PUB);
+        let t = sign_with(&claims("edit"), Algorithm::EdDSA, &ed(), None);
+        assert!(verify(&t, &hosts, now()).is_ok());
+        let forged = sign_with(&claims("edit"), Algorithm::RS256, &rsa(), None);
+        assert!(verify(&forged, &hosts, now()).is_err());
+    }
+
+    #[test]
+    fn hs256_token_against_rs256_host_is_rejected() {
+        // Classic alg confusion: HMAC-sign with the (public) RSA key as the secret.
+        let hosts = pem_host("RS256", RSA_PUB);
+        let t = sign(&claims("edit"), RSA_PUB, Algorithm::HS256);
+        assert!(matches!(
+            verify(&t, &hosts, now()),
+            Err(JwtError::Invalid(_))
+        ));
+        let ed_hosts = pem_host("EdDSA", ED_PUB);
+        let t = sign(&claims("edit"), ED_PUB, Algorithm::HS256);
+        assert!(verify(&t, &ed_hosts, now()).is_err());
+    }
+
+    #[test]
+    fn asymmetric_host_needs_a_key() {
+        let src = "[[host]]\nid = \"x\"\nname = \"X\"\njwt_alg = \"RS256\"\ncallback_base = \"http://h\"\n";
+        assert!(Hosts::parse(src, None).is_err());
+    }
+
+    /// Serves `tests/keys/jwks.json`, counting fetches.
+    async fn jwks_server() -> (String, Arc<std::sync::atomic::AtomicUsize>) {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let hits = Arc::new(AtomicUsize::new(0));
+        let h = hits.clone();
+        let app = axum::Router::new().route(
+            "/.well-known/jwks.json",
+            axum::routing::get(move || {
+                h.fetch_add(1, Ordering::SeqCst);
+                async { ([("content-type", "application/json")], JWKS) }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{addr}/.well-known/jwks.json"), hits)
+    }
+
+    #[tokio::test]
+    async fn jwks_rs256_matches_kid_and_caches() {
+        use std::sync::atomic::Ordering;
+        let (url, hits) = jwks_server().await;
+        let hosts = jwks_host("RS256", &url);
+        let jwks = Jwks::new();
+        let t = sign_with(&claims("edit"), Algorithm::RS256, &rsa(), Some("rsa-1"));
+        assert!(jwks.verify(&t, &hosts, now()).await.is_ok());
+        let t = sign_with(&claims("view"), Algorithm::RS256, &rsa(), Some("rsa-1"));
+        assert!(jwks.verify(&t, &hosts, now()).await.is_ok());
+        assert_eq!(hits.load(Ordering::SeqCst), 1, "cached");
+
+        let unknown = sign_with(&claims("edit"), Algorithm::RS256, &rsa(), Some("rsa-9"));
+        assert_eq!(
+            jwks.verify(&unknown, &hosts, now()).await.err(),
+            Some(JwtError::NoKey)
+        );
+        let no_kid = sign_with(&claims("edit"), Algorithm::RS256, &rsa(), None);
+        assert!(jwks.verify(&no_kid, &hosts, now()).await.is_err());
+        // The Ed25519 key in the set must not verify for an RS256 host.
+        let wrong = sign_with(&claims("edit"), Algorithm::EdDSA, &ed(), Some("ed-1"));
+        assert!(jwks.verify(&wrong, &hosts, now()).await.is_err());
+        // Alg confusion through JWKS: HS256 with the RSA public key as secret.
+        let mut h = Header::new(Algorithm::HS256);
+        h.kid = Some("rsa-1".into());
+        let hs = encode(
+            &h,
+            &claims("edit"),
+            &EncodingKey::from_secret(RSA_PUB.as_bytes()),
+        )
+        .unwrap();
+        assert!(jwks.verify(&hs, &hosts, now()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn jwks_eddsa() {
+        let (url, _) = jwks_server().await;
+        let hosts = jwks_host("EdDSA", &url);
+        let jwks = Jwks::new();
+        let t = sign_with(&claims("edit"), Algorithm::EdDSA, &ed(), Some("ed-1"));
+        assert!(jwks.verify(&t, &hosts, now()).await.is_ok());
+        let t = sign_with(&claims("edit"), Algorithm::RS256, &rsa(), Some("rsa-1"));
+        assert!(jwks.verify(&t, &hosts, now()).await.is_err());
     }
 
     #[test]

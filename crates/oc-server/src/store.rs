@@ -7,7 +7,8 @@ use sqlx::any::{AnyPoolOptions, install_default_drivers};
 use sqlx::migrate::Migrator;
 use sqlx::{AnyPool, Executor, Row};
 
-use crate::grant::Grant;
+use crate::crypto::{self, Kek};
+use crate::grant::{Grant, Role};
 
 static SQLITE: Migrator = sqlx::migrate!("../../migrations/sqlite");
 static MYSQL: Migrator = sqlx::migrate!("../../migrations/mysql");
@@ -15,6 +16,23 @@ static MYSQL: Migrator = sqlx::migrate!("../../migrations/mysql");
 #[derive(Clone)]
 pub struct Store {
     pool: AnyPool,
+    kek: Option<Kek>,
+}
+
+/// A commit waiting in (or done with) `commit_outbox`; `token` is decrypted.
+#[derive(Debug, Clone)]
+pub struct OutboxRow {
+    pub id: String,
+    pub room_id: String,
+    pub host_id: String,
+    pub file_id: String,
+    pub seq: i64,
+    pub base_version: Option<String>,
+    pub token: String,
+    pub payload: Vec<u8>,
+    pub authors: Vec<String>,
+    pub attempts: i64,
+    pub status: String,
 }
 
 pub struct RoomRow {
@@ -54,7 +72,7 @@ fn ensure_sqlite_dir(url: &str) {
 }
 
 impl Store {
-    pub async fn connect(url: &str) -> anyhow::Result<Self> {
+    pub async fn connect(url: &str, kek: Option<Kek>) -> anyhow::Result<Self> {
         install_default_drivers();
         let sqlite = url.starts_with("sqlite:");
         let mut opts = AnyPoolOptions::new()
@@ -78,7 +96,7 @@ impl Store {
             MYSQL.run(&pool).await
         }
         .context("running migrations")?;
-        Ok(Self { pool })
+        Ok(Self { pool, kek })
     }
 
     pub async fn ping(&self) -> bool {
@@ -122,7 +140,7 @@ impl Store {
         .bind(&grant.file.id)
         .bind(&grant.user.id)
         .bind(grant.role.as_str())
-        .bind(serde_json::to_string(grant)?)
+        .bind(self.seal_grant(ticket, grant)?)
         .bind(expires_at)
         .bind(now_ms)
         .execute(&self.pool)
@@ -137,8 +155,214 @@ impl Store {
             .fetch_optional(&self.pool)
             .await?;
         let Some(row) = row else { return Ok(None) };
-        let grant: Grant = serde_json::from_str(&row.try_get::<String, _>(0)?)?;
+        let grant = self.open_grant(ticket, &row.try_get::<String, _>(0)?)?;
         Ok(Some((grant, row.try_get::<i64, _>(1)?)))
+    }
+
+    /// `grant_json` with the host callback token sealed under `OC_KEK` (bound to the ticket).
+    fn seal_grant(&self, ticket: &str, grant: &Grant) -> anyhow::Result<String> {
+        let mut g = grant.clone();
+        g.callback_token = crypto::seal(self.kek.as_ref(), &grant.callback_token, ticket);
+        Ok(serde_json::to_string(&g)?)
+    }
+
+    fn open_grant(&self, ticket: &str, json: &str) -> anyhow::Result<Grant> {
+        let mut g: Grant = serde_json::from_str(json)?;
+        g.callback_token = crypto::open(self.kek.as_ref(), &g.callback_token, ticket)?;
+        Ok(g)
+    }
+
+    /// Raw `grant_json` as stored (tests check that secrets are sealed).
+    #[doc(hidden)]
+    pub async fn raw_grant_json(&self, ticket: &str) -> anyhow::Result<Option<String>> {
+        let row = sqlx::query("SELECT grant_json FROM sessions WHERE id = ?")
+            .bind(ticket)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.map(|r| r.try_get::<String, _>(0)).transpose()?)
+    }
+
+    /// Raw `token` column of a room's newest outbox row (tests check that it is sealed).
+    #[doc(hidden)]
+    pub async fn raw_outbox_token(&self, room: &str) -> anyhow::Result<String> {
+        let row = sqlx::query(
+            "SELECT token FROM commit_outbox WHERE room_id = ? ORDER BY created_at DESC, id DESC",
+        )
+        .bind(room)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.try_get::<String, _>(0)?)
+    }
+
+    /// Changes (or with `None` revokes) the role of every session of `user` in `room`.
+    /// Returns how many sessions were touched.
+    pub async fn set_session_role(
+        &self,
+        room: &str,
+        user: &str,
+        role: Option<Role>,
+    ) -> anyhow::Result<u64> {
+        let Some(role) = role else {
+            let res = sqlx::query("DELETE FROM sessions WHERE room_id = ? AND user_id = ?")
+                .bind(room)
+                .bind(user)
+                .execute(&self.pool)
+                .await?;
+            return Ok(res.rows_affected());
+        };
+        let rows =
+            sqlx::query("SELECT id, grant_json FROM sessions WHERE room_id = ? AND user_id = ?")
+                .bind(room)
+                .bind(user)
+                .fetch_all(&self.pool)
+                .await?;
+        let mut n = 0;
+        for row in rows {
+            let id: String = row.try_get(0)?;
+            let mut grant = self.open_grant(&id, &row.try_get::<String, _>(1)?)?;
+            grant.set_role(role);
+            sqlx::query("UPDATE sessions SET role = ?, grant_json = ? WHERE id = ?")
+                .bind(role.as_str())
+                .bind(self.seal_grant(&id, &grant)?)
+                .bind(&id)
+                .execute(&self.pool)
+                .await?;
+            n += 1;
+        }
+        Ok(n)
+    }
+
+    /// Drops every session of a room (the host closed it: file deleted or moved).
+    pub async fn delete_room_sessions(&self, room: &str) -> anyhow::Result<u64> {
+        let res = sqlx::query("DELETE FROM sessions WHERE room_id = ?")
+            .bind(room)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected())
+    }
+
+    // ---------- commit outbox (durable saves) ----------
+
+    /// Records a commit as `pending` before it is sent; older pending rows of the room are
+    /// superseded (the new payload contains everything they had).
+    pub async fn outbox_insert(&self, row: &OutboxRow, now_ms: i64) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "UPDATE commit_outbox SET status = 'superseded', payload = ? WHERE room_id = ? AND status = 'pending'",
+        )
+        .bind(Vec::<u8>::new())
+        .bind(&row.room_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "INSERT INTO commit_outbox (id, room_id, host_id, file_id, seq, base_version, token, payload, authors, attempts, next_try_at, status, created_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', ?)",
+        )
+        .bind(&row.id)
+        .bind(&row.room_id)
+        .bind(&row.host_id)
+        .bind(&row.file_id)
+        .bind(row.seq)
+        .bind(row.base_version.as_deref())
+        .bind(crypto::seal(self.kek.as_ref(), &row.token, &row.id))
+        .bind(row.payload.clone())
+        .bind(serde_json::to_string(&row.authors)?)
+        .bind(now_ms)
+        .bind(now_ms)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    fn outbox_row(&self, r: &sqlx::any::AnyRow) -> anyhow::Result<OutboxRow> {
+        let id: String = r.try_get(0)?;
+        let token = crypto::open(self.kek.as_ref(), &r.try_get::<String, _>(6)?, &id)?;
+        let attempts = r
+            .try_get::<i64, _>(9)
+            .or_else(|_| r.try_get::<i32, _>(9).map(i64::from))?;
+        Ok(OutboxRow {
+            room_id: r.try_get(1)?,
+            host_id: r.try_get(2)?,
+            file_id: r.try_get(3)?,
+            seq: r.try_get(4)?,
+            base_version: r.try_get(5)?,
+            token,
+            payload: r.try_get(7)?,
+            authors: serde_json::from_str(&r.try_get::<String, _>(8)?).unwrap_or_default(),
+            attempts,
+            status: r.try_get(10)?,
+            id,
+        })
+    }
+
+    /// All outbox rows of a room, oldest first.
+    pub async fn outbox_rows(&self, room: &str) -> anyhow::Result<Vec<OutboxRow>> {
+        let rows = sqlx::query(
+            "SELECT id, room_id, host_id, file_id, seq, base_version, token, payload, authors, attempts, status \
+             FROM commit_outbox WHERE room_id = ? ORDER BY created_at, id",
+        )
+        .bind(room)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(|r| self.outbox_row(r)).collect()
+    }
+
+    /// The newest pending commit of a room, if any.
+    pub async fn outbox_pending(&self, room: &str) -> anyhow::Result<Option<OutboxRow>> {
+        Ok(self
+            .outbox_rows(room)
+            .await?
+            .into_iter()
+            .rfind(|r| r.status == "pending"))
+    }
+
+    /// Every pending commit (startup sweeper), oldest first. Unreadable rows are skipped.
+    pub async fn outbox_all_pending(&self) -> anyhow::Result<Vec<OutboxRow>> {
+        let rows = sqlx::query(
+            "SELECT id, room_id, host_id, file_id, seq, base_version, token, payload, authors, attempts, status \
+             FROM commit_outbox WHERE status = 'pending' ORDER BY created_at, id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            match self.outbox_row(r) {
+                Ok(row) => out.push(row),
+                Err(e) => tracing::error!(error = %e, "unreadable outbox row skipped"),
+            }
+        }
+        Ok(out)
+    }
+
+    /// Final state of a commit: `done` (payload dropped), `conflict` or `superseded`.
+    pub async fn outbox_finish(&self, id: &str, status: &str) -> anyhow::Result<()> {
+        sqlx::query(
+            "UPDATE commit_outbox SET status = ?, payload = ?, last_error = NULL WHERE id = ?",
+        )
+        .bind(status)
+        .bind(Vec::<u8>::new())
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn outbox_failed(
+        &self,
+        id: &str,
+        next_try_at: i64,
+        error: &str,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "UPDATE commit_outbox SET attempts = attempts + 1, next_try_at = ?, last_error = ? WHERE id = ?",
+        )
+        .bind(next_try_at)
+        .bind(error)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     pub async fn purge_expired(&self, now: i64) -> anyhow::Result<()> {
@@ -297,6 +521,7 @@ impl Store {
             "DELETE FROM room_updates WHERE room_id = ?",
             "DELETE FROM room_snapshots WHERE room_id = ?",
             "DELETE FROM rooms WHERE id = ?",
+            "DELETE FROM commit_outbox WHERE room_id = ? AND status <> 'pending'",
         ] {
             sqlx::query(sql).bind(room).execute(&mut *tx).await?;
         }

@@ -21,6 +21,9 @@ pub struct HostConfig {
     /// PEM public key for RS256 / EdDSA.
     #[serde(default)]
     pub jwt_public_key: Option<String>,
+    /// JWKS endpoint for RS256 / EdDSA keys (fetched and cached 10 min, matched by `kid`).
+    #[serde(default)]
+    pub jwt_jwks_url: Option<String>,
     #[serde(default)]
     pub callback_secret: Option<String>,
     #[serde(default)]
@@ -39,7 +42,24 @@ fn default_alg() -> String {
     "HS256".into()
 }
 
+/// What happens when the host answers a save with 409 (docs/05 §2, `on_conflict`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictPolicy {
+    /// Save the session's version as a new file (`POST /files/{id}/copies`), go read-only.
+    Copy,
+    /// Drop the session's changes and reopen the host's version.
+    Reload,
+}
+
 impl HostConfig {
+    /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
+    pub fn on_conflict(&self) -> ConflictPolicy {
+        match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
+            Some("reload") => ConflictPolicy::Reload,
+            _ => ConflictPolicy::Copy,
+        }
+    }
+
     pub fn signing_secret(&self) -> &[u8] {
         self.callback_secret
             .as_deref()
@@ -91,8 +111,20 @@ impl Hosts {
             h.jwt_public_key = resolve(h.jwt_public_key)?;
             h.callback_secret = resolve(h.callback_secret)?;
             h.api_key = resolve(h.api_key)?;
-            if h.jwt_alg == "HS256" && h.jwt_secret.is_none() {
-                bail!("host {}: HS256 requires jwt_secret", h.id);
+            h.jwt_jwks_url = resolve(h.jwt_jwks_url)?;
+            match h.jwt_alg.as_str() {
+                "HS256" if h.jwt_secret.is_none() => {
+                    bail!("host {}: HS256 requires jwt_secret", h.id)
+                }
+                "RS256" | "EdDSA" if h.jwt_public_key.is_none() && h.jwt_jwks_url.is_none() => {
+                    bail!(
+                        "host {}: {} requires jwt_public_key (PEM) or jwt_jwks_url",
+                        h.id,
+                        h.jwt_alg
+                    )
+                }
+                "HS256" | "RS256" | "EdDSA" => {}
+                other => bail!("host {}: unsupported jwt_alg {other}", h.id),
             }
             if let Some(base) = callback_override {
                 tracing::warn!(host = %h.id, "OC_CALLBACK_BASE_OVERRIDE replaces callback_base (dev/compose only)");

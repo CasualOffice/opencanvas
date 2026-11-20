@@ -25,7 +25,7 @@ application implements. Modelled on Collabora Online's WOPI integration
 id              = "Acme"
 name            = "Acme"
 mode            = "jwt"                    # jwt | wopi | both
-jwt_alg         = "HS256"                  # or RS256 / EdDSA with jwks_url
+jwt_alg         = "HS256"                  # or RS256 / EdDSA: jwt_public_key (PEM) or jwt_jwks_url
 jwt_secret      = "env:ACME_OC_SECRET"
 api_key         = "env:ACME_OC_API_KEY"    # for server→server REST calls to us
 callback_base   = "https://api.acme.example/opencanvas"
@@ -135,14 +135,18 @@ t=<ts>,v1=<HMAC-SHA256(secret, ts + "." + body)>` so you can verify it is us.
 |---|---|---|
 | **Load file** `GET /files/{fileId}` | — | `200` body = `.ocanvas` / `.md` / `.html` bytes, headers `Content-Type`, `ETag: "<version>"`. `404` → new empty canvas. |
 | **Save (commit)** `PUT /files/{fileId}` | body `.ocanvas`; headers `If-Match: "<version>"`, `Idempotency-Key: <commitId>`, `X-OpenCanvas-Commit-Message`, `X-OpenCanvas-Authors: <json>`, `X-OpenCanvas-Autosave: 0|1` | `200 {"version":"18"}`; `409 {"version":"19"}` if your file changed outside the session; `413` too large. |
-| **Save as copy** `POST /files/{fileId}/copies` (conflict policy `copy`) | body `.ocanvas` | `201 {"fileId":"doc_9001","url":"…"}` |
+| **Save as copy** `POST /files/{fileId}/copies` (conflict policy `copy`) | body `.ocanvas`; `Idempotency-Key` | `201 {"fileId":"doc_9001","url":"…"}` (create it with the original's ACL) |
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Resolve users** `GET /users?q=as&fileId=` | — | `[{"id","name","avatar"}]` (for @mention; only users who can see the file) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 
 Timeouts: 10 s (load/save), 5 s (others). Retries with exponential backoff
-for save (idempotent by `Idempotency-Key`).
+for save (idempotent by `Idempotency-Key`). A save is written to our commit outbox before
+we call you, so it is retried with the same key even across a restart of OpenCanvas.
+
+With `jwt_jwks_url` we fetch your JWKS (cached 10 min) and pick the key by the token's `kid`;
+the algorithm is still pinned by `jwt_alg`, so a token signed with another algorithm is refused.
 
 ## 6. WOPI mode
 
@@ -171,10 +175,14 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 - Revoke or downgrade a user live when you change ACLs:
   `POST /v1/files/{fileId}/role {"userId":"u_123","role":"view"}` — the
   user's open session switches to read-only immediately (or is closed with
-  `"role":"none"`).
+  `"role":"none"`). Roles: `view | comment | edit | none`. Answers
+  `200 {"connections":1,"sessions":2}` (live connections switched, tickets updated);
+  `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`.
 - Patch content from a bot: `POST /v1/files/{fileId}/patch` (see 04 §6).
 - Force save before you snapshot/backup: `POST /v1/files/{fileId}/commit`.
-- Close everything (file deleted/moved): `DELETE /v1/files/{fileId}/session`.
+- Close everything (file deleted/moved): `DELETE /v1/files/{fileId}/session` — a final
+  save, then every connection is closed and every ticket for the file is dropped.
+  `200 {"closed":true,"sessions":3}`.
 - Stateless conversion: `POST /v1/convert?from=md&to=ocanvas`.
 
 ## 8. Lifecycle & guarantees
@@ -196,6 +204,9 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 - [ ] Implement load / save (+ assets, users).
 - [ ] Verify `X-OpenCanvas-Signature` on callbacks.
 - [ ] Add OpenCanvas origin to your CSP `frame-src`; add your origin to our `allowed_origins`.
-- [ ] Handle `409` (we save a copy or reload, per your policy).
+- [ ] Handle `409` (we save a copy or reload, per your policy). With `copy`, implement
+      `POST /files/{id}/copies`; editors are told the new file's `url` and the session
+      turns read-only. With `reload`, the session's unsaved changes are dropped and everyone
+      reconnects onto your version.
 - [ ] Call the role API when ACLs change.
 - [ ] Try `examples/sample-host` end-to-end before going live.

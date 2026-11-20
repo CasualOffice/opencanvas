@@ -13,6 +13,15 @@ pub enum Role {
 }
 
 impl Role {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "view" => Some(Role::View),
+            "comment" => Some(Role::Comment),
+            "edit" => Some(Role::Edit),
+            _ => None,
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Role::View => "view",
@@ -63,6 +72,12 @@ pub struct Grant {
 }
 
 impl Grant {
+    /// Applies a live role change from the host (docs/05 §7).
+    pub fn set_role(&mut self, role: Role) {
+        self.role = role;
+        self.perms.comment = role != Role::View;
+    }
+
     pub fn can_write(&self) -> bool {
         self.role != Role::View
     }
