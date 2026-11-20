@@ -144,6 +144,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/", get(|| async { Redirect::temporary("/app/") }))
         .route("/app", get(|| async { Redirect::permanent("/app/") }))
         .nest_service("/app/", spa)
+        // Host pages load the embed SDK from here (docs/05 §4).
+        .route_service("/sdk/embed.js", ServeFile::new(web.join("sdk/embed.js")))
         .layer(cors)
         .layer(SetResponseHeaderLayer::overriding(header::CONTENT_SECURITY_POLICY, csp(&origins)))
         .layer(SetResponseHeaderLayer::overriding(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer")))
