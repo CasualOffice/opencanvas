@@ -1,0 +1,15 @@
+[package]
+name = "oc-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+yrs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zip.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+zip.workspace = true
