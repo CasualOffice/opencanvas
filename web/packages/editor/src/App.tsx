@@ -53,9 +53,12 @@ type Boot =
 
 export default function App() {
   const [boot, setBoot] = useState<Boot>({ phase: "loading" });
+  // Bumped to drop the local Y.Doc and start over from the server (`reload` conflict policy).
+  const [gen, setGen] = useState(0);
 
   useEffect(() => {
-    postToHost("App_LoadingStatus", { Status: "Frame_Ready" });
+    if (gen === 0) postToHost("App_LoadingStatus", { Status: "Frame_Ready" });
+    else setBoot({ phase: "loading" });
     const { ticket, demo } = readLaunch();
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const theme = params.get("theme");
@@ -94,7 +97,7 @@ export default function App() {
       collab?.destroy();
       d?.destroy();
     };
-  }, []);
+  }, [gen]);
 
   if (boot.phase === "loading") return <Splash />;
   if (boot.phase === "error")
@@ -112,10 +115,10 @@ export default function App() {
         </div>
       </div>
     );
-  return <Workspace session={boot.session} collab={boot.collab} demo={boot.demo} />;
+  return <Workspace key={gen} session={boot.session} collab={boot.collab} demo={boot.demo} onReboot={() => setGen((g) => g + 1)} />;
 }
 
-function Workspace({ session, collab, demo }: { session: Session; collab: Collab; demo: Demo | null }) {
+function Workspace({ session, collab, demo, onReboot }: { session: Session; collab: Collab; demo: Demo | null; onReboot(): void }) {
   const { doc, awareness } = collab;
   const hostName = session.host.name;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -127,8 +130,9 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   const [roleChanged, setRoleChanged] = useState(false);
   const [save, setSave] = useState<SaveState>({ kind: "saved", at: null });
   const [conn, setConn] = useState<"connected" | "reconnecting" | "offline">("connected");
-  const [conflict, setConflict] = useState(false);
-  const [closed, setClosed] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<{ policy: "copy" | "reload" | null; fileId?: string; url?: string; open: boolean } | null>(null);
+  const [closed, setClosed] = useState<{ kind: "revoked" | "host" | "other"; reason: string } | null>(null);
+  const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [screen, setScreen] = useState<"editor" | "gallery">("editor");
   const [side, setSide] = useState<"comments" | null>(null);
@@ -150,7 +154,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   const pendingThread = useRef<string | null>(null);
   const modified = useRef(false);
 
-  const effectiveRole: Role = forcedReadOnly ? "view" : role;
+  const effectiveRole: Role = forcedReadOnly || conflict || closed ? "view" : role;
   const meta = useMeta(doc);
   const lastEdit = useLastEdit(doc);
   const peers = usePeers(awareness);
@@ -232,21 +236,47 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
             postToHost("Error", { code: "SAVE_FAILED", message: c.message ?? "Save failed" });
             break;
           case "conflict":
-            setConflict(true);
+            if (c.policy === "reload") {
+              // `closed` + close 1012 follow; then we start over from the host's version.
+              reloading.current = true;
+              postToHost("Error", { code: "CONFLICT", message: "The file changed outside this session. Reloading the latest version." });
+              break;
+            }
+            // `copy` (or an older server without a policy): the room stays read-only.
+            setConflict((prev) => (prev && prev.policy === (c.policy ?? null) ? prev : { policy: c.policy ?? null, fileId: c.fileId, url: c.url, open: true }));
             postToHost("Error", { code: "CONFLICT", message: "The file changed outside this session" });
             break;
           case "role":
+            // Live role change from the host (docs/15 §6 role API): no reload needed.
             setRole((prev) => {
-              if (prev === "edit" && c.role !== "edit") setRoleChanged(true);
-              if (c.role === "edit") setRoleChanged(false);
+              if (prev === c.role) return prev;
+              const rank = { view: 0, comment: 1, edit: 2 } as const;
+              if (rank[c.role] < rank[prev]) setRoleChanged(true);
+              else {
+                setRoleChanged(false);
+                toast(c.role === "edit" ? `${hostName} gave you edit access` : `${hostName} gave you comment access`, { icon: c.role === "edit" ? "pen-tool" : "message-square-plus" });
+              }
               return c.role;
             });
+            awareness.setLocalStateField("role", c.role);
             break;
-          case "closed":
-            setClosed(c.reason ?? "");
-            collab.provider?.disconnect();
+          case "closed": {
+            const reason = c.reason ?? "";
+            if (reloading.current) break; // handled by the 1012 that follows
+            if (/shutting down/i.test(reason)) break; // server restart: the provider reconnects
+            setClosed({ kind: /revoked/i.test(reason) ? "revoked" : /host/i.test(reason) ? "host" : "other", reason });
             break;
+          }
         }
+      }),
+      collab.onTerminal((e) => {
+        if (reloading.current) {
+          reloading.current = false;
+          toast(`Loaded the latest version from ${hostName}`, { icon: "rotate-ccw" });
+          onReboot();
+          return;
+        }
+        setClosed((prev) => prev ?? { kind: e.code === 1008 ? "revoked" : "host", reason: e.reason });
       }),
       collab.onConn((s) => {
         if (s === "connected") setConn("connected");
@@ -339,10 +369,6 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   }, [editor]);
 
   // ---------- bridge for node views & editor plugins ----------
-  const env: BlockEnv = useMemo(
-    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }) }),
-    [effectiveRole, me, allUsers, compact],
-  );
 
   const failedOnce = useRef(false);
   const upload = useCallback(
@@ -388,6 +414,11 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
       });
     },
     [session],
+  );
+  // Blocks (board images, …) store files through the same host proxy (BlockEnv.upload).
+  const env: BlockEnv = useMemo(
+    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f) }),
+    [effectiveRole, me, allUsers, compact, upload],
   );
 
   const openThread = useCallback((id: string) => {
@@ -579,7 +610,23 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
   const parent = session.demo ? "Engineering" : hostName;
 
   const banners: React.ReactNode[] = [];
-  if (effectiveRole === "view" && !roleChanged)
+  const copyName = `${meta.title || session.file.name || "Untitled"} (copy)`;
+  const openCopy = () => conflict?.url && postToHost("UI_Link_Click", { url: conflict.url, fileId: conflict.fileId ?? null });
+  if (conflict)
+    banners.push(
+      <div key="conflict" className="banner warn">
+        <Ic name="triangle-alert" />
+        <span>
+          {conflict.policy === "copy" ? `This canvas changed in ${hostName}. Your version was saved as “${copyName}”.` : `This canvas changed in ${hostName}. Autosave is paused.`}
+        </span>
+        {conflict.policy === "copy" && conflict.url ? (
+          <button className="btn sm" onClick={openCopy}>
+            Open the copy
+          </button>
+        ) : null}
+      </div>,
+    );
+  if (effectiveRole === "view" && !roleChanged && !conflict && !closed)
     banners.push(
       <div key="view" className="banner info">
         <Ic name="eye" />
@@ -597,7 +644,7 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
     banners.push(
       <div key="downgrade" className="banner warn">
         <Ic name="lock" />
-        <span>{hostName} changed your access to view only. Edits that hadn't synced weren't kept.</span>
+        <span>{hostName} changed your access to {role === "comment" ? "comment only" : "view only"}. Edits that hadn't synced weren't kept.</span>
       </div>,
     );
   if (conn === "offline")
@@ -744,25 +791,53 @@ function Workspace({ session, collab, demo }: { session: Session; collab: Collab
               </div>
             </Modal>
           ) : null}
-          {conflict ? (
-            <Modal onClose={() => undefined} dismissable={false} label="Canvas changed">
-              <ModalHead title={`This canvas changed in ${hostName}`} sub="Someone replaced the file from outside this session, so autosave is paused." icon="triangle-alert" tone="amber" />
-              <div className="mbd" style={{ fontSize: 13.5, color: "var(--fg-2)", lineHeight: 1.55 }}>
-                Your edits up to now are kept in this session. Reload to continue from the version in {hostName}.
+          {conflict?.open && !closed ? (
+            <Modal onClose={() => setConflict({ ...conflict, open: false })} label="Canvas changed">
+              <ModalHead title={`This canvas changed in ${hostName}`} sub="Someone replaced the file from outside this session." icon="triangle-alert" tone="amber" />
+              <div className="mbd">
+                <div className="callout" style={{ margin: 0 }} data-tone="green">
+                  <span className="cic tone-green">
+                    <Ic name="copy" />
+                  </span>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                    {conflict.policy === "copy" ? (
+                      <>
+                        Your edits are safe. They were saved as <b>“{copyName}”</b> in {hostName}. This canvas is read-only now.
+                      </>
+                    ) : (
+                      <>Your edits up to now are kept in this session. Reload to continue from the version in {hostName}.</>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="mft">
-                <button className="btn ghost" onClick={() => setConflict(false)}>
+                <button className="btn ghost" onClick={() => setConflict({ ...conflict, open: false })}>
                   Keep reading
                 </button>
-                <button className="btn primary" onClick={() => window.location.reload()}>
-                  Reload
-                </button>
+                {conflict.policy === "copy" && conflict.url ? (
+                  <button className="btn primary" onClick={openCopy}>
+                    Open the copy
+                  </button>
+                ) : (
+                  <button className="btn primary" onClick={() => window.location.reload()}>
+                    Reload
+                  </button>
+                )}
               </div>
             </Modal>
           ) : null}
           {closed !== null ? (
             <Modal onClose={() => undefined} dismissable={false} label="Canvas closed">
-              <ModalHead title={`${hostName} closed this canvas`} sub={(closed ? closed + ". " : "") + "Everything up to now was saved."} icon="lock" tone="gray" />
+              {closed.kind === "revoked" ? (
+                <ModalHead title="Your access to this canvas changed" sub={`${hostName} no longer lets you open this canvas. Ask the owner if you need it.`} icon="lock" tone="gray" />
+              ) : (
+                <ModalHead
+                  title={`${hostName} closed this canvas`}
+                  sub={(closed.reason && closed.kind === "other" ? closed.reason.replace(/^./, (c) => c.toUpperCase()) + ". " : "") + "Everything up to now was saved."}
+                  icon="lock"
+                  tone="gray"
+                />
+              )}
               <div className="mft" style={{ paddingTop: 18 }}>
                 <button className="btn primary" onClick={() => postToHost("UI_Close", {})}>
                   Back to {hostName}

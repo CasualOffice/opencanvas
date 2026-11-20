@@ -195,7 +195,9 @@ export function createDemo(role: Role): Demo {
       if (v === "offline") ext._emitConn("offline");
       else if (v === "reconnect") ext._emitConn("reconnecting");
       else if (v === "savefail") ext._emitControl({ t: "save_error", retryInMs: 10000, message: "Host returned 503" });
-      else if (v === "conflict") ext._emitControl({ t: "conflict" });
+      else if (v === "conflict") ext._emitControl({ t: "conflict", policy: "copy", fileId: "demo_copy", url: "https://acme.example.com/files/demo_copy" });
+      else if (v === "revoked") ext._emitControl({ t: "closed", reason: "access revoked" });
+      else if (v === "upgrade") ext._emitControl({ t: "role", role: "edit" });
       else if (v === "closed") ext._emitControl({ t: "closed", reason: "The file was moved" });
       else if (v === "downgrade") ext._emitControl({ t: "role", role: "view" });
     },
