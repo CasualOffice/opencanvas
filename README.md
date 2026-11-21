@@ -90,3 +90,7 @@ Start at [docs/00-README.md](docs/00-README.md). The main documents are the
 
 Read [AGENTS.md](AGENTS.md) first. All work is tracked in
 [docs/10-EXECUTION-TRACKER.md](docs/10-EXECUTION-TRACKER.md).
+
+## License
+
+OpenCanvas is licensed under the [Mozilla Public License 2.0](LICENSE) (MPL-2.0). You can embed it in proprietary products. Changes to OpenCanvas's own files must be shared under the same licence. Bundled fonts are under the SIL Open Font License; see `crates/oc-model/fonts/THIRD-PARTY.md`.
