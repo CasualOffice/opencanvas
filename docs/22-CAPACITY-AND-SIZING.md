@@ -702,6 +702,18 @@ very end: the harness's `stop_server` cannot `wait` for the restarted server (it
 script's child), so the MariaDB container was removed while the server was still shutting down.
 That is a harness artifact, not a server fault.
 
+**Fix and rerun (PERF-05, branch `perf/memory-and-sqlite-writer`).** The deadlocks were range
+deletes (`DELETE FROM room_updates WHERE room_id = ? AND seq <= ?` in compaction, and room
+purges) taking next-key locks on the `(room_id, seq)` primary key, past the room's last row
+into the neighbouring room's range, while other rooms' guarded inserts and other compactions
+locked in the opposite order. Snapshot writes and purges now take a process-wide gate
+exclusively and WAL batches take it shared, so in one process they never overlap each other or
+a WAL batch (on SQLite they also share the write turn). `OC_DURABILITY=wal scripts/bench.sh mR`
+twice (MariaDB 10.11, Docker): **0 of 38,464 and 0 of 38,468** acknowledged edits lost; 0 of
+67,370 / 67,376 missing at the end; **0 deadlock errors and 0 ERROR lines** in either run
+(before and after the kill); transient retries 4 and 28 (all succeeded). PASS. A cluster can
+still deadlock across nodes (the gate is per process); the 3 retries cover that.
+
 Notes: resync gap includes the 1 s the harness waits after the kill and the restart + viewer
 check, so it is an upper bound on what a browser would see. On MariaDB 9 % of edits were not yet
 acknowledged at the kill (35,196 of 38,556): WAL appends are slower than on SQLite, so fan-out lags
