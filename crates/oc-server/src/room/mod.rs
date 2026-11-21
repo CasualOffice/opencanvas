@@ -2,6 +2,7 @@
 
 mod actor;
 pub mod filter;
+pub mod mentions;
 pub mod protocol;
 mod remote;
 

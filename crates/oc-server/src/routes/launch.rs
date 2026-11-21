@@ -21,6 +21,9 @@ use crate::{SharedState, TicketUse};
 pub struct LaunchParams {
     #[serde(default)]
     token: String,
+    /// Open the canvas at this block (UX-02); passed on as `&block=` in the app fragment.
+    #[serde(default)]
+    block: Option<String>,
 }
 
 /// Form fields of a launch POST: a JWT `token`, or WOPI `access_token` + `access_token_ttl`.
@@ -33,6 +36,8 @@ pub struct LaunchForm {
     /// WOPI: expiry as milliseconds since the epoch; 0 / absent = unknown.
     #[serde(default)]
     access_token_ttl: Option<String>,
+    #[serde(default)]
+    block: Option<String>,
 }
 
 /// Query of a launch POST; `WOPISrc` selects WOPI mode. Other WOPI placeholders hosts append
@@ -41,6 +46,33 @@ pub struct LaunchForm {
 pub struct LaunchQuery {
     #[serde(rename = "WOPISrc", default)]
     wopi_src: Option<String>,
+    #[serde(default)]
+    block: Option<String>,
+}
+
+/// Appends `&block=<id>` to a launch redirect when `block` is a plain id (`[A-Za-z0-9_-]`,
+/// at most 64); anything else is dropped.
+fn with_block(mut res: Response, block: Option<&str>) -> Response {
+    let Some(b) = block.filter(|b| {
+        !b.is_empty()
+            && b.len() <= 64
+            && b.bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+    }) else {
+        return res;
+    };
+    if res.status() != StatusCode::SEE_OTHER {
+        return res;
+    }
+    let loc = res
+        .headers()
+        .get(header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .map(|l| format!("{l}&block={b}"));
+    if let Some(v) = loc.and_then(|l| header::HeaderValue::from_str(&l).ok()) {
+        res.headers_mut().insert(header::LOCATION, v);
+    }
+    res
 }
 
 pub async fn launch_post(
@@ -52,16 +84,18 @@ pub async fn launch_post(
         Some(src) => launch_wopi(&state, &src, &p).await,
         None => launch(&state, &p.token).await,
     };
-    res.unwrap_or_else(IntoResponse::into_response)
+    let block = p.block.as_deref().or(q.block.as_deref());
+    with_block(res.unwrap_or_else(IntoResponse::into_response), block)
 }
 
 pub async fn launch_get(
     State(state): State<SharedState>,
     Query(p): Query<LaunchParams>,
 ) -> Response {
-    launch(&state, &p.token)
+    let res = launch(&state, &p.token)
         .await
-        .unwrap_or_else(IntoResponse::into_response)
+        .unwrap_or_else(IntoResponse::into_response);
+    with_block(res, p.block.as_deref())
 }
 
 fn rejected(state: &SharedState, status: StatusCode, code: &'static str, msg: String) -> ApiError {

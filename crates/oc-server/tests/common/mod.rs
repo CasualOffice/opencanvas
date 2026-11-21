@@ -49,6 +49,10 @@ pub struct HostState {
     pub asset_gets: Vec<(String, bool)>,
     /// `/assets/redirect` answers 302 to this URL.
     pub redirect_to: Option<String>,
+    /// `POST /mentions` calls (body, headers, v2 signature ok).
+    pub mentions: Vec<RecordedPut>,
+    /// The next this-many `POST /mentions` calls answer 503.
+    pub mentions_fail: u32,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -187,6 +191,39 @@ async fn post_copy(
     )
 }
 
+/// v2 signature check (method + path bound) for `POST /api/mentions`.
+fn verify_v2(headers: &HeaderMap, path: &str, body: &[u8]) -> bool {
+    let Some(sig) = headers
+        .get("x-opencanvas-signature")
+        .and_then(|v| v.to_str().ok())
+    else {
+        return false;
+    };
+    let Some(t) = sig
+        .strip_prefix("t=")
+        .and_then(|s| s.split(',').next())
+        .and_then(|t| t.parse::<i64>().ok())
+    else {
+        return false;
+    };
+    sig == oc_server::host_client::signature_header(SECRET.as_bytes(), t, "POST", path, body)
+}
+
+async fn mentions(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
+    let mut st = s.lock().unwrap();
+    let signature_ok = verify_v2(&headers, "/api/mentions", &body);
+    st.mentions.push(RecordedPut {
+        headers,
+        body: body.to_vec(),
+        signature_ok,
+    });
+    if st.mentions_fail > 0 {
+        st.mentions_fail -= 1;
+        return StatusCode::SERVICE_UNAVAILABLE;
+    }
+    StatusCode::NO_CONTENT
+}
+
 async fn users(headers: HeaderMap) -> impl IntoResponse {
     if !verify(&headers, b"") {
         return (StatusCode::UNAUTHORIZED, axum::Json(json!([])));
@@ -204,6 +241,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/files/{id}", get(get_file).put(put_file))
         .route("/api/files/{id}/copies", axum::routing::post(post_copy))
         .route("/api/users", get(users))
+        .route("/api/mentions", axum::routing::post(mentions))
         .route("/assets/{id}", get(asset))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

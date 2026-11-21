@@ -21,7 +21,7 @@ use crate::grant::{Grant, Role};
 use crate::host_client::{Fetched, PutOutcome, PutRequest};
 use crate::hosts::{ConflictPolicy, HostConfig};
 use crate::metrics::Metrics;
-use crate::store::OutboxRow;
+use crate::store::{NotifyRow, OutboxRow};
 use crate::util::{now_ms, rfc3339};
 
 const BACKOFF_SECS: [u64; 4] = [1, 2, 5, 10];
@@ -31,6 +31,9 @@ const MAX_AWARENESS_BYTES: usize = 2048;
 pub const MAX_PEERS: usize = 550;
 /// Awareness client ids one connection may own (one per Y.Doc; a few for tabs/reconnects).
 const MAX_CLIENTS_PER_CONN: usize = 8;
+/// New @mentions are collected once the room has been quiet this long (a burst of edits in one
+/// block becomes one notification).
+const MENTION_SETTLE: Duration = Duration::from_millis(500);
 
 fn backoff(attempt: u32) -> u64 {
     BACKOFF_SECS[(attempt as usize).min(BACKOFF_SECS.len() - 1)]
@@ -112,6 +115,8 @@ struct Room {
     self_tx: mpsc::UnboundedSender<Cmd>,
     /// Commit API callers waiting for a save that covers `seq`.
     commit_waiters: Vec<(i64, tokio::sync::oneshot::Sender<CommitResult>)>,
+    /// New @mentions to tell the host about (`None`: WOPI or no callbacks, UX-02).
+    mentions: Option<super::mentions::Tracker>,
 }
 
 pub(super) async fn run(
@@ -298,7 +303,10 @@ impl Room {
             None => None,
         };
         let status = json!({"t": "saved", "at": now_ms(), "version": host_version});
+        let mentions = crate::notify::enabled(&host, &seed.file.id)
+            .then(|| super::mentions::Tracker::new(&doc));
         Ok(Self {
+            mentions,
             awareness: Awareness::new(doc.clone()),
             doc_bytes: encoded_len(&doc),
             doc,
@@ -621,6 +629,9 @@ impl Room {
         {
             tracing::error!(room = %self.id, error = %e, "WAL append failed");
         }
+        if let Some(m) = self.mentions.as_mut() {
+            m.note(&bytes, user_id);
+        }
         self.broadcast(&protocol::update(bytes), from);
         Metrics::inc(&self.ctx.metrics.updates_total);
         self.last_update = Instant::now();
@@ -791,6 +802,11 @@ impl Room {
         {
             self.start_conflict_task();
         }
+        if self.mentions.as_ref().is_some_and(|m| m.has_pending())
+            && now - self.last_update >= MENTION_SETTLE
+        {
+            self.flush_mentions().await;
+        }
         if self.seq > self.compacted_seq
             && (self.seq - self.compacted_seq >= cfg.compact_every as i64
                 || self.last_compact.elapsed() >= cfg.compact_interval)
@@ -808,6 +824,47 @@ impl Room {
                 self.dirty_since.is_none()
                     && self.idle_since.is_some_and(|t| now - t >= cfg.room_ttl)
             }
+        }
+    }
+
+    /// Queues new @mentions in `notify_outbox` and sends each once in the background; failures
+    /// are retried by the notification sweeper. Never blocks or fails the room.
+    async fn flush_mentions(&mut self) {
+        let Some(tracker) = self.mentions.as_mut() else {
+            return;
+        };
+        let events = tracker.collect(&self.doc);
+        if events.is_empty() || self.callback_token.is_empty() {
+            return;
+        }
+        let now = now_ms();
+        for ev in events {
+            let row = NotifyRow {
+                id: crate::notify::row_id(&self.id, "mention", &ev.key),
+                room_id: self.id.clone(),
+                host_id: self.host.id.clone(),
+                file_id: self.file_id.clone(),
+                kind: "mention".into(),
+                token: self.callback_token.clone(),
+                payload: ev.body(&self.file_id).to_string(),
+                attempts: 0,
+                // Held for the first attempt below; the sweeper takes over if it fails.
+                next_try_at: now + crate::notify::CLAIM_MS,
+            };
+            match self.ctx.store.notify_insert(&row, now).await {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(e) => {
+                    tracing::error!(room = %self.id, error = %e, "queueing a mention notification failed");
+                    continue;
+                }
+            }
+            tracing::info!(room = %self.id, mentioned = ev.mentioned.len(), "mention notification queued");
+            let ctx = self.ctx.clone();
+            let host = self.host.clone();
+            tokio::spawn(async move {
+                crate::notify::attempt(&ctx.store, &ctx.host, &host, &row, now_ms()).await;
+            });
         }
     }
 
@@ -1113,6 +1170,9 @@ impl Room {
             tracing::error!(room = %self.id, error = %e, "recording reload failed");
         }
         self.awareness = Awareness::new(doc.clone());
+        if self.mentions.is_some() {
+            self.mentions = Some(super::mentions::Tracker::new(&doc));
+        }
         self.doc_bytes = encoded_len(&doc);
         self.doc = doc;
         self.host_version = version;
@@ -1155,6 +1215,7 @@ impl Room {
     /// SIGTERM or host close: wait for an in-flight save, make a final one if still dirty,
     /// then close peers.
     async fn shutdown(&mut self, rx: &mut mpsc::UnboundedReceiver<Cmd>, by_host: bool) {
+        self.flush_mentions().await;
         while self.save.in_flight {
             match tokio::time::timeout(Duration::from_secs(15), rx.recv()).await {
                 Ok(Some(Cmd::SaveDone { id, result })) => self.save_done(&id, result).await,

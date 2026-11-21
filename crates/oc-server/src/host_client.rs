@@ -542,6 +542,26 @@ impl HostClient {
         Ok(buf.into())
     }
 
+    /// `POST {callback_base}/mentions` (UX-02, docs/05 §5): a JSON body, signed like every
+    /// callback, with an `Idempotency-Key` so a host can drop a retried call it already has.
+    /// Returns the host's status; the caller decides between done, retry and give up.
+    pub async fn post_mentions(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        body: Vec<u8>,
+        idempotency_key: &str,
+    ) -> Result<StatusCode, HostError> {
+        let url = Self::url(host, &["mentions"])?;
+        let res = self
+            .request(host, token, Method::POST, url, body, 5)
+            .header(header::CONTENT_TYPE, "application/json")
+            .header("Idempotency-Key", idempotency_key)
+            .send()
+            .await?;
+        Ok(res.status())
+    }
+
     pub async fn users(
         &self,
         host: &HostConfig,

@@ -1,6 +1,7 @@
 // OpenCanvas sample host: a stand-in for your app (or any app embedding OpenCanvas).
 // It owns users, per-file roles and the file store, signs launch tokens and
-// implements the callbacks from docs/05-INTEGRATION-GUIDE.md §5. Zero dependencies.
+// implements the callbacks from docs/05-INTEGRATION-GUIDE.md §5 (load, save, copies, assets,
+// users and @mention notifications). Zero dependencies.
 //
 //   node server.mjs            # http://localhost:4000
 //   OC_SERVER=http://localhost:8080 OC_SECRET=dev-secret-change-me node server.mjs
@@ -36,6 +37,7 @@ const USERS = {
 // ---------- tiny persistent "database" for file metadata + ACL ----------
 const metaPath = path.join(DATA, "meta.json");
 let meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : { files: {} };
+meta.mentions ??= {}; // fileId -> newest first: {key, by, mentioned, blockId, threadId, excerpt, at}
 const saveMeta = () => fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
 if (!Object.keys(meta.files).length) {
   meta.files.doc_welcome = { id: "doc_welcome", name: "Sprint 42 planning", version: 0, updatedAt: null,
@@ -122,6 +124,7 @@ function parseMultipart(buf, ctype) {
 
 // ---------- callbacks: OpenCanvas → host ----------
 async function callbacks(req, res, url) {
+  if (url.pathname === "/api/opencanvas/mentions" && req.method === "POST") return mentionCallback(req, res);
   const m = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)(\/assets|\/copies)?$/);
   const body = req.method === "GET" ? Buffer.alloc(0) : await readBody(req);
   if (m) {
@@ -174,6 +177,31 @@ async function callbacks(req, res, url) {
   send(res, 404, { error: "not found" });
 }
 
+// @mentions (docs/05 §5): OpenCanvas tells us who was mentioned; notifying them (mail, inbox,
+// push) is our job. Here they are logged and listed on the file page.
+async function mentionCallback(req, res) {
+  const body = await readBody(req);
+  let n;
+  try { n = JSON.parse(body.toString("utf8")); } catch { return send(res, 400, { error: "expected JSON" }); }
+  const f = typeof n?.fileId === "string" && meta.files[n.fileId];
+  if (!f) return send(res, 404, { error: "no such file" });
+  const auth = checkCallback(req, n.fileId, body);
+  if (!auth.ok) { console.warn("callback rejected:", auth.why); return send(res, 401, { error: auth.why }); }
+  const key = String(req.headers["idempotency-key"] || "");
+  const list = (meta.mentions[n.fileId] ??= []);
+  if (key && list.some(x => x.key === key)) return send(res, 200, { duplicate: true });
+  // Only people who can open the file are told (the editor lists only them, but check anyway).
+  const mentioned = (Array.isArray(n.mentioned) ? n.mentioned : []).filter(id => USERS[id] && f.acl[id]);
+  list.unshift({ key, by: String(n.by || ""), mentioned, blockId: n.blockId ?? null, threadId: n.threadId ?? null, excerpt: String(n.excerpt || "").slice(0, 280), at: new Date().toISOString() });
+  list.splice(50);
+  saveMeta();
+  console.log(`mention in ${n.fileId}: ${n.by} -> ${mentioned.join(", ") || "(nobody with access)"}${n.threadId ? " (comment)" : ""}`);
+  send(res, 204, "");
+}
+
+const userName = id => USERS[id]?.name ?? id;
+const mentionsFor = id => (meta.mentions[id] || []).map(({ key, ...m }) => ({ ...m, byName: userName(m.by), names: m.mentioned.map(userName) }));
+
 // ---------- host UI ----------
 const page = (title, body) => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
@@ -191,6 +219,18 @@ table{width:100%;border-collapse:collapse;background:var(--card);border-radius:1
 td,th{padding:10px 14px;border-bottom:1px solid var(--line);text-align:left;font-size:13.5px}th{color:var(--mut);font-weight:500}
 .mut{color:var(--mut)}
 .frame{position:fixed;inset:52px 0 0 0}.frame iframe{width:100%;height:100%;border:0}
+.ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn.ib{display:inline-flex;align-items:center;gap:6px}
+.cnt{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--acc);color:var(--bg);font-size:11.5px;font-weight:600;display:inline-grid;place-items:center}
+.cnt[hidden]{display:none}
+.panel{position:fixed;top:60px;right:16px;width:min(380px,calc(100vw - 32px));max-height:calc(100vh - 80px);overflow:auto;background:var(--card);border-radius:12px;box-shadow:0 0 0 1px var(--line),0 12px 32px rgba(0,0,0,.18);padding:6px;z-index:5}
+.panel[hidden]{display:none}.panel h2{font-size:13px;font-weight:600;margin:8px 10px}
+.panel ol{list-style:none;margin:0;padding:0}.panel li{padding:10px;border-radius:8px}.panel li+li{border-top:1px solid var(--line)}
+.panel q{display:block;margin-top:4px;color:var(--mut);quotes:none}.panel .row{display:flex;gap:8px;align-items:baseline}.panel .row b{font-weight:600}
+.panel .go{margin-top:6px;height:28px;font-size:12.5px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13px;max-width:calc(100vw - 32px);overflow-wrap:anywhere;z-index:6}
+.toast[hidden]{display:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style></head><body>${body}</body></html>`;
 
 function whoFrom(url, req) {
@@ -215,11 +255,60 @@ function openFile(res, me, id) {
   const role = f.acl[me];
   if (!role || role === "none") return send(res, 403, page("No access", `<header><a href="/">← Files</a></header><main><h2>You don't have access</h2><p class="mut">${esc(USERS[me].name)} has no role on “${esc(f.name)}”. Change it on the files page.</p></main>`), { "content-type": "text/html; charset=utf-8" });
   const token = launchToken(id, me);
-  send(res, 200, page(f.name, `<header><a href="/" class="mut" style="text-decoration:none">← Files</a><b>${esc(f.name)}</b><span class="mut">${esc(role)}</span><span class="sp"></span>${userPicker(me, "/files/" + id)}</header>
-  <form id="oc" method="post" target="oc" action="${OC_SERVER}/v1/launch"><input type="hidden" name="token" value="${token}"></form>
+  // Lucide "at-sign" (ISC licence), inlined: this page has no build step.
+  const at = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>`;
+  const ocOrigin = new URL(OC_SERVER).origin;
+  send(res, 200, page(f.name, `<header><a href="/" class="mut" style="text-decoration:none">← Files</a><b>${esc(f.name)}</b><span class="mut">${esc(role)}</span><span class="sp"></span>
+  <button class="btn ib" id="mbtn" aria-expanded="false" aria-controls="mpanel">${at}Mentions <span class="cnt" id="mcnt" hidden></span></button>
+  ${userPicker(me, "/files/" + id)}</header>
+  <section class="panel" id="mpanel" hidden aria-label="Mentions"><h2>Mentions in this canvas</h2><ol id="mlist"></ol></section>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <form id="oc" method="post" target="oc" action="${OC_SERVER}/v1/launch"><input type="hidden" name="token" value="${token}"><input type="hidden" name="block" id="block"></form>
   <div class="frame"><iframe name="oc" title="Canvas" allow="clipboard-read; clipboard-write; fullscreen"></iframe></div>
-  <script>document.getElementById('oc').submit();
-  addEventListener('message',e=>{ if(e.origin!==${JSON.stringify(new URL(OC_SERVER).origin)}) return; console.log('[opencanvas]',e.data); });</script>`), { "content-type": "text/html; charset=utf-8", "set-cookie": `as=${me}; Path=/; SameSite=Lax` });
+  <script>
+  const OC = ${JSON.stringify(ocOrigin)}, FILE = ${JSON.stringify(id)}, frame = document.querySelector('iframe[name=oc]');
+  // A link to a block (#block=b_…) opens the canvas there: the launch passes it on.
+  const linked = new URLSearchParams(location.hash.slice(1)).get('block');
+  if (linked) document.getElementById('block').value = linked;
+  document.getElementById('oc').submit();
+  const post = (MessageId, Values = {}) => frame.contentWindow.postMessage({ MessageId, SendTime: Date.now(), Values }, OC);
+  const toast = document.getElementById('toast'); let tt;
+  const say = t => { toast.textContent = t; toast.hidden = false; clearTimeout(tt); tt = setTimeout(() => toast.hidden = true, 4000); };
+  addEventListener('message', e => {
+    if (e.origin !== OC || e.source !== frame.contentWindow) return;
+    const { MessageId, Values = {} } = e.data || {};
+    console.log('[opencanvas]', MessageId, Values);
+    if (MessageId === 'App_LoadingStatus' && Values.Status === 'Frame_Ready') post('Host_PostmessageReady');
+    // "Copy link to block": we own the URLs, so we build the link (docs/05 §4).
+    if ((MessageId === 'UI_BlockLink' || MessageId === 'UI_Block_Link') && Values.fileId === FILE && /^[\w-]{1,64}$/.test(Values.blockId || '')) {
+      const url = location.origin + '/files/' + FILE + '#block=' + Values.blockId;
+      navigator.clipboard?.writeText(url).catch(() => {});
+      document.body.dataset.blockLink = url;
+      say('Link copied: ' + url);
+    }
+  });
+  // Mentions list (our callback stores them; a real app would notify people).
+  const btn = document.getElementById('mbtn'), panel = document.getElementById('mpanel'), list = document.getElementById('mlist'), cnt = document.getElementById('mcnt');
+  const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const when = s => new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  let seen = -1;
+  async function refresh() {
+    try {
+      const r = await fetch('/files/' + FILE + '/mentions.json', { cache: 'no-store' });
+      if (!r.ok) return;
+      const items = await r.json();
+      cnt.hidden = !items.length; cnt.textContent = items.length;
+      btn.setAttribute('aria-label', 'Mentions, ' + items.length);
+      if (items.length === seen) return;
+      seen = items.length;
+      list.innerHTML = items.length ? items.map(m => '<li><div class="row"><b>' + escH(m.byName) + '</b><span class="mut">mentioned ' + escH(m.names.join(', ') || 'nobody with access') + (m.threadId ? ' in a comment' : '') + ' · ' + when(m.at) + '</span></div><q>' + escH(m.excerpt) + '</q>' + (m.blockId ? '<button class="btn go" data-block="' + escH(m.blockId) + '">Show in canvas</button>' : '') + '</li>').join('') : '<li class="mut">Nobody has been mentioned yet. Type @ in the canvas or a comment.</li>';
+    } catch {}
+  }
+  btn.onclick = () => { const open = panel.hidden; panel.hidden = !open; btn.setAttribute('aria-expanded', String(open)); if (open) refresh(); };
+  list.onclick = e => { const b = e.target.closest('[data-block]'); if (b) post('Action_ScrollToBlock', { blockId: b.dataset.block }); };
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); btn.focus(); } });
+  refresh(); setInterval(refresh, 3000);
+  </script>`), { "content-type": "text/html; charset=utf-8", "set-cookie": `as=${me}; Path=/; SameSite=Lax` });
 }
 
 http.createServer(async (req, res) => {
@@ -263,6 +352,8 @@ http.createServer(async (req, res) => {
       await Promise.all(changed.map(([userId, role]) => pushRole(file.id, userId, role)));
       res.writeHead(303, { location: "/" }); return res.end();
     }
+    const ml = url.pathname.match(/^\/files\/([\w-]+)\/mentions\.json$/);
+    if (ml && meta.files[ml[1]]?.acl[me]) return send(res, 200, mentionsFor(ml[1]), { "cache-control": "no-store" });
     const fm = url.pathname.match(/^\/files\/([\w-]+)$/);
     if (fm) return openFile(res, me, fm[1]);
     if (url.pathname === "/") return home(res, me);

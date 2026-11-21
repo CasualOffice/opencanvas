@@ -35,6 +35,22 @@ pub struct OutboxRow {
     pub status: String,
 }
 
+/// A host notification waiting in `notify_outbox`; `token` is decrypted.
+#[derive(Debug, Clone)]
+pub struct NotifyRow {
+    pub id: String,
+    pub room_id: String,
+    pub host_id: String,
+    pub file_id: String,
+    /// `mention`.
+    pub kind: String,
+    pub token: String,
+    /// The JSON body sent to the host.
+    pub payload: String,
+    pub attempts: i64,
+    pub next_try_at: i64,
+}
+
 pub struct RoomRow {
     pub host_version: Option<String>,
     pub dirty: bool,
@@ -388,7 +404,126 @@ impl Store {
         Ok(())
     }
 
+    // ---------- notification outbox (host callbacks other than saves) ----------
+
+    /// Queues a notification as `pending`, due at `next_try_at`. False when a row with this id
+    /// already exists (the same message was queued before): nothing is sent twice.
+    pub async fn notify_insert(&self, row: &NotifyRow, now_ms: i64) -> anyhow::Result<bool> {
+        let res = sqlx::query(
+            "INSERT INTO notify_outbox (id, room_id, host_id, file_id, kind, token, payload, attempts, next_try_at, status, created_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', ?)",
+        )
+        .bind(&row.id)
+        .bind(&row.room_id)
+        .bind(&row.host_id)
+        .bind(&row.file_id)
+        .bind(&row.kind)
+        .bind(crypto::seal(self.kek.as_ref(), &row.token, &row.id))
+        .bind(&row.payload)
+        .bind(row.next_try_at)
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await;
+        match res {
+            Ok(_) => Ok(true),
+            Err(sqlx::Error::Database(e)) if e.is_unique_violation() => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Pending notifications due at `now_ms`, oldest first. Unreadable rows are skipped.
+    pub async fn notify_due(&self, now_ms: i64, limit: i64) -> anyhow::Result<Vec<NotifyRow>> {
+        let rows = sqlx::query(
+            "SELECT id, room_id, host_id, file_id, kind, token, payload, attempts, next_try_at \
+             FROM notify_outbox WHERE status = 'pending' AND next_try_at <= ? ORDER BY next_try_at, id LIMIT ?",
+        )
+        .bind(now_ms)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            let read = || -> anyhow::Result<NotifyRow> {
+                let id: String = r.try_get(0)?;
+                let token = crypto::open(self.kek.as_ref(), &r.try_get::<String, _>(5)?, &id)?;
+                Ok(NotifyRow {
+                    room_id: r.try_get(1)?,
+                    host_id: r.try_get(2)?,
+                    file_id: r.try_get(3)?,
+                    kind: r.try_get(4)?,
+                    token,
+                    payload: r.try_get(6)?,
+                    attempts: r
+                        .try_get::<i64, _>(7)
+                        .or_else(|_| r.try_get::<i32, _>(7).map(i64::from))?,
+                    next_try_at: r.try_get(8)?,
+                    id,
+                })
+            };
+            match read() {
+                Ok(row) => out.push(row),
+                Err(e) => tracing::error!(error = %e, "unreadable notification row skipped"),
+            }
+        }
+        Ok(out)
+    }
+
+    /// Takes a due row for one attempt by pushing its `next_try_at` from `seen` to `until`.
+    /// False when another worker (or node) took it first.
+    pub async fn notify_claim(&self, id: &str, seen: i64, until: i64) -> anyhow::Result<bool> {
+        let res = sqlx::query(
+            "UPDATE notify_outbox SET next_try_at = ? WHERE id = ? AND status = 'pending' AND next_try_at = ?",
+        )
+        .bind(until)
+        .bind(id)
+        .bind(seen)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    /// Final state: `done`, `unsupported` (the host has no such callback) or `failed`. The
+    /// payload (it holds an excerpt of the canvas) is dropped.
+    pub async fn notify_finish(&self, id: &str, status: &str) -> anyhow::Result<()> {
+        sqlx::query("UPDATE notify_outbox SET status = ?, payload = '' WHERE id = ?")
+            .bind(status)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// A failed attempt: try again at `next_try_at`.
+    pub async fn notify_retry(&self, id: &str, next_try_at: i64) -> anyhow::Result<()> {
+        sqlx::query(
+            "UPDATE notify_outbox SET attempts = attempts + 1, next_try_at = ? WHERE id = ? AND status = 'pending'",
+        )
+        .bind(next_try_at)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Status of one notification row (tests).
+    #[doc(hidden)]
+    pub async fn notify_status(&self, id: &str) -> anyhow::Result<Option<(String, String)>> {
+        let row = sqlx::query("SELECT status, payload FROM notify_outbox WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(match row {
+            Some(r) => Some((r.try_get(0)?, r.try_get(1)?)),
+            None => None,
+        })
+    }
+
     pub async fn purge_expired(&self, now: i64) -> anyhow::Result<()> {
+        // Finished notifications are kept a day (their id still deduplicates), payload-free.
+        sqlx::query("DELETE FROM notify_outbox WHERE status <> 'pending' AND created_at < ?")
+            .bind((now - 86_400) * 1000)
+            .execute(&self.pool)
+            .await?;
         sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
             .bind(now)
             .execute(&self.pool)
