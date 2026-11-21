@@ -93,4 +93,10 @@ Read [AGENTS.md](AGENTS.md) first. All work is tracked in
 
 ## License
 
-OpenCanvas is licensed under the [Mozilla Public License 2.0](LICENSE) (MPL-2.0). You can embed it in proprietary products. Changes to OpenCanvas's own files must be shared under the same licence. Bundled fonts are under the SIL Open Font License; see `crates/oc-model/fonts/THIRD-PARTY.md`.
+OpenCanvas is source-available under the [Business Source License 1.1](LICENSE) (BUSL-1.1), with CasualOffice as the licensor.
+
+- **Free to use in production**, including self-hosting and embedding it in your own products, whether open or closed source.
+- **Not allowed without a commercial licence:** offering OpenCanvas itself to others as a hosted collaborative-editing service.
+- **Each version becomes open source** under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/) four years after its release.
+
+Bundled fonts are under the SIL Open Font License; see `crates/oc-model/fonts/THIRD-PARTY.md`.
