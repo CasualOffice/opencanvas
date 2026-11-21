@@ -883,8 +883,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         </defs>
         <rect width="100%" height="100%" fill={`url(#${dots})`} />
         <g transform={`translate(${tx} ${ty}) scale(${z})`}>
-          {shapes.map((s) => <ShapeView key={s.id} s={s} ah={ah} hideText={editing?.id === s.id} />)}
-          {draft ? <ShapeView s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
+          {shapes.map((s) => <ShapeView resolve={env.resolveAsset} key={s.id} s={s} ah={ah} hideText={editing?.id === s.id} />)}
+          {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
           {selection}
           {hintDots}
         </g>
@@ -1038,7 +1038,7 @@ function centered(s: Shape, lh: number) {
   return (s.y ?? 0) + (s.h ?? 0) / 2 + 5 - ((n - 1) * lh) / 2;
 }
 
-function ShapeView({ s, ah, hideText }: { s: Shape; ah: string; hideText?: boolean }) {
+function ShapeView({ s, ah, hideText, resolve }: { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string }) {
   const stroke = s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)";
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = s.h ?? 0;
   const text = hideText ? "" : (s.text ?? "");
@@ -1086,7 +1086,7 @@ function ShapeView({ s, ah, hideText }: { s: Shape; ah: string; hideText?: boole
           </clipPath>
           <rect x={x} y={y} width={w} height={h} rx={8} fill="var(--sunk)" />
           {s.src ? (
-            <image href={s.src} x={x} y={y} width={w} height={h} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`}>
+            <image href={resolve ? resolve(s.src) : s.src} x={x} y={y} width={w} height={h} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`}>
               <title>{s.alt ?? "Image"}</title>
             </image>
           ) : null}

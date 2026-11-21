@@ -6,6 +6,7 @@ import { Ic, loadExtraIcons } from "./icons";
 import { CanvasEditor } from "./editor/CanvasEditor";
 import { loadDatabase } from "./editor/blockdata";
 import type { TB } from "./editor/content";
+import { resolveAsset, setAssetTicket } from "./lib/assets";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
 import { deleteThread, useThreads } from "./lib/comments";
 import type { Demo } from "./lib/demo";
@@ -82,6 +83,7 @@ export default function App() {
       try {
         const s = await fetchSession(ticket);
         if (cancelled) return;
+        setAssetTicket(s.ticket);
         collab = connectCollab(s);
         await collab.synced;
         if (cancelled) return;
@@ -418,7 +420,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   );
   // Blocks (board images, …) store files through the same host proxy (BlockEnv.upload).
   const env: BlockEnv = useMemo(
-    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f) }),
+    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset }),
     [effectiveRole, me, allUsers, compact, upload],
   );
 

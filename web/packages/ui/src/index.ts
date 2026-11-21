@@ -28,6 +28,8 @@ export interface BlockEnv {
    * fall back to an inline data: URL (capped at 2 MB).
    */
   upload?: (file: File) => Promise<{ url: string }>;
+  /** Maps a stored asset URL to one this viewer can load (adds the session ticket to room-served `/v1/assets/…`). */
+  resolveAsset?: (src: string) => string;
 }
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];

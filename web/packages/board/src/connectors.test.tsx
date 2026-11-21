@@ -278,16 +278,15 @@ describe("images", () => {
     };
     await act(async () => {
       el.querySelector(".ocbd")!.dispatchEvent(paste(new File([new Uint8Array(4)], "s.png", { type: "image/png" })));
-      await new Promise((r) => setTimeout(r, 0));
     });
-    expect(shapes(doc, id).find((s) => s.type === "image")!.src).toMatch(/^data:image\/png/);
+    // The data URL comes from an async FileReader: wait for it rather than a fixed tick.
+    await vi.waitFor(() => expect(shapes(doc, id).find((s) => s.type === "image")?.src).toMatch(/^data:image\/png/), { timeout: 5000 });
     toasts.length = 0;
     await act(async () => {
       el.querySelector(".ocbd")!.dispatchEvent(paste(new File([new Uint8Array(MAX_INLINE_IMAGE + 10)], "b.png", { type: "image/png" })));
-      await new Promise((r) => setTimeout(r, 0));
     });
+    await vi.waitFor(() => expect(toasts[0]).toMatch(/2 MB/), { timeout: 5000 });
     expect(shapes(doc, id).filter((s) => s.type === "image")).toHaveLength(1);
-    expect(toasts[0]).toMatch(/2 MB/);
   });
 
   it("viewers cannot drop images", async () => {

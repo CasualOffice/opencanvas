@@ -13,6 +13,7 @@ import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from 
 import { createStore, toast, useStore } from "../lib/store";
 import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
+import { resolveAsset } from "../lib/assets";
 import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
 
 const TONES = ["blue", "green", "amber", "red", "purple", "pink", "gray"] as const;
@@ -381,7 +382,7 @@ function FileView({ node }: ReactNodeViewProps) {
         {up && upId ? (
           <UploadStatus id={upId} up={up} label="File" />
         ) : url && b.session?.perms?.download !== false ? (
-          <a className="ib" href={url} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
+          <a className="ib" href={resolveAsset(url)} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
             <Ic name="download" />
           </a>
         ) : (
@@ -464,7 +465,7 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
     <NodeViewWrapper>
       <figure className="figure" style={{ outline: selected ? "2px solid var(--accent-ring)" : undefined, borderRadius: 10 }}>
         <div className={"fwrap" + (up ? " uploading" : "")} contentEditable={false}>
-          <img src={shown} alt={alt || caption || ""} draggable={false} />
+          <img src={resolveAsset(shown)} alt={alt || caption || ""} draggable={false} />
           {up && upId ? (
             <div className="fup">
               <UploadStatus id={upId} up={up} label="Image" />
