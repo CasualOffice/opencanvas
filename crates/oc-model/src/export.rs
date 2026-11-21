@@ -324,6 +324,13 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             let mut out = format!("### Board\n\n*{}*", board_note(cx.doc, id));
             if let Some(link) = cx.opts.board_link {
                 out.push_str(&format!("\n\n[Whiteboard (SVG)]({})", link(id)));
+            } else {
+                // Self-contained: the exported file carries the drawing, never a session URL.
+                let svg = crate::board::to_svg_self_contained(cx.doc, id, &Default::default());
+                out.push_str(&format!(
+                    "\n\n![Whiteboard](data:image/svg+xml;base64,{})",
+                    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, svg)
+                ));
             }
             out
         }
@@ -630,6 +637,19 @@ mod tests {
         );
         assert!(md.contains("2 shapes"));
         assert!(!to_markdown(&board_doc()).contains("/v1/export/board/"));
+    }
+
+    #[test]
+    fn markdown_embeds_the_board_without_any_url() {
+        let md = to_markdown(&board_doc());
+        let b64 = md
+            .split("![Whiteboard](data:image/svg+xml;base64,")
+            .nth(1)
+            .and_then(|r| r.split(')').next())
+            .expect("board embedded as a data URL");
+        let svg = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64).unwrap();
+        assert!(String::from_utf8(svg).unwrap().contains(">Idea</text>"));
+        assert!(!md.contains("ticket="));
     }
 
     #[test]

@@ -232,7 +232,7 @@ async fn image_fetch_policy() {
 }
 
 #[tokio::test]
-async fn board_svg_png_and_links_with_a_ticket() {
+async fn board_svg_png_and_markdown_embeds_without_ticket() {
     let (base, _host) = mock_host().await;
     let state = app_full(
         &base,
@@ -309,12 +309,12 @@ async fn board_svg_png_and_links_with_a_ticket() {
         .text()
         .await
         .unwrap();
+    // Exported files get shared: the board travels inline, never as a link carrying the ticket.
     assert!(
-        md.contains(&format!(
-            "(https://oc.example/v1/export/board/bd1.svg?ticket={TICKET})"
-        )),
+        md.contains("![Whiteboard](data:image/svg+xml;base64,"),
         "{md}"
     );
+    assert!(!md.contains(TICKET), "{md}");
     let html = get(format!("/v1/export/html?ticket={TICKET}"))
         .await
         .text()

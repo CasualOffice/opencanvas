@@ -71,7 +71,6 @@ pub async fn export(
     let req = RenderReq {
         token: &grant.callback_token,
         author: &grant.user.id,
-        ticket: Some(&p.ticket),
     };
     let (body, ctype, ext) = render(&state, &host, &doc, &fmt, req).await?;
     let disposition = format!(
@@ -163,20 +162,6 @@ pub(super) struct RenderReq<'a> {
     pub token: &'a str,
     /// Author recorded in an `.ocanvas` commit.
     pub author: &'a str,
-    /// Session ticket, for links back to the board SVG export in Markdown.
-    pub ticket: Option<&'a str>,
-}
-
-fn percent_encode(s: &str) -> String {
-    s.bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
-                (b as char).to_string()
-            } else {
-                format!("%{b:02X}")
-            }
-        })
-        .collect()
 }
 
 /// Renders `doc` as `fmt`: (body, content type, file extension).
@@ -189,20 +174,9 @@ pub(super) async fn render(
 ) -> Result<(Body, &'static str, &'static str), ApiError> {
     Ok(match fmt {
         "md" => {
-            let base = state.cfg.public_url.clone().unwrap_or_default();
-            let link = req.ticket.map(|t| {
-                move |id: &str| {
-                    format!(
-                        "{base}/v1/export/board/{}.svg?ticket={}",
-                        percent_encode(id),
-                        percent_encode(t)
-                    )
-                }
-            });
-            let opts = oc_model::export::Options {
-                board_link: link.as_ref().map(|f| f as &dyn Fn(&str) -> String),
-                ..Default::default()
-            };
+            // Boards are embedded as data: SVGs. Never link back with the session ticket:
+            // exported files get shared, and the ticket would let anyone open the canvas.
+            let opts = oc_model::export::Options::default();
             (
                 oc_model::export::to_markdown_with(&oc_model::doc_to_json(doc), &opts).into(),
                 "text/markdown; charset=utf-8",
