@@ -93,6 +93,84 @@ class Emitter<T> {
   }
 }
 
+/** 1008 closes that are not about access: reconnect instead of ending the session. */
+const TRANSIENT_1008 = /rate limit/i;
+
+type AwarenessChange = { added: number[]; updated: number[]; removed: number[] };
+
+/**
+ * Coalesces outgoing frames. y-websocket sends one frame per Yjs transaction and
+ * one per awareness change, so a fast typist or a held key (doc update + caret
+ * per keystroke) can pass the server's 60 frames/s limit and get disconnected
+ * (docs/15 §3). Awareness is meant to stay ≤ 20 Hz anyway (docs/06 §2).
+ * The first change in a quiet period goes out at once (no added latency);
+ * changes inside the next `ms` are merged into one frame at its end.
+ */
+export function throttleOutgoing(provider: WebsocketProvider, ms = 50) {
+  const p = provider as unknown as {
+    _updateHandler: (u: Uint8Array, origin: unknown) => void;
+    _awarenessUpdateHandler: (c: AwarenessChange, origin: unknown) => void;
+  };
+  const sendDoc = p._updateHandler;
+  const sendAwareness = p._awarenessUpdateHandler;
+  provider.doc.off("update", sendDoc);
+  provider.awareness.off("update", sendAwareness);
+
+  const lane = (send: () => void) => {
+    let timer: number | undefined;
+    let last = -Infinity;
+    const flush = () => {
+      window.clearTimeout(timer);
+      timer = undefined;
+      last = performance.now();
+      send();
+    };
+    return {
+      kick() {
+        if (timer !== undefined) return;
+        const wait = last + ms - performance.now();
+        if (wait <= 0) flush();
+        else timer = window.setTimeout(flush, wait);
+      },
+      flushNow() {
+        if (timer !== undefined) flush();
+      },
+    };
+  };
+
+  let updates: Uint8Array[] = [];
+  const docLane = lane(() => {
+    if (!updates.length) return;
+    const u = updates.length === 1 ? updates[0] : Y.mergeUpdates(updates);
+    updates = [];
+    sendDoc(u, null);
+  });
+  const clients = new Set<number>();
+  const awLane = lane(() => {
+    if (!clients.size) return;
+    const changed = [...clients];
+    clients.clear();
+    sendAwareness({ added: [], updated: changed, removed: [] }, null);
+  });
+
+  p._updateHandler = (u, origin) => {
+    if (origin === provider) return; // came from the server
+    updates.push(u);
+    docLane.kick();
+  };
+  p._awarenessUpdateHandler = ({ added, updated, removed }) => {
+    for (const c of added.concat(updated, removed)) clients.add(c);
+    awLane.kick();
+  };
+  provider.doc.on("update", p._updateHandler);
+  provider.awareness.on("update", p._awarenessUpdateHandler);
+  // Don't hold back the last keystrokes when the tab goes away.
+  window.addEventListener("pagehide", () => {
+    docLane.flushNow();
+    awLane.flushNow();
+  });
+}
+
 /** Connects the Y.Doc to the room over the stock y-websocket protocol. */
 export function connectCollab(s: Session): Collab {
   const doc = new Y.Doc();
@@ -106,8 +184,9 @@ export function connectCollab(s: Session): Collab {
   const provider = new WebsocketProvider(s.wsUrl, s.room, doc, {
     params: { ticket: s.ticket },
     maxBackoffTime: 10000,
-    shouldReconnect: (e: CloseEvent) => !(e.code === 1000 || e.code === 1008 || (e.code === 1012 && reloading) || (e.code >= 4400 && e.code < 4500)),
+    shouldReconnect: (e: CloseEvent) => !(e.code === 1000 || (e.code === 1008 && !TRANSIENT_1008.test(e.reason)) || (e.code === 1012 && reloading) || (e.code >= 4400 && e.code < 4500)),
   });
+  throttleOutgoing(provider);
   provider.on("closed", (e: { code: number; reason: string }) => terminal.emit(e));
   // The server rewrites `user` from the grant (id, name, color, avatar), so the role travels beside it.
   provider.awareness.setLocalState({ user: { id: s.user.id, name: s.user.name, color: s.user.color }, role: s.role });

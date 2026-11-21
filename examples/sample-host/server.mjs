@@ -6,6 +6,8 @@
 //   OC_SERVER=http://localhost:8080 OC_SECRET=dev-secret-change-me node server.mjs
 //   OC_SERVER_INTERNAL  where this process reaches OpenCanvas (default OC_SERVER; compose: http://opencanvas:8080)
 //   OC_API_KEY          the host api_key from opencanvas.hosts.toml (server-to-server role API)
+//   SAMPLE_HOST_TEST=1  enables POST /__test/files/:id/bump (e2e only: an out-of-band save that
+//                       bumps the version, so the next autosave from OpenCanvas gets a 409)
 
 import http from "node:http";
 import crypto from "node:crypto";
@@ -20,6 +22,7 @@ const OC_INTERNAL = process.env.OC_SERVER_INTERNAL || OC_SERVER;
 const API_KEY = process.env.OC_API_KEY || "dev-api-key-change-me";
 const DATA = path.resolve(process.env.DATA_DIR || "./data");
 const SELF = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+const TEST_HOOKS = process.env.SAMPLE_HOST_TEST === "1";
 fs.mkdirSync(path.join(DATA, "files"), { recursive: true });
 fs.mkdirSync(path.join(DATA, "assets"), { recursive: true });
 
@@ -220,6 +223,15 @@ http.createServer(async (req, res) => {
   try {
     if (url.pathname.startsWith("/api/opencanvas/")) return await callbacks(req, res, url);
     if (url.pathname === "/healthz") return send(res, 200, { ok: true });
+    const bump = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/files\/([\w-]+)\/bump$/);
+    if (bump) {
+      // Someone saved the file outside OpenCanvas: same bytes, newer version.
+      const f = meta.files[bump[1]];
+      if (!f) return send(res, 404, { error: "no such file" });
+      f.version += 1; f.updatedAt = new Date().toISOString(); saveMeta();
+      console.log(`test: bumped ${f.id} to v${f.version}`);
+      return send(res, 200, { version: String(f.version) });
+    }
     const asset = url.pathname.match(/^\/assets\/(a_[0-9a-f]+)$/);
     if (asset && fs.existsSync(path.join(DATA, "assets", asset[1]))) {
       const m = JSON.parse(fs.readFileSync(path.join(DATA, "assets", asset[1] + ".json"), "utf8"));
