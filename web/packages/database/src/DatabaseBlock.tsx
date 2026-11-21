@@ -125,13 +125,18 @@ function usePeople(env: BlockEnv, db: DbSnapshot | null): People {
     const referenced = new Set(demoKey.split(","));
     for (const d of DEMO_PEOPLE) if (!byId.has(d.id) && referenced.has(d.id)) byId.set(d.id, d);
     const pickable = [...byId.values()];
+    // docs/21: any id renders as this viewer sees it (resolve > token > snapshot) when the
+    // editor offers it, so former members and hidden people show correctly too.
+    const person = env.person;
     const resolve = (id: unknown): OcUser | null => {
       if (!id) return null;
       const s = String(id);
-      return byId.get(s) ?? DEMO_PEOPLE.find((d) => d.id === s) ?? { id: s, name: s, color: "var(--fg-3)" };
+      const seen = person?.(s);
+      if (seen && seen.name !== s) return seen;
+      return byId.get(s) ?? DEMO_PEOPLE.find((d) => d.id === s) ?? seen ?? { id: s, name: s, color: "var(--fg-3)" };
     };
     return { resolve, pickable };
-  }, [env.me, env.users, demoKey]);
+  }, [env.me, env.users, env.person, demoKey]);
 }
 
 const firstName = (u: OcUser) => u.name.split(/\s+/)[0];
@@ -160,10 +165,11 @@ function Value({ f, v, people, peek, q }: { f: DbField; v: CellValue | undefined
       return Array.isArray(v) && v.length ? <>{v.map((t) => <Pill key={t} label={t} c={optOf(f, t)?.c} q={q} />)}</> : empty;
     case "person": {
       const u = people.resolve(v);
+      // `data-person-id`: the editor's hover card (name, second line, avatar) on hover/focus.
       return u ? (
-        <span className="ocdb-person">
+        <span className={"ocdb-person" + (u.deactivated ? " former" : "")} data-person-id={u.relation === "hidden" ? undefined : u.id}>
           <Avatar u={u} />
-          <span><Hl text={u.name} q={q} /></span>
+          <span aria-label={u.deactivated ? `${u.name}, former member` : undefined}><Hl text={u.name} q={q} /></span>
         </span>
       ) : empty;
     }
@@ -1459,7 +1465,7 @@ function cardMeta(ctx: Ctx, r: DbRow, skip?: string): ReactNode[] {
       const v = r.v[f.id];
       if (f.type === "person") {
         const u = people.resolve(v);
-        return u ? <span key={f.id}><Avatar u={u} size="xs" />{firstName(u)}</span> : null;
+        return u ? <span key={f.id} className={"ocdb-person" + (u.deactivated ? " former" : "")} data-person-id={u.relation === "hidden" ? undefined : u.id}><Avatar u={u} size="xs" /><span>{firstName(u)}</span></span> : null;
       }
       if (f.type === "date") return <span key={f.id}><Ic i={Calendar} s={12} />{fmtDate(v)}</span>;
       if (f.type === "number") return <span key={f.id}>{f.name.replace(/ \(.*\)/, "")} {fmtNum(Number(v))}</span>;

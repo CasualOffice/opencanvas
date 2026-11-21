@@ -74,10 +74,17 @@ pub async fn export(
     }
     let doc = load(&state, &host, &grant).await?;
     let wopi = super::proxy::is_wopi(&host, &grant);
+    // The `.ocanvas` download is the file itself; every rendered format uses this viewer's names.
+    let names = if fmt == "ocanvas" {
+        None
+    } else {
+        Some(viewer_names(&state, &host, &grant, &doc).await)
+    };
     let req = RenderReq {
         token: &grant.callback_token,
         author: &grant.user.id,
         wopi_room: wopi.then_some(grant.room.as_str()),
+        people: names.as_ref().map(|n| (n, grant.perms.show_email)),
     };
     let (body, ctype, ext) = render(&state, &host, &doc, &fmt, req).await?;
     let disposition = format!(
@@ -162,6 +169,39 @@ pub async fn export_board(
         .into_response())
 }
 
+/// How the exporting viewer calls everyone the document refers to (docs/21: exports run
+/// under the exporting viewer's view). Resolve answers win, then the viewer's own token
+/// (themselves and their participants); anyone else keeps the document's snapshot label.
+async fn viewer_names(
+    state: &SharedState,
+    host: &HostConfig,
+    grant: &Grant,
+    doc: &Doc,
+) -> std::collections::HashMap<String, Option<String>> {
+    let json = oc_model::doc_to_json(doc);
+    let ids: Vec<String> = oc_model::people::referenced_ids(&json)
+        .into_iter()
+        .collect();
+    let mut names = std::collections::HashMap::new();
+    for u in grant.participants.iter().chain([&grant.user]) {
+        names.insert(u.id.clone(), Some(u.name.clone()));
+    }
+    let r = state
+        .directory
+        .resolve(&state.host, host, grant, &ids)
+        .await;
+    if r.available {
+        for p in r.people {
+            if p.user.id == grant.user.id {
+                continue;
+            }
+            let name = (p.relation != crate::people::Relation::Hidden).then_some(p.user.name);
+            names.insert(p.user.id, name);
+        }
+    }
+    names
+}
+
 pub const FORMATS: &str = "md, html, json, ocanvas, docx, pdf";
 
 /// Who an export is made for.
@@ -173,6 +213,27 @@ pub(super) struct RenderReq<'a> {
     pub author: &'a str,
     /// WOPI mode: the room whose assets (`/v1/assets/<id>`) are inlined into the export.
     pub wopi_room: Option<&'a str>,
+    /// The exporting viewer's names for people (`None` = hidden) and whether e-mails may
+    /// stay in the `people` map; `None` renders the document's snapshot labels.
+    pub people: Option<(&'a std::collections::HashMap<String, Option<String>>, bool)>,
+}
+
+/// `document.json` as this export's viewer sees it.
+fn doc_json(doc: &Doc, req: &RenderReq<'_>) -> serde_json::Value {
+    let mut json = oc_model::doc_to_json(doc);
+    if let Some((names, keep_email)) = req.people {
+        oc_model::people::relabel(&mut json, names, keep_email);
+    } else if let Some(p) = json
+        .get_mut("people")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        for e in p.values_mut() {
+            if let Some(o) = e.as_object_mut() {
+                o.remove("email");
+            }
+        }
+    }
+    json
 }
 
 /// Images for an export: allowed host origins, plus the room's assets in WOPI mode.
@@ -213,18 +274,18 @@ pub(super) async fn render(
             // exported files get shared, and the ticket would let anyone open the canvas.
             let opts = oc_model::export::Options::default();
             (
-                oc_model::export::to_markdown_with(&oc_model::doc_to_json(doc), &opts).into(),
+                oc_model::export::to_markdown_with(&doc_json(doc, &req), &opts).into(),
                 "text/markdown; charset=utf-8",
                 "md",
             )
         }
         "html" => (
-            oc_model::export::to_html(&oc_model::doc_to_json(doc)).into(),
+            oc_model::export::to_html(&doc_json(doc, &req)).into(),
             "text/html; charset=utf-8",
             "html",
         ),
         "json" => (
-            serde_json::to_vec_pretty(&oc_model::doc_to_json(doc))
+            serde_json::to_vec_pretty(&doc_json(doc, &req))
                 .map_err(ApiError::internal)?
                 .into(),
             "application/json",
@@ -247,7 +308,7 @@ pub(super) async fn render(
             (bytes.into(), "application/vnd.opencanvas+zip", "ocanvas")
         }
         "docx" => {
-            let json = oc_model::doc_to_json(doc);
+            let json = doc_json(doc, &req);
             let images = images(state, host, &req, &json).await;
             let (bytes, notes) =
                 tokio::task::spawn_blocking(move || oc_model::docx::to_docx(&json, &images))
@@ -267,7 +328,7 @@ pub(super) async fn render(
                     "PDF export needs OC_PDF_RENDERER=gotenberg:<url>; use the print view instead",
                 ));
             };
-            let json = oc_model::doc_to_json(doc);
+            let json = doc_json(doc, &req);
             let images = images(state, host, &req, &json).await;
             let html = oc_model::export::to_html_with(
                 &json,

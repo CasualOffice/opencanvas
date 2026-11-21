@@ -307,11 +307,23 @@ pub async fn session_info(
             first_seen: Instant::now(),
             connected: false,
         });
+    // A fresh open asks the host again (a rename shows up on reload, docs/21).
+    state.directory.forget_viewer(&grant.room, &grant.user.id);
+    let participants: Vec<_> = grant
+        .participants
+        .iter()
+        .map(|u| grant.for_viewer(u))
+        .collect();
     let body = json!({
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,
-        "user": grant.user,
+        "user": grant.for_viewer(&grant.user),
+        "participants": participants,
+        "directory": {
+            "coviewers": host.directory.coviewers,
+            "callbacks": crate::people::has_callbacks(&host, &grant.file.id),
+        },
         "file": {"id": grant.file.id, "name": grant.file.name},
         "host": {"id": host.id, "name": host.name},
         "perms": grant.perms,

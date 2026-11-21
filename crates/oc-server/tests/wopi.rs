@@ -165,7 +165,7 @@ async fn wopi_host() -> (String, W) {
         s.tokens.insert(
             "tok-asha".into(),
             json!({"UserId": "u_asha", "UserFriendlyName": "Asha Rao", "UserCanWrite": true,
-                   "UserExtraInfo": {"avatar": "https://cloud.example.com/asha.png"}}),
+                   "UserExtraInfo": {"avatar": "https://cloud.example.com/asha.png", "detail": "Design · Bengaluru"}}),
         );
         s.tokens.insert(
             "tok-ravi".into(),
@@ -447,6 +447,8 @@ async fn check_file_info_sets_role_user_perms_and_expiry() {
     assert_eq!(s["user"]["id"], "u_asha");
     assert_eq!(s["user"]["name"], "Asha Rao");
     assert_eq!(s["user"]["avatar"], "https://cloud.example.com/asha.png");
+    // docs/21: `UserExtraInfo.detail` is the second line, like a token's `user.detail`.
+    assert_eq!(s["user"]["detail"], "Design · Bengaluru");
     assert_eq!(s["file"]["name"], "doc_1.ocanvas");
     assert_eq!(s["file"]["id"], src);
     assert_eq!(

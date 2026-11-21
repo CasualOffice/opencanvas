@@ -81,6 +81,7 @@ button.ocdb-cin:disabled{cursor:default;background:none}
 .ocdb-c-red{background:var(--red-bg);color:var(--red-fg)} .ocdb-c-purple{background:var(--purple-bg);color:var(--purple-fg)} .ocdb-c-pink{background:var(--pink-bg);color:var(--pink-fg)}
 .ocdb-person{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;white-space:nowrap;min-width:0}
 .ocdb-person>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.ocdb-person.former>span:last-child{text-decoration:line-through;color:var(--fg-2)}
 .ocdb-av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:8.5px;font-weight:600;letter-spacing:.02em;flex:none;overflow:hidden}
 .ocdb-av img{width:100%;height:100%;object-fit:cover}
 .ocdb-av.xs{width:16px;height:16px;font-size:7.5px}

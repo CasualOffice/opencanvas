@@ -193,6 +193,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/assets/fetch", get(proxy::fetch_asset))
         .route("/v1/assets/{id}", get(proxy::get_asset))
         .route("/v1/users", get(proxy::users))
+        .route("/v1/users/resolve", axum::routing::post(proxy::resolve_users))
         .route("/hosting/discovery", get(launch::discovery))
         .route("/hosting/capabilities", get(launch::capabilities))
         .route("/v1/files/{file_id}/role", post(api::set_role))

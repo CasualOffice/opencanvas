@@ -10,6 +10,7 @@
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import { Node as PMNode } from "@tiptap/pm/model";
 import { readableOn } from "../lib/color";
+import { peopleChanged, peopleRef } from "../lib/people";
 
 export const LINK_OPTIONS = {
   openOnClick: false,
@@ -116,9 +117,75 @@ export function mentionNode(colorFor: (id: string) => string) {
       };
     },
     parseHTML: () => [{ tag: 'span[data-type="mention"]' }],
+    // docs/21: the chip shows how *this viewer* sees the id (their resolve answer, else tokens,
+    // else the stored label). The stored label is never put in the DOM: it is what the author
+    // saw, and may be a name this viewer mustn't see.
+    addNodeView() {
+      return ({ node, editor }) => {
+        let n = node;
+        const dom = document.createElement("span");
+        dom.className = "mention";
+        dom.dataset.type = "mention";
+        const av = document.createElement("span");
+        av.className = "av";
+        av.setAttribute("aria-hidden", "true");
+        const text = document.createElement("span");
+        text.className = "mn";
+        dom.append(av, text);
+        const render = () => {
+          const id = String(n.attrs.id ?? "");
+          const people = peopleRef.current;
+          const v = people ? people.get(id, n.attrs.label) : { id, name: String(n.attrs.label ?? id), color: colorFor(id), avatar: undefined, pending: false, deactivated: false, relation: undefined };
+          const name = v.pending ? "…" : v.name;
+          dom.dataset.id = id;
+          dom.dataset.personId = id;
+          dom.classList.toggle("pending", !!v.pending);
+          dom.classList.toggle("former", !!v.deactivated);
+          dom.classList.toggle("ext", v.relation === "external");
+          dom.setAttribute("aria-busy", v.pending ? "true" : "false");
+          // Focusable when read-only; while editing, the caret next to it opens the card.
+          if (editor.isEditable) dom.removeAttribute("tabindex");
+          else dom.tabIndex = 0;
+          text.textContent = name;
+          if (v.deactivated) text.setAttribute("aria-label", `${name}, former member`);
+          else text.removeAttribute("aria-label");
+          av.style.background = v.color;
+          av.style.color = readableOn(v.color);
+          av.replaceChildren();
+          if (v.avatar && !v.pending) {
+            const img = document.createElement("img");
+            img.src = v.avatar;
+            img.alt = "";
+            av.append(img);
+          } else av.textContent = v.pending ? "" : people ? people.initialsOf(id, name) : initialsOf(name);
+        };
+        render();
+        let sub = peopleRef.current?.subscribe(render);
+        const offRef = peopleChanged.subscribe(() => {
+          sub?.();
+          sub = peopleRef.current?.subscribe(render);
+          render();
+        });
+        return {
+          dom,
+          update(next) {
+            if (next.type !== n.type) return false;
+            n = next;
+            render();
+            return true;
+          },
+          ignoreMutation: () => true,
+          destroy() {
+            sub?.();
+            offRef();
+          },
+        };
+      };
+    },
     renderHTML: ({ node }) => {
       const id = String(node.attrs.id ?? "");
-      const label = String(node.attrs.label ?? id);
+      const seen = peopleRef.current?.get(id, node.attrs.label);
+      const label = seen && !seen.pending ? seen.name : String(node.attrs.label ?? id);
       return [
         "span",
         { class: "mention", "data-type": "mention", "data-id": id, "data-label": label },

@@ -48,6 +48,9 @@ export default defineConfig({
         // the initial load.
         manualChunks(id) {
           // Name the lazy block chunks after their packages.
+          // Shared people helpers and types (docs/21): used at first paint, so never pulled
+          // into the lazy database chunk as one of its dependencies.
+          if (/[\\/]packages[\\/]ui[\\/]src[\\/]/.test(id)) return "ui";
           if (/[\\/]packages[\\/]database[\\/]src[\\/]/.test(id)) return "database";
           if (/[\\/]packages[\\/]board[\\/]src[\\/]/.test(id)) return "board";
           if (!id.includes("node_modules")) return undefined;

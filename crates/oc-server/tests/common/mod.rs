@@ -53,6 +53,14 @@ pub struct HostState {
     pub mentions: Vec<RecordedPut>,
     /// The next this-many `POST /mentions` calls answer 503.
     pub mentions_fail: u32,
+    /// `GET /users` answers 404 (tier 0/1: no search callback).
+    pub users_off: bool,
+    /// Bearer tokens of `GET /users` calls, in order.
+    pub users_calls: Vec<String>,
+    /// `POST /users/resolve` answers per bearer token (docs/21 tier 3); `None` = 404.
+    pub resolve: Option<HashMap<String, Value>>,
+    /// (bearer, body) of every `POST /users/resolve` call.
+    pub resolve_calls: Vec<(String, Value)>,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -240,14 +248,49 @@ async fn mentions(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> i
     StatusCode::NO_CONTENT
 }
 
-async fn users(headers: HeaderMap) -> impl IntoResponse {
+fn bearer(headers: &HeaderMap) -> String {
+    headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or_default()
+        .to_string()
+}
+
+async fn users(State(s): State<Shared>, headers: HeaderMap) -> impl IntoResponse {
     if !verify(&headers, b"") {
         return (StatusCode::UNAUTHORIZED, axum::Json(json!([])));
     }
+    let mut st = s.lock().unwrap();
+    st.users_calls.push(bearer(&headers));
+    if st.users_off {
+        return (StatusCode::NOT_FOUND, axum::Json(json!({"error": "no"})));
+    }
     (
         StatusCode::OK,
-        axum::Json(json!([{"id": "u_1", "name": "Asha Rao", "avatar": null}])),
+        axum::Json(json!([{"id": "u_1", "name": "Asha Rao", "avatar": null,
+            "email": "asha@acme.example", "detail": "Design", "access": true}])),
     )
+}
+
+async fn resolve(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
+    let mut st = s.lock().unwrap();
+    let ok = verify_v2(&headers, "/api/users/resolve", &body);
+    let token = bearer(&headers);
+    st.resolve_calls.push((
+        token.clone(),
+        serde_json::from_slice(&body).unwrap_or(Value::Null),
+    ));
+    if !ok {
+        return (StatusCode::UNAUTHORIZED, axum::Json(json!([])));
+    }
+    match &st.resolve {
+        None => (StatusCode::NOT_FOUND, axum::Json(json!({"error": "no"}))),
+        Some(by_token) => (
+            StatusCode::OK,
+            axum::Json(by_token.get(&token).cloned().unwrap_or(json!([]))),
+        ),
+    }
 }
 
 /// Starts the mock host; returns its callback base URL and shared state.
@@ -257,6 +300,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/files/{id}", get(get_file).put(put_file))
         .route("/api/files/{id}/copies", axum::routing::post(post_copy))
         .route("/api/users", get(users))
+        .route("/api/users/resolve", axum::routing::post(resolve))
         .route("/api/mentions", axum::routing::post(mentions))
         .route("/assets/{id}", get(asset))
         .with_state(state.clone());
@@ -283,6 +327,7 @@ pub fn host_config(base: &str) -> HostConfig {
         asset_origins: vec![],
         original_callback_base: None,
         flags: Default::default(),
+        directory: Default::default(),
     }
 }
 
@@ -353,7 +398,7 @@ pub fn grant(user: &str, role: Role) -> Grant {
             id: user.into(),
             name: format!("Name of {user}"),
             color: "#123456".into(),
-            avatar: None,
+            ..Default::default()
         },
         file: FileRef {
             id: FILE.into(),
@@ -365,8 +410,10 @@ pub fn grant(user: &str, role: Role) -> Grant {
             download: true,
             comment: true,
             print: true,
+            show_email: false,
         },
         callback_token: format!("cb-{user}"),
+        participants: vec![],
     }
 }
 

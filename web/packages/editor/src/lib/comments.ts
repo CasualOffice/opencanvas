@@ -13,6 +13,9 @@ export interface Message {
   at: number;
   /** Ids of people @mentioned in `text`, so the server can call the host's onMention (docs/06 §7). */
   mentions?: string[];
+  /** docs/21: the `@label` the author inserted per mentioned id, so every viewer can show their
+   *  own name for that person instead. */
+  labels?: Record<string, string>;
 }
 export interface Thread {
   id: string;
@@ -51,6 +54,7 @@ export function addMessage(doc: Y.Doc, id: string, msg: Omit<Message, "at">): vo
     m.set("text", msg.text);
     m.set("at", Date.now());
     if (msg.mentions?.length) m.set("mentions", [...new Set(msg.mentions)]);
+    if (msg.labels && Object.keys(msg.labels).length) m.set("labels", { ...msg.labels });
     // A reply re-opens a resolved thread (docs/06 §1).
     if (t.get("resolved")) t.set("resolved", false);
   });
@@ -62,6 +66,39 @@ export function setResolved(doc: Y.Doc, id: string, resolved: boolean): void {
 
 export function deleteThread(doc: Y.Doc, id: string): void {
   commentsRoot(doc).delete(id);
+}
+
+function readLabels(v: unknown): Record<string, string> | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, l] of Object.entries(v as Record<string, unknown>)) if (typeof l === "string" && l) out[k] = l;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * docs/21: comment text as this viewer reads it. Each `@label` the author inserted for a
+ * mentioned id is replaced by `name(id)` (the viewer's own name for that person, "Someone" when
+ * hidden), so a name the viewer mustn't see is never shown. Returns plain runs and mentions.
+ */
+export function viewMentions(text: string, labels: Record<string, string> | undefined, name: (id: string) => string): { text: string; mention: boolean }[] {
+  const tags = Object.entries(labels ?? {})
+    .map(([id, label]) => ({ tag: "@" + label, id }))
+    .sort((a, b) => b.tag.length - a.tag.length);
+  if (!tags.length) return [{ text, mention: false }];
+  const out: { text: string; mention: boolean }[] = [];
+  let i = 0;
+  let plain = "";
+  while (i < text.length) {
+    const hit = tags.find((t) => text.startsWith(t.tag, i));
+    if (hit) {
+      if (plain) out.push({ text: plain, mention: false });
+      plain = "";
+      out.push({ text: "@" + name(hit.id), mention: true });
+      i += hit.tag.length;
+    } else plain += text[i++];
+  }
+  if (plain) out.push({ text: plain, mention: false });
+  return out;
 }
 
 function snapshot(doc: Y.Doc): Thread[] {
@@ -80,6 +117,7 @@ function snapshot(doc: Y.Doc): Thread[] {
         text: String(x.get("text") ?? ""),
         at: Number(x.get("at") ?? 0),
         mentions: Array.isArray(x.get("mentions")) ? (x.get("mentions") as unknown[]).map(String) : undefined,
+        labels: readLabels(x.get("labels")),
       })),
     });
   });

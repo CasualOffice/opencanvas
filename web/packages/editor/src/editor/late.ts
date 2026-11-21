@@ -20,6 +20,14 @@ export interface MentionItem {
   id: string;
   label: string;
   color: string;
+  /** docs/21: avatar, initials (with a collision subscript), the second line, a relation note,
+   *  whether the name is shared, and an access warning ("Ravi can't open this canvas"). */
+  avatar?: string;
+  initials?: string;
+  second?: string;
+  note?: string;
+  dup?: boolean;
+  warn?: string;
   /** A date chip (`@today`, `@tomorrow`) instead of a person; `pick` opens the date picker. */
   date?: string;
   pick?: boolean;

@@ -129,6 +129,8 @@ pub struct FileInfo {
     pub user_id: String,
     pub user_friendly_name: Option<String>,
     pub avatar: Option<String>,
+    /// `UserExtraInfo.detail` (docs/21): the person's second line (team, title).
+    pub detail: Option<String>,
     pub user_can_write: bool,
     pub read_only: bool,
     pub user_can_not_write_relative: bool,
@@ -164,8 +166,10 @@ impl FileInfo {
             Some(o) => o.clone(),
             None => Value::Null,
         };
-        let avatar = text(&extra, "avatar")
-            .filter(|a| a.starts_with("https://") || a.starts_with("http://"));
+        let avatar = crate::people::safe_url(text(&extra, "avatar").as_deref());
+        let detail = text(&extra, "detail")
+            .map(|d| crate::people::clip(&d, 200))
+            .filter(|d| !d.is_empty());
         Ok(Self {
             base_file_name: text(v, "BaseFileName").ok_or_else(|| missing("BaseFileName"))?,
             size: v.get("Size").and_then(Value::as_u64),
@@ -174,6 +178,7 @@ impl FileInfo {
             user_id: text(v, "UserId").ok_or_else(|| missing("UserId"))?,
             user_friendly_name: text(v, "UserFriendlyName"),
             avatar,
+            detail,
             user_can_write: flag(v, "UserCanWrite"),
             read_only: flag(v, "ReadOnly"),
             user_can_not_write_relative: flag(v, "UserCanNotWriteRelative"),
@@ -204,6 +209,7 @@ impl FileInfo {
             download: !self.disable_export,
             comment: self.role() != Role::View,
             print: !(self.disable_export || self.disable_print),
+            show_email: false,
         }
     }
 
@@ -232,6 +238,8 @@ impl FileInfo {
                     .unwrap_or_else(|| self.user_id.clone()),
                 color: derive_color(&self.user_id),
                 avatar: self.avatar.clone(),
+                detail: self.detail.clone(),
+                email: None,
             },
             file: FileRef {
                 id: src.as_str().to_string(),
@@ -240,6 +248,7 @@ impl FileInfo {
             },
             perms: self.perms(),
             callback_token: access_token.to_string(),
+            participants: vec![],
         }
     }
 }

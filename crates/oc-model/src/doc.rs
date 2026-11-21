@@ -60,14 +60,20 @@ pub fn doc_to_json(doc: &Doc) -> Value {
         .get_xml_fragment(roots::CONTENT)
         .map(|f| f.children(&txn).flat_map(|c| node_json(&txn, c)).collect())
         .unwrap_or_default();
-    json!({
+    let mut out = json!({
         "type": "doc",
         "content": Value::Array(content),
         "meta": map_json(&txn, txn.get_map(roots::META)),
         "databases": map_json(&txn, txn.get_map(roots::DATABASES)),
         "boards": map_json(&txn, txn.get_map(roots::BOARDS)),
         "comments": map_json(&txn, txn.get_map(roots::COMMENTS)),
-    })
+    });
+    // docs/21 tier 0: optional, written only once someone has opened the file.
+    let people = map_json(&txn, txn.get_map(roots::PEOPLE));
+    if people.as_object().is_some_and(|p| !p.is_empty()) {
+        out["people"] = people;
+    }
+    out
 }
 
 fn node_json<T: ReadTxn>(txn: &T, node: XmlOut) -> Vec<Value> {

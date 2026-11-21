@@ -48,6 +48,31 @@ pub struct HostConfig {
     pub original_callback_base: Option<String>,
     #[serde(default)]
     pub flags: toml::Table,
+    /// `[host.directory]` (docs/21, ADR-026): how people on the same canvas see each other.
+    #[serde(default)]
+    pub directory: DirectoryConfig,
+}
+
+/// `[host.directory]` in the hosts file.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct DirectoryConfig {
+    #[serde(default)]
+    pub coviewers: Coviewers,
+}
+
+/// `directory.coviewers`: whether people who opened the same canvas are listed in each
+/// other's mention picker, and how their presence is shown without a `resolve` answer.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Coviewers {
+    /// Everyone on the canvas may see everyone else.
+    All,
+    /// Only people `resolve` calls a `contact` or `member` of the viewer. Without a resolve
+    /// callback the server can't tell, and co-viewers are treated like `all`.
+    #[default]
+    Contacts,
+    /// Co-viewers are never listed and appear as "Someone" unless `resolve` says otherwise.
+    None,
 }
 
 fn default_mode() -> String {
@@ -269,6 +294,20 @@ mod tests {
         for bad in ["a:b", "a b", "", "a/b", "ä"] {
             assert!(Hosts::parse(&src(bad), None).is_err(), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn directory_coviewers_defaults_to_contacts() {
+        let src = |extra: &str| {
+            format!(
+                "[[host]]\nid = \"a\"\nname = \"A\"\njwt_secret = \"0123456789abcdef0123456789abcdef\"\ncallback_base = \"http://h/api\"\n{extra}"
+            )
+        };
+        let h = Hosts::parse(&src(""), None).unwrap();
+        assert_eq!(h.get("a").unwrap().directory.coviewers, Coviewers::Contacts);
+        let h = Hosts::parse(&src("[host.directory]\ncoviewers = \"none\"\n"), None).unwrap();
+        assert_eq!(h.get("a").unwrap().directory.coviewers, Coviewers::None);
+        assert!(Hosts::parse(&src("[host.directory]\ncoviewers = \"some\"\n"), None).is_err());
     }
 
     #[test]
