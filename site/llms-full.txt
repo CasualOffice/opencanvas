@@ -311,6 +311,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role}] }` |
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
+| canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
 | canvas → host | `Error` | `{ code, message }` |
 | host → canvas | `Host_PostmessageReady` | `{}` |
 | host → canvas | `Action_Commit` | `{ message? }` |
@@ -318,14 +319,31 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_RefreshToken` | `{ token }` |
 | host → canvas | `Action_Export` | `{ format }` |
 | host → canvas | `Action_Theme` | `{ theme: "light"\|"dark"\|tokens }` |
+| host → canvas | `Action_ScrollToBlock` | `{ blockId }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". |
 
 Origins are checked against `allowed_origins` both ways.
 
+**Links to a block.** Your link is your URL (OpenCanvas never shows one of its own inside a
+host). To open the canvas at a block, either pass `block=<blockId>` to the launch (a form field
+next to `token`, or `?block=` on `/v1/launch`; anything but `[A-Za-z0-9_-]{1,64}` is dropped) and
+the editor opens with `#t=…&block=<id>`, or send `Action_ScrollToBlock` once the frame has loaded.
+`examples/sample-host` does both: its file page reads `#block=` from its own URL into the launch
+form, and its Mentions list sends `Action_ScrollToBlock`.
+
 ## 5. Callbacks you implement (JWT mode)
 
-Base: `callback_base`. Every call carries
-`Authorization: Bearer <callbackToken>` and `X-OpenCanvas-Signature:
-t=<ts>,v1=<HMAC-SHA256(secret, ts + "." + body)>` so you can verify it is us.
+Base: `callback_base`. Every call carries `Authorization: Bearer <callbackToken>` and
+`X-OpenCanvas-Signature: t=<ts>,v1=<hex>,v2=<hex>` so you can verify the call comes from
+OpenCanvas:
+
+- `v2` = hex HMAC-SHA256(secret, `"<ts>.<METHOD>.<path?query>.<body>"`). Verify this one. It
+  binds the request method and path, so a captured signature can't be replayed against
+  another endpoint.
+- `v1` = hex HMAC-SHA256(secret, `"<ts>.<body>"`), kept for hosts written before v2.
+- Reject timestamps more than 5 minutes off, and compare in constant time.
+- OpenCanvas never follows redirects from your callbacks: answer directly.
+
+`examples/sample-host/server.mjs` verifies `v2`.
 
 | Call | Request | Response |
 |---|---|---|
@@ -336,6 +354,23 @@ t=<ts>,v1=<HMAC-SHA256(secret, ts + "." + body)>` so you can verify it is us.
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Resolve users** `GET /users?q=as&fileId=` | — | `[{"id","name","avatar"}]` (for @mention; only users who can see the file) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
+| **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
+
+**Mentions** (ADR-027). When someone @mentions people in a comment, or puts a mention chip in
+the canvas text, we tell you so you can notify them (we never send mail or push ourselves).
+One call per comment message, and one per block per edit for text mentions; `threadId` is set
+for comments, `blockId` for text (the editor gives the block an id when the mention is
+inserted, so you can link to it). `by` is the user whose connection wrote it (from the grant,
+not from the document); the author is never in `mentioned`. `excerpt` is the message or block
+text, at most 280 characters. A mention that was already in the file when the room loaded, or
+one the editor re-creates when a paragraph is split or moved, is not sent again. The ids in
+`mentioned` come from the editor's people list (your `GET /users`): **check that each person
+can see the file before you notify them.** Delivery is fire-and-forget for the session: the call
+is written to our notification outbox first, sent at once, and retried with backoff (10 s → 1 h,
+8 attempts, same `Idempotency-Key`) when it fails with a network error, `429` or `5xx`. Any other
+`4xx` drops it. Signed like every callback. `examples/sample-host` logs each call and lists them
+on the file page. **WOPI hosts get no mention calls** (WOPI has no notification API); use JWT
+mode, or `mode = "both"`, if you need them.
 
 Timeouts: 10 s (load/save), 5 s (others). Retries with exponential backoff
 for save (idempotent by `Idempotency-Key`). A save is written to our commit outbox before
@@ -484,7 +519,8 @@ they are read back out of your file. Limits: **10 MB per asset, 50 MB of assets 
 and `.ocanvas` exports include them too.
 
 **Mentions.** `GET /v1/users?ticket=&q=` lists the users who have opened the file (from
-CheckFileInfo), filtered by name or id.
+CheckFileInfo), filtered by name or id. Mention notifications (`POST /mentions`, §5) are not
+sent in WOPI mode.
 
 
 # Protocol and build contract
@@ -546,6 +582,9 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    role, user and perms (`401 TOKEN_INVALID` when it answers 4xx). Same `303`. The ticket lives
    until `access_token_ttl` (10 h when absent). `GET /hosting/discovery` (XML) and
    `GET /hosting/capabilities` (JSON). A JWT for a `mode = "wopi"` host is refused.
+   **Open at a block** (UX-02): a `block` form field (or `?block=` query) on either launch adds
+   `&block=<id>` to the fragment (`/app/#t=<ticket>&block=<id>`) when it matches
+   `[A-Za-z0-9_-]{1,64}`; the editor scrolls to that block and flashes it.
 4. Tickets live for the launch token's `exp`. The WS must connect within 60 s of the
    first `GET /v1/sessions`, though reconnects with the same ticket are allowed until `exp`.
 
@@ -576,6 +615,8 @@ get it as the save state),
 drop its local Y.Doc and reconnect, the room now holds the host's version),
 `{"t":"role","role":"view"}` (also sent mid-session when the host changes the role),
 `{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000),
+`{"t":"ping"}` (heartbeat every `OC_HEARTBEAT_MS`, default 10 s, on every connection; clients
+treat 15 s without any frame as a lost connection, docs/06 §5; added 2026-11-21, UX-02),
 `{"t":"reconnect"}` (always followed by close **1012**: the client keeps its Y.Doc and
 reconnects; sent on graceful drain and, in cluster mode, when the room moved to another node).
 (Changed 2026-11-21 by the server hardening: `conflict` carries `policy`.)
@@ -625,7 +666,25 @@ blockquote, codeBlock(language), horizontalRule, image(src,alt,caption), callout
 toggle(open) > toggleSummary + toggleContent, database(dbId), board(boardId),
 bookmark(url,title,description,site), embed(provider,url,title), fileAttachment(name,size,url,mime),
 columns > column, table/tableRow/tableHeader/tableCell, mention(id,label) inline,
-commentMark(threadId) mark`.
+commentMark(threadId) mark, dateMention(date) inline, textColor(color) mark`.
+
+*(UX-02 / FILE-01 / LAY-01, ADR-027; all optional and additive, older clients keep them)*:
+- `textColor(color)` mark: `color` ∈ `gray red amber green blue purple pink` (the tone tokens'
+  `--<tone>-fg`, AA in light and dark). Anything else is ignored on parse and in exports.
+  HTML `<span data-color="blue">`; exports: HTML inline `color` (light palette), DOCX run colour,
+  Markdown plain text.
+- `dateMention(date)` inline atom: `date` = `YYYY-MM-DD`. Shown as a chip ("Today", "Tomorrow",
+  "Nov 24"); inserted with `@today`, `@tomorrow`, "Pick a date…" in the @ menu or `/date`.
+  HTML `<span data-type="dateMention" data-date>` (parses `<time datetime>` too); exports:
+  Markdown `2026-12-04`, HTML `<time datetime="2026-12-04">Dec 4, 2026</time>`, DOCX `Dec 4, 2026`.
+- `fileAttachment` gains `display` (`card` | `preview`; absent = `preview` for PDFs, `card`
+  otherwise) and `height` (inline preview height in CSS px, 240-1600; absent = 70 % of the
+  viewport, at most 900). Exports never embed a viewer: HTML
+  `<p class="oc-file" data-display><a>name</a> <span class="oc-file-meta">PDF · 2 KB</span></p>`,
+  Markdown `[name](url) (PDF, 2 KB)`, DOCX a link.
+- `columns` gains `widths` ("25,75": whole percents, one per column; absent = equal; 2-4
+  columns; the editor snaps boundaries to quarters). `column` gains `title` (a label line above
+  its blocks; absent = none). HTML exports the grid and a bold title line; Markdown a bold line.
 
 **Block ids.** Any block node may carry an optional string attribute `blockId` (convention
 `b_` + 26 lowercase base32 chars, e.g. `b_01jd…`). It is how the host patch API (§6) addresses
@@ -635,6 +694,63 @@ global attribute on block nodes (Tiptap `addGlobalAttributes`, default `null`, n
 keep it when a node is edited; a split keeps it on the first half only and pasting/duplicating
 clears it. Without that, y-prosemirror drops the attribute the first time a user edits the block.
 (Added 2026-11-21 by the server API build; the web part is still to do.)
+
+**Board shape keys** (`boards/<id>/shapes/<shapeId>` Y.Map; all optional except `type`; source of
+truth `web/packages/board/src/model.ts`). `type`: `sticky rect ellipse diamond text arrow pen swatch
+image`. Geometry `x y w h` (numbers; `text` anchors at its first baseline), `pts` `[[x,y],…]` for
+`arrow`/`pen`. Paint order is `order` (back to front; z-order buttons rewrite it), then any shape
+missing from `order` by id.
+
+| key | on | meaning |
+|---|---|---|
+| `fill` | sticky | `y p b g` (default `y`) |
+| `fill` | swatch | `accent amber green pink purple red blue` |
+| `fill` | rect, ellipse, diamond | *(UX pass)* tone `gray blue green amber red purple pink`: fill `--<tone>-bg`, outline `--<tone>-fg`; unset or unknown = plain (`--app` fill) |
+| `stroke` | pen, rect, ellipse, diamond | `"accent"` draws the outline/stroke in the accent colour (a tone `fill` wins for the outline) |
+| `text` | sticky, rect, ellipse, diamond, text | the shape's text; `\n` breaks lines |
+| `text` | arrow | *(UX pass)* connector label, trimmed, drawn in a pill at the path's midpoint |
+| `size` | text | font size (default 18; UI offers 14 18 24 32) |
+| `size` | rect, ellipse, diamond | *(UX pass)* text size (default 14, ellipse 15; UI offers 13 14 16 20), line height `round(size×1.3)` (ellipse `×1.27`) |
+| `label` | rect | small uppercase corner label (frames) |
+| `dashed` | rect | dashed frame, never filled |
+| `group` | any | *(UX pass)* shapes with the same group id select and move together; no visual |
+| `start`, `end` | arrow | `{shapeId, anchor}`, anchor `top right bottom left center` |
+| `route` | arrow | `"elbow"` orthogonal route, `"straight"`/unset a line |
+| `via` | arrow | *(open items, ADR-025)* manual waypoints `[[x,y],…]`, in order. The path runs end → waypoints → end; a `center`-bound end aims at the nearest waypoint (straight: outline toward it; elbow: the side facing it). Elbow with waypoints: each leg is an L (one corner), the first leaves along the start side's axis (else the leg's longer axis), each next leg leaves at a right angle to how the previous arrived, the last enters along the end side's axis (two corners at the leg's midpoint when an L can't). Entries that aren't arrays of ≥ 2 read as missing; non-numbers read as 0. Writers keep `pts` = the resolved path. Moving a connector with both bound shapes moves its waypoints too |
+| `src`, `alt` | image | URL or `data:` URL; alt text |
+
+Text wrapping *(UX pass)*: sticky, rect, ellipse and diamond text wraps greedily at whitespace to
+`w − 28` (sticky, 14 px), `max(20, w − 16)` (rect), `max(20, w × 0.72)` (ellipse), `max(20, w × 0.6)`
+(diamond); connector labels to 180 px at 12.5 px. Every UTF-16 unit counts `size × 0.56` px; longer
+words are cut. A sticky's stored `h` grows on commit to `ceil(30 + (lines − 1) × 20 + 22)` and never
+shrinks; exports apply the same rule. The web and Rust exporters implement this identically (shared
+fixture `crates/oc-model/tests/fixtures/board.{json,web.svg}`).
+
+Board awareness *(UX pass)*: `board` `{x, y, sel}`; `sel` lists the peer's selected shape ids, and
+`board` may carry only `sel` while the pointer is outside the board.
+
+**Database view prefs** (`databases/<id>/views` Y.Map, JSON per view name `table board calendar
+gallery`; source `web/packages/database/src/types.ts` `ViewPrefs`): `q` search; `cal` calendar month
+`YYYY-MM`; `filter` `{f, vals[]}` / `sort` `{f, dir: 1|-1}` (single rule, kept for older clients).
+*(UX pass)*: `sorts` `[{f, dir}]` applied in order, wins over `sort` (writers keep `sort` = first);
+`filters` `[{f, vals}]` ANDed, wins over `filter` (writers keep `filter` = first); `widths`
+`{fieldId: px}` table column widths; `group` field id the board view groups by (status/select);
+`date` field id the calendar places rows on; `cover` gallery cover: `"none"`, `"color"` (default) or
+a URL field id.
+*(Open items, ADR-025)*: `fields` field ids in this view's order (unknown ids ignored, fields missing
+from it follow in the shared order; column moves write this, never the shared `fields` array);
+`hidden` field ids hidden in this view (the title field is always shown). `filters` rules may be
+typed: `{f, op, v?, v2?}` with `op` per field type — text/title/url `contains is empty` (case-insensitive,
+on the cell's text); number/progress `eq ne lt le gt ge between empty` (`v`, `v2` numbers; `ne` also
+matches empty cells; `between` is inclusive in either order); date `is before after` (`v` `YYYY-MM-DD`),
+`next past` (`v` days, inclusive of today), `empty`. Status/select/tags/person/checkbox rules keep
+`vals` (any of; checkbox `"true"`/`"false"`). Unfinished rules (no value yet, or an `op` the field type
+doesn't take) are kept but filter nothing. `filter` mirrors the first `vals` rule only.
+
+**Database field keys** (`fields` Y.Array of Y.Map): `id`, `name`, `type`, `options` (as above) and
+*(ADR-025)* `description` — optional plain-text note (may be multi-line, absent when blank). Shown as a
+header tooltip and in the row peek; exported in `document.json` (as stored) and as a footnote line
+`*Field*: text` under the table in Markdown (web "Copy as Markdown" and the server export), not in CSV.
 
 Field types for databases: `title text status select tags person date number checkbox url progress`.
 Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.
@@ -651,7 +767,9 @@ from `document.json` (content and meta exactly; nested maps best-effort).
 
 Base `callback_base` from the host registry. Headers on every call:
 `Authorization: Bearer <callbackToken from JWT>`,
-`X-OpenCanvas-Signature: t=<unix>,v1=<hex HMAC-SHA256(jwt_secret, "<t>.<body>")>`.
+`X-OpenCanvas-Signature: t=<unix>,v1=<hex HMAC-SHA256(jwt_secret, "<t>.<body>")>,v2=<hex HMAC-SHA256(jwt_secret, "<t>.<METHOD>.<path?query>.<body>")>`.
+(`v2` added 2026-11-21 by the security audit, ADR-022: it binds the method and path; hosts should
+verify `v2` and may fall back to `v1`. Callbacks never follow redirects.)
 
 | Call | Notes |
 |---|---|
@@ -660,6 +778,7 @@ Base `callback_base` from the host registry. Headers on every call:
 | `POST /files/{fileId}/assets` | multipart `file` → 201 `{"assetId","url","mime","size"}` |
 | `GET /users?q=&fileId=` | `[{"id","name","avatar"}]` |
 | `POST /files/{fileId}/copies` | conflict policy `copy`: body `.ocanvas`, `Idempotency-Key`; 200/201 `{"fileId","url"}` |
+| `POST /mentions` *(optional)* | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by, excerpt}`, `Idempotency-Key`; any 2xx; 404/405/410/501 = not implemented. Queued in `notify_outbox` first, retried with backoff (8 attempts). Never in WOPI mode (docs/05 §5) |
 
 The HMAC key is the host's `callback_secret` if set, else `jwt_secret`. `If-Match` is the quoted
 version from the last load/save (`ETag` of `GET`, else the JWT `file.version`). The PUT carries
@@ -722,8 +841,26 @@ true) is additionally required for `pdf`.
 `ocanvas` export needs `perms.download`, the others `perms.export` (403 otherwise); unknown formats
 answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment; filename="<file name>.<ext>"`.
 `POST /v1/assets` needs the `edit` role and `multipart/form-data` (≤ 25 MB); the host's status and
-body are passed through. Every response carries `Content-Security-Policy: frame-ancestors 'self'
-<all hosts' allowed_origins>` and `Referrer-Policy: no-referrer`.
+body are passed through. Every response carries `Referrer-Policy: no-referrer`,
+`X-Content-Type-Options: nosniff` and a CSP ending in `frame-ancestors 'self' <all hosts'
+allowed_origins>`: by default `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none';
+form-action 'self'; img-src 'self' https: http: data: blob:; …`; exports (`/v1/export/*`, `/v1/convert`)
+are served with `sandbox; default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'`,
+room assets with `default-src 'none'; sandbox`. (Changed 2026-11-21 by the security audit, ADR-022.)
+`GET /metrics` needs `Authorization: Bearer <OC_METRICS_TOKEN>` when that variable is set.
+`GET /v1/users` refuses `q` over 200 bytes (`400 QUERY_TOO_LONG`). A room holds at most 550
+connections (the next is closed with 1013 `room full`); a socket that stops reading is closed.
+
+`GET /v1/assets/fetch?ticket=&url=` (FILE-01): an attachment's bytes served from this origin,
+for previews (pdf.js and text previews can't read the host's origin). Same rules as export image
+fetching: the URL must be on the host's `callback_base` origin (fetched signed) or an
+`asset_origins` entry (plain GET), exact origin, no userinfo, never following redirects
+(`403 ASSET_ORIGIN_NOT_ALLOWED`, `502 ASSET_UNAVAILABLE`, `404 ASSET_NOT_FOUND`). Streamed, at most
+50 MB (`413 ASSET_TOO_LARGE`). Any role may preview (`perms.download` only hides the editor's
+Download action; downloads keep the original URL). Answers with the real `Content-Type`,
+`Content-Disposition: inline`, `X-Content-Type-Options: nosniff`,
+`Content-Security-Policy: sandbox; default-src 'none'`. Room-served WOPI assets
+(`/v1/assets/:id`) are already same-origin and are used as they are.
 
 ## 7. Autosave
 
@@ -907,7 +1044,8 @@ period of ≥ 30 s. (Not yet: `/readyz` does not turn 503 while draining.)
 URL: https://casualoffice.github.io/opencanvas/docs/security.html
 Source file: docs/07-SECURITY-AND-LIMITS.md
 
-**Status:** draft v0.1, 2026-11-21. Target: OWASP ASVS Level 2.
+**Status:** v0.2, 2026-11-21 (after the security audit, [docs/18](18-SECURITY-AUDIT.md)). Target: OWASP ASVS Level 2.
+Reporting a vulnerability: [SECURITY.md](../SECURITY.md).
 
 ## 1. Trust boundaries
 
@@ -926,15 +1064,20 @@ Source file: docs/07-SECURITY-AND-LIMITS.md
 | Token leakage via URL | JWT posted in form body, not query; WS uses short (≤ 60 s to connect) single-room ticket; tickets never logged. |
 | Privilege escalation (viewer edits) | Server filters every `sync update` by role; commenters restricted to `comments` subtree via scratch-doc diff. Client read-only is cosmetic. |
 | Presence spoofing | Server overwrites `awareness.user` from grant. |
-| XSS via paste/import/markdown | ProseMirror schema whitelist; HTML import through sanitizer (ammonia on server, DOMPurify on client); no raw HTML block; links restricted to `http(s):`, `mailto:`, host-allowed schemes. |
-| Malicious embeds | Provider allow-list per host; `<iframe sandbox="allow-scripts allow-same-origin allow-popups allow-presentation">` only for listed providers, `referrerpolicy=no-referrer`; generic iframe disabled by default. |
-| SSRF via unfurl / image URL | Resolve DNS once, pin IP, block private/link-local/loopback/metadata ranges (v4+v6), HTTPS-only by default, 3 redirects max (re-checked), 2 MB / 5 s caps, content-type check. |
+| XSS via paste/import/markdown | ProseMirror schema whitelist (paste is parsed by the schema, unknown tags dropped); server HTML import (`oc_model::html`) is a whitelist tree walk, not raw HTML; no raw HTML block; links restricted to `http(s):`, `mailto:`, `/`, `#` (import and export); the link mark re-checks `isAllowedUri` when rendering. |
+| Malicious embeds | Provider allow-list per host; `<iframe sandbox="allow-scripts allow-same-origin allow-popups allow-presentation allow-popups-to-escape-sandbox">` only for listed providers, rebuilt from the provider id (`resolveEmbed`), never the stored URL; `referrerpolicy=strict-origin-when-cross-origin` (YouTube refuses to play without a referrer); generic iframe not supported. CSP `frame-src https:`. |
+| SSRF via image URL / WOPISrc / JWKS | No arbitrary fetches: export images only from the host's `callback_base` origin and `asset_origins` (exact origin match, no userinfo, no redirects, 10 MB, `image/*`); `WOPISrc` only when it matches a `wopi_allowlist` entry exactly (scheme, host, port, path prefix; userinfo, queries and encoded separators refused; no redirects); JWKS and Gotenberg URLs come from operator config. There is no server-side link unfurl; if one is added it must resolve DNS once, pin the IP, block private/link-local/loopback/metadata ranges (v4+v6) and re-check every redirect. |
 | Clickjacking / embedding by strangers | CSP `frame-ancestors` = host `allowed_origins`; postMessage origin checks both ways. |
+| Script injection into the SPA | Every response: `Content-Security-Policy` with `script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'` (+ `frame-ancestors`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`. Handler CSPs are kept: exports and room assets are served `sandbox; default-src 'none'`. Node views pass doc URLs through `safeHref` / `safeImageSrc` (`web/packages/editor/src/lib/urls.ts`). |
+| Injection into exports | HTML/SVG/DOCX escape every text and attribute; link targets limited to `http(s):`, `mailto:`, `/`, `#`; Markdown escapes `<` and drops script/data link targets; CSV cells starting with `= + - @ TAB CR` get a leading `'`. |
+| SQL injection | Every statement is a literal with `?` binds (guard test `sec05_every_sql_statement_is_a_literal`); no dynamic identifiers, no `LIKE`. |
+| Callback replay | `X-OpenCanvas-Signature` `v2` binds method + path + query + body; the signed client never follows redirects. |
 | Callback spoofing (someone pretends to be us) | HMAC `X-OpenCanvas-Signature` with timestamp (5 min skew). |
-| DoS | Per-IP and per-connection rate limits; frame ≤ 1 MB; doc ≤ 20 MB; ≤ 10 000 blocks; ≤ 5 000 shapes/board; room peers ≤ 550; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal). |
+| DoS | Per-connection frame rate limits (per-IP limits belong in the reverse proxy); readers that stop reading are dropped (30 s send timeout, 4096-frame backlog); multipart boundaries ≤ 70 chars; frame ≤ 1 MB; doc ≤ 20 MB (block and shape counts are bounded by the doc cap only); room peers ≤ 550 (then close 1013), ≤ 8 awareness client ids per connection; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal), enforced on the bytes actually inflated, never on the sizes the archive declares. |
 | Secrets at rest | Host secrets AES-256-GCM encrypted with `OC_KEK`; host callback tokens in `sessions.grant_json` encrypted. |
 | Data retention | Room state deleted after commit + TTL; no content in logs (only ids, sizes, timings); crash dumps disabled in prod. |
-| Supply chain | `cargo deny`, `pnpm audit`, lockfiles, pinned CDN-free bundle (self-hosted assets). |
+| Supply chain | `scripts/audit.sh` (`cargo audit`, `cargo deny` with `scripts/deny.toml`, `pnpm audit --prod`), lockfiles, pinned CDN-free bundle (self-hosted assets). |
+| Ops endpoints | `/metrics` needs `Authorization: Bearer $OC_METRICS_TOKEN` when set; keep `/metrics`, `/readyz` and `/v1/internal/*` off the public listener. |
 
 ## 3. Limits (defaults, per host overridable)
 
@@ -946,12 +1089,13 @@ Source file: docs/07-SECURITY-AND-LIMITS.md
 | Frames/s per connection | 60 (burst 120) |
 | Awareness size / rate | 2 KB / 20 Hz |
 | CRDT doc soft / hard | 5 MB / 20 MB |
-| Blocks per doc | 10 000 |
-| Shapes per board | 5 000 |
+| Blocks per doc / shapes per board | bounded by the 20 MB doc cap (no separate count limit) |
 | Image upload | 25 MB |
 | Attachment upload | host-defined (default 100 MB) |
-| Editors per room / viewers | 50 / 500 |
-| Unfurl fetch | 2 MB, 5 s, 3 redirects |
+| Connections per room | 550 (`MAX_PEERS`, not split by role) |
+| Unfurl fetch | 2 MB, 5 s, 3 redirects (no server-side unfurl yet: bookmarks store the URL only) |
+| Awareness client ids / connection | 8 |
+| `GET /v1/users` `q` | 200 bytes |
 
 ## 4. Privacy
 
@@ -1258,9 +1402,13 @@ Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
 - **Board:** pointer arrow + name tag in user colour, interpolated
   (60 fps lerp) between 20 Hz updates; selection outline in user colour;
   "laser" tool leaves a fading trail.
-- **Off-screen collaborators:** avatar stack in the top bar; each avatar shows
-  a ↑/↓ edge hint; clicking jumps to their position; long-press = **follow
-  mode** (your viewport tracks theirs until you scroll).
+- **Off-screen collaborators:** avatar stack in the top bar. A **click** on an avatar, or a
+  **long press** (450 ms, for touch), starts **follow mode**: the canvas scrolls to their caret
+  (or their board) and keeps it in view until you scroll, use the wheel or press a key. A click on
+  the avatar you follow stops it; a long press never stops it. The avatar shows a ring and
+  `aria-pressed` while you follow; the "People here" list (+N) follows on click too. Someone with
+  no caret (a viewer, or idle) gets a toast instead. (Changed 2026-11-21, UX-02: the draft said
+  click jumps and long-press follows, with ↑/↓ edge hints; edge hints are not built.)
 - **Block-level presence:** a thin coloured bar in the left gutter of blocks
   someone is editing — cheap and readable on narrow embeds.
 - **Typing indicator** in the avatar stack.
@@ -1271,8 +1419,11 @@ Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
 - `Y.UndoManager` with `trackedOrigins = {localOrigin}` — undo only reverts
   *your* changes, never a collaborator's.
 - Capture timeout 500 ms groups keystrokes into words.
-- Undo stack is shared between text and boards so Ctrl+Z after drawing undoes
-  the stroke.
+- One stack for the whole canvas: the editor's `Y.UndoManager` (y-prosemirror) is passed to
+  database and board blocks as `BlockEnv.undoManager`; they add their maps to its scope and their
+  origins to its tracked origins. ⌘Z / ⌘⇧Z in the text step through text, header, cells and
+  shapes in the order they were made (`m-open-items` e2e). Structural actions (file actions,
+  adding or removing columns) close the current capture so each is its own step.
 - Undo stack resets on reload (it is not persisted).
 
 ## 5. Connectivity
@@ -1280,12 +1431,20 @@ Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
 | State | UI | Behaviour |
 |---|---|---|
 | Connected | none | — |
-| Reconnecting (< 30 s) | subtle "Reconnecting…" pill | edits continue locally, buffered |
-| Offline (> 30 s) | banner "Offline — changes will sync" | edits buffered (memory; IndexedDB if host enables) |
+| Reconnecting | "Reconnecting" status | edits continue locally, buffered |
+| Offline | "Offline · kept here" status + banner | edits buffered (memory; IndexedDB if host enables) |
 | Back online | "Synced" toast | Yjs sync step1/2 merges buffered changes |
 | Role downgraded | banner "You now have view access" | editor switches to read-only, local unsynced edits shown as discarded diff |
 | Token expiring | silent refresh via host; else banner | — |
 | Session closed by host | modal "This canvas was closed by the app" | — |
+
+**Detecting a lost connection** (UX-02). A closed socket shows "Reconnecting" at once. A silent
+drop (Wi-Fi gone, a proxy that stops forwarding) closes nothing, so the server sends a control
+`{"t":"ping"}` every 10 s on every connection (docs/15 §3) and the client treats **15 s without
+any frame** as lost: it shows "Reconnecting", drops the socket and reconnects. After a silent drop,
+or a browser `offline` event, "Offline" follows 3 s later (so within 20 s of the drop); any other
+outage turns into "Offline" after 20 s. The browser's `online` event reconnects at once instead of
+waiting for the backoff.
 
 Exponential backoff 0.5 s → 10 s with jitter. Server owner change in cluster
 is invisible to users beyond a ≤ 5 s reconnect.
@@ -1302,8 +1461,8 @@ is invisible to users beyond a ≤ 5 s reconnect.
   whole block id.
 - Stored in the `comments` Y.Map → travel inside the `.ocanvas` file.
 - Commenters (role `comment`) can write only that subtree (enforced server-side).
-- Mentions in comments trigger an `onMention` webhook to the host so the host
-  can notify (we never send emails/notifications ourselves).
+- Mentions in comments and canvas text call the host's `POST /mentions` (docs/05 §5) so the
+  host can notify (we never send emails/notifications ourselves). Not in WOPI mode.
 
 
 # Product requirements
