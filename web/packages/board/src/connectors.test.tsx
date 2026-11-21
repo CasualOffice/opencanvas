@@ -318,7 +318,7 @@ describe("export", () => {
     expect(root.getAttribute("viewBox")).toBe("-32 -32 604 474");
     expect(svg).not.toContain("var(--");
     expect(svg).toContain("#fdeaa0");
-    expect(svg).toContain("Hi &lt;there&gt; &amp; you");
+    expect(svg).toContain(">Hi &lt;there&gt; &amp;</text>"); // wrapped to the sticky width, as on screen
     expect(svg).toContain('d="M100 30 L300 230"');
     expect(root.querySelector("image")!.getAttribute("href")).toBe("data:image/png;base64,AAAA");
   });
