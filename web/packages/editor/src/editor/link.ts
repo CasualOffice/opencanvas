@@ -131,33 +131,35 @@ export function mentionNode(colorFor: (id: string) => string) {
         av.setAttribute("aria-hidden", "true");
         const text = document.createElement("span");
         text.className = "mn";
-        dom.append(av, text);
+        const note = document.createElement("span");
+        note.className = "mn-note";
+        note.hidden = true;
+        dom.append(av, text, note);
         const render = () => {
           const id = String(n.attrs.id ?? "");
           const people = peopleRef.current;
-          const v = people ? people.get(id, n.attrs.label) : { id, name: String(n.attrs.label ?? id), color: colorFor(id), avatar: undefined, pending: false, deactivated: false, relation: undefined };
-          const name = v.pending ? "…" : v.name;
+          const v = people ? people.get(id, n.attrs.label) : { id, name: String(n.attrs.label ?? id), color: colorFor(id), avatar: undefined, deactivated: false };
+          const name = v.name;
           dom.dataset.id = id;
           dom.dataset.personId = id;
-          dom.classList.toggle("pending", !!v.pending);
           dom.classList.toggle("former", !!v.deactivated);
-          dom.classList.toggle("ext", v.relation === "external");
-          dom.setAttribute("aria-busy", v.pending ? "true" : "false");
           // Focusable when read-only; while editing, the caret next to it opens the card.
           if (editor.isEditable) dom.removeAttribute("tabindex");
           else dom.tabIndex = 0;
           text.textContent = name;
-          if (v.deactivated) text.setAttribute("aria-label", `${name}, former member`);
+          note.textContent = v.deactivated ? "No longer has access" : "";
+          note.hidden = !v.deactivated;
+          if (v.deactivated) text.setAttribute("aria-label", `${name}, no longer has access`);
           else text.removeAttribute("aria-label");
           av.style.background = v.color;
           av.style.color = readableOn(v.color);
           av.replaceChildren();
-          if (v.avatar && !v.pending) {
+          if (v.avatar) {
             const img = document.createElement("img");
             img.src = v.avatar;
             img.alt = "";
             av.append(img);
-          } else av.textContent = v.pending ? "" : people ? people.initialsOf(id, name) : initialsOf(name);
+          } else av.textContent = people ? people.initialsOf(id, name) : initialsOf(name);
         };
         render();
         let sub = peopleRef.current?.subscribe(render);
@@ -185,7 +187,7 @@ export function mentionNode(colorFor: (id: string) => string) {
     renderHTML: ({ node }) => {
       const id = String(node.attrs.id ?? "");
       const seen = peopleRef.current?.get(id, node.attrs.label);
-      const label = seen && !seen.pending ? seen.name : String(node.attrs.label ?? id);
+      const label = seen ? seen.name : String(node.attrs.label ?? id);
       return [
         "span",
         { class: "mention", "data-type": "mention", "data-id": id, "data-label": label },

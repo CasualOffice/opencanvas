@@ -41,13 +41,13 @@ import { postToHost } from "../lib/host";
 import { readableOn } from "../lib/color";
 import { tableStore, trackTable } from "./tablestate";
 import { peopleRef } from "../lib/people";
-import { firstName, nameWithDetail, relationNote, secondLine, type Relation } from "@opencanvas/ui";
+import { nameWithDetail, accessNote, secondLine } from "@opencanvas/ui";
 
 /** A cursor label (docs/21): "Asha Rao · Design" when the name is shared, as the viewer sees it. */
-export function caretCaption(u: { id?: string; name?: string; detail?: string; relation?: Relation }): string {
+export function caretCaption(u: { id?: string; name?: string; detail?: string }): string {
   const name = u.name ?? "";
   const people = peopleRef.current;
-  if (!people || !u.detail || u.relation === "hidden") return name;
+  if (!people || !u.detail) return name;
   return nameWithDetail({ id: u.id ?? "", name, detail: u.detail }, people.dupes());
 }
 
@@ -243,7 +243,7 @@ export function CanvasEditor(p: EditorProps) {
             l.className = "collaboration-carets__label";
             l.style.background = u.color;
             l.style.color = readableOn(u.color);
-            l.textContent = caretCaption(u as { id?: string; name?: string; detail?: string; relation?: Relation });
+            l.textContent = caretCaption(u as { id?: string; name?: string; detail?: string });
             c.append(l);
             return c;
           },
@@ -301,7 +301,6 @@ export function CanvasEditor(p: EditorProps) {
         .then((m) => {
           if (!off)
             m.installLate(editor, async (q) => {
-              const showEmail = !!peopleRef.current?.cfg.showEmail;
               const people = peopleRef.current;
               return (await searchRef.current(q)).slice(0, 8).map((u) => ({
                 id: u.id,
@@ -309,10 +308,9 @@ export function CanvasEditor(p: EditorProps) {
                 color: u.color,
                 avatar: u.avatar,
                 initials: people?.initialsOf(u.id, u.name),
-                second: secondLine(u, { showEmail }),
-                note: relationNote(u) ?? undefined,
+                second: secondLine(u),
+                note: accessNote(u) ?? undefined,
                 dup: !!people?.isDuplicate(u.name),
-                warn: u.access === false ? `${firstName(u.name)} can't open this canvas` : undefined,
               }));
             });
         })

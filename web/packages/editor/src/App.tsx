@@ -17,7 +17,7 @@ import { onHost, postToHost } from "./lib/host";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { isMac } from "./lib/keys";
 import { usePeers, type Peer } from "./lib/presence";
-import { People, setPeople, toUser } from "./lib/people";
+import { People, setPeople } from "./lib/people";
 import { PersonCards } from "./components/PersonCard";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
 import { toast } from "./lib/store";
@@ -178,7 +178,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const openThreads = threads.filter((t) => !t.resolved).length;
 
   const me: OcUser = useMemo(
-    () => ({ id: session.user.id, name: session.user.name, color: session.user.color, avatar: session.user.avatar ?? undefined, detail: session.user.detail, email: session.user.email }),
+    () => ({ id: session.user.id, name: session.user.name, color: session.user.color, avatar: session.user.avatar ?? undefined, detail: session.user.detail }),
     [session.user],
   );
 
@@ -199,23 +199,18 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   }, []);
 
   // ---------- people (docs/21: mentions, assignees, presence) ----------
-  // One merged view per viewer: resolve > tokens (presence, participants) > document snapshot.
+  // docs/21 revision 2: the canvas's members, the same list for everyone with access.
   const people = useMemo(() => {
     const local = demo ? Object.values(demo.users).map(({ id, name, color }) => ({ id, name, color })) : undefined;
     const p = new People(
       {
         ticket: session.demo ? undefined : session.ticket,
         me,
-        participants: (session.participants ?? []).map((u) => toUser(u as Record<string, unknown>)).filter((u): u is OcUser => !!u),
-        coviewers: session.directory?.coviewers ?? "contacts",
-        callbacks: !session.demo && (session.directory?.callbacks ?? true),
-        showEmail: !!session.perms.showEmail,
         local,
       },
       doc,
     );
-    // Set before the editor's first render, so no mention chip ever shows a stored label
-    // that this viewer's resolve answer would replace.
+    // Set before the editor's first render, so mention chips show members' current names.
     setPeople(p);
     return p;
   }, [session, doc, demo, me]);
@@ -226,13 +221,16 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   }, [people]);
   const peopleVersion = useSyncExternalStore(people.version.subscribe, people.version.get);
   useEffect(() => {
-    people.setPeers(peers.filter((p) => !p.me).map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar ?? undefined, detail: p.detail, relation: p.relation, deactivated: p.deactivated })));
+    people.setPeers(peers.filter((p) => !p.me).map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar ?? undefined, detail: p.detail })));
   }, [people, peers]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const allUsers = useMemo(() => people.pickable(), [people, peopleVersion]);
 
   const searchUsers = useCallback((q: string): Promise<OcUser[]> => people.search(q), [people]);
+
+  // docs/21 revision 2: a revoke changes the member list; refetch it without a reload.
+  useEffect(() => collab.onControl((c) => c.t === "members" && void people.load()), [collab, people]);
 
   // ---------- save state, connection, control channel ----------
   useEffect(() => {

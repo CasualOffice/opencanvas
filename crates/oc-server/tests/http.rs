@@ -229,15 +229,16 @@ async fn launch_session_websocket_and_export() {
         .unwrap();
     assert_eq!(rtf.status(), 404);
 
-    let users: Value = client
-        .get(format!("http://{addr}/v1/users?ticket={ticket}&q=as"))
+    host.lock().unwrap().members = Some(serde_json::json!([{"id": "u_1", "name": "Asha Rao"}]));
+    let members: Value = client
+        .get(format!("http://{addr}/v1/members?ticket={ticket}&q=as"))
         .send()
         .await
         .unwrap()
         .json()
         .await
         .unwrap();
-    assert_eq!(users[0]["name"], "Asha Rao");
+    assert_eq!(members["members"][0]["name"], "Asha Rao");
 
     // An oversized frame closes the socket with 1009.
     let big = vec![0u8; 1024 * 1024 + 10];

@@ -37,15 +37,11 @@ embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
 export_formats  = ["md", "html", "pdf", "ocanvas"]
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
-
-[host.directory]                           # people (docs/21)
-coviewers       = "contacts"               # all | contacts | none
 ```
 
-`directory.coviewers` decides whether people who opened the same canvas see each other in the
-@mention list and by name in presence: `all` always, `none` never ("Someone"), `contacts` (default)
-only when your `POST /users/resolve` says they are a `contact` or `member` of the viewer. Without
-a resolve callback OpenCanvas can't tell contacts apart, and `contacts` behaves like `all`.
+People (docs/21 revision 2): the @mention list is the people with access to the canvas, the same
+for every viewer. Everyone with access sees real names and the `detail` second line. OpenCanvas
+never shows or stores e-mail.
 
 ## 3. JWT launch token
 
@@ -68,21 +64,19 @@ exchanged for a session ticket on open).
     "id": "u_123",                  // stable, opaque: the identity (names are display only)
     "name": "Asha Rao",
     "detail": "Design · Bengaluru", // optional second line that tells same-named people apart
-    "email": "asha@acme.example",   // optional; shown only with perms.showEmail
     "avatar": "https://…/a.png",    // http(s) only
     "color": "#7c3aed"              // optional; we derive one otherwise
   },
-  "participants": [                 // optional (tier 1, docs/21): people THIS user may mention,
-    { "id": "u_200", "name": "Ravi Menon", "detail": "Engineering" }   // e.g. the channel; ≤ 200,
-  ],                                // never shown to anyone else
+  "members": [                      // optional (docs/21): everyone with access to THIS canvas,
+    { "id": "u_200", "name": "Ravi Menon", "detail": "Engineering" }   // ≤ 500; same user shape
+  ],                                // (id, name, detail?, avatar?, color?); never e-mail
   "role": "edit",                   // view | comment | edit
   "perms": {
     "export": true,
     "download": true,
     "print": true,
     "commitMessage": true,          // may write "Save version" messages
-    "mention": true,
-    "showEmail": false              // e-mails of people may be shown to (and stored for) this user
+    "mention": true
   },
   "mode": "edit",                   // edit | view | preview
   "callbackToken": "opaque-…"       // we send it back on every callback; you validate it
@@ -131,7 +125,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `App_LoadingStatus` | `{ Status: "Frame_Ready" \| "Document_Loaded" }` |
 | canvas → host | `Doc_ModifiedStatus` | `{ Modified: bool }` |
 | canvas → host | `Doc_Saved` | `{ commitId, hostVersion }` |
-| canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role,detail?}] }` (as this viewer sees them: a `hidden` person is `{id:"anon_…",name:"Someone"}`) |
+| canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role,detail?}] }` (real names, the same for every viewer; never e-mail) |
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
 | canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
@@ -175,8 +169,7 @@ OpenCanvas:
 | **Save as copy** `POST /files/{fileId}/copies` (conflict policy `copy`) | body `.ocanvas`; `Idempotency-Key` | `201 {"fileId":"doc_9001","url":"…"}` (create it with the original's ACL) |
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
-| **Search people** *(optional, tier 2)* `GET /users?q=as&fileId=` | called with the **viewer's** `callbackToken`; cached 30 s per viewer | `[{"id","name","detail","email","avatar","access"}]` (or `{"users":[…]}`): the people *this viewer* may see. `access: false` = can't open the file (the picker warns "Ravi can't open this canvas"). `404`/`405`/`410`/`501` = not implemented |
-| **Resolve people** *(optional, tier 3)* `POST /users/resolve` | JSON `{"ids":[…],"fileId"}` (≤ 200 per call), the **viewer's** `callbackToken`; cached 10 min per (file, viewer), refreshed when they reopen | `[{"id","name","detail","avatar","relation","deactivated"}]` (or `{"users":[…]}`): how *this viewer* sees each id. `relation`: `contact`, `member`, `external` (show only the `name` you return, e.g. "Asha R.") or `hidden` ("Someone"). `name` may be the viewer's own nickname. Ids you leave out fall back to tokens and the stored label |
+| **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
 
@@ -188,7 +181,7 @@ inserted, so you can link to it). `by` is the user whose connection wrote it (fr
 not from the document); the author is never in `mentioned`. `excerpt` is the message or block
 text, at most 280 characters. A mention that was already in the file when the room loaded, or
 one the editor re-creates when a paragraph is split or moved, is not sent again. The ids in
-`mentioned` come from the editor's people list (your `GET /users`): **check that each person
+`mentioned` come from the canvas's member list (your token `members` or `GET /files/{fileId}/members`): **check that each person
 can see the file before you notify them.** Delivery is fire-and-forget for the session: the call
 is written to our notification outbox first, sent at once, and retried with backoff (10 s → 1 h,
 8 attempts, same `Idempotency-Key`) when it fails with a network error, `429` or `5xx`. Any other
@@ -196,16 +189,16 @@ is written to our notification outbox first, sent at once, and retried with back
 on the file page. **WOPI hosts get no mention calls** (WOPI has no notification API); use JWT
 mode, or `mode = "both"`, if you need them.
 
-**People** (docs/21, ADR-026). Every person is keyed by your stable `user.id`. OpenCanvas learns
-about people in four tiers, each optional beyond the first: (0) launch tokens only: everyone who
-opened the file is remembered in the canvas (`people` in the `.ocanvas`: id, name, detail, avatar,
-last seen; e-mail only with `perms.showEmail`); (1) `participants` in the token; (2) `GET /users`
-search; (3) `POST /users/resolve`. Sources merge per id: **resolve > token > the document's stored
-label**. Everything about other people is answered per viewer, with that viewer's token, so two
-people on one canvas may see different names, or "Someone". Presence (avatars, cursors) is
-rewritten per viewer by OpenCanvas, so a real name never reaches someone who mustn't see it.
-Exports render people as the exporting viewer sees them. Mentions store the id plus the label
-the author saw; each viewer sees their own name for the person.
+**People** (docs/21 revision 2, ADR-026). Every person is keyed by your stable `user.id`. The
+@mention list is **the people with access to this canvas**, the same for every viewer. Tell
+OpenCanvas who that is with `members` in the launch token (≤ 500) and/or the members callback
+above (for large audiences). Without either, the list is everyone who has opened the canvas (the
+`people` map in the `.ocanvas`: id, name, detail, avatar, last seen). Members merge by id:
+**callback > token > the saved `people` map**. Everyone with access sees real names and the
+`detail` second line; same-named people show `name · detail` (then "Last here …", then the id's
+last 4 characters). E-mail is never shown or stored. A mention stores the id plus a label
+snapshot: OpenCanvas shows the member's current name, and for someone who no longer has access
+the snapshot with "No longer has access". Exports use the same names.
 
 Timeouts: 10 s (load/save), 5 s (others). Retries with exponential backoff
 for save (idempotent by `Idempotency-Key`). A save is written to our commit outbox before
@@ -290,9 +283,8 @@ they are read back out of your file. Limits: **10 MB per asset, 50 MB of assets 
 (`413 ASSET_TOO_LARGE`); the whole zip stays under the 100 MB `.ocanvas` read limit. DOCX, PDF
 and `.ocanvas` exports include them too.
 
-**Mentions.** `GET /v1/users?ticket=&q=` lists the users who have opened the file (from
-CheckFileInfo, with their `detail`), filtered by name or id: tier 0 of §5 "People", which works
-unchanged. Mention notifications (`POST /mentions`, §5) are not sent in WOPI mode.
+**Mentions.** The member list is the users who have opened the file (from CheckFileInfo, with
+their `detail`) and the saved `people` map: the no-source case of §5 "People". Mention notifications (`POST /mentions`, §5) are not sent in WOPI mode.
 
 ## 7. Server-to-server REST (you → us)
 
@@ -303,7 +295,13 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   user's open session switches to read-only immediately (or is closed with
   `"role":"none"`). Roles: `view | comment | edit | none`. Answers
   `200 {"connections":1,"sessions":2}` (live connections switched, tickets updated);
-  `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`.
+  `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`. `"role":"none"` also takes
+  the user out of the canvas's member list at once (the cached members answer is dropped, open
+  editors refetch it, and an older token's `members` no longer counts for them) until you grant
+  access again or they open the canvas with a new token.
+- Member list changed (someone added or removed outside a role call):
+  `POST /v1/files/{fileId}/members/invalidate` → `200 {"invalidated":true}`. Drops the cached
+  members answer; open editors refetch `/v1/members`. Same headers as every call here.
 - Patch content from a bot: `POST /v1/files/{fileId}/patch` (see 04 §6) with
   `{"ops":[…],"author":{"id","name"}}`. Ops: `append`, `insertAfter{blockId}`,
   `replace{blockId}`, `delete{blockId}`, each with `markdown` or Tiptap `blocks`. Blocks are
@@ -340,7 +338,8 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 - [ ] Register host, share secret/API key out of band.
 - [ ] Backend endpoint that signs the launch JWT after *your* ACL check.
 - [ ] Implement load / save (+ assets). People: give `user.detail` in the token; add
-      `participants`, `GET /users` and `POST /users/resolve` as your directory needs (docs/21).
+      `members` (≤ 500) and/or `GET /files/{fileId}/members` (docs/21); call the role API or
+      `members/invalidate` when access changes.
 - [ ] Verify `X-OpenCanvas-Signature` on callbacks.
 - [ ] Add OpenCanvas origin to your CSP `frame-src`; add your origin to our `allowed_origins`.
 - [ ] Handle `409` (we save a copy or reload, per your policy). With `copy`, implement

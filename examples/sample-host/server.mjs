@@ -1,13 +1,11 @@
 // OpenCanvas sample host: a stand-in for your app (or any app embedding OpenCanvas).
 // It owns users, per-file roles and the file store, signs launch tokens and
 // implements the callbacks from docs/05-INTEGRATION-GUIDE.md §5 (load, save, copies, assets,
-// people search and resolve, @mention notifications). Zero dependencies.
+// the canvas member list, @mention notifications). Zero dependencies.
 //
-// People (docs/21): every file has a "directory tier" you can switch on the files page, to try
-// how far a host has to go: 0 = launch tokens only, 1 = + `participants` in the token,
-// 2 = + `GET /users` search, 3 = + `POST /users/resolve`. "Contacts graph" turns on per-viewer
-// networks: Priya and Sam are not contacts (each sees the other as "external"), and Ravi and
-// Sam may not see each other at all ("hidden"). There are two people called Asha Rao.
+// People (docs/21 revision 2): the access table on the files page IS the member list. It goes
+// into the launch token (`members`) and is served at `GET /files/:id/members`. Everyone with
+// access sees real names; e-mail is never sent. There are two people called Asha Rao.
 //
 //   node server.mjs            # http://localhost:4000
 //   OC_SERVER=http://localhost:8080 OC_SECRET=dev-secret-change-me node server.mjs
@@ -15,8 +13,9 @@
 //   OC_API_KEY          the host api_key from opencanvas.hosts.toml (server-to-server role API)
 //   SAMPLE_HOST_TEST=1  enables POST /__test/files/:id/bump (e2e only: an out-of-band save that
 //                       bumps the version, so the next autosave from OpenCanvas gets a 409),
-//                       POST /__test/files/:id/directory {tier, networks, showEmail} and
-//                       POST /__test/users/:id {name?, deactivated?} (rename someone in the host)
+//                       POST /__test/files/:id/members {source: "both"|"token"|"callback"|"none"}
+//                       (where the member list comes from) and
+//                       POST /__test/users/:id {name?} (rename someone in the host)
 
 import http from "node:http";
 import crypto from "node:crypto";
@@ -37,36 +36,15 @@ fs.mkdirSync(path.join(DATA, "assets"), { recursive: true });
 
 // `detail` is the second line OpenCanvas shows to tell people apart (docs/21).
 const USERS = {
-  u_priya: { id: "u_priya", name: "Priya Shah", detail: "Product · Mumbai", email: "priya@acme.example" },
-  u_asha: { id: "u_asha", name: "Asha Rao", detail: "Design · Bengaluru", email: "asha.rao@acme.example" },
-  u_asha2: { id: "u_asha2", name: "Asha Rao", detail: "Finance · Pune", email: "asha.r@acme.example" },
-  u_ravi: { id: "u_ravi", name: "Ravi Menon", detail: "Engineering · Kochi", email: "ravi@acme.example" },
-  u_sam: { id: "u_sam", name: "Sam Ortiz", detail: "Partner agency · Lisbon", email: "sam@acme.example" },
+  u_priya: { id: "u_priya", name: "Priya Shah", detail: "Product · Mumbai" },
+  u_asha: { id: "u_asha", name: "Asha Rao", detail: "Design · Bengaluru" },
+  u_asha2: { id: "u_asha2", name: "Asha Rao", detail: "Finance · Pune" },
+  u_ravi: { id: "u_ravi", name: "Ravi Menon", detail: "Engineering · Kochi" },
+  u_sam: { id: "u_sam", name: "Sam Ortiz", detail: "Partner agency · Lisbon" },
 };
-// The contacts graph (used when a file's "Contacts graph" is on). Anyone not listed is a
-// `member` (same org, not a direct contact).
-const RELATIONS = {
-  u_priya: { u_asha: "contact", u_ravi: "contact", u_sam: "external" },
-  u_sam: { u_priya: "external", u_ravi: "hidden", u_asha: "contact" },
-  u_ravi: { u_sam: "hidden", u_priya: "contact" },
-  u_asha: { u_priya: "contact", u_asha2: "contact" },
-};
-// Names a viewer gave their contacts: that viewer sees them everywhere (chips, cursors, avatars).
-const NICKNAMES = { u_priya: { u_ravi: "Ravi (eng lead)" } };
-const relationOf = (viewer, id, f) => (viewer === id ? "contact" : f.networks ? RELATIONS[viewer]?.[id] ?? "member" : "contact");
-const shortName = n => { const p = n.trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0]}.` : p[0]; };
-// What `viewer` may know about `id` on file `f` (null = must not be listed).
-function personFor(viewer, id, f) {
-  const u = USERS[id];
-  if (!u) return null;
-  const relation = relationOf(viewer, id, f);
-  const email = f.showEmail ? u.email : undefined;
-  if (relation === "hidden") return { id, relation };
-  if (relation === "external") return { id, name: shortName(u.name), relation };
-  const name = (f.networks && NICKNAMES[viewer]?.[id]) || u.name;
-  return { id, name, detail: u.detail, email, avatar: null, relation, ...(u.deactivated ? { deactivated: true } : {}) };
-}
-const visibleTo = (viewer, id, f) => ["contact", "member"].includes(relationOf(viewer, id, f));
+// A member as OpenCanvas sees them: id, name, second line. Never an e-mail.
+const memberOf = id => ({ id, name: USERS[id].name, detail: USERS[id].detail });
+const membersOf = f => Object.keys(f.acl).filter(id => USERS[id] && f.acl[id] !== "none").map(memberOf);
 const fold = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 // ---------- tiny persistent "database" for file metadata + ACL ----------
@@ -79,8 +57,8 @@ if (!Object.keys(meta.files).length) {
     acl: { u_priya: "edit", u_asha: "edit", u_asha2: "comment", u_ravi: "comment", u_sam: "view" } };
   saveMeta();
 }
-// Directory tier per file (docs/21): 3 unless switched on the files page.
-const dirOf = f => ({ tier: f?.tier ?? 3, networks: !!f?.networks, showEmail: !!f?.showEmail });
+// Where the member list comes from (e2e switch; default both the token and the callback).
+const sourceOf = f => f?.memberSource ?? "both";
 const filePath = id => path.join(DATA, "files", id.replace(/[^\w-]/g, "") + ".ocanvas");
 
 // ---------- crypto helpers ----------
@@ -111,19 +89,17 @@ function checkCallback(req, fileId, body) {
 }
 
 function launchToken(fileId, userId) {
-  const f = meta.files[fileId], role = f.acl[userId], dir = dirOf(f), u = USERS[userId];
+  const f = meta.files[fileId], role = f.acl[userId], u = USERS[userId];
   const now = Math.floor(Date.now() / 1000);
-  // Tier 1: everyone with access to this file that this person may see (their "channel").
-  const participants = dir.tier >= 1
-    ? Object.keys(f.acl).filter(id => id !== userId && USERS[id] && visibleTo(userId, id, dir)).map(id => personFor(userId, id, dir))
-    : undefined;
+  // The access table is the member list (docs/21 revision 2).
+  const members = ["both", "token"].includes(sourceOf(f)) ? membersOf(f) : undefined;
   return signJwt({
     iss: HOST_ID, aud: "opencanvas", iat: now, exp: now + 600, jti: crypto.randomUUID(),
     file: { id: f.id, name: f.name, version: String(f.version) },
-    user: { id: userId, name: u.name, detail: u.detail, email: u.email },
-    ...(participants ? { participants } : {}),
+    user: { id: userId, name: u.name, detail: u.detail },
+    ...(members ? { members } : {}),
     role, mode: role === "view" ? "view" : "edit",
-    perms: { export: true, download: true, comment: role !== "view", mention: true, showEmail: dir.showEmail },
+    perms: { export: true, download: true, comment: role !== "view", mention: true },
     callbackToken: callbackToken(fileId, userId),
   });
 }
@@ -138,6 +114,14 @@ async function pushRole(fileId, userId, role) {
     });
     console.log(`role ${fileId} ${userId}=${role} -> ${r.status} ${await r.text()}`);
   } catch (e) { console.warn(`role API unreachable: ${e.message}`); }
+}
+async function invalidateMembers(fileId) {
+  try {
+    await fetch(`${OC_INTERNAL}/v1/files/${encodeURIComponent(fileId)}/members/invalidate`, {
+      method: "POST",
+      headers: { "x-opencanvas-host": HOST_ID, "x-opencanvas-key": API_KEY },
+    });
+  } catch (e) { console.warn(`members invalidate unreachable: ${e.message}`); }
 }
 
 // ---------- http plumbing ----------
@@ -167,6 +151,18 @@ function parseMultipart(buf, ctype) {
 // ---------- callbacks: OpenCanvas → host ----------
 async function callbacks(req, res, url) {
   if (url.pathname === "/api/opencanvas/mentions" && req.method === "POST") return mentionCallback(req, res);
+  // The member list (docs/21 revision 2): everyone with access to this file, filtered by `q`.
+  const mem = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)\/members$/);
+  if (mem && req.method === "GET") {
+    const f = meta.files[mem[1]];
+    if (!f) return send(res, 404, { error: "no such file" });
+    if (!["both", "callback"].includes(sourceOf(f))) return send(res, 404, { error: "members callback off (e2e)" });
+    const auth = checkCallback(req, f.id, Buffer.alloc(0));
+    if (!auth.ok) return send(res, 401, { error: auth.why });
+    const q = fold(url.searchParams.get("q") || "");
+    const limit = Math.min(500, Number(url.searchParams.get("limit")) || 500);
+    return send(res, 200, membersOf(f).filter(p => fold(p.name).includes(q) || fold(p.detail || "").includes(q)).slice(0, limit));
+  }
   const m = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)(\/assets|\/copies)?$/);
   const body = req.method === "GET" ? Buffer.alloc(0) : await readBody(req);
   if (m) {
@@ -209,32 +205,6 @@ async function callbacks(req, res, url) {
       fs.writeFileSync(path.join(DATA, "assets", id + ".json"), JSON.stringify({ mime: part.mime, name: part.name }));
       return send(res, 201, { assetId: id, url: `${SELF}/assets/${id}`, mime: part.mime, size: part.data.length });
     }
-  }
-  // People search (tier 2) and resolve (tier 3), docs/21. Both answer for the viewer whose
-  // callback token this is: their contacts graph, their nicknames.
-  if (url.pathname === "/api/opencanvas/users" && req.method === "GET") {
-    const fid = url.searchParams.get("fileId") || "", f = meta.files[fid];
-    if (!f) return send(res, 404, { error: "no such file" });
-    if (dirOf(f).tier < 2) return send(res, 404, { error: "search is off for this file (tier < 2)" });
-    const auth = checkCallback(req, fid, body);
-    if (!auth.ok) return send(res, 401, { error: auth.why });
-    const q = fold(url.searchParams.get("q") || "");
-    const list = Object.keys(USERS)
-      .filter(id => visibleTo(auth.userId, id, dirOf(f)))
-      .map(id => ({ ...personFor(auth.userId, id, dirOf(f)), access: !!f.acl[id] }))
-      .filter(p => fold(p.name).includes(q) || fold(p.detail || "").includes(q));
-    return send(res, 200, list);
-  }
-  if (url.pathname === "/api/opencanvas/users/resolve" && req.method === "POST") {
-    let ask;
-    try { ask = JSON.parse(body.toString("utf8")); } catch { return send(res, 400, { error: "expected JSON" }); }
-    const f = meta.files[ask?.fileId];
-    if (!f) return send(res, 404, { error: "no such file" });
-    if (dirOf(f).tier < 3) return send(res, 404, { error: "resolve is off for this file (tier < 3)" });
-    const auth = checkCallback(req, f.id, body);
-    if (!auth.ok) return send(res, 401, { error: auth.why });
-    const ids = Array.isArray(ask.ids) ? ask.ids.slice(0, 500) : [];
-    return send(res, 200, ids.map(id => personFor(auth.userId, String(id), dirOf(f))).filter(Boolean));
   }
   send(res, 404, { error: "not found" });
 }
@@ -303,22 +273,17 @@ function whoFrom(url, req) {
 // Two people share a name: lists show the second line too.
 const label = u => Object.values(USERS).some(o => o.id !== u.id && o.name === u.name) ? `${u.name} · ${u.detail}` : u.name;
 const userPicker = (me, back) => `<form method="get" action="${back}" style="display:flex;gap:8px;align-items:center"><label class="mut" for="as">Signed in as</label><select id="as" name="as" onchange="this.form.submit()">${Object.values(USERS).map(u => `<option value="${u.id}" ${u.id === me ? "selected" : ""}>${esc(label(u))}</option>`).join("")}</select></form>`;
-const TIERS = ["0 · tokens only", "1 · + participants", "2 · + search", "3 · + resolve"];
-const directoryForm = f => { const d = dirOf(f); return `<form method="post" action="/files/${f.id}/directory" class="dir">
-  <label class="mut">Directory <select name="tier" aria-label="Directory tier for ${esc(f.name)}">${TIERS.map((t, i) => `<option value="${i}" ${d.tier === i ? "selected" : ""}>${t}</option>`).join("")}</select></label>
-  <label class="mut"><input type="checkbox" name="networks" ${d.networks ? "checked" : ""}> Contacts graph</label>
-  <label class="mut"><input type="checkbox" name="showEmail" ${d.showEmail ? "checked" : ""}> Show e-mail</label>
-  <button class="btn">Apply</button></form>`; };
+
 
 function home(res, me) {
   const rows = Object.values(meta.files).map(f => `<tr><td><a href="/files/${f.id}"><b>${esc(f.name)}</b></a></td><td>${esc(f.acl[me] || "none")}</td><td class="mut">v${f.version}${f.updatedAt ? " · " + new Date(f.updatedAt).toLocaleString() : ""}</td>
-    <td><form method="post" action="/files/${f.id}/acl" style="display:flex;gap:6px;flex-wrap:wrap">${Object.values(USERS).map(u => `<label class="mut" title="${esc(label(u))}">${esc(u.name.split(" ")[0])}${u.name !== label(u) ? ` <small>(${esc(u.detail.split(" ")[0])})</small>` : ""} <select name="${u.id}">${["edit", "comment", "view", "none"].map(r => `<option ${(f.acl[u.id] || "none") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label>`).join("")}<button class="btn">Save access</button></form>${directoryForm(f)}</td></tr>`).join("");
+    <td><form method="post" action="/files/${f.id}/acl" style="display:flex;gap:6px;flex-wrap:wrap">${Object.values(USERS).map(u => `<label class="mut" title="${esc(label(u))}">${esc(u.name.split(" ")[0])}${u.name !== label(u) ? ` <small>(${esc(u.detail.split(" ")[0])})</small>` : ""} <select name="${u.id}">${["edit", "comment", "view", "none"].map(r => `<option ${(f.acl[u.id] || "none") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label>`).join("")}<button class="btn">Save access</button></form></td></tr>`).join("");
   send(res, 200, page("Sample host", `<header><b>Sample host</b><span class="mut">stands in for your app</span><span class="sp"></span>${userPicker(me, "/")}</header>
   <main><div style="display:flex;align-items:center;margin-bottom:14px"><h2 style="margin:0;font-weight:600">Files</h2><span class="sp" style="flex:1"></span>
   <form method="post" action="/files"><input name="name" placeholder="New canvas name" style="height:32px;border-radius:8px;border:1px solid var(--line);padding:0 10px;background:var(--card)"> <button class="btn pri">New canvas</button></form></div>
   <table><tr><th>Name</th><th>Your access</th><th>Version</th><th>Access control (owned by the host)</th></tr>${rows}</table>
   <p class="mut">Open a file as one person, then switch the user above in another tab to see live collaboration. The host decides roles and stores every saved version.</p>
-  <p class="mut">Directory: how much this host tells OpenCanvas about people. 0 = launch tokens only (mentions list whoever opened the file), 1 = + everyone with access in the token, 2 = + live search, 3 = + resolve (fresh names, who left). The contacts graph makes it per viewer: Priya and Sam are not contacts, and Ravi and Sam may not see each other. Reopen the file after a change.</p></main>`), { "content-type": "text/html; charset=utf-8", "set-cookie": `as=${me}; Path=/; SameSite=Lax` });
+  <p class="mut">The access table is the canvas's member list: it goes into the launch token and is served at <code>/files/:id/members</code>. Only people with access can be mentioned. Reopen the file after a change.</p></main>`), { "content-type": "text/html; charset=utf-8", "set-cookie": `as=${me}; Path=/; SameSite=Lax` });
 }
 
 function openFile(res, me, id) {
@@ -388,18 +353,18 @@ http.createServer(async (req, res) => {
   try {
     if (url.pathname.startsWith("/api/opencanvas/")) return await callbacks(req, res, url);
     if (url.pathname === "/healthz") return send(res, 200, { ok: true });
-    // e2e: switch a file's directory tier, or rename / deactivate someone in the host.
-    const tdir = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/files\/([\w-]+)\/directory$/);
-    if (tdir && meta.files[tdir[1]]) {
+    // e2e: where a file's member list comes from, or rename someone in the host.
+    const tsrc = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/files\/([\w-]+)\/members$/);
+    if (tsrc && meta.files[tsrc[1]]) {
       const b = JSON.parse((await readBody(req)).toString() || "{}");
-      Object.assign(meta.files[tdir[1]], { tier: Number(b.tier ?? 3), networks: !!b.networks, showEmail: !!b.showEmail }); saveMeta();
-      return send(res, 200, dirOf(meta.files[tdir[1]]));
+      meta.files[tsrc[1]].memberSource = ["both", "token", "callback", "none"].includes(b.source) ? b.source : "both"; saveMeta();
+      await invalidateMembers(tsrc[1]);
+      return send(res, 200, { source: sourceOf(meta.files[tsrc[1]]) });
     }
     const tuser = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/users\/(\w+)$/);
     if (tuser && USERS[tuser[1]]) {
       const b = JSON.parse((await readBody(req)).toString() || "{}");
       if (typeof b.name === "string" && b.name.trim()) USERS[tuser[1]].name = b.name.trim().slice(0, 80);
-      if (typeof b.deactivated === "boolean") USERS[tuser[1]].deactivated = b.deactivated;
       return send(res, 200, USERS[tuser[1]]);
     }
     const bump = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/files\/([\w-]+)\/bump$/);
@@ -436,14 +401,8 @@ http.createServer(async (req, res) => {
       saveMeta();
       // Tell OpenCanvas about live role changes (docs/05 §7): open sessions switch at once.
       await Promise.all(changed.map(([userId, role]) => pushRole(file.id, userId, role)));
-      res.writeHead(303, { location: "/" }); return res.end();
-    }
-    const dir = url.pathname.match(/^\/files\/([\w-]+)\/directory$/);
-    if (req.method === "POST" && dir && meta.files[dir[1]]) {
-      const form = new URLSearchParams((await readBody(req)).toString());
-      const t = Number(form.get("tier"));
-      Object.assign(meta.files[dir[1]], { tier: [0, 1, 2, 3].includes(t) ? t : 3, networks: form.has("networks"), showEmail: form.has("showEmail") });
-      saveMeta();
+      // The member list changed (docs/21 revision 2): drop OpenCanvas's cached copy.
+      if (changed.length) await invalidateMembers(file.id);
       res.writeHead(303, { location: "/" }); return res.end();
     }
     const ml = url.pathname.match(/^\/files\/([\w-]+)\/mentions\.json$/);

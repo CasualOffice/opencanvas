@@ -219,7 +219,7 @@ allowed_origins = ["https://app.acme.example"]</code></pre>
       <li>{{icon:download:18}}<span><b>GET /files/{fileId}</b>Load: return the file and its version</span></li>
       <li>{{icon:save:18}}<span><b>PUT /files/{fileId}</b>Save: store it, answer the new version, or 409</span></li>
       <li>{{icon:file-up:18}}<span><b>POST /files/{fileId}/assets</b>Store an uploaded image or file</span></li>
-      <li>{{icon:users:18}}<span><b>GET /users?q=</b>People who can see the file, for @mentions</span></li>
+      <li>{{icon:users:18}}<span><b>GET /files/:id/members</b>People with access to the file, for @mentions</span></li>
       <li>{{icon:copy:18}}<span><b>POST /files/{fileId}/copies</b>Save a copy when the file changed elsewhere</span></li>
       <li>{{icon:fingerprint:18}}<span><b>X-OpenCanvas-Signature</b>HMAC-SHA256 on every call, so you know it is us</span></li>
     </ul>

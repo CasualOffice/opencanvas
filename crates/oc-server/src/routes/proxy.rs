@@ -69,11 +69,11 @@ pub async fn upload_asset(
     Ok(passthrough(status, ct, bytes))
 }
 
-/// `GET /v1/users?ticket=&q=` (tier 2, docs/21): the host's search, always with the viewer's
-/// own callback token and cached per viewer (never per room). Optional: a host without the
-/// callback (404/405/410/501) answers `[]` and the editor lists tier 0/1 people only.
-/// Results are sanitised user objects; the e-mail only with `perms.showEmail`.
-pub async fn users(
+/// `GET /v1/members?ticket=&q=` (docs/21 revision 2): the people with access to this canvas,
+/// the same for every viewer. Merged by id: the host's members callback (cached 60 s per
+/// room) beats the token's `members` beats the saved `people` map (the last only when the host
+/// said nothing, read from the room). Never an e-mail.
+pub async fn members(
     State(state): State<SharedState>,
     Query(p): Query<ProxyParams>,
 ) -> Result<Response, ApiError> {
@@ -85,79 +85,59 @@ pub async fn users(
             "q is limited to 200 bytes",
         ));
     }
-    if is_wopi(&host, &grant) {
-        return users_wopi(&state, &grant, &p.q).await;
-    }
-    if let Some(v) = state.directory.search_cached(&grant, &p.q) {
-        return Ok(Json(v).into_response());
-    }
-    let (status, ct, bytes) = state
-        .host
-        .users(&host, &grant.callback_token, &grant.file.id, &p.q)
-        .await
-        .map_err(ApiError::host)?;
-    if people::not_implemented(status) {
-        let empty = json!([]);
-        state.directory.search_store(&grant, &p.q, empty.clone());
-        return Ok(Json(empty).into_response());
-    }
-    if !status.is_success() {
-        return Ok(passthrough(status, ct, bytes));
-    }
-    let v = people::search_answer(&bytes, &grant).map_err(ApiError::host)?;
-    state.directory.search_store(&grant, &p.q, v.clone());
-    Ok(Json(v).into_response())
-}
-
-#[derive(Deserialize)]
-pub struct ResolveBody {
-    #[serde(default)]
-    ids: Vec<Value>,
-}
-
-/// `POST /v1/users/resolve?ticket=` `{"ids":[…]}` (tier 3, docs/21): how this viewer sees
-/// each id, from the host's `POST /users/resolve` with the viewer's token (batched, cached
-/// 10 min per room and viewer). `{"resolve": false}` when the host has no such callback or
-/// can't be reached: the editor then falls back to tokens and the document's snapshot.
-pub async fn resolve_users(
-    State(state): State<SharedState>,
-    Query(p): Query<ProxyParams>,
-    body: Bytes,
-) -> Result<Response, ApiError> {
-    let (host, grant) = session(&state, &p.ticket).await?;
-    let req: ResolveBody = serde_json::from_slice(&body).map_err(|_| {
-        ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "BAD_REQUEST",
-            "expected {\"ids\":[…]}",
-        )
-    })?;
-    if req.ids.len() > people::MAX_RESOLVE_IDS {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "TOO_MANY_IDS",
-            format!("at most {} ids per call", people::MAX_RESOLVE_IDS),
-        ));
-    }
-    let ids: Vec<String> = req
-        .ids
-        .iter()
-        .filter_map(|v| v.as_str().map(String::from))
-        .collect();
-    let r = state
-        .directory
-        .resolve(&state.host, &host, &grant, &ids)
+    let callback = state
+        .members
+        .callback(&state.host, &host, &grant, &p.q)
         .await;
+    let saved = if callback.is_none() && grant.members.is_empty() {
+        let mut saved = match state.rooms.state(&host, &grant).await {
+            Ok(bytes) => {
+                let doc = oc_model::new_doc();
+                oc_model::ocanvas::apply_update_bytes(&doc, &bytes)
+                    .map(|()| people::saved_people(&oc_model::doc_to_json(&doc)))
+                    .unwrap_or_default()
+            }
+            Err(_) => vec![],
+        };
+        // Sessions cover people who opened the file since the last save.
+        for u in state
+            .store
+            .room_users(&grant.room)
+            .await
+            .map_err(ApiError::internal)?
+        {
+            if !saved.iter().any(|s| s.id == u.id) {
+                saved.push(u);
+            }
+        }
+        saved
+    } else {
+        vec![]
+    };
+    let merged = people::merge(
+        callback.as_deref(),
+        &grant.members,
+        &grant.user,
+        &saved,
+        &p.q,
+    );
+    let list: Vec<Value> = state
+        .members
+        .without_revoked(&grant.room, merged)
+        .iter()
+        .take(people::MAX_MEMBERS)
+        .map(people::member_json)
+        .collect();
     Ok((
         [(header::CACHE_CONTROL, "no-store")],
-        Json(json!({"resolve": r.available, "users": r.people})),
+        Json(json!({"members": list})),
     )
         .into_response())
 }
 
 // ---------------------------------------------------------------- WOPI mode (docs/05 §6)
 // WOPI has no asset or user API: assets are kept with the room and inlined into the saved
-// `.ocanvas` (`assets/<id>`); the mention directory is the users who opened the file.
+// `.ocanvas` (`assets/<id>`); the member list is the people map and the users who opened the file.
 
 pub(super) fn is_wopi(host: &HostConfig, grant: &Grant) -> bool {
     matches!(
@@ -399,29 +379,6 @@ pub async fn fetch_asset(
         axum::body::Body::from_stream(body),
     )
         .into_response())
-}
-
-async fn users_wopi(state: &SharedState, grant: &Grant, q: &str) -> Result<Response, ApiError> {
-    let q = q.to_lowercase();
-    let users: Vec<_> = state
-        .store
-        .room_users(&grant.room)
-        .await
-        .map_err(ApiError::internal)?
-        .into_iter()
-        .filter(|u| {
-            q.is_empty() || u.name.to_lowercase().contains(&q) || u.id.to_lowercase().contains(&q)
-        })
-        .take(20)
-        .map(|u| {
-            let mut v = json!({"id": u.id, "name": u.name, "avatar": u.avatar});
-            if let Some(d) = u.detail {
-                v["detail"] = json!(d);
-            }
-            v
-        })
-        .collect();
-    Ok(Json(users).into_response())
 }
 
 #[cfg(test)]

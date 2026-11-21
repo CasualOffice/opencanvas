@@ -1,15 +1,12 @@
 //! People in a document (docs/21): which ids it refers to, and rendering them for one viewer.
 //!
-//! The document stores ids plus a snapshot label that the author saw. Exports run under the
-//! exporting viewer's view of people: [`relabel`] rewrites mention labels, database person
-//! cells and the `people` map before a renderer sees them.
+//! The document stores ids plus a snapshot label that the author saw. Exports show the canvas
+//! members' current names (docs/21 revision 2): [`relabel`] rewrites mention labels, database
+//! person cells and the `people` map before a renderer sees them. E-mail is never kept.
 
 use std::collections::{BTreeSet, HashMap};
 
 use serde_json::Value;
-
-/// What an export calls a `hidden` person.
-pub const HIDDEN_NAME: &str = "Someone";
 
 fn walk_mentions(n: &Value, out: &mut BTreeSet<String>) {
     if n["type"] == "mention"
@@ -79,12 +76,12 @@ pub fn referenced_ids(doc: &Value) -> BTreeSet<String> {
     out
 }
 
-fn relabel_node(n: &mut Value, names: &HashMap<String, Option<String>>) {
+fn relabel_node(n: &mut Value, names: &HashMap<String, String>) {
     if n["type"] == "mention"
         && let Some(id) = n["attrs"]["id"].as_str().map(String::from)
         && let Some(name) = names.get(&id)
     {
-        n["attrs"]["label"] = Value::String(name.clone().unwrap_or_else(|| HIDDEN_NAME.into()));
+        n["attrs"]["label"] = Value::String(name.clone());
     }
     if let Some(c) = n.get_mut("content").and_then(Value::as_array_mut) {
         for x in c {
@@ -93,11 +90,22 @@ fn relabel_node(n: &mut Value, names: &HashMap<String, Option<String>>) {
     }
 }
 
-/// Rewrites `doc` for one viewer. `names` maps an id to what that viewer calls them (`None` =
-/// `hidden`, shown as "Someone"); ids not in `names` keep their snapshot label. Person cells
-/// become names (an export reader can't look ids up), hidden people leave the `people` map,
-/// and e-mail addresses are dropped from it unless `keep_email`.
-pub fn relabel(doc: &mut Value, names: &HashMap<String, Option<String>>, keep_email: bool) {
+/// Drops any `email` from the `people` map (older files may carry one; docs/21 revision 2
+/// never shows or keeps it).
+pub fn strip_emails(doc: &mut Value) {
+    if let Some(people) = doc.get_mut("people").and_then(Value::as_object_mut) {
+        for p in people.values_mut() {
+            if let Some(o) = p.as_object_mut() {
+                o.remove("email");
+            }
+        }
+    }
+}
+
+/// Rewrites `doc` with current names: `names` maps a member id to their current name; ids not
+/// in `names` (no longer members) keep their snapshot label. Person cells become names (an
+/// export reader can't look ids up), and e-mail addresses are dropped.
+pub fn relabel(doc: &mut Value, names: &HashMap<String, String>) {
     if let Some(c) = doc.get_mut("content").and_then(Value::as_array_mut) {
         for n in c {
             relabel_node(n, names);
@@ -113,8 +121,7 @@ pub fn relabel(doc: &mut Value, names: &HashMap<String, Option<String>>, keep_em
                             continue;
                         };
                         if let Some(name) = names.get(&id) {
-                            row[f] =
-                                Value::String(name.clone().unwrap_or_else(|| HIDDEN_NAME.into()));
+                            row[f] = Value::String(name.clone());
                         }
                     }
                 }
@@ -122,16 +129,13 @@ pub fn relabel(doc: &mut Value, names: &HashMap<String, Option<String>>, keep_em
         }
     }
     if let Some(people) = doc.get_mut("people").and_then(Value::as_object_mut) {
-        people.retain(|id, _| !matches!(names.get(id), Some(None)));
         for (id, p) in people.iter_mut() {
-            if let Some(Some(name)) = names.get(id) {
+            if let Some(name) = names.get(id) {
                 p["name"] = Value::String(name.clone());
-            }
-            if !keep_email && let Some(o) = p.as_object_mut() {
-                o.remove("email");
             }
         }
     }
+    strip_emails(doc);
 }
 
 #[cfg(test)]
@@ -161,22 +165,20 @@ mod tests {
         assert_eq!(ids, ["u_asha", "u_old", "u_ravi", "u_sam"]);
     }
 
-    /// docs/21: exports run under the exporting viewer's view; a hidden person's real name
-    /// never appears, and no e-mail without `perms.showEmail`.
+    /// docs/21 revision 2: exports show members' current names and never an e-mail.
     #[test]
-    fn relabels_for_the_viewer() {
+    fn relabels_with_current_names() {
         let mut d = doc();
         let names = HashMap::from([
-            ("u_ravi".to_string(), None),
-            ("u_asha".to_string(), Some("Asha R. (Design)".to_string())),
+            ("u_ravi".to_string(), "Ravi M.".to_string()),
+            ("u_asha".to_string(), "Asha Rao-Iyer".to_string()),
         ]);
-        relabel(&mut d, &names, false);
+        relabel(&mut d, &names);
         let s = d.to_string();
-        assert!(!s.contains("Ravi"), "{s}");
         assert!(!s.contains("@acme"), "{s}");
-        assert!(s.contains("Asha R. (Design)"));
-        assert!(s.contains("Old Name"), "unknown ids keep the snapshot");
-        assert_eq!(d["databases"]["d1"]["rows"]["r1"]["f2"], HIDDEN_NAME);
-        assert!(d["people"].get("u_ravi").is_none());
+        assert!(s.contains("Asha Rao-Iyer"));
+        assert!(s.contains("Old Name"), "non-members keep the snapshot");
+        assert_eq!(d["databases"]["d1"]["rows"]["r1"]["f2"], "Ravi M.");
+        assert_eq!(d["people"]["u_ravi"]["name"], "Ravi M.");
     }
 }

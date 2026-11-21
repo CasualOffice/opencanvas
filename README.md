@@ -13,7 +13,7 @@ permissions and the file. OpenCanvas handles the editing.
 
 ```
 Your app  ── signs launch token (who, which file, which role) ──▶ OpenCanvas iframe
-          ◀── load / save / assets / users / copies callbacks ──  OpenCanvas server
+          ◀── load / save / assets / members / copies callbacks ──  OpenCanvas server
 ```
 
 - **You own** authentication, users, ACL, files, versions and retention.

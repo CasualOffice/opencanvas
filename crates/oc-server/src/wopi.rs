@@ -209,7 +209,6 @@ impl FileInfo {
             download: !self.disable_export,
             comment: self.role() != Role::View,
             print: !(self.disable_export || self.disable_print),
-            show_email: false,
         }
     }
 
@@ -239,7 +238,6 @@ impl FileInfo {
                 color: derive_color(&self.user_id),
                 avatar: self.avatar.clone(),
                 detail: self.detail.clone(),
-                email: None,
             },
             file: FileRef {
                 id: src.as_str().to_string(),
@@ -248,7 +246,7 @@ impl FileInfo {
             },
             perms: self.perms(),
             callback_token: access_token.to_string(),
-            participants: vec![],
+            members: vec![],
         }
     }
 }

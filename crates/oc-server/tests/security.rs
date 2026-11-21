@@ -287,8 +287,11 @@ async fn sec08_host_errors_do_not_reveal_callback_urls() {
     let state = app("http://127.0.0.1:9/internal-secret-path", room_cfg()).await;
     let t = ticket_for(&state, &grant("u_1", Role::Edit)).await;
     let addr = serve_state(state).await;
+    let body = "--XyZ\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\nContent-Type: text/plain\r\n\r\nhi\r\n--XyZ--\r\n";
     let res = http()
-        .get(format!("http://{addr}/v1/users?ticket={t}&q=a"))
+        .post(format!("http://{addr}/v1/assets?ticket={t}"))
+        .header("content-type", "multipart/form-data; boundary=XyZ")
+        .body(body)
         .send()
         .await
         .unwrap();

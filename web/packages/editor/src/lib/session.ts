@@ -10,14 +10,10 @@ export interface Session {
   ticket: string;
   room: string;
   role: Role;
-  user: { id: string; name: string; color: string; avatar: string | null; detail?: string; email?: string };
-  /** Tier 1 (docs/21): people this viewer may mention, from their own token. */
-  participants?: { id: string; name: string; color?: string; avatar?: string | null; detail?: string; email?: string }[];
-  /** docs/21: host directory settings. `callbacks` = the host has user callbacks (JWT). */
-  directory?: { coviewers?: "all" | "contacts" | "none"; callbacks?: boolean };
+  user: { id: string; name: string; color: string; avatar: string | null; detail?: string };
   file: { id: string; name: string };
   host: { id: string; name: string };
-  perms: { export?: boolean; download?: boolean; comment?: boolean; commitMessage?: boolean; mention?: boolean; showEmail?: boolean };
+  perms: { export?: boolean; download?: boolean; comment?: boolean; commitMessage?: boolean; mention?: boolean };
   isNew: boolean;
   wsUrl: string;
   /** Local-only review mode (`#demo`). No server, no host. */
@@ -56,6 +52,8 @@ export async function fetchSession(ticket: string): Promise<Session> {
 
 export type Control =
   | { t: "saving" }
+  /** docs/21 revision 2: the canvas's member list changed (someone's access was revoked). */
+  | { t: "members" }
   | { t: "saved"; at: number; version?: string }
   | { t: "save_error"; retryInMs?: number; message?: string }
   /** docs/15 §3: `copy` → a copy was saved to the host (`fileId`, `url`) and the room is read-only;

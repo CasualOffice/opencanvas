@@ -5,7 +5,6 @@
 export type Role = "view" | "comment" | "edit";
 export type Tone = "gray" | "blue" | "green" | "amber" | "red" | "purple" | "pink";
 
-import type { Relation } from "./people";
 export * from "./people";
 
 /** A person as this viewer sees them (docs/21 "The user object"). */
@@ -17,29 +16,21 @@ export interface OcUser {
   avatar?: string;
   /** Host-chosen second line (team, title, handle) that tells same-named people apart. */
   detail?: string;
-  /** Only present when the viewer's token sets `perms.showEmail`. */
-  email?: string;
-  /** How the host says they relate to this viewer (tier 3 `resolve`). */
-  relation?: Relation;
-  /** They left: shown struck through as "former member". */
+  /** No longer a member of this canvas: shown with "No longer has access". */
   deactivated?: boolean;
-  /** Search results: false = they can't open this canvas (the picker warns). */
-  access?: boolean;
-  /** Tier 0: when they last opened this file (ms since the epoch). */
+  /** When they last opened this file (ms since the epoch). */
   lastSeen?: number;
-  /** The viewer's resolve answer for them is still on its way: show a placeholder. */
-  pending?: boolean;
 }
 
 /** What every embedded block view (database, board) receives from the editor. */
 export interface BlockEnv {
   role: Role;
   me: OcUser;
-  /** People who can be assigned/mentioned (host-resolved). */
+  /** The canvas's members: who can be assigned/mentioned (docs/21 revision 2). */
   users: OcUser[];
   /**
-   * Optional: how this viewer sees any person id (resolve > token > the document's snapshot,
-   * docs/21), for ids that aren't in `users` (former members, hidden people).
+   * Optional: any person id as shown (the member's current name, else the document's snapshot
+   * with "No longer has access"), for ids that aren't in `users`.
    */
   person?: (id: string) => OcUser | null;
   /** True below 720px wide (side panel, phone). */

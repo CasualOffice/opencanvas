@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 
 const LONG_PRESS_MS = 450;
-import { nameWithDetail, relationNote, type Role } from "@opencanvas/ui";
+import { nameWithDetail, type Role } from "@opencanvas/ui";
 import { peopleRef } from "../lib/people";
 import { Ic } from "../icons";
 import type { Peer } from "../lib/presence";
@@ -58,10 +58,6 @@ export function TopBar(props: {
   const people = peopleRef.current;
   const dupes = people?.dupes() ?? new Set<string>();
   const shown = (p: Peer) => nameWithDetail(p, dupes);
-  const note = (p: Peer) => {
-    const n = relationNote(p);
-    return n ? ` · ${n}` : "";
-  };
 
   return (
     <div className="top">
@@ -85,7 +81,7 @@ export function TopBar(props: {
             key={p.id}
             className={"av" + (props.following === p.id ? " following" : "")}
             style={{ background: p.color, color: readableOn(p.color) }}
-            title={p.me ? `${shown(p)} (you)` : p.role === "view" ? `${shown(p)}${note(p)} · viewing` : props.following === p.id ? `Following ${shown(p)} · click to stop` : `${shown(p)}${note(p)} · click or hold to follow`}
+            title={p.me ? `${shown(p)} (you)` : p.role === "view" ? `${shown(p)} · viewing` : props.following === p.id ? `Following ${shown(p)} · click to stop` : `${shown(p)} · click or hold to follow`}
             aria-label={peerLabel({ ...p, name: shown(p) }, props.following === p.id)}
             aria-pressed={p.me ? undefined : props.following === p.id}
             onClick={() => {
@@ -109,9 +105,7 @@ export function TopBar(props: {
             onPointerCancel={() => pressed.current && (window.clearTimeout(pressed.current.id), (pressed.current = null))}
             onContextMenu={(e) => !p.me && e.preventDefault()}
           >
-            {p.relation === "hidden" ? (
-              <Ic name="user-round" size={14} />
-            ) : p.avatar ? (
+            {p.avatar ? (
               <img src={p.avatar} alt="" />
             ) : (
               <span aria-hidden="true">{people?.initialsOf(p.id, p.name) ?? initials(p.name)}</span>
