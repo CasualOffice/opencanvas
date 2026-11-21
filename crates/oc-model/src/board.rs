@@ -20,6 +20,24 @@ mod p {
     pub const APP: &str = "#ffffff";
     pub const ACCENT: &str = "#2a5ad7";
     pub const STICKY_FG: &str = "#29251a";
+    pub const PANEL: &str = "#fbfbfa";
+    /// `--line-2` (rgba(24,24,32,.15)) as a colour + opacity.
+    pub const LINE2: &str = "#181820";
+    pub const LINE2_OPACITY: &str = "0.15";
+
+    /// rect / ellipse / diamond fills: `(--<tone>-bg, --<tone>-fg)`; the outline follows the tone.
+    pub fn tone(fill: &str) -> Option<(&'static str, &'static str)> {
+        Some(match fill {
+            "gray" => ("#efefed", "#55555c"),
+            "blue" => ("#e6eefd", "#2350c8"),
+            "green" => ("#e2f3e8", "#17703f"),
+            "amber" => ("#fcf0d9", "#8f5300"),
+            "red" => ("#fde6e6", "#b12424"),
+            "purple" => ("#efe8fd", "#6538c4"),
+            "pink" => ("#fce6f0", "#ad2c66"),
+            _ => return None,
+        })
+    }
 
     pub fn sticky(fill: &str) -> &'static str {
         match fill {
@@ -96,7 +114,7 @@ struct Shape {
     text: String,
     label: String,
     dashed: bool,
-    size: f64,
+    size: Option<f64>,
     pts: Vec<Pt>,
     stroke: String,
     /// `start` / `end` set at all (truthy in the web model), even if not a valid binding.
@@ -160,7 +178,7 @@ fn shape(id: &str, v: &Value) -> Shape {
         text: string(&v["text"]),
         label: string(&v["label"]),
         dashed: truthy(&v["dashed"]),
-        size: num(&v["size"]),
+        size: v["size"].as_f64().filter(|f| f.is_finite()),
         pts,
         stroke: string(&v["stroke"]),
         has_start: truthy(&v["start"]),
@@ -221,7 +239,7 @@ fn bbox(s: &Shape) -> [f64; 4] {
         return [a, b, c, d];
     }
     if s.kind == "text" {
-        let size = if s.size != 0.0 { s.size } else { 18.0 };
+        let size = s.size.filter(|v| *v != 0.0).unwrap_or(18.0);
         let lines: Vec<&str> = s.text.split('\n').collect();
         let longest = lines
             .iter()
@@ -488,7 +506,118 @@ fn with_resolved_arrows(shapes: &[Shape]) -> Vec<Shape> {
         .collect()
 }
 
+// ---------------------------------------------------------------- ops.ts (wrapping)
+
+/// JavaScript `\s` / `String.prototype.trim` whitespace (all in the BMP).
+fn js_space(u: u16) -> bool {
+    matches!(
+        u,
+        0x09..=0x0D
+            | 0x20
+            | 0xA0
+            | 0x1680
+            | 0x2000..=0x200A
+            | 0x2028
+            | 0x2029
+            | 0x202F
+            | 0x205F
+            | 0x3000
+            | 0xFEFF
+    )
+}
+
+fn trim_start16(s: &[u16]) -> &[u16] {
+    let i = s.iter().position(|u| !js_space(*u)).unwrap_or(s.len());
+    &s[i..]
+}
+
+fn trim_end16(s: &[u16]) -> &[u16] {
+    let i = s.iter().rposition(|u| !js_space(*u)).map_or(0, |i| i + 1);
+    &s[..i]
+}
+
+/// JavaScript `String.prototype.trim`.
+fn js_trim(s: &str) -> String {
+    let u: Vec<u16> = s.encode_utf16().collect();
+    String::from_utf16_lossy(trim_end16(trim_start16(&u)))
+}
+
+/// Length in UTF-16 code units (JavaScript `length`).
+fn len16(s: &str) -> usize {
+    s.encode_utf16().count()
+}
+
+/// Port of `ops.wrapText`: greedy word wrap to `max` px, every UTF-16 unit `size * 0.56` wide,
+/// long words broken, explicit line breaks kept. Works on UTF-16 like the web code; a surrogate
+/// pair split by a long-word break becomes U+FFFD on both sides.
+fn wrap_text(text: &str, max: f64, size: f64) -> Vec<String> {
+    let q = (max / (size * 0.56)).floor();
+    // `Math.max(1, NaN)` is NaN in JavaScript.
+    let per = if q.is_nan() { q } else { q.max(1.0) };
+    let fits = |len: usize| len as f64 <= per;
+    let mut out = Vec::new();
+    for para in text.split('\n') {
+        let u: Vec<u16> = para.encode_utf16().collect();
+        if fits(u.len()) {
+            out.push(para.to_string());
+            continue;
+        }
+        // `para.split(/(\s+)/)` without the empty strings: alternating runs.
+        let mut words: Vec<&[u16]> = Vec::new();
+        let mut i = 0;
+        while i < u.len() {
+            let sp = js_space(u[i]);
+            let mut j = i + 1;
+            while j < u.len() && js_space(u[j]) == sp {
+                j += 1;
+            }
+            words.push(&u[i..j]);
+            i = j;
+        }
+        let mut line: Vec<u16> = Vec::new();
+        for word in words {
+            if fits(line.len() + word.len()) {
+                line.extend_from_slice(word);
+                continue;
+            }
+            if !trim_start16(&line).is_empty() {
+                out.push(String::from_utf16_lossy(trim_end16(&line)));
+            }
+            line = trim_start16(word).to_vec();
+            while line.len() as f64 > per {
+                let k = per as usize;
+                out.push(String::from_utf16_lossy(&line[..k]));
+                line.drain(..k);
+            }
+        }
+        out.push(String::from_utf16_lossy(&line));
+    }
+    out
+}
+
+/// Sticky geometry (`ops.STICKY_TEXT`): 14 px text, 20 px lines, first baseline 30 px down,
+/// 14 px side padding, 22 px below the last line.
+mod sticky_text {
+    pub const SIZE: f64 = 14.0;
+    pub const LH: f64 = 20.0;
+    pub const TOP: f64 = 30.0;
+    pub const PAD: f64 = 14.0;
+    pub const BOTTOM: f64 = 22.0;
+}
+
+/// `ops.stickyHeight`: height a sticky of width `w` needs for `text` (never less than `min`).
+fn sticky_height(text: &str, w: f64, min: f64) -> f64 {
+    use sticky_text::*;
+    let lines = wrap_text(text, w - PAD * 2.0, SIZE).len() as f64;
+    min.max((TOP + (lines - 1.0) * LH + BOTTOM).ceil())
+}
+
 // ---------------------------------------------------------------- export.ts
+
+/// Connector labels: 12.5 px text wrapped to 180 px, 16 px lines, in a pill.
+const LABEL_SIZE: f64 = 12.5;
+const LABEL_WRAP: f64 = 180.0;
+const LABEL_LH: f64 = 16.0;
 
 fn esc(t: &str) -> String {
     let mut out = String::with_capacity(t.len());
@@ -520,19 +649,15 @@ struct TextOpts<'a> {
     fill: &'a str,
 }
 
-fn lines(text: &str, x: f64, y: f64, lh: f64, o: TextOpts) -> String {
-    text.split('\n')
+fn lines(ls: &[String], x: f64, y: f64, lh: f64, o: TextOpts) -> String {
+    ls.iter()
         .enumerate()
         .map(|(i, l)| {
             format!(
                 "<text x=\"{}\" y=\"{}\" font-size=\"{}\"{}{} fill=\"{}\">{}</text>",
                 n(x),
                 n(y + i as f64 * lh),
-                if o.size == 0.0 {
-                    "0".into()
-                } else {
-                    format!("{}", o.size)
-                },
+                n(o.size),
                 o.weight
                     .map(|w| format!(" font-weight=\"{w}\""))
                     .unwrap_or_default(),
@@ -548,8 +673,76 @@ fn lines(text: &str, x: f64, y: f64, lh: f64, o: TextOpts) -> String {
         .collect()
 }
 
-fn centered(s: &Shape, lh: f64) -> f64 {
-    s.y + s.h / 2.0 + 5.0 - ((s.text.split('\n').count() as f64 - 1.0) * lh) / 2.0
+/// Text of a rect / ellipse / diamond, wrapped and centred as on screen.
+fn box_text(s: &Shape, cx: f64, size: f64, lh: f64, wrap: f64, weight: Option<u32>) -> String {
+    let ls = wrap_text(&s.text, wrap, size);
+    let y = s.y + s.h / 2.0 + size * 0.36 - ((ls.len() as f64 - 1.0) * lh) / 2.0;
+    lines(
+        &ls,
+        cx,
+        y,
+        lh,
+        TextOpts {
+            anchor: true,
+            size,
+            weight,
+            fill: p::FG,
+        },
+    )
+}
+
+/// Point halfway along a polyline (as `midPoint` in export.ts).
+fn mid_point(pts: &[Pt]) -> Pt {
+    let seg: Vec<f64> = pts
+        .windows(2)
+        .map(|w| {
+            let (dx, dy) = (w[1][0] - w[0][0], w[1][1] - w[0][1]);
+            (dx * dx + dy * dy).sqrt()
+        })
+        .collect();
+    let mut half = seg.iter().fold(0.0, |a, b| a + b) / 2.0;
+    for (i, &len) in seg.iter().enumerate() {
+        if half <= len || i == seg.len() - 1 {
+            let t = if len != 0.0 {
+                (half / len).min(1.0)
+            } else {
+                0.0
+            };
+            return [
+                pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t,
+                pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t,
+            ];
+        }
+        half -= len;
+    }
+    pts[0]
+}
+
+struct Label {
+    lines: Vec<String>,
+    mx: f64,
+    rect: [f64; 4],
+}
+
+/// A connector's label: wrapped lines, midpoint and pill box, or `None` without a label.
+fn label_box(s: &Shape) -> Option<Label> {
+    if s.kind != "arrow" || s.pts.len() < 2 {
+        return None;
+    }
+    let label = js_trim(&s.text);
+    if label.is_empty() {
+        return None;
+    }
+    let [mx, my] = mid_point(&s.pts);
+    let ls = wrap_text(&label, LABEL_WRAP, LABEL_SIZE);
+    let longest = ls.iter().map(|l| len16(l)).max().unwrap_or(0);
+    let lw = longest as f64 * LABEL_SIZE * 0.56 + 14.0;
+    let bh = ls.len() as f64 * LABEL_LH + 6.0;
+    Some(Label {
+        lines: ls,
+        mx,
+        rect: [mx - lw / 2.0, my - bh / 2.0, mx + lw / 2.0, my + bh / 2.0],
+    })
 }
 
 /// `src` values an exported `<image href>` may carry: web URLs, host-relative paths and
@@ -582,27 +775,38 @@ fn shape_svg(
     } else {
         p::FG2
     };
-    let txt = |fill| TextOpts {
-        anchor: false,
-        size: 14.0,
-        weight: None,
-        fill,
-    };
+    let tone = s.fill.as_deref().and_then(p::tone);
+    let (bg, line) = tone.unwrap_or((p::APP, stroke));
     match s.kind.as_str() {
-        "sticky" => format!(
-            "<g><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" fill=\"#000\" opacity=\"0.07\"/><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" fill=\"{}\"/>{}</g>",
-            n(x + 1.0),
-            n(y + 4.0),
-            n(w),
-            n(h),
-            n(x),
-            n(y),
-            n(w),
-            n(h),
-            p::sticky(s.fill.as_deref().unwrap_or("y")),
-            lines(text, x + 14.0, y + 30.0, 20.0, txt(p::STICKY_FG))
-        ),
+        "sticky" => {
+            use sticky_text::*;
+            format!(
+                "<g><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" fill=\"#000\" opacity=\"0.07\"/><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" fill=\"{}\"/>{}</g>",
+                n(x + 1.0),
+                n(y + 4.0),
+                n(w),
+                n(h),
+                n(x),
+                n(y),
+                n(w),
+                n(h),
+                p::sticky(s.fill.as_deref().unwrap_or("y")),
+                lines(
+                    &wrap_text(text, w - PAD * 2.0, SIZE),
+                    x + PAD,
+                    y + TOP,
+                    LH,
+                    TextOpts {
+                        anchor: false,
+                        size: SIZE,
+                        weight: None,
+                        fill: p::STICKY_FG,
+                    }
+                )
+            )
+        }
         "rect" => {
+            let size = s.size.unwrap_or(14.0);
             let label = if s.label.is_empty() {
                 String::new()
             } else {
@@ -617,15 +821,13 @@ fn shape_svg(
             let body = if text.is_empty() {
                 String::new()
             } else {
-                lines(
-                    text,
+                box_text(
+                    s,
                     x + w / 2.0,
-                    centered(s, 18.0),
-                    18.0,
-                    TextOpts {
-                        anchor: true,
-                        ..txt(p::FG)
-                    },
+                    size,
+                    js_round(size * 1.3),
+                    (w - 16.0).max(20.0),
+                    None,
                 )
             };
             format!(
@@ -634,8 +836,8 @@ fn shape_svg(
                 n(y),
                 n(w),
                 n(h),
-                if s.dashed { "none" } else { p::APP },
-                if s.dashed { p::FG3 } else { stroke },
+                if s.dashed { "none" } else { bg },
+                if s.dashed { p::FG3 } else { line },
                 if s.dashed {
                     " stroke-dasharray=\"6 5\""
                 } else {
@@ -643,34 +845,33 @@ fn shape_svg(
                 },
             )
         }
-        "ellipse" => format!(
-            "<g><ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>{}</g>",
-            n(x + w / 2.0),
-            n(y + h / 2.0),
-            n(w / 2.0),
-            n(h / 2.0),
-            p::APP,
-            if text.is_empty() {
-                String::new()
-            } else {
-                lines(
-                    text,
-                    x + w / 2.0,
-                    centered(s, 19.0),
-                    19.0,
-                    TextOpts {
-                        anchor: true,
-                        size: 15.0,
-                        weight: Some(600),
-                        fill: p::FG,
-                    },
-                )
-            }
-        ),
+        "ellipse" => {
+            let size = s.size.unwrap_or(15.0);
+            format!(
+                "<g><ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{bg}\" stroke=\"{line}\" stroke-width=\"1.5\"/>{}</g>",
+                n(x + w / 2.0),
+                n(y + h / 2.0),
+                n(w / 2.0),
+                n(h / 2.0),
+                if text.is_empty() {
+                    String::new()
+                } else {
+                    box_text(
+                        s,
+                        x + w / 2.0,
+                        size,
+                        js_round(size * 1.27),
+                        (w * 0.72).max(20.0),
+                        Some(600),
+                    )
+                }
+            )
+        }
         "diamond" => {
             let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+            let size = s.size.unwrap_or(14.0);
             format!(
-                "<g><path d=\"M{} {} L{} {} L{} {} L{} {} Z\" fill=\"{}\" stroke=\"{stroke}\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/>{}</g>",
+                "<g><path d=\"M{} {} L{} {} L{} {} L{} {} Z\" fill=\"{bg}\" stroke=\"{line}\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/>{}</g>",
                 n(cx),
                 n(y),
                 n(x + w),
@@ -679,20 +880,10 @@ fn shape_svg(
                 n(y + h),
                 n(x),
                 n(cy),
-                p::APP,
                 if text.is_empty() {
                     String::new()
                 } else {
-                    lines(
-                        text,
-                        cx,
-                        centered(s, 18.0),
-                        18.0,
-                        TextOpts {
-                            anchor: true,
-                            ..txt(p::FG)
-                        },
-                    )
+                    box_text(s, cx, size, js_round(size * 1.3), (w * 0.6).max(20.0), None)
                 }
             )
         }
@@ -705,9 +896,10 @@ fn shape_svg(
             p::swatch(s.fill.as_deref().unwrap_or("accent"))
         ),
         "text" => {
-            let size = if s.size != 0.0 { s.size } else { 18.0 };
+            let size = s.size.filter(|v| *v != 0.0).unwrap_or(18.0);
+            let ls: Vec<String> = text.split('\n').map(String::from).collect();
             lines(
-                text,
+                &ls,
                 x,
                 y,
                 size * 1.3,
@@ -752,7 +944,7 @@ fn shape_svg(
             if s.pts.len() < 2 {
                 return String::new();
             }
-            format!(
+            let path = format!(
                 "<path d=\"M{}\" stroke=\"{}\" stroke-width=\"1.6\" fill=\"none\" stroke-linejoin=\"round\" stroke-linecap=\"round\" marker-end=\"url(#{}ah)\"/>",
                 s.pts
                     .iter()
@@ -761,6 +953,35 @@ fn shape_svg(
                     .join(" L"),
                 p::FG2,
                 ids.prefix
+            );
+            let Some(lb) = label_box(s) else {
+                return path;
+            };
+            let [bx0, by0, bx1, by1] = lb.rect;
+            let texts: String = lb
+                .lines
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    format!(
+                        "<text x=\"{}\" y=\"{}\" font-size=\"{}\" font-weight=\"500\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                        n(lb.mx),
+                        n(by0 + 3.0 + LABEL_LH * (i as f64 + 1.0) - 4.0),
+                        n(LABEL_SIZE),
+                        p::FG2,
+                        esc(l)
+                    )
+                })
+                .collect();
+            format!(
+                "<g>{path}<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" fill=\"{}\" stroke=\"{}\" stroke-opacity=\"{}\"/>{texts}</g>",
+                n(bx0),
+                n(by0),
+                n(bx1 - bx0),
+                n(by1 - by0),
+                p::PANEL,
+                p::LINE2,
+                p::LINE2_OPACITY
             )
         }
         "pen" => {
@@ -806,12 +1027,39 @@ fn id_prefix(board_id: &str) -> String {
     format!("ocbd-{safe}-")
 }
 
-/// Picture size in board units: `[x0, y0, x1, y1]` (content bounds + padding, or 320×200).
+/// Shapes as drawn: stickies grown to fit their text (as the editor does on commit), then
+/// connectors resolved against them.
+fn prepared(shapes: Vec<Shape>) -> Vec<Shape> {
+    let grown: Vec<Shape> = shapes
+        .into_iter()
+        .map(|mut s| {
+            if s.kind == "sticky" {
+                let need = sticky_height(&s.text, s.w, s.h);
+                if need > s.h {
+                    s.h = need;
+                }
+            }
+            s
+        })
+        .collect();
+    with_resolved_arrows(&grown)
+}
+
+/// Picture size in board units: `[x0, y0, x1, y1]` (content bounds incl. connector labels +
+/// padding, or 320×200).
 fn export_bounds(resolved: &[Shape]) -> [f64; 4] {
-    match content_bounds(resolved) {
-        Some(b) => [b[0] - PAD, b[1] - PAD, b[2] + PAD, b[3] + PAD],
-        None => [0.0, 0.0, 320.0, 200.0],
+    let Some(mut b) = content_bounds(resolved) else {
+        return [0.0, 0.0, 320.0, 200.0];
+    };
+    for lb in resolved.iter().filter_map(label_box) {
+        b = [
+            b[0].min(lb.rect[0]),
+            b[1].min(lb.rect[1]),
+            b[2].max(lb.rect[2]),
+            b[3].max(lb.rect[3]),
+        ];
     }
+    [b[0] - PAD, b[1] - PAD, b[2] + PAD, b[3] + PAD]
 }
 
 /// Renders a board as a standalone SVG document, fitted to its content, in the light palette.
@@ -846,7 +1094,7 @@ fn render_svg(
     images: &HashMap<String, Vec<u8>>,
     inline_only: bool,
 ) -> String {
-    let list = with_resolved_arrows(&read_shapes(doc, board_id));
+    let list = prepared(read_shapes(doc, board_id));
     let [x0, y0, x1, y1] = export_bounds(&list);
     let (w, h) = ((x1 - x0).ceil().max(1.0), (y1 - y0).ceil().max(1.0));
     let mut ids = Ids {

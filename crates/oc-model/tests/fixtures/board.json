@@ -1,5 +1,5 @@
 {
-  "order": ["frame", "st1", "st2", "el", "dm", "a_straight", "a_elbow", "a_side", "a_free", "pen", "img", "txt", "sw", "missing"],
+  "order": ["frame", "st1", "st2", "el", "dm", "a_straight", "a_elbow", "a_side", "a_free", "pen", "img", "txt", "sw", "under", "over", "st_long", "r_blue", "r_gray", "r_red", "r_purple", "r_pink", "r_badtone", "r_framefill", "el_green", "dm_amber", "big_text", "a_label", "a_free_label", "a_blank_label", "missing"],
   "shapes": {
     "frame": {"type": "rect", "x": 0, "y": 0, "w": 420, "h": 260, "label": "Host app & co", "dashed": true},
     "st1": {"type": "sticky", "x": 26, "y": 44, "w": 150, "h": 110, "fill": "b", "text": "Signs launch\ntoken <JWT>"},
@@ -15,6 +15,22 @@
     "txt": {"type": "text", "x": 40, "y": 520, "text": "Every edit merges live.", "size": 14},
     "sw": {"type": "swatch", "x": 500, "y": 460, "w": 80, "h": 60, "fill": "green"},
     "zz_unordered": {"type": "rect", "x": 900, "y": 300, "w": 100, "h": 50, "text": "Late"},
-    "aa_unordered": {"type": "text", "x": 900, "y": 420, "text": "Ünïcode ✓"}
+    "aa_unordered": {"type": "text", "x": 900, "y": 420, "text": "Ünïcode ✓"},
+    "st_long": {"type": "sticky", "x": 0, "y": 620, "w": 150, "h": 110, "fill": "g", "group": "g1", "text": "Wrap this fairly long sticky note text so it grows past its height\nand keeps an explicit break plus averyveryverylongunbrokenword✅🚀🚀 end"},
+    "r_blue": {"type": "rect", "x": 200, "y": 620, "w": 160, "h": 90, "fill": "blue", "size": 16, "group": "g1", "text": "A blue rectangle with wrapped text"},
+    "r_gray": {"type": "rect", "x": 380, "y": 620, "w": 100, "h": 50, "fill": "gray", "text": "Gray"},
+    "r_red": {"type": "rect", "x": 380, "y": 690, "w": 100, "h": 50, "fill": "red", "size": 20, "text": "Red"},
+    "r_purple": {"type": "rect", "x": 500, "y": 620, "w": 100, "h": 50, "fill": "purple", "size": 13, "text": "Purple"},
+    "r_pink": {"type": "rect", "x": 500, "y": 690, "w": 100, "h": 50, "fill": "pink", "stroke": "accent", "text": "Pink"},
+    "r_badtone": {"type": "rect", "x": 620, "y": 620, "w": 100, "h": 50, "fill": "zz", "stroke": "accent", "text": "No tone"},
+    "r_framefill": {"type": "rect", "x": 620, "y": 690, "w": 100, "h": 50, "fill": "amber", "dashed": true, "label": "Frame"},
+    "el_green": {"type": "ellipse", "x": 740, "y": 620, "w": 160, "h": 90, "fill": "green", "size": 13, "text": "A green ellipse that wraps"},
+    "dm_amber": {"type": "diamond", "x": 920, "y": 600, "w": 140, "h": 120, "fill": "amber", "size": 20, "text": "Amber decision"},
+    "big_text": {"type": "text", "x": 200, "y": 800, "text": "Big & <bold>", "size": 32},
+    "a_label": {"type": "arrow", "pts": [[0, 0], [1, 1]], "route": "elbow", "text": "  yes <ok> & \"go\"\u0007  ", "start": {"shapeId": "r_blue", "anchor": "right"}, "end": {"shapeId": "el_green", "anchor": "bottom"}},
+    "a_free_label": {"type": "arrow", "pts": [[700, 800], [760, 830], [900, 830]], "text": "a much longer connector label that wraps onto two lines"},
+    "a_blank_label": {"type": "arrow", "pts": [[1000, 760], [1000, 820]], "text": "   "},
+    "under": {"type": "rect", "x": 440, "y": 840, "w": 100, "h": 60, "fill": "blue", "text": "Below"},
+    "over": {"type": "sticky", "x": 480, "y": 860, "w": 120, "h": 80, "fill": "p", "text": "On top"}
   }
 }

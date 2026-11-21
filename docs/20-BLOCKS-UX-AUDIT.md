@@ -78,7 +78,7 @@ Severity: **Critical** blocks a task or a user group; **High** a core workflow m
 | B15 | Zoom limited to 25–300 %, so large boards could not be fitted. Now 10–400 %; Shift+1 fit, Shift+2 zoom to selection, Shift+0 / Ctrl+0 100 % around the centre. | Low | Fixed |
 | B16 | Dragging on empty canvas panned, leaving no way to box-select. Now box-select; pan with Space+drag, the hand tool, the middle button, or one finger on touch; two fingers pinch and pan. | Low | Fixed |
 | B17 | Escape with a creation tool active did nothing; it now returns to Select. | Low | Fixed |
-| B18 | PNG/SVG export (web `export.ts`, and the Rust port EXP-02) does not draw the new fills, connector labels, text wrapping or shape text sizes. Both renderers must change together (shared fixture). | Medium | Open |
+| B18 | PNG/SVG export (web `export.ts`, and the Rust port EXP-02) did not draw the new fills, connector labels, text wrapping or shape text sizes. Now both draw tone fills/outlines, text sizes, wrapped text, auto-grown stickies and connector label pills, byte-identical on the shared fixture (EXP-03). | Medium | Fixed |
 | B19 | No minimap (the zoom indicator and fit are there). | Low | Open |
 | B20 | Connectors route straight or elbow only; no manual waypoints. | Medium | Open |
 | B21 | No rotation; no stroke colour or width separate from the fill. | Low | Open |
@@ -87,8 +87,7 @@ Severity: **Critical** blocks a task or a user group; **High** a core workflow m
 
 ## Contract notes (follow-up outside this session's files)
 
-The changes are additive and old clients ignore them, but AGENTS.md rule 1 wants them recorded in
-docs/15 §4 and the ADR register:
+Done: recorded in docs/15 §4 and ADR-024. The changes are additive and old clients ignore them:
 
 - Board shapes: `group` (string), arrow `text` (label), `fill` on rect/ellipse/diamond (a tone name),
   `size` on rect/ellipse/diamond (text size).

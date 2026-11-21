@@ -144,6 +144,48 @@ keep it when a node is edited; a split keeps it on the first half only and pasti
 clears it. Without that, y-prosemirror drops the attribute the first time a user edits the block.
 (Added 2026-11-21 by the server API build; the web part is still to do.)
 
+**Board shape keys** (`boards/<id>/shapes/<shapeId>` Y.Map; all optional except `type`; source of
+truth `web/packages/board/src/model.ts`). `type`: `sticky rect ellipse diamond text arrow pen swatch
+image`. Geometry `x y w h` (numbers; `text` anchors at its first baseline), `pts` `[[x,y],…]` for
+`arrow`/`pen`. Paint order is `order` (back to front; z-order buttons rewrite it), then any shape
+missing from `order` by id.
+
+| key | on | meaning |
+|---|---|---|
+| `fill` | sticky | `y p b g` (default `y`) |
+| `fill` | swatch | `accent amber green pink purple red blue` |
+| `fill` | rect, ellipse, diamond | *(UX pass)* tone `gray blue green amber red purple pink`: fill `--<tone>-bg`, outline `--<tone>-fg`; unset or unknown = plain (`--app` fill) |
+| `stroke` | pen, rect, ellipse, diamond | `"accent"` draws the outline/stroke in the accent colour (a tone `fill` wins for the outline) |
+| `text` | sticky, rect, ellipse, diamond, text | the shape's text; `\n` breaks lines |
+| `text` | arrow | *(UX pass)* connector label, trimmed, drawn in a pill at the path's midpoint |
+| `size` | text | font size (default 18; UI offers 14 18 24 32) |
+| `size` | rect, ellipse, diamond | *(UX pass)* text size (default 14, ellipse 15; UI offers 13 14 16 20), line height `round(size×1.3)` (ellipse `×1.27`) |
+| `label` | rect | small uppercase corner label (frames) |
+| `dashed` | rect | dashed frame, never filled |
+| `group` | any | *(UX pass)* shapes with the same group id select and move together; no visual |
+| `start`, `end` | arrow | `{shapeId, anchor}`, anchor `top right bottom left center` |
+| `route` | arrow | `"elbow"` orthogonal route, `"straight"`/unset a line |
+| `src`, `alt` | image | URL or `data:` URL; alt text |
+
+Text wrapping *(UX pass)*: sticky, rect, ellipse and diamond text wraps greedily at whitespace to
+`w − 28` (sticky, 14 px), `max(20, w − 16)` (rect), `max(20, w × 0.72)` (ellipse), `max(20, w × 0.6)`
+(diamond); connector labels to 180 px at 12.5 px. Every UTF-16 unit counts `size × 0.56` px; longer
+words are cut. A sticky's stored `h` grows on commit to `ceil(30 + (lines − 1) × 20 + 22)` and never
+shrinks; exports apply the same rule. The web and Rust exporters implement this identically (shared
+fixture `crates/oc-model/tests/fixtures/board.{json,web.svg}`).
+
+Board awareness *(UX pass)*: `board` `{x, y, sel}`; `sel` lists the peer's selected shape ids, and
+`board` may carry only `sel` while the pointer is outside the board.
+
+**Database view prefs** (`databases/<id>/views` Y.Map, JSON per view name `table board calendar
+gallery`; source `web/packages/database/src/types.ts` `ViewPrefs`): `q` search; `cal` calendar month
+`YYYY-MM`; `filter` `{f, vals[]}` / `sort` `{f, dir: 1|-1}` (single rule, kept for older clients).
+*(UX pass)*: `sorts` `[{f, dir}]` applied in order, wins over `sort` (writers keep `sort` = first);
+`filters` `[{f, vals}]` ANDed, wins over `filter` (writers keep `filter` = first); `widths`
+`{fieldId: px}` table column widths; `group` field id the board view groups by (status/select);
+`date` field id the calendar places rows on; `cover` gallery cover: `"none"`, `"color"` (default) or
+a URL field id.
+
 Field types for databases: `title text status select tags person date number checkbox url progress`.
 Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.
 
