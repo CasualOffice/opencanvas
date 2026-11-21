@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod notify;
 pub mod pdf;
 pub mod people;
+pub mod redis_wal;
 pub mod room;
 pub mod routes;
 pub mod store;
@@ -54,7 +55,14 @@ pub type SharedState = Arc<AppState>;
 
 impl AppState {
     pub async fn new(cfg: Config, hosts: Hosts) -> anyhow::Result<SharedState> {
-        let store = Store::connect(&cfg.database_url, cfg.kek.clone()).await?;
+        let mut store = Store::connect(&cfg.database_url, cfg.kek.clone()).await?;
+        if let Some(url) = &cfg.wal_redis_url {
+            store = store.with_redis_wal(url).await?;
+            tracing::info!(
+                "hot WAL in Redis; the database gets a snapshot every {:?}",
+                cfg.rooms.compact_interval
+            );
+        }
         let metrics = Arc::new(Metrics::default());
         let host = HostClient::new().with_store(store.clone());
         let members = Arc::new(people::Members::default());

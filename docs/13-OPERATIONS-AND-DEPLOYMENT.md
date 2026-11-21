@@ -102,6 +102,24 @@ host (`:4580`). `scripts/chaos-cluster.sh` brings it up, types from two clients,
 the room owner, checks reconnect ≤ 5 s, convergence and that the host's file has every
 acknowledged edit, then removes everything.
 
+### Hot WAL in Redis (ADR-028)
+```
+OC_WAL_REDIS_URL=redis://redis:6379   # default: REDIS_URL; also allowed with SQLite (single node)
+OC_DB_SYNC_MS=5000                    # DB snapshot per room at most this often (and on close/drain)
+OC_DB_SYNC_UPDATES=500                # … or after this many updates
+OC_WAL_GROUP_COMMIT=1                 # SQLite without Redis: one writer task, many rooms per commit
+```
+With a WAL Redis, every edit is appended to the stream `oc:wal:{room}` before anyone sees it,
+and **acknowledged means in Redis**. Redis persistence therefore decides what a Redis crash can
+lose: `appendonly yes` + `appendfsync always` loses nothing acknowledged (recommended);
+`appendfsync everysec` can lose about the last second (acceptable only with a replica you fail
+over to); `appendonly no` loses everything since the room's last DB sync (≤ `OC_DB_SYNC_MS`).
+The server logs a warning at start-up when `appendonly` is `no` or `appendfsync` is not
+`always` (or when `CONFIG GET` is refused). Redis memory per room is the updates since the last
+sync (a busy room: a few thousand entries, well under 1 MB). Fencing: the append script refuses
+a writer whose epoch is older than `oc:epoch:{room}` (raised at every room claim), and that room
+closes with 1012.
+
 ## Health & metrics
 - `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining.
 - `/metrics` (Prometheus): `oc_rooms_live`, `oc_connections{role}`,
@@ -111,9 +129,11 @@ acknowledged edit, then removes everything.
 - **Implemented today**: `oc_rooms_active`, `oc_connections_active`, `oc_launches_total`,
   `oc_launches_rejected_total`, `oc_updates_total`, `oc_updates_rejected_total`, `oc_saves_total`,
   `oc_save_errors_total`, `oc_save_conflicts_total`, and **`oc_wal_append_seconds`**: a
-  histogram (buckets 1 ms … 5 s, plus `_sum` and `_count`) of the time to append one update to
-  the room WAL, deadlock retries included, success or failure. Every accepted edit waits for
-  this before it is fanned out, so its p95 is the floor of edit latency; alert when
+  histogram (buckets 1 ms … 5 s, plus `_sum` and `_count`) of the time to append one room's
+  batch of updates to the WAL, deadlock retries included, success or failure, and
+  `oc_wal_batches_total` / `oc_wal_rows_total` (their ratio is the mean batch size). Every
+  accepted edit waits for its batch before it is fanned out, so its p95 is the floor of edit
+  latency; alert when
   `histogram_quantile(0.95, rate(oc_wal_append_seconds_bucket[5m]))` stays above 50 ms (a slow
   or contended database; docs/22 §8 weaknesses 2 and 6). The other names above are planned.
 - Logs: JSON, request id, room id, host id; never content.

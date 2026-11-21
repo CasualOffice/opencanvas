@@ -5,7 +5,7 @@ mod common;
 
 use common::*;
 use oc_server::grant::Role;
-use oc_server::store::{OutboxRow, Store, is_fenced};
+use oc_server::store::{OutboxRow, Store, WalRow, is_fenced};
 use yrs::{Doc, ReadTxn, Transact, XmlElementPrelim, XmlFragment, XmlTextPrelim};
 
 fn para(doc: &Doc, text: &str) {
@@ -157,11 +157,17 @@ async fn failed_wal_append_is_not_fanned_out() {
         .execute(&raw)
         .await
         .unwrap();
+    // A burst: these updates share one WAL batch, so none of them may go out.
     a.edit(|d| para(d, "not in the WAL"));
+    a.edit(|d| para(d, "nor this one"));
+    a.edit(|d| para(d, "nor the third"));
     a.settle().await;
     b.settle().await;
+    let seen = json_of(&b.doc).to_string();
     assert!(
-        !json_of(&b.doc).to_string().contains("not in the WAL"),
+        !seen.contains("not in the WAL")
+            && !seen.contains("nor this one")
+            && !seen.contains("nor the third"),
         "an update whose WAL append failed was fanned out"
     );
     assert_eq!(a.closed, Some(1012), "sender must resync");
@@ -211,4 +217,183 @@ async fn wal_append_latency_is_a_histogram() {
         .and_then(|v| v.trim().parse().ok())
         .unwrap();
     assert!(count >= 1, "{text}");
+}
+
+fn rows(seqs: impl IntoIterator<Item = i64>, tag: &str) -> Vec<WalRow> {
+    seqs.into_iter()
+        .map(|seq| WalRow {
+            seq,
+            data: format!("{tag}-{seq}").into_bytes(),
+            origin: "u_a".into(),
+            at: 1_000 + seq,
+        })
+        .collect()
+}
+
+fn new_room() -> String {
+    format!("r_{}", &ulid::Ulid::new().to_string()[..12]).to_lowercase()
+}
+
+fn seqs(wal: &oc_server::store::Wal) -> Vec<i64> {
+    wal.updates.iter().map(|(s, _)| *s).collect()
+}
+
+fn metric(state: &oc_server::SharedState, name: &str) -> i64 {
+    state
+        .metrics
+        .render()
+        .lines()
+        .find_map(|l| l.strip_prefix(&format!("{name} ")))
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(-1)
+}
+
+/// A batch lands whole or not at all: one bad row (a `seq` already taken) leaves none of the
+/// batch's rows behind, and a room sharing the SQLite group commit is not affected.
+#[tokio::test]
+async fn wal_batch_is_all_or_nothing() {
+    for (db, s) in stores().await {
+        let (bad, good) = (new_room(), new_room());
+        let eb = s.claim_epoch(&bad, 1_000).await.unwrap();
+        let eg = s.claim_epoch(&good, 1_000).await.unwrap();
+        s.append_updates(&bad, eb, rows(1..=3, "ok")).await.unwrap();
+
+        // Seq 3 again in the middle of the batch, written concurrently with another room's
+        // batch so that both can share one group transaction.
+        let (r_bad, r_good) = tokio::join!(
+            s.append_updates(&bad, eb, rows([4, 5, 3, 6], "dup")),
+            s.append_updates(&good, eg, rows(1..=4, "good")),
+        );
+        let err = r_bad.expect_err("a batch with a duplicate seq was accepted");
+        assert!(!is_fenced(&err), "{db}: {err:#}");
+        r_good.unwrap_or_else(|e| panic!("{db}: the other room's batch failed: {e:#}"));
+
+        let wal = s.load_wal(&bad).await.unwrap();
+        assert_eq!(
+            seqs(&wal),
+            vec![1, 2, 3],
+            "{db}: part of a failed batch was kept"
+        );
+        assert!(
+            wal.updates.iter().all(|(_, u)| u.starts_with(b"ok")),
+            "{db}"
+        );
+        assert_eq!(
+            seqs(&s.load_wal(&good).await.unwrap()),
+            vec![1, 2, 3, 4],
+            "{db}"
+        );
+    }
+}
+
+/// Fencing holds per batch: a batch written with a stale epoch is refused whole (nothing of it
+/// lands), while the new owner's batch, and another room's in the same group, go through.
+#[tokio::test]
+async fn stale_epoch_refuses_the_whole_batch() {
+    for (db, s) in stores().await {
+        let (room, other) = (new_room(), new_room());
+        let e1 = s.claim_epoch(&room, 1_000).await.unwrap();
+        let eo = s.claim_epoch(&other, 1_000).await.unwrap();
+        s.append_updates(&room, e1, rows(1..=2, "e1"))
+            .await
+            .unwrap();
+        let e2 = s.claim_epoch(&room, 2_000).await.unwrap();
+
+        let (stale, fine) = tokio::join!(
+            s.append_updates(&room, e1, rows(3..=10, "stale")),
+            s.append_updates(&other, eo, rows(1..=8, "other")),
+        );
+        let err = stale.expect_err("a stale batch was accepted");
+        assert!(is_fenced(&err), "{db}: {err:#}");
+        fine.unwrap_or_else(|e| panic!("{db}: {e:#}"));
+        let wal = s.load_wal(&room).await.unwrap();
+        assert_eq!(
+            seqs(&wal),
+            vec![1, 2],
+            "{db}: a fenced batch left rows behind"
+        );
+
+        s.append_updates(&room, e2, rows(3..=5, "e2"))
+            .await
+            .unwrap();
+        assert_eq!(
+            seqs(&s.load_wal(&room).await.unwrap()),
+            vec![1, 2, 3, 4, 5],
+            "{db}"
+        );
+        assert_eq!(
+            seqs(&s.load_wal(&other).await.unwrap()),
+            (1..=8).collect::<Vec<_>>(),
+            "{db}"
+        );
+    }
+}
+
+/// A burst of updates is written in batches (fewer WAL writes than updates), every update
+/// keeps its own `seq` in order, the peer gets all of them, and replaying the WAL rebuilds
+/// exactly the server's document.
+#[tokio::test]
+async fn batched_wal_replays_in_order() {
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let room = grant("u_a", Role::Edit).room;
+    let mut a = Peer::join(&state, grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    let batches_before = metric(&state, "oc_wal_batches_total");
+    let rows_before = metric(&state, "oc_wal_rows_total");
+
+    // 300 edits sent back to back, each depending on the one before (one text, appended to).
+    a.edit(|d| para(d, ""));
+    let text = {
+        let content = a.doc.get_or_insert_xml_fragment("content");
+        let txn = a.doc.transact();
+        let p = content.get(&txn, content.len(&txn) - 1).unwrap();
+        let p = p.into_xml_element().unwrap();
+        p.get(&txn, 0).unwrap().into_xml_text().unwrap()
+    };
+    for i in 0..300 {
+        a.edit(|d| {
+            let mut txn = d.transact_mut();
+            let len = yrs::Text::len(&text, &txn);
+            yrs::Text::insert(&text, &mut txn, len, &format!("{} ", i % 10));
+        });
+    }
+    a.settle().await;
+    b.settle().await;
+    assert_eq!(
+        json_of(&b.doc),
+        json_of(&a.doc),
+        "a peer missed or reordered updates"
+    );
+
+    let batches = metric(&state, "oc_wal_batches_total") - batches_before;
+    let written = metric(&state, "oc_wal_rows_total") - rows_before;
+    assert!(written >= 301, "rows written: {written}");
+    assert!(
+        batches > 0 && batches < written,
+        "no batching: {batches} batches for {written} rows"
+    );
+
+    let wal = state.store.load_wal(&room).await.unwrap();
+    let s = seqs(&wal);
+    assert!(
+        s.windows(2).all(|w| w[1] == w[0] + 1),
+        "seqs not contiguous: {s:?}"
+    );
+    let replayed = oc_model::new_doc();
+    if let Some((_, snap)) = &wal.snapshot {
+        oc_model::ocanvas::apply_update_bytes(&replayed, snap).unwrap();
+    }
+    for (_, u) in &wal.updates {
+        oc_model::ocanvas::apply_update_bytes(&replayed, u).unwrap();
+    }
+    let server = server_json(&state).await;
+    assert_eq!(
+        oc_model::doc_to_json(&replayed),
+        server,
+        "WAL replay differs"
+    );
+    assert_eq!(json_of(&a.doc), server);
 }

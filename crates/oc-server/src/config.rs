@@ -19,6 +19,9 @@ pub struct Config {
     pub kek: Option<Kek>,
     /// `OC_METRICS_TOKEN`: when set, `/metrics` needs `Authorization: Bearer <token>`.
     pub metrics_token: Option<String>,
+    /// `OC_WAL_REDIS_URL` (default: `REDIS_URL`): the hot WAL lives in Redis and the database
+    /// gets a snapshot every `OC_DB_SYNC_MS` (5 s) or `OC_DB_SYNC_UPDATES` (500) updates (ADR-021).
+    pub wal_redis_url: Option<String>,
     pub rooms: RoomConfig,
 }
 
@@ -90,6 +93,7 @@ impl Config {
         if kek.is_none() {
             tracing::warn!("OC_DEV=1 and no OC_KEK: callback tokens are stored unencrypted");
         }
+        let wal_redis = var("OC_WAL_REDIS_URL").or_else(|| var("REDIS_URL"));
         Ok(Self {
             bind: var("OC_BIND").unwrap_or_else(|| "0.0.0.0:8080".into()),
             public_url: var("OC_PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string()),
@@ -107,7 +111,18 @@ impl Config {
                 .transpose()?,
             kek,
             metrics_token: var("OC_METRICS_TOKEN"),
+            wal_redis_url: wal_redis.clone(),
             rooms: RoomConfig {
+                compact_interval: if wal_redis.is_some() {
+                    Duration::from_millis(num("OC_DB_SYNC_MS", 5_000).max(100))
+                } else {
+                    d.compact_interval
+                },
+                compact_every: if wal_redis.is_some() {
+                    num("OC_DB_SYNC_UPDATES", 500).max(1)
+                } else {
+                    d.compact_every
+                },
                 autosave_debounce: Duration::from_millis(num("OC_AUTOSAVE_DEBOUNCE_MS", 2000)),
                 autosave_max: Duration::from_millis(num("OC_AUTOSAVE_MAX_MS", 10_000)),
                 room_ttl: Duration::from_secs(num("OC_ROOM_TTL_SECS", 600)),

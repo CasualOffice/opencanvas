@@ -362,7 +362,11 @@ A 409 stops autosave and applies the host's `[host.flags] on_conflict` (default 
 the room is read-only and closes as soon as the last client leaves. `reload` → `GET` the
 host's file, replace the room's state with it, send `conflict` + `closed`, close every socket.
 
-Every accepted update is appended to `room_updates` before fan-out; every 500 updates or 30 s the
+Every accepted update is appended to `room_updates` before fan-out. A room writes the updates
+that queued while its previous append ran as one batch (one row and `seq` per update, one
+epoch-guarded statement, all or nothing), then fans them out in order; on SQLite one writer task
+commits the batches of many rooms in one transaction (group commit, docs/22 §9.3). Every 500
+updates or 30 s the
 WAL is compacted into `room_snapshots`. A room that was dirty when the process died is rebuilt
 from snapshot + WAL on the next join instead of reloading from the host. A clean room with no
 clients for `OC_ROOM_TTL_SECS` (600) closes and its rows are purged.

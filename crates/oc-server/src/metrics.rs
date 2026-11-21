@@ -53,8 +53,13 @@ pub struct Metrics {
     pub saves_total: AtomicI64,
     pub save_errors_total: AtomicI64,
     pub save_conflicts_total: AtomicI64,
-    /// Time of one WAL append (including retries after a deadlock), success or not.
+    /// Time of one WAL append of a room's batch (including retries after a deadlock), success
+    /// or not.
     pub wal_append_seconds: Histogram,
+    /// WAL batches written (one transaction per room batch; rooms may share it on SQLite).
+    pub wal_batches_total: AtomicI64,
+    /// Updates written in those batches (`/ wal_batches_total` = mean batch size).
+    pub wal_rows_total: AtomicI64,
     /// Awareness frames encoded and fanned out (one per batch, shared by every peer).
     pub awareness_broadcasts_total: AtomicI64,
     /// Awareness frames parked because a room's inbox was full (latest per connection kept).
@@ -71,7 +76,9 @@ impl Metrics {
     }
 
     pub fn render(&self) -> String {
-        let rows: [(&str, &str, &AtomicI64); 11] = [
+        let rows: [(&str, &str, &AtomicI64); 13] = [
+            ("oc_wal_batches_total", "counter", &self.wal_batches_total),
+            ("oc_wal_rows_total", "counter", &self.wal_rows_total),
             ("oc_rooms_active", "gauge", &self.rooms_active),
             ("oc_connections_active", "gauge", &self.connections_active),
             ("oc_launches_total", "counter", &self.launches_total),
@@ -115,7 +122,7 @@ impl Metrics {
             .collect();
         out.push_str(&self.wal_append_seconds.render(
             "oc_wal_append_seconds",
-            "Time to append one update to the room WAL.",
+            "Time to append one batch of updates to the room WAL.",
         ));
         out
     }

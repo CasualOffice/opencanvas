@@ -240,6 +240,11 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
    1,000 rooms × 5 with everyone typing (13,300 updates/s offered), 90 % of SQLite time was in
    `sqliteDefaultBusyCallback` sleeping on the writer lock (8 pooled connections). Throughput
    fell to about 2,000/s after 6 minutes, p95 reached 521 s, autosave lag p95 255 s.
+   **Throughput FIXED, latency still FAIL (2026-11-22, §9.3).** Per-room WAL batches, a 40 ms
+   outbound tick with one merged frame, SQLite group commit, and an optional hot WAL in Redis.
+   S1 (550 typing) now applies all ≈ 2,750 updates/s at p95 ≤ 81 ms; S2 applies all ≈ 25,000
+   updates/s with 0 drops; p95 is 215–410 ms with the Redis WAL and MariaDB as the sync DB (PASS
+   at 700 ms), but 1.2–1.6 s on SQLite alone and 0.19–1.33 s with Redis + SQLite (FAIL).
 3. **A frozen node writes after it lost its rooms: two writers per room (K2).** After a 20 s
    `SIGSTOP` (longer than the 15 s lease), the resumed node appended WAL rows for 20 rooms that
    another node had claimed, until its 5 s renewal noticed. There is no fencing token. Both nodes
@@ -307,6 +312,9 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
 | S1 | 1 room × 550, 100 % editors, no pauses, 12 min, SQLite | p95 ≤ 150 ms every bucket; RSS flat; host save ≤ 30 s; 0 errors | **FAIL**: p95 156 s → 638 s; RSS 299 → 929 MB; 2 saves in 12 min; 0 errors |
 | S1 rerun | same, 5 min, presence fan-out + bounded inbox + batched writes (§9.1.1) | same | **FAIL**: p95 39 s → 220 s; RSS 161 → 452 MB; 3 saves in 5 min; 0 errors, 0 disconnects |
 | S2 | 1,000 rooms × 5, 100 % editors, no pauses, 10 min, SQLite | same | **FAIL**: p95 57 s → 521 s; autosave lag p95 255 s; 0 errors, 0 drops |
+| S1 (§9.3) | 550 typing, 5 min, batched WAL + 40 ms tick; SQLite WAL / Redis WAL | p95 ≤ 700 ms every bucket; RSS flat; save ≤ 30 s | **PASS latency and saves** (p95 ≤ 67 / ≤ 81 ms; saves every 10 s); RSS grows with the document (not met) |
+| S2 (§9.3) | 1,000 × 5 typing, 5 min, same | same | Redis WAL + MariaDB: **PASS** (p95 215–410 ms; saves ≤ 11.5 s; RSS grows with the docs). SQLite: **FAIL** (p95 1.2–1.6 s; Redis + SQLite 0.19–1.33 s). All ≈ 25,000 upd/s applied, 0 drops |
+| R (§9.3) | `kill -9` with the Redis WAL (SQLite; Redis `kill -9` + restart first; MariaDB) | 0 acked lost | **PASS**: 0 / 38,305; 0 / 38,213; 0 / 38,302 |
 | R | `kill -9` during typing, 200 rooms × 2, SQLite | 0 acked lost; converge; server = clients; first save after restart complete | **PASS**: 0 / 38,756 lost; ready in 28 ms; 200 rooms replayed in 234 ms |
 | mR | same on MariaDB | same | **PASS** (0 / 35,196 lost; replay 2.2 s); 38 deadlock errors logged |
 | K | 3 nodes under load: `kill -9` owner, rolling restart | 0 acked lost; converge; no two writers | **PASS**: 0 / 93,374 lost, resync max 20.5 s |
@@ -444,6 +452,99 @@ Criteria as S1. Result: **FAIL** (latency, autosave lag); PASS on errors, discon
 growth. Compare PERF-01 B: the same 5,000 connections at 20 % editors with pauses offered about
 3,000 updates/s and stayed at p95 9.3 ms, so the single-node SQLite ceiling sits between 3,000
 and 5,900 updates/s on this machine.
+
+### 9.3 Batched WAL, outbound tick, hot WAL in Redis (PERF-04, 2026-11-22)
+
+Branch `perf-wal-group-commit` (ADR-028; design in docs/03 §5.2.1):
+
+1. **Per-room batches.** Updates are applied as they arrive and queued; the queue is appended
+   as one batch (a row and `seq` per update; one epoch-guarded statement, or one Lua script on
+   Redis; all or nothing) and only then fanned out. Anything that reads the doc's state writes
+   the queue first.
+2. **Outbound tick (40 ms).** A room writes its batch and sends **one** merged update frame
+   (`merge_updates_v1`, only when every update in the batch integrated in order) plus one
+   presence frame, shared by every peer, at most every 40 ms.
+3. **SQLite group commit** (no Redis): one writer task commits every room's queued batch in one
+   transaction.
+4. **Hot WAL in Redis** (`OC_WAL_REDIS_URL`, default `REDIS_URL`; allowed with SQLite): one
+   stream per room, fenced Lua append; DB snapshot every 5 s / 500 updates and on close; trim
+   after the snapshot commits. Redis 8.6 local, `appendonly yes`, `appendfsync always`.
+
+Same machine and scenarios as §9.1.1 and §9.2, 5 one-minute buckets each (55 s measured + 5 s
+gap). **Criterion (owner, 2026-11-22): p95 ≤ 700 ms in every bucket (aim 400 ms), RSS flat, a
+host save ≤ 30 s.** "before" is main at `cf43468`, rerun today.
+
+#### S1: one room of 550, everyone typing (≈ 2,750 updates/s offered)
+
+| variant | p95 ms per bucket (1 → 5) | upd/s applied | RSS MB (1 → 5) | srv CPU % | frames/s out | host saves / max lag |
+|---|---|---|---|---|---|---|
+| before (`cf43468`) | 28,964 · 46,542 · 41,051 · 15,937 · 227 ¹ | 1,428 → 1,569 | 174 → 323 | 378 → 279 | 788 k → 533 k | 27 / 11.8 s |
+| batched WAL only (`4f9c1ea`) | 6.9 · 10.5 · 21.2 · 40.7 · 70.2 | 2,744–2,763 (all) | 121 → 406 → 315 | 388 → 320 | 1.69 M → 1.57 M | 29 / 10.3 s |
+| + outbound tick, SQLite WAL | 53.7 · 46.0 · 50.6 · 66.4 · 67.1 | 2,747–2,765 (all) | 165 → 457 | 73 → 62 | ≈ 24 k | 29 / 10.3 s |
+| + tick, **Redis WAL**, SQLite sync | 60.0 · 73.4 · 80.0 · 81.1 · 75.2 | 2,748–2,762 (all) | 170 → 358 → 288 | 69 → 64 | ≈ 25 k | 29 / 10.3 s |
+| + tick, Redis WAL, **MariaDB 10.11** sync (Docker) | 72.6 · 77.1 · 77.2 · 72.7 · 99.8 | 2,747–2,766 (all) | 198 → 569 | 75 → 65 | ≈ 22–25 k | 30 / 10.3 s |
+
+¹ In the "before" run 236 of the 550 clients were dropped in bucket 2 (`Connection reset by
+peer`; nothing in the server log at info), so the last buckets carry 314 clients, not 550.
+
+- **Every variant with batching keeps up**: all offered updates are applied and p95 stays
+  under 100 ms (criterion 700 ms). The tick cuts server CPU from about 3.9 cores to 0.7 and
+  outbound frames 65× (one merged frame per 40 ms per peer instead of one per update). Bytes
+  out stay ≈ 540 MB/s: most of that is the presence frame (550 cursors per tick to 550 peers).
+- **RSS is not flat** (≈ +60 MB/min). It follows the document, which grows from 0.5 MB to
+  5.2 MB encoded in 5 minutes of 550 people typing without a pause (the Y.Doc in memory is a
+  multiple of that); latency stays flat and there is no queue (inbox and WAL batches drain every
+  tick), so this is document growth, not backlog. The "RSS flat" criterion cannot hold for a
+  document that grows 10× under test; it is reported as **not met**.
+- **Host saves**: one every ≈ 10 s (autosave max), lag ≤ 10.3 s in every variant: PASS.
+
+#### S2: 1,000 rooms × 5, everyone typing (≈ 25,000 updates/s offered ²)
+
+| variant | p95 ms per bucket (1 → 5) | upd/s applied | RSS MB | drops | host saves / lag p95 / max |
+|---|---|---|---|---|---|
+| before (`cf43468`) | 47,919 · 90,997 · stopped (fewer than half the clients left) | 6,828 → 7,625 | 1,518 → 1,554 | 3,530 | 3,053 / 84.7 s / 101 s |
+| tick + SQLite group commit | 1,354 · 1,367 · 1,241 · 1,388 · 1,604 | 24,829–25,795 (all) | 1,141 → 1,411 | 0 | 28,558 / 11.8 s / 18.5 s |
+| tick + **Redis WAL**, SQLite sync | 189 · 604 · 583 · 1,330 · 880 | 25,143–25,376 (all) | 1,026 → 1,524 | 0 | 29,398 / 11.3 s / 13.7 s |
+| tick + Redis WAL, **MariaDB 10.11** sync (Docker) | **215 · 331 · 398 · 410 · 403** | 25,244–25,320 (all) | 769 → 1,205 | 0 | 29,958 / 10.5 s / 11.5 s |
+
+² The load generator now sends from its own task (§9.1.1), so S2 offers ≈ 25,000 updates/s, not
+the 13,285 of §9.2.
+
+- **Throughput is fixed**: every variant applies everything offered (≈ 25,000 updates/s, 4× the
+  old ceiling) with 0 drops, where main collapsed and lost 70 % of its clients.
+- **Latency.** Redis WAL + MariaDB sync: **PASS** (p95 215–410 ms, at the 400 ms aim). On
+  SQLite it **FAILS** 700 ms: group commit alone sits at p95 1.2–1.6 s, Redis WAL + SQLite sync at
+  0.19–1.33 s (2 of 5 buckets over). With MariaDB as the sync DB there were no slow Redis appends
+  at all, so in the SQLite run the Redis fsyncs and SQLite's own writes (snapshot syncs, outbox,
+  checkpoints) competed for the same disk and the same single SQLite writer.
+- **Where the time goes (Redis WAL, bucket 3; macOS `sample`, 4 s, and Redis `INFO`):** Redis
+  ran 39,000 ops/s at **8 % CPU**: its main thread waits on `fsync` (`appendfsync always`). A plain
+  `SET` took 14.7 ms p50 / 35.7 ms p95 during the run, and 15,240 room appends took > 500 ms
+  (`slow Redis WAL append`); `oc_wal_append_seconds` averaged 67 ms per batch. On the server,
+  the 8 SQLite workers spent 6,213 of 8,504 `sqlite3_step` samples in the busy handler: every
+  room's 5 s snapshot sync (≈ 200/s), autosave outbox writes (≈ 100 saves/s) and `mark_room`
+  still contend for SQLite's single writer lock, and a room's actor waits for its sync.
+- **Next limits**, in order: (1) the fsync of an `appendfsync always` Redis on this laptop
+  (APFS, 95 % full disk); (2) room actors waiting on their own DB snapshot sync and autosave
+  writes on SQLite; (3) the per-room append is awaited before the next tick's batch, so one slow
+  fsync delays the room by a whole tick. Pipelining the next batch behind the in-flight append
+  (same connection, so order holds) and moving the snapshot sync off the actor are the next steps.
+
+#### Correctness
+
+- Tests, each seen failing first (by a mutation that brings the bug back, or on main):
+  `durability.rs` `wal_batch_is_all_or_nothing`, `stale_epoch_refuses_the_whole_batch`,
+  `batched_wal_replays_in_order`, `failed_wal_append_is_not_fanned_out` (now a burst sharing one
+  batch); `redis_wal.rs` `stale_epoch_xadd_is_refused`, `failed_redis_append_is_not_fanned_out`,
+  `snapshot_plus_stream_replay_gives_the_same_document`, `trim_happens_only_after_a_successful_sync`
+  (run with `OC_TEST_REDIS_URL`). `fuzz.rs` failed (seed 43, a client missing structs) when
+  batches with out-of-order updates were merged; merging is now limited to in-order batches and
+  2,000 fuzz iterations pass.
+- **Crash recovery with the Redis WAL** (§10's harness, SQLite sync): `kill -9` of the server at
+  25 s, Redis alive: **0 of 38,305** acknowledged edits lost, 200 rooms recovered from snapshot +
+  stream in 591 ms, PASS. Redis `kill -9` and restart (same AOF) at +12 s, then the server
+  `kill -9` at 25 s: **0 of 38,213** lost, 20 rooms closed with 1012 during the Redis outage and
+  resynced, PASS. MariaDB 10.11 sync (`mR`): **0 of 38,302** lost, 200 rooms recovered in 928 ms, first save after restart p50 573 ms, 27 transient-retry lines and 0 errors after restart, PASS.
 
 ## 10. Crash recovery (`scripts/bench.sh R` / `mR`)
 
