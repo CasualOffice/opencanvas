@@ -108,6 +108,14 @@ acknowledged edit, then removes everything.
   `oc_updates_total`, `oc_update_apply_seconds`, `oc_fanout_bytes_total`,
   `oc_commit_total{result}`, `oc_commit_seconds`, `oc_host_callback_seconds{op,status}`,
   `oc_wal_bytes`, `oc_room_doc_bytes` (histogram), `oc_relay_frames_total`.
+- **Implemented today**: `oc_rooms_active`, `oc_connections_active`, `oc_launches_total`,
+  `oc_launches_rejected_total`, `oc_updates_total`, `oc_updates_rejected_total`, `oc_saves_total`,
+  `oc_save_errors_total`, `oc_save_conflicts_total`, and **`oc_wal_append_seconds`**: a
+  histogram (buckets 1 ms … 5 s, plus `_sum` and `_count`) of the time to append one update to
+  the room WAL, deadlock retries included, success or failure. Every accepted edit waits for
+  this before it is fanned out, so its p95 is the floor of edit latency; alert when
+  `histogram_quantile(0.95, rate(oc_wal_append_seconds_bucket[5m]))` stays above 50 ms (a slow
+  or contended database; docs/22 §8 weaknesses 2 and 6). The other names above are planned.
 - Logs: JSON, request id, room id, host id; never content.
 - Traces: OTLP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` set.
 
@@ -115,7 +123,8 @@ acknowledged edit, then removes everything.
 SIGTERM → refuse new rooms → commit all dirty rooms (≤ 20 s each, in parallel) →
 `{"t":"reconnect"}` + close 1012 to every client (local and relayed) → release leases → exit.
 Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a stop grace
-period of ≥ 30 s. (Not yet: `/readyz` does not turn 503 while draining.)
+period of ≥ 30 s. While draining, `/readyz` answers 503 and new WebSocket upgrades get HTTP 503
+with `Retry-After: 5` (refused before the upgrade), so clients and load balancers move on.
 
 ## Sizing
 Measured on an Apple M4 laptop (10 cores, 16 GB); method, raw tables and caveats in

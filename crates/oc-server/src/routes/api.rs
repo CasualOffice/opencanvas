@@ -218,6 +218,11 @@ fn patch_error(e: PatchFailure) -> ApiError {
             "the patched document would exceed the size limit",
         ),
         PatchFailure::Conflict => conflict(),
+        PatchFailure::Unavailable => ApiError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "ROOM_UNAVAILABLE",
+            "the change could not be stored; retry",
+        ),
     }
 }
 

@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket};
 use axum::extract::{Path, Query, State, WebSocketUpgrade};
-use axum::response::Response;
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
 use serde_json::json;
@@ -95,6 +96,16 @@ pub async fn upgrade(
     Query(p): Query<WsParams>,
     ws: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
+    // Draining (SIGTERM): refuse before the upgrade, so the client tries another node instead
+    // of looping on an accepted socket that closes at once (docs/22 §8 weakness 7).
+    if state.rooms.draining() {
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            [(header::RETRY_AFTER, "5")],
+            axum::Json(json!({"error": {"code": "DRAINING", "message": "server is draining"}})),
+        )
+            .into_response());
+    }
     let (host, grant) = session(&state, &p.ticket).await?;
     if grant.room != room {
         return Err(ApiError::forbidden("ticket is for another room"));

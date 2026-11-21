@@ -399,6 +399,42 @@ async fn readyz_reports_unavailable_while_draining() {
     assert_eq!(body["draining"], true);
 }
 
+/// docs/22 §8 weakness 7: a draining node refuses the WebSocket upgrade itself (HTTP 503 with
+/// `Retry-After`) instead of accepting it and closing it, so clients go to another node.
+#[tokio::test]
+async fn draining_node_refuses_websocket_upgrades_with_503() {
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let addr = serve_state(state.clone()).await;
+    let res = launch(&addr, &token("edit")).await;
+    let loc = res.headers()["location"].to_str().unwrap().to_string();
+    let ticket = loc.strip_prefix("/app/#t=").unwrap().to_string();
+    let s: Value = http()
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let room = s["room"].as_str().unwrap().to_string();
+
+    state.rooms.shutdown_all().await;
+    let err =
+        tokio_tungstenite::connect_async(format!("ws://{addr}/v1/collab/{room}?ticket={ticket}"))
+            .await
+            .expect_err("a draining node must not accept the upgrade");
+    let tokio_tungstenite::tungstenite::Error::Http(res) = err else {
+        panic!("expected an HTTP refusal, got {err:?}");
+    };
+    assert_eq!(res.status(), 503);
+    assert!(
+        res.headers().get("retry-after").is_some(),
+        "{:?}",
+        res.headers()
+    );
+}
+
 /// UX-02: a launch may name a block to open at (`block` form field or query); it travels in
 /// the app fragment next to the ticket. Anything that is not a plain id is dropped.
 #[tokio::test]

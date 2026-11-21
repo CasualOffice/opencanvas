@@ -245,15 +245,39 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
    another node had claimed, until its 5 s renewal noticed. There is no fencing token. Both nodes
    then failed WAL appends with `Duplicate entry` on `(room_id, seq)` (986 + 1,539 errors over
    31 s).
+   **FIXED 2026-11-22 (branch `fix-fencing-wal-drain`).** Fencing epochs: each room actor takes
+   the room's next epoch from the database (`room_epochs`, migration 0006) before it reads the
+   WAL; appends are one guarded `INSERT … SELECT … WHERE epoch = ?`, snapshots, outbox rows and
+   the closing purge hold the epoch row first. A stale writer's first write changes nothing and
+   its room closes with 1012 (docs/03 §5.2). Evidence: `tests/durability.rs`
+   `epoch_1_writes_are_refused_once_epoch_2_owns_the_room` (run on SQLite and on MariaDB 10.11)
+   and `stale_owner_stops_at_its_first_write_and_clients_get_1012`, both seen failing before
+   the fix. **K2 rerun: pending: Docker unavailable** (Docker Desktop stopped answering during
+   this work; `scripts/bench.sh K2` now also counts `fenced` and `WAL append failed` per node).
 4. **A failed WAL append still acknowledges the update.** `Room::accepted` logs `WAL append failed`
    and fans the update out anyway (`crates/oc-server/src/room/actor.rs`, `accepted`). Peers see the
    edit, but it is not durable until the next compaction or save. In K2 this lasted 25 s for 20
    rooms. No acknowledged edit was lost in these runs only because clients resent their state.
+   **FIXED 2026-11-22.** The update is fanned out only after its append succeeded; otherwise the
+   room closes with 1012 and no save, and clients resend onto a room rebuilt from the WAL. Host
+   patch calls get 503 `ROOM_UNAVAILABLE`. Evidence: `tests/durability.rs`
+   `failed_wal_append_is_not_fanned_out` (the WAL table is renamed away mid-session; the peer
+   never sees the edit, the sender resends it after reconnecting), seen failing before the fix.
 5. **MariaDB deadlocks (1213) are not retried.** After a restart with many recovered rooms
    (mR) and during cluster chaos (K), these failed with `Deadlock found … try restarting
    transaction`: `compaction failed` (35), `writing the commit outbox failed`, `marking commit done
    failed`, and `room load failed`. The server logs them and moves on. An outbox row that is never
    written or never marked done weakens the outbox's crash guarantee.
+   **FIXED 2026-11-22.** `store::retry_with`: 3 attempts, jittered backoff 25-50 ms then
+   50-100 ms, for 1213 / 1205 (and SQLite busy), around compaction, outbox write, outbox mark
+   done, room load (epoch claim, room row, outbox rows, WAL read, purge, put) and WAL appends.
+   A save is no longer sent without its outbox row: the save fails loudly (`save not started`,
+   `oc_save_errors_total`, `save_error` status) and retries with the save backoff. Evidence:
+   `store::tests::transient_errors_are_retried_up_to_three_attempts` (seen failing) and
+   `deadlocks_and_lock_waits_are_transient`. **mR rerun (deadlock count): pending: Docker
+   unavailable**; `scripts/bench.sh mR` now prints deadlock errors left after retries and the
+   number of retries. The missing WAL latency metric is added: `oc_wal_append_seconds`
+   (histogram, docs/13; `wal_append_latency_is_a_histogram`).
 6. **MariaDB runs are sensitive to the database's own state.** The same 1-node load gave p95
    1.9 s at 1,000 connections right after the K2 cluster run on the same container (database
    dropped and recreated), and p95 9 ms on a fresh container (§12). After a crash, rooms reopen
@@ -264,6 +288,10 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
 7. **A draining node accepts WebSocket upgrades and then closes them** (`join failed: server is
    draining`, 8,760 in about 10 s on one node in K). Clients that reconnect to the same address
    loop until a load balancer removes the node.
+   **FIXED 2026-11-22.** While draining, `GET /v1/collab/:room` answers HTTP 503 with
+   `Retry-After: 5` before the upgrade (and `/readyz` is 503). Evidence: `tests/http.rs`
+   `draining_node_refuses_websocket_upgrades_with_503`, seen failing before the fix (the
+   upgrade was accepted). Not rerun under K (pending: Docker unavailable).
 8. **Three nodes held less load than one on this laptop (T).** With a room's clients spread
    over the nodes, 3 nodes hit p95 9.8 s at 5,000 connections, where 1 node held p95 8.9 ms. The
    same thing happened in two separate runs. It is not CPU-bound and not root-caused (§12).
