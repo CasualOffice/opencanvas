@@ -20,7 +20,7 @@ test("slash menu, @mention, autolink and link paste work after the late plugins 
   // @mention: search the host's people, Enter inserts the chip.
   await priya.page.keyboard.press("Enter");
   await priya.page.keyboard.type("Owner @Sam");
-  await expect(priya.oc.locator(".pop").filter({ hasText: "People" }).getByRole("button", { name: /Sam Ortiz/ })).toBeVisible();
+  await expect(priya.oc.locator(".pop").filter({ hasText: "People" }).getByRole("option", { name: /Sam Ortiz/ })).toBeVisible();
   await priya.page.keyboard.press("Enter");
   await expect(editor(sam).locator('.mention[data-id="u_sam"]')).toHaveText(/Sam Ortiz/, { timeout: 2_000 });
 
@@ -32,6 +32,10 @@ test("slash menu, @mention, autolink and link paste work after the late plugins 
   await priya.page.keyboard.press("Enter");
   await priya.page.keyboard.type("the plan");
   for (let i = 0; i < "the plan".length; i++) await priya.page.keyboard.press("Shift+ArrowLeft");
+  // ProseMirror reads the DOM selection on `selectionchange` (async); a paste dispatched in the
+  // same tick can see the selection one key behind ("he plan"). A person never pastes that fast.
+  await expect.poll(() => editor(priya).evaluate(() => (window.getSelection()?.toString() ?? ""))).toBe("the plan");
+  await priya.page.waitForTimeout(100);
   await editor(priya).evaluate((el) => {
     const dt = new DataTransfer();
     dt.setData("text/plain", "https://example.org/plan");

@@ -33,11 +33,15 @@ export function useMeta(doc: Y.Doc): Meta {
   return meta;
 }
 
-export function setMeta(doc: Y.Doc, patch: Partial<Meta>) {
+/** Origin of title / icon / colour changes a person makes: the editor's undo tracks it. */
+export const META_ORIGIN = { source: "opencanvas-meta" };
+
+/** `origin` null = a change the app makes on its own (first-open title), which undo must not revert. */
+export function setMeta(doc: Y.Doc, patch: Partial<Meta>, origin: unknown = META_ORIGIN) {
   const m = metaMap(doc);
   doc.transact(() => {
     for (const [k, v] of Object.entries(patch)) if (m.get(k) !== v) m.set(k, v);
-  });
+  }, origin);
 }
 
 /** Last time the content changed (any author), for the header meta row. */

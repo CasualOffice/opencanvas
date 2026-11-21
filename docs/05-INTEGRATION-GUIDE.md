@@ -117,6 +117,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role}] }` |
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
+| canvas → host | `UI_Block_Link` | `{ blockId, fileId }` ("Copy link to block": the host builds its own URL, ADR-023) |
 | canvas → host | `Error` | `{ code, message }` |
 | host → canvas | `Host_PostmessageReady` | `{}` |
 | host → canvas | `Action_Commit` | `{ message? }` |
@@ -124,6 +125,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_RefreshToken` | `{ token }` |
 | host → canvas | `Action_Export` | `{ format }` |
 | host → canvas | `Action_Theme` | `{ theme: "light"\|"dark"\|tokens }` |
+| host → canvas | `Action_ScrollToBlock` | `{ blockId }` (scroll to and highlight a block) |
 
 Origins are checked against `allowed_origins` both ways.
 

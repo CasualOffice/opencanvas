@@ -1,16 +1,19 @@
-// Block menu (turn into, duplicate, comment, move, delete) and starting a
-// comment from a selection. Shared by the desktop gutter (lazy chrome.tsx)
-// and the mobile bar.
+// Block menu (turn into, colour, columns, duplicate, link, comment, move,
+// delete) and starting a comment from a selection. Opened from the desktop
+// gutter, ⌘/ at the caret, the selection toolbar's "Turn into" and the phone bar.
+// Lazy: loads on first use.
 import type { Editor } from "@tiptap/react";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import type * as Y from "yjs";
 import type { Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
 import { createThread, newThreadId } from "../lib/comments";
+import { postToHost } from "../lib/host";
+import { keyLabel } from "../lib/keys";
 import { toast } from "../lib/store";
 import { Popover, type Anchor } from "../components/overlay";
-import { TURN, currentKind, turnInto } from "./slash";
+import { deleteBlock, duplicateBlock, indexAt, moveBlock } from "./blockops";
+import { TURN, kindOfNode, turnInto } from "./slash";
 
 // ---------- comments from the editor ----------
 
@@ -21,85 +24,79 @@ export function startComment(editor: Editor, role: Role, onComment: (id: string)
   const id = newThreadId();
   createThread(bridge.doc, id, quote);
   if (role === "edit") editor.chain().setTextSelection({ from, to }).setMark("commentMark", { threadId: id }).run();
+  // The comment box takes focus: the selection toolbar must not linger over the text.
+  editor.commands.blur();
   onComment(id);
 }
 
 const TEXTY = new Set(["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "callout"]);
+const TONES = ["gray", "blue", "green", "amber", "red", "purple", "pink"] as const;
 
-function cloneEmbeddedData(json: Record<string, unknown>): Record<string, unknown> {
-  // Duplicated database/board blocks get their own copy of the data.
-  const walk = (n: Record<string, unknown>) => {
-    const attrs = n.attrs as Record<string, unknown> | undefined;
-    if (n.type === "database" && attrs?.dbId) {
-      const root = bridge.doc.getMap("databases");
-      const src = root.get(String(attrs.dbId)) as Y.Map<unknown> | undefined;
-      if (src) {
-        const id = "db_" + Math.random().toString(36).slice(2, 10);
-        root.set(id, src.clone());
-        attrs.dbId = id;
-      }
-    }
-    if (n.type === "board" && attrs?.boardId) {
-      const root = bridge.doc.getMap("boards");
-      const src = root.get(String(attrs.boardId)) as Y.Map<unknown> | undefined;
-      if (src) {
-        const id = "brd_" + Math.random().toString(36).slice(2, 10);
-        root.set(id, src.clone());
-        attrs.boardId = id;
-      }
-    }
-    (n.content as Record<string, unknown>[] | undefined)?.forEach(walk);
-  };
-  walk(json);
-  return json;
+/** `b_` + 26 lowercase base32 characters (docs/15 §4). */
+export function newBlockId(): string {
+  const a = "0123456789abcdefghjkmnpqrstvwxyz";
+  const bytes = new Uint8Array(26);
+  crypto.getRandomValues(bytes);
+  return "b_" + Array.from(bytes, (b) => a[b & 31]).join("");
+}
+
+/** Gives the block a `blockId` (if it has none) and returns it. */
+function ensureBlockId(editor: Editor, pos: number, node: PMNode): string | null {
+  if (!("blockId" in node.attrs)) return null;
+  const existing = node.attrs.blockId as string | null;
+  if (existing) return existing;
+  const id = newBlockId();
+  editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: id }));
+  return id;
 }
 
 export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { editor: Editor; anchor: Anchor; node: PMNode; pos: number; onClose(): void; onComment(id: string): void }) {
   const texty = TEXTY.has(node.type.name);
   const selectInside = () => editor.chain().focus().setTextSelection(Math.min(pos + 1, editor.state.doc.content.size)).run();
-  const kind = (() => {
-    if (!texty) return "";
-    selectInside();
-    return currentKind(editor);
-  })();
+  // From the node itself: selecting into the block here would pull focus back out of the menu.
+  const kind = texty ? kindOfNode(node) : "";
   const run = (fn: () => void) => {
     onClose();
     fn();
   };
   const doc = editor.state.doc;
-  const idx = (() => {
-    let i = -1;
-    doc.forEach((_n, off, j) => {
-      if (off === pos) i = j;
-    });
-    return i;
-  })();
-  const move = (dir: -1 | 1) => {
-    const j = idx + dir;
-    if (idx < 0 || j < 0 || j >= doc.childCount) return;
-    const other = doc.child(j);
+  const idx = indexAt(doc, pos);
+  const isCols = node.type.name === "columns";
+  const isCallout = node.type.name === "callout";
+  const cols = isCols ? node.childCount : 0;
+  const setColumns = (n: number) => {
+    const s = editor.schema;
     editor
       .chain()
+      .focus()
       .command(({ tr }) => {
-        if (dir === -1) {
-          const target = pos - other.nodeSize;
-          tr.delete(pos, pos + node.nodeSize);
-          tr.insert(target, node);
-        } else {
-          tr.delete(pos, pos + node.nodeSize);
-          tr.insert(pos + other.nodeSize, node);
+        const cur = tr.doc.nodeAt(pos);
+        if (!cur || cur.type.name !== "columns") return false;
+        if (n > cur.childCount) {
+          tr.insert(pos + cur.nodeSize - 1, s.nodes.column.create(null, s.nodes.paragraph.create()));
+        } else if (n < cur.childCount && cur.childCount > 1) {
+          // Fold the last column's content into the one before it: nothing is lost.
+          const last = cur.child(cur.childCount - 1);
+          const prev = cur.child(cur.childCount - 2);
+          const lastStart = pos + cur.nodeSize - 1 - last.nodeSize;
+          const prevEnd = lastStart - 1;
+          const keep = last.content.childCount === 1 && last.content.firstChild?.content.size === 0 ? null : last.content;
+          tr.delete(lastStart, lastStart + last.nodeSize);
+          if (keep) tr.insert(prevEnd, keep);
+          void prev;
         }
         return true;
       })
       .run();
   };
+  const mod = (k: string) => keyLabel(k);
   return (
-    <Popover anchor={anchor} onClose={onClose} title="Block" minWidth={230}>
+    <Popover anchor={anchor} onClose={onClose} title="Block" minWidth={240}>
       {texty ? (
         <>
           <div className="mh">Turn into</div>
           {TURN.map(([id, icon, label]) => (
-            <button key={id} className="mi" onClick={() => run(() => (selectInside(), turnInto(editor, id)))}>
+            <button key={id} className="mi" onClick={() => run(() => (selectInside(), turnInto(editor, id)))} aria-current={kind === id ? "true" : undefined}>
               <Ic name={icon} />
               {label}
               {kind === id ? (
@@ -112,26 +109,56 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
           <div className="msep" />
         </>
       ) : null}
-      <button
-        className="mi"
-        onClick={() =>
-          run(() => {
-            const json = cloneEmbeddedData(node.toJSON());
-            editor.chain().focus().insertContentAt(pos + node.nodeSize, json).run();
-          })
-        }
-      >
+      {isCallout ? (
+        <>
+          <div className="mh">Colour</div>
+          <div className="tones" role="group" aria-label="Callout colour">
+            {TONES.map((t) => (
+              <button
+                key={t}
+                className={`tone-${t}` + (node.attrs.tone === t ? " on" : "")}
+                aria-label={t[0].toUpperCase() + t.slice(1)}
+                aria-pressed={node.attrs.tone === t}
+                onClick={() => run(() => editor.chain().focus().command(({ tr }) => (tr.setNodeMarkup(pos, undefined, { ...node.attrs, tone: t }), true)).run())}
+              />
+            ))}
+          </div>
+          <div className="msep" />
+        </>
+      ) : null}
+      {isCols ? (
+        <>
+          <div className="mh">Columns</div>
+          <button className="mi" disabled={cols >= 3} onClick={() => run(() => setColumns(cols + 1))}>
+            <Ic name="columns-3" />
+            Add a column
+          </button>
+          <button className="mi" disabled={cols <= 1} onClick={() => run(() => setColumns(cols - 1))}>
+            <Ic name="columns-2" />
+            Remove the last column
+          </button>
+          <div className="msep" />
+        </>
+      ) : null}
+      <button className="mi" onClick={() => run(() => duplicateBlock(editor, pos, node))}>
         <Ic name="copy" />
         Duplicate
-        <span className="mk">⌘D</span>
+        <span className="mk">{mod("Mod-d")}</span>
       </button>
       <button
         className="mi"
         onClick={() =>
           run(() => {
-            const link = `${bridge.session?.file?.name ?? "Canvas"} · block ${idx + 1}`;
+            const id = ensureBlockId(editor, pos, node);
+            if (!id) return toast("This block can't be linked", { icon: "link" });
+            // The host owns URLs (docs/05 §4): it gets the block id and builds its own link;
+            // `Action_ScrollToBlock` brings a reader back here.
+            postToHost("UI_Block_Link", { blockId: id, fileId: bridge.session?.file?.id ?? null });
+            const url = new URL(window.location.href);
+            url.hash = "";
+            const link = bridge.session?.demo ? `${url.toString()}#demo&block=${id}` : `#block=${id}`;
             void navigator.clipboard?.writeText(link).catch(() => undefined);
-            toast("Link to block copied", { icon: "link" });
+            toast(bridge.session?.demo ? "Link to block copied" : "Block link copied. Paste it in a comment or a message.", { icon: "link" });
           })
         }
       >
@@ -156,20 +183,22 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
         <Ic name="message-square-plus" />
         Comment
       </button>
-      <button className="mi" disabled={idx <= 0} onClick={() => run(() => move(-1))}>
+      <button className="mi" disabled={idx <= 0} onClick={() => run(() => moveBlock(editor, pos, node, -1))}>
         <Ic name="arrow-up" />
         Move up
+        <span className="mk">{mod("Mod-Shift-ArrowUp")}</span>
       </button>
-      <button className="mi" disabled={idx < 0 || idx >= doc.childCount - 1} onClick={() => run(() => move(1))}>
+      <button className="mi" disabled={idx < 0 || idx >= doc.childCount - 1} onClick={() => run(() => moveBlock(editor, pos, node, 1))}>
         <Ic name="arrow-down" />
         Move down
+        <span className="mk">{mod("Mod-Shift-ArrowDown")}</span>
       </button>
       <div className="msep" />
       <button
         className="mi danger"
         onClick={() =>
           run(() => {
-            editor.chain().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+            deleteBlock(editor, pos, node);
             toast("Block deleted", { icon: "trash-2", action: { label: "Undo", run: () => editor.commands.undo() } });
           })
         }
@@ -180,4 +209,3 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
     </Popover>
   );
 }
-

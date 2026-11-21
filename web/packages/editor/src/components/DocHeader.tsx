@@ -79,11 +79,11 @@ export function DocHeader(props: {
         </span>
       </div>
       {pick ? (
-        <Popover anchor={pick} onClose={() => setPick(null)} title="Icon" minWidth={280}>
+        <Popover anchor={pick} onClose={() => setPick(null)} title="Icon" minWidth={280} kind="dialog">
           <div className="mh">Colour</div>
           <div className="tones">
             {TONES.map((t) => (
-              <button key={t} className={`tone-${t}` + (meta.tone === t ? " on" : "")} aria-label={t} onClick={() => setMeta(props.doc, { tone: t })} />
+              <button key={t} className={`tone-${t}` + (meta.tone === t ? " on" : "")} aria-label={t[0].toUpperCase() + t.slice(1)} aria-pressed={meta.tone === t} onClick={() => setMeta(props.doc, { tone: t })} />
             ))}
           </div>
           <div className="mh">Icon</div>
@@ -92,7 +92,8 @@ export function DocHeader(props: {
               <button
                 key={n}
                 className={meta.icon === n ? "on" : ""}
-                aria-label={n}
+                aria-label={n.replace(/-/g, " ")}
+                aria-pressed={meta.icon === n}
                 onClick={() => {
                   setMeta(props.doc, { icon: n });
                   setPick(null);

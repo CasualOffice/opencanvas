@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BASE_EXTENSIONS } from "./base";
 import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
@@ -27,9 +27,17 @@ import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed
 import type { SlashItem } from "./slash";
 
 const Gutter = lazy(() => import("./chrome").then((m) => ({ default: m.Gutter })));
+const BlockMenu = lazy(() => import("./blockmenu").then((m) => ({ default: m.BlockMenu })));
+const LinkPopover = lazy(() => import("./linkpop").then((m) => ({ default: m.LinkPopover })));
+const TableMenu = lazy(() => import("./tablemenu").then((m) => ({ default: m.TableMenu })));
 const MobileBar = lazy(() => import("./mobilebar").then((m) => ({ default: m.MobileBar })));
 const SelectionToolbar = lazy(() => import("./chrome").then((m) => ({ default: m.SelectionToolbar })));
 import { dismissSuggest, suggestStore } from "./suggest";
+import { blockMenuStore, duplicateBlock, moveBlock, openBlockMenuAtCaret, topBlockAt } from "./blockops";
+import { linkStore, openLinkActions, openLinkEditor } from "./linkstate";
+import { postToHost } from "../lib/host";
+import { readableOn } from "../lib/color";
+import { tableStore, trackTable } from "./tablestate";
 
 export interface EditorProps {
   doc: Y.Doc;
@@ -40,6 +48,15 @@ export interface EditorProps {
   searchUsers(q: string): Promise<OcUser[]>;
   onReady(e: Editor | null): void;
   onComment(threadId: string): void;
+  /** Quick starts shown under an empty canvas (templates, database, whiteboard, import). */
+  emptyState?: EmptyAction[];
+}
+
+export interface EmptyAction {
+  id: string;
+  icon: string;
+  label: string;
+  run(): void;
 }
 
 // ---------- paste a URL → offer link / card / embed ----------
@@ -110,6 +127,66 @@ const FileDrop = Extension.create({
   },
 });
 
+// ---------- keyboard: ⌘K link, ⌘/ block menu, ⌘D duplicate, ⌘⇧↑/↓ move; clicks on links and mentions ----------
+
+const EditorKeys = Extension.create({
+  name: "ocKeys",
+  addKeyboardShortcuts() {
+    const e = this.editor;
+    const block = () => (e.isEditable ? topBlockAt(e.state, e.state.selection.from) : null);
+    return {
+      "Mod-k": () => openLinkEditor(e),
+      "Mod-/": () => e.isEditable && openBlockMenuAtCaret(e),
+      "Mod-d": () => {
+        const b = block();
+        return b ? duplicateBlock(e, b.pos, b.node) : false;
+      },
+      "Mod-Shift-ArrowUp": () => {
+        const b = block();
+        return b ? (moveBlock(e, b.pos, b.node, -1), true) : false;
+      },
+      "Mod-Shift-ArrowDown": () => {
+        const b = block();
+        return b ? (moveBlock(e, b.pos, b.node, 1), true) : false;
+      },
+    };
+  },
+  addProseMirrorPlugins() {
+    const editor = this.editor;
+    return [
+      new Plugin({
+        key: new PluginKey("ocClicks"),
+        props: {
+          handleClick(view, pos, event) {
+            const t = event.target as HTMLElement | null;
+            const mention = t?.closest?.(".mention[data-id]");
+            if (mention) {
+              postToHost("UI_Mention_Click", { id: mention.getAttribute("data-id") });
+              return false;
+            }
+            const a = t?.closest?.("a[href]");
+            if (!a || !view.dom.contains(a)) return false;
+            const href = a.getAttribute("href") ?? "";
+            if (!editor.isEditable) {
+              // Read-only: the browser follows the link (target=_blank); tell the host too.
+              postToHost("UI_Link_Click", { url: href });
+              return false;
+            }
+            if (event.metaKey || event.ctrlKey) {
+              postToHost("UI_Link_Click", { url: href });
+              window.open(href, "_blank", "noopener,noreferrer");
+              return true;
+            }
+            // Let the caret land first, then offer open / edit / copy / remove.
+            window.setTimeout(() => openLinkActions(editor, pos), 0);
+            return false;
+          },
+        },
+      }),
+    ];
+  },
+});
+
 function initialsOf(name: string) {
   const p = name.trim().split(/\s+/);
   return ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
@@ -153,6 +230,7 @@ export function CanvasEditor(p: EditorProps) {
             const l = document.createElement("div");
             l.className = "collaboration-carets__label";
             l.style.background = u.color;
+            l.style.color = readableOn(u.color);
             l.textContent = u.name;
             c.append(l);
             return c;
@@ -190,6 +268,7 @@ export function CanvasEditor(p: EditorProps) {
         CommentMark,
         FileDrop,
         PasteUrl,
+        EditorKeys,
       ],
     },
     [p.doc],
@@ -246,12 +325,39 @@ export function CanvasEditor(p: EditorProps) {
     };
   }, [editor, p.awareness]);
 
+  // Table tools follow the caret into a table (WEB-02).
+  useEffect(() => trackTable(editor), [editor]);
+
+  const menu = useStore(blockMenuStore);
+  const link = useStore(linkStore);
+  const table = useStore(tableStore);
+  useEffect(() => {
+    // Read-only now (role change, conflict): close editing popovers.
+    if (!editable) {
+      blockMenuStore.set(null);
+      linkStore.set(null);
+    }
+  }, [editable]);
+
   return (
     <>
       <EditorContent editor={editor} />
+      {editable && p.emptyState ? <EmptyState editor={editor} actions={p.emptyState} /> : null}
       <Suspense fallback={null}>
-        {editable && !compact ? <Gutter editor={editor} onComment={p.onComment} /> : null}
+        {editable && !compact ? <Gutter editor={editor} /> : null}
         {!compact && p.role !== "view" ? <SelectionToolbar editor={editor} role={p.role} onComment={p.onComment} /> : null}
+        {menu && editable ? (
+          <BlockMenu
+            editor={editor}
+            anchor={new DOMRect(menu.rect.left, menu.rect.top, Math.max(1, menu.rect.right - menu.rect.left), menu.rect.bottom - menu.rect.top)}
+            node={menu.node}
+            pos={menu.pos}
+            onClose={() => blockMenuStore.set(null)}
+            onComment={p.onComment}
+          />
+        ) : null}
+        {link && editable ? <LinkPopover editor={editor} edit={link} /> : null}
+        {table && editable ? <TableMenu editor={editor} at={table} /> : null}
       </Suspense>
       <SuggestMenu editor={editor} />
       <PasteMenu editor={editor} />
@@ -277,7 +383,7 @@ function SuggestMenu({ editor }: { editor: Editor }) {
   if (s.kind === "mention") {
     const items = s.items as { id: string; label: string; color: string }[];
     return (
-      <Popover anchor={s.rect} onClose={close} title="Mention" minWidth={240}>
+      <Popover anchor={s.rect} onClose={close} title="Mention" minWidth={240} kind="listbox">
         <div ref={listRef} onMouseDown={hold}>
           <div className="mh">People</div>
           {items.length ? (
@@ -302,7 +408,7 @@ function SuggestMenu({ editor }: { editor: Editor }) {
   const items = s.items as SlashItem[];
   if (compact && !s.query) {
     return (
-      <Popover anchor={s.rect} onClose={close} title="Insert">
+      <Popover anchor={s.rect} onClose={close} title="Insert" kind="listbox">
         <div className="sgrid" onMouseDown={hold}>
           {items.map((x, i) => (
             <button key={x.id} className={i === s.sel ? "on" : ""} onClick={() => s.pick(x)}>
@@ -317,7 +423,7 @@ function SuggestMenu({ editor }: { editor: Editor }) {
   let group = "";
   void editor;
   return (
-    <Popover anchor={s.rect} onClose={close} title="Insert" minWidth={300}>
+    <Popover anchor={s.rect} onClose={close} title="Insert" minWidth={300} kind="listbox">
       <div ref={listRef} onMouseDown={hold}>
         {items.length ? (
           items.map((x, i) => {
@@ -364,7 +470,7 @@ function PasteMenu({ editor }: { editor: Editor }) {
     c.run();
   };
   return (
-    <Popover anchor={o.rect} onClose={close} title="Paste link" minWidth={200}>
+    <Popover anchor={o.rect} onClose={close} title="Paste link" minWidth={200} autoFocus={false}>
       <div onMouseDown={(e) => e.preventDefault()}>
         <div className="mh">Paste as</div>
         <button className="mi" onClick={close}>
@@ -431,3 +537,25 @@ function PeerBars({ editor, awareness }: { editor: Editor; awareness: Awareness 
   );
 }
 
+
+// ---------- empty canvas: an invitation instead of a blank page ----------
+
+function EmptyState({ editor, actions }: { editor: Editor; actions: EmptyAction[] }) {
+  const empty = useEditorState({ editor, selector: ({ editor: e }) => e.isEmpty });
+  if (!empty) return null;
+  return (
+    <div className="empty-start" role="group" aria-label="Start this canvas">
+      <p>
+        Type, or press <kbd>/</kbd> for blocks. Or start with
+      </p>
+      <div className="chips">
+        {actions.map((a) => (
+          <button key={a.id} className="chip" onClick={a.run}>
+            <Ic name={a.icon} size={15} />
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

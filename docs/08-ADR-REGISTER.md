@@ -26,6 +26,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-020 | Render fonts: embedded Geist + OFL subsets of Noto Sans Symbols 2 / Math (≤ 300 KB) + system fonts + `OC_FONT_DIRS`, Noto-first fallback, one warning per missing script; new direct deps `fontdb`, `ttf-parser`, `unicode-script` (already in the tree via resvg); image ships `fonts-noto-core` + `fonts-noto-cjk` | Accepted |
 | ADR-021 | WOPI mode is a save-target variant behind `HostClient` (rooms unchanged); `WOPISrc` is the file id and must match the host's `wopi_allowlist`; assets inlined into the `.ocanvas` as `assets/<id>` | Accepted |
 | ADR-022 | Security hardening (docs/18): one header middleware (SPA CSP `script-src 'self'`, handler CSPs kept + `frame-ancestors` appended, `nosniff`, `no-referrer`); callback signature gains `v2` (method + path bound, `v1` kept); signed callbacks never follow redirects; `OC_METRICS_TOKEN`; room cap 550 peers, 8 awareness ids/connection, slow readers dropped; `zip` 2 → 9; host ids `[A-Za-z0-9._-]` | Accepted (security audit 2026-11-21) |
+| ADR-023 | Editor UX pass (docs/19): optional `image.width` (percent 20-100) and `image.align` (left/right; absent = centred) attrs; comment messages may carry `mentions` (user ids); postMessage gains `UI_Block_Link` (canvas → host) and `Action_ScrollToBlock` (host → canvas) | Accepted |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -143,3 +144,18 @@ connection caps from docs/07 §3 are enforced. (6) `zip` moves to 9.x (RustSec a
 captured GET signature on another path is detectable by hosts that check `v2`; − a host whose
 `GET /files/{id}` answered with a redirect must now serve the bytes itself (asset fetches were
 already redirect-free).
+
+### ADR-023 — Editor UX pass: image layout, comment mentions, block links
+
+**Context.** The PRD (§5.1) lists image width and alignment and mentions in comments; the UX
+audit (docs/19) found block links copied plain text.
+**Decision.** (1) `image` gains two optional attrs, `width` (whole percent of the text column,
+20-100, absent = full) and `align` (`left` | `right`, absent = centred), rendered as
+`data-width` / `data-align`. Older clients keep and round-trip them (unknown attrs survive in the
+Y.Doc); exports may ignore them. (2) A comment message map may carry `mentions`: an array of
+user ids found as `@Name` in its text, for the server's `onMention` callback. (3) "Copy link to
+block" gives the block a `blockId` if it has none and posts `UI_Block_Link {blockId, fileId}`;
+the host builds its own URL and brings a reader back with `Action_ScrollToBlock {blockId}` (or a
+`block=` launch fragment).
+**Consequences.** + layout and mentions round-trip in the file; − server exports do not yet apply
+image width/alignment; − `onMention` delivery is a server follow-up.

@@ -3,7 +3,8 @@
 // icons.tsx (App fetches them right after first paint) so they stay out of the
 // initial bundle.
 import {
-  AlignLeft, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, AtSign, BadgeCheck, Bell, Bold, BookMarked, BookOpen,
+  AlignCenter, AlignLeft, AlignRight, ArrowDown, BetweenHorizontalEnd, BetweenHorizontalStart, BetweenVerticalEnd,
+  BetweenVerticalStart, Columns3, Command, Pencil, Rows2, Unlink, ArrowLeft, ArrowRight, ArrowUp, AtSign, BadgeCheck, Bell, Bold, BookMarked, BookOpen,
   Bookmark, Briefcase, Bug, CalendarDays, CalendarRange, Check, ChevronsDownUp, ClipboardList, Code, CodeXml,
   Coffee, Columns2, Compass, Contact, Database, ExternalLink, FileCode2, FileDown, FileType, FolderKanban, Gauge,
   GripVertical, Handshake, Hash, Heading1, Heading2, Heading3, Heart, HeartHandshake, Highlighter, History, Image,
@@ -16,7 +17,10 @@ import {
 } from "lucide-react";
 
 export const EXTRA: Record<string, LucideIcon> = {
-  "align-left": AlignLeft, "arrow-down": ArrowDown, "arrow-left": ArrowLeft, "arrow-right": ArrowRight,
+  "align-center": AlignCenter, "align-left": AlignLeft, "align-right": AlignRight,
+  "between-horizontal-end": BetweenHorizontalEnd, "between-horizontal-start": BetweenHorizontalStart,
+  "between-vertical-end": BetweenVerticalEnd, "between-vertical-start": BetweenVerticalStart, "columns-3": Columns3,
+  command: Command, pencil: Pencil, "rows-2": Rows2, unlink: Unlink, "arrow-down": ArrowDown, "arrow-left": ArrowLeft, "arrow-right": ArrowRight,
   "arrow-up": ArrowUp, "at-sign": AtSign, "badge-check": BadgeCheck, bell: Bell, bold: Bold,
   "book-marked": BookMarked, "book-open": BookOpen, bookmark: Bookmark, briefcase: Briefcase, bug: Bug,
   "calendar-days": CalendarDays, "calendar-range": CalendarRange, check: Check, "chevrons-down-up": ChevronsDownUp,

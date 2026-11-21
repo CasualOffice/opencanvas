@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
-import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
-import { BlockMenu, startComment } from "./blockmenu";
+import { useStore } from "../lib/store";
+import { startComment } from "./blockmenu";
+import { blockMenuStore, insertBelowCaret, topBlockAt } from "./blockops";
+import { openLinkEditor } from "./linkstate";
 
 export function MobileBar({ editor, role, onComment }: { editor: Editor; role: Role; onComment(id: string): void }) {
   const st = useEditorState({
@@ -13,7 +15,7 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
     selector: ({ editor: e }) => ({ focused: e.isFocused, sel: !e.state.selection.empty && !(e.state.selection instanceof NodeSelection) }),
   });
   const [bottom, setBottom] = useState(8);
-  const [turn, setTurn] = useState<{ pos: number; node: PMNode } | null>(null);
+  const turn = !!useStore(blockMenuStore);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -41,10 +43,9 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
       <Ic name={icon} size={18} />
     </button>
   );
-  const blockAt = () => {
-    const p = editor.state.selection.$from.before(1);
-    const node = editor.state.doc.nodeAt(p);
-    return node ? { pos: p, node } : null;
+  const openTurn = () => {
+    const b = topBlockAt(editor.state, editor.state.selection.from);
+    if (b) blockMenuStore.set({ pos: b.pos, node: b.node, rect: { left: 0, right: 0, top: 0, bottom: 0 } });
   };
   return (
     <>
@@ -58,10 +59,7 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
                 {b("underline", "Underline", () => editor.chain().focus().toggleUnderline().run(), editor.isActive("underline"))}
                 {b("strikethrough", "Strikethrough", () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"))}
                 {b("highlighter", "Highlight", () => editor.chain().focus().toggleHighlight().run(), editor.isActive("highlight"))}
-                {b("link", "Link", () => {
-                  const v = window.prompt("Link", editor.getAttributes("link").href ?? "https://");
-                  if (v !== null) editor.chain().focus().extendMarkRange("link").setLink({ href: v }).run();
-                })}
+                {b("link", "Link", () => openLinkEditor(editor), editor.isActive("link"))}
                 <span className="vs" />
               </>
             ) : null}
@@ -69,8 +67,8 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
           </>
         ) : edit ? (
           <>
-            {b("plus", "Insert block", () => editor.chain().focus().insertContent("/").run())}
-            {b("type", "Turn into", () => setTurn(blockAt()))}
+            {b("plus", "Insert block", () => insertBelowCaret(editor))}
+            {b("type", "Turn into", openTurn)}
             {b("list-todo", "Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList"))}
             {b("list", "Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
             {b("image", "Image", () => editor.chain().focus().insertContent([{ type: "image", attrs: { src: "" } }, { type: "paragraph" }]).run())}
@@ -80,7 +78,6 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
           </>
         ) : null}
       </div>
-      {turn ? <BlockMenu editor={editor} anchor={new DOMRect(0, 0, 0, 0)} node={turn.node} pos={turn.pos} onClose={() => setTurn(null)} onComment={onComment} /> : null}
     </>
   );
 }

@@ -1,11 +1,14 @@
 import { useRef, useState } from "react";
 import { Ic } from "../icons";
-import { resolveEmbed } from "../lib/embeds";
+import { PROVIDERS, resolveEmbed, type Provider } from "../lib/embeds";
 import { Modal, ModalHead } from "./overlay";
 
 export function UrlPrompt({ kind, onClose, onUrl }: { kind: "bookmark" | "embed"; onClose(): void; onUrl(url: string): void }) {
   const [v, setV] = useState("");
   const [err, setErr] = useState("");
+  const [want, setWant] = useState<Provider | null>(null);
+  const detected = kind === "embed" ? resolveEmbed(/^https?:\/\//i.test(v.trim()) ? v.trim() : "https://" + v.trim()) : null;
+  const shownProvider = detected?.provider ?? want;
   const submit = () => {
     let url = v.trim();
     if (!url) return;
@@ -36,13 +39,37 @@ export function UrlPrompt({ kind, onClose, onUrl }: { kind: "bookmark" | "embed"
         <input
           className="pin"
           data-autofocus
-          placeholder={kind === "embed" ? "https://www.youtube.com/watch?v=…" : "https://"}
+          placeholder={kind === "embed" ? (PROVIDERS.find((p) => p.id === want)?.example ?? "Paste a video, design or map link") : "https://"}
           value={v}
           onChange={(e) => (setV(e.target.value), setErr(""))}
-          aria-label="Link"
+          aria-label={kind === "embed" ? "Embed link" : "Link"}
+          aria-invalid={!!err}
+          aria-describedby={err ? "url-err" : undefined}
           inputMode="url"
         />
-        {err ? <p style={{ color: "var(--red-fg)", fontSize: 12.5, margin: "8px 2px 0" }}>{err}</p> : null}
+        {kind === "embed" ? (
+          <div className="provs" role="radiogroup" aria-label="Provider">
+            {PROVIDERS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="radio"
+                aria-checked={shownProvider === p.id}
+                className={"chip" + (shownProvider === p.id ? " on" : "")}
+                onClick={() => setWant(p.id)}
+              >
+                <Ic name={p.icon} size={14} />
+                {p.label}
+                {detected?.provider === p.id ? <Ic name="check" size={13} /> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {err ? (
+          <p id="url-err" role="alert" style={{ color: "var(--red-fg)", fontSize: 12.5, margin: "8px 2px 0" }}>
+            {err}
+          </p>
+        ) : null}
       </form>
       <div className="mft">
         <button className="btn ghost" onClick={onClose}>
