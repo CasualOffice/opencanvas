@@ -73,3 +73,9 @@ export function hostOf(url: string): string {
     return url;
   }
 }
+
+/** A link-preview card for `url`, as Tiptap JSON. */
+export function bookmarkNode(url: string) {
+  const site = hostOf(url);
+  return { type: "bookmark", attrs: { url, title: site, description: "", site } };
+}

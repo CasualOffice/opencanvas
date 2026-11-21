@@ -1,13 +1,10 @@
 // Slash menu items (grouped, with tiles and markdown shortcuts) and block actions.
-import { Extension, type Editor, type JSONContent, type Range } from "@tiptap/core";
-import { PluginKey } from "@tiptap/pm/state";
-import Suggestion from "@tiptap/suggestion";
+import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { insertUploads } from "../lib/uploads";
 import { tableJSON } from "./table";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { bridge } from "../lib/bridge";
-import { hostOf, resolveEmbed } from "../lib/embeds";
-import { suggestRender } from "./suggest";
+import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 
 export interface SlashItem {
   group: "Basic" | "Data" | "Media" | "Layout";
@@ -123,37 +120,11 @@ export const SLASH: SlashItem[] = [
   },
 ];
 
-export function bookmarkNode(url: string): JSONContent {
-  const site = hostOf(url);
-  return { type: "bookmark", attrs: { url, title: site, description: "", site } };
-}
-
 export function filterSlash(q: string): SlashItem[] {
   const s = q.toLowerCase().trim();
   if (!s) return SLASH;
   return SLASH.filter((x) => (x.title + " " + x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "")).toLowerCase().includes(s));
 }
-
-export const SlashCommand = Extension.create({
-  name: "slashCommand",
-  addProseMirrorPlugins() {
-    return [
-      Suggestion<SlashItem, SlashItem>({
-        editor: this.editor,
-        pluginKey: new PluginKey("slash"),
-        char: "/",
-        allowSpaces: false,
-        allow: ({ state, range }) => {
-          const $f = state.doc.resolve(range.from);
-          return $f.parent.type.name === "paragraph" && !$f.node(1)?.type.spec.code;
-        },
-        items: ({ query }) => filterSlash(query),
-        command: ({ editor, range, props }) => props.run(editor, range),
-        render: suggestRender("slash"),
-      }),
-    ];
-  },
-});
 
 // ---------- turn into ----------
 

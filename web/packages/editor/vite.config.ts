@@ -17,12 +17,22 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: true,
+    // scripts/check-budget.mjs reads it to sum the initial JS.
+    manifest: true,
+    // Every browser we support handles <link rel="modulepreload">; without it the
+    // chunks still load, just without the preload hint.
+    modulePreload: { polyfill: false },
+    // Terser packs ~7 KB gzip tighter than esbuild on the initial JS (docs/02 §7).
+    minify: "terser",
+    terserOptions: { module: true, ecma: 2020, compress: { passes: 2 } },
     // Never inline font subsets into the render-blocking CSS: the browser only
     // fetches the unicode ranges a page actually uses.
     assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
     // Budget (docs/02 §7): the initial JS (entry + vendor chunks) stays under
-    // 300 KB gzip. Database, board, gallery, comments, dialogs, exports, the
-    // Markdown parser and the demo seed are dynamic imports.
+    // 300 KB gzip; `pnpm build` fails over it (scripts/check-budget.mjs). Database,
+    // board, gallery, comments, dialogs, exports, the Markdown parser, the demo
+    // seed, menu icons, autolink, slash/mention suggestions and the drop/gap
+    // cursors are dynamic imports.
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
@@ -35,12 +45,16 @@ export default defineConfig({
           if (/[\\/]packages[\\/]database[\\/]src[\\/]/.test(id)) return "database";
           if (/[\\/]packages[\\/]board[\\/]src[\\/]/.test(id)) return "board";
           if (!id.includes("node_modules")) return undefined;
-          // Loaded lazily: desktop editing chrome (chrome.tsx), table editing (table.ts)
-          // and code highlighting (highlight.ts).
-          if (/[\\/]node_modules[\\/](@floating-ui[\\/]|@tiptap[\\/]extension-code-block-lowlight[\\/]|lowlight[\\/]|highlight\.js[\\/]|@tiptap[\\/](extension-drag-handle|extension-drag-handle-react|extension-node-range|extension-bubble-menu|extension-floating-menu)[\\/]|@tiptap[\\/]react[\\/]dist[\\/]menus|prosemirror-tables[\\/]|@tiptap[\\/]pm[\\/]dist[\\/]tables)/.test(id)) return undefined;
+          // Loaded lazily: desktop editing chrome (chrome.tsx), table editing (table.ts),
+          // code highlighting (highlight.ts), autolink and the slash / @mention
+          // suggestions (late.ts). They must not match a manual chunk below, or they
+          // would be pulled into the initial load.
+          if (/[\\/]node_modules[\\/](@floating-ui[\\/]|@tiptap[\\/]extension-code-block-lowlight[\\/]|lowlight[\\/]|highlight\.js[\\/]|@tiptap[\\/](extension-drag-handle|extension-drag-handle-react|extension-node-range|extension-bubble-menu|extension-floating-menu|extension-link|extension-mention|suggestion|starter-kit)[\\/]|linkifyjs[\\/]|@tiptap[\\/]react[\\/]dist[\\/]menus|prosemirror-(tables|gapcursor|dropcursor)[\\/]|@tiptap[\\/]pm[\\/]dist[\\/](tables|gapcursor|dropcursor))/.test(id)) return undefined;
           if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "react";
-          if (/[\\/]node_modules[\\/](yjs|lib0|y-protocols|y-websocket|@tiptap[\\/]y-tiptap)[\\/]/.test(id)) return "yjs";
-          if (/[\\/]node_modules[\\/](prosemirror-[^\\/]+|@tiptap[\\/](core|pm|react|starter-kit|extension-[^\\/]+|extensions|suggestion)|linkifyjs|@floating-ui[\\/][^\\/]+|orderedmap|rope-sequence|w3c-keyname|fast-equals|use-sync-external-store)[\\/]/.test(id)) return "tiptap";
+          if (/[\\/]node_modules[\\/](yjs|lib0|y-protocols|y-websocket)[\\/]/.test(id)) return "yjs";
+          // y-tiptap binds ProseMirror to Yjs, so it lives with ProseMirror (in the yjs chunk
+          // it made the circular chunk import tiptap -> yjs -> tiptap).
+          if (/[\\/]node_modules[\\/](prosemirror-[^\\/]+|@tiptap[\\/](core|pm|react|y-tiptap|extension-[^\\/]+|extensions)|orderedmap|rope-sequence|w3c-keyname|fast-equals|use-sync-external-store)[\\/]/.test(id)) return "tiptap";
           return undefined;
         },
       },

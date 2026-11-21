@@ -29,7 +29,7 @@ const ImportDialog = lazy(() => import("./components/Dialogs").then((m) => ({ de
 const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.UrlPrompt })));
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
 
-const EXPORTS = new Set(["md", "html", "ocanvas", "json", "pdf"]);
+const EXPORTS = new Set(["md", "html", "ocanvas", "json", "docx", "pdf"]);
 
 function Splash() {
   return (
@@ -325,8 +325,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       const f = fmt as ExportFormat;
       const allowed = f === "ocanvas" ? session.perms.download !== false : session.perms.export !== false;
       if (!allowed) return toast("Exports are turned off for this canvas", { icon: "lock" });
-      if (f !== "pdf" && session.demo) return toast("Exports download from the server. They're not available in the demo.", { icon: "download" });
-      void import("./lib/exports").then((m) => (f === "pdf" ? m.printPdf() : m.downloadExport(session.ticket, f, titleRef.current)));
+      if (session.demo && f === "pdf") return void import("./lib/exports").then((m) => m.printPdf());
+      if (session.demo) return toast("Exports download from the server. They're not available in the demo.", { icon: "download" });
+      void import("./lib/exports").then((m) => m.downloadExport(session.ticket, f, titleRef.current));
     },
     [session],
   );
