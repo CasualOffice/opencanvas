@@ -123,6 +123,10 @@ struct Shape {
     start: Option<Binding>,
     end: Option<Binding>,
     route: String,
+    /// `via` set at all (an empty list still counts, as in the web model).
+    has_via: bool,
+    /// Manual waypoints the connector passes through.
+    via: Vec<Pt>,
     src: String,
 }
 
@@ -155,9 +159,10 @@ fn truthy(v: &Value) -> bool {
     }
 }
 
-fn shape(id: &str, v: &Value) -> Shape {
-    let pts = v["pts"]
-        .as_array()
+/// `[[x, y], …]`: entries that are arrays of at least two items, non-numbers read as 0
+/// (the web `viaOf` reads `via` the same way).
+fn points(v: &Value) -> Vec<Pt> {
+    v.as_array()
         .map(|a| {
             a.iter()
                 .filter_map(|q| {
@@ -166,7 +171,11 @@ fn shape(id: &str, v: &Value) -> Shape {
                 })
                 .collect()
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+fn shape(id: &str, v: &Value) -> Shape {
+    let pts = points(&v["pts"]);
     Shape {
         id: id.to_string(),
         kind: string(&v["type"]),
@@ -186,6 +195,8 @@ fn shape(id: &str, v: &Value) -> Shape {
         start: binding(&v["start"]),
         end: binding(&v["end"]),
         route: string(&v["route"]),
+        has_via: truthy(&v["via"]),
+        via: points(&v["via"]),
         src: string(&v["src"]),
     }
 }
@@ -398,7 +409,51 @@ fn elbow(a: Pt, b: Pt, sa: Option<Anchor>, sb: Option<Anchor>) -> Vec<Pt> {
     } else {
         vec![a, [a[0], b[1]], b]
     };
-    let eq = |u: f64, v: f64| (u - v).abs() < 0.01;
+    tidy(&out)
+}
+
+fn eq(u: f64, v: f64) -> bool {
+    (u - v).abs() < 0.01
+}
+
+/// Orthogonal route through ends and waypoints (`connectors.ts` `elbowVia`): each leg is an L,
+/// leaving at a right angle to how the previous leg arrived; the last enters along the end
+/// side's axis, with two corners at the midpoint when an L can't.
+fn elbow_via(pts: &[Pt], sa: Option<Anchor>, sb: Option<Anchor>) -> Vec<Pt> {
+    if pts.len() < 2 {
+        return pts.to_vec();
+    }
+    let n = pts.len();
+    let mut h = match sa {
+        Some(x) if x != Anchor::Center => x.horiz(),
+        _ => (pts[1][0] - pts[0][0]).abs() >= (pts[1][1] - pts[0][1]).abs(),
+    };
+    let mut out: Vec<Pt> = vec![pts[0]];
+    for i in 0..n - 1 {
+        let (p, q) = (pts[i], pts[i + 1]);
+        if let Some(side) = sb
+            && i == n - 2
+            && side != Anchor::Center
+            && h == side.horiz()
+        {
+            if h {
+                let mx = (p[0] + q[0]) / 2.0;
+                out.extend([[mx, p[1]], [mx, q[1]], q]);
+            } else {
+                let my = (p[1] + q[1]) / 2.0;
+                out.extend([[p[0], my], [q[0], my], q]);
+            }
+            break;
+        }
+        out.push(if h { [q[0], p[1]] } else { [p[0], q[1]] });
+        out.push(q);
+        h = if h { !eq(q[1], p[1]) } else { eq(q[0], p[0]) };
+    }
+    tidy(&out)
+}
+
+/// Drop repeated points, then middle points on a straight run.
+fn tidy(out: &[Pt]) -> Vec<Pt> {
     let dedup: Vec<Pt> = out
         .iter()
         .enumerate()
@@ -442,7 +497,8 @@ fn resolve_arrow(s: &Shape, by_id: &HashMap<&str, &Shape>) -> Vec<Pt> {
         .end
         .as_ref()
         .and_then(|b| by_id.get(b.shape_id.as_str()).copied());
-    if bs.is_none() && be.is_none() && s.route.is_empty() {
+    let via = &s.via;
+    if bs.is_none() && be.is_none() && s.route.is_empty() && via.is_empty() {
         return pts.clone();
     }
     let mut a: Pt = pts.first().copied().unwrap_or([0.0, 0.0]);
@@ -467,6 +523,35 @@ fn resolve_arrow(s: &Shape, by_id: &HashMap<&str, &Shape>) -> Vec<Pt> {
         (Some(sh), Some(Anchor::Center)) => anchor_point(sh, Anchor::Center),
         _ => b,
     };
+    if let (Some(&fa), Some(&fb)) = (via.first(), via.last()) {
+        // Centre-bound ends aim at the nearest waypoint instead of the other end.
+        if s.route == "elbow" {
+            if let (Some(sh), Some(Anchor::Center)) = (bs, aa) {
+                let f = facing(sh, fa);
+                aa = Some(f);
+                a = anchor_point(sh, f);
+            }
+            if let (Some(sh), Some(Anchor::Center)) = (be, ab) {
+                let f = facing(sh, fb);
+                ab = Some(f);
+                b = anchor_point(sh, f);
+            }
+            let mut ctl = vec![r1(a)];
+            ctl.extend(via.iter().map(|&p| r1(p)));
+            ctl.push(r1(b));
+            return elbow_via(&ctl, aa, ab);
+        }
+        if let (Some(sh), Some(Anchor::Center)) = (bs, aa) {
+            a = boundary_toward(sh, fa);
+        }
+        if let (Some(sh), Some(Anchor::Center)) = (be, ab) {
+            b = boundary_toward(sh, fb);
+        }
+        let mut out = vec![r1(a)];
+        out.extend(via.iter().map(|&p| r1(p)));
+        out.push(r1(b));
+        return out;
+    }
     if s.route == "elbow" {
         if let (Some(sh), Some(Anchor::Center)) = (bs, aa) {
             let f = facing(sh, raw_b);
@@ -494,7 +579,7 @@ fn with_resolved_arrows(shapes: &[Shape]) -> Vec<Shape> {
     shapes
         .iter()
         .map(|s| {
-            if s.kind == "arrow" && (s.has_start || s.has_end || !s.route.is_empty()) {
+            if s.kind == "arrow" && (s.has_start || s.has_end || !s.route.is_empty() || s.has_via) {
                 Shape {
                     pts: resolve_arrow(s, &by_id),
                     ..s.clone()
@@ -1212,6 +1297,40 @@ mod tests {
         assert_eq!(n(-32.0), "-32");
         assert_eq!(fixed(310.25, 1), "310.3");
         assert_eq!(fixed(10.0, 1), "10.0");
+    }
+
+    #[test]
+    fn elbow_via_routes_through_waypoints_like_the_web() {
+        // Same cases as `web/packages/board/src/open.test.tsx`.
+        assert_eq!(
+            elbow_via(
+                &[[0.0, 0.0], [100.0, 50.0], [200.0, 0.0]],
+                Some(Anchor::Right),
+                Some(Anchor::Left)
+            ),
+            vec![
+                [0.0, 0.0],
+                [100.0, 0.0],
+                [100.0, 50.0],
+                [150.0, 50.0],
+                [150.0, 0.0],
+                [200.0, 0.0]
+            ]
+        );
+        assert_eq!(
+            elbow_via(
+                &[[0.0, 0.0], [100.0, 50.0], [200.0, 100.0]],
+                Some(Anchor::Right),
+                Some(Anchor::Top)
+            ),
+            vec![
+                [0.0, 0.0],
+                [100.0, 0.0],
+                [100.0, 50.0],
+                [200.0, 50.0],
+                [200.0, 100.0]
+            ]
+        );
     }
 
     #[test]

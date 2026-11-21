@@ -99,14 +99,50 @@ export function elbow(a: Pt, b: Pt, sa?: Anchor, sb?: Anchor): Pt[] {
     out = [a, [a[0], my], [b[0], my], b];
   } else if (hA) out = [a, [b[0], a[1]], b];
   else out = [a, [a[0], b[1]], b];
-  // drop repeated points, then middle points on a straight run (aligned cases)
-  const eq = (u: number, v: number) => Math.abs(u - v) < 0.01;
+  return tidy(out);
+}
+
+const eq = (u: number, v: number) => Math.abs(u - v) < 0.01;
+
+/** Drop repeated points, then middle points on a straight run. */
+function tidy(out: Pt[]): Pt[] {
   const dedup = out.filter((p, i) => i === 0 || !eq(p[0], out[i - 1][0]) || !eq(p[1], out[i - 1][1]));
   return dedup.filter((p, i) => {
     if (i === 0 || i === dedup.length - 1) return true;
     const [u, w] = [dedup[i - 1], dedup[i + 1]];
     return !((eq(u[0], p[0]) && eq(p[0], w[0])) || (eq(u[1], p[1]) && eq(p[1], w[1])));
   });
+}
+
+/**
+ * Orthogonal route through `pts` (ends and waypoints). Each leg is an L with one corner: the
+ * first leaves along the start side's axis (else its longer axis), each next leg leaves at a
+ * right angle to how the previous one arrived, and the last enters along the end side's axis.
+ */
+export function elbowVia(pts: Pt[], sa?: Anchor, sb?: Anchor): Pt[] {
+  if (pts.length < 2) return pts;
+  const n = pts.length;
+  let h = sa && sa !== "center" ? horiz(sa) : Math.abs(pts[1][0] - pts[0][0]) >= Math.abs(pts[1][1] - pts[0][1]);
+  const out: Pt[] = [pts[0]];
+  for (let i = 0; i < n - 1; i++) {
+    const p = pts[i], q = pts[i + 1];
+    if (i === n - 2 && sb && sb !== "center" && h === horiz(sb)) {
+      // The last leg must leave and arrive along the same axis: two corners at the midpoint.
+      if (h) out.push([(p[0] + q[0]) / 2, p[1]], [(p[0] + q[0]) / 2, q[1]], q);
+      else out.push([p[0], (p[1] + q[1]) / 2], [q[0], (p[1] + q[1]) / 2], q);
+      break;
+    }
+    out.push(h ? [q[0], p[1]] : [p[0], q[1]], q);
+    h = h ? !eq(q[1], p[1]) : eq(q[0], p[0]);
+  }
+  return tidy(out);
+}
+
+/** An arrow's manual waypoints (`via`): pairs of numbers, anything else read as 0 (as the Rust reader does). */
+export function viaOf(s: Shape): Pt[] {
+  if (!Array.isArray(s.via)) return [];
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return s.via.filter((p) => Array.isArray(p) && p.length >= 2).map((p) => [num(p[0]), num(p[1])] as Pt);
 }
 
 const r1 = (p: Pt): Pt => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10];
@@ -118,7 +154,8 @@ export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
   const bs = isBinding(s.start) ? byId.get(s.start.shapeId) : undefined;
   const be = isBinding(s.end) ? byId.get(s.end.shapeId) : undefined;
   const route = s.route;
-  if (!bs && !be && !route) return pts;
+  const via = viaOf(s);
+  if (!bs && !be && !route && !via.length) return pts;
   let a: Pt = pts[0] ?? [0, 0];
   let b: Pt = pts[pts.length - 1] ?? a;
   let aa: Anchor | undefined = bs ? (s.start as Binding).anchor : undefined;
@@ -127,6 +164,24 @@ export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
   if (be && ab !== "center") b = anchorPoint(be, ab!);
   const rawA = bs && aa === "center" ? anchorPoint(bs, "center") : a;
   const rawB = be && ab === "center" ? anchorPoint(be, "center") : b;
+  if (via.length) {
+    // Centre-bound ends aim at the nearest waypoint instead of the other end.
+    const fa = via[0], fb = via[via.length - 1];
+    if (route === "elbow") {
+      if (bs && aa === "center") {
+        aa = facing(bs, fa);
+        a = anchorPoint(bs, aa);
+      }
+      if (be && ab === "center") {
+        ab = facing(be, fb);
+        b = anchorPoint(be, ab);
+      }
+      return elbowVia([r1(a), ...via.map(r1), r1(b)], aa, ab);
+    }
+    if (bs && aa === "center") a = boundaryToward(bs, fa);
+    if (be && ab === "center") b = boundaryToward(be, fb);
+    return [r1(a), ...via.map(r1), r1(b)];
+  }
   if (route === "elbow") {
     if (bs && aa === "center") {
       aa = facing(bs, rawB);
@@ -146,7 +201,7 @@ export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
 /** Shapes with every arrow's `pts` replaced by its resolved geometry (for bounds, export, hit boxes). */
 export function withResolvedArrows(shapes: Shape[]): Shape[] {
   const byId = new Map(shapes.map((s) => [s.id, s]));
-  return shapes.map((s) => (s.type === "arrow" && (s.start || s.end || s.route) ? { ...s, pts: resolveArrow(s, byId) } : s));
+  return shapes.map((s) => (s.type === "arrow" && (s.start || s.end || s.route || s.via) ? { ...s, pts: resolveArrow(s, byId) } : s));
 }
 
 const samePts = (a: Pt[] | undefined, b: Pt[]) => !!a && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
@@ -162,7 +217,7 @@ export function syncBoundArrows(doc: Y.Doc, boardId: string, origin?: unknown) {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const moves: { id: string; patch: Partial<Shape> }[] = [];
   for (const s of shapes) {
-    if (s.type !== "arrow" || !(isBinding(s.start) || isBinding(s.end))) continue;
+    if (s.type !== "arrow" || !(isBinding(s.start) || isBinding(s.end) || viaOf(s).length)) continue;
     const pts = resolveArrow(s, byId);
     if (pts.length >= 2 && !samePts(s.pts, pts)) moves.push({ id: s.id, patch: { pts } });
   }

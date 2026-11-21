@@ -236,7 +236,9 @@ describe("table interaction", () => {
     const ids = snap(doc, id).fields.map((f) => f.id);
     const head = el.querySelectorAll<HTMLButtonElement>("th .ocdb-hcell")[1];
     key(head, "ArrowRight", { altKey: true, shiftKey: true });
-    expect(snap(doc, id).fields.map((f) => f.id).slice(0, 3)).toEqual([ids[0], ids[2], ids[1]]);
+    // Column order is per view (D22); the shared field list stays as it was (D24).
+    expect(snap(doc, id).views.table.fields!.slice(0, 3)).toEqual([ids[0], ids[2], ids[1]]);
+    expect(snap(doc, id).fields.map((f) => f.id)).toEqual(ids);
     const sep = el.querySelector<HTMLElement>(`th[data-fid="${ids[2]}"] .ocdb-rsz`)!;
     const w0 = Number(sep.getAttribute("aria-valuenow"));
     key(sep, "ArrowRight");

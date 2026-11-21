@@ -7,10 +7,10 @@ import { ensureStyles } from "./styles";
 import { Ic, Modal, TYPE_ICON } from "./ui";
 
 export const SAMPLE_CSV = `Feature,Status,Owner,Votes,Requested,Customer
-Per-channel autosave,Planned,Asha Rao,42,2026-11-02,Arcadia Schools
-Comments in PDF export,In progress,Ravi Menon,31,2026-10-28,Kestrel Logistics
+Per-channel autosave,Planned,Asha Rao,42,2026-11-02,Acme Schools
+Comments in PDF export,In progress,Ravi Menon,31,2026-10-28,Acme Logistics
 Offline mode on iOS,Planned,Lin Zhou,27,2026-11-10,Blue Fjord Energy
-"Templates: ""Retro"" pack",Shipped,Priya Shah,19,2026-09-15,Northwind Health
+"Templates: ""Retro"" pack",Shipped,Priya Shah,19,2026-09-15,Acme Health
 Database formulas,Planned,,55,2026-11-18,Orbit Studios`;
 
 const MAX_ROWS = 10000;

@@ -1,5 +1,5 @@
 {
-  "order": ["frame", "st1", "st2", "el", "dm", "a_straight", "a_elbow", "a_side", "a_free", "pen", "img", "txt", "sw", "under", "over", "st_long", "r_blue", "r_gray", "r_red", "r_purple", "r_pink", "r_badtone", "r_framefill", "el_green", "dm_amber", "big_text", "a_label", "a_free_label", "a_blank_label", "missing"],
+  "order": ["frame", "st1", "st2", "el", "dm", "a_straight", "a_elbow", "a_side", "a_free", "pen", "img", "txt", "sw", "under", "over", "st_long", "r_blue", "r_gray", "r_red", "r_purple", "r_pink", "r_badtone", "r_framefill", "el_green", "dm_amber", "big_text", "a_label", "a_free_label", "a_blank_label", "a_via_straight", "a_via_elbow", "a_via_center_elbow", "a_via_free", "a_via_empty", "missing"],
   "shapes": {
     "frame": {"type": "rect", "x": 0, "y": 0, "w": 420, "h": 260, "label": "Host app & co", "dashed": true},
     "st1": {"type": "sticky", "x": 26, "y": 44, "w": 150, "h": 110, "fill": "b", "text": "Signs launch\ntoken <JWT>"},
@@ -31,6 +31,11 @@
     "a_free_label": {"type": "arrow", "pts": [[700, 800], [760, 830], [900, 830]], "text": "a much longer connector label that wraps onto two lines"},
     "a_blank_label": {"type": "arrow", "pts": [[1000, 760], [1000, 820]], "text": "   "},
     "under": {"type": "rect", "x": 440, "y": 840, "w": 100, "h": 60, "fill": "blue", "text": "Below"},
-    "over": {"type": "sticky", "x": 480, "y": 860, "w": 120, "h": 80, "fill": "p", "text": "On top"}
+    "over": {"type": "sticky", "x": 480, "y": 860, "w": 120, "h": 80, "fill": "p", "text": "On top"},
+    "a_via_straight": {"type": "arrow", "pts": [[0, 0], [1, 1]], "start": {"shapeId": "st1", "anchor": "center"}, "end": {"shapeId": "sw", "anchor": "top"}, "via": [[300, 280], [540.333, 280]]},
+    "a_via_elbow": {"type": "arrow", "pts": [[0, 0], [1, 1]], "route": "elbow", "text": "via", "start": {"shapeId": "r_gray", "anchor": "right"}, "end": {"shapeId": "dm_amber", "anchor": "left"}, "via": [[560, 770]]},
+    "a_via_center_elbow": {"type": "arrow", "pts": [[0, 0], [1, 1]], "route": "elbow", "start": {"shapeId": "el", "anchor": "center"}, "end": {"shapeId": "under", "anchor": "center"}, "via": [[420, 600], [380.05, 820]]},
+    "a_via_free": {"type": "arrow", "pts": [[1100, 100], [1200, 200]], "via": [[1150, 50], [1180.25, "x"], [1190]]},
+    "a_via_empty": {"type": "arrow", "pts": [[1100, 300], [1150, 320], [1200, 300]], "via": []}
   }
 }

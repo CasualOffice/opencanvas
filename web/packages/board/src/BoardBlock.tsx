@@ -4,9 +4,9 @@ import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
-  AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, Copy, CornerDownRight, Diamond, Ellipsis,
-  FileCode2, FileImage, Group, Hand, ImagePlus, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus, Redo2, SendToBack,
-  Shapes, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, type LucideIcon,
+  AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
+  Ellipsis, FileCode2, FileImage, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
+  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
@@ -14,7 +14,7 @@ import {
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
-import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, withResolvedArrows, type Anchor, type ArrowRoute, type Binding } from "./connectors";
+import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, viaOf, withResolvedArrows, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { exportBoardPng, exportBoardSvg } from "./export";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 import {
@@ -168,6 +168,8 @@ type Drag =
   | { kind: "pen" }
   | { kind: "arrow" }
   | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
+  /** Dragging waypoint `i` of a connector; `insert` when it was a segment's midpoint handle. */
+  | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean }
   | { kind: "pinch"; d0: number; c0: [number, number]; v: View };
 
 const describeShape = (s: Shape) => {
@@ -223,9 +225,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const space = useRef(false);
   const lastPt = useRef<Pt | null>(null);
 
+  /** Active waypoint (index into the selected connector's `via`) for the keyboard and Delete. */
+  const [wp, setWpState] = useState<number | null>(null);
+  const [mini, setMini] = useState(false);
+
   // Always-fresh values for event handlers.
-  const S = useRef({ shapes, view, tool, sel, edit, editing });
-  S.current = { shapes, view, tool, sel, edit, editing };
+  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp });
+  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp };
+  const setWp = (i: number | null) => {
+    S.current.wp = i;
+    setWpState(i);
+  };
 
   const tool_ = edit ? tool : tool === "hand" ? "hand" : "select";
   const setTool = (t: Tool) => setToolState(edit || t === "select" || t === "hand" ? t : "select");
@@ -252,6 +262,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   }, [awareness]);
 
   const setSel = (ids: string[]) => {
+    const cur = S.current.sel;
+    if (ids.length !== cur.length || ids.some((x, i) => x !== cur[i])) setWp(null);
     S.current.sel = ids;
     setSelState(ids);
     publishNow(ids);
@@ -267,10 +279,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   /* ---- undo ---- */
+  // With the editor's manager (env.undoManager) board edits join the canvas undo stack, so one
+  // Cmd/Ctrl+Z covers both; without one the board keeps its own (per view: only this view's edits).
+  const shared = env.undoManager;
   const um = useMemo(() => {
     const m = getBoardMap(doc, boardId);
-    return m ? new Y.UndoManager(m, { trackedOrigins: new Set([origin]), captureTimeout: 400 }) : null;
-  }, [doc, boardId, origin]);
+    if (!m) return null;
+    if (shared) {
+      shared.addToScope(m);
+      shared.trackedOrigins.add(origin);
+      return shared;
+    }
+    return new Y.UndoManager(m, { trackedOrigins: new Set([origin]), captureTimeout: 400 });
+  }, [doc, boardId, origin, shared]);
   const [, setStacks] = useState(0);
   useEffect(() => {
     if (!um) return;
@@ -278,8 +299,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     um.on("stack-item-added", bump);
     um.on("stack-item-popped", bump);
     um.on("stack-cleared", bump);
-    return () => um.destroy();
-  }, [um]);
+    return () => {
+      um.off("stack-item-added", bump);
+      um.off("stack-item-popped", bump);
+      um.off("stack-cleared", bump);
+      // A shared manager belongs to the editor: stop capturing this view's edits, keep its stack.
+      if (um === shared) um.trackedOrigins.delete(origin);
+      else um.destroy();
+    };
+  }, [um, shared, origin]);
   const undo = (redo = false) => {
     if (!um) return;
     if (redo ? !um.redoStack.length : !um.undoStack.length) return setLive(redo ? "Nothing to redo" : "Nothing to undo");
@@ -358,8 +386,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const applyMoves = (moves: { id: string; patch: Partial<Shape> }[]) => {
     if (!moves.length) return;
     um?.stopCapturing();
-    doc.transact(() => moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin)), origin);
-    syncBoundArrows(doc, boardId, origin);
+    doc.transact(() => {
+      moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin));
+      syncBoundArrows(doc, boardId, origin);
+    }, origin);
   };
 
   const startEdit = (s: Shape) => {
@@ -439,6 +469,74 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const sid = addShape(doc, boardId, { ...rest, pts: resolveArrow(s, byId).map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt) }, origin);
     setSel([sid]);
     setLive(`Connected ${describeShape(a)} to ${describeShape(b)}`);
+  };
+
+  /* ---- connector waypoints (`via`) ---- */
+  const rawOf = (sid: string) => S.current.raw.find((q) => q.id === sid);
+  /** A connector's editable waypoints. A legacy free polyline's middle points count as waypoints. */
+  const wayOf = (r: Shape): Pt[] => {
+    const v = viaOf(r);
+    if (v.length || r.via) return v;
+    return !r.start && !r.end && !r.route && (r.pts?.length ?? 0) > 2 ? r.pts!.slice(1, -1).map((p) => [p[0], p[1]] as Pt) : [];
+  };
+  /** The patch that gives connector `r` these waypoints, with `pts` rewritten to the path they draw. */
+  const viaPatch = (r: Shape, via: Pt[]): Partial<Shape> => {
+    const v = via.map((p) => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10] as Pt);
+    const next: Shape = { ...r, via: v.length ? v : undefined };
+    const pts = r.pts ?? [];
+    const routed = !!(r.start || r.end || r.route);
+    return { via: v.length ? v : undefined, pts: v.length || routed ? resolveArrow(next, S.current.byId) : pts.length > 2 ? [pts[0], pts[pts.length - 1]] : pts };
+  };
+  const setVia = (sid: string, via: Pt[], split = true) => {
+    const r = rawOf(sid);
+    if (!r) return;
+    if (split) um?.stopCapturing();
+    updateShape(doc, boardId, sid, viaPatch(r, via), origin);
+  };
+  /** Control polygon: the drawn ends with the waypoints between them. */
+  const controlOf = (sid: string): Pt[] => {
+    const r = rawOf(sid), s = S.current.byId.get(sid);
+    if (!r || !s?.pts || s.pts.length < 2) return [];
+    return [s.pts[0], ...wayOf(r), s.pts[s.pts.length - 1]];
+  };
+  const announceWp = (i: number, n: number) => setLive(`Waypoint ${i + 1} of ${n}. Arrow keys move it, Delete removes it, Escape returns to the connector.`);
+  /** Insert a waypoint at `p` on the control segment nearest to it. */
+  const addWaypointAt = (sid: string, p: Pt) => {
+    const r = rawOf(sid);
+    const c = controlOf(sid);
+    if (!r || c.length < 2) return;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < c.length - 1; i++) {
+      const d = segDist(p, c[i], c[i + 1]);
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    const via = wayOf(r);
+    via.splice(best, 0, [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]);
+    setVia(sid, via);
+    setWp(best);
+    announceWp(best, via.length);
+  };
+  /** Keyboard / button: a waypoint in the middle of the longest control segment. */
+  const addWaypoint = (sid: string) => {
+    const c = controlOf(sid);
+    if (c.length < 2) return;
+    let best = 0;
+    for (let i = 1; i < c.length - 1; i++) if (Math.hypot(c[i + 1][0] - c[i][0], c[i + 1][1] - c[i][1]) > Math.hypot(c[best + 1][0] - c[best][0], c[best + 1][1] - c[best][1])) best = i;
+    addWaypointAt(sid, [(c[best][0] + c[best + 1][0]) / 2, (c[best][1] + c[best + 1][1]) / 2]);
+  };
+  const removeWaypoint = (sid: string, i: number) => {
+    const r = rawOf(sid);
+    if (!r) return;
+    const via = wayOf(r);
+    if (i < 0 || i >= via.length) return;
+    via.splice(i, 1);
+    setVia(sid, via);
+    const next = via.length ? Math.min(i, via.length - 1) : null;
+    setWp(next);
+    setLive(next === null ? "Waypoint removed. The connector has no waypoints." : `Waypoint removed. Waypoint ${next + 1} of ${via.length} selected.`);
   };
 
   /* ---- images ---- */
@@ -632,7 +730,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (t === "select") {
       if (sid) {
         const s = S.current.shapes.find((q) => q.id === sid);
-        const handle = (e.target as Element).classList?.contains("ocbd-rz") || (e.target as Element).getAttribute?.("data-end");
+        const tEl = e.target as Element;
+        const wpAttr = tEl.getAttribute?.("data-wp") ?? null, segAttr = tEl.getAttribute?.("data-seg") ?? null;
+        const handle = tEl.classList?.contains("ocbd-rz") || tEl.getAttribute?.("data-end") || wpAttr !== null || segAttr !== null;
         // A click picks the shape's whole group; Shift adds or removes it.
         const ids = handle ? [sid] : withGroups(S.current.shapes, [sid]);
         const cur = S.current.sel;
@@ -651,7 +751,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         if (s && S.current.edit) {
           um?.stopCapturing();
           const end = (e.target as Element).getAttribute?.("data-end");
-          if (end === "start" || end === "end") drag.current = { kind: "end", sid, which: end, orig: JSON.parse(JSON.stringify(s)), moved: false };
+          if (wpAttr !== null || segAttr !== null) {
+            const r = rawOf(sid);
+            const i = Number(wpAttr ?? segAttr);
+            const way = r ? wayOf(r) : [];
+            drag.current = { kind: "wp", sid, i, insert: segAttr !== null, orig: way, moved: false };
+            if (wpAttr !== null) {
+              setWp(i);
+              announceWp(i, way.length);
+            }
+          } else if (end === "start" || end === "end") drag.current = { kind: "end", sid, which: end, orig: JSON.parse(JSON.stringify(s)), moved: false };
           else if ((e.target as Element).classList?.contains("ocbd-rz")) drag.current = { kind: "resize", sid, ox: x, oy: y, orig: JSON.parse(JSON.stringify(s)), moved: false };
           else {
             const moving = S.current.shapes.filter((q) => next.includes(q.id));
@@ -752,6 +861,21 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
+    if (d.kind === "wp") {
+      const r = rawOf(d.sid);
+      if (!r) return;
+      if (!d.moved) {
+        setDragging(true);
+        if (d.insert) setWp(d.i);
+      }
+      d.moved = true;
+      const via = d.orig.map((p) => [p[0], p[1]] as Pt);
+      const p: Pt = [Math.round(x), Math.round(y)];
+      if (d.insert) via.splice(d.i, 0, p);
+      else via[d.i] = p;
+      schedule(d.sid, viaPatch(r, via));
+      return;
+    }
     if (d.kind === "end") {
       if (!d.moved) setDragging(true);
       d.moved = true;
@@ -763,7 +887,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const pts = (o.pts ?? []).map((q) => [q[0], q[1]] as Pt);
       if (pts.length < 2) return;
       // A bound or routed arrow is just its two ends; a free polyline keeps its middle points.
-      const two = !!(b || other || o.route);
+      const two = !!(b || other || o.route || viaOf(o).length);
       const next: Pt[] = two ? (d.which === "start" ? [p, pts[pts.length - 1]] : [pts[0], p]) : d.which === "start" ? [p, ...pts.slice(1)] : [...pts.slice(0, -1), p];
       schedule(d.sid, { pts: next, [d.which]: b ?? undefined });
       setHint(b);
@@ -793,8 +917,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     d.orig.forEach((o) => {
       if (o.pts) {
         const bound = [o.start, o.end].filter(Boolean) as Binding[];
-        // A connector moved with both of its shapes follows them; moved alone it detaches.
-        if (bound.length && bound.every((b) => set.has(b.shapeId))) return;
+        // A connector moved with both of its shapes follows them (its waypoints move along);
+        // moved alone it detaches.
+        if (bound.length && bound.every((b) => set.has(b.shapeId))) {
+          if (o.via?.length) schedule(o.id, { via: movePatch(o, dx, dy).via });
+          return;
+        }
         schedule(o.id, { ...movePatch(o, dx, dy), ...(bound.length ? { start: undefined, end: undefined } : {}) });
       } else schedule(o.id, movePatch(o, dx, dy));
     });
@@ -817,9 +945,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       announceSel(S.current.sel);
       return;
     }
-    if (d.kind === "move" || d.kind === "resize" || d.kind === "end") {
-      flush();
-      if (d.moved) syncBoundArrows(doc, boardId, origin);
+    if (d.kind === "wp" && d.moved) {
+      const n = d.orig.length + (d.insert ? 1 : 0);
+      announceWp(d.i, n);
+    }
+    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp") {
+      doc.transact(() => {
+        flush();
+        if (d.moved) syncBoundArrows(doc, boardId, origin);
+      }, origin);
     }
     const p = draftRef.current;
     if (d.kind === "pen") {
@@ -855,6 +989,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const sid = target?.getAttribute("data-s");
     const s = sid ? S.current.shapes.find((q) => q.id === sid) : null;
     if (s) {
+      // On a connector: double-click a waypoint to remove it, the line to add one there.
+      // Its label (or Enter, or the toolbar) edits the text.
+      if (s.type === "arrow" && !hit?.closest(".ocbd-alabel")) {
+        const wpEl = hit?.closest("[data-wp]");
+        if (wpEl) removeWaypoint(s.id, Number(wpEl.getAttribute("data-wp")));
+        else if (!hit?.closest("[data-end]")) {
+          setSel([s.id]);
+          addWaypointAt(s.id, toWorld(e.clientX, e.clientY));
+        }
+        return;
+      }
       startEdit(s);
       return;
     }
@@ -891,25 +1036,37 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     for (const s of list) {
       if (s.pts) {
         const bound = [s.start, s.end].filter(Boolean) as Binding[];
-        if (bound.length && bound.every((b) => set.has(b.shapeId))) continue;
+        if (bound.length && bound.every((b) => set.has(b.shapeId))) {
+          if (s.via?.length) moves.push({ id: s.id, patch: { via: movePatch(s, dx, dy).via } });
+          continue;
+        }
         moves.push({ id: s.id, patch: { ...movePatch(raw.find((q) => q.id === s.id) ?? s, dx, dy), ...(bound.length ? { start: undefined, end: undefined } : {}) } });
       } else moves.push({ id: s.id, patch: movePatch(s, dx, dy) });
     }
-    doc.transact(() => moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin)), origin);
-    syncBoundArrows(doc, boardId, origin);
+    // One transaction, so one undo step whatever the undo manager's capture window.
+    doc.transact(() => {
+      moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin));
+      syncBoundArrows(doc, boardId, origin);
+    }, origin);
   };
   const onKeyUp = (e: React.KeyboardEvent) => {
     if (e.key === " ") space.current = false;
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
-    if (t.closest("textarea,input,[contenteditable='true']")) return;
+    // Typing in a field of this board keeps its keys. (The board itself sits inside the editor's
+    // contenteditable document, so only editable elements inside the board count.)
+    const typing = t.closest("textarea,input,[contenteditable='true']");
+    if (typing && typing !== rootRef.current && rootRef.current?.contains(typing)) return;
     // Buttons in the toolbars keep Space / Enter / Tab; board shortcuts only from the canvas.
     const onCanvas = t === rootRef.current;
     const mod = e.metaKey || e.ctrlKey;
     const k = e.key.toLowerCase();
     if (e.key === "Escape") {
-      if (menu) setMenu(false);
+      if (S.current.wp !== null) {
+        setWp(null);
+        setLive("Connector selected");
+      } else if (menu) setMenu(false);
       else if (S.current.tool !== "select") setTool("select");
       else if (S.current.sel.length) {
         setSel([]);
@@ -973,9 +1130,48 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       announceSel(all);
       return;
     }
+    if (k === "m" && !mod && !e.altKey) {
+      setMini((v) => !v);
+      setLive(mini ? "Minimap hidden" : "Minimap shown");
+      return;
+    }
     if (!S.current.edit) {
       if (!mod && (k === "v" || k === "h")) setTool(KEY_TOOL[k]);
       return;
+    }
+    // A single selected connector: W adds a waypoint, Alt+Left/Right picks one, arrows move the
+    // picked one, Delete removes it (the keyboard path for dragging waypoints).
+    const conn = S.current.sel.length === 1 ? S.current.raw.find((q) => q.id === S.current.sel[0] && q.type === "arrow") : undefined;
+    if (conn && !mod) {
+      const way = wayOf(conn);
+      const cur = S.current.wp;
+      if (k === "w" && !e.altKey) {
+        e.preventDefault();
+        addWaypoint(conn.id);
+        return;
+      }
+      if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && way.length) {
+        e.preventDefault();
+        const i = cur === null ? (e.key === "ArrowLeft" ? way.length - 1 : 0) : Math.max(0, Math.min(way.length - 1, cur + (e.key === "ArrowLeft" ? -1 : 1)));
+        setWp(i);
+        announceWp(i, way.length);
+        return;
+      }
+      if (cur !== null && cur < way.length) {
+        if (e.key === "Backspace" || e.key === "Delete") {
+          e.preventDefault();
+          removeWaypoint(conn.id, cur);
+          return;
+        }
+        if (e.key.startsWith("Arrow") && !e.altKey) {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          const next = way.map((p) => [p[0], p[1]] as Pt);
+          next[cur] = [next[cur][0] + (e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0), next[cur][1] + (e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0)];
+          setVia(conn.id, next, false);
+          return;
+        }
+      }
     }
     if (mod && k === "z") {
       e.preventDefault();
@@ -1039,8 +1235,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         // Alt+arrows resize (the keyboard alternative to dragging the handle).
         const s = list[0];
         if (list.length !== 1 || !SIZED.includes(s.type)) return;
-        updateShape(doc, boardId, s.id, { w: Math.max(40, (s.w ?? 0) + dx), h: Math.max(30, (s.h ?? 0) + dy) }, origin);
-        syncBoundArrows(doc, boardId, origin);
+        doc.transact(() => {
+          updateShape(doc, boardId, s.id, { w: Math.max(40, (s.w ?? 0) + dx), h: Math.max(30, (s.h ?? 0) + dy) }, origin);
+          syncBoundArrows(doc, boardId, origin);
+        }, origin);
         setLive(`${Math.round(Math.max(40, (s.w ?? 0) + dx))} by ${Math.round(Math.max(30, (s.h ?? 0) + dy))}`);
         return;
       }
@@ -1150,6 +1348,36 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               );
             })
           : null}
+        {selShape?.type === "arrow" && selShape.pts && selShape.pts.length >= 2 && edit
+          ? (() => {
+              // Waypoints (drag; double-click removes) and, between control points, "+" handles
+              // that insert one where you drag them to.
+              const r = raw.find((q) => q.id === selShape.id);
+              if (!r) return null;
+              const way = wayOf(r);
+              const c: Pt[] = [selShape.pts[0], ...way, selShape.pts[selShape.pts.length - 1]];
+              const out: ReactNode[] = [];
+              if (way.length && r.route === "elbow") {
+                out.push(<path key="ctl" d={"M" + c.map((q) => q.join(" ")).join(" L")} fill="none" stroke="var(--accent)" strokeOpacity={0.35} strokeWidth={1 / z} strokeDasharray={`${3 / z} ${3 / z}`} pointerEvents="none" />);
+              }
+              for (let i = 0; i < c.length - 1; i++) {
+                if (Math.hypot(c[i + 1][0] - c[i][0], c[i + 1][1] - c[i][1]) * z < (compact ? 56 : 36)) continue;
+                out.push(
+                  <circle key={"seg" + i} className="ocbd-wpadd" data-s={selShape.id} data-seg={i} cx={(c[i][0] + c[i + 1][0]) / 2} cy={(c[i][1] + c[i + 1][1]) / 2} r={(compact ? 8 : 4.5) / z} fill="var(--app)" stroke="var(--accent)" strokeOpacity={0.7} strokeWidth={1.25 / z} style={{ cursor: "copy" }}>
+                    <title>Drag to add a waypoint (W)</title>
+                  </circle>,
+                );
+              }
+              way.forEach((q, i) =>
+                out.push(
+                  <circle key={"wp" + i} className={"ocbd-wp" + (wp === i ? " on" : "")} data-s={selShape.id} data-wp={i} cx={q[0]} cy={q[1]} r={((compact ? 9 : 5.5) + (wp === i ? 1 : 0)) / z} fill={wp === i ? "var(--accent)" : "var(--app)"} stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "move" }}>
+                    <title>Drag to move. Double-click or Delete removes it</title>
+                  </circle>,
+                ),
+              );
+              return out;
+            })()
+          : null}
         {edit && selShape && SIZED.includes(selShape.type)
           ? (() => {
               const b = bbox(selShape);
@@ -1256,11 +1484,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         items.push(
           btn(label, I, () => {
             setRoute(r);
-            updateShape(doc, boardId, s1.id, { route: r }, origin);
-            syncBoundArrows(doc, boardId, origin);
+            doc.transact(() => {
+              updateShape(doc, boardId, s1.id, { route: r }, origin);
+              syncBoundArrows(doc, boardId, origin);
+            }, origin);
           }, { pressed: (rawSel?.route ?? "straight") === r }),
         ),
       );
+      const way = rawSel ? wayOf(rawSel) : [];
+      items.push(btn("Add waypoint", Spline, () => addWaypoint(s1.id), { keys: "W" }));
+      if (wp !== null && wp < way.length) items.push(btn("Remove waypoint", CircleMinus, () => removeWaypoint(s1.id, wp), { keys: "Delete" }));
+      if (way.length) items.push(btn("Clear waypoints", RouteOff, () => { setVia(s1.id, []); setWp(null); setLive("Waypoints cleared"); }));
       items.push(sep("s1"));
     }
     if (s1 && (s1.type === "text" || BOXY.includes(s1.type))) {
@@ -1324,8 +1558,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     >
       <span id={`${uid}-help`} className="ocbd-sr">
         {edit
-          ? "Tab moves through shapes. Arrow keys move the selection, Alt with arrows resizes, Enter edits text. Pick a tool with its letter and press Enter to place it. Control C, X, V, D copy, cut, paste and duplicate."
-          : "Tab moves through shapes. Use the zoom buttons or Control plus and minus to zoom."}
+          ? "Tab moves through shapes. Arrow keys move the selection, Alt with arrows resizes, Enter edits text. Pick a tool with its letter and press Enter to place it. Control C, X, V, D copy, cut, paste and duplicate. On a connector, W adds a waypoint, Alt with left or right arrow picks one, arrows move it, Delete removes it. Shift 1 fits the board, Shift 2 zooms to the selection, M shows the minimap."
+          : "Tab moves through shapes. Use the zoom buttons or Control plus and minus to zoom. Shift 1 fits the board, Shift 2 zooms to the selection, M shows the minimap."}
       </span>
       <svg
         ref={svgRef}
@@ -1473,7 +1707,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <button className="ocbd-ib" aria-label="Zoom in" onClick={() => zoomCenter(1.2)} disabled={z >= ZMAX - 1e-6}>
           <Plus size={14} strokeWidth={SW} />
         </button>
+        <span className="ocbd-zs" />
+        <button className="ocbd-ib" title="Minimap (M)" aria-label="Minimap" aria-keyshortcuts="M" aria-pressed={mini} onClick={() => setMini((v) => !v)}>
+          <MapIcon size={14} strokeWidth={SW} />
+        </button>
       </div>
+      {mini && W ? <Minimap shapes={shapes} view={view} size={size} onView={setView} /> : null}
 
       {swatch}
       {editor}
@@ -1504,6 +1743,124 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     );
   }
   return content;
+}
+
+/* ------------------------------------------------------------ minimap */
+
+const MM = { w: 200, h: 132, pad: 8 };
+
+/** Shapes drawn small, in board coordinates (the parent scales them). Memoised on the shapes. */
+const MiniShapes = memo(function MiniShapes({ shapes }: { shapes: Shape[] }) {
+  return (
+    <>
+      {shapes.map((s) => {
+        if (s.pts && s.pts.length > 1) {
+          return <path key={s.id} data-ms={s.id} d={"M" + s.pts.map((q) => q.join(" ")).join(" L")} fill="none" stroke={s.type === "pen" ? "var(--accent)" : "var(--fg-3)"} strokeWidth={1.25} vectorEffect="non-scaling-stroke" />;
+        }
+        const [x0, y0, x1, y1] = bbox(s);
+        const fill = s.type === "sticky" ? (STICKY[s.fill ?? "y"] ?? STICKY.y) : s.type === "swatch" ? (SWATCH[s.fill ?? "accent"] ?? SWATCH.accent) : s.type === "text" ? "var(--fg-4)" : s.fill && TONES.includes(s.fill as (typeof TONES)[number]) ? `var(--${s.fill}-bg)` : "var(--sunk)";
+        return <rect key={s.id} data-ms={s.id} x={x0} y={y0} width={Math.max(1, x1 - x0)} height={Math.max(1, y1 - y0)} rx={3} fill={fill} stroke={s.dashed ? "var(--fg-4)" : "var(--line-2)"} strokeWidth={1} vectorEffect="non-scaling-stroke" fillOpacity={s.dashed ? 0 : 1} />;
+      })}
+    </>
+  );
+});
+
+/**
+ * Overview of the whole board with the visible area outlined. Click to centre the view on a
+ * spot, drag the outline (or anywhere, after the click) to pan, or focus it and use the arrow
+ * keys (Shift for bigger steps): the keyboard and single-pointer alternatives to dragging.
+ */
+function Minimap({ shapes, view, size, onView }: { shapes: Shape[]; view: View; size: [number, number]; onView: (v: View) => void }) {
+  const [W, H] = size;
+  const vb: Box = [-view.tx / view.z, -view.ty / view.z, (W - view.tx) / view.z, (H - view.ty) / view.z];
+  const content = useMemo(() => contentBounds(shapes), [shapes]);
+  // While dragging, the map's frame stays put so the outline doesn't swim under the pointer.
+  const frozen = useRef<Box | null>(null);
+  const B: Box = frozen.current ?? (content ? [Math.min(content[0], vb[0]), Math.min(content[1], vb[1]), Math.max(content[2], vb[2]), Math.max(content[3], vb[3])] : vb);
+  const bw = Math.max(1, B[2] - B[0]), bh = Math.max(1, B[3] - B[1]);
+  const k = Math.min((MM.w - MM.pad * 2) / bw, (MM.h - MM.pad * 2) / bh);
+  const ox = MM.pad + (MM.w - MM.pad * 2 - bw * k) / 2 - B[0] * k;
+  const oy = MM.pad + (MM.h - MM.pad * 2 - bh * k) / 2 - B[1] * k;
+  const V = useRef({ view, k, W, H });
+  V.current = { view, k, W, H };
+  const ref = useRef<SVGSVGElement>(null);
+
+  const centreOn = (wx: number, wy: number) => {
+    const { view: v, W: w, H: h } = V.current;
+    onView({ ...v, tx: w / 2 - wx * v.z, ty: h / 2 - wy * v.z });
+  };
+  /** Pan with the pointer: every map pixel moved is 1/k board units. */
+  const track = (e: React.PointerEvent, from: View) => {
+    frozen.current = B;
+    const sx = e.clientX, sy = e.clientY;
+    const move = (ev: PointerEvent) => {
+      const kk = V.current.k;
+      onView({ ...from, tx: from.tx - ((ev.clientX - sx) / kk) * from.z, ty: from.ty - ((ev.clientY - sy) / kk) * from.z });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      frozen.current = null;
+      onView({ ...V.current.view });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+  const onDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if ((e.target as Element).classList?.contains("ocbd-mini-vp")) return track(e, view);
+    // Click: centre there, then keep panning if the pointer moves on.
+    const r = ref.current!.getBoundingClientRect();
+    const wx = (e.clientX - r.left - ox) / k, wy = (e.clientY - r.top - oy) / k;
+    const next = { ...view, tx: W / 2 - wx * view.z, ty: H / 2 - wy * view.z };
+    onView(next);
+    track(e, next);
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = (e.shiftKey ? 0.5 : 0.1) * Math.min(W, H);
+    const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+    const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+    if (dx || dy) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Arrow right shows what is to the right: the view moves, the board slides left.
+      onView({ ...view, tx: view.tx - dx, ty: view.ty - dy });
+    } else if (e.key === "Home" && content) {
+      e.preventDefault();
+      e.stopPropagation();
+      centreOn((content[0] + content[2]) / 2, (content[1] + content[3]) / 2);
+    }
+  };
+  return (
+    <div
+      className="ocbd-mini"
+      tabIndex={0}
+      role="group"
+      aria-roledescription="minimap"
+      aria-label="Minimap. Arrow keys pan the view, Shift for larger steps, Home centres the board. Click to jump, drag the outline to pan."
+      onKeyDown={onKey}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <svg ref={ref} width={MM.w} height={MM.h} onPointerDown={onDown} aria-hidden="true">
+        <g className="ocbd-mini-world" transform={`translate(${ox} ${oy}) scale(${k})`}>
+          <MiniShapes shapes={shapes} />
+        </g>
+        <rect className="ocbd-mini-vp" x={ox + vb[0] * k} y={oy + vb[1] * k} width={Math.max(4, (vb[2] - vb[0]) * k)} height={Math.max(4, (vb[3] - vb[1]) * k)} rx={3} />
+      </svg>
+    </div>
+  );
+}
+
+/** Distance from `p` to the segment `a`–`b`. */
+function segDist(p: Pt, a: Pt, b: Pt): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return Math.hypot(p[0] - (a[0] + dx * t), p[1] - (a[1] + dy * t));
 }
 
 function snapArrow(a: Pt, b: Pt, shift: boolean): Pt {
