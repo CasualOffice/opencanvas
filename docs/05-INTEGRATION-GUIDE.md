@@ -117,7 +117,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role}] }` |
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
-| canvas → host | `UI_Block_Link` | `{ blockId, fileId }` ("Copy link to block": the host builds its own URL, ADR-023) |
+| canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
 | canvas → host | `Error` | `{ code, message }` |
 | host → canvas | `Host_PostmessageReady` | `{}` |
 | host → canvas | `Action_Commit` | `{ message? }` |
@@ -125,9 +125,16 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_RefreshToken` | `{ token }` |
 | host → canvas | `Action_Export` | `{ format }` |
 | host → canvas | `Action_Theme` | `{ theme: "light"\|"dark"\|tokens }` |
-| host → canvas | `Action_ScrollToBlock` | `{ blockId }` (scroll to and highlight a block) |
+| host → canvas | `Action_ScrollToBlock` | `{ blockId }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". |
 
 Origins are checked against `allowed_origins` both ways.
+
+**Links to a block.** Your link is your URL (OpenCanvas never shows one of its own inside a
+host). To open the canvas at a block, either pass `block=<blockId>` to the launch (a form field
+next to `token`, or `?block=` on `/v1/launch`; anything but `[A-Za-z0-9_-]{1,64}` is dropped) and
+the editor opens with `#t=…&block=<id>`, or send `Action_ScrollToBlock` once the frame has loaded.
+`examples/sample-host` does both: its file page reads `#block=` from its own URL into the launch
+form, and its Mentions list sends `Action_ScrollToBlock`.
 
 ## 5. Callbacks you implement (JWT mode)
 
@@ -153,6 +160,23 @@ OpenCanvas:
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Resolve users** `GET /users?q=as&fileId=` | — | `[{"id","name","avatar"}]` (for @mention; only users who can see the file) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
+| **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
+
+**Mentions** (ADR-027). When someone @mentions people in a comment, or puts a mention chip in
+the canvas text, we tell you so you can notify them (we never send mail or push ourselves).
+One call per comment message, and one per block per edit for text mentions; `threadId` is set
+for comments, `blockId` for text (the editor gives the block an id when the mention is
+inserted, so you can link to it). `by` is the user whose connection wrote it (from the grant,
+not from the document); the author is never in `mentioned`. `excerpt` is the message or block
+text, at most 280 characters. A mention that was already in the file when the room loaded, or
+one the editor re-creates when a paragraph is split or moved, is not sent again. The ids in
+`mentioned` come from the editor's people list (your `GET /users`): **check that each person
+can see the file before you notify them.** Delivery is fire-and-forget for the session: the call
+is written to our notification outbox first, sent at once, and retried with backoff (10 s → 1 h,
+8 attempts, same `Idempotency-Key`) when it fails with a network error, `429` or `5xx`. Any other
+`4xx` drops it. Signed like every callback. `examples/sample-host` logs each call and lists them
+on the file page. **WOPI hosts get no mention calls** (WOPI has no notification API); use JWT
+mode, or `mode = "both"`, if you need them.
 
 Timeouts: 10 s (load/save), 5 s (others). Retries with exponential backoff
 for save (idempotent by `Idempotency-Key`). A save is written to our commit outbox before
@@ -237,7 +261,8 @@ they are read back out of your file. Limits: **10 MB per asset, 50 MB of assets 
 and `.ocanvas` exports include them too.
 
 **Mentions.** `GET /v1/users?ticket=&q=` lists the users who have opened the file (from
-CheckFileInfo), filtered by name or id.
+CheckFileInfo), filtered by name or id. Mention notifications (`POST /mentions`, §5) are not
+sent in WOPI mode.
 
 ## 7. Server-to-server REST (you → us)
 

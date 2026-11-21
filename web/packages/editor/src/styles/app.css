@@ -243,6 +243,9 @@ button.cic:hover{transform:scale(1.06)}
    blocks: inside columns or toggles they keep their parent's width. */
 .scroll{container-type:inline-size}
 .ProseMirror>.react-renderer>.wideblock{--bw:max(100%, min(1100px, 100cqw - 32px));width:var(--bw);margin-left:calc((100% - var(--bw)) / 2)}
+/* Editors: keep room for the block gutter (+ and grip, 56px) left of a wide block, so the
+   handle sits at the block's own left edge without covering it. Phones have no gutter. */
+.app:not(.compact):not(.ro) .ProseMirror>.react-renderer>.wideblock{--bw:max(100%, min(1100px, 100cqw - 128px))}
 /* Sideways scrollers fade at an edge that hides more columns. */
 .wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs){--fl:0px;--fr:0px}
 .wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs)[data-fade-l="true"]{--fl:44px}
@@ -574,3 +577,146 @@ button.cic:hover{transform:scale(1.06)}
 .figure .fblocked{min-height:120px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--fg-3);font-size:13.5px;padding:20px}
 /* No "Type / for blocks" hint in every empty table cell. */
 .ProseMirror :is(td,th) p.is-empty::before{content:none}
+
+/* ---------- FILE-01: file previews, inline PDF viewer, full viewer and lightbox ---------- */
+.filev{position:relative;margin:8px 0}
+.filev .attach{margin:0}
+.attach.openable{cursor:pointer}
+.attach.openable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.attach .ftile{position:relative;overflow:hidden}
+.attach .ftile .fthumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--app)}
+.attach .ftile .fthumb.pdf{display:flex;align-items:flex-start;justify-content:center;background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.attach .ftile .fthumb.pdf canvas{display:block}
+.attach .frename{font:inherit;font-weight:500;font-size:14px;width:100%;border:0;border-radius:6px;padding:2px 6px;margin:-2px -6px;background:var(--app);color:var(--fg);box-shadow:0 0 0 2px var(--accent-ring),inset 0 0 0 1px var(--accent);outline:none}
+.attach.renaming{margin-bottom:6px}
+.filev .ftext{margin:6px 0 0;padding:12px 14px;border-radius:var(--r);background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line);font:12.5px/1.55 var(--mono);color:var(--fg-2);white-space:pre;overflow:auto;max-height:calc(12 * 1.55em + 24px)}
+.filev .ftext .fmore{color:var(--fg-3)}
+.filev .fmedia{display:block;width:100%;margin-top:6px;border-radius:var(--r);background:#000;max-height:480px}
+.filev .fmedia.audio{background:none;height:40px}
+.filev.sel .attach,.filev.sel .pdfv{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--line),0 0 0 2px var(--accent-ring)}
+
+.pdfv{position:relative;display:flex;flex-direction:column;border-radius:var(--r);background:var(--sunk);border:1px solid var(--line);overflow:hidden}
+.pdfbar{display:flex;align-items:center;gap:2px;height:40px;padding:0 6px 0 10px;background:var(--app);border-bottom:1px solid var(--line);flex:none;font-size:12.5px;color:var(--fg-2)}
+.pdfbar .ib{width:28px;height:28px}
+.pdfbar .ib.on{color:var(--accent)}
+.pdfbar .vs{width:1px;height:18px;background:var(--line);margin:0 4px}
+.pdfname{display:flex;align-items:center;gap:6px;min-width:0;flex:1;font-weight:500;color:var(--fg)}
+.pdfname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdfpg,.pdfz{font-variant-numeric:tabular-nums;min-width:44px;text-align:center}
+.pdfz{min-width:40px}
+.pdfscroll{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;align-items:center;gap:12px;outline:none;overscroll-behavior:contain}
+.pdfscroll:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+.pdfpage{position:relative;flex:none;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 2px 8px -2px rgba(0,0,0,.18);border-radius:2px}
+.pdfpage canvas{display:block}
+.pdfpage.skel{background:linear-gradient(90deg,var(--app),var(--panel),var(--app));background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.pdferr{margin:auto;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--fg-3);font-size:13.5px;text-align:center;padding:24px}
+.pdfresize{position:absolute;left:0;right:0;bottom:0;height:12px;border:0;padding:0;background:none;cursor:ns-resize;display:grid;place-items:center;opacity:0;transition:opacity .2s}
+.pdfresize span{width:44px;height:4px;border-radius:2px;background:var(--fg-4)}
+.pdfv:hover .pdfresize,.pdfresize:focus-visible{opacity:1}
+.pdfresize:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.textLayer{position:absolute;inset:0;overflow:hidden;line-height:1;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;z-index:1}
+.textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0}
+.textLayer span{font-size:calc(var(--text-scale-factor, var(--scale-factor, 1)) * var(--font-height, 10px))}
+.textLayer ::selection{background:color-mix(in srgb,var(--accent) 35%,transparent)}
+.textLayer .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:0;cursor:default;user-select:none}
+
+.figure .fexpand{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:8px;background:var(--pop);box-shadow:var(--sh-pop);opacity:0;transition:opacity .2s}
+.figure:hover .fexpand,.figure .fexpand:focus-visible{opacity:1}
+
+.ocviewer{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;background:color-mix(in srgb,var(--page) 94%,transparent);backdrop-filter:blur(8px);outline:none;animation:vin .22s var(--ease);font-family:var(--font);color:var(--fg)}
+@keyframes vin{from{opacity:0;transform:scale(.985)}}
+.ocviewer.full{background:var(--page)}
+.ocviewer .vbar{display:flex;align-items:center;gap:6px;height:56px;padding:0 10px 0 14px;background:var(--app);border-bottom:1px solid var(--line);flex:none}
+.ocviewer .vbar .ib{width:36px;height:36px}
+.ocviewer .vbar .ib.on{color:var(--accent)}
+.ocviewer .vtile{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--sunk);color:var(--fg-2);flex:none}
+.ocviewer .vtile.big{width:64px;height:64px;border-radius:16px}
+.ocviewer .vtitle{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.ocviewer .vtitle b{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocviewer .vtitle span{font-size:12px;color:var(--fg-3)}
+.ocviewer .vpg{font-size:13px;color:var(--fg-2);font-variant-numeric:tabular-nums;margin-left:12px;white-space:nowrap}
+.ocviewer .sp{flex:1}
+.ocviewer .vgroup{display:flex;align-items:center;gap:2px;padding-right:6px;margin-right:4px;border-right:1px solid var(--line)}
+.ocviewer .vz{font-size:12.5px;color:var(--fg-2);min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+.ocviewer .vbody{flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 16px 48px;outline:none;overscroll-behavior:contain}
+.ocviewer .vbody:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+.ocviewer .vbody.k-image{padding:0;overflow:hidden;justify-content:center}
+.ocviewer .vimg{flex:1;width:100%;display:grid;place-items:center;overflow:hidden;touch-action:none;cursor:zoom-in;user-select:none}
+.ocviewer .vimg.zoomed{cursor:grab}
+.ocviewer .vimg.zoomed:active{cursor:grabbing}
+.ocviewer .vimg img{max-width:calc(100% - 48px);max-height:calc(100% - 48px);object-fit:contain;transition:transform .18s var(--ease);will-change:transform}
+.ocviewer .vmedia{max-width:min(1100px,100%);max-height:100%;border-radius:var(--r);background:#000}
+.ocviewer .vaudio{margin:auto;display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--fg-3)}
+.ocviewer .vtext{width:min(960px,100%);margin:0;padding:20px 24px;background:var(--app);border-radius:var(--r);box-shadow:inset 0 0 0 1px var(--line);font:13px/1.6 var(--mono);color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere}
+.ocviewer .vnone{margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--fg-2);font-size:14px;text-align:center}
+.ocviewer .vnav{position:absolute;top:50%;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);cursor:pointer;transform:translateY(-50%);transition:opacity .2s}
+.ocviewer .vnav:disabled{opacity:0;pointer-events:none}
+.ocviewer .vnav:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ocviewer .vnav.prev{left:16px}
+.ocviewer .vnav.next{right:16px}
+@keyframes vup{from{transform:translateY(24px);opacity:0}}
+@media (max-width:640px){
+  .ocviewer{background:var(--page);animation:vup .28s var(--ease)}
+  .ocviewer .vbar{height:52px;padding:0 4px 0 10px;gap:2px}
+  .ocviewer .vpg,.ocviewer .vgroup .vz,.ocviewer .vtile{display:none}
+  .ocviewer .vbody{padding:12px 0 32px}
+  .ocviewer .vnav{top:auto;bottom:16px;transform:none}
+  .pdfbar .pdfz,.pdfbar .vs{display:none}
+}
+@media (prefers-reduced-motion:reduce){.ocviewer,.ocviewer .vimg img{animation:none;transition:none}}
+
+/* ---------- LAY-01: columns layout (add, resize, titles, active column, phones) ---------- */
+.ProseMirror .cols{position:relative}
+.ProseMirror .cols > .column{position:relative;border-radius:8px;padding:2px 8px;margin:0 -8px;transition:background .2s var(--ease),outline-color .2s}
+.ProseMirror[contenteditable="true"] .cols:is(:hover,:focus-within) > .column{outline:1px dashed color-mix(in srgb,var(--fg-3) 90%,transparent);outline-offset:2px}
+.ProseMirror[contenteditable="true"] .cols > .column.col-active{background:color-mix(in srgb,var(--accent) 5%,transparent);outline-color:color-mix(in srgb,var(--accent) 70%,var(--fg-3))}
+.ProseMirror .cols.resizing{cursor:col-resize;user-select:none}
+.coltools{position:absolute;inset:0;pointer-events:none;z-index:2}
+.coltools > *{opacity:0;pointer-events:none;transition:opacity .15s}
+.cols:is(:hover,:focus-within) > .coltools > *,.coltools > :focus-visible{opacity:1;pointer-events:auto}
+.colresize{position:absolute;top:14px;bottom:0;width:12px;transform:translateX(8px);cursor:col-resize;border-radius:6px;outline:none}
+.colresize::after{content:"";position:absolute;left:5px;top:10%;bottom:10%;width:2px;border-radius:1px;background:var(--fg-3);opacity:.55;transition:opacity .15s,background .15s}
+.colresize:hover::after,.colresize:focus-visible::after,.cols.resizing .colresize::after{background:var(--accent);opacity:1}
+.colresize:focus-visible{box-shadow:0 0 0 2px var(--accent-ring)}
+.coladd{position:absolute;z-index:1;top:-12px;width:24px;height:24px;transform:translateX(2px);display:grid;place-items:center;border:0;border-radius:50%;background:var(--pop);color:var(--fg-2);box-shadow:var(--sh-pop);cursor:pointer;padding:0}
+.coladd.end{top:50%;transform:translate(10px,-50%)}
+.coladd:hover,.coladd:focus-visible{color:var(--accent-fg);background:var(--accent);outline:none}
+.colrm{position:absolute;top:6px;transform:translateX(calc(-100% + 2px));display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:6px;background:var(--pop);color:var(--fg-2);box-shadow:var(--sh-pop);font:500 12px/1 var(--font);cursor:pointer}
+.colrm:hover,.colrm:focus-visible{color:var(--red-fg);outline:none;box-shadow:var(--sh-pop),0 0 0 2px var(--accent-ring)}
+.coltitle{font:600 12.5px/1.4 var(--font);letter-spacing:.01em;color:var(--fg-2);padding:2px 0 4px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.coltitle input{all:unset;display:block;width:100%;min-height:24px;font:inherit;color:var(--fg)}
+.coltitle input::placeholder{color:var(--fg-3)}
+.coltitle:focus-within{border-bottom-color:var(--accent)}
+.ProseMirror .cols .ProseMirror-dropcursor,.ProseMirror-dropcursor{opacity:1}
+.app.compact .ProseMirror .cols{grid-template-columns:minmax(0,1fr)!important;grid-auto-flow:row;gap:0}
+.app.compact .ProseMirror .cols > .column + .column{border-top:1px solid var(--line-2);padding-top:12px;margin-top:12px;border-radius:0}
+.app.compact .colresize,.app.compact .coladd:not(.end){display:none}
+.app.compact .coladd.end{top:auto;bottom:-11px;left:50%!important;transform:translateX(-50%)}
+
+/* ---------- UX-02: text colour mark and date chips ---------- */
+.tc-gray{color:var(--gray-fg)}.tc-red{color:var(--red-fg)}.tc-amber{color:var(--amber-fg)}.tc-green{color:var(--green-fg)}
+.tc-blue{color:var(--blue-fg)}.tc-purple{color:var(--purple-fg)}.tc-pink{color:var(--pink-fg)}
+.tcpick{display:grid;grid-template-columns:repeat(8,32px);gap:4px;padding:6px}
+.tcsw{width:32px;height:32px;border-radius:8px;border:0;background:var(--hover);display:grid;place-items:center;font:600 15px/1 var(--font);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line)}
+.tcsw.none{color:var(--fg)}
+.tcsw:hover{background:var(--press)}
+.tcsw.on{box-shadow:inset 0 0 0 2px var(--accent)}
+.tcsw:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ftb .tcbtn.on{background:var(--hover)}
+.ProseMirror .datewrap{white-space:nowrap}
+.datechip{display:inline-flex;align-items:center;gap:4px;padding:0 7px 0 5px;border-radius:999px;background:var(--blue-bg);color:var(--blue-fg);font-size:.92em;font-weight:500;line-height:1.55;vertical-align:baseline;white-space:nowrap}
+.datechip.past{background:var(--gray-bg);color:var(--gray-fg)}
+.ProseMirror[contenteditable="true"] .datechip{cursor:pointer}
+.ProseMirror .datechip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ProseMirror-selectednode .datechip,.datewrap.ProseMirror-selectednode .datechip{box-shadow:0 0 0 2px var(--accent-ring)}
+.datepick{display:flex;flex-direction:column;gap:10px;padding:10px}
+.datepick .dlab{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fg-2)}
+.datepick input[type=date]{height:34px;border-radius:8px;border:1px solid var(--line-2);background:var(--app);color:var(--fg);padding:0 8px;font:inherit;font-size:14px;color-scheme:light dark}
+.datepick input[type=date]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.datepick .dquick{display:flex;gap:6px;flex-wrap:wrap}
+.datepick .dfoot{display:flex;justify-content:space-between;gap:8px}
+.mi .dateic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:none}
+
+/* UX-02: long press on an avatar follows (no callout or text selection on touch). */
+.avs .av{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}

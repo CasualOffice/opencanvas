@@ -9,6 +9,7 @@ pub mod host_client;
 pub mod hosts;
 pub mod jwt;
 pub mod metrics;
+pub mod notify;
 pub mod pdf;
 pub mod room;
 pub mod routes;
@@ -130,6 +131,32 @@ impl AppState {
             resumed.insert(row.room_id);
         }
         Ok(resumed.len())
+    }
+}
+
+impl AppState {
+    /// Notification sweeper (UX-02): sends every pending host notification due at `now_ms`
+    /// (the first attempt failed, or the process restarted before it ran). Each row is claimed
+    /// first, so two workers or nodes never send the same one. Returns how many were attempted.
+    pub async fn deliver_notifications(&self, now_ms: i64) -> anyhow::Result<usize> {
+        let mut attempted = 0;
+        for row in self.store.notify_due(now_ms, 200).await? {
+            if !self
+                .store
+                .notify_claim(&row.id, row.next_try_at, now_ms + notify::CLAIM_MS)
+                .await?
+            {
+                continue;
+            }
+            let Some(host) = self.hosts.get(&row.host_id) else {
+                tracing::warn!(host = %row.host_id, "notification for an unknown host dropped");
+                self.store.notify_finish(&row.id, "failed").await?;
+                continue;
+            };
+            notify::attempt(&self.store, &self.host, &host, &row, now_ms).await;
+            attempted += 1;
+        }
+        Ok(attempted)
     }
 }
 

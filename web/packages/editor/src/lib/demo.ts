@@ -51,7 +51,7 @@ function demoBlocks(): TB[] {
     TOG("Open questions", ["Should commenters see the board pointers of editors?", "Do we need per-channel autosave, or is per-tenant enough?"]),
     LINK("https://docs.acme.example/opencanvas/integration", "Integration guide · Acme developer docs", "The WOPI host model with CheckFileInfo, GetFile and PutFile. The integration contract OpenCanvas follows.", "docs.acme.example"),
     IMG("Session pipeline, pasted from the design review. Stored in the host app."),
-    FILE("opencanvas-hld-v0.1.pdf", 1468006, "application/pdf"),
+    FILE("session-design-brief.pdf", 1578, "application/pdf", import.meta.env.BASE_URL + "demo/session-brief.pdf"),
     EMBED("youtube", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "Demo: two cursors, one board"),
     CODE("http", 'POST /v1/files/doc_8812/patch\n{ "op": "append", "markdown": "- [ ] Follow up with design" }'),
   ];

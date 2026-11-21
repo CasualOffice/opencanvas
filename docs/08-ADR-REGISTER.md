@@ -29,6 +29,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-023 | Editor UX pass (docs/19): optional `image.width` (percent 20-100) and `image.align` (left/right; absent = centred) attrs; comment messages may carry `mentions` (user ids); postMessage gains `UI_Block_Link` (canvas → host) and `Action_ScrollToBlock` (host → canvas) | Accepted |
 | ADR-024 | Board/database data-format additions from the blocks UX pass (docs/15 §4): shape `fill` tones on rect/ellipse/diamond, `size` on shapes, arrow `text` labels, `group`, awareness `board.sel`; database view prefs `sorts`, `filters`, `widths`, `group`, `date`, `cover`. All optional and additive (old clients ignore them); web and Rust board exporters draw them identically with a fixed wrap rule (0.56 em per UTF-16 unit) | Accepted (2026-11-21) |
 | ADR-025 | Blocks open items (docs/15 §4, docs/20): board arrow `via` (manual waypoints, drawn identically by the web and Rust exporters; `pts` keeps the resolved path); database field `description` (shared field map, in `document.json`, footnote line under the table in web and server Markdown, not in CSV); view prefs `fields` (per-view order) and `hidden`, typed `filters` rules `{f, op, v, v2}` (legacy `filter` mirrors the first value-list rule only); `BlockEnv.undoManager` (optional; blocks join the editor's Y.UndoManager instead of a private one). All optional and additive | Accepted (2026-11-21) |
+| ADR-027 | Editor/server open items (docs/19 UX-02, FILE-01, LAY-01): host callback `POST /mentions` + `notify_outbox` table; control `ping` heartbeat; `textColor` mark and `dateMention` node; `fileAttachment.display/height`, `columns.widths`, `column.title`; `GET /v1/assets/fetch` preview route; `UI_BlockLink` and launch `block`; `BlockEnv.undoManager` used; new dependency `pdfjs-dist` (lazy) | Accepted (2026-11-21) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -161,3 +162,29 @@ the host builds its own URL and brings a reader back with `Action_ScrollToBlock 
 `block=` launch fragment).
 **Consequences.** + layout and mentions round-trip in the file; − server exports do not yet apply
 image width/alignment; − `onMention` delivery is a server follow-up.
+
+### ADR-027 — Editor and server open items: mentions, heartbeat, inline marks, file previews, columns
+
+**Context.** docs/19 left open: comment mentions not reaching the host, ~30 s before a silent
+network drop shows, no text colour or date mentions, block links in hosts, board undo outside the
+canvas stack; the product asked for file previews and a better columns block.
+**Decision.** (1) A new optional host callback `POST {callback_base}/mentions` (JSON, signed, with
+`Idempotency-Key`). The room finds new mention items (comment messages with `mentions`, inline
+`mention` nodes) in accepted updates, attributes them to the sending grant, and queues one call
+per message / block in a new transient table `notify_outbox` (id = hash of room + item, so a
+message is queued once; payload cleared when done; rows swept after a day). A sweeper retries
+failures with backoff. Text mentions count per person, so mention nodes re-created by a split
+or a move are not news. WOPI hosts are skipped. (2) Control `{"t":"ping"}` every 10 s
+(`OC_HEARTBEAT_MS`); clients treat 15 s of silence as a lost connection. (3) Schema: `textColor`
+mark (palette names only), `dateMention` inline node, `fileAttachment.display/height`,
+`columns.widths`, `column.title`, all optional. Rust and web exporters render them (no embedded
+viewers in exports). (4) `GET /v1/assets/fetch` serves allowed attachment bytes same-origin for
+previews (≤ 50 MB, inline, sandboxed, `nosniff`). (5) `pdfjs-dist` 4.10 renders PDFs; it and its
+worker load only when a PDF is shown (same-origin worker, `isEvalSupported: false`), so the
+initial JS stays under budget. (6) postMessage `UI_BlockLink {fileId, blockId}` (the earlier
+`UI_Block_Link` is still posted) and a launch `block` parameter.
+**Consequences.** + hosts can notify people without polling documents; + offline shows within
+20 s; + richer inline content and file handling round-trip in `.ocanvas` and export sensibly;
+− the DB holds short excerpts until a notification is delivered (transient, like the commit
+outbox); − a new third-party dependency (pdf.js, Apache-2.0) in a lazy chunk; − hosts must check
+access before notifying the ids they get.

@@ -178,8 +178,18 @@ async fn serve(
     let mut awareness = Bucket::new(AWARENESS_PER_SEC, AWARENESS_BURST);
     let expiry = tokio::time::sleep(expires_in);
     tokio::pin!(expiry);
+    // Heartbeat (UX-02): browsers can't see WebSocket pings, so a quiet room and a dead
+    // network look the same to the client. A control ping every `heartbeat` lets it treat
+    // 15 s of silence as a lost connection instead of waiting for TCP to notice.
+    let every = state.cfg.rooms.heartbeat;
+    let mut heartbeat = tokio::time::interval_at(tokio::time::Instant::now() + every, every);
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let ping = protocol::control(&json!({"t": "ping"}));
     loop {
         tokio::select! {
+            _ = heartbeat.tick() => {
+                let _ = tx.send(Outbound::Frame(ping.clone()));
+            }
             msg = stream.next() => match msg {
                 Some(Ok(Message::Binary(data))) => {
                     if data.len() > limit {

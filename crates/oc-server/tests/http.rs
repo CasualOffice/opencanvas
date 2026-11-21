@@ -397,3 +397,91 @@ async fn readyz_reports_unavailable_while_draining() {
     let body: Value = draining.json().await.unwrap();
     assert_eq!(body["draining"], true);
 }
+
+/// UX-02: a launch may name a block to open at (`block` form field or query); it travels in
+/// the app fragment next to the ticket. Anything that is not a plain id is dropped.
+#[tokio::test]
+async fn launch_carries_a_block_to_open_at() {
+    let (base, _host) = mock_host().await;
+    let addr = serve(&base).await;
+    let res = http()
+        .post(format!("http://{addr}/v1/launch"))
+        .form(&[("token", token("edit").as_str()), ("block", "b_01jdx")])
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 303);
+    let loc = res.headers()["location"].to_str().unwrap();
+    assert!(
+        loc.starts_with("/app/#t=") && loc.ends_with("&block=b_01jdx"),
+        "{loc}"
+    );
+    let res = http()
+        .post(format!("http://{addr}/v1/launch?block=b_q"))
+        .form(&[("token", token("edit").as_str())])
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        res.headers()["location"]
+            .to_str()
+            .unwrap()
+            .ends_with("&block=b_q")
+    );
+    let res = http()
+        .post(format!("http://{addr}/v1/launch"))
+        .form(&[("token", token("edit").as_str()), ("block", "x\"&t=evil")])
+        .send()
+        .await
+        .unwrap();
+    let loc = res.headers()["location"].to_str().unwrap();
+    assert!(!loc.contains("block") && !loc.contains("evil"), "{loc}");
+}
+
+/// UX-02: an idle connection still hears from the server every `heartbeat` (control
+/// `{"t":"ping"}`), so the client can tell a silent network drop from a quiet room.
+#[tokio::test]
+async fn idle_connections_get_a_heartbeat() {
+    let (base, _host) = mock_host().await;
+    let state = app(
+        &base,
+        oc_server::config::RoomConfig {
+            heartbeat: Duration::from_millis(200),
+            ..room_cfg()
+        },
+    )
+    .await;
+    let addr = serve_state(state).await;
+    let loc = launch(&addr, &token("view")).await.headers()["location"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    let ticket = loc.trim_start_matches("/app/#t=").to_string();
+    let s: Value = http()
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let room = s["room"].as_str().unwrap();
+    let (mut ws, _) =
+        tokio_tungstenite::connect_async(format!("ws://{addr}/v1/collab/{room}?ticket={ticket}"))
+            .await
+            .unwrap();
+    let mut pings = 0;
+    let end = tokio::time::Instant::now() + Duration::from_millis(1100);
+    while let Ok(Some(Ok(m))) = tokio::time::timeout_at(end, ws.next()).await {
+        let WsMessage::Binary(data) = m else { continue };
+        let mut d = DecoderV1::new(Cursor::new(&data));
+        for m in MessageReader::new(&mut d).flatten() {
+            if let Message::Custom(100, b) = m
+                && serde_json::from_slice::<Value>(&b).unwrap()["t"] == "ping"
+            {
+                pings += 1;
+            }
+        }
+    }
+    assert!((3..=7).contains(&pings), "{pings} pings in 1.1 s at 200 ms");
+}

@@ -8,6 +8,8 @@ export function setAssetTicket(t: string | null) {
   ticket = t;
 }
 
+export const getAssetTicket = () => ticket;
+
 export function resolveAsset(src: string): string;
 export function resolveAsset(src: string | null | undefined): string | null | undefined;
 export function resolveAsset(src: string | null | undefined) {

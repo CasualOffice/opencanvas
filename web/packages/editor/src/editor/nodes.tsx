@@ -3,6 +3,7 @@
 import { InputRule, Mark, Node, mergeAttributes, type Editor } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
@@ -19,6 +20,10 @@ import { Popover } from "../components/overlay";
 import { keyLabel } from "../lib/keys";
 import { safeHref, safeImageSrc } from "../lib/urls";
 import { clampWidth } from "./imagelayout";
+import { gridTemplate } from "./columns";
+import { FILE_EVENT, fileDisplay, fileKind, fmtSize, hasBytes, kindIcon, openUrl } from "./files/kind";
+import { fileActions, type FileActionId } from "./files/actions";
+import { createThread, newThreadId } from "../lib/comments";
 
 const TONES = ["blue", "green", "amber", "red", "purple", "pink", "gray"] as const;
 const CALLOUT_ICONS = ["lightbulb", "info", "target", "triangle-alert", "sparkles", "clock", "calendar", "flag", "star", "map-pin"];
@@ -226,6 +231,17 @@ export const Columns = Node.create({
   content: "column+",
   defining: true,
   isolating: true,
+  addAttributes: () => ({
+    // LAY-01 (ADR-025): whole percents per column, "25,75"; absent = equal widths.
+    widths: {
+      default: null,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-widths"),
+      renderHTML: (a: Record<string, unknown>) => {
+        const t = gridTemplate(a.widths as string | null);
+        return t ? { "data-widths": String(a.widths), style: `grid-template-columns:${t}` } : {};
+      },
+    },
+  }),
   parseHTML: () => [{ tag: 'div[data-type="columns"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "columns", class: "cols" }), 0],
 });
@@ -234,6 +250,14 @@ export const Column = Node.create({
   name: "column",
   content: "block+",
   isolating: true,
+  addAttributes: () => ({
+    // Optional label line above the column's blocks (absent = none, "" = shown, empty).
+    title: {
+      default: null,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-title"),
+      renderHTML: (a: Record<string, unknown>) => (a.title != null ? { "data-title": String(a.title) } : {}),
+    },
+  }),
   parseHTML: () => [{ tag: 'div[data-type="column"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "column", class: "column" }), 0],
 });
@@ -361,18 +385,13 @@ export const Embed = Node.create({
 
 // ---------- file attachment ----------
 
-export function fmtSize(n: number): string {
-  if (!n) return "";
-  if (n < 1024) return n + " B";
-  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + " KB";
-  return (n / 1024 / 1024).toFixed(1) + " MB";
-}
+export { fmtSize } from "./files/kind";
 
 function fileTone(mime: string, name: string): string {
   if (/pdf/.test(mime) || /\.pdf$/i.test(name)) return "red";
   if (/sheet|csv|excel/.test(mime) || /\.(xlsx?|csv)$/i.test(name)) return "green";
   if (/presentation|powerpoint/.test(mime)) return "amber";
-  if (/^image\//.test(mime)) return "purple";
+  if (/^(image|video|audio)\//.test(mime)) return "purple";
   if (/zip|compressed/.test(mime)) return "gray";
   return "blue";
 }
@@ -407,35 +426,256 @@ function UploadStatus({ id, up, label }: { id: string; up: UploadState; label: s
   );
 }
 
-function FileView({ node }: ReactNodeViewProps) {
+const FilePreview = () => import("./files/preview");
+const LazyThumb = lazy(() => FilePreview().then((m) => ({ default: m.Thumb })));
+const LazyExtra = lazy(() => FilePreview().then((m) => ({ default: m.CardExtra })));
+const LazyInlinePdf = lazy(() => FilePreview().then((m) => ({ default: m.InlinePdf })));
+
+function FileView({ node, updateAttributes, editor, getPos, selected }: ReactNodeViewProps) {
   const { name, size, url, mime } = node.attrs as { name: string; size: number; url: string; mime: string };
   const b = useBridge();
   const [upId, up] = useUpload(node);
+  const kind = fileKind(mime, name);
+  const display = fileDisplay(node.attrs.display, kind);
   const ext = (name.split(".").pop() ?? "").toUpperCase();
+  const [pages, setPages] = useState(0);
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const gotoRef = useRef<((p: number) => void) | null>(null);
+  const role = b.env?.role ?? (editor.isEditable ? "edit" : "view");
+  const editable = editor.isEditable;
+  const canDownload = b.session?.perms?.download !== false;
+  const ready = hasBytes(url) && !up;
+  const pos = () => (typeof getPos === "function" ? getPos() : undefined);
+
+  const open = (expand: boolean, page = 1) => {
+    const at = pos();
+    if (at === undefined || !ready) return;
+    void FilePreview().then((m) => {
+      const items = m.collectItems(editor, "file");
+      const index = Math.max(0, items.findIndex((i) => i.pos === at));
+      m.openViewer({
+        items,
+        index,
+        page,
+        fullscreen: expand,
+        canDownload,
+        opener: wrap.current?.querySelector<HTMLElement>(".attach, .pdfscroll") ?? null,
+        onClose: (st) => st.pos === at && gotoRef.current?.(st.page),
+      });
+    });
+  };
+  const act = (id: FileActionId) => {
+    setMenu(null);
+    const at = pos();
+    // Each file action is its own undo step (not merged with typing just before it).
+    yUndoPluginKey.getState(editor.state)?.undoManager?.stopCapturing();
+    switch (id) {
+      case "preview":
+        return open(false);
+      case "expand":
+        return open(true);
+      case "display":
+        return updateAttributes({ display: display === "preview" ? "card" : "preview" });
+      case "download": {
+        const a = document.createElement("a");
+        a.href = safeHref(openUrl(url)) ?? "";
+        a.download = name;
+        a.rel = "noopener";
+        a.click();
+        return;
+      }
+      case "copy": {
+        const link = new URL(url, window.location.href).toString();
+        void navigator.clipboard?.writeText(link).then(
+          () => toast("Link copied", { icon: "link" }),
+          () => toast("Couldn't copy the link", { icon: "triangle-alert" }),
+        );
+        return;
+      }
+      case "rename":
+        return setRenaming(true);
+      case "replace":
+        return b.pickFile("*/*", async (f) => {
+          setBusy(true);
+          try {
+            const r = await uploadNow(f);
+            updateAttributes({ url: r.url, name: f.name, size: f.size, mime: r.mime || f.type });
+            toast(`Replaced with “${f.name}”`, { icon: "refresh-cw" });
+          } catch {
+            toast("The file didn't upload. Try again.", { icon: "triangle-alert" });
+          } finally {
+            setBusy(false);
+          }
+        });
+      case "comment": {
+        const id = newThreadId();
+        createThread(b.doc, id, name || "File");
+        return b.openThread(id);
+      }
+      case "delete": {
+        if (at === undefined) return;
+        editor.chain().focus().deleteRange({ from: at, to: at + node.nodeSize }).run();
+        toast(`Deleted “${name || "file"}”`, { icon: "trash-2", action: { label: "Undo", run: () => editor.commands.undo() } });
+        return;
+      }
+    }
+  };
+  // The block menu reaches the card through a DOM event (it has no handle on this view).
+  const actRef = useRef(act);
+  actRef.current = act;
+  useEffect(() => {
+    const el = wrap.current;
+    const f = (e: Event) => actRef.current((e as CustomEvent<FileActionId>).detail);
+    el?.addEventListener(FILE_EVENT, f);
+    return () => el?.removeEventListener(FILE_EVENT, f);
+  }, []);
+
+  const actions = fileActions({ kind, display, role, editable, canDownload, hasFile: ready, inBlockMenu: false });
+  const menuButton = actions.length ? (
+    <button className="ib" aria-label={`Actions for ${name || "file"}`} title="More actions" aria-haspopup="menu" aria-expanded={!!menu} onClick={(e) => setMenu(menu ? null : e.currentTarget)}>
+      <Ic name="ellipsis" size={15} />
+    </button>
+  ) : null;
+  const menuPop = menu ? (
+    <Popover anchor={menu} onClose={() => setMenu(null)} title="File" minWidth={220} alignRight>
+      {actions.map((a) => (
+        <span key={a.id} style={{ display: "contents" }}>
+          {a.sepBefore ? <div className="msep" /> : null}
+          <button className={"mi" + (a.danger ? " danger" : "")} onClick={() => act(a.id)}>
+            <Ic name={a.icon} />
+            {a.label}
+            {a.hint ? <span className="mk">{a.hint}</span> : null}
+          </button>
+        </span>
+      ))}
+    </Popover>
+  ) : null;
+
+  const nameEl = renaming ? (
+    <RenameInput
+      value={name}
+      onDone={(v) => {
+        setRenaming(false);
+        if (v !== null && v.trim() && v.trim() !== name) updateAttributes({ name: v.trim() });
+      }}
+    />
+  ) : (
+    <div className="fname">{name || "Untitled file"}</div>
+  );
+  const meta = [ext, kind === "pdf" && pages ? `${pages} ${pages === 1 ? "page" : "pages"}` : "", fmtSize(Number(size))].filter(Boolean).join(" · ") || "File";
+
+  if (display === "preview" && ready) {
+    return (
+      <NodeViewWrapper>
+        <div ref={wrap} className={"filev" + (selected ? " sel" : "")} contentEditable={false} data-display="preview">
+          {renaming ? <div className="attach renaming">{nameEl}</div> : null}
+          <Suspense fallback={<div className="pdfv inline skel" style={{ height: Math.min(900, Math.round(window.innerHeight * 0.7)) }} />}>
+            <LazyInlinePdf
+              url={url}
+              name={name}
+              height={typeof node.attrs.height === "number" ? node.attrs.height : null}
+              editable={editable}
+              onHeight={(h) => updateAttributes({ height: h })}
+              onExpand={(page) => open(true, page)}
+              bindGoto={(fn) => (gotoRef.current = fn)}
+              menu={menuButton}
+            />
+          </Suspense>
+          {menuPop}
+        </div>
+      </NodeViewWrapper>
+    );
+  }
   return (
     <NodeViewWrapper>
-      <div className={"attach" + (up ? " uploading" : "")} contentEditable={false}>
-        <span className={`ftile tone-${fileTone(mime, name)}`}>
-          <Ic name={/^image\//.test(mime) ? "image" : /sheet|csv/.test(mime) ? "file-spreadsheet" : "file-text"} />
-        </span>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="fname">{name || "Untitled file"}</div>
-          <div className="fmeta">{[ext, fmtSize(Number(size))].filter(Boolean).join(" · ") || "File"}</div>
-        </div>
-        {up && upId ? (
-          <UploadStatus id={upId} up={up} label="File" />
-        ) : url && b.session?.perms?.download !== false ? (
-          <a className="ib" href={safeHref(resolveAsset(url))} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
-            <Ic name="download" />
-          </a>
-        ) : (
-          <span className="ib" title={url ? "Downloads are turned off" : "Stored with the canvas"} aria-hidden>
-            <Ic name="paperclip" />
+      <div ref={wrap} className={"filev" + (selected ? " sel" : "")} data-display="card">
+        <div
+          className={"attach" + (up ? " uploading" : "") + (ready ? " openable" : "")}
+          contentEditable={false}
+          tabIndex={ready ? 0 : undefined}
+          role={ready ? "button" : undefined}
+          aria-label={ready ? `${name || "File"}, ${meta}. Press Enter to preview.` : undefined}
+          onClick={(e) => {
+            if (!ready || renaming || (e.target as HTMLElement).closest("button,a,input")) return;
+            open(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget || !ready) return;
+            if (e.key === "Enter" || e.key === " ") (e.preventDefault(), open(false));
+          }}
+        >
+          <span className={`ftile tone-${fileTone(mime, name)}`}>
+            {ready && (kind === "pdf" || kind === "image") ? (
+              <Suspense fallback={<Ic name={kindIcon(kind, mime, name)} />}>
+                <Ic name={kindIcon(kind, mime, name)} className="ficon" />
+                <LazyThumb kind={kind} url={url} name={name} onPages={setPages} />
+              </Suspense>
+            ) : (
+              <Ic name={kindIcon(kind, mime, name)} />
+            )}
           </span>
-        )}
-        {up?.state === "uploading" ? <span className="upbar" style={{ transform: `scaleX(${Math.max(0.04, up.progress)})` }} /> : null}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            {nameEl}
+            <div className="fmeta">{meta}</div>
+          </div>
+          {up && upId ? (
+            <UploadStatus id={upId} up={up} label="File" />
+          ) : busy ? (
+            <span className="ib" aria-label="Uploading the new file">
+              <Ic name="loader-circle" className="spin" />
+            </span>
+          ) : url && canDownload ? (
+            <a className="ib" href={safeHref(openUrl(url))} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
+              <Ic name="download" />
+            </a>
+          ) : (
+            <span className="ib" title={url ? "Downloads are turned off" : "Stored with the canvas"} aria-hidden>
+              <Ic name="paperclip" />
+            </span>
+          )}
+          {menuButton}
+          {up?.state === "uploading" ? <span className="upbar" style={{ transform: `scaleX(${Math.max(0.04, up.progress)})` }} /> : null}
+        </div>
+        {ready && (kind === "text" || kind === "video" || kind === "audio") ? (
+          <Suspense fallback={null}>
+            <LazyExtra kind={kind} url={url} name={name} />
+          </Suspense>
+        ) : null}
+        {menuPop}
       </div>
     </NodeViewWrapper>
+  );
+}
+
+function RenameInput({ value, onDone }: { value: string; onDone(v: string | null): void }) {
+  const [v, setV] = useState(value);
+  const done = useRef(false);
+  const finish = (x: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(x);
+  };
+  return (
+    <input
+      className="frename"
+      value={v}
+      autoFocus
+      aria-label="File name"
+      onFocus={(e) => {
+        const dot = e.currentTarget.value.lastIndexOf(".");
+        e.currentTarget.setSelectionRange(0, dot > 0 ? dot : e.currentTarget.value.length);
+      }}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => finish(v)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") (e.preventDefault(), finish(v));
+        else if (e.key === "Escape") (e.preventDefault(), finish(null));
+      }}
+    />
   );
 }
 
@@ -445,17 +685,58 @@ const uploadAttr = { upload: { default: null, rendered: false, keepOnSplit: fals
 export const FileAttachment = Node.create({
   name: "fileAttachment",
   ...atom,
-  addAttributes: () => ({ name: { default: "" }, size: { default: 0 }, url: { default: "" }, mime: { default: "" }, ...uploadAttr }),
+  addAttributes: () => ({
+    name: { default: "" },
+    size: { default: 0 },
+    url: { default: "" },
+    mime: { default: "" },
+    // FILE-01 (ADR-025): "card" | "preview"; absent = preview for PDFs, card otherwise.
+    display: {
+      default: null,
+      parseHTML: (el: HTMLElement) => (["card", "preview"].includes(el.getAttribute("data-display") ?? "") ? el.getAttribute("data-display") : null),
+      renderHTML: (a: Record<string, unknown>) => (a.display ? { "data-display": String(a.display) } : {}),
+    },
+    // Inline preview height in CSS px; absent = 70 % of the viewport, at most 900.
+    height: {
+      default: null,
+      parseHTML: (el: HTMLElement) => Number(el.getAttribute("data-height")) || null,
+      renderHTML: (a: Record<string, unknown>) => (a.height ? { "data-height": String(a.height) } : {}),
+    },
+    ...uploadAttr,
+  }),
   parseHTML: () => [{ tag: 'div[data-type="fileAttachment"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "fileAttachment" })],
   addNodeView() {
     return ReactNodeViewRenderer(FileView, ownEvents);
   },
+  addKeyboardShortcuts() {
+    // Enter or Space on a selected attachment opens the preview.
+    const preview = ({ editor }: { editor: Editor }) => {
+      const sel = editor.state.selection as unknown as { node?: { type: { name: string } }; from: number };
+      if (sel.node?.type.name !== "fileAttachment") return false;
+      const dom = editor.view.nodeDOM(sel.from) as HTMLElement | null;
+      const el = dom?.querySelector?.(".filev");
+      if (!el) return false;
+      el.dispatchEvent(new CustomEvent(FILE_EVENT, { detail: "preview" }));
+      return true;
+    };
+    return { Enter: preview, Space: preview };
+  },
 });
 
 // ---------- image with caption and upload ----------
 
-function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewProps) {
+function ImageView({ node, updateAttributes, editor, selected, getPos }: ReactNodeViewProps) {
+  // Lightbox with zoom, pan and prev/next between the canvas's images (FILE-01).
+  const expand = (e?: { currentTarget: EventTarget }) => {
+    const at = typeof getPos === "function" ? getPos() : undefined;
+    const opener = (e?.currentTarget as HTMLElement | undefined) ?? null;
+    if (at === undefined) return;
+    void FilePreview().then((m) => {
+      const items = m.collectItems(editor, "image");
+      m.openViewer({ items, index: Math.max(0, items.findIndex((i) => i.pos === at)), canDownload: bridge.session?.perms?.download !== false, opener });
+    });
+  };
   const { src, alt, caption } = node.attrs as { src: string; alt: string; caption: string };
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -576,6 +857,9 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
                 <button className="ib" title="Replace" aria-label="Replace image" disabled={busy} onClick={() => b.pickFile("image/*", replace)}>
                   <Ic name={busy ? "loader-circle" : "image-plus"} size={14} className={busy ? "spin" : ""} />
                 </button>
+                <button className="ib" title="Expand (F)" aria-label="Expand image" onClick={expand}>
+                  <Ic name="maximize-2" size={14} />
+                </button>
               </div>
               <button
                 className="fresize"
@@ -591,7 +875,11 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
                 }}
               />
             </>
-          ) : null}
+          ) : (
+            <button className="fexpand ib" title="Expand" aria-label="Expand image" onClick={expand}>
+              <Ic name="maximize-2" size={14} />
+            </button>
+          )}
         </div>
         <CaptionInput value={caption} editable={editor.isEditable} onChange={(v) => updateAttributes({ caption: v })} />
       </figure>

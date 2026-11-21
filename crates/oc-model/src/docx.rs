@@ -235,6 +235,16 @@ impl<'a> Writer<'a> {
         if has("underline") {
             p.push_str("<w:u w:val=\"single\"/>");
         }
+        if let Some(hex) = marks
+            .iter()
+            .find(|m| s(m, "type") == "textColor")
+            .and_then(|m| crate::export::text_color_hex(attr_str(m, "color")))
+        {
+            p.push_str(&format!(
+                "<w:color w:val=\"{}\"/>",
+                hex[1..].to_ascii_uppercase()
+            ));
+        }
         if has("code") {
             p.push_str("<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F1F1F1\"/>");
         }
@@ -273,6 +283,10 @@ impl<'a> Writer<'a> {
                 "mention" => out.push_str(&Self::run(
                     &format!("@{}", attr_str(n, "label")),
                     &Self::rpr(&[], Ctx { bold: true, ..ctx }, false),
+                )),
+                "dateMention" => out.push_str(&Self::run(
+                    &crate::export::date_text(attr_str(n, "date")),
+                    &Self::rpr(&[], ctx, false),
                 )),
                 "hardBreak" => out.push_str("<w:r><w:br/></w:r>"),
                 _ => {

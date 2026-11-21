@@ -1,6 +1,7 @@
 // Slash menu items (grouped, with tiles and markdown shortcuts) and block actions.
 import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { insertUploads } from "../lib/uploads";
+import { datePickStore, isoDate } from "./inline";
 import { tableJSON } from "./table";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { bridge } from "../lib/bridge";
@@ -92,6 +93,16 @@ export const SLASH: SlashItem[] = [
     run: (e, r) => {
       if (r) e.chain().focus().deleteRange(r).run();
       bridge.pickFile("*/*", (f) => insertUploads(e, [f], undefined, "file"));
+    },
+  },
+  {
+    group: "Media", id: "date", icon: "calendar", title: "Date", desc: "A date chip, like @today", keywords: "today tomorrow due deadline calendar",
+    run: (e, r) => {
+      const at = r ? r.from : e.state.selection.from;
+      const ch = e.chain().focus();
+      if (r) ch.deleteRange(r);
+      ch.insertContent([{ type: "dateMention", attrs: { date: isoDate(new Date()) } }, { type: "text", text: " " }]).run();
+      datePickStore.set(at);
     },
   },
   {

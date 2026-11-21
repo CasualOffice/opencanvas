@@ -58,13 +58,22 @@ export type Control =
    *  `reload` → `closed` and close 1012 follow, and the client must start over from the server. */
   | { t: "conflict"; policy?: "copy" | "reload"; fileId?: string; url?: string }
   | { t: "role"; role: Role }
-  | { t: "closed"; reason?: string };
+  | { t: "closed"; reason?: string }
+  /** Heartbeat, every 10 s (docs/15 §3). Nothing to do: any frame resets the silence timer. */
+  | { t: "ping" };
 
 export const MESSAGE_CONTROL = 100;
 // y-protocols auth message (docs/15 §3): [2, 0 = permission denied, reason]
 const MESSAGE_AUTH = 2;
 
 export type ConnState = "connecting" | "connected" | "reconnecting" | "offline";
+
+/** No frame for this long means the connection is gone (the server pings every 10 s). */
+export const SILENCE_MS = 15_000;
+/** "Reconnecting" → "Offline" after a silent drop or a browser offline event. */
+export const OFFLINE_FAST_MS = 3_000;
+/** "Reconnecting" → "Offline" for any other outage (server restart, failed reconnects). */
+export const OFFLINE_SLOW_MS = 20_000;
 
 export interface Collab {
   doc: Y.Doc;
@@ -213,21 +222,52 @@ export function connectCollab(s: Session): Collab {
     if (kind === 0) denied.emit(decoding.readVarString(dec));
   };
 
+  // ---------- connection state (docs/06 §5) ----------
+  // A clean close shows "Reconnecting" at once. A silent drop (Wi-Fi gone, laptop lid, a
+  // proxy that stops forwarding) closes nothing, so the server pings every 10 s (docs/15 §3)
+  // and SILENCE_MS without any frame counts as a lost connection. After a silent drop or a
+  // browser "offline" event, "Offline" follows within OFFLINE_FAST_MS; any other outage
+  // shows it after OFFLINE_SLOW_MS.
   let downSince: number | null = null;
   let offlineTimer: number | undefined;
+  const goDown = (offlineIn: number) => {
+    if (downSince === null) {
+      downSince = Date.now();
+      conn.emit(provider.synced ? "reconnecting" : "connecting");
+    }
+    const left = Math.max(0, downSince + offlineIn - Date.now());
+    window.clearTimeout(offlineTimer);
+    offlineTimer = window.setTimeout(() => downSince !== null && conn.emit("offline"), left);
+  };
   provider.on("status", ({ status }: { status: string }) => {
     if (status === "connected") {
       downSince = null;
       window.clearTimeout(offlineTimer);
       conn.emit("connected");
-    } else if (status === "disconnected" || status === "connecting") {
-      if (downSince === null) {
-        downSince = Date.now();
-        conn.emit(provider.synced ? "reconnecting" : "connecting");
-        offlineTimer = window.setTimeout(() => conn.emit("offline"), 30000);
-      }
+    } else if ((status === "disconnected" || status === "connecting") && downSince === null) {
+      goDown(navigator.onLine === false ? OFFLINE_FAST_MS : OFFLINE_SLOW_MS);
     }
   });
+  // Drops the socket without waiting for TCP: y-websocket reconnects with backoff.
+  const drop = () => {
+    goDown(OFFLINE_FAST_MS);
+    try {
+      provider.ws?.close();
+    } catch {
+      /* already closing */
+    }
+  };
+  const watchdog = window.setInterval(() => {
+    const last = provider.wsLastMessageReceived;
+    if (provider.wsconnected && downSince === null && last > 0 && Date.now() - last > SILENCE_MS) drop();
+  }, 1000);
+  const onOffline = () => provider.wsconnected && drop();
+  // Back online: try now instead of waiting out the backoff.
+  const onOnline = () => {
+    if (!provider.wsconnected && provider.shouldConnect && !provider.ws) provider.connect();
+  };
+  window.addEventListener("offline", onOffline);
+  window.addEventListener("online", onOnline);
 
   // Re-announce presence once the handshake completes: an awareness frame sent
   // on socket open can reach the room before this connection is registered.
@@ -260,6 +300,9 @@ export function connectCollab(s: Session): Collab {
     onTerminal: (f) => terminal.on(f),
     destroy() {
       window.clearTimeout(offlineTimer);
+      window.clearInterval(watchdog);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
       provider.destroy();
       doc.destroy();
     },

@@ -234,6 +234,109 @@ pub async fn get_asset(
         .into_response())
 }
 
+#[derive(Deserialize)]
+pub struct FetchParams {
+    #[serde(default)]
+    ticket: String,
+    #[serde(default)]
+    url: String,
+}
+
+/// Largest attachment `GET /v1/assets/fetch` serves.
+pub const MAX_PREVIEW_BYTES: u64 = 50 * 1024 * 1024;
+
+/// `GET /v1/assets/fetch?ticket=&url=` (FILE-01): an attachment's bytes from this origin, so
+/// the editor can preview it (pdf.js, text) although it lives on the host's origin. Same rules
+/// as export image fetching (`assets::resolve`): the host's callback origin (signed) or an
+/// `asset_origins` entry, exact origin, no userinfo, no redirects. Any role may preview;
+/// `perms.download` only hides the editor's Download action (downloads use the original URL).
+/// Streamed, at most [`MAX_PREVIEW_BYTES`]; served inline, never sniffed, sandboxed.
+pub async fn fetch_asset(
+    State(state): State<SharedState>,
+    Query(p): Query<FetchParams>,
+) -> Result<Response, ApiError> {
+    use futures::StreamExt;
+    let (host, grant) = session(&state, &p.ticket).await?;
+    let Some(a) = (p.url.len() <= 2048)
+        .then(|| crate::assets::resolve(&host, &p.url))
+        .flatten()
+    else {
+        return Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            "ASSET_ORIGIN_NOT_ALLOWED",
+            "this file is not on an origin the host allows",
+        ));
+    };
+    let unavailable = || {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "ASSET_UNAVAILABLE",
+            "the host did not serve this file",
+        )
+    };
+    let res = state
+        .host
+        .open_asset(&host, &grant.callback_token, a.url, a.signed)
+        .await
+        .map_err(|e| {
+            tracing::debug!(error = %e, "preview fetch failed");
+            unavailable()
+        })?;
+    match res.status() {
+        s if s.is_success() => {}
+        reqwest::StatusCode::NOT_FOUND => {
+            return Err(ApiError::new(
+                StatusCode::NOT_FOUND,
+                "ASSET_NOT_FOUND",
+                "no such file",
+            ));
+        }
+        // Redirects included: never followed (SEC-07).
+        _ => return Err(unavailable()),
+    }
+    let too_large = || {
+        ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "ASSET_TOO_LARGE",
+            "files over 50 MB are not previewed",
+        )
+    };
+    if res.content_length().is_some_and(|l| l > MAX_PREVIEW_BYTES) {
+        return Err(too_large());
+    }
+    let ctype = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .filter(|v| v.len() <= 200 && v.is_ascii())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    let mut seen = 0u64;
+    let body = res.bytes_stream().map(move |chunk| {
+        let chunk = chunk.map_err(std::io::Error::other)?;
+        seen += chunk.len() as u64;
+        if seen > MAX_PREVIEW_BYTES {
+            // Without a Content-Length the cap is enforced mid-stream: the response is cut.
+            return Err(std::io::Error::other("asset over the preview cap"));
+        }
+        Ok::<_, std::io::Error>(chunk)
+    });
+    Ok((
+        [
+            (header::CONTENT_TYPE, ctype),
+            (header::CONTENT_DISPOSITION, "inline".into()),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
+            (
+                header::CONTENT_SECURITY_POLICY,
+                "sandbox; default-src 'none'".into(),
+            ),
+            (header::CACHE_CONTROL, "private, max-age=600".into()),
+        ],
+        axum::body::Body::from_stream(body),
+    )
+        .into_response())
+}
+
 async fn users_wopi(state: &SharedState, grant: &Grant, q: &str) -> Result<Response, ApiError> {
     let q = q.to_lowercase();
     let users: Vec<_> = state

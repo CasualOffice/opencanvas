@@ -46,6 +46,21 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Host notifications (@mentions) whose first call failed: retried with backoff.
+    let notifier = state.clone();
+    tokio::spawn(async move {
+        let mut every = tokio::time::interval(Duration::from_secs(10));
+        loop {
+            every.tick().await;
+            if let Err(e) = notifier
+                .deliver_notifications(oc_server::util::now_ms())
+                .await
+            {
+                tracing::warn!(error = %e, "notification sweep failed");
+            }
+        }
+    });
+
     let janitor = state.clone();
     tokio::spawn(async move {
         let mut every = tokio::time::interval(Duration::from_secs(3600));

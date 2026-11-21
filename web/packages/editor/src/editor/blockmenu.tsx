@@ -14,6 +14,10 @@ import { toast } from "../lib/store";
 import { Popover, type Anchor } from "../components/overlay";
 import { deleteBlock, duplicateBlock, indexAt, moveBlock } from "./blockops";
 import { TURN, kindOfNode, turnInto } from "./slash";
+import { fileActions } from "./files/actions";
+import { newBlockId } from "./blockId";
+import { addColumn, MAX_COLUMNS, MIN_COLUMNS, setColumnTitles } from "./columns";
+import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
 
 // ---------- comments from the editor ----------
 
@@ -32,13 +36,7 @@ export function startComment(editor: Editor, role: Role, onComment: (id: string)
 const TEXTY = new Set(["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "callout"]);
 const TONES = ["gray", "blue", "green", "amber", "red", "purple", "pink"] as const;
 
-/** `b_` + 26 lowercase base32 characters (docs/15 §4). */
-export function newBlockId(): string {
-  const a = "0123456789abcdefghjkmnpqrstvwxyz";
-  const bytes = new Uint8Array(26);
-  crypto.getRandomValues(bytes);
-  return "b_" + Array.from(bytes, (b) => a[b & 31]).join("");
-}
+export { newBlockId } from "./blockId";
 
 /** Gives the block a `blockId` (if it has none) and returns it. */
 function ensureBlockId(editor: Editor, pos: number, node: PMNode): string | null {
@@ -83,6 +81,7 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
           const keep = last.content.childCount === 1 && last.content.firstChild?.content.size === 0 ? null : last.content;
           tr.delete(lastStart, lastStart + last.nodeSize);
           if (keep) tr.insert(prevEnd, keep);
+          tr.setNodeMarkup(pos, undefined, { ...cur.attrs, widths: null });
           void prev;
         }
         return true;
@@ -126,17 +125,57 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
           <div className="msep" />
         </>
       ) : null}
+      {node.type.name === "fileAttachment" ? (
+        <>
+          <div className="mh">File</div>
+          {fileActions({
+            kind: fileKind(node.attrs.mime, node.attrs.name),
+            display: fileDisplay(node.attrs.display, fileKind(node.attrs.mime, node.attrs.name)),
+            role: bridge.env?.role ?? "edit",
+            editable: editor.isEditable,
+            canDownload: bridge.session?.perms?.download !== false,
+            hasFile: hasBytes(node.attrs.url) && !node.attrs.upload,
+            inBlockMenu: true,
+          }).map((a) => (
+            <button
+              key={a.id}
+              className="mi"
+              onClick={() =>
+                run(() => {
+                  const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
+                  dom?.querySelector(".filev")?.dispatchEvent(new CustomEvent(FILE_EVENT, { detail: a.id }));
+                })
+              }
+            >
+              <Ic name={a.icon} />
+              {a.label}
+            </button>
+          ))}
+          <div className="msep" />
+        </>
+      ) : null}
       {isCols ? (
         <>
           <div className="mh">Columns</div>
-          <button className="mi" disabled={cols >= 3} onClick={() => run(() => setColumns(cols + 1))}>
+          <button className="mi" disabled={cols >= MAX_COLUMNS} onClick={() => run(() => addColumn(editor.view, pos, cols))}>
             <Ic name="columns-3" />
             Add a column
           </button>
-          <button className="mi" disabled={cols <= 1} onClick={() => run(() => setColumns(cols - 1))}>
+          <button className="mi" disabled={cols <= MIN_COLUMNS} onClick={() => run(() => setColumns(cols - 1))}>
             <Ic name="columns-2" />
             Remove the last column
           </button>
+          {node.firstChild?.attrs.title != null ? (
+            <button className="mi" onClick={() => run(() => setColumnTitles(editor, pos, false))}>
+              <Ic name="heading-3" />
+              Remove column titles
+            </button>
+          ) : (
+            <button className="mi" onClick={() => run(() => setColumnTitles(editor, pos, true))}>
+              <Ic name="heading-3" />
+              Add column title
+            </button>
+          )}
           <div className="msep" />
         </>
       ) : null}
@@ -153,7 +192,10 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
             if (!id) return toast("This block can't be linked", { icon: "link" });
             // The host owns URLs (docs/05 §4): it gets the block id and builds its own link;
             // `Action_ScrollToBlock` brings a reader back here.
-            postToHost("UI_Block_Link", { blockId: id, fileId: bridge.session?.file?.id ?? null });
+            // `UI_BlockLink` (docs/05 §4); `UI_Block_Link` is the name hosts built against first.
+            const values = { fileId: bridge.session?.file?.id ?? null, blockId: id };
+            postToHost("UI_BlockLink", values);
+            postToHost("UI_Block_Link", values);
             const url = new URL(window.location.href);
             url.hash = "";
             const link = bridge.session?.demo ? `${url.toString()}#demo&block=${id}` : `#block=${id}`;

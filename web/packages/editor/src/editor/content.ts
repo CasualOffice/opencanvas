@@ -24,7 +24,7 @@ export type TB =
   | { k: "image"; caption: string; art?: "flow" | "ui" }
   | { k: "link"; url: string; title: string; desc: string; site: string }
   | { k: "embed"; provider: string; url: string; title: string }
-  | { k: "file"; name: string; size: number; mime: string }
+  | { k: "file"; name: string; size: number; mime: string; url?: string }
   | { k: "cols"; cols: { h: string; items: string[] }[] }
   | { k: "table"; rows: string[][] };
 
@@ -48,7 +48,7 @@ export const BOARD = (preset: BdPreset): TB => ({ k: "board", preset });
 export const IMG = (caption: string, art: "flow" | "ui" = "flow"): TB => ({ k: "image", caption, art });
 export const LINK = (url: string, title: string, desc: string, site: string): TB => ({ k: "link", url, title, desc, site });
 export const EMBED = (provider: string, url: string, title: string): TB => ({ k: "embed", provider, url, title });
-export const FILE = (name: string, size: number, mime: string): TB => ({ k: "file", name, size, mime });
+export const FILE = (name: string, size: number, mime: string, url = ""): TB => ({ k: "file", name, size, mime, url });
 export const COLS = (...cols: { h: string; items: string[] }[]): TB => ({ k: "cols", cols });
 export const TABLE = (rows: string[][]): TB => ({ k: "table", rows });
 
@@ -173,7 +173,7 @@ export function toJSON(b: TB, ctx: BuildCtx): JSONContent {
     case "embed":
       return { type: "embed", attrs: { provider: b.provider, url: b.url, title: b.title } };
     case "file":
-      return { type: "fileAttachment", attrs: { name: b.name, size: b.size, url: "", mime: b.mime } };
+      return { type: "fileAttachment", attrs: { name: b.name, size: b.size, url: b.url ?? "", mime: b.mime } };
     case "cols":
       return {
         type: "columns",

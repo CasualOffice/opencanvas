@@ -286,6 +286,9 @@ fn md_inline(nodes: &[Value]) -> String {
                 }
             }
             "mention" => format!("@{}", md_text(attr_str(n, "label"))),
+            "dateMention" => iso_date(attr_str(n, "date"))
+                .unwrap_or_default()
+                .to_string(),
             "hardBreak" => "  \n".into(),
             _ => md_inline(children(n)),
         })
@@ -441,8 +444,108 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             fallback(attr_str(n, "title"), attr_str(n, "provider")),
             attr_str(n, "url"),
         ),
-        "fileAttachment" => md_link(attr_str(n, "name"), attr_str(n, "url")),
+        "fileAttachment" => {
+            let meta = file_meta(n).join(", ");
+            let link = md_link(attr_str(n, "name"), attr_str(n, "url"));
+            if meta.is_empty() {
+                link
+            } else {
+                format!("{link} ({meta})")
+            }
+        }
+        "column"
+            if n["attrs"]["title"]
+                .as_str()
+                .is_some_and(|t| !t.trim().is_empty()) =>
+        {
+            let body = md_children(cx, n, "\n\n");
+            format!("**{}**\n\n{body}", md_text(attr_str(n, "title").trim()))
+        }
         _ => md_children(cx, n, "\n\n"),
+    }
+}
+
+/// `textColor` palette (docs/15 §4) as light-theme hex, for exports. Anything else is dropped.
+pub fn text_color_hex(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "gray" => "#55555c",
+        "red" => "#b12424",
+        "amber" => "#8f5300",
+        "green" => "#17703f",
+        "blue" => "#2350c8",
+        "purple" => "#6538c4",
+        "pink" => "#ad2c66",
+        _ => return None,
+    })
+}
+
+/// A `dateMention` date when it is a valid `YYYY-MM-DD`.
+pub fn iso_date(d: &str) -> Option<&str> {
+    let b = d.as_bytes();
+    let ok = b.len() == 10
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b.iter()
+            .enumerate()
+            .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit());
+    if !ok {
+        return None;
+    }
+    let month: u32 = d[5..7].parse().ok()?;
+    let day: u32 = d[8..10].parse().ok()?;
+    ((1..=12).contains(&month) && (1..=31).contains(&day)).then_some(d)
+}
+
+/// `Dec 4, 2026` for a valid ISO date (exports are not localised).
+pub fn date_text(d: &str) -> String {
+    const M: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    match iso_date(d) {
+        Some(d) => {
+            let m: usize = d[5..7].parse().unwrap_or(1);
+            let day: u32 = d[8..10].parse().unwrap_or(1);
+            format!("{} {day}, {}", M[m - 1], &d[..4])
+        }
+        None => String::new(),
+    }
+}
+
+/// `PDF`, `2 KB`: a file block's type (extension) and size, for exports.
+pub fn file_meta(n: &Value) -> Vec<String> {
+    let name = attr_str(n, "name");
+    let mut out = Vec::new();
+    if let Some((_, ext)) = name.rsplit_once('.')
+        && !ext.is_empty()
+        && ext.len() <= 8
+        && ext.chars().all(|c| c.is_ascii_alphanumeric())
+    {
+        out.push(ext.to_ascii_uppercase());
+    }
+    let size = n["attrs"]["size"].as_f64().unwrap_or(0.0);
+    if size >= 1.0 {
+        out.push(if size < 1024.0 {
+            format!("{size:.0} B")
+        } else if size < 1024.0 * 1024.0 {
+            format!("{:.0} KB", size / 1024.0)
+        } else {
+            format!("{:.1} MB", size / 1024.0 / 1024.0)
+        });
+    }
+    out
+}
+
+/// `card` or `preview` (docs/15 §4): absent means preview for PDFs, card otherwise.
+pub fn file_display(n: &Value) -> &'static str {
+    match attr_str(n, "display") {
+        "card" => "card",
+        "preview" => "preview",
+        _ if attr_str(n, "mime") == "application/pdf"
+            || attr_str(n, "name").to_ascii_lowercase().ends_with(".pdf") =>
+        {
+            "preview"
+        }
+        _ => "card",
     }
 }
 
@@ -536,6 +639,13 @@ fn html_inline(nodes: &[Value]) -> String {
                         "underline" => format!("<u>{t}</u>"),
                         "code" => format!("<code>{t}</code>"),
                         "highlight" => format!("<mark>{t}</mark>"),
+                        "textColor" => match text_color_hex(attr_str(m, "color")) {
+                            Some(hex) => format!(
+                                "<span style=\"color:{hex}\" data-color=\"{}\">{t}</span>",
+                                attr_str(m, "color")
+                            ),
+                            None => t,
+                        },
                         "link" => format!("<a href=\"{}\">{t}</a>", safe_url(attr_str(m, "href"))),
                         _ => t,
                     };
@@ -546,6 +656,10 @@ fn html_inline(nodes: &[Value]) -> String {
                 "<span class=\"mention\">@{}</span>",
                 escape(attr_str(n, "label"))
             ),
+            "dateMention" => match iso_date(attr_str(n, "date")) {
+                Some(d) => format!("<time datetime=\"{d}\">{}</time>", date_text(d)),
+                None => String::new(),
+            },
             "hardBreak" => "<br>".into(),
             _ => html_inline(children(n)),
         })
@@ -654,19 +768,116 @@ fn html_block(cx: &Cx, n: &Value) -> String {
                 escape(label)
             )
         }
+        // FILE-01: a card (link + type + size). `display` records how the canvas showed it; an
+        // embedded viewer is never exported.
         "fileAttachment" => format!(
-            "<p><a href=\"{}\">{}</a></p>",
+            "<p class=\"oc-file\" data-display=\"{}\"><a href=\"{}\">{}</a> <span class=\"oc-file-meta\">{}</span></p>",
+            file_display(n),
             safe_url(attr_str(n, "url")),
-            escape(attr_str(n, "name"))
+            escape(attr_str(n, "name")),
+            escape(&file_meta(n).join(" · "))
         ),
-        "columns" => format!("<div class=\"columns\">{}</div>", html_children(cx, n)),
-        "column" => format!("<div class=\"column\">{}</div>", html_children(cx, n)),
+        "columns" => {
+            // LAY-01: `widths` ("25,75") becomes the grid; only digits and commas get through.
+            let w: Vec<u32> = attr_str(n, "widths")
+                .split(',')
+                .filter_map(|x| x.trim().parse().ok())
+                .filter(|x| (1..=100).contains(x))
+                .collect();
+            let style = if w.len() >= 2 && w.len() == children(n).len() {
+                let t: Vec<String> = w.iter().map(|x| format!("{x}fr")).collect();
+                format!(
+                    " style=\"display:grid;grid-template-columns:{};gap:24px\"",
+                    t.join(" ")
+                )
+            } else {
+                String::new()
+            };
+            format!(
+                "<div class=\"columns\"{style}>{}</div>",
+                html_children(cx, n)
+            )
+        }
+        "column" => {
+            let title = attr_str(n, "title").trim();
+            let head = if title.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "<p class=\"column-title\"><strong>{}</strong></p>",
+                    escape(title)
+                )
+            };
+            format!("<div class=\"column\">{head}{}</div>", html_children(cx, n))
+        }
         _ => html_children(cx, n),
     }
 }
 
 #[cfg(test)]
 mod tests {
+
+    /// LAY-01: column widths and titles survive in HTML; titles become bold lines in Markdown.
+    #[test]
+    fn column_titles_and_widths_export() {
+        let doc = json!({"content": [{"type": "columns", "attrs": {"widths": "25,75"}, "content": [
+            {"type": "column", "attrs": {"title": "Host <app>"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "a"}]}]},
+            {"type": "column", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "b"}]}]}
+        ]}]});
+        let html = to_html(&doc);
+        assert!(html.contains("<div class=\"columns\" style=\"display:grid;grid-template-columns:25fr 75fr;gap:24px\">"), "{html}");
+        assert!(html.contains("<div class=\"column\"><p class=\"column-title\"><strong>Host &lt;app&gt;</strong></p><p>a</p></div>"), "{html}");
+        let md = to_markdown(&doc);
+        assert!(md.contains("**Host \\<app>**\n\na"), "{md}");
+    }
+
+    /// UX-02: text colour (palette names only) and date chips in Markdown and HTML.
+    #[test]
+    fn text_colour_and_dates_export() {
+        let doc = json!({"content": [
+            {"type": "paragraph", "content": [
+                {"type": "text", "text": "Ship "},
+                {"type": "text", "text": "it", "marks": [{"type": "textColor", "attrs": {"color": "blue"}}]},
+                {"type": "text", "text": " by ", "marks": [{"type": "textColor", "attrs": {"color": "url(x)"}}]},
+                {"type": "dateMention", "attrs": {"date": "2026-12-04"}},
+                {"type": "dateMention", "attrs": {"date": "<b>"}}
+            ]}
+        ]});
+        let html = to_html(&doc);
+        assert!(
+            html.contains("Ship <span style=\"color:#2350c8\" data-color=\"blue\">it</span> by <time datetime=\"2026-12-04\">Dec 4, 2026</time>"),
+            "{html}"
+        );
+        assert!(!html.contains("url(x)") && !html.contains("<b>"), "{html}");
+        let md = to_markdown(&doc);
+        assert!(md.contains("Ship it by 2026-12-04"), "{md}");
+    }
+
+    /// FILE-01: a file block exports as a card (name, type, size, how it was shown), never
+    /// as an embedded viewer; Markdown keeps a plain link with the type and size.
+    #[test]
+    fn file_blocks_export_as_cards() {
+        let doc = json!({"content": [
+            {"type": "fileAttachment", "attrs": {"url": "https://files.example/a.pdf", "name": "Brief <v2>.pdf",
+                "mime": "application/pdf", "size": 2048, "display": "preview", "height": 640}},
+            {"type": "fileAttachment", "attrs": {"url": "https://files.example/n.txt", "name": "notes.txt", "mime": "text/plain", "size": 0}}
+        ]});
+        let html = to_html(&doc);
+        assert!(
+            html.contains("<p class=\"oc-file\" data-display=\"preview\"><a href=\"https://files.example/a.pdf\">Brief &lt;v2&gt;.pdf</a> <span class=\"oc-file-meta\">PDF · 2 KB</span></p>"),
+            "{html}"
+        );
+        assert!(html.contains("<p class=\"oc-file\" data-display=\"card\"><a href=\"https://files.example/n.txt\">notes.txt</a> <span class=\"oc-file-meta\">TXT</span></p>"), "{html}");
+        let md = to_markdown(&doc);
+        assert!(
+            md.contains("[Brief \\<v2>.pdf](https://files.example/a.pdf) (PDF, 2 KB)"),
+            "{md}"
+        );
+        assert!(
+            md.contains("[notes.txt](https://files.example/n.txt) (TXT)"),
+            "{md}"
+        );
+    }
 
     /// SEC-15: Markdown output is rendered by hosts. Script URLs must not become links and raw
     /// HTML in text must not become markup.

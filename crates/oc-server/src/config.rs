@@ -32,6 +32,9 @@ pub struct RoomConfig {
     pub compact_every: u64,
     pub compact_interval: Duration,
     pub tick: Duration,
+    /// Control `{"t":"ping"}` to every connection this often, so clients can tell a silent
+    /// network drop from a quiet room (docs/15 §3; `OC_HEARTBEAT_MS`, default 10 s).
+    pub heartbeat: Duration,
 }
 
 impl Default for RoomConfig {
@@ -45,6 +48,7 @@ impl Default for RoomConfig {
             compact_every: 500,
             compact_interval: Duration::from_secs(30),
             tick: Duration::from_millis(250),
+            heartbeat: Duration::from_secs(10),
         }
     }
 }
@@ -109,6 +113,7 @@ impl Config {
                 room_ttl: Duration::from_secs(num("OC_ROOM_TTL_SECS", 600)),
                 max_frame_bytes: num("OC_MAX_FRAME_KB", 1024) as usize * 1024,
                 max_doc_bytes: num("OC_MAX_DOC_MB", 20) as usize * 1024 * 1024,
+                heartbeat: Duration::from_millis(num("OC_HEARTBEAT_MS", 10_000).max(1000)),
                 ..d
             },
         })
