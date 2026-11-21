@@ -14,16 +14,20 @@ pub async fn healthz() -> impl IntoResponse {
 
 pub async fn readyz(State(state): State<SharedState>) -> impl IntoResponse {
     let db = state.store.ping().await;
-    let status = if db {
+    // A draining node (SIGTERM) must leave the load balancer before its rooms move on.
+    let draining = state.rooms.draining();
+    let ok = db && !draining;
+    let status = if ok {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
     };
     (
         status,
-        Json(
-            json!({"ok": db, "db": db, "hosts": state.hosts.len(), "rooms": state.rooms.live_rooms()}),
-        ),
+        Json(json!({
+            "ok": ok, "db": db, "draining": draining,
+            "hosts": state.hosts.len(), "rooms": state.rooms.live_rooms()
+        })),
     )
 }
 

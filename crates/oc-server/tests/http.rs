@@ -369,3 +369,28 @@ async fn fast_typing_with_awareness_is_not_rate_limited() {
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert!(!closed.is_finished(), "socket closed: {:?}", closed.await);
 }
+
+#[tokio::test]
+async fn readyz_reports_unavailable_while_draining() {
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let served = state.clone();
+    tokio::spawn(async move {
+        axum::serve(listener, oc_server::router(served))
+            .await
+            .unwrap()
+    });
+    let url = format!("http://127.0.0.1:{}/readyz", addr.port());
+
+    let ready = http().get(&url).send().await.unwrap();
+    assert_eq!(ready.status(), 200);
+
+    // SIGTERM path: load balancers must stop routing new users here before rooms are handed off.
+    state.rooms.shutdown_all().await;
+    let draining = http().get(&url).send().await.unwrap();
+    assert_eq!(draining.status(), 503);
+    let body: Value = draining.json().await.unwrap();
+    assert_eq!(body["draining"], true);
+}
