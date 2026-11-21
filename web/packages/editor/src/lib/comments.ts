@@ -76,9 +76,9 @@ function readLabels(v: unknown): Record<string, string> | undefined {
 }
 
 /**
- * docs/21: comment text as this viewer reads it. Each `@label` the author inserted for a
- * mentioned id is replaced by `name(id)` (the viewer's own name for that person, "Someone" when
- * hidden), so a name the viewer mustn't see is never shown. Returns plain runs and mentions.
+ * docs/21: comment text with current names. Each `@label` the author inserted for a mentioned
+ * id is replaced by `name(id)` (the member's current name, so a rename shows everywhere).
+ * Returns plain runs and mentions.
  */
 export function viewMentions(text: string, labels: Record<string, string> | undefined, name: (id: string) => string): { text: string; mention: boolean }[] {
   const tags = Object.entries(labels ?? {})
