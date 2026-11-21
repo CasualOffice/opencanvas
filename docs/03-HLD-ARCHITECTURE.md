@@ -159,7 +159,8 @@ not storage.
 
 Database selection (ADR-004): `DATABASE_URL` unset → `sqlite://./data/opencanvas.db`
 (WAL mode). `mysql://` → MySQL 8 / MariaDB 10.6+. Same migrations, sqlx `Any`
-driver, portable SQL subset.
+driver, portable SQL subset. **Cluster without `DATABASE_URL`** (`REDIS_URL` set): every row
+above lives in Redis instead, behind the same store interface (§5.2.2, ADR-030).
 
 ## 5. Scalability model
 
@@ -219,11 +220,42 @@ dependencies.
 - SIGTERM drain: `/readyz` turns 503, WebSocket upgrades are refused with 503 +
   `Retry-After: 5` (before the upgrade), refuse new rooms, commit dirty rooms, `{"t":"reconnect"}` + close
   1012 to every client (local and relayed), release leases, exit.
-- `REDIS_URL` with SQLite refuses to start (SQLite is single-node only).
+- `REDIS_URL` with SQLite refuses to start (SQLite is single-node only). `REDIS_URL` without
+  `DATABASE_URL` is Redis-only storage (§5.2.2).
 - Stateless HTTP (launch/preview/export) scales horizontally with no
   coordination. Export rendering can be split into a worker pool.
 - Large rooms: viewers can be fanned out by non-owner nodes from a Redis
   channel, so a 500-viewer room does not saturate one node.
+
+### 5.2.2 Redis-only cluster (ADR-030)
+A cluster needs only Redis: with `REDIS_URL` set and `DATABASE_URL` unset, the store keeps all
+server state in the WAL Redis; with `DATABASE_URL` set, the database is used exactly as above.
+
+| state | Redis-only |
+|---|---|
+| room snapshot (periodic sync target, 5 s / 500 updates, close, drain) | hash `oc:snap:{room}` |
+| WAL | stream `oc:wal:{room}` (as §5.2.1) |
+| fencing epoch | `oc:epoch:{room}`, authoritative: `INCR` per claim, the clock in ms when missing |
+| commit outbox | hash `oc:ob:{id}` + zsets `oc:obroom:{room}`, `oc:obpending`; id = idempotency key; claim lease `claimed_by`/`claim_until` |
+| mention outbox | hash `oc:nt:{id}` + zset `oc:ntdue` |
+| sessions | hash `oc:sess:{ticket}` (TTL = ticket expiry + 1 h) + zset `oc:roomsess:{room}` |
+| used launch `jti` | `SET oc:jti:{host}:{jti} NX EX` |
+| room rows, WOPI assets | `oc:room:{room}`, `oc:rooms`; `oc:asset:{room}`, `oc:assetm:{room}`, `oc:assetrooms` |
+
+Guarded writes (outbox insert, snapshot + stream trim, closing purge, WAL append) are single Lua
+scripts that check the writer's epoch first, so fencing works as with the database. One Redis
+primary (standalone or Sentinel), not Redis Cluster.
+
+**Redis loses its data** (restart without AOF, flush, failover to an empty replica):
+- *with SQL*: an append that finds no epoch key restores it from `room_epochs` and retries; the
+  current owner keeps writing, a stale writer is still refused. Rooms are no longer all fenced.
+  WAL entries since a room's last DB snapshot exist only in the owner's memory until its next
+  sync.
+- *Redis-only*: there is nothing to restore from. `oc:instance` (set once, checked every 2 s)
+  is missing, and every node logs `REDIS LOST ITS DATA` at ERROR. Rooms are fenced at their
+  next write, close with 1012 and rebuild from the host's last saved file plus what
+  reconnecting clients resend. Pending commits and sessions are gone (clients relaunch); edits
+  of clients that do not come back are lost. Hence `appendonly yes` is required in production.
 
 ### 5.2.0 Durability modes (ADR-029)
 - **`OC_DURABILITY=memory`** (default without Redis): the room's Y.Doc lives in memory; an

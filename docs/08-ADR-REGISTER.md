@@ -31,6 +31,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-025 | Blocks open items (docs/15 §4, docs/20): board arrow `via` (manual waypoints, drawn identically by the web and Rust exporters; `pts` keeps the resolved path); database field `description` (shared field map, in `document.json`, footnote line under the table in web and server Markdown, not in CSV); view prefs `fields` (per-view order) and `hidden`, typed `filters` rules `{f, op, v, v2}` (legacy `filter` mirrors the first value-list rule only); `BlockEnv.undoManager` (optional; blocks join the editor's Y.UndoManager instead of a private one). All optional and additive | Accepted (2026-11-21) |
 | ADR-026 | Users and identity (docs/21 revision 2, 2026-11-22): the mention list is the canvas's members (token `members[]` ≤ 500, optional signed `GET /files/{fileId}/members` cached 60 s per room, else the saved `people` map; callback > token > saved); the same list and real names for every viewer; one user object `id, name, detail?, avatar?, color?`, never e-mail; chips show the member's current name or the snapshot + "No longer has access"; revocation via the role API or `POST /v1/files/:id/members/invalidate` takes effect at once; `GET /v1/members`. Revision 1 (per-viewer relations, hidden/external, nicknames, `coviewers`, `participants`, `showEmail`, `/users`, `/users/resolve`) removed | Accepted (revision 2, 2026-11-22) |
 | ADR-027 | Editor/server open items (docs/19 UX-02, FILE-01, LAY-01): host callback `POST /mentions` + `notify_outbox` table; control `ping` heartbeat; `textColor` mark and `dateMention` node; `fileAttachment.display/height`, `columns.widths`, `column.title`; `GET /v1/assets/fetch` preview route; `UI_BlockLink` and launch `block`; `BlockEnv.undoManager` used; new dependency `pdfjs-dist` (lazy) | Accepted (2026-11-21) |
+| ADR-030 | Redis-only cluster storage: `REDIS_URL` without `DATABASE_URL` keeps snapshots, WAL, authoritative epochs (`INCR`), commit and mention outboxes, sessions, used launch `jti` (`SET NX EX`) and assets in Redis behind the same `Store`; with SQL, a Redis wipe restores epochs from `room_epochs` instead of fencing every room; `oc:instance` detects wipes | Accepted (2026-11-22) |
 | ADR-029 | Memory durability (`OC_DURABILITY=memory`, the default without Redis): rooms live in memory and their state is dumped to the DB every `OC_DB_SYNC_MS` (2 s) and before saves, drain and close; `wal` keeps ADR-028; SQLite write turn; idle eviction `OC_ROOM_IDLE_MS` (60 s) | Accepted (2026-11-22) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
@@ -302,3 +303,54 @@ or configure a Redis WAL.
 state dump per busy room per 2 s; − a crash can lose up to `OC_DB_SYNC_MS` of edits from
 clients that do not return; − each dump re-encodes the whole doc, so its cost grows with the
 document.
+
+### ADR-030 — Redis-only cluster storage; SQL optional in a cluster
+
+**Context.** A cluster needed MySQL/MariaDB for snapshots, epochs, outboxes, sessions and used
+launch tokens, plus Redis for leases and the hot WAL (ADR-006, ADR-028): two stateful services
+to run. The chaos runs (docs/22 §11.1) also showed that a Redis restart without AOF dropped every
+mirrored fencing epoch, so every room of the cluster was fenced and every client reconnected.
+Owner decision (2026-11-22): a single server uses SQLite, or MySQL as its dump target; a
+cluster uses Redis only; SQL is optional in a cluster and used when `DATABASE_URL` is set.
+**Decision.** (1) **`REDIS_URL` set and `DATABASE_URL` unset → Redis-only storage.** Every piece
+of server state lives in the WAL Redis (`OC_WAL_REDIS_URL`, default `REDIS_URL`), behind the
+same `Store` interface: each method dispatches to `redis_store::RedisStore` first, so the SQLite
+and MySQL/MariaDB code paths are unchanged. Mapping: `room_snapshots` → hash `oc:snap:{room}`
+(the periodic sync target, every `OC_DB_SYNC_MS` = 5 s or 500 updates, and on close/drain);
+`room_updates` → the existing stream `oc:wal:{room}`; `room_epochs` → `oc:epoch:{room}`, now
+authoritative: a claim is `INCR`, or the clock in ms when the key is missing, so an epoch is
+never handed out twice; `commit_outbox` → a hash per row plus zsets per room and of pending rows
+(row id = idempotency key, a second insert with the same id is refused; supersede-older-pending,
+`claimed_by`/`claim_until` claim lease, attempts, finish: the SQL semantics); `notify_outbox` →
+hash per row plus a due zset (insert once per id, claim by `next_try_at`, finished rows kept a
+day); `sessions` → hash per ticket expiring an hour after the ticket plus a per-room zset;
+`launch_jti` → `SET NX EX`; `rooms`, `room_assets` → hashes and sets. Each guarded write
+(outbox insert, snapshot + trim, closing purge, WAL append) is one Lua script that compares the
+writer's epoch with `oc:epoch:{room}` first; a stale writer changes nothing. Sealing with
+`OC_KEK` is unchanged. Scripts touch keys of one room that are not all declared, so the Redis is
+a standalone server or a Sentinel-managed primary, not Redis Cluster.
+(2) **Redis wiped with SQL configured.** An append that finds no epoch key (`NOEPOCH`, distinct
+from a stale epoch) reads the room's epoch from `room_epochs` (the authoritative one), restores
+the mirror (it only ever raises) and retries once: the room's current owner keeps writing, a
+writer whose epoch is not the database's latest is still refused, and the next claim is
+`room_epochs` + 1 as always. A wipe no longer fences every room of the cluster.
+(3) **Wipe detection.** The first node sets `oc:instance` (`SET NX`, a ULID); every node checks
+it every 2 s. Gone or changed → Redis lost its data: logged at ERROR. In Redis-only mode the
+message says it plainly: snapshots, WAL, epochs, pending commits, sessions and used launch
+tokens are gone; rooms are fenced at their next write (no epoch key), close with 1012 and
+rebuild from the host's last saved file plus what reconnecting clients resend; open sessions
+must relaunch.
+(4) **Durability guidance.** Start-up warns when Redis has `appendonly no` (Redis-only: every
+piece of state is lost on a restart) or `appendfsync` is not `always`. Recommended:
+`appendonly yes` + `appendfsync always`, or `everysec` with a replica (docs/13).
+**Durability contract (Redis-only).** Acknowledged means in Redis (as ADR-028). With
+`appendfsync always` a Redis crash loses nothing acknowledged; with `everysec`, about the last
+second; with AOF off, a Redis restart loses **everything** Redis held: edits since each room's
+host save survive only in clients that come back, commits the host has not acknowledged are
+lost, sessions must relaunch, and a used launch token could be replayed until it expires.
+**Consequences.** + a cluster needs only Redis; + SQL remains available in a cluster (and a wipe
+there no longer reconnects every client); + one store contract checked by conformance tests on
+SQLite, MySQL/MariaDB and Redis (`tests/storage_conformance.rs`); − Redis memory holds every
+room's snapshot (≈ the encoded doc per open or recently closed room) besides the WAL tail;
+− Redis persistence decides durability for all state, not only the last seconds of edits;
+− not compatible with Redis Cluster (one primary).
