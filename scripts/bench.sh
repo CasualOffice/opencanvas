@@ -22,6 +22,8 @@
 # K  cluster chaos: 3 nodes, load (300 rooms x 5 at 20 % + one 550 room), verified rooms spread
 #    over nodes; kill -9 the owner, rolling restart, Redis restart, pause one node (SIGSTOP)
 # K2 cluster: Redis kill and a 20 s SIGSTOP of one node inside the verified window
+#    (K2_REDIS_KILL=0: the pause only; REDIS_ARGS="--appendonly yes --appendfsync always")
+# KD cluster with node 2 in Docker (NODE2_IMAGE): docker pause 20 s, then a 25 s partition
 # T  throughput 1 node vs 3 nodes, clients of a room on different nodes, host latency 20-50 ms
 #    (T1 / T3: each half on a fresh MariaDB container; S2m: S2 on MariaDB for 3 minutes)
 #
@@ -41,8 +43,11 @@ CPFX=${CPFX:-ocbench}
 SECRET=bench-secret-0123456789abcdef0123456789
 TGT=${CARGO_TARGET_DIR:-target}; BIN=$TGT/release/opencanvas; LG=$TGT/release/oc-bench
 case $BIN in /*) ;; *) BIN=$ROOT/$BIN; LG=$ROOT/$LG ;; esac
+# OC_BIN / OC_LG: prebuilt binaries and no cargo build (e.g. copies taken off a shared target dir
+# that another checkout may rebuild mid-run). WORK: keep node logs in a known directory.
+if [ -n "${OC_BIN:-}" ]; then BIN=$OC_BIN; LG=${OC_LG:-$LG}; SKIP_BUILD=1; fi
 mkdir -p "$OUT"
-WORK=$(mktemp -d)
+WORK=${WORK:-$(mktemp -d)}; mkdir -p "$WORK"; echo "work dir (node logs): $WORK"
 PIDS=(); CONTAINERS=()
 
 # Sockets: the server and the load generator each hold one fd per connection.
@@ -56,7 +61,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cargo build -q --release -p oc-server --bin opencanvas -p oc-bench --bin oc-bench || exit 1
+[ -n "${SKIP_BUILD:-}" ] || cargo build -q --release -p oc-server --bin opencanvas -p oc-bench --bin oc-bench || exit 1
 for port in "$OC_PORT" "$HOST_PORT"; do
   if nc -z 127.0.0.1 "$port" 2>/dev/null; then echo "port $port is in use (set OC_PORT / HOST_PORT)"; exit 1; fi
 done
@@ -179,27 +184,71 @@ cluster_up() {
   [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
   mariadb_reset
   docker rm -f $CPFX-redis >/dev/null 2>&1
-  docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine >/dev/null || exit 1
+  # REDIS_ARGS, e.g. "--appendonly yes --appendfsync always" (the hot WAL's documented setting).
+  docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine redis-server ${REDIS_ARGS:-} >/dev/null || exit 1
   CONTAINERS+=($CPFX-redis); sleep 2
   CL_KEK=$(openssl rand -base64 32)
-  for n in 1 2 3; do start_node "$n"; done
+  for n in 1 2 3; do
+    if [ -n "${NODE2_IMAGE:-}" ] && [ "$n" = 2 ]; then start_node_docker; else start_node "$n"; fi
+  done
   CL_URLS="http://127.0.0.1:$((NODE_BASE + 1)),http://127.0.0.1:$((NODE_BASE + 2)),http://127.0.0.1:$((NODE_BASE + 3))"
   CL_PIDS="${NODE_PID[1]},${NODE_PID[2]},${NODE_PID[3]}"
 }
-cluster_down() { for n in 1 2 3; do stop_server "${NODE_PID[$n]}"; done; }
+cluster_down() {
+  [ -n "${NODE2_IMAGE:-}" ] && docker stop -t 30 $CPFX-node2 >/dev/null 2>&1
+  for n in 1 2 3; do stop_server "${NODE_PID[$n]}"; done
+}
+# KD: node 2 runs in Docker (NODE2_IMAGE, a Linux build of the server, e.g. `docker build -f
+# deploy/Dockerfile --target server`). Its network namespace belongs to a socat container that
+# forwards 127.0.0.1:<port> to the host for Redis, MariaDB, the other nodes and the mock hosts,
+# and publishes node 2's own port. `docker pause` of node 2 freezes it; `docker pause` of the
+# forwarder partitions it: node 2 keeps running and answering its own clients, but cannot
+# reach Redis, the DB, the other nodes or the host.
+start_node_docker() {
+  local port=$((NODE_BASE + 2)) fw="" p
+  docker rm -f $CPFX-node2 $CPFX-fwd >/dev/null 2>&1
+  for p in $((NODE_BASE + 1)) $((NODE_BASE + 3)) $HOST_PORT $HOST2_PORT $HOST3_PORT $MARIA_PORT $REDIS_PORT; do
+    fw="$fw socat TCP-LISTEN:$p,bind=127.0.0.1,fork,reuseaddr TCP:host.docker.internal:$p &"
+  done
+  CONTAINERS+=($CPFX-node2 $CPFX-fwd)
+  docker run -d --name $CPFX-fwd -p 127.0.0.1:$port:$port --entrypoint sh alpine/socat -c "$fw wait" >/dev/null || exit 1
+  docker run -d --name $CPFX-node2 --network container:$CPFX-fwd -v "$WORK:/work" --entrypoint /opencanvas \
+    -e DATABASE_URL="$MARIA_URL" -e REDIS_URL="redis://127.0.0.1:$REDIS_PORT" -e OC_NODE_ID=bench-2 \
+    -e OC_CLUSTER_ADVERTISE="http://127.0.0.1:$port" -e OC_CLUSTER_SECRET="$CL_SECRET" -e OC_KEK="$CL_KEK" \
+    -e OC_HOSTS_FILE=/work/hosts.toml -e OC_BIND="0.0.0.0:$port" -e OC_PUBLIC_URL="http://127.0.0.1:$port" \
+    -e OC_LOG="${OC_LOG:-info}" "$NODE2_IMAGE" >/dev/null || exit 1
+  docker logs -f $CPFX-node2 >> "$WORK/server-$port.log" 2>&1 &
+  NODE_PID[2]=$!; PIDS+=($!)
+  for _ in $(seq 1 100); do curl -sf "http://127.0.0.1:$port/readyz" >/dev/null && return 0; sleep 0.2; done
+  echo "node 2 (Docker) did not become ready"; tail -20 "$WORK/server-$port.log"; exit 1
+}
+docker_pause_node() {
+  echo "bench-2 owns $(owners | grep -c ' bench-2@') rooms"
+  echo "docker pause $CPFX-node2 for $1 s"; docker pause $CPFX-node2 >/dev/null; sleep "$1"; docker unpause $CPFX-node2 >/dev/null; echo "docker unpause $CPFX-node2"
+}
+partition_node() {
+  echo "bench-2 owns $(owners | grep -c ' bench-2@') rooms"
+  echo "partition bench-2 for $1 s (forwarder paused: no Redis, DB, peers or host; its own port still answers)"
+  docker pause $CPFX-fwd >/dev/null; sleep "$1"; docker unpause $CPFX-fwd >/dev/null; echo "partition healed"
+}
 redis() { docker exec $CPFX-redis redis-cli "$@"; }
+# "<room key> <node>@<token>" for every lease, in one round trip (a docker exec per key took
+# about 18 s for 360 keys, which delayed the events and made the lease watch far slower than 1 s).
+owners() {
+  redis EVAL "local r = {} for _, k in ipairs(redis.call('KEYS', 'room:*:owner')) do r[#r + 1] = k .. ' ' .. (redis.call('GET', k) or '') end return r" 0 2>/dev/null
+}
 # Owner of each room key every second: "<unix> <room> <node>" (to see moves and leaseless gaps).
 lease_watch() {
   ( while :; do
       t=$(date +%s)
-      for k in $(redis --scan --pattern 'room:*:owner' 2>/dev/null); do echo "$t $k $(redis GET "$k" | cut -d@ -f1)"; done
+      owners | sed "s/@.*//; s/^/$t /"
       sleep 1
     done ) > "$1" 2>&1 &
   PIDS+=($!)
 }
 k_event() { local what=$1; shift; echo "$(date +%s) EVENT $what" | tee -a "$OUT/K-events.txt"; "$@" > >(tee -a "$OUT/K-events.txt") 2>&1; }
 kill_owner() {
-  local n; n=$(redis --scan --pattern 'room:*:owner' | xargs -n1 docker exec $CPFX-redis redis-cli GET | cut -d@ -f1 | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
+  local n; n=$(owners | awk '{print $2}' | cut -d@ -f1 | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
   n=${n#bench-}; echo "owner with most rooms: bench-$n (pid ${NODE_PID[$n]})"
   kill -9 "${NODE_PID[$n]}"; sleep 5; start_node "$n"; echo "bench-$n restarted (pid ${NODE_PID[$n]})"
 }
@@ -216,7 +265,19 @@ redis_crash() {
   echo "keys after restart: $(redis DBSIZE)"
 }
 pause_node() {
+  echo "bench-2 owns $(owners | grep -c ' bench-2@') rooms"
   echo "SIGSTOP bench-2 (pid ${NODE_PID[2]}) for $1 s"; kill -STOP "${NODE_PID[2]}"; sleep "$1"; kill -CONT "${NODE_PID[2]}"; echo "SIGCONT bench-2"
+}
+# node_report <out.md>: per-node log counts (two writers show as duplicate entries, WALSEQ or a
+# non-fenced WAL failure on the new owner) and the fencing epochs in the DB and in Redis.
+node_report() {
+  for n in 1 2 3; do
+    f="$WORK/server-$((NODE_BASE + n)).log"
+    echo "node $n: takeovers $(grep -c 'took the room over' "$f"), stepped down $(grep -c 'stepping down' "$f"), fenced $(grep -c 'a newer owner holds the room' "$f"), rooms closed for reconnect $(grep -c 'clients told to reconnect' "$f"), WAL append failed $(grep -c 'WAL append failed' "$f"), duplicate entry $(grep -ci 'duplicate entry' "$f"), WALSEQ $(grep -c 'WALSEQ' "$f"), deadlock errors $(grep '"level":"ERROR"' "$f" | grep -ci deadlock), transient retries $(grep -c 'transient database error' "$f"), drain-joins refused after upgrade $(grep -c 'server is draining' "$f"), errors $(grep -c '"level":"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
+  done
+  echo "room_epochs rows: $(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e 'SELECT count(*) FROM room_epochs' opencanvas 2>/dev/null)"
+  echo "DB room_updates rows: $(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e 'SELECT count(*) FROM room_updates' opencanvas 2>/dev/null)"
+  echo "Redis epoch keys: $(redis --scan --pattern 'oc:epoch:*' | wc -l | tr -d ' '); epoch keys lower than room_epochs: $(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e 'SELECT room_id, epoch FROM room_epochs' opencanvas 2>/dev/null | while read -r r e; do v=$(redis GET "oc:epoch:{$r}"); [ -n "$v" ] && [ "$v" -lt "$e" ] && echo "$r"; done | wc -l | tr -d ' ')"
 }
 
 scenario() {
@@ -343,10 +404,7 @@ scenario() {
       sleep 10; k_event "redis restart" redis_crash
       sleep 20; k_event "pause one node 20 s (SIGSTOP)" pause_node 20
       wait "$vpid"; cat "$OUT/K-chaos.md"
-      for n in 1 2 3; do
-        f="$WORK/server-$((NODE_BASE + n)).log"
-        echo "node $n: takeovers $(grep -c 'took the room over' "$f"), lease lost $(grep -ciE 'lost the room|lease lost|belongs to' "$f"), duplicate WAL seq $(grep -ciE 'duplicate' "$f"), errors $(grep -c '"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
-      done | tee -a "$OUT/K-chaos.md"
+      node_report | tee -a "$OUT/K-chaos.md"
       cluster_down ;;
     K2)
       # Redis loss and a frozen node, both inside the verified typing window.
@@ -360,13 +418,29 @@ scenario() {
         --rooms 60 --per-room 3 --spread 1 --secs 100 --save-wait-secs 20 --out "$OUT/K2-chaos.json" > "$OUT/K2-chaos.md" 2>&1 &
       local vpid=$!; PIDS+=("$vpid")
       lease_watch "$OUT/K2-leases.txt"
-      sleep 20; k_event "redis restart" redis_crash
-      sleep 20; k_event "pause one node 20 s (SIGSTOP)" pause_node 20
+      # K2_REDIS_KILL=0: the frozen node only.
+      if [ "${K2_REDIS_KILL:-1}" = 1 ]; then sleep 20; k_event "redis restart" redis_crash; sleep 20; else sleep 30; fi
+      k_event "pause one node 20 s (SIGSTOP)" pause_node 20
       wait "$vpid"; cat "$OUT/K2-chaos.md"
-      for n in 1 2 3; do
-        f="$WORK/server-$((NODE_BASE + n)).log"
-        echo "node $n: takeovers $(grep -c 'took the room over' "$f"), stepped down $(grep -c 'stepping down' "$f"), fenced $(grep -c 'a newer owner holds the room' "$f"), WAL append failed $(grep -c 'WAL append failed' "$f"), duplicate WAL seq $(grep -ci 'duplicate entry' "$f"), errors $(grep -c '"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
-      done | tee -a "$OUT/K2-chaos.md"
+      node_report | tee -a "$OUT/K2-chaos.md"
+      cluster_down ;;
+    KD)
+      # Node 2 in Docker: frozen container, then a network partition, inside the verified window.
+      [ -n "${NODE2_IMAGE:-}" ] || { echo "KD needs NODE2_IMAGE"; exit 2; }
+      cluster_up
+      "$LG" run --label KD-load-small --server "$CL_URLS" --server-pid "$CL_PIDS" --host-port "$HOST_PORT" --secret "$SECRET" \
+        --per-room 5 --editors 0.2 --probes 5 --doc demo --steps 1500 --step-secs 130 --connect-rate 250 --affinity rr \
+        --out "$OUT/KD-load-small.json" > "$OUT/KD-load-small.md" 2>&1 &
+      PIDS+=($!)
+      sleep 10
+      "$LG" verify --label KD-chaos --server "$CL_URLS" --host-port "$HOST3_PORT" --host-id bench3 --secret "$SECRET" \
+        --rooms 60 --per-room 3 --spread 1 --secs 115 --save-wait-secs 20 --out "$OUT/KD-chaos.json" > "$OUT/KD-chaos.md" 2>&1 &
+      local vpid=$!; PIDS+=("$vpid")
+      lease_watch "$OUT/KD-leases.txt"
+      sleep 20; k_event "docker pause node 2 for 20 s" docker_pause_node 20
+      sleep 20; k_event "partition node 2 for 25 s" partition_node 25
+      wait "$vpid"; cat "$OUT/KD-chaos.md"
+      node_report | tee -a "$OUT/KD-chaos.md"
       cluster_down ;;
     S2m)
       # S2's worst case for 3 minutes on MariaDB: is the WAL ceiling SQLite's?
