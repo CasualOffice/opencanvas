@@ -646,6 +646,26 @@ mutation: `config` `idle_eviction_defaults_to_a_minute_and_reads_oc_room_idle_ms
 snapshots" test was superseded by the owner's memory-mode decision (no WAL writes on the default
 path); `wal` mode keeps the group writer and now shares the FIFO write turn.
 
+#### 9.4.1 S2 rerun on a quiet machine (memory mode, SQLite dump, 2026-11-22)
+
+`S2_STEPS=5000,5000,5000,5000,5000 scripts/bench.sh S2`, no other benchmark or Docker container
+running, no `REDIS_URL` (so `OC_DURABILITY=memory`, dumps every 2 s):
+
+| bucket | p50 ms | p95 ms | p99 ms | srv CPU % | RSS MB | upd/s in | frames/s out | err | drop |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 40.2 | 42.9 | 44.3 | 180 | 843 | 25,325 | 133,002 | 0 | 0 |
+| 2 | 39.4 | 42.9 | 44.3 | 187 | 993 | 25,290 | 132,587 | 0 | 0 |
+| 3 | 39.8 | 43.0 | 44.5 | 196 | 1,137 | 25,289 | 132,320 | 0 | 0 |
+| 4 | 39.3 | 43.1 | 44.5 | 203 | 1,292 | 25,283 | 132,008 | 0 | 0 |
+| 5 | 39.0 | 43.0 | 44.3 | 209 | 1,451 | 25,310 | 132,215 | 0 | 0 |
+
+Host saves 29,993, save lag p95 10.25 s (max 10.7 s); a few saves retried after `host unreachable`
+from the in-process mock host. **Latency PASS** (p95 43 ms every bucket; the 947 ms bucket in §9.4
+was the noisy machine). **RSS FAIL** against "flat": +72 % over 5 minutes (≈ 150 MB/min) while
+1,000 documents grow under nonstop typing (2.36 GB of saves in 5 minutes). This is the Y.Doc
+in-memory cost (≈ 20× encoded, §9.4) times 1,000 growing documents; next: allocator comparison
+and the in-memory Y.Doc overhead.
+
 ## 10. Crash recovery (`scripts/bench.sh R` / `mR`)
 
 **Method.** `oc-bench verify`: 200 rooms × 2 editors (empty doc), each client appends a paragraph
