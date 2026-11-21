@@ -3,6 +3,9 @@ name: CI
 on:
   push: { branches: [main] }
   pull_request:
+  schedule:
+    - cron: "17 3 * * *"   # nightly: long convergence fuzz
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -10,6 +13,7 @@ env:
 
 jobs:
   rust:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +25,7 @@ jobs:
       - run: cargo test --workspace
 
   web:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: web } }
     steps:
@@ -95,3 +100,16 @@ jobs:
           path: |
             e2e/playwright-report
             e2e/test-results
+
+  fuzz:
+    # Convergence fuzz, 10 000 random rooms in release (docs/15 §8). Nightly and on demand.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release -p oc-server --test fuzz -- --nocapture
+        # A new base seed every run; a failure prints the seed to replay (OC_FUZZ_SEED=<n> OC_FUZZ_ITERS=1).
+        env: { OC_FUZZ_ITERS: "10000", OC_FUZZ_SEED: "${{ github.run_number }}000000" }

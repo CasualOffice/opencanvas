@@ -178,12 +178,22 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   `"role":"none"`). Roles: `view | comment | edit | none`. Answers
   `200 {"connections":1,"sessions":2}` (live connections switched, tickets updated);
   `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`.
-- Patch content from a bot: `POST /v1/files/{fileId}/patch` (see 04 §6).
-- Force save before you snapshot/backup: `POST /v1/files/{fileId}/commit`.
+- Patch content from a bot: `POST /v1/files/{fileId}/patch` (see 04 §6) with
+  `{"ops":[…],"author":{"id","name"}}`. Ops: `append`, `insertAfter{blockId}`,
+  `replace{blockId}`, `delete{blockId}`, each with `markdown` or Tiptap `blocks`. Blocks are
+  addressed by their `blockId` attribute; the answer lists the ids of the blocks you inserted
+  (`{"applied":2,"blockIds":["b_…"],"live":true}`). If nobody has the file open we load it from
+  you, apply and save straight away (the answer then carries `version`). Send
+  `X-OpenCanvas-Callback-Token: <token>` if your callbacks need a bearer for that load/save.
+- Force save before you snapshot/backup: `POST /v1/files/{fileId}/commit` →
+  `200 {"live":true,"saved":true,"version":"18"}` once your `PUT` answered,
+  `202 {"queued":true}` if it failed and will be retried from the outbox, `409` on a conflict.
 - Close everything (file deleted/moved): `DELETE /v1/files/{fileId}/session` — a final
   save, then every connection is closed and every ticket for the file is dropped.
   `200 {"closed":true,"sessions":3}`.
-- Stateless conversion: `POST /v1/convert?from=md&to=ocanvas`.
+- Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx`
+  with the file as the raw body. DOCX embeds images only from your `callback_base` origin
+  (fetched signed, redirects not followed); other images become links.
 
 ## 8. Lifecycle & guarantees
 

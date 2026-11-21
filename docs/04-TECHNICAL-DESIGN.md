@@ -306,6 +306,29 @@ Patch body:
   "author": { "id": "bot-1", "name": "Standup bot" } }
 ```
 
+Patch rules (implemented 2026-11-21):
+- `markdown` or `blocks` (Tiptap JSON block nodes), exactly one per op; `author.id` required.
+- `insertAfter` / `replace` / `delete` address a block by its `blockId` attribute (docs/15 §4), at
+  any depth; `append` adds to the end of the document. New top-level blocks get a `blockId`
+  (returned in `blockIds`, in order) unless the caller set one.
+- All ops run on a scratch copy first, so a failing op changes nothing: `404 BLOCK_NOT_FOUND`,
+  `400 PATCH_INVALID`, `413 DOC_TOO_LARGE` (over `OC_MAX_DOC_MB`), `409 CONFLICT` (room in a save
+  conflict). At most 500 ops.
+- Live room: one Yjs transaction with origin `api:<author.id>`, WAL-logged and broadcast like a
+  client update; the author is added to `X-OpenCanvas-Authors`; autosave as usual →
+  `200 {"applied","blockIds","live":true}`.
+- No live room: the room opens (loads the file from the host), applies, saves at once →
+  `200 {…,"live":false,"version":"…"}` or `202 {…,"queued":true}` when the PUT failed (outbox).
+
+Commit: `200 {"live":true,"saved":true,"version"}` after the host acknowledged;
+`{"saved":false}` when already clean; `202 {"queued":true,"message"}` when the PUT failed and
+waits in the outbox; `409 CONFLICT`. A file with no live room and no pending outbox row answers
+`200 {"live":false,"saved":false,"version":null}`; a pending row is resumed and committed.
+
+Convert: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx`, body = the input
+file, answer = the output file. `400 FORMAT_UNSUPPORTED` / `400 INPUT_INVALID`. HTML input is read
+by a small forgiving parser (scripts/styles dropped, `javascript:` links dropped).
+
 ## 7. Configuration
 
 | Env | Default | Meaning |

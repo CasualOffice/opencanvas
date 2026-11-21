@@ -118,6 +118,8 @@ fn csp(origins: &[String]) -> HeaderValue {
 
 pub fn router(state: SharedState) -> Router {
     let origins = state.hosts.allowed_origins();
+    // Patch / convert bodies: up to the document cap (at least 1 MB).
+    let body_limit = state.cfg.rooms.max_doc_bytes.max(1024 * 1024);
     let web = &state.cfg.web_dir;
     let spa = ServeDir::new(web).fallback(ServeFile::new(web.join("index.html")));
     let cors_origins: Vec<HeaderValue> = origins
@@ -138,6 +140,9 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/users", get(proxy::users))
         .route("/v1/files/{file_id}/role", post(api::set_role))
         .route("/v1/files/{file_id}/session", delete(api::close_session))
+        .route("/v1/files/{file_id}/patch", post(api::patch).layer(DefaultBodyLimit::max(body_limit)))
+        .route("/v1/files/{file_id}/commit", post(api::commit))
+        .route("/v1/convert", post(api::convert).layer(DefaultBodyLimit::max(body_limit)))
         .route("/healthz", get(ops::healthz))
         .route("/readyz", get(ops::readyz))
         .route("/metrics", get(ops::metrics))

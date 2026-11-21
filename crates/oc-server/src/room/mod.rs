@@ -67,11 +67,48 @@ pub(crate) enum Cmd {
         role: Option<Role>,
         reply: oneshot::Sender<usize>,
     },
+    /// Host patch API: apply block ops as one transaction with origin `api:<author>`.
+    Patch {
+        ops: Vec<oc_model::patch::PatchOp>,
+        author: String,
+        reply: oneshot::Sender<Result<Patched, PatchFailure>>,
+    },
+    /// Host commit API: save now and answer once the host acknowledged (or it failed).
+    Commit {
+        reply: oneshot::Sender<CommitResult>,
+    },
     /// Final save, then close every connection. `by_host` = `DELETE /v1/files/:id/session`.
     Shutdown {
         by_host: bool,
         reply: oneshot::Sender<()>,
     },
+}
+
+#[derive(Debug)]
+pub struct Patched {
+    /// `blockId`s of the inserted top-level blocks.
+    pub block_ids: Vec<String>,
+}
+
+#[derive(Debug)]
+pub enum PatchFailure {
+    Invalid(oc_model::patch::PatchError),
+    /// The patched document would exceed `OC_MAX_DOC_MB`.
+    TooLarge,
+    /// The room is handling a save conflict and is read-only.
+    Conflict,
+}
+
+#[derive(Debug, Clone)]
+pub enum CommitResult {
+    /// The host acknowledged a save made for this request.
+    Saved { version: Option<String> },
+    /// Nothing to save; `version` is the last known host version.
+    Clean { version: Option<String> },
+    /// The save failed and stays queued in the outbox (retried with backoff).
+    Queued { message: String },
+    /// The host answered 409; the conflict policy runs and the room is read-only.
+    Conflict,
 }
 
 pub(crate) enum ConflictOutcome {
@@ -288,6 +325,42 @@ impl Rooms {
             .ok()
             .and_then(Result::ok)
             .unwrap_or(0)
+    }
+
+    /// Applies a block patch, opening the room (loading the file from the host) when needed.
+    pub async fn patch(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        ops: Vec<oc_model::patch::PatchOp>,
+        author: &str,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.ask(host, grant, |reply| Cmd::Patch {
+            ops: ops.clone(),
+            author: author.to_string(),
+            reply,
+        })
+        .await
+    }
+
+    /// Forces a save of the room `grant` names (opening it if needed) and waits for the host.
+    pub async fn commit(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+    ) -> anyhow::Result<CommitResult> {
+        self.ask(host, grant, |reply| Cmd::Commit { reply }).await
+    }
+
+    /// `commit` for a room that is live; `None` when it is not.
+    pub async fn commit_live(&self, room: &str) -> Option<CommitResult> {
+        let tx = self.live(room)?;
+        let (reply, rx) = oneshot::channel();
+        tx.send(Cmd::Commit { reply }).ok()?;
+        tokio::time::timeout(Duration::from_secs(30), rx)
+            .await
+            .ok()
+            .and_then(Result::ok)
     }
 
     /// Saves and closes a live room for the host; false when it was not live.

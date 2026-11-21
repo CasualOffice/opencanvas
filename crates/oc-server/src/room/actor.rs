@@ -13,7 +13,10 @@ use yrs::sync::{Awareness, AwarenessUpdate, Message, SyncMessage};
 use yrs::updates::decoder::{Decode, DecoderV1};
 use yrs::{ClientID, Doc, ReadTxn, StateVector, Transact, Update};
 
-use super::{Cmd, ConflictOutcome, ConnId, Ctx, Outbound, RoomInfo, Rooms, filter, protocol};
+use super::{
+    Cmd, CommitResult, ConflictOutcome, ConnId, Ctx, Outbound, PatchFailure, Patched, RoomInfo,
+    Rooms, filter, protocol,
+};
 use crate::grant::{Grant, Role};
 use crate::host_client::{Fetched, PutOutcome, PutRequest};
 use crate::hosts::{ConflictPolicy, HostConfig};
@@ -102,6 +105,8 @@ struct Room {
     status: Value,
     idle_since: Option<Instant>,
     self_tx: mpsc::UnboundedSender<Cmd>,
+    /// Commit API callers waiting for a save that covers `seq`.
+    commit_waiters: Vec<(i64, tokio::sync::oneshot::Sender<CommitResult>)>,
 }
 
 pub(super) async fn run(
@@ -298,6 +303,7 @@ impl Room {
             status,
             idle_since: Some(Instant::now()),
             self_tx,
+            commit_waiters: Vec::new(),
             ctx,
         })
     }
@@ -333,6 +339,10 @@ impl Room {
             } => {
                 let _ = reply.send(self.set_role(&user_id, role));
             }
+            Cmd::Patch { ops, author, reply } => {
+                let _ = reply.send(self.patch(&ops, &author).await);
+            }
+            Cmd::Commit { reply } => self.commit(reply),
             Cmd::Shutdown { .. } => unreachable!("handled by run loop"),
         }
     }
@@ -571,20 +581,25 @@ impl Room {
         if !changed {
             return;
         }
+        self.accepted(bytes, &grant.user.id, Some(conn)).await;
+    }
+
+    /// An update now in the doc: WAL first, then fan-out, then mark the room dirty.
+    async fn accepted(&mut self, bytes: Vec<u8>, user_id: &str, from: Option<ConnId>) {
         self.doc_bytes += bytes.len();
         self.seq += 1;
         if let Err(e) = self
             .ctx
             .store
-            .append_update(&self.id, self.seq, &bytes, &grant.user.id, now_ms())
+            .append_update(&self.id, self.seq, &bytes, user_id, now_ms())
             .await
         {
             tracing::error!(room = %self.id, error = %e, "WAL append failed");
         }
-        self.broadcast(&protocol::update(bytes), Some(conn));
+        self.broadcast(&protocol::update(bytes), from);
         Metrics::inc(&self.ctx.metrics.updates_total);
         self.last_update = Instant::now();
-        self.contributors.insert(grant.user.id.clone());
+        self.contributors.insert(user_id.to_string());
         if self.dirty_since.is_none() {
             self.dirty_since = Some(Instant::now());
             if let Err(e) = self
@@ -601,6 +616,90 @@ impl Room {
             {
                 tracing::error!(room = %self.id, error = %e, "marking room dirty failed");
             }
+        }
+    }
+
+    /// Host patch API: ops run on a scratch copy; the resulting update is applied with origin
+    /// `api:<author>` and then handled exactly like a client update.
+    async fn patch(
+        &mut self,
+        ops: &[oc_model::patch::PatchOp],
+        author: &str,
+    ) -> Result<Patched, PatchFailure> {
+        if self.conflict.is_some() {
+            return Err(PatchFailure::Conflict);
+        }
+        let out = oc_model::patch::apply_patch(&self.doc, ops, &mut || {
+            format!("b_{}", ulid::Ulid::new().to_string().to_lowercase())
+        })
+        .map_err(PatchFailure::Invalid)?;
+        let cap = self.ctx.cfg.max_doc_bytes;
+        if self.doc_bytes + out.update.len() > cap {
+            self.doc_bytes = encoded_len(&self.doc);
+            if self.doc_bytes + out.update.len() > cap {
+                tracing::info!(room = %self.id, size = self.doc_bytes, update = out.update.len(), "patch refused: document size limit");
+                return Err(PatchFailure::TooLarge);
+            }
+        }
+        let update = Update::decode_v1(&out.update).map_err(|e| {
+            PatchFailure::Invalid(oc_model::patch::PatchError::Request(e.to_string()))
+        })?;
+        let origin = format!("api:{author}");
+        let changed = {
+            let mut txn = self.doc.transact_mut_with(origin.as_str());
+            if let Err(e) = txn.apply_update(update) {
+                return Err(PatchFailure::Invalid(oc_model::patch::PatchError::Request(
+                    e.to_string(),
+                )));
+            }
+            txn.commit();
+            txn.has_changes()
+        };
+        if changed {
+            self.accepted(out.update, author, None).await;
+        }
+        tracing::info!(room = %self.id, ops = ops.len(), changed, "patch applied by host API");
+        Ok(Patched {
+            block_ids: out.block_ids,
+        })
+    }
+
+    /// Host commit API: answers at once when clean, else forces a save and waits for it.
+    fn commit(&mut self, reply: tokio::sync::oneshot::Sender<CommitResult>) {
+        if self.conflict.is_some() {
+            let _ = reply.send(CommitResult::Conflict);
+            return;
+        }
+        if self.dirty_since.is_none() && !self.save.in_flight {
+            let _ = reply.send(CommitResult::Clean {
+                version: self.host_version.clone(),
+            });
+            return;
+        }
+        self.commit_waiters.push((self.seq, reply));
+        self.force_save();
+    }
+
+    /// Makes the next tick save immediately (skipping debounce and retry backoff).
+    fn force_save(&mut self) {
+        if self.dirty_since.is_some() {
+            self.save.retry_at = None;
+            self.dirty_since = Some(Instant::now() - self.ctx.cfg.autosave_max);
+        }
+    }
+
+    /// Answers commit waiters: those covered by `saved_seq` (all when `None`).
+    fn answer_commits(&mut self, saved_seq: Option<i64>, result: &CommitResult) {
+        let waiters = std::mem::take(&mut self.commit_waiters);
+        for (seq, reply) in waiters {
+            if saved_seq.is_none_or(|s| seq <= s) {
+                let _ = reply.send(result.clone());
+            } else {
+                self.commit_waiters.push((seq, reply));
+            }
+        }
+        if !self.commit_waiters.is_empty() {
+            self.force_save();
         }
     }
 
@@ -810,6 +909,8 @@ impl Room {
                     tracing::error!(room = %self.id, error = %e, "recording save failed");
                 }
                 tracing::info!(room = %self.id, version = ?self.host_version, "saved to host");
+                let version = self.host_version.clone();
+                self.answer_commits(Some(pending.seq), &CommitResult::Saved { version });
                 self.set_status(
                     json!({"t": "saved", "at": now_ms(), "version": self.host_version}),
                 );
@@ -828,6 +929,7 @@ impl Room {
                     retry_at: None,
                     resolved: false,
                 });
+                self.answer_commits(None, &CommitResult::Conflict);
                 self.start_conflict_task();
             }
             Err(message) => {
@@ -840,6 +942,13 @@ impl Room {
                     tracing::error!(room = %self.id, error = %e, "recording failed commit failed");
                 }
                 tracing::warn!(room = %self.id, error = %message, retry_in = delay, "save failed");
+                let queued = CommitResult::Queued {
+                    message: message.clone(),
+                };
+                let waiters = std::mem::take(&mut self.commit_waiters);
+                for (_, reply) in waiters {
+                    let _ = reply.send(queued.clone());
+                }
                 self.set_status(
                     json!({"t": "save_error", "retryInMs": delay * 1000, "message": message}),
                 );

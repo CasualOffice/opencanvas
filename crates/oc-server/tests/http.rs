@@ -267,7 +267,7 @@ async fn websocket_rejects_wrong_room_and_bad_ticket() {
 }
 
 #[tokio::test]
-async fn frame_flood_closes_the_socket_with_1008() {
+async fn frame_flood_closes_the_socket_with_4429() {
     let (base, _host) = mock_host().await;
     let addr = serve(&base).await;
     let loc = launch(&addr, &token("edit")).await.headers()["location"]
@@ -301,5 +301,65 @@ async fn frame_flood_closes_the_socket_with_1008() {
             _ => break None,
         }
     };
-    assert_eq!(closed, Some(1008));
+    assert_eq!(closed, Some(4429), "rate limit has its own close code");
+}
+
+/// Fast typing: one update plus one awareness (caret) frame per keystroke, 150 keystrokes in
+/// about 2 s. Awareness has its own bucket, so this must not trip the rate limit.
+#[tokio::test]
+async fn fast_typing_with_awareness_is_not_rate_limited() {
+    let (base, _host) = mock_host().await;
+    let addr = serve(&base).await;
+    let loc = launch(&addr, &token("edit")).await.headers()["location"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    let ticket = loc.trim_start_matches("/app/#t=").to_string();
+    let s: Value = http()
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let room = s["room"].as_str().unwrap();
+    let (ws, _) =
+        tokio_tungstenite::connect_async(format!("ws://{addr}/v1/collab/{room}?ticket={ticket}"))
+            .await
+            .unwrap();
+    let (mut sink, mut stream) = ws.split();
+    // Drain server frames in the background; report a close code if one arrives.
+    let closed = tokio::spawn(async move {
+        while let Some(Ok(m)) = stream.next().await {
+            if let WsMessage::Close(f) = m {
+                return f.map(|f| u16::from(f.code));
+            }
+        }
+        None
+    });
+    let doc = Doc::new();
+    let text = {
+        let content = doc.get_or_insert_xml_fragment("content");
+        let mut txn = doc.transact_mut();
+        content.push_back(&mut txn, XmlTextPrelim::new(""))
+    };
+    for i in 0..150u32 {
+        let sv = doc.transact().state_vector();
+        yrs::Text::push(&text, &mut doc.transact_mut(), "x");
+        let update = doc.transact().encode_state_as_update_v1(&sv);
+        sink.send(WsMessage::Binary(protocol::update(update).into()))
+            .await
+            .unwrap();
+        // Raw awareness frame: [type 1, len, {count 1, client 42, clock, varString json}].
+        let json = format!("{{\"cursor\":{}}}", i % 10);
+        let mut payload = vec![1u8, 42, (i % 120) as u8 + 1, json.len() as u8];
+        payload.extend_from_slice(json.as_bytes());
+        let mut frame = vec![1u8, payload.len() as u8];
+        frame.extend(payload);
+        sink.send(WsMessage::Binary(frame.into())).await.unwrap();
+        tokio::time::sleep(Duration::from_micros(13_300)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(!closed.is_finished(), "socket closed: {:?}", closed.await);
 }

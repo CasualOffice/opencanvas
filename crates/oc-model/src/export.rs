@@ -42,7 +42,7 @@ fn cell_value(v: &Value) -> String {
 }
 
 /// A database as (title, header, rows) for table rendering.
-fn database_table(doc: &Value, id: &str) -> (String, Vec<String>, Vec<Vec<String>>) {
+pub(crate) fn database_table(doc: &Value, id: &str) -> (String, Vec<String>, Vec<Vec<String>>) {
     let db = &doc["databases"][id];
     let name = s(db, "name");
     let fields: Vec<&Value> = db["fields"]
@@ -78,6 +78,35 @@ fn database_table(doc: &Value, id: &str) -> (String, Vec<String>, Vec<Vec<String
         header,
         rows,
     )
+}
+
+pub(crate) struct BoardInfo {
+    pub shapes: usize,
+    /// Text of stickies, text shapes and frame labels, in board order.
+    pub texts: Vec<String>,
+}
+
+pub(crate) fn board_info(doc: &Value, id: &str) -> BoardInfo {
+    let board = &doc["boards"][id];
+    let shapes = board["shapes"].as_object();
+    let order: Vec<&str> = match board["order"].as_array() {
+        Some(o) => o.iter().filter_map(Value::as_str).collect(),
+        None => shapes
+            .map(|m| m.keys().map(String::as_str).collect())
+            .unwrap_or_default(),
+    };
+    let texts = order
+        .iter()
+        .filter_map(|sid| shapes?.get(*sid))
+        .flat_map(|sh| [s(sh, "text"), s(sh, "label")])
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+        .collect();
+    BoardInfo {
+        shapes: shapes.map_or(0, |m| m.len()),
+        texts,
+    }
 }
 
 fn board_note(doc: &Value, id: &str) -> String {
