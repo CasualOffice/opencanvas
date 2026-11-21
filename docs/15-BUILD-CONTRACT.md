@@ -15,6 +15,7 @@ web/packages/editor        Vite + React app: shell, Tiptap editor, gallery, comm
 web/packages/database      React database block (table / board / calendar / gallery, CSV)
 web/packages/board         React whiteboard block
 examples/sample-host       Node reference host (JWT signing + callbacks + file store)
+examples/wopi-host         Node reference WOPI host (CheckFileInfo/GetFile/PutFile/PutRelative)
 ```
 
 The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
@@ -33,7 +34,7 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "user": {"id":"u_123","name":"Asha Rao","color":"#7a45f0","avatar":null},
      "file": {"id":"doc_8812","name":"Sprint 42 notes"},
      "host": {"id":"Acme","name":"Acme"},
-     "perms": {"export":true,"download":true,"comment":true},
+     "perms": {"export":true,"download":true,"comment":true,"print":true},
      "isNew": true,
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
@@ -47,6 +48,12 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    `jwt_jwks_url`; JWKS is cached 10 min, the token's `kid` must match a key whose type fits
    `jwt_alg`, an unknown `kid` refetches at most every 30 s), `aud` must be
    `opencanvas`, `iss` the host id, `exp` at most 10 h ahead, `nbf` honoured, 30 s leeway.
+   **WOPI launch** (docs/05 §6, added 2026-11-21): `POST /v1/launch?WOPISrc=<urlencoded>` with form
+   `access_token` (+ `access_token_ttl`, ms since the epoch) for a host with `mode = "wopi" | "both"`
+   whose `wopi_allowlist` admits the URL (else `403 WOPISRC_NOT_ALLOWED`); CheckFileInfo decides
+   role, user and perms (`401 TOKEN_INVALID` when it answers 4xx). Same `303`. The ticket lives
+   until `access_token_ttl` (10 h when absent). `GET /hosting/discovery` (XML) and
+   `GET /hosting/capabilities` (JSON). A JWT for a `mode = "wopi"` host is refused.
 4. Tickets live for the launch token's `exp`. The WS must connect within 60 s of the
    first `GET /v1/sessions`, though reconnects with the same ticket are allowed until `exp`.
 
@@ -164,7 +171,9 @@ logged as a warning).
 
 ## 6. Server REST used by the SPA
 
-`GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host) ·
+`GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host; WOPI mode:
+stored with the room, `201 {"assetId","url":"/v1/assets/<id>","mime","size"}`, ≤ 10 MB each, ≤ 50 MB
+per file) · `GET /v1/assets/:id?ticket=` (WOPI mode only, else 404) ·
 `GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx|pdf` ·
 `GET /v1/export/board/:boardId.svg|png?ticket=` · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
@@ -209,6 +218,8 @@ Images in exports (DOCX, board PNG, PDF): fetched only from allowed origins — 
 signed), and the host's `asset_origins = ["https://cdn…"]` (plain GET, no signature or token).
 No redirects, ≤ 10 MB, `Content-Type: image/*` required, ≤ 50 per export; anything else is skipped.
 
+`perms.print` (added 2026-11-21 with WOPI mode; JWT `perms.print`, WOPI `DisablePrint`, default
+true) is additionally required for `pdf`.
 `ocanvas` export needs `perms.download`, the others `perms.export` (403 otherwise); unknown formats
 answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment; filename="<file name>.<ext>"`.
 `POST /v1/assets` needs the `edit` role and `multipart/form-data` (≤ 25 MB); the host's status and
@@ -239,9 +250,16 @@ WAL is compacted into `room_snapshots`. A room that was dirty when the process d
 from snapshot + WAL on the next join instead of reloading from the host. A clean room with no
 clients for `OC_ROOM_TTL_SECS` (600) closes and its rows are purged.
 
+WOPI mode (docs/05 §6): the same outbox and autosave; `HostClient` sends the save to the WOPI host
+(PutFile with `X-COOL-WOPI-Timestamp` = the tracked `LastModifiedTime`; `409` + `COOLStatusCode`
+1010 = conflict; policy `copy` = PUT_RELATIVE). The `saved` control's `version` is the host's
+`LastModifiedTime`. Assets of a WOPI room live in `room_assets` (migration 0003) and are inlined as
+`assets/<id>` + `assets/index.json` on every save; rows of rooms that are gone and have no pending
+commit are swept by the 60 s sweeper (10 min grace).
+
 ## 8. Secrets and limits
 
-`OC_KEK` (base64 of 32 bytes) seals the host callback token in `sessions.grant_json` and
+`OC_KEK` (base64 of 32 bytes) seals the host callback token (in WOPI mode: the access token) in `sessions.grant_json` and
 `commit_outbox.token` with AES-256-GCM (`enc:v1:<base64(nonce‖ct)>`, bound to the row id). The
 server refuses to start without it unless `OC_DEV=1` (then tokens are stored in clear, with a
 warning). `OC_MAX_DOC_MB` (20) caps the encoded document; 60 frames/s (burst 120) per socket.

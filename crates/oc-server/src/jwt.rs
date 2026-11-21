@@ -81,6 +81,7 @@ impl LaunchClaims {
             export: true,
             download: true,
             comment: true,
+            print: true,
         });
         if self.role == Role::View {
             perms.comment = false;

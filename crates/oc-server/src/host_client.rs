@@ -1,5 +1,7 @@
 //! Calls from OpenCanvas to the host (docs/15 §5): signed with HMAC, bearer callback token.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -8,6 +10,8 @@ use reqwest::{Method, StatusCode, Url, header};
 use sha2::Sha256;
 
 use crate::hosts::HostConfig;
+use crate::store::Store;
+use crate::wopi;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HostError {
@@ -43,11 +47,41 @@ pub struct PutRequest<'a> {
     pub authors: &'a [String],
 }
 
+/// Where a file is loaded from and saved to: the JWT callbacks (docs/05 §5) or the WOPI host
+/// (docs/05 §6). Rooms do not care; every load / save / copy goes through [`HostClient`],
+/// which picks the target from the host's `mode` and the file id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SaveTarget {
+    Callbacks,
+    /// The file id is an allowlisted `WOPISrc`.
+    Wopi(Url),
+}
+
+impl SaveTarget {
+    /// `mode = "wopi"`: the file id must be an allowlisted `WOPISrc` (else `HostError::Url`,
+    /// nothing is called). `mode = "both"`: WOPI when it is one, callbacks otherwise.
+    pub fn of(host: &HostConfig, file_id: &str) -> Result<Self, HostError> {
+        if !host.accepts_wopi() {
+            return Ok(Self::Callbacks);
+        }
+        match wopi::check_src(&host.wopi_allowlist, file_id) {
+            Some(src) => Ok(Self::Wopi(src)),
+            None if host.wopi_only() => Err(HostError::Url),
+            None => Ok(Self::Callbacks),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct HostClient {
     http: reqwest::Client,
-    /// For asset downloads: never follows redirects (an allowed URL must not bounce elsewhere).
+    /// For asset downloads and every WOPI call: never follows redirects (an allowed URL must
+    /// not bounce elsewhere, and a WOPI redirect would carry the access token away).
     assets: reqwest::Client,
+    /// WOPI mode: assets inlined into saved files come from here.
+    store: Option<Store>,
+    /// WOPI mode: `BaseFileName` per `WOPISrc` (decides `.md` vs `.ocanvas` on save).
+    wopi_names: Arc<Mutex<HashMap<String, String>>>,
 }
 
 /// Largest image fetched for an export.
@@ -86,7 +120,161 @@ impl HostClient {
             .user_agent(concat!("opencanvas/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("http client");
-        Self { http, assets }
+        Self {
+            http,
+            assets,
+            store: None,
+            wopi_names: Arc::default(),
+        }
+    }
+
+    /// Gives the client the store WOPI-mode assets live in.
+    pub fn with_store(mut self, store: Store) -> Self {
+        self.store = Some(store);
+        self
+    }
+
+    /// The HTTP client for WOPI calls (no redirects).
+    pub fn wopi_http(&self) -> &reqwest::Client {
+        &self.assets
+    }
+
+    /// Remembers a WOPI file's `BaseFileName` (from the launch's CheckFileInfo).
+    pub fn remember_wopi_name(&self, src: &Url, name: &str) {
+        self.wopi_names
+            .lock()
+            .expect("wopi names lock")
+            .insert(src.to_string(), name.to_string());
+    }
+
+    async fn wopi_name(&self, src: &Url, token: &str) -> String {
+        let cached = self
+            .wopi_names
+            .lock()
+            .expect("wopi names lock")
+            .get(src.as_str())
+            .cloned();
+        if let Some(n) = cached {
+            return n;
+        }
+        match wopi::check_file_info(&self.assets, src, token).await {
+            Ok(info) => {
+                self.remember_wopi_name(src, &info.base_file_name);
+                info.base_file_name
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "WOPI CheckFileInfo before save failed");
+                String::new()
+            }
+        }
+    }
+
+    /// The `.ocanvas` with the room's referenced assets inlined as `assets/<id>`.
+    pub async fn inline_assets(&self, room: &str, body: Vec<u8>) -> Result<Vec<u8>, HostError> {
+        let Some(store) = &self.store else {
+            return Ok(body);
+        };
+        let assets = store
+            .room_assets(room)
+            .await
+            .map_err(|e| HostError::Body(format!("reading assets: {e}")))?;
+        if assets.is_empty() {
+            return Ok(body);
+        }
+        // Only assets the document still references are kept.
+        let text = oc_model::read_ocanvas(&body)
+            .map(|l| oc_model::doc_to_json(&l.doc).to_string())
+            .map_err(|e| HostError::Body(e.to_string()))?;
+        let used: Vec<_> = assets
+            .into_iter()
+            .filter(|a| text.contains(&format!("/v1/assets/{}", a.id)))
+            .collect();
+        oc_model::ocanvas::with_assets(&body, &used).map_err(|e| HostError::Body(e.to_string()))
+    }
+
+    async fn wopi_get(
+        &self,
+        host: &HostConfig,
+        src: &Url,
+        token: &str,
+    ) -> Result<Fetched, HostError> {
+        let info = wopi::check_file_info(&self.assets, src, token).await?;
+        self.remember_wopi_name(src, &info.base_file_name);
+        let (bytes, content_type) = wopi::get_contents(&self.assets, src, token).await?;
+        if bytes.is_empty() {
+            return Ok(Fetched::Missing);
+        }
+        if oc_model::ocanvas::is_zip(&bytes)
+            && let Some(store) = &self.store
+        {
+            let room = crate::grant::room_id(&host.id, src.as_str());
+            for asset in oc_model::ocanvas::read_assets(&bytes).unwrap_or_default() {
+                if let Err(e) = store.asset_put(&room, &asset, crate::util::now_ms()).await {
+                    tracing::warn!(room = %room, error = %e, "storing an inlined asset failed");
+                }
+            }
+        }
+        let content_type = if wopi::is_markdown(&info.base_file_name) {
+            "text/markdown".into()
+        } else {
+            content_type
+        };
+        Ok(Fetched::Found {
+            bytes,
+            content_type,
+            etag: info.stamp(),
+        })
+    }
+
+    async fn wopi_put(
+        &self,
+        host: &HostConfig,
+        src: &Url,
+        token: &str,
+        req: PutRequest<'_>,
+    ) -> Result<PutOutcome, HostError> {
+        let name = self.wopi_name(src, token).await;
+        let body = if wopi::is_markdown(&name) {
+            // Markdown files stay Markdown (lossy for boards / databases, docs/05 §6).
+            let doc = oc_model::read_ocanvas(&req.body)
+                .map_err(|e| HostError::Body(e.to_string()))?
+                .doc;
+            oc_model::export::to_markdown_with(
+                &oc_model::doc_to_json(&doc),
+                &oc_model::export::Options::default(),
+            )
+            .into_bytes()
+        } else {
+            let room = crate::grant::room_id(&host.id, src.as_str());
+            self.inline_assets(&room, req.body).await?
+        };
+        match wopi::put_contents(&self.assets, src, token, body, req.if_match).await? {
+            wopi::PutResult::Conflict => Ok(PutOutcome::Conflict),
+            wopi::PutResult::Saved(Some(stamp)) => Ok(PutOutcome::Saved {
+                version: Some(stamp),
+            }),
+            // No LastModifiedTime in the answer: ask for it, so the next save is checked.
+            wopi::PutResult::Saved(None) => {
+                let version = wopi::check_file_info(&self.assets, src, token)
+                    .await
+                    .ok()
+                    .and_then(|i| i.stamp());
+                Ok(PutOutcome::Saved { version })
+            }
+        }
+    }
+
+    async fn wopi_copy(
+        &self,
+        host: &HostConfig,
+        src: &Url,
+        token: &str,
+        body: Vec<u8>,
+    ) -> Result<(String, String), HostError> {
+        let name = self.wopi_name(src, token).await;
+        let room = crate::grant::room_id(&host.id, src.as_str());
+        let body = self.inline_assets(&room, body).await?;
+        wopi::put_relative(&self.assets, src, token, body, &wopi::copy_name(&name)).await
     }
 
     fn url(host: &HostConfig, segments: &[&str]) -> Result<Url, HostError> {
@@ -140,6 +328,9 @@ impl HostClient {
         token: &str,
         file_id: &str,
     ) -> Result<Fetched, HostError> {
+        if let SaveTarget::Wopi(src) = SaveTarget::of(host, file_id)? {
+            return self.wopi_get(host, &src, token).await;
+        }
         let url = Self::url(host, &["files", file_id])?;
         let res = self
             .request(host, token, Method::GET, url, Vec::new(), 10)
@@ -180,6 +371,9 @@ impl HostClient {
         token: &str,
         req: PutRequest<'_>,
     ) -> Result<PutOutcome, HostError> {
+        if let SaveTarget::Wopi(src) = SaveTarget::of(host, req.file_id)? {
+            return self.wopi_put(host, &src, token, req).await;
+        }
         let url = Self::url(host, &["files", req.file_id])?;
         let mut rb = self
             .request(host, token, Method::PUT, url, req.body, 10)
@@ -227,6 +421,9 @@ impl HostClient {
         body: Vec<u8>,
         idempotency_key: &str,
     ) -> Result<(String, String), HostError> {
+        if let SaveTarget::Wopi(src) = SaveTarget::of(host, file_id)? {
+            return self.wopi_copy(host, &src, token, body).await;
+        }
         let url = Self::url(host, &["files", file_id, "copies"])?;
         let res = self
             .request(host, token, Method::POST, url, body, 10)

@@ -515,6 +515,125 @@ impl Store {
         Ok(())
     }
 
+    /// Stores (or replaces) a WOPI-mode asset of `room`.
+    pub async fn asset_put(
+        &self,
+        room: &str,
+        asset: &oc_model::ocanvas::Asset,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM room_assets WHERE room_id = ? AND asset_id = ?")
+            .bind(room)
+            .bind(&asset.id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT INTO room_assets (room_id, asset_id, mime, size, data, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(room)
+        .bind(&asset.id)
+        .bind(&asset.mime)
+        .bind(asset.data.len() as i64)
+        .bind(asset.data.clone())
+        .bind(now_ms)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn asset_get(
+        &self,
+        room: &str,
+        id: &str,
+    ) -> anyhow::Result<Option<oc_model::ocanvas::Asset>> {
+        let row =
+            sqlx::query("SELECT mime, data FROM room_assets WHERE room_id = ? AND asset_id = ?")
+                .bind(room)
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(match row {
+            Some(r) => Some(oc_model::ocanvas::Asset {
+                id: id.to_string(),
+                mime: r.try_get::<String, _>(0)?,
+                data: r.try_get::<Vec<u8>, _>(1)?,
+            }),
+            None => None,
+        })
+    }
+
+    pub async fn room_assets(&self, room: &str) -> anyhow::Result<Vec<oc_model::ocanvas::Asset>> {
+        let rows = sqlx::query(
+            "SELECT asset_id, mime, data FROM room_assets WHERE room_id = ? ORDER BY asset_id",
+        )
+        .bind(room)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|r| {
+                Ok(oc_model::ocanvas::Asset {
+                    id: r.try_get::<String, _>(0)?,
+                    mime: r.try_get::<String, _>(1)?,
+                    data: r.try_get::<Vec<u8>, _>(2)?,
+                })
+            })
+            .collect()
+    }
+
+    /// Total bytes of the assets of `room`.
+    pub async fn room_assets_size(&self, room: &str) -> anyhow::Result<i64> {
+        let row = sqlx::query("SELECT COALESCE(SUM(size), 0) FROM room_assets WHERE room_id = ?")
+            .bind(room)
+            .fetch_one(&self.pool)
+            .await?;
+        // SUM is DECIMAL on MySQL and INTEGER on SQLite.
+        Ok(row
+            .try_get::<i64, _>(0)
+            .or_else(|_| row.try_get::<f64, _>(0).map(|f| f as i64))
+            .or_else(|_| {
+                row.try_get::<String, _>(0)
+                    .map(|s| s.parse::<f64>().unwrap_or(0.0) as i64)
+            })?)
+    }
+
+    /// Deletes assets of rooms that are gone and have no pending commit, created before
+    /// `older_than_ms` (so a room being opened right now keeps its freshly extracted assets).
+    pub async fn purge_orphan_assets(&self, older_than_ms: i64) -> anyhow::Result<u64> {
+        let res = sqlx::query(
+            "DELETE FROM room_assets WHERE created_at < ? \
+             AND room_id NOT IN (SELECT id FROM rooms) \
+             AND room_id NOT IN (SELECT room_id FROM commit_outbox WHERE status = 'pending')",
+        )
+        .bind(older_than_ms)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected())
+    }
+
+    /// The users that opened `room` (one entry per user id), from the session rows. In WOPI
+    /// mode this is the mention directory: WOPI has no user lookup.
+    pub async fn room_users(&self, room: &str) -> anyhow::Result<Vec<crate::grant::User>> {
+        let rows =
+            sqlx::query("SELECT grant_json FROM sessions WHERE room_id = ? ORDER BY created_at")
+                .bind(room)
+                .fetch_all(&self.pool)
+                .await?;
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for r in rows {
+            // Only the `user` part is read; the sealed token is never opened here.
+            let v: serde_json::Value = serde_json::from_str(&r.try_get::<String, _>(0)?)?;
+            if let Ok(u) = serde_json::from_value::<crate::grant::User>(v["user"].clone())
+                && seen.insert(u.id.clone())
+            {
+                out.push(u);
+            }
+        }
+        Ok(out)
+    }
+
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
         for sql in [

@@ -23,6 +23,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-017 | Callback tokens encrypted at rest with AES-256-GCM under `OC_KEK`; server refuses to start without it unless `OC_DEV=1` | Accepted |
 | ADR-018 | Exported files are self-contained: boards embed as data: SVG in Markdown, never as links carrying a session ticket | Accepted |
 | ADR-019 | Editor bundle: Tiptap extensions imported individually (no StarterKit), plugin-only late loading after first paint (never node/mark specs), terser; `check-budget.mjs` fails the build over 300 KB gz initial JS | Accepted |
+| ADR-020 | WOPI mode is a save-target variant behind `HostClient` (rooms unchanged); `WOPISrc` is the file id and must match the host's `wopi_allowlist`; assets inlined into the `.ocanvas` as `assets/<id>` | Accepted |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -63,6 +64,21 @@ identical logical schema; epoch-ms BIGINTs; no vendor JSON functions.
 **Decision.** JWT launch (primary) + WOPI (compat). Launch token exchanged for
 a 60 s single-room WS ticket; the WS connection stays valid until the launch
 token `exp`, then requires refresh.
+
+### ADR-020 — WOPI-compatible mode
+**Decision.** A host with `mode = "wopi"` (or `"both"`) launches with
+`POST /v1/launch?WOPISrc=` + form `access_token`/`access_token_ttl`. OpenCanvas is the WOPI
+client: CheckFileInfo maps role/user/perms, GetFile loads, PutFile (with
+`X-COOL-WOPI-Timestamp` = `LastModifiedTime`) saves, `409`/`COOLStatusCode 1010` is a conflict
+and policy `copy` uses PUT_RELATIVE. The normalized `WOPISrc` is the file id, so the room, outbox
+and conflict code are untouched: `HostClient` picks a `SaveTarget` (`Callbacks` | `Wopi(url)`)
+per call. The access token is stored like a callback token (sealed under `OC_KEK`) and never
+logged (reqwest errors are stripped of URLs, no redirects are followed). `WOPISrc` must match a
+`wopi_allowlist` entry by exact scheme, host and port (+ optional path prefix) before anything is
+called (SSRF). WOPI has no asset API, so uploads are kept per room in `room_assets` (transient,
+swept when the room is gone) and inlined into the saved zip as `assets/<id>` + `assets/index.json`;
+they are read back on load. Markdown files are saved back as Markdown. No WOPI locks (Collabora
+style timestamps instead), no proof keys yet.
 
 ### ADR-006 — Room ownership
 **Decision.** Exactly one in-memory authoritative Doc per room cluster-wide.

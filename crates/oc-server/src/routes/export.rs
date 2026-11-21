@@ -64,13 +64,15 @@ pub async fn export(
     } else {
         grant.perms.export
     };
-    if !allowed {
+    if !allowed || (fmt == "pdf" && !grant.perms.print) {
         return Err(ApiError::forbidden("export not permitted for this session"));
     }
     let doc = load(&state, &host, &grant).await?;
+    let wopi = super::proxy::is_wopi(&host, &grant);
     let req = RenderReq {
         token: &grant.callback_token,
         author: &grant.user.id,
+        wopi_room: wopi.then_some(grant.room.as_str()),
     };
     let (body, ctype, ext) = render(&state, &host, &doc, &fmt, req).await?;
     let disposition = format!(
@@ -162,6 +164,32 @@ pub(super) struct RenderReq<'a> {
     pub token: &'a str,
     /// Author recorded in an `.ocanvas` commit.
     pub author: &'a str,
+    /// WOPI mode: the room whose assets (`/v1/assets/<id>`) are inlined into the export.
+    pub wopi_room: Option<&'a str>,
+}
+
+/// Images for an export: allowed host origins, plus the room's assets in WOPI mode.
+async fn images(
+    state: &SharedState,
+    host: &HostConfig,
+    req: &RenderReq<'_>,
+    json: &serde_json::Value,
+) -> std::collections::HashMap<String, Vec<u8>> {
+    let srcs = oc_model::docx::image_sources(json);
+    let mut images = fetch_images(state, host, req.token, srcs.iter().cloned()).await;
+    if let Some(room) = req.wopi_room {
+        for src in srcs {
+            let Some(id) = src.strip_prefix("/v1/assets/") else {
+                continue;
+            };
+            if let Ok(Some(a)) = state.store.asset_get(room, id).await
+                && a.mime.starts_with("image/")
+            {
+                images.insert(src, a.data);
+            }
+        }
+    }
+    images
 }
 
 /// Renders `doc` as `fmt`: (body, content type, file extension).
@@ -201,18 +229,19 @@ pub(super) async fn render(
                 authors: vec![req.author.to_string()],
                 at: rfc3339(now_ms()),
             };
-            (
-                oc_model::write_ocanvas(doc, &commit)
-                    .map_err(ApiError::internal)?
-                    .into(),
-                "application/vnd.opencanvas+zip",
-                "ocanvas",
-            )
+            let mut bytes = oc_model::write_ocanvas(doc, &commit).map_err(ApiError::internal)?;
+            if let Some(room) = req.wopi_room {
+                bytes = state
+                    .host
+                    .inline_assets(room, bytes)
+                    .await
+                    .map_err(ApiError::internal)?;
+            }
+            (bytes.into(), "application/vnd.opencanvas+zip", "ocanvas")
         }
         "docx" => {
             let json = oc_model::doc_to_json(doc);
-            let images =
-                fetch_images(state, host, req.token, oc_model::docx::image_sources(&json)).await;
+            let images = images(state, host, &req, &json).await;
             let (bytes, notes) =
                 tokio::task::spawn_blocking(move || oc_model::docx::to_docx(&json, &images))
                     .await
@@ -232,8 +261,7 @@ pub(super) async fn render(
                 ));
             };
             let json = oc_model::doc_to_json(doc);
-            let images =
-                fetch_images(state, host, req.token, oc_model::docx::image_sources(&json)).await;
+            let images = images(state, host, &req, &json).await;
             let html = oc_model::export::to_html_with(
                 &json,
                 &oc_model::export::Options {

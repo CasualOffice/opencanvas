@@ -54,6 +54,9 @@ pub struct Perms {
     pub download: bool,
     #[serde(default = "yes")]
     pub comment: bool,
+    /// PDF export / print (WOPI `DisablePrint`; JWT `perms.print`).
+    #[serde(default = "yes")]
+    pub print: bool,
 }
 
 fn yes() -> bool {

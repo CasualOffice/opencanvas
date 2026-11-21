@@ -13,6 +13,7 @@ pub mod room;
 pub mod routes;
 pub mod store;
 pub mod util;
+pub mod wopi;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -50,7 +51,7 @@ impl AppState {
     pub async fn new(cfg: Config, hosts: Hosts) -> anyhow::Result<SharedState> {
         let store = Store::connect(&cfg.database_url, cfg.kek.clone()).await?;
         let metrics = Arc::new(Metrics::default());
-        let host = HostClient::new();
+        let host = HostClient::new().with_store(store.clone());
         let rooms = Rooms::new(Arc::new(Ctx {
             store: store.clone(),
             host: host.clone(),
@@ -74,6 +75,14 @@ impl AppState {
     /// Startup sweeper: reopens every room that has a pending commit so its save is retried
     /// (with the same idempotency key). Returns how many rooms were resumed.
     pub async fn resume_outbox(&self) -> anyhow::Result<usize> {
+        // WOPI-mode assets of rooms that closed (and have nothing left to save).
+        if let Err(e) = self
+            .store
+            .purge_orphan_assets(util::now_ms() - 10 * 60 * 1000)
+            .await
+        {
+            tracing::warn!(error = %e, "asset sweep failed");
+        }
         let mut resumed = std::collections::HashSet::new();
         for row in self.store.outbox_all_pending().await? {
             if resumed.contains(&row.room_id) || self.rooms.is_live(&row.room_id) {
