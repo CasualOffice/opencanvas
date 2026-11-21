@@ -45,6 +45,33 @@ pub struct HostState {
     pub fail: bool,
     /// Bodies POSTed to `/files/{id}/copies` (conflict policy `copy`).
     pub copies: Vec<RecordedPut>,
+    /// Requests to `/assets/{id}` (with whether the signature verified).
+    pub asset_gets: Vec<(String, bool)>,
+    /// `/assets/redirect` answers 302 to this URL.
+    pub redirect_to: Option<String>,
+}
+
+pub const PNG_1X1: [u8; 70] = [
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xfc, 0xcf, 0xc0, 0xf0,
+    0x1f, 0x00, 0x05, 0x05, 0x02, 0x00, 0x5f, 0xc8, 0xf1, 0xd2, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+    0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+];
+
+async fn asset(
+    State(s): State<Shared>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> axum::response::Response {
+    let mut st = s.lock().unwrap();
+    st.asset_gets.push((id.clone(), verify(&headers, b"")));
+    if id == "redirect"
+        && let Some(to) = st.redirect_to.clone()
+    {
+        return (StatusCode::FOUND, [("location", to)]).into_response();
+    }
+    ([("content-type", "image/png")], PNG_1X1.to_vec()).into_response()
 }
 
 pub type Shared = Arc<Mutex<HostState>>;
@@ -165,6 +192,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/files/{id}", get(get_file).put(put_file))
         .route("/api/files/{id}/copies", axum::routing::post(post_copy))
         .route("/api/users", get(users))
+        .route("/assets/{id}", get(asset))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

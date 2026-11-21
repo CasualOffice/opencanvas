@@ -6,6 +6,8 @@ use yrs::sync::{AwarenessUpdate, Message, SyncMessage};
 use yrs::updates::encoder::Encode;
 
 pub const MSG_CONTROL: u8 = 100;
+/// y-protocols awareness message type.
+pub const MSG_AWARENESS: u8 = 1;
 
 pub fn step1(sv: StateVector) -> Vec<u8> {
     Message::Sync(SyncMessage::SyncStep1(sv)).encode_v1()

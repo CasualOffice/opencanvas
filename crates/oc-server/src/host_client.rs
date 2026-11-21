@@ -46,7 +46,12 @@ pub struct PutRequest<'a> {
 #[derive(Clone)]
 pub struct HostClient {
     http: reqwest::Client,
+    /// For asset downloads: never follows redirects (an allowed URL must not bounce elsewhere).
+    assets: reqwest::Client,
 }
+
+/// Largest image fetched for an export.
+pub const MAX_ASSET_FETCH: usize = 10 * 1024 * 1024;
 
 pub fn signature(secret: &[u8], t: i64, body: &[u8]) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(secret).expect("hmac accepts any key length");
@@ -75,7 +80,13 @@ impl HostClient {
             .user_agent(concat!("opencanvas/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("http client");
-        Self { http }
+        let assets = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(concat!("opencanvas/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("http client");
+        Self { http, assets }
     }
 
     fn url(host: &HostConfig, segments: &[&str]) -> Result<Url, HostError> {
@@ -96,11 +107,23 @@ impl HostClient {
         body: Vec<u8>,
         timeout: u64,
     ) -> reqwest::RequestBuilder {
+        Self::signed(&self.http, host, token, method, url, body, timeout)
+    }
+
+    fn signed(
+        client: &reqwest::Client,
+        host: &HostConfig,
+        token: &str,
+        method: Method,
+        url: Url,
+        body: Vec<u8>,
+        timeout: u64,
+    ) -> reqwest::RequestBuilder {
         let t = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
-        self.http
+        client
             .request(method, url)
             .timeout(Duration::from_secs(timeout))
             .bearer_auth(token)
@@ -238,6 +261,36 @@ impl HostClient {
             .send()
             .await?;
         Self::passthrough(res).await
+    }
+
+    /// Downloads an asset from the host's own origin (the caller checks the origin), signed
+    /// like every callback, without following redirects, at most [`MAX_ASSET_FETCH`] bytes.
+    pub async fn get_asset(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        url: Url,
+    ) -> Result<Bytes, HostError> {
+        let mut res = Self::signed(&self.assets, host, token, Method::GET, url, Vec::new(), 10)
+            .send()
+            .await?;
+        if !res.status().is_success() {
+            return Err(HostError::Status(res.status()));
+        }
+        if res
+            .content_length()
+            .is_some_and(|l| l > MAX_ASSET_FETCH as u64)
+        {
+            return Err(HostError::Body("asset too large".into()));
+        }
+        let mut buf = Vec::new();
+        while let Some(chunk) = res.chunk().await? {
+            buf.extend_from_slice(&chunk);
+            if buf.len() > MAX_ASSET_FETCH {
+                return Err(HostError::Body("asset too large".into()));
+            }
+        }
+        Ok(buf.into())
     }
 
     pub async fn users(

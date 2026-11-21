@@ -93,8 +93,12 @@ Server rules:
   Entries over 2 KB, or for a client id owned by another connection, are dropped.
 - An update that would push the encoded doc over `OC_MAX_DOC_MB` (20) is refused with an auth
   frame `document size limit reached`; while a conflict is being handled every write is refused.
-- Frames over `OC_MAX_FRAME_KB` (1024) close the socket with code 1009. More than 60 frames/s
-  (burst 120) closes it with 1008. When the ticket expires the server sends
+- Frames over `OC_MAX_FRAME_KB` (1024) close the socket with code 1009. More than 60 non-awareness
+  frames/s (burst 120) closes it with **4429** `"rate limit"` (not 1008, which only means access
+  revoked / session expired). Awareness frames (type 1) have their own bucket of 120/s (burst 240);
+  excess awareness frames are dropped silently, never fatal. Clients should still batch (y-websocket
+  awareness throttling, 50 ms update windows).
+  (Changed 2026-11-21: was 1008 with awareness counted against the same bucket; fast typing tripped it.) When the ticket expires the server sends
   `{"t":"closed","reason":"session expired"}` and closes with 1008; on shutdown it sends
   `{"t":"closed","reason":"server shutting down"}` and closes with 1012.
 - Room ids are `r_` + 26 lowercase base32 chars of sha256(`<hostId>:<fileId>`).
@@ -116,6 +120,15 @@ toggle(open) > toggleSummary + toggleContent, database(dbId), board(boardId),
 bookmark(url,title,description,site), embed(provider,url,title), fileAttachment(name,size,url,mime),
 columns > column, table/tableRow/tableHeader/tableCell, mention(id,label) inline,
 commentMark(threadId) mark`.
+
+**Block ids.** Any block node may carry an optional string attribute `blockId` (convention
+`b_` + 26 lowercase base32 chars, e.g. `b_01jd…`). It is how the host patch API (§6) addresses
+blocks; ids are unique within a document. Blocks the patch API inserts always get one (the
+caller's `attrs.blockId` is kept, else one is generated). The editor must declare `blockId` as a
+global attribute on block nodes (Tiptap `addGlobalAttributes`, default `null`, not rendered) and
+keep it when a node is edited; a split keeps it on the first half only and pasting/duplicating
+clears it. Without that, y-prosemirror drops the attribute the first time a user edits the block.
+(Added 2026-11-21 by the server API build; the web part is still to do.)
 
 Field types for databases: `title text status select tags person date number checkbox url progress`.
 Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.
@@ -152,13 +165,26 @@ logged as a warning).
 ## 6. Server REST used by the SPA
 
 `GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host) ·
-`GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json` ·
+`GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx` ·
 `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
 `POST /v1/files/:fileId/role {"userId","role":"view|comment|edit|none"}` → `{"connections","sessions"}`;
-`DELETE /v1/files/:fileId/session` → final save, close all, drop tickets → `{"closed","sessions"}`.
+`DELETE /v1/files/:fileId/session` → final save, close all, drop tickets → `{"closed","sessions"}`;
+`POST /v1/files/:fileId/patch` → `{"applied","blockIds","live"}` (+ `version` when no room was live);
+`POST /v1/files/:fileId/commit` → `200 {"live","saved","version"}` / `202 {"queued":true}` / `409 CONFLICT`;
+`POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx` (raw body in, file out).
+Optional `X-OpenCanvas-Callback-Token`: the bearer used for callbacks made for that request (loading /
+saving a file with no live room, fetching images); without it the bearer is empty and the host
+authenticates the call by the HMAC signature. Details in docs/04 §6 and docs/05 §7.
+
+DOCX (`export/docx`, `convert to=docx`): minimal WordprocessingML written with `zip` (no new crate).
+Headings, marks, links (http/https/mailto only), bullet/numbered/task lists, quotes, code, tables,
+callouts (shaded paragraphs), databases (caption + table), boards (a note with the board's texts; no
+image yet), bookmarks/embeds/files (links). Images are embedded only when their URL is on the host's
+`callback_base` origin (relative `/…` resolves there); they are fetched signed, without following
+redirects, ≤ 10 MB, PNG/JPEG/GIF; anything else becomes a link.
 
 `ocanvas` export needs `perms.download`, the others `perms.export` (403 otherwise); unknown formats
 answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment; filename="<file name>.<ext>"`.

@@ -1,9 +1,12 @@
 //! OpenCanvas document model: Y.Doc layout helpers, `.ocanvas` files and exports.
 
 pub mod doc;
+pub mod docx;
 pub mod export;
+pub mod html;
 pub mod import;
 pub mod ocanvas;
+pub mod patch;
 
 pub use doc::{doc_to_json, ensure_roots, is_empty, new_doc};
 pub use ocanvas::{CommitInfo, Error, read_ocanvas, write_ocanvas};

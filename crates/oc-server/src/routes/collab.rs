@@ -21,6 +21,11 @@ use crate::{SharedState, TicketUse};
 const CONNECT_WINDOW: Duration = Duration::from_secs(60);
 const RATE_PER_SEC: f64 = 60.0;
 const RATE_BURST: f64 = 120.0;
+/// Awareness (cursor) frames have their own bucket; excess frames are dropped, not fatal.
+const AWARENESS_PER_SEC: f64 = 120.0;
+const AWARENESS_BURST: f64 = 240.0;
+/// Close code for the frame-rate limit (distinct from 1008, which means access revoked).
+pub const CLOSE_RATE_LIMIT: u16 = 4429;
 
 #[derive(Deserialize)]
 pub struct WsParams {
@@ -59,13 +64,24 @@ pub async fn upgrade(
 struct Bucket {
     tokens: f64,
     at: Instant,
+    rate: f64,
+    burst: f64,
 }
 
 impl Bucket {
+    fn new(rate: f64, burst: f64) -> Self {
+        Self {
+            tokens: burst,
+            at: Instant::now(),
+            rate,
+            burst,
+        }
+    }
+
     fn take(&mut self) -> bool {
         let now = Instant::now();
-        self.tokens = (self.tokens + now.duration_since(self.at).as_secs_f64() * RATE_PER_SEC)
-            .min(RATE_BURST);
+        self.tokens =
+            (self.tokens + now.duration_since(self.at).as_secs_f64() * self.rate).min(self.burst);
         self.at = now;
         if self.tokens >= 1.0 {
             self.tokens -= 1.0;
@@ -131,10 +147,8 @@ async fn serve(
     });
 
     let limit = state.cfg.rooms.max_frame_bytes;
-    let mut bucket = Bucket {
-        tokens: RATE_BURST,
-        at: Instant::now(),
-    };
+    let mut bucket = Bucket::new(RATE_PER_SEC, RATE_BURST);
+    let mut awareness = Bucket::new(AWARENESS_PER_SEC, AWARENESS_BURST);
     let expiry = tokio::time::sleep(expires_in);
     tokio::pin!(expiry);
     loop {
@@ -145,8 +159,15 @@ async fn serve(
                         let _ = tx.send(Outbound::Close(1009, "frame too large".into()));
                         break;
                     }
+                    // y-protocols message type 1 = awareness (a single-byte varuint).
+                    if data.first() == Some(&protocol::MSG_AWARENESS) {
+                        if awareness.take() {
+                            membership.send(data.to_vec());
+                        }
+                        continue;
+                    }
                     if !bucket.take() {
-                        let _ = tx.send(Outbound::Close(1008, "rate limit".into()));
+                        let _ = tx.send(Outbound::Close(CLOSE_RATE_LIMIT, "rate limit".into()));
                         break;
                     }
                     membership.send(data.to_vec());
