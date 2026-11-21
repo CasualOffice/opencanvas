@@ -1,0 +1,4 @@
+ci/
+*.orig
+*.tgz
+.DS_Store

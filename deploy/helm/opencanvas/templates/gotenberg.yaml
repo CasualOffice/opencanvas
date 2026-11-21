@@ -1,0 +1,77 @@
+{{- if and .Values.gotenberg.enabled (eq .Values.gotenberg.mode "deployment") (not .Values.gotenberg.externalUrl) }}
+{{- $name := printf "%s-gotenberg" (include "opencanvas.fullname" .) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gotenberg
+spec:
+  replicas: {{ .Values.gotenberg.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "opencanvas.gotenbergLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "opencanvas.gotenbergLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: gotenberg
+          image: "{{ .Values.gotenberg.image.repository }}:{{ .Values.gotenberg.image.tag }}"
+          imagePullPolicy: {{ .Values.gotenberg.image.pullPolicy }}
+          args: ["gotenberg", "--api-port=3000"]
+          ports:
+            - { name: http, containerPort: 3000 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.gotenberg.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gotenberg
+spec:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 3000, targetPort: http }
+  selector:
+    {{- include "opencanvas.gotenbergLabels" . | nindent 4 }}
+---
+# Only OpenCanvas pods may reach Gotenberg (it renders whatever HTML it is sent).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "opencanvas.gotenbergLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "opencanvas.selectorLabels" . | nindent 14 }}
+      ports:
+        - { port: 3000 }
+{{- end }}

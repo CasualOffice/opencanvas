@@ -1,0 +1,197 @@
+# OpenCanvas Helm values. See docs/13-OPERATIONS-AND-DEPLOYMENT.md.
+#
+# Three common shapes (see ci/*.yaml for complete examples):
+#   single node   SQLite on /data, replicaCount 1 (the default)
+#   cluster       database.url (MySQL 8 / MariaDB 10.11) + redis.url, replicaCount >= 2
+#   + PDF         gotenberg.enabled: true
+
+# -- Pods. SQLite (no database.url) supports exactly 1: the chart refuses anything else.
+replicaCount: 1
+
+image:
+  repository: opencanvas/server
+  # -- Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Public base URL of OpenCanvas (OC_PUBLIC_URL), e.g. https://canvas.example.com.
+publicUrl: ""
+
+# -- Log filter (OC_LOG): error | warn | info | debug, or a tracing filter.
+logLevel: info
+
+# -- Development mode (OC_DEV=1): allows running without a KEK. Never in production.
+dev: false
+
+# -- Extra plain environment variables (OC_MAX_DOC_MB, OC_ROOM_TTL_SECS, ...).
+env: {}
+#  OC_MAX_DOC_MB: "20"
+
+# -- Font directories added to the system fonts (OC_FONT_DIRS, colon-separated). The image
+# already ships Noto + Noto CJK; mount more with extraVolumes/extraVolumeMounts.
+fontDirs: /opt/opencanvas/fonts
+
+secrets:
+  # -- Use an existing Secret instead of creating one. Every key becomes an environment
+  # variable (envFrom), so it should hold OC_KEK and the variables your hosts file references
+  # with `env:NAME`, plus DATABASE_URL / REDIS_URL when you set them there.
+  existingSecret: ""
+  # -- Key-encryption key for tokens at rest: `openssl rand -base64 32`. Required unless dev.
+  kek: ""
+  # -- Host secrets referenced from hosts.toml as `env:NAME` (JWT secrets, API keys).
+  env: {}
+  #  SAMPLE_JWT_SECRET: "…"
+  #  SAMPLE_API_KEY: "…"
+
+# -- The host registry (docs/05 §2), mounted at /etc/opencanvas/hosts.toml from a ConfigMap.
+# Keep secrets out of it: use `jwt_secret = "env:NAME"` / `api_key = "env:NAME"` and put the
+# values in secrets.env (or existingSecret).
+hosts:
+  # -- Use an existing ConfigMap (key `hosts.toml`) instead of `hosts.toml` below.
+  existingConfigMap: ""
+  toml: |
+    [[host]]
+    id              = "example"
+    name            = "Example host"
+    mode            = "jwt"
+    jwt_alg         = "HS256"
+    jwt_secret      = "env:EXAMPLE_JWT_SECRET"
+    api_key         = "env:EXAMPLE_API_KEY"
+    callback_base   = "https://host.example.com/api/opencanvas"
+    allowed_origins = ["https://host.example.com"]
+
+database:
+  # -- MySQL 8 / MariaDB 10.11 URL (mysql://user:pass@host:3306/opencanvas), stored in the
+  # Secret as DATABASE_URL. Empty = SQLite on /data (single replica only).
+  url: ""
+  # -- Read DATABASE_URL from this existing Secret/key instead.
+  existingSecret: ""
+  existingSecretKey: DATABASE_URL
+
+redis:
+  # -- Redis URL for cluster mode (room leases + relay, ADR-006), stored as REDIS_URL.
+  url: ""
+  existingSecret: ""
+  existingSecretKey: REDIS_URL
+
+# -- SQLite storage (only used without database.url). The root filesystem is read-only, so
+# /data is either this PVC or an emptyDir.
+persistence:
+  # -- false = emptyDir: uncommitted edits are lost when the pod goes away (committed content
+  # always lives in the host). true = PersistentVolumeClaim.
+  enabled: false
+  size: 1Gi
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  existingClaim: ""
+
+gotenberg:
+  # -- Deploy Gotenberg for PDF export (ADR-010) and set OC_PDF_RENDERER. Without it PDF
+  # export answers 501 and the editor prints from the browser.
+  enabled: false
+  # -- deployment: a separate Deployment + ClusterIP Service. sidecar: a container in each
+  # OpenCanvas pod on localhost:3000 (no Service, no network exposure at all).
+  mode: deployment
+  image:
+    repository: gotenberg/gotenberg
+    tag: "8"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+  # -- Use an external Gotenberg instead (sets OC_PDF_RENDERER=gotenberg:<url>).
+  externalUrl: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: nginx
+  host: canvas.example.com
+  tls: []
+  #  - secretName: canvas-tls
+  #    hosts: [canvas.example.com]
+  # -- Annotations for both Ingress objects. The defaults suit ingress-nginx: long
+  # WebSocket timeouts and no buffering.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+  # -- Sticky routing for /v1/collab/{room}: a second Ingress hashes on the request path, so
+  # every socket of a room lands on the same pod (the room's owner in cluster mode, fewer
+  # relays). Everything else stays round-robin. ingress-nginx only (`upstream-hash-by`).
+  stickyRooms: true
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1Gi }
+
+# -- SIGTERM drains: /readyz turns 503, dirty rooms commit (≤ 30 s), clients get a reconnect.
+terminationGracePeriodSeconds: 40
+# -- Seconds the preStop hook waits so endpoints and the ingress stop routing to the pod
+# before SIGTERM.
+preStopSleepSeconds: 5
+
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    path: /readyz
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile: { type: RuntimeDefault }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+podDisruptionBudget:
+  enabled: true
+  # -- With 1 replica this blocks voluntary evictions only if you set minAvailable: 1.
+  maxUnavailable: 1
+
+autoscaling:
+  # -- HPA (cluster mode only; requires database.url + redis.url).
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: /metrics
+  prometheus.io/port: "8080"
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+extraVolumes: []
+extraVolumeMounts: []

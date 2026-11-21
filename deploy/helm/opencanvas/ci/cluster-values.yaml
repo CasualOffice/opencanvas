@@ -1,0 +1,24 @@
+# Cluster: MariaDB + Redis, secrets from an existing Secret, HPA on, sticky rooms.
+replicaCount: 3
+publicUrl: https://canvas.example.com
+secrets:
+  existingSecret: opencanvas-secrets   # OC_KEK, EXAMPLE_JWT_SECRET, EXAMPLE_API_KEY
+database:
+  existingSecret: opencanvas-db
+  existingSecretKey: url
+redis:
+  url: redis://redis-master:6379
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 8
+ingress:
+  enabled: true
+  host: canvas.example.com
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: opencanvas

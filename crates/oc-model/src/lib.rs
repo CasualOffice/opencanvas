@@ -4,6 +4,7 @@ pub mod board;
 pub mod doc;
 pub mod docx;
 pub mod export;
+pub mod fonts;
 pub mod html;
 pub mod import;
 pub mod ocanvas;

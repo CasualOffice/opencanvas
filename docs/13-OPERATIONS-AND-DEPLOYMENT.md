@@ -22,7 +22,62 @@ Compose: `OC_PDF_RENDERER=gotenberg:http://gotenberg:3000 docker compose --profi
 OpenCanvas sends Gotenberg self-contained HTML (images inlined, CSP `default-src 'none'`), so the
 sidecar needs no route to hosts or the internet; keep it off public networks. Without it
 `GET /v1/export/pdf` answers 501 and the editor prints from the browser. Board PNG/SVG and DOCX
-need no sidecar (rendered in-process with `resvg` and an embedded font).
+need no sidecar (rendered in-process with `resvg`, see Fonts below).
+
+## Fonts (board PNG, DOCX board images)
+`oc_model::fonts` builds one font database per process on the first render (ADR-020):
+embedded Geist (Latin) + subsets of Noto Sans Symbols 2 and Noto Sans Math (✓ ✗ → ⇒ ★ ☐ ⚠,
+dingbats, shapes, arrows; ~270 KB), then system fonts, then every directory in `OC_FONT_DIRS`.
+A character the board font lacks falls back to the symbol subsets, then Noto Sans / Noto Sans
+CJK (SC, JP, KR, TC, HK) / other Noto families, then any face that has it. Characters no font
+has render as boxes and log one `WARN` per script (`no font for this script`), never the text.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OC_FONT_DIRS` | image: `/opt/opencanvas/fonts` | Extra font directories, `:`-separated, searched recursively |
+| `OC_SYSTEM_FONTS` | `1` | `0` skips system fonts (deterministic rendering, tests) |
+
+The image installs Debian `fonts-noto-core` + `fonts-noto-cjk` (Sans only; Serif CJK removed),
+so Latin, Greek, Cyrillic, Arabic, Hebrew, Indic, Thai and CJK render out of the box. Add
+fonts by mounting them at `/opt/opencanvas/fonts`. Gotenberg (PDF) uses its own Chromium
+fonts; `gotenberg/gotenberg:8` already ships Noto CJK and symbol fonts. `oc_model::fonts::coverage(text)`
+lists the characters no loaded font can draw.
+
+## Image
+`docker build -f deploy/Dockerfile -t opencanvas .` — three stages: release binary
+(`rust:1.98-slim-bookworm`), editor bundle (`node:24-slim`, `pnpm install --frozen-lockfile`,
+`pnpm --filter @opencanvas/editor build`), runtime `debian:bookworm-slim` with the binary, the
+editor at `/srv/web` (served at `/app/`) and the fonts. Runs as uid 10001, works with a
+read-only root filesystem (`--read-only --tmpfs /tmp` + a writable `/data` for SQLite).
+`HEALTHCHECK` probes `/healthz` on port 8080 through bash's `/dev/tcp` (no curl in the image).
+Size: 327 MB (binary 23 MB, editor 8 MB, fonts 80 MB, the rest Debian).
+
+## Kubernetes (Helm)
+Chart: `deploy/helm/opencanvas` (values documented inline; examples in `ci/`).
+```sh
+helm install oc deploy/helm/opencanvas --set secrets.kek=$(openssl rand -base64 32) \
+  --set publicUrl=https://canvas.example.com --set ingress.enabled=true --set ingress.host=canvas.example.com \
+  --set-file hosts.toml=opencanvas.hosts.toml
+```
+- **SQLite** (no `database.url`): exactly one replica, `Recreate` rollouts, `/data` on an
+  emptyDir (or `persistence.enabled` for a PVC). The chart refuses `replicaCount > 1` or HPA.
+- **Cluster**: `database.url` (or `database.existingSecret`) + `redis.url`; HPA optional
+  (`autoscaling.enabled`, scale-in one pod / 2 min). `OC_NODE_ID` = pod name.
+- **Secrets**: the chart Secret (or `secrets.existingSecret`) is mounted with `envFrom`, so it
+  holds `OC_KEK` and every `env:NAME` the hosts file references (JWT secrets, API keys).
+  The hosts file itself comes from a ConfigMap (`hosts.toml` or `hosts.existingConfigMap`).
+- **Gotenberg**: `gotenberg.enabled` + `mode: deployment` (Service + NetworkPolicy allowing only
+  OpenCanvas pods) or `mode: sidecar` (bound to 127.0.0.1 in each pod), or `externalUrl`.
+- **Ingress (ingress-nginx)**: one Ingress for `/` (round-robin) and, with
+  `ingress.stickyRooms`, a second for `/v1/collab/` with `upstream-hash-by: "$uri"`, so all
+  sockets of a room reach the same pod (the owner, fewer relays). 3600 s proxy timeouts,
+  buffering off. Other controllers: hash on the path segment after `/v1/collab/`.
+- **Drain**: `preStop` sleeps 5 s (endpoints drop the pod), then SIGTERM starts the drain below;
+  `terminationGracePeriodSeconds: 40` covers the ≤ 30 s commit. PDB `maxUnavailable: 1`.
+- Pods run non-root (10001), read-only root, all capabilities dropped, seccomp RuntimeDefault;
+  `/tmp` and `/data` are emptyDirs. Probes: liveness `/healthz`, readiness `/readyz`.
+- CI (`helm` job) lints and renders single-node SQLite, cluster MariaDB + Redis and
+  Gotenberg value sets, and checks SQLite + 2 replicas is refused.
 
 ## Cluster (MySQL/MariaDB + Redis)
 ```

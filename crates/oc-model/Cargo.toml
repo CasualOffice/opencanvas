@@ -12,6 +12,11 @@ zip.workspace = true
 thiserror.workspace = true
 base64.workspace = true
 resvg.workspace = true
+tracing.workspace = true
+# Same versions as resvg/usvg use; `fs` + `memmap` turn on system and OC_FONT_DIRS loading.
+fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "memmap"] }
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+unicode-script = "0.5"
 
 [dev-dependencies]
 zip.workspace = true
