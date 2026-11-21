@@ -1,0 +1,32 @@
+OpenCanvas {{ .Chart.AppVersion }} is deployed as {{ include "opencanvas.fullname" . }}.
+{{- if eq (include "opencanvas.sqlite" .) "true" }}
+
+WARNING: SQLite mode (no database.url). SQLite is single-node: it implies replicas: 1
+(the chart refuses more, and refuses autoscaling). Upgrades use the Recreate strategy,
+so every rollout has a short gap while clients reconnect.
+{{- if not .Values.persistence.enabled }}
+/data is an emptyDir: un-committed edits (normally a few seconds of typing) are lost if the
+pod dies without draining. Committed content always lives in the host.
+{{- end }}
+To run more than one replica set database.url (MySQL 8 / MariaDB 10.11) and redis.url.
+{{- end }}
+{{- if .Values.dev }}
+
+WARNING: dev: true (OC_DEV=1). Callback tokens are stored unencrypted. Not for production.
+{{- end }}
+
+Check it:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "opencanvas.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -s localhost:8080/readyz
+{{- if .Values.ingress.enabled }}
+
+Public URL: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}/
+{{- if .Values.ingress.stickyRooms }}
+WebSockets (/v1/collab/<room>) use a second Ingress hashed on the path, so all sockets of
+a room reach the same pod (ingress-nginx `upstream-hash-by`).
+{{- end }}
+{{- end }}
+{{- with include "opencanvas.pdfRenderer" . }}
+
+PDF export: OC_PDF_RENDERER={{ . }}
+{{- end }}

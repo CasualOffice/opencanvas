@@ -5,7 +5,7 @@
 //! Input is the logical JSON from [`crate::doc_to_json`] (`boards/<id>/{shapes, order}`).
 
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use base64::Engine;
 use resvg::{tiny_skia, usvg};
@@ -907,34 +907,14 @@ pub fn summary(doc: &Value, board_id: &str) -> (usize, Vec<String>) {
 
 // ---------------------------------------------------------------- PNG
 
-static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
-
-/// The embedded fonts (Geist Regular + SemiBold, OFL), so text renders the same on any
-/// machine, without system fonts.
-fn fontdb() -> Arc<usvg::fontdb::Database> {
-    FONTS
-        .get_or_init(|| {
-            let mut db = usvg::fontdb::Database::new();
-            db.load_font_data(include_bytes!("../fonts/Geist-Regular.ttf").to_vec());
-            db.load_font_data(include_bytes!("../fonts/Geist-SemiBold.ttf").to_vec());
-            // Every generic family falls back to the embedded font.
-            db.set_sans_serif_family("Geist");
-            db.set_serif_family("Geist");
-            db.set_monospace_family("Geist");
-            db.set_cursive_family("Geist");
-            db.set_fantasy_family("Geist");
-            Arc::new(db)
-        })
-        .clone()
-}
-
 /// Renders an SVG (normally from [`to_svg_with_images`]) to PNG at `scale` (capped at 16384 px
 /// per side and 64 Mpx) on a white background. Only inline `data:` raster images are drawn:
 /// remote URLs and file paths are never read.
 pub fn to_png(svg: &str, scale: f32) -> Result<Vec<u8>, crate::Error> {
     let mut opt = usvg::Options {
-        font_family: "Geist".into(),
-        fontdb: fontdb(),
+        font_family: crate::fonts::PRIMARY_FAMILY.into(),
+        fontdb: crate::fonts::database(),
+        font_resolver: crate::fonts::resolver(),
         ..usvg::Options::default()
     };
     opt.image_href_resolver = usvg::ImageHrefResolver {

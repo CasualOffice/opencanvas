@@ -1,0 +1,11 @@
+{{- if not .Values.hosts.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opencanvas.fullname" . }}-hosts
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+data:
+  hosts.toml: |
+    {{- .Values.hosts.toml | nindent 4 }}
+{{- end }}

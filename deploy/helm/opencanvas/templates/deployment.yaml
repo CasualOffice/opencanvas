@@ -1,0 +1,194 @@
+{{- include "opencanvas.validate" . }}
+{{- $sqlite := eq (include "opencanvas.sqlite" .) "true" }}
+{{- $pdf := include "opencanvas.pdfRenderer" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencanvas.fullname" . }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- if $sqlite }}
+  # One SQLite file, one writer: never run old and new pod side by side.
+  strategy:
+    type: Recreate
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "opencanvas.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/hosts: {{ .Values.hosts.toml | sha256sum }}
+        {{- if not .Values.secrets.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "opencanvas.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "opencanvas.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: opencanvas
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ include "opencanvas.secretName" . }}
+          env:
+            - name: OC_BIND
+              value: "0.0.0.0:8080"
+            - name: OC_HOSTS_FILE
+              value: /etc/opencanvas/hosts.toml
+            - name: OC_LOG
+              value: {{ .Values.logLevel | quote }}
+            - name: OC_FONT_DIRS
+              value: {{ .Values.fontDirs | quote }}
+            - name: OC_NODE_ID
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            {{- with .Values.publicUrl }}
+            - name: OC_PUBLIC_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.dev }}
+            - name: OC_DEV
+              value: "1"
+            {{- end }}
+            {{- if $sqlite }}
+            - name: DATABASE_URL
+              value: "sqlite:///data/opencanvas.db?mode=rwc"
+            {{- else if .Values.database.existingSecret }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+            {{- else if .Values.secrets.existingSecret }}
+            # secrets.existingSecret: the chart creates no Secret, so a plain URL goes here.
+            - name: DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            {{- end }}
+            {{- if .Values.redis.existingSecret }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret }}
+                  key: {{ .Values.redis.existingSecretKey }}
+            {{- else if and .Values.secrets.existingSecret .Values.redis.url }}
+            - name: REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+            {{- end }}
+            {{- with $pdf }}
+            - name: OC_PDF_RENDERER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet: { path: {{ .Values.probes.liveness.path }}, port: http }
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet: { path: {{ .Values.probes.readiness.path }}, port: http }
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          lifecycle:
+            # Let endpoints and the ingress drop the pod before SIGTERM starts the drain
+            # (readyz 503 → commit dirty rooms → reconnect frames), within the grace period.
+            preStop:
+              exec:
+                command: ["sleep", "{{ .Values.preStopSleepSeconds }}"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            - name: hosts
+              mountPath: /etc/opencanvas
+              readOnly: true
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if and .Values.gotenberg.enabled (eq .Values.gotenberg.mode "sidecar") (not .Values.gotenberg.externalUrl) }}
+        - name: gotenberg
+          image: "{{ .Values.gotenberg.image.repository }}:{{ .Values.gotenberg.image.tag }}"
+          imagePullPolicy: {{ .Values.gotenberg.image.pullPolicy }}
+          # Listen on localhost only: OpenCanvas is the sole client.
+          args: ["gotenberg", "--api-port=3000", "--api-bind-ip=127.0.0.1"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities: { drop: [ALL] }
+          resources:
+            {{- toYaml .Values.gotenberg.resources | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if and $sqlite .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "opencanvas.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        - name: hosts
+          configMap:
+            name: {{ include "opencanvas.hostsConfigMap" . }}
+            items:
+              - key: hosts.toml
+                path: hosts.toml
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

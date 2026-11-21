@@ -1,0 +1,15 @@
+# Single node, SQLite on a PVC, ingress with TLS.
+publicUrl: https://canvas.example.com
+secrets:
+  kek: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  env:
+    EXAMPLE_JWT_SECRET: ci-jwt-secret
+    EXAMPLE_API_KEY: ci-api-key
+persistence:
+  enabled: true
+ingress:
+  enabled: true
+  host: canvas.example.com
+  tls:
+    - secretName: canvas-tls
+      hosts: [canvas.example.com]

@@ -41,6 +41,28 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: editor-dist, path: web/packages/editor/dist }
 
+  helm:
+    # deploy/helm/opencanvas: lint + render the three supported shapes, and check that SQLite
+    # with more than one replica is refused.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with: { version: v3.19.0 }
+      - name: lint + template
+        working-directory: deploy/helm
+        run: |
+          set -e
+          for v in sqlite cluster gotenberg; do
+            helm lint opencanvas --strict -f opencanvas/ci/$v-values.yaml
+            helm template oc opencanvas -f opencanvas/ci/$v-values.yaml > /dev/null
+          done
+          helm template oc opencanvas --set gotenberg.enabled=true --set gotenberg.mode=sidecar --set dev=true > /dev/null
+          if helm template oc opencanvas --set dev=true --set replicaCount=2 > /dev/null 2>&1; then
+            echo "SQLite with 2 replicas must be refused"; exit 1
+          fi
+
   e2e:
     # Launch → edit over WebSocket → autosave lands in the host → export, on every supported database.
     needs: [rust, web]

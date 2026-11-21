@@ -1,0 +1,5 @@
+# Single node (dev) with a Gotenberg Deployment for PDF export.
+dev: true
+gotenberg:
+  enabled: true
+  mode: deployment

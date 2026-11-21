@@ -1,0 +1,42 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullName := include "opencanvas.fullname" . }}
+{{- $kinds := list "main" }}
+{{- if .Values.ingress.stickyRooms }}{{- $kinds = append $kinds "collab" }}{{- end }}
+{{- range $kind := $kinds }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}{{ if eq $kind "collab" }}-collab{{ end }}
+  labels:
+    {{- include "opencanvas.labels" $ | nindent 4 }}
+  annotations:
+    {{- with $.Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if eq $kind "collab" }}
+    # Every WebSocket of a room (/v1/collab/<room>?ticket=…) hashes to the same pod;
+    # $uri excludes the query string, so tickets do not spread a room across pods.
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$uri"
+    {{- end }}
+spec:
+  {{- with $.Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $.Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ $.Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ if eq $kind "collab" }}/v1/collab/{{ else }}/{{ end }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $.Values.service.port }}
+{{- end }}
+{{- end }}
