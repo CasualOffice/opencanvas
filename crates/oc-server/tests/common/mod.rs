@@ -101,7 +101,8 @@ fn verify(headers: &HeaderMap, body: &[u8]) -> bool {
     else {
         return false;
     };
-    signature(SECRET.as_bytes(), t, body) == sig
+    // v1 first (what older hosts check), then v2 (method + path bound, SEC-18).
+    sig.starts_with(&format!("{},v2=", signature(SECRET.as_bytes(), t, body)))
 }
 
 async fn get_file(
@@ -279,6 +280,7 @@ pub async fn app_full(
         web_dir: "unused".into(),
         callback_base_override: None,
         pdf_renderer: None,
+        metrics_token: None,
         kek: Some(oc_server::crypto::Kek::from_b64(TEST_KEK).unwrap()),
         rooms,
     };

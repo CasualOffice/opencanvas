@@ -25,6 +25,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-019 | Editor bundle: Tiptap extensions imported individually (no StarterKit), plugin-only late loading after first paint (never node/mark specs), terser; `check-budget.mjs` fails the build over 300 KB gz initial JS | Accepted |
 | ADR-020 | Render fonts: embedded Geist + OFL subsets of Noto Sans Symbols 2 / Math (≤ 300 KB) + system fonts + `OC_FONT_DIRS`, Noto-first fallback, one warning per missing script; new direct deps `fontdb`, `ttf-parser`, `unicode-script` (already in the tree via resvg); image ships `fonts-noto-core` + `fonts-noto-cjk` | Accepted |
 | ADR-021 | WOPI mode is a save-target variant behind `HostClient` (rooms unchanged); `WOPISrc` is the file id and must match the host's `wopi_allowlist`; assets inlined into the `.ocanvas` as `assets/<id>` | Accepted |
+| ADR-022 | Security hardening (docs/18): one header middleware (SPA CSP `script-src 'self'`, handler CSPs kept + `frame-ancestors` appended, `nosniff`, `no-referrer`); callback signature gains `v2` (method + path bound, `v1` kept); signed callbacks never follow redirects; `OC_METRICS_TOKEN`; room cap 550 peers, 8 awareness ids/connection, slow readers dropped; `zip` 2 → 9; host ids `[A-Za-z0-9._-]` | Accepted (security audit 2026-11-21) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -128,3 +129,17 @@ Chromium sidecar (`OC_PDF_RENDERER`), fallback = print-styled HTML.
 ### ADR-011 — Design-first UI gate
 **Decision.** Before any UI code, a clickable prototype is published as an
 Artifact and explicitly approved. Approval recorded in the tracker (UI-xx rows).
+
+### ADR-022 — Security hardening (audit 2026-11-21)
+**Context.** The repository went public; docs/18 records an OWASP/ASVS L2 audit.
+**Decision.** (1) A single response middleware owns baseline headers: the SPA and API get a
+CSP with `script-src 'self'`, `object-src 'none'`, `base-uri 'none'`; a handler that sets its own
+CSP (room assets, exports) keeps it and only gets `frame-ancestors` appended. (2) Host callbacks
+carry `X-OpenCanvas-Signature: t=…,v1=…,v2=…`; `v2` = HMAC(secret, `t.METHOD.path?query.body`).
+`v1` is unchanged, so existing hosts keep working; hosts should verify `v2`. (3) The signed callback
+client never follows redirects. (4) `OC_METRICS_TOKEN` protects `/metrics`. (5) Room and
+connection caps from docs/07 §3 are enforced. (6) `zip` moves to 9.x (RustSec advisories against 2.x).
+**Consequences.** + defence in depth against stored XSS in the SPA and exports; + replay of a
+captured GET signature on another path is detectable by hosts that check `v2`; − a host whose
+`GET /files/{id}` answered with a redirect must now serve the bytes itself (asset fetches were
+already redirect-free).

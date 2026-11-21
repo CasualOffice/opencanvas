@@ -26,6 +26,50 @@ const AWARENESS_PER_SEC: f64 = 120.0;
 const AWARENESS_BURST: f64 = 240.0;
 /// Close code for the frame-rate limit (distinct from 1008, which means access revoked).
 pub const CLOSE_RATE_LIMIT: u16 = 4429;
+/// A client that does not read is dropped (SEC-17): one frame may wait this long for the
+/// socket, and at most [`MAX_BACKLOG`] frames may queue for it.
+pub const SEND_TIMEOUT: Duration = Duration::from_secs(30);
+pub const MAX_BACKLOG: usize = 4096;
+
+/// Sends the actor's frames to `sink` until a close, a send error, a send that takes longer
+/// than [`SEND_TIMEOUT`] or a backlog over [`MAX_BACKLOG`] (a peer that stopped reading).
+pub async fn write_frames<S>(mut sink: S, mut rx: mpsc::UnboundedReceiver<Outbound>)
+where
+    S: futures::Sink<Message> + Unpin,
+{
+    while let Some(out) = rx.recv().await {
+        let msg = match out {
+            Outbound::Frame(b) => Message::Binary(b.into()),
+            Outbound::Close(code, reason) => {
+                let _ = tokio::time::timeout(
+                    SEND_TIMEOUT,
+                    sink.send(Message::Close(Some(CloseFrame {
+                        code,
+                        reason: reason.into(),
+                    }))),
+                )
+                .await;
+                break;
+            }
+        };
+        if rx.len() > MAX_BACKLOG {
+            tracing::info!(backlog = rx.len(), "slow client dropped");
+            let _ = tokio::time::timeout(
+                Duration::from_secs(1),
+                sink.send(Message::Close(Some(CloseFrame {
+                    code: 1013,
+                    reason: "too slow".into(),
+                }))),
+            )
+            .await;
+            break;
+        }
+        match tokio::time::timeout(SEND_TIMEOUT, sink.send(msg)).await {
+            Ok(Ok(())) => {}
+            _ => break,
+        }
+    }
+}
 
 #[derive(Deserialize)]
 pub struct WsParams {
@@ -100,7 +144,7 @@ async fn serve(
     ticket: String,
 ) {
     let (mut sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::unbounded_channel::<Outbound>();
+    let (tx, rx) = mpsc::unbounded_channel::<Outbound>();
     let expires_in = Duration::from_secs(
         (state
             .store
@@ -126,25 +170,8 @@ async fn serve(
         }
     };
     Metrics::inc(&state.metrics.connections_active);
-    let writer = tokio::spawn(async move {
-        while let Some(out) = rx.recv().await {
-            let msg = match out {
-                Outbound::Frame(b) => Message::Binary(b.into()),
-                Outbound::Close(code, reason) => {
-                    let _ = sink
-                        .send(Message::Close(Some(CloseFrame {
-                            code,
-                            reason: reason.into(),
-                        })))
-                        .await;
-                    break;
-                }
-            };
-            if sink.send(msg).await.is_err() {
-                break;
-            }
-        }
-    });
+    let mut writer = tokio::spawn(write_frames(sink, rx));
+    let mut writer_done = false;
 
     let limit = state.cfg.rooms.max_frame_bytes;
     let mut bucket = Bucket::new(RATE_PER_SEC, RATE_BURST);
@@ -175,6 +202,11 @@ async fn serve(
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                 Some(Ok(_)) => {}
             },
+            _ = &mut writer => {
+                // The writer gave up (closed, or the client stopped reading): end the session.
+                writer_done = true;
+                break;
+            }
             _ = &mut expiry => {
                 let _ = tx.send(Outbound::Frame(protocol::control(&json!({"t": "closed", "reason": "session expired"}))));
                 let _ = tx.send(Outbound::Close(1008, "session expired".into()));
@@ -184,6 +216,41 @@ async fn serve(
     }
     drop(membership);
     drop(tx);
-    let _ = tokio::time::timeout(Duration::from_secs(5), writer).await;
+    if !writer_done {
+        let _ = tokio::time::timeout(Duration::from_secs(5), &mut writer).await;
+    }
+    writer.abort();
     Metrics::dec(&state.metrics.connections_active);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// SEC-17: a client that stops reading is dropped once its backlog passes MAX_BACKLOG,
+    /// instead of queueing every room update in memory forever.
+    #[tokio::test]
+    async fn a_client_that_does_not_read_is_dropped() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        for _ in 0..MAX_BACKLOG + 10 {
+            tx.send(Outbound::Frame(vec![0, 2, 1, 0])).unwrap();
+        }
+        let mut sent: Vec<Message> = Vec::new();
+        write_frames(&mut sent, rx).await;
+        assert_eq!(sent.len(), 1, "nothing but the close frame");
+        assert!(
+            matches!(&sent[0], Message::Close(Some(f)) if f.code == 1013),
+            "{:?}",
+            sent[0]
+        );
+        // A reading client gets everything.
+        let (tx, rx) = mpsc::unbounded_channel();
+        for _ in 0..10 {
+            tx.send(Outbound::Frame(vec![1])).unwrap();
+        }
+        drop(tx);
+        let mut sent: Vec<Message> = Vec::new();
+        write_frames(&mut sent, rx).await;
+        assert_eq!(sent.len(), 10);
+    }
 }

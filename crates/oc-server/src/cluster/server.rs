@@ -10,13 +10,13 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::body::Bytes;
-use axum::extract::ws::{CloseFrame, Message, WebSocket};
+use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{Path, State, WebSocketUpgrade};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use base64::Engine;
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 use tokio::sync::mpsc;
 
 use super::H_GRANT;
@@ -83,31 +83,9 @@ async fn relay(
 }
 
 /// Edge → actor and actor → edge, in order, until either side closes.
-async fn pump(
-    socket: WebSocket,
-    membership: Membership,
-    mut rx: mpsc::UnboundedReceiver<Outbound>,
-) {
-    let (mut sink, mut stream) = socket.split();
-    let mut writer = tokio::spawn(async move {
-        while let Some(out) = rx.recv().await {
-            let msg = match out {
-                Outbound::Frame(b) => Message::Binary(b.into()),
-                Outbound::Close(code, reason) => {
-                    let _ = sink
-                        .send(Message::Close(Some(CloseFrame {
-                            code,
-                            reason: reason.into(),
-                        })))
-                        .await;
-                    break;
-                }
-            };
-            if sink.send(msg).await.is_err() {
-                break;
-            }
-        }
-    });
+async fn pump(socket: WebSocket, membership: Membership, rx: mpsc::UnboundedReceiver<Outbound>) {
+    let (sink, mut stream) = socket.split();
+    let mut writer = tokio::spawn(crate::routes::write_frames(sink, rx));
     loop {
         tokio::select! {
             msg = stream.next() => match msg {

@@ -164,7 +164,7 @@ pub fn to_markdown_with(doc: &Value, opts: &Options) -> String {
     let cx = &Cx { doc, opts };
     let mut out = String::new();
     if !title(doc).is_empty() && !starts_with_h1(doc) {
-        out.push_str(&format!("# {}\n\n", title(doc)));
+        out.push_str(&format!("# {}\n\n", md_text(title(doc))));
     }
     let blocks: Vec<String> = children(doc)
         .iter()
@@ -176,12 +176,72 @@ pub fn to_markdown_with(doc: &Value, opts: &Options) -> String {
     out
 }
 
+/// Whether `u` may be a link or image target in Markdown: web and mail URLs, fragments, and
+/// relative references (no scheme before the first `/`, `?` or `#`). Everything else
+/// (`javascript:`, `data:`, `vbscript:`, …) is refused (SEC-15/16).
+pub(crate) fn safe_target(u: &str) -> bool {
+    let t = u.trim();
+    if t.is_empty() {
+        return false;
+    }
+    let l = t.to_ascii_lowercase();
+    if ["http://", "https://", "mailto:", "/", "#"]
+        .iter()
+        .any(|p| l.starts_with(p))
+    {
+        return true;
+    }
+    match t.find(':') {
+        None => true,
+        Some(colon) => t.find(['/', '?', '#']).is_some_and(|sep| sep < colon),
+    }
+}
+
+/// A Markdown link destination for `u`, or `None` when the target is not [`safe_target`].
+/// Characters that would end the destination or be decoded by a renderer are encoded:
+/// a schemeless `&` could otherwise spell `javascript&colon;`.
+fn md_url(u: &str) -> Option<String> {
+    let t = u.trim();
+    if !safe_target(t) {
+        return None;
+    }
+    let schemeless = !t.to_ascii_lowercase().starts_with("http") && !t.starts_with("mailto:");
+    let mut out = String::with_capacity(t.len());
+    for c in t.chars() {
+        match c {
+            ' ' => out.push_str("%20"),
+            '(' => out.push_str("%28"),
+            ')' => out.push_str("%29"),
+            '<' => out.push_str("%3C"),
+            '>' => out.push_str("%3E"),
+            '\\' => out.push_str("%5C"),
+            '&' if schemeless => out.push_str("%26"),
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+    Some(out)
+}
+
+/// Text outside code spans: `<` is backslash-escaped so it can never open raw HTML.
+fn md_text(t: &str) -> String {
+    t.replace('<', "\\<")
+}
+
 fn md_inline(nodes: &[Value]) -> String {
     nodes
         .iter()
         .map(|n| match s(n, "type") {
             "text" => {
-                let mut t = s(n, "text").to_string();
+                let code = n
+                    .get("marks")
+                    .and_then(Value::as_array)
+                    .is_some_and(|m| m.iter().any(|m| s(m, "type") == "code"));
+                let mut t = if code {
+                    s(n, "text").to_string()
+                } else {
+                    md_text(s(n, "text"))
+                };
                 let mut link = None;
                 for m in n
                     .get("marks")
@@ -201,12 +261,12 @@ fn md_inline(nodes: &[Value]) -> String {
                         _ => t,
                     };
                 }
-                match link {
+                match link.as_deref().and_then(md_url) {
                     Some(href) => format!("[{t}]({href})"),
                     None => t,
                 }
             }
-            "mention" => format!("@{}", attr_str(n, "label")),
+            "mention" => format!("@{}", md_text(attr_str(n, "label"))),
             "hardBreak" => "  \n".into(),
             _ => md_inline(children(n)),
         })
@@ -240,7 +300,12 @@ fn md_table(header: &[String], rows: &[Vec<String>]) -> String {
     if header.is_empty() {
         return String::new();
     }
-    let esc = |c: &String| c.replace('|', "\\|").replace('\n', " ");
+    let esc = |c: &String| {
+        c.replace('|', "\\|")
+            .replace('\n', " ")
+            .replace("\\<", "<")
+            .replace('<', "\\<")
+    };
     let mut out = format!(
         "| {} |\n",
         header.iter().map(esc).collect::<Vec<_>>().join(" | ")
@@ -284,10 +349,14 @@ fn md_block(cx: &Cx, n: &Value) -> String {
         "codeBlock" => format!("```{}\n{}\n```", attr_str(n, "language"), plain_text(n)),
         "horizontalRule" => "---".into(),
         "image" => {
-            let img = format!("![{}]({})", attr_str(n, "alt"), attr_str(n, "src"));
+            let alt = md_text(attr_str(n, "alt"));
+            let img = match md_url(attr_str(n, "src")) {
+                Some(src) => format!("![{alt}]({src})"),
+                None => alt,
+            };
             match attr_str(n, "caption") {
                 "" => img,
-                c => format!("{img}\n*{c}*"),
+                c => format!("{img}\n*{}*", md_text(c)),
             }
         }
         "table" => {
@@ -315,7 +384,7 @@ fn md_block(cx: &Cx, n: &Value) -> String {
         }
         "database" => {
             let (name, header, rows) = database_table(cx.doc, attr_str(n, "dbId"));
-            format!("### {name}\n\n{}", md_table(&header, &rows))
+            format!("### {}\n\n{}", md_text(&name), md_table(&header, &rows))
                 .trim_end()
                 .to_string()
         }
@@ -334,18 +403,25 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             }
             out
         }
-        "bookmark" => format!(
-            "[{}]({})",
+        "bookmark" => md_link(
             fallback(attr_str(n, "title"), attr_str(n, "url")),
-            attr_str(n, "url")
+            attr_str(n, "url"),
         ),
-        "embed" => format!(
-            "[{}]({})",
+        "embed" => md_link(
             fallback(attr_str(n, "title"), attr_str(n, "provider")),
-            attr_str(n, "url")
+            attr_str(n, "url"),
         ),
-        "fileAttachment" => format!("[{}]({})", attr_str(n, "name"), attr_str(n, "url")),
+        "fileAttachment" => md_link(attr_str(n, "name"), attr_str(n, "url")),
         _ => md_children(cx, n, "\n\n"),
+    }
+}
+
+/// `[label](url)`, or just the label when the URL is not a safe target.
+fn md_link(label: &str, url: &str) -> String {
+    let label = md_text(label);
+    match md_url(url) {
+        Some(u) => format!("[{label}]({u})"),
+        None => label,
     }
 }
 
@@ -561,6 +637,40 @@ fn html_block(cx: &Cx, n: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// SEC-15: Markdown output is rendered by hosts. Script URLs must not become links and raw
+    /// HTML in text must not become markup.
+    #[test]
+    fn markdown_drops_script_urls_and_escapes_html() {
+        let doc = json!({"content": [
+            {"type": "paragraph", "content": [
+                {"type": "text", "text": "<img src=x onerror=alert(1)>"},
+                {"type": "text", "text": "click", "marks": [{"type": "link", "attrs": {"href": "javascript:alert(1)"}}]},
+                {"type": "text", "text": "ok", "marks": [{"type": "link", "attrs": {"href": "https://x.dev/a b)c"}}]},
+                {"type": "text", "text": "<b>", "marks": [{"type": "code"}]}
+            ]},
+            {"type": "image", "attrs": {"src": "javascript:alert(2)", "alt": "a"}},
+            {"type": "bookmark", "attrs": {"url": "data:text/html,<script>alert(3)</script>", "title": "t"}},
+            {"type": "embed", "attrs": {"url": "vbscript:x", "provider": "youtube"}},
+            {"type": "fileAttachment", "attrs": {"url": " JavaScript:alert(4)", "name": "f"}}
+        ]});
+        let md = to_markdown(&doc);
+        let lower = md.to_ascii_lowercase();
+        for bad in ["javascript:", "data:text/html", "vbscript:"] {
+            assert!(!lower.contains(bad), "{bad} in {md}");
+        }
+        assert!(
+            !md.replace("\\<", "").replace("`<b>`", "").contains('<'),
+            "raw < in {md}"
+        );
+        assert!(md.contains("\\<img src=x onerror=alert(1)>"), "{md}");
+        assert!(
+            md.contains("[ok](<https://x.dev/a%20b%29c>)")
+                || md.contains("[ok](https://x.dev/a%20b%29c)"),
+            "{md}"
+        );
+        assert!(md.contains("`<b>`"), "code spans stay literal: {md}");
+    }
     use super::*;
     use serde_json::json;
 

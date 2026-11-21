@@ -63,7 +63,7 @@ fn yes() -> bool {
     true
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Grant {
     pub host_id: String,
     pub room: String,
@@ -72,6 +72,22 @@ pub struct Grant {
     pub file: FileRef,
     pub perms: Perms,
     pub callback_token: String,
+}
+
+/// Like the derived `Debug`, with the callback bearer (WOPI: the access token) redacted, so
+/// a `?grant` in a log line can never leak it (SEC-09).
+impl std::fmt::Debug for Grant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Grant")
+            .field("host_id", &self.host_id)
+            .field("room", &self.room)
+            .field("role", &self.role)
+            .field("user", &self.user)
+            .field("file", &self.file)
+            .field("perms", &self.perms)
+            .field("callback_token", &"<redacted>")
+            .finish()
+    }
 }
 
 impl Grant {
@@ -120,6 +136,32 @@ pub fn room_id(host_id: &str, file_id: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// SEC-09: `{:?}` of a grant (or a session built from it) must never print the token.
+    #[test]
+    fn debug_output_redacts_the_callback_token() {
+        let g = super::Grant {
+            host_id: "h".into(),
+            room: "r".into(),
+            role: super::Role::Edit,
+            user: super::User {
+                id: "u".into(),
+                name: "U".into(),
+                color: "#123456".into(),
+                avatar: None,
+            },
+            file: super::FileRef {
+                id: "f".into(),
+                name: "F".into(),
+                version: None,
+            },
+            perms: super::Perms::default(),
+            callback_token: "super-secret-bearer".into(),
+        };
+        let dbg = format!("{g:?}");
+        assert!(!dbg.contains("super-secret-bearer"), "{dbg}");
+        assert!(dbg.contains("callback_token"), "{dbg}");
+    }
     #[test]
     fn room_ids_are_stable_and_short() {
         let a = super::room_id("acme", "doc_1");

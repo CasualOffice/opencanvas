@@ -73,6 +73,13 @@ pub async fn users(
     Query(p): Query<ProxyParams>,
 ) -> Result<Response, ApiError> {
     let (host, grant) = session(&state, &p.ticket).await?;
+    if p.q.len() > 200 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "QUERY_TOO_LONG",
+            "q is limited to 200 bytes",
+        ));
+    }
     if is_wopi(&host, &grant) {
         return users_wopi(&state, &grant, &p.q).await;
     }
@@ -102,7 +109,9 @@ fn multipart_file(ctype: &str, body: &[u8]) -> Option<(String, Vec<u8>)> {
         .map(str::trim)
         .find_map(|p| p.strip_prefix("boundary="))?
         .trim_matches('"');
-    if boundary.is_empty() {
+    // RFC 2046: 1-70 characters. A longer one multiplies the cost of every search below
+    // over a 25 MB body (SEC-13).
+    if boundary.is_empty() || boundary.len() > 70 {
         return None;
     }
     let delim = format!("--{boundary}");
@@ -252,5 +261,33 @@ mod tests {
         assert_eq!(mime, "image/png");
         assert_eq!(data, b"\x89PNG\r\n");
         assert!(super::multipart_file("multipart/form-data; boundary=Nope", body).is_none());
+    }
+
+    /// SEC-13: the boundary length multiplies the cost of every search over a 25 MB body;
+    /// RFC 2046 caps it at 70 characters.
+    #[test]
+    fn overlong_boundaries_are_refused() {
+        let b = "x".repeat(71);
+        let body = format!(
+            "--{b}\r\nContent-Disposition: form-data; name=\"file\"\r\n\r\nhi\r\n--{b}--\r\n"
+        );
+        assert!(
+            super::multipart_file(
+                &format!("multipart/form-data; boundary={b}"),
+                body.as_bytes()
+            )
+            .is_none()
+        );
+        let b = "x".repeat(70);
+        let body = format!(
+            "--{b}\r\nContent-Disposition: form-data; name=\"file\"\r\n\r\nhi\r\n--{b}--\r\n"
+        );
+        assert!(
+            super::multipart_file(
+                &format!("multipart/form-data; boundary={b}"),
+                body.as_bytes()
+            )
+            .is_some()
+        );
     }
 }

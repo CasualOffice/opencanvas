@@ -159,7 +159,9 @@ from `document.json` (content and meta exactly; nested maps best-effort).
 
 Base `callback_base` from the host registry. Headers on every call:
 `Authorization: Bearer <callbackToken from JWT>`,
-`X-OpenCanvas-Signature: t=<unix>,v1=<hex HMAC-SHA256(jwt_secret, "<t>.<body>")>`.
+`X-OpenCanvas-Signature: t=<unix>,v1=<hex HMAC-SHA256(jwt_secret, "<t>.<body>")>,v2=<hex HMAC-SHA256(jwt_secret, "<t>.<METHOD>.<path?query>.<body>")>`.
+(`v2` added 2026-11-21 by the security audit, ADR-022: it binds the method and path; hosts should
+verify `v2` and may fall back to `v1`. Callbacks never follow redirects.)
 
 | Call | Notes |
 |---|---|
@@ -230,8 +232,15 @@ true) is additionally required for `pdf`.
 `ocanvas` export needs `perms.download`, the others `perms.export` (403 otherwise); unknown formats
 answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment; filename="<file name>.<ext>"`.
 `POST /v1/assets` needs the `edit` role and `multipart/form-data` (≤ 25 MB); the host's status and
-body are passed through. Every response carries `Content-Security-Policy: frame-ancestors 'self'
-<all hosts' allowed_origins>` and `Referrer-Policy: no-referrer`.
+body are passed through. Every response carries `Referrer-Policy: no-referrer`,
+`X-Content-Type-Options: nosniff` and a CSP ending in `frame-ancestors 'self' <all hosts'
+allowed_origins>`: by default `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none';
+form-action 'self'; img-src 'self' https: http: data: blob:; …`; exports (`/v1/export/*`, `/v1/convert`)
+are served with `sandbox; default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'`,
+room assets with `default-src 'none'; sandbox`. (Changed 2026-11-21 by the security audit, ADR-022.)
+`GET /metrics` needs `Authorization: Bearer <OC_METRICS_TOKEN>` when that variable is set.
+`GET /v1/users` refuses `q` over 200 bytes (`400 QUERY_TOO_LONG`). A room holds at most 550
+connections (the next is closed with 1013 `room full`); a socket that stops reading is closed.
 
 ## 7. Autosave
 

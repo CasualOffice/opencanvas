@@ -702,7 +702,7 @@ mod tests {
         assert!(md.contains("## Plan"), "{md}");
         assert!(md.contains("Hello **bold **"), "{md}");
         assert!(
-            md.contains(" <x> [link](https://x.dev) bad  \nnext"),
+            md.contains(" \\<x> [link](https://x.dev) bad  \nnext"),
             "{md}"
         );
         let both = &c[1]["content"][2];
