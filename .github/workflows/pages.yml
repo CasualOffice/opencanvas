@@ -78,7 +78,9 @@ jobs:
 
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    # Deploys only after the owner enables Pages (Settings → Pages → Source: GitHub Actions)
+    # and sets the repository variable PAGES_ENABLED=true. Until then the build still runs and checks the site.
+    if: github.ref == 'refs/heads/main' && vars.PAGES_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
