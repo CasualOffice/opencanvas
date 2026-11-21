@@ -5,6 +5,7 @@ use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use bytes::Bytes;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use yrs::encoding::read::Cursor;
@@ -377,20 +378,23 @@ impl Room {
 
     fn send(&self, conn: ConnId, frame: Vec<u8>) {
         if let Some(p) = self.peers.get(&conn) {
-            let _ = p.tx.send(Outbound::Frame(frame));
+            let _ = p.tx.send(Outbound::Frame(frame.into()));
         }
     }
 
-    fn broadcast(&self, frame: &[u8], except: Option<ConnId>) {
+    /// Sends `frame` to every peer but `except`. One buffer, shared by reference count: no
+    /// per-peer copy (docs/22 §7).
+    fn broadcast(&self, frame: impl Into<Bytes>, except: Option<ConnId>) {
+        let frame: Bytes = frame.into();
         for (id, p) in &self.peers {
             if Some(*id) != except {
-                let _ = p.tx.send(Outbound::Frame(frame.to_vec()));
+                let _ = p.tx.send(Outbound::Frame(frame.clone()));
             }
         }
     }
 
     fn set_status(&mut self, status: Value) {
-        self.broadcast(&protocol::control(&status), None);
+        self.broadcast(protocol::control(&status), None);
         if status["t"] != "saving" {
             self.status = status;
         }
@@ -413,7 +417,7 @@ impl Room {
             self.callback_token = grant.callback_token.clone();
         }
         let sv = self.doc.transact().state_vector();
-        let _ = tx.send(Outbound::Frame(protocol::step1(sv)));
+        let _ = tx.send(Outbound::Frame(protocol::step1(sv).into()));
         self.peers.insert(
             conn,
             Peer {
@@ -472,14 +476,14 @@ impl Room {
         {
             tracing::error!(room = %self.id, error = %e, "WAL append failed");
         }
-        self.broadcast(&protocol::update(update), None);
+        self.broadcast(protocol::update(update), None);
     }
 
     /// Sends `update` to every peer but `except`. Everyone with access sees the same names
     /// (docs/21 revision 2); `user` is stamped from each sender's grant on the way in.
     fn fan_out_awareness(&mut self, update: &AwarenessUpdate, except: Option<ConnId>) {
         let frame = protocol::awareness(update.clone());
-        self.broadcast(&frame, except);
+        self.broadcast(frame, except);
     }
 
     /// Everyone's current presence, for one connection.
@@ -523,7 +527,7 @@ impl Room {
                 .iter()
                 .filter(|(_, p)| p.grant.user.id != user_id)
             {
-                let _ = p.tx.send(Outbound::Frame(protocol::control(&msg)));
+                let _ = p.tx.send(Outbound::Frame(protocol::control(&msg).into()));
             }
         }
         let conns: Vec<ConnId> = self
@@ -537,7 +541,8 @@ impl Room {
                 None => {
                     if let Some(p) = self.peers.get(conn) {
                         let closed = json!({"t": "closed", "reason": "access revoked"});
-                        let _ = p.tx.send(Outbound::Frame(protocol::control(&closed)));
+                        let _ =
+                            p.tx.send(Outbound::Frame(protocol::control(&closed).into()));
                         let _ = p.tx.send(Outbound::Close(1008, "access revoked".into()));
                     }
                     self.leave(*conn);
@@ -554,7 +559,7 @@ impl Room {
                     p.grant = Arc::new(grant);
                     p.denied = false;
                     let msg = json!({"t": "role", "role": role.as_str()});
-                    let _ = p.tx.send(Outbound::Frame(protocol::control(&msg)));
+                    let _ = p.tx.send(Outbound::Frame(protocol::control(&msg).into()));
                 }
             }
         }
@@ -630,7 +635,9 @@ impl Room {
         };
         if !peer.denied {
             peer.denied = true;
-            let _ = peer.tx.send(Outbound::Frame(protocol::denied(reason)));
+            let _ = peer
+                .tx
+                .send(Outbound::Frame(protocol::denied(reason).into()));
         }
     }
 
@@ -700,7 +707,7 @@ impl Room {
         if let Some(m) = self.mentions.as_mut() {
             m.note(&bytes, user_id);
         }
-        self.broadcast(&protocol::update(bytes), from);
+        self.broadcast(protocol::update(bytes), from);
         Metrics::inc(&self.ctx.metrics.updates_total);
         self.last_update = Instant::now();
         self.contributors.insert(user_id.to_string());
@@ -1251,10 +1258,12 @@ impl Room {
         self.save = SaveState::default();
         self.conflict = None;
         self.status = json!({"t": "saved", "at": now_ms(), "version": self.host_version});
-        let conflict = protocol::control(&json!({"t": "conflict", "policy": "reload"}));
-        let closed = protocol::control(
+        let conflict = Bytes::from(protocol::control(
+            &json!({"t": "conflict", "policy": "reload"}),
+        ));
+        let closed = Bytes::from(protocol::control(
             &json!({"t": "closed", "reason": "the file changed elsewhere; reloading"}),
-        );
+        ));
         for p in self.peers.values() {
             let _ = p.tx.send(Outbound::Frame(conflict.clone()));
             let _ = p.tx.send(Outbound::Frame(closed.clone()));
@@ -1267,7 +1276,7 @@ impl Room {
 
     /// Control `{"t":"reconnect"}` then close 1012 for every peer.
     fn tell_reconnect(&mut self, reason: &str) {
-        let frame = protocol::control(&json!({"t": "reconnect"}));
+        let frame = Bytes::from(protocol::control(&json!({"t": "reconnect"})));
         for p in self.peers.values() {
             let _ = p.tx.send(Outbound::Frame(frame.clone()));
             let _ = p.tx.send(Outbound::Close(1012, reason.into()));
@@ -1304,7 +1313,7 @@ impl Room {
         }
         if by_host {
             let reason = "closed by the host";
-            let closed = protocol::control(&json!({"t": "closed", "reason": reason}));
+            let closed = Bytes::from(protocol::control(&json!({"t": "closed", "reason": reason})));
             for p in self.peers.values() {
                 let _ = p.tx.send(Outbound::Frame(closed.clone()));
                 let _ = p.tx.send(Outbound::Close(1000, reason.into()));

@@ -11,6 +11,8 @@ pub use remote::RemoteOp;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
+
+use bytes::Bytes;
 use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
@@ -31,7 +33,8 @@ pub type ConnId = u64;
 
 #[derive(Debug)]
 pub enum Outbound {
-    Frame(Vec<u8>),
+    /// One frame, shared (not copied) between every peer it is fanned out to.
+    Frame(Bytes),
     Close(u16, String),
 }
 
@@ -526,7 +529,7 @@ impl Rooms {
             .map(|(_, out)| out)
             .collect();
         for out in relays {
-            let _ = out.send(Outbound::Frame(relay::reconnect_frame()));
+            let _ = out.send(Outbound::Frame(relay::reconnect_frame().into()));
             let _ = out.send(Outbound::Close(
                 relay::RECONNECT,
                 "server shutting down".into(),

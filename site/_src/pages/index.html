@@ -85,7 +85,9 @@
         <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
         <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet.</li>
         <li>The Helm chart is linted and rendered in CI but has not been installed in a real cluster yet, and there are no dashboards.</li>
-        <li>The embed web component works but has not yet been tested inside a host page; WOPI mode has no proof keys yet.</li>
+        <li>WOPI mode has no proof keys yet.</li>
+        <li><strong>Heavy nonstop typing is not there yet.</strong> With everyone typing without a break, a full canvas or a server full of busy rooms falls behind; the capacity figures above are for burst typing. Fixes are in progress; see the <a href="docs/capacity.html">sizing guide</a>.</li>
+        <li>In cluster mode, crashes and restarts lost no confirmed edit in testing, but a server frozen longer than its room lease can still write for a few seconds after resuming. Ownership fencing is in progress.</li>
       </ul>
       <p>Every item is a row in the project's tracker, and the <a href="roadmap.html">roadmap</a> is generated from it.</p>
     </div>
@@ -258,11 +260,11 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
       </div>
     </div>
     <ul class="facts facts--light" aria-label="Measured capacity">
-      <li class="reveal"><span class="cell-icon">{{icon:users}}</span><strong>550 people in one canvas</strong><span>One canvas held its full 550-person cap with no errors or disconnects, on 1.8 cores.</span>{{claim:source|at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores|docs/22-CAPACITY-AND-SIZING.md}}</li>
+      <li class="reveal"><span class="cell-icon">{{icon:users}}</span><strong>550 people in one canvas</strong><span>With a fifth of them typing in bursts, one canvas held its full 550-person cap with no errors or disconnects, on 1.8 cores.</span>{{claim:source|at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores|docs/22-CAPACITY-AND-SIZING.md}}</li>
       <li class="reveal reveal-d1"><span class="cell-icon">{{icon:layers}}</span><strong>5,000 people on one server</strong><span>In rooms of five, a fifth of them typing continuously and the rest watching: edits still reached every peer within 10.2 ms at p95, and the server stayed under one core.</span>{{claim:source|No knee up to 5,000 connections: p95 stayed ≤ 10.2 ms and CPU under one core|docs/22-CAPACITY-AND-SIZING.md}}</li>
       <li class="reveal reveal-d2"><span class="cell-icon">{{icon:server}}</span><strong>Small to run</strong><span>Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.</span>{{claim:source|In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.|docs/22-CAPACITY-AND-SIZING.md}}</li>
     </ul>
-    <p class="note reveal">Measured on one laptop (Apple M4, 10 cores, 16 GB) with SQLite and the load generator on the same machine. Rerun it on your hardware with <code>scripts/bench.sh</code>.</p>
+    <p class="note reveal">Measured on one laptop (Apple M4, 10 cores, 16 GB) with SQLite and the load generator on the same machine, with a fifth of people typing in bursts and the rest watching. With everyone typing nonstop the server currently falls behind; the sizing guide has those runs too. Rerun it on your hardware with <code>scripts/bench.sh</code>.</p>
     <ul class="services reveal">
       <li>{{icon:server:18}}<span><b>oc-server</b>Launch, rooms, saves, exports and the editor at /app/</span></li>
       <li>{{icon:database:18}}<span><b>SQLite or MySQL / MariaDB</b>Only the live session's log and the save outbox</span></li>

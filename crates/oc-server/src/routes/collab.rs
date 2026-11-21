@@ -30,6 +30,18 @@ pub const CLOSE_RATE_LIMIT: u16 = 4429;
 /// socket, and at most [`MAX_BACKLOG`] frames may queue for it.
 pub const SEND_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAX_BACKLOG: usize = 4096;
+/// Initial WebSocket read buffer per connection. tungstenite's default (128 KiB) is
+/// zero-filled on the first read, so every idle connection kept 128 KiB resident (docs/22
+/// §7). Client frames are small (keystroke updates, awareness); a larger frame grows the
+/// buffer as needed, up to the frame limit.
+pub const WS_READ_BUFFER: usize = 8 * 1024;
+
+/// The WebSocket settings shared by client sockets and the cluster relay.
+pub fn ws_config(ws: WebSocketUpgrade, max_message: usize) -> WebSocketUpgrade {
+    ws.read_buffer_size(WS_READ_BUFFER)
+        .max_message_size(max_message)
+        .max_frame_size(max_message)
+}
 
 /// Sends the actor's frames to `sink` until a close, a send error, a send that takes longer
 /// than [`SEND_TIMEOUT`] or a backlog over [`MAX_BACKLOG`] (a peer that stopped reading).
@@ -39,7 +51,7 @@ where
 {
     while let Some(out) = rx.recv().await {
         let msg = match out {
-            Outbound::Frame(b) => Message::Binary(b.into()),
+            Outbound::Frame(b) => Message::Binary(b),
             Outbound::Close(code, reason) => {
                 let _ = tokio::time::timeout(
                     SEND_TIMEOUT,
@@ -99,9 +111,7 @@ pub async fn upgrade(
         entry.connected = true;
     }
     let limit = state.cfg.rooms.max_frame_bytes;
-    Ok(ws
-        .max_message_size(limit * 2)
-        .max_frame_size(limit * 2)
+    Ok(ws_config(ws, limit * 2)
         .on_upgrade(move |socket| serve(state, host, grant, socket, p.ticket)))
 }
 
@@ -184,7 +194,7 @@ async fn serve(
     let every = state.cfg.rooms.heartbeat;
     let mut heartbeat = tokio::time::interval_at(tokio::time::Instant::now() + every, every);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    let ping = protocol::control(&json!({"t": "ping"}));
+    let ping = bytes::Bytes::from(protocol::control(&json!({"t": "ping"})));
     loop {
         tokio::select! {
             _ = heartbeat.tick() => {
@@ -218,7 +228,7 @@ async fn serve(
                 break;
             }
             _ = &mut expiry => {
-                let _ = tx.send(Outbound::Frame(protocol::control(&json!({"t": "closed", "reason": "session expired"}))));
+                let _ = tx.send(Outbound::Frame(protocol::control(&json!({"t": "closed", "reason": "session expired"})).into()));
                 let _ = tx.send(Outbound::Close(1008, "session expired".into()));
                 break;
             }
@@ -237,13 +247,28 @@ async fn serve(
 mod tests {
     use super::*;
 
+    /// docs/22 §7: an idle connection must not keep tungstenite's 128 KiB default read buffer
+    /// (zero-filled, so resident). Guard against the override being dropped or raised.
+    #[test]
+    fn websocket_read_buffer_stays_small() {
+        let default = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default();
+        assert!(
+            default.read_buffer_size >= 64 * 1024,
+            "default changed: re-measure"
+        );
+        assert!(
+            WS_READ_BUFFER * 8 <= default.read_buffer_size,
+            "WS_READ_BUFFER {WS_READ_BUFFER} is close to the default again"
+        );
+    }
+
     /// SEC-17: a client that stops reading is dropped once its backlog passes MAX_BACKLOG,
     /// instead of queueing every room update in memory forever.
     #[tokio::test]
     async fn a_client_that_does_not_read_is_dropped() {
         let (tx, rx) = mpsc::unbounded_channel();
         for _ in 0..MAX_BACKLOG + 10 {
-            tx.send(Outbound::Frame(vec![0, 2, 1, 0])).unwrap();
+            tx.send(Outbound::Frame(vec![0, 2, 1, 0].into())).unwrap();
         }
         let mut sent: Vec<Message> = Vec::new();
         write_frames(&mut sent, rx).await;
@@ -256,7 +281,7 @@ mod tests {
         // A reading client gets everything.
         let (tx, rx) = mpsc::unbounded_channel();
         for _ in 0..10 {
-            tx.send(Outbound::Frame(vec![1])).unwrap();
+            tx.send(Outbound::Frame(vec![1].into())).unwrap();
         }
         drop(tx);
         let mut sent: Vec<Message> = Vec::new();

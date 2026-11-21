@@ -75,7 +75,7 @@ pub(crate) async fn connect(
                 cmd = rx.recv() => match cmd {
                     Some(Cmd::Frame { data, .. }) => {
                         if sink.send(Message::Binary(data.into())).await.is_err() {
-                            let _ = out.send(Outbound::Frame(reconnect_frame()));
+                            let _ = out.send(Outbound::Frame(reconnect_frame().into()));
                             let _ = out.send(Outbound::Close(RECONNECT, "owner moved".into()));
                             break;
                         }
@@ -88,7 +88,7 @@ pub(crate) async fn connect(
                 },
                 msg = stream.next() => match msg {
                     Some(Ok(Message::Binary(b))) => {
-                        let _ = out.send(Outbound::Frame(b.to_vec()));
+                        let _ = out.send(Outbound::Frame(b));
                     }
                     Some(Ok(Message::Close(Some(cf)))) => {
                         let _ = out.send(Outbound::Close(cf.code.into(), cf.reason.to_string()));
@@ -98,7 +98,7 @@ pub(crate) async fn connect(
                         // The owner went away without a word (crash): the client reconnects and
                         // lands on whichever node now owns the room.
                         tracing::info!(room = %room, "relay to owner lost; client told to reconnect");
-                        let _ = out.send(Outbound::Frame(reconnect_frame()));
+                        let _ = out.send(Outbound::Frame(reconnect_frame().into()));
                         let _ = out.send(Outbound::Close(RECONNECT, "owner moved".into()));
                         break;
                     }

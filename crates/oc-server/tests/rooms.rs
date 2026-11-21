@@ -286,3 +286,47 @@ async fn last_leave_saves_and_reopen_loads_from_host() {
     assert_eq!(content_text(&json_of(&b.doc)), "keep me");
     assert_eq!(host.lock().unwrap().gets, 2);
 }
+
+/// docs/22 §7: the room's fan-out shares one buffer between peers instead of copying every
+/// frame once per peer. Two viewers receive the same update in the same allocation.
+#[tokio::test]
+async fn fan_out_shares_one_buffer_between_peers() {
+    use oc_server::room::Outbound;
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut viewers = vec![];
+    for u in ["u_v1", "u_v2"] {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let m = state
+            .rooms
+            .join(&host, Arc::new(grant(u, Role::View)), tx)
+            .await
+            .unwrap();
+        viewers.push((m, rx));
+    }
+    let editor = Peer::join(&state, grant("u_e", Role::Edit)).await;
+    // Drain the join traffic (sync step 1, status, presence).
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    for (_, rx) in &mut viewers {
+        while rx.try_recv().is_ok() {}
+    }
+    editor.edit(|d| type_text(d, "shared"));
+    let mut got = vec![];
+    for (_, rx) in &mut viewers {
+        let frame = loop {
+            match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
+                Ok(Some(Outbound::Frame(f))) if f.first() == Some(&0) => break f,
+                Ok(Some(_)) => continue,
+                other => panic!("no update: {other:?}"),
+            }
+        };
+        got.push(frame);
+    }
+    assert_eq!(got[0][..], got[1][..]);
+    assert_eq!(
+        got[0].as_ptr(),
+        got[1].as_ptr(),
+        "each peer got its own copy of the frame"
+    );
+}

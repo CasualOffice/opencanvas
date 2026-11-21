@@ -1,7 +1,7 @@
 //! HTTP surface (docs/15 §2, §3, §6).
 
 mod api;
-mod collab;
+pub(crate) mod collab;
 mod export;
 mod launch;
 mod ops;

@@ -77,8 +77,7 @@ async fn relay(
         }
     };
     let limit = state.cfg.rooms.max_frame_bytes * 2;
-    ws.max_message_size(limit)
-        .max_frame_size(limit)
+    crate::routes::collab::ws_config(ws, limit)
         .on_upgrade(move |socket| pump(socket, membership, rx))
 }
 

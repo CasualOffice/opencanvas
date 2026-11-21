@@ -130,8 +130,19 @@ superseded; see ADR-026 for what was removed.
    map still names them (until access is granted again or they open with a new token), closes
    their sockets (1008) and sends `{"t":"members"}` to everyone else, whose editors refetch the
    list without a reload. `POST /v1/files/:id/members/invalidate` (host api key) drops the cache
-   and sends the same control. `DELETE /v1/files/:id/session` drops the cache. The cache and the
-   revoke set live on the node that served the call.
+   and sends the same control. `DELETE /v1/files/:id/session` drops the cache.
+   **Cluster mode:** the cache and the revoke set are per node, so every revoke, restore and
+   invalidate is also published on the Redis pub/sub channel `oc:members` (HMAC-signed with
+   `OC_CLUSTER_SECRET`, ±30 s clock skew, own messages ignored) and applied by every other node
+   as it arrives; the role API publishes before it tells the room, so editors that refetch on
+   the `members` control see the new list on any node. The sockets close through the room's
+   owner, which holds every connection including relayed ones. Pub/sub is fire-and-forget: a
+   node whose subscription drops clears its whole members cache when it resubscribes; a
+   revoke published while a node was unsubscribed is not replayed there (its cached answer
+   still expires within 60 s, and the host's own list should already leave the person out).
+   Test: `tests/cluster.rs` `revoke_on_one_node_reaches_every_node` (in-memory bus) and
+   `…_over_redis` (real Redis when `OC_TEST_REDIS_URL` is set): node B drops the person
+   within 1 s of a revoke on node A and B's relayed socket closes with 1008.
 4. **Presence** is stamped from each sender's grant (`id, name, color, avatar, detail?`) and is
    the same for every recipient.
 5. **Chips.** A mention whose id is a member shows the member's current name. Otherwise the
