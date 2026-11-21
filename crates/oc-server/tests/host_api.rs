@@ -374,7 +374,8 @@ async fn convert_between_formats() {
     assert!(document.contains("Image: theirs"));
 
     // Errors.
-    assert_eq!(convert(&addr, "md", "pdf", vec![]).await.status(), 400);
+    assert_eq!(convert(&addr, "md", "pdf", vec![]).await.status(), 501);
+    assert_eq!(convert(&addr, "md", "rtf", vec![]).await.status(), 400);
     assert_eq!(convert(&addr, "rtf", "md", vec![]).await.status(), 400);
     assert_eq!(
         convert(&addr, "ocanvas", "md", b"not a zip".to_vec())

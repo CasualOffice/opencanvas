@@ -285,7 +285,8 @@ All JSON; errors `{ "error": { "code": "…", "message": "…" } }`.
 | `POST /v1/launch` (form: `token`, `mode`) | launch JWT or WOPI token | returns editor HTML; sets ticket |
 | `GET  /v1/sessions/{ticket}` | ticket | grant + room info for the SPA |
 | `GET  /v1/preview` `?token=` | JWT/WOPI | read-only HTML |
-| `GET  /v1/export/{fmt}` `?token=` | JWT/WOPI + `export` perm | md/html/pdf/docx/ocanvas/png |
+| `GET  /v1/export/{fmt}` `?ticket=` | ticket + `export` perm (`download` for ocanvas) | md/html/json/docx/pdf/ocanvas |
+| `GET  /v1/export/board/{boardId}.{svg,png}` `?ticket=` | ticket + `export` perm | one board, fitted to content |
 | `POST /v1/assets` (multipart) | ticket, edit | proxies upload to host asset callback |
 | `GET  /v1/assets/{id}` | ticket | proxies/redirects to host asset URL |
 | `GET  /v1/unfurl?url=` | ticket | link preview |
@@ -345,7 +346,7 @@ by a small forgiving parser (scripts/styles dropped, `javascript:` links dropped
 | `OC_ROOM_TTL_SECS` | 600 | purge after last leave + committed |
 | `OC_MAX_DOC_MB` | 20 | hard CRDT size cap |
 | `OC_MAX_FRAME_KB` | 1024 | WS frame cap |
-| `OC_PDF_RENDERER` | `builtin` | `builtin` \| `chromium:http://…` |
+| `OC_PDF_RENDERER` | unset | `gotenberg:http://gotenberg:3000`; unset → PDF export answers 501 (ADR-010) |
 | `OC_LOG` | `info` | log level, JSON |
 
 ## 8. Front-end design

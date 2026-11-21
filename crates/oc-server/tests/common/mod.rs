@@ -71,6 +71,17 @@ async fn asset(
     {
         return (StatusCode::FOUND, [("location", to)]).into_response();
     }
+    match id.as_str() {
+        // Over the 10 MB cap (a valid PNG header, then padding).
+        "big" => {
+            let mut b = PNG_1X1.to_vec();
+            b.resize(10 * 1024 * 1024 + 1, 0);
+            return ([("content-type", "image/png")], b).into_response();
+        }
+        // Image bytes, but not served as an image.
+        "text" => return ([("content-type", "text/html")], PNG_1X1.to_vec()).into_response(),
+        _ => {}
+    }
     ([("content-type", "image/png")], PNG_1X1.to_vec()).into_response()
 }
 
@@ -213,6 +224,8 @@ pub fn host_config(base: &str) -> HostConfig {
         api_key: None,
         callback_base: base.into(),
         allowed_origins: vec!["http://localhost:4000".into()],
+        asset_origins: vec![],
+        original_callback_base: None,
         flags: Default::default(),
     }
 }
@@ -244,18 +257,31 @@ pub async fn app_custom(
     db: &std::path::Path,
     tweak: impl FnOnce(&mut HostConfig),
 ) -> SharedState {
+    app_full(base, rooms, db, tweak, |_| {}).await
+}
+
+/// Like `app_custom`, with a hook for the server config too.
+pub async fn app_full(
+    base: &str,
+    rooms: RoomConfig,
+    db: &std::path::Path,
+    tweak: impl FnOnce(&mut HostConfig),
+    tweak_cfg: impl FnOnce(&mut Config),
+) -> SharedState {
     let mut host = host_config(base);
     tweak(&mut host);
-    let cfg = Config {
+    let mut cfg = Config {
         bind: "127.0.0.1:0".into(),
         public_url: None,
         database_url: format!("sqlite://{}?mode=rwc", db.display()),
         hosts_file: "unused".into(),
         web_dir: "unused".into(),
         callback_base_override: None,
+        pdf_renderer: None,
         kek: Some(oc_server::crypto::Kek::from_b64(TEST_KEK).unwrap()),
         rooms,
     };
+    tweak_cfg(&mut cfg);
     AppState::new(cfg, Hosts::from_list(vec![host]))
         .await
         .unwrap()

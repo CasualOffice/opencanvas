@@ -30,7 +30,7 @@ fn sample() -> Value {
         "meta": {"title": "Sprint <42> & co"},
         "databases": {"d1": {"name": "Tasks", "fields": [{"id":"f1","name":"Name"},{"id":"f2","name":"Status"}],
             "order": ["r1","r2"], "rows": {"r1": {"f1": "Ship", "f2": {"v":"Done","c":"green"}}, "r2": {"f1": "Test"}}}},
-        "boards": {"b1": {"order": ["s1","s2"], "shapes": {"s1": {"type":"sticky","text":"Idea one"}, "s2": {"type":"rect"}}}},
+        "boards": {"b1": {"order": ["s1","s2","s3"], "shapes": {"s1": {"type":"sticky","x":0,"y":0,"w":150,"h":110,"text":"Idea one"}, "s2": {"type":"rect","x":200,"y":0,"w":100,"h":60}, "s3": {"type":"image","x":320,"y":0,"w":40,"h":40,"src":"https://host.example/assets/b1"}}}},
         "content": [
             {"type":"heading","attrs":{"level":1},"content":[t("Plan")]},
             p(vec![
@@ -202,7 +202,8 @@ fn docx_package_is_complete_and_well_formed() {
         image_sources(&doc),
         [
             "https://host.example/assets/a1",
-            "https://evil.example/x.png"
+            "https://evil.example/x.png",
+            "https://host.example/assets/b1"
         ]
     );
     assert_eq!(image_info(&PNG_1X1), Some(("png", 1, 1)));
@@ -222,6 +223,7 @@ fn docx_package_is_complete_and_well_formed() {
         "word/styles.xml",
         "word/numbering.xml",
         "word/media/image1.png",
+        "word/media/image2.png",
     ] {
         let part = parts.get(name).unwrap_or_else(|| panic!("missing {name}"));
         if name.ends_with(".xml") || name.ends_with(".rels") {
@@ -256,8 +258,8 @@ fn docx_package_is_complete_and_well_formed() {
         "A dot",
         ">Tasks<",
         ">Done<",
-        "Whiteboard with 2 shapes",
-        "Idea one",
+        ">Whiteboard<",
+        "descr=\"Whiteboard: Idea one\"",
         "@Asha",
         "ctrlchar",
         ">left<",
@@ -273,6 +275,13 @@ fn docx_package_is_complete_and_well_formed() {
         "unfetched image is a link"
     );
     assert!(rels.contains("Target=\"media/image1.png\""));
+    // The board is a rendered PNG (fitted: 360 + 2×32 = 424 px wide, rendered at 2×).
+    let board = &parts["word/media/image2.png"];
+    assert_eq!(image_info(board).map(|i| (i.0, i.1)), Some(("png", 848)));
+    assert!(
+        document.contains("cx=\"4038600\""),
+        "board shown at 424 px = 4038600 EMU"
+    );
     assert!(notes.iter().any(|n| n.contains("evil.example")));
 
     smoke_with_tools(&bytes);

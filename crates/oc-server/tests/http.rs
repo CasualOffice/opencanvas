@@ -218,7 +218,13 @@ async fn launch_session_websocket_and_export() {
         .send()
         .await
         .unwrap();
-    assert_eq!(pdf.status(), 404);
+    assert_eq!(pdf.status(), 501, "no PDF renderer configured");
+    let rtf = client
+        .get(format!("http://{addr}/v1/export/rtf?ticket={ticket}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(rtf.status(), 404);
 
     let users: Value = client
         .get(format!("http://{addr}/v1/users?ticket={ticket}&q=as"))

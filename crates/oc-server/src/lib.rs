@@ -1,5 +1,6 @@
 //! OpenCanvas server: launch, sessions, collaboration rooms, autosave and exports.
 
+pub mod assets;
 pub mod config;
 pub mod crypto;
 pub mod grant;
@@ -7,6 +8,7 @@ pub mod host_client;
 pub mod hosts;
 pub mod jwt;
 pub mod metrics;
+pub mod pdf;
 pub mod room;
 pub mod routes;
 pub mod store;

@@ -263,19 +263,32 @@ impl HostClient {
         Self::passthrough(res).await
     }
 
-    /// Downloads an asset from the host's own origin (the caller checks the origin), signed
-    /// like every callback, without following redirects, at most [`MAX_ASSET_FETCH`] bytes.
+    /// Downloads an image from an allowed origin (the caller checks it, see `assets`), signed
+    /// like every callback when `signed`, without following redirects, at most
+    /// [`MAX_ASSET_FETCH`] bytes, and only when the answer is `image/*`.
     pub async fn get_asset(
         &self,
         host: &HostConfig,
         token: &str,
         url: Url,
+        signed: bool,
     ) -> Result<Bytes, HostError> {
-        let mut res = Self::signed(&self.assets, host, token, Method::GET, url, Vec::new(), 10)
-            .send()
-            .await?;
+        let req = if signed {
+            Self::signed(&self.assets, host, token, Method::GET, url, Vec::new(), 10)
+        } else {
+            self.assets.get(url).timeout(Duration::from_secs(10))
+        };
+        let mut res = req.send().await?;
         if !res.status().is_success() {
             return Err(HostError::Status(res.status()));
+        }
+        let is_image = res
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|ct| ct.trim().to_ascii_lowercase().starts_with("image/"));
+        if !is_image {
+            return Err(HostError::Body("not an image".into()));
         }
         if res
             .content_length()

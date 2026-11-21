@@ -1,5 +1,7 @@
 //! Markdown and HTML export from the logical JSON produced by [`crate::doc_to_json`].
 
+use std::collections::HashMap;
+
 use serde_json::Value;
 
 fn s<'a>(v: &'a Value, key: &str) -> &'a str {
@@ -128,14 +130,45 @@ fn starts_with_h1(doc: &Value) -> bool {
 
 // ---------------- markdown ----------------
 
+/// Export options shared by Markdown and HTML.
+#[derive(Default, Clone, Copy)]
+pub struct Options<'a> {
+    /// Self-contained output (print / PDF): images whose `src` is a key here are inlined as
+    /// `data:` URLs, every other image becomes a link (boards drop it), and a CSP forbids
+    /// any fetch.
+    pub images: Option<&'a HashMap<String, Vec<u8>>>,
+    /// Markdown: URL of a board's SVG export (`GET /v1/export/board/:id.svg`), linked under
+    /// the board's note.
+    pub board_link: Option<&'a dyn Fn(&str) -> String>,
+}
+
+struct Cx<'a> {
+    doc: &'a Value,
+    opts: &'a Options<'a>,
+}
+
+fn data_url(bytes: &[u8]) -> Option<String> {
+    use base64::Engine;
+    let mime = crate::board::sniff_image(bytes)?;
+    Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
 pub fn to_markdown(doc: &Value) -> String {
+    to_markdown_with(doc, &Options::default())
+}
+
+pub fn to_markdown_with(doc: &Value, opts: &Options) -> String {
+    let cx = &Cx { doc, opts };
     let mut out = String::new();
     if !title(doc).is_empty() && !starts_with_h1(doc) {
         out.push_str(&format!("# {}\n\n", title(doc)));
     }
     let blocks: Vec<String> = children(doc)
         .iter()
-        .map(|n| md_block(doc, n))
+        .map(|n| md_block(cx, n))
         .filter(|b| !b.is_empty())
         .collect();
     out.push_str(&blocks.join("\n\n"));
@@ -194,10 +227,10 @@ fn indent(text: &str, pad: &str) -> String {
         .join("\n")
 }
 
-fn md_children(doc: &Value, n: &Value, sep: &str) -> String {
+fn md_children(cx: &Cx, n: &Value, sep: &str) -> String {
     children(n)
         .iter()
-        .map(|c| md_block(doc, c))
+        .map(|c| md_block(cx, c))
         .filter(|b| !b.is_empty())
         .collect::<Vec<_>>()
         .join(sep)
@@ -221,7 +254,7 @@ fn md_table(header: &[String], rows: &[Vec<String>]) -> String {
     out.trim_end().to_string()
 }
 
-fn md_block(doc: &Value, n: &Value) -> String {
+fn md_block(cx: &Cx, n: &Value) -> String {
     match s(n, "type") {
         "paragraph" => md_inline(children(n)),
         "heading" => {
@@ -238,12 +271,12 @@ fn md_block(doc: &Value, n: &Value) -> String {
                     ("taskList", _) => "- [ ] ".into(),
                     _ => "- ".into(),
                 };
-                let body = md_children(doc, item, "\n");
+                let body = md_children(cx, item, "\n");
                 format!("{marker}{}", indent(&body, &" ".repeat(marker.len())))
             })
             .collect::<Vec<_>>()
             .join("\n"),
-        "blockquote" | "callout" => md_children(doc, n, "\n\n")
+        "blockquote" | "callout" => md_children(cx, n, "\n\n")
             .lines()
             .map(|l| format!("> {l}").trim_end().to_string())
             .collect::<Vec<_>>()
@@ -276,17 +309,24 @@ fn md_block(doc: &Value, n: &Value) -> String {
             let body = children(n)
                 .iter()
                 .find(|c| s(c, "type") == "toggleContent")
-                .map(|c| md_children(doc, c, "\n\n"))
+                .map(|c| md_children(cx, c, "\n\n"))
                 .unwrap_or_default();
             format!("**{summary}**\n\n{body}").trim_end().to_string()
         }
         "database" => {
-            let (name, header, rows) = database_table(doc, attr_str(n, "dbId"));
+            let (name, header, rows) = database_table(cx.doc, attr_str(n, "dbId"));
             format!("### {name}\n\n{}", md_table(&header, &rows))
                 .trim_end()
                 .to_string()
         }
-        "board" => format!("### Board\n\n*{}*", board_note(doc, attr_str(n, "boardId"))),
+        "board" => {
+            let id = attr_str(n, "boardId");
+            let mut out = format!("### Board\n\n*{}*", board_note(cx.doc, id));
+            if let Some(link) = cx.opts.board_link {
+                out.push_str(&format!("\n\n[Whiteboard (SVG)]({})", link(id)));
+            }
+            out
+        }
         "bookmark" => format!(
             "[{}]({})",
             fallback(attr_str(n, "title"), attr_str(n, "url")),
@@ -298,7 +338,7 @@ fn md_block(doc: &Value, n: &Value) -> String {
             attr_str(n, "url")
         ),
         "fileAttachment" => format!("[{}]({})", attr_str(n, "name"), attr_str(n, "url")),
-        _ => md_children(doc, n, "\n\n"),
+        _ => md_children(cx, n, "\n\n"),
     }
 }
 
@@ -332,20 +372,34 @@ fn safe_url(u: &str) -> String {
 }
 
 pub fn to_html(doc: &Value) -> String {
+    to_html_with(doc, &Options::default())
+}
+
+pub fn to_html_with(doc: &Value, opts: &Options) -> String {
+    let cx = &Cx { doc, opts };
     let t = title(doc);
     let mut body = String::new();
     if !t.is_empty() && !starts_with_h1(doc) {
         body.push_str(&format!("<h1>{}</h1>\n", escape(t)));
     }
     for n in children(doc) {
-        body.push_str(&html_block(doc, n));
+        body.push_str(&html_block(cx, n));
         body.push('\n');
     }
+    // Self-contained (print / PDF): everything is inline, so forbid the renderer any fetch.
+    let csp = if opts.images.is_some() {
+        "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src data:; style-src 'unsafe-inline'\">"
+    } else {
+        ""
+    };
     format!(
-        "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>{}</title>\
+        "<!doctype html>\n<html><head><meta charset=\"utf-8\">{csp}<title>{}</title>\
          <style>body{{font:16px/1.6 system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px}}\
          table{{border-collapse:collapse}}td,th{{border:1px solid #ddd;padding:4px 8px}}\
-         blockquote{{border-left:3px solid #ddd;margin:0;padding-left:12px}}</style></head>\n<body>\n{body}</body></html>\n",
+         blockquote{{border-left:3px solid #ddd;margin:0;padding-left:12px}}\
+         img,figure.board svg{{max-width:100%;height:auto}}figure{{margin:16px 0}}figcaption{{color:#55555e;font-size:14px}}\
+         figure.board{{break-inside:avoid}}\
+         @media print{{body{{margin:0;max-width:none}}@page{{margin:18mm}}}}</style></head>\n<body>\n{body}</body></html>\n",
         escape(if t.is_empty() { "Canvas" } else { t })
     )
 }
@@ -385,8 +439,8 @@ fn html_inline(nodes: &[Value]) -> String {
         .collect()
 }
 
-fn html_children(doc: &Value, n: &Value) -> String {
-    children(n).iter().map(|c| html_block(doc, c)).collect()
+fn html_children(cx: &Cx, n: &Value) -> String {
+    children(n).iter().map(|c| html_block(cx, c)).collect()
 }
 
 fn html_table(header: &[String], rows: &[Vec<String>]) -> String {
@@ -408,17 +462,17 @@ fn html_table(header: &[String], rows: &[Vec<String>]) -> String {
     format!("<table><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table>")
 }
 
-fn html_block(doc: &Value, n: &Value) -> String {
+fn html_block(cx: &Cx, n: &Value) -> String {
     match s(n, "type") {
         "paragraph" => format!("<p>{}</p>", html_inline(children(n))),
         "heading" => {
             let l = attr(n, "level").as_u64().unwrap_or(1).clamp(1, 6);
             format!("<h{l}>{}</h{l}>", html_inline(children(n)))
         }
-        "bulletList" => format!("<ul>{}</ul>", html_children(doc, n)),
-        "orderedList" => format!("<ol>{}</ol>", html_children(doc, n)),
-        "taskList" => format!("<ul class=\"tasks\">{}</ul>", html_children(doc, n)),
-        "listItem" => format!("<li>{}</li>", html_children(doc, n)),
+        "bulletList" => format!("<ul>{}</ul>", html_children(cx, n)),
+        "orderedList" => format!("<ol>{}</ol>", html_children(cx, n)),
+        "taskList" => format!("<ul class=\"tasks\">{}</ul>", html_children(cx, n)),
+        "listItem" => format!("<li>{}</li>", html_children(cx, n)),
         "taskItem" => {
             let checked = if attr(n, "checked").as_bool() == Some(true) {
                 " checked"
@@ -427,19 +481,32 @@ fn html_block(doc: &Value, n: &Value) -> String {
             };
             format!(
                 "<li><input type=\"checkbox\" disabled{checked}> {}</li>",
-                html_children(doc, n)
+                html_children(cx, n)
             )
         }
-        "blockquote" => format!("<blockquote>{}</blockquote>", html_children(doc, n)),
-        "callout" => format!("<aside class=\"callout\">{}</aside>", html_children(doc, n)),
+        "blockquote" => format!("<blockquote>{}</blockquote>", html_children(cx, n)),
+        "callout" => format!("<aside class=\"callout\">{}</aside>", html_children(cx, n)),
         "codeBlock" => format!("<pre><code>{}</code></pre>", escape(&plain_text(n))),
         "horizontalRule" => "<hr>".into(),
         "image" => {
-            let img = format!(
-                "<img src=\"{}\" alt=\"{}\">",
-                safe_url(attr_str(n, "src")),
-                escape(attr_str(n, "alt"))
-            );
+            let src = attr_str(n, "src");
+            let alt = escape(attr_str(n, "alt"));
+            let img = match cx.opts.images {
+                None => format!("<img src=\"{}\" alt=\"{alt}\">", safe_url(src)),
+                Some(images) => match images.get(src).and_then(|b| data_url(b)) {
+                    Some(data) => format!("<img src=\"{data}\" alt=\"{alt}\">"),
+                    // Not fetched (not on an allowed origin): a link, never a request.
+                    None => format!(
+                        "<a href=\"{}\">{}</a>",
+                        safe_url(src),
+                        if alt.is_empty() {
+                            "Image".to_string()
+                        } else {
+                            format!("Image: {alt}")
+                        }
+                    ),
+                },
+            };
             match attr_str(n, "caption") {
                 "" => format!("<figure>{img}</figure>"),
                 c => format!(
@@ -448,20 +515,24 @@ fn html_block(doc: &Value, n: &Value) -> String {
                 ),
             }
         }
-        "table" => format!("<table>{}</table>", html_children(doc, n)),
-        "tableRow" => format!("<tr>{}</tr>", html_children(doc, n)),
-        "tableHeader" => format!("<th>{}</th>", html_children(doc, n)),
-        "tableCell" => format!("<td>{}</td>", html_children(doc, n)),
-        "toggle" => format!("<details>{}</details>", html_children(doc, n)),
+        "table" => format!("<table>{}</table>", html_children(cx, n)),
+        "tableRow" => format!("<tr>{}</tr>", html_children(cx, n)),
+        "tableHeader" => format!("<th>{}</th>", html_children(cx, n)),
+        "tableCell" => format!("<td>{}</td>", html_children(cx, n)),
+        "toggle" => format!("<details>{}</details>", html_children(cx, n)),
         "toggleSummary" => format!("<summary>{}</summary>", html_inline(children(n))),
         "database" => {
-            let (name, header, rows) = database_table(doc, attr_str(n, "dbId"));
+            let (name, header, rows) = database_table(cx.doc, attr_str(n, "dbId"));
             format!("<h3>{}</h3>{}", escape(&name), html_table(&header, &rows))
         }
-        "board" => format!(
-            "<h3>Board</h3><p><em>{}</em></p>",
-            escape(&board_note(doc, attr_str(n, "boardId")))
-        ),
+        "board" => {
+            let id = attr_str(n, "boardId");
+            let svg = match cx.opts.images {
+                Some(images) => crate::board::to_svg_self_contained(cx.doc, id, images),
+                None => crate::board::to_svg(cx.doc, id),
+            };
+            format!("<figure class=\"board\">{svg}<figcaption>Whiteboard</figcaption></figure>")
+        }
         "bookmark" | "embed" => {
             let label = fallback(attr_str(n, "title"), attr_str(n, "url"));
             format!(
@@ -475,9 +546,9 @@ fn html_block(doc: &Value, n: &Value) -> String {
             safe_url(attr_str(n, "url")),
             escape(attr_str(n, "name"))
         ),
-        "columns" => format!("<div class=\"columns\">{}</div>", html_children(doc, n)),
-        "column" => format!("<div class=\"column\">{}</div>", html_children(doc, n)),
-        _ => html_children(doc, n),
+        "columns" => format!("<div class=\"columns\">{}</div>", html_children(cx, n)),
+        "column" => format!("<div class=\"column\">{}</div>", html_children(cx, n)),
+        _ => html_children(cx, n),
     }
 }
 
@@ -520,5 +591,66 @@ mod tests {
         let html = to_html(&doc);
         assert!(!html.contains("javascript:"));
         assert!(html.contains("&lt;x&gt;"));
+    }
+
+    fn board_doc() -> Value {
+        json!({
+            "boards": {"b1": {"order": ["s1", "i1"], "shapes": {
+                "s1": {"type": "sticky", "x": 0, "y": 0, "w": 150, "h": 110, "text": "Idea"},
+                "i1": {"type": "image", "x": 200, "y": 0, "w": 40, "h": 40, "src": "https://cdn.example/b.png"}}}},
+            "content": [
+                {"type":"board","attrs":{"boardId":"b1"}},
+                {"type":"image","attrs":{"src":"https://cdn.example/a.png","alt":"A"}},
+                {"type":"image","attrs":{"src":"https://evil.example/x.png","alt":"X"}}
+            ]
+        })
+    }
+
+    #[test]
+    fn html_inlines_board_svg() {
+        let html = to_html(&board_doc());
+        assert!(html.contains("<figure class=\"board\"><svg "), "{html}");
+        assert!(html.contains(">Idea</text>"));
+        assert!(html.contains("<figcaption>Whiteboard</figcaption>"));
+    }
+
+    #[test]
+    fn markdown_links_the_board_svg() {
+        let link = |id: &str| format!("https://oc.example/v1/export/board/{id}.svg?ticket=T");
+        let md = to_markdown_with(
+            &board_doc(),
+            &Options {
+                board_link: Some(&link),
+                ..Default::default()
+            },
+        );
+        assert!(
+            md.contains("[Whiteboard (SVG)](https://oc.example/v1/export/board/b1.svg?ticket=T)"),
+            "{md}"
+        );
+        assert!(md.contains("2 shapes"));
+        assert!(!to_markdown(&board_doc()).contains("/v1/export/board/"));
+    }
+
+    #[test]
+    fn self_contained_html_fetches_nothing() {
+        let png = b"\x89PNG\r\n\x1a\n0000000000000000".to_vec();
+        let mut images = std::collections::HashMap::new();
+        images.insert("https://cdn.example/a.png".to_string(), png.clone());
+        images.insert("https://cdn.example/b.png".to_string(), png);
+        let html = to_html_with(
+            &board_doc(),
+            &Options {
+                images: Some(&images),
+                ..Default::default()
+            },
+        );
+        assert!(html.contains("<img src=\"data:image/png;base64,"), "{html}");
+        assert!(html.contains("<image href=\"data:image/png;base64,"));
+        // The unfetched image is a link, not something the renderer would load.
+        assert!(!html.contains("src=\"https://evil.example"));
+        assert!(html.contains("href=\"https://evil.example/x.png\""));
+        assert!(html.contains("default-src 'none'"));
+        assert!(!html.contains("src=\"http"));
     }
 }

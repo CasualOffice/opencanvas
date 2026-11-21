@@ -30,6 +30,8 @@ jwt_secret      = "env:ACME_OC_SECRET"
 api_key         = "env:ACME_OC_API_KEY"    # for server→server REST calls to us
 callback_base   = "https://api.acme.example/opencanvas"
 allowed_origins = ["https://app.acme.example"]
+asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports (unsigned GET);
+                                           # your callback_base origin is always allowed
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
 export_formats  = ["md", "html", "pdf", "ocanvas"]
@@ -191,9 +193,11 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 - Close everything (file deleted/moved): `DELETE /v1/files/{fileId}/session` — a final
   save, then every connection is closed and every ticket for the file is dropped.
   `200 {"closed":true,"sessions":3}`.
-- Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx`
-  with the file as the raw body. DOCX embeds images only from your `callback_base` origin
-  (fetched signed, redirects not followed); other images become links.
+- Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`
+  with the file as the raw body. DOCX and PDF embed images only from your `callback_base` origin
+  (fetched signed) or an `asset_origins` entry (plain GET) — no redirects, ≤ 10 MB, `image/*`
+  only; other images become links. Boards become pictures (PNG in DOCX, SVG in HTML/PDF).
+  `to=pdf` needs the operator to run the Gotenberg sidecar (`OC_PDF_RENDERER`), else `501`.
 
 ## 8. Lifecycle & guarantees
 

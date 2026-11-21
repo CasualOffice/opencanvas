@@ -13,6 +13,8 @@ pub struct Config {
     pub hosts_file: PathBuf,
     pub web_dir: PathBuf,
     pub callback_base_override: Option<String>,
+    /// `OC_PDF_RENDERER=gotenberg:<url>`: PDF export through a Gotenberg sidecar (ADR-010).
+    pub pdf_renderer: Option<PdfRenderer>,
     /// Key-encryption key for secrets at rest; `None` only with `OC_DEV=1`.
     pub kek: Option<Kek>,
     pub rooms: RoomConfig,
@@ -53,6 +55,26 @@ fn num(name: &str, default: u64) -> u64 {
     var(name).and_then(|v| v.parse().ok()).unwrap_or(default)
 }
 
+/// Where PDFs are rendered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PdfRenderer {
+    /// Gotenberg base URL (`POST <url>/forms/chromium/convert/html`).
+    Gotenberg(String),
+}
+
+impl PdfRenderer {
+    pub fn parse(v: &str) -> anyhow::Result<Self> {
+        match v.trim().split_once(':') {
+            Some(("gotenberg", url))
+                if url.starts_with("http://") || url.starts_with("https://") =>
+            {
+                Ok(Self::Gotenberg(url.trim_end_matches('/').to_string()))
+            }
+            _ => anyhow::bail!("OC_PDF_RENDERER must be gotenberg:<http(s) url>, got {v:?}"),
+        }
+    }
+}
+
 impl Config {
     /// Reads the environment; fails when `OC_KEK` is missing or invalid (unless `OC_DEV=1`).
     pub fn from_env() -> anyhow::Result<Self> {
@@ -74,6 +96,9 @@ impl Config {
                 .unwrap_or_else(|| "web/packages/editor/dist".into())
                 .into(),
             callback_base_override: var("OC_CALLBACK_BASE_OVERRIDE"),
+            pdf_renderer: var("OC_PDF_RENDERER")
+                .map(|v| PdfRenderer::parse(&v))
+                .transpose()?,
             kek,
             rooms: RoomConfig {
                 autosave_debounce: Duration::from_millis(num("OC_AUTOSAVE_DEBOUNCE_MS", 2000)),

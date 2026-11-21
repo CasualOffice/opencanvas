@@ -49,9 +49,10 @@ jobs:
       fail-fast: false
       matrix:
         db:
-          - { name: sqlite, url: "" }
-          - { name: mariadb, url: "mysql://root:root@127.0.0.1:33061/opencanvas" }
-          - { name: mysql, url: "mysql://root:root@127.0.0.1:33062/opencanvas" }
+          # SQLite also renders a PDF through the Gotenberg service (ADR-010).
+          - { name: sqlite, url: "", pdf: "gotenberg:http://localhost:3301" }
+          - { name: mariadb, url: "mysql://root:root@127.0.0.1:33061/opencanvas", pdf: "" }
+          - { name: mysql, url: "mysql://root:root@127.0.0.1:33062/opencanvas", pdf: "" }
     services:
       mariadb:
         image: mariadb:11.4
@@ -63,6 +64,9 @@ jobs:
         env: { MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: opencanvas }
         ports: ["33062:3306"]
         options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-retries=20
+      gotenberg:
+        image: gotenberg/gotenberg:8
+        ports: ["3301:3000"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -70,7 +74,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
       - run: cargo build --release -p oc-server --bins --examples
+      - run: sudo apt-get install -y poppler-utils
+        if: matrix.db.pdf != ''
       - run: scripts/e2e-db.sh ${{ matrix.db.name }} ${{ matrix.db.url }}
+        env: { OC_PDF_RENDERER: "${{ matrix.db.pdf }}" }
 
   browser-e2e:
     # Playwright (e2e/): real oc-server on :8280 + sample hosts on :4200/:4201 started by the

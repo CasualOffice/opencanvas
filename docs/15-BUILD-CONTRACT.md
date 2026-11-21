@@ -165,8 +165,8 @@ logged as a warning).
 ## 6. Server REST used by the SPA
 
 `GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host) ·
-`GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx` ·
-`GET /healthz` · `GET /readyz` · `GET /metrics`.
+`GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx|pdf` ·
+`GET /v1/export/board/:boardId.svg|png?ticket=` · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
@@ -174,17 +174,40 @@ Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas
 `DELETE /v1/files/:fileId/session` → final save, close all, drop tickets → `{"closed","sessions"}`;
 `POST /v1/files/:fileId/patch` → `{"applied","blockIds","live"}` (+ `version` when no room was live);
 `POST /v1/files/:fileId/commit` → `200 {"live","saved","version"}` / `202 {"queued":true}` / `409 CONFLICT`;
-`POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx` (raw body in, file out).
+`POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf` (raw body in, file out).
 Optional `X-OpenCanvas-Callback-Token`: the bearer used for callbacks made for that request (loading /
 saving a file with no live room, fetching images); without it the bearer is empty and the host
 authenticates the call by the HMAC signature. Details in docs/04 §6 and docs/05 §7.
 
 DOCX (`export/docx`, `convert to=docx`): minimal WordprocessingML written with `zip` (no new crate).
 Headings, marks, links (http/https/mailto only), bullet/numbered/task lists, quotes, code, tables,
-callouts (shaded paragraphs), databases (caption + table), boards (a note with the board's texts; no
-image yet), bookmarks/embeds/files (links). Images are embedded only when their URL is on the host's
-`callback_base` origin (relative `/…` resolves there); they are fetched signed, without following
-redirects, ≤ 10 MB, PNG/JPEG/GIF; anything else becomes a link.
+callouts (shaded paragraphs), databases (caption + table), boards (a PNG rendered at 2×, shown at 1×,
+caption "Whiteboard", alt text = the board's texts; a text note only if rendering fails),
+bookmarks/embeds/files (links). Images that were not fetched (see *Images in exports*) become links.
+
+Boards (`oc_model::board`, changed 2026-11-21): `to_svg(doc, boardId)` is a port of the web
+`exportBoardSvg` (light palette, fitted to content + 32 px, stickies, rect/frame, ellipse, diamond,
+swatch, text, pen, arrows incl. bound ends and elbow routes, images as `<image href>`); a parity test
+compares it byte for byte with the web output. `to_png(svg, scale)` renders with `resvg` and the
+embedded Geist Regular/SemiBold (OFL), no system fonts; only inline `data:` images are drawn (remote
+URLs and file paths are never read); ≤ 16384 px a side, ≤ 64 Mpx. Exports: HTML inlines the board
+SVG (`<figure class="board">`); Markdown keeps the note and, for ticketed exports, adds
+`[Whiteboard (SVG)](<OC_PUBLIC_URL>/v1/export/board/<id>.svg?ticket=<ticket>)` (the link carries the
+session ticket and stops working when it expires); `GET /v1/export/board/:boardId.svg` (image URLs
+kept) / `.png` (allowed images inlined) need `perms.export`; unknown board 404 `BOARD_NOT_FOUND`.
+
+PDF (ADR-010): `OC_PDF_RENDERER=gotenberg:<url>` → the print HTML is posted to Gotenberg's
+`/forms/chromium/convert/html` (A4, 0.6" margins, backgrounds) and the PDF is streamed back
+(`502 PDF_RENDERER_FAILED` if it fails). The print HTML is self-contained: allowed images and board
+images inlined as `data:` URLs, other images are links, CSP `default-src 'none'; img-src data:` so the
+renderer fetches nothing. Unset → `501 {"error":{"code":"PDF_RENDERER_NOT_CONFIGURED"}}` (the editor
+uses its print stylesheet instead).
+
+Images in exports (DOCX, board PNG, PDF): fetched only from allowed origins — the host's
+`callback_base` origin (relative `/…` resolves there; signed + callback token), the original
+`callback_base` origin while `OC_CALLBACK_BASE_OVERRIDE` is active (fetched through the override,
+signed), and the host's `asset_origins = ["https://cdn…"]` (plain GET, no signature or token).
+No redirects, ≤ 10 MB, `Content-Type: image/*` required, ≤ 50 per export; anything else is skipped.
 
 `ocanvas` export needs `perms.download`, the others `perms.export` (403 otherwise); unknown formats
 answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment; filename="<file name>.<ext>"`.

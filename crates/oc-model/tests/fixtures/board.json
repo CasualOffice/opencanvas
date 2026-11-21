@@ -1,0 +1,20 @@
+{
+  "order": ["frame", "st1", "st2", "el", "dm", "a_straight", "a_elbow", "a_side", "a_free", "pen", "img", "txt", "sw", "missing"],
+  "shapes": {
+    "frame": {"type": "rect", "x": 0, "y": 0, "w": 420, "h": 260, "label": "Host app & co", "dashed": true},
+    "st1": {"type": "sticky", "x": 26, "y": 44, "w": 150, "h": 110, "fill": "b", "text": "Signs launch\ntoken <JWT>"},
+    "st2": {"type": "sticky", "x": 520, "y": 44, "w": 150, "h": 110, "fill": "zz", "text": ""},
+    "el": {"type": "ellipse", "x": 300, "y": 320, "w": 170, "h": 74, "text": "Launch plan", "stroke": "accent"},
+    "dm": {"type": "diamond", "x": 560, "y": 300, "w": 160, "h": 100.333, "text": "Has\naccess?"},
+    "a_straight": {"type": "arrow", "pts": [[0, 0], [1, 1]], "start": {"shapeId": "el", "anchor": "center"}, "end": {"shapeId": "dm", "anchor": "center"}},
+    "a_elbow": {"type": "arrow", "pts": [[0, 0], [1, 1]], "route": "elbow", "start": {"shapeId": "st1", "anchor": "center"}, "end": {"shapeId": "dm", "anchor": "center"}},
+    "a_side": {"type": "arrow", "pts": [[5, 5], [9, 9]], "route": "elbow", "start": {"shapeId": "st2", "anchor": "bottom"}, "end": {"shapeId": "el", "anchor": "right"}},
+    "a_free": {"type": "arrow", "pts": [[100, 420], [180, 420], [180, 470]]},
+    "pen": {"type": "pen", "stroke": "accent", "pts": [[10, 300], [20, 310.25], [35, 305], [50, 330]]},
+    "img": {"type": "image", "x": 760, "y": 40, "w": 120, "h": 90, "src": "https://host.example/a.png?x=1&y=2", "alt": "pic"},
+    "txt": {"type": "text", "x": 40, "y": 520, "text": "Every edit merges live.", "size": 14},
+    "sw": {"type": "swatch", "x": 500, "y": 460, "w": 80, "h": 60, "fill": "green"},
+    "zz_unordered": {"type": "rect", "x": 900, "y": 300, "w": 100, "h": 50, "text": "Late"},
+    "aa_unordered": {"type": "text", "x": 900, "y": 420, "text": "Ünïcode ✓"}
+  }
+}

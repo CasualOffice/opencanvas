@@ -3,7 +3,9 @@
 # the WebSocket with the smoke client, and confirm the autosave reached the host.
 # Also checks: the server refuses to start without OC_KEK, callback tokens are stored
 # encrypted, the commit outbox row is marked done, the host role API answers, and the
-# patch / commit / convert API works (incl. a DOCX that unzips).
+# patch / commit / convert API works (incl. a DOCX that unzips), and boards export as SVG/PNG.
+# With OC_PDF_RENDERER=gotenberg:<url> set, the PDF export is requested and checked too
+# (starts with %PDF; contains the edit when pdftotext is installed).
 #
 #   scripts/e2e-db.sh sqlite
 #   scripts/e2e-db.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
@@ -72,6 +74,27 @@ curl -s "$OC/v1/export/md?ticket=$TICKET" | grep -q "\- \[ \] Bot task $LABEL" |
 printf '# Converted\n\nSome **bold** text\n' | api -X POST --data-binary @- "$OC/v1/convert?from=md&to=docx" -o "$WORK/out.docx"
 unzip -p "$WORK/out.docx" word/document.xml | grep -q "Converted" || fail "convert to docx did not produce a readable document"
 
+# Boards: the first board of the canvas (if any) as SVG and PNG.
+BOARD=$(curl -s "$OC/v1/export/json?ticket=$TICKET" | node -pe 'Object.keys(JSON.parse(require("fs").readFileSync(0)).boards || {})[0] || ""')
+if [ -n "$BOARD" ]; then
+  curl -s "$OC/v1/export/board/$BOARD.svg?ticket=$TICKET" | grep -q '^<svg' || fail "board SVG export"
+  curl -s "$OC/v1/export/board/$BOARD.png?ticket=$TICKET" -o "$WORK/board.png"
+  head -c 4 "$WORK/board.png" | grep -q PNG || fail "board PNG export"
+fi
+EXTRA=""
+if [ -n "${OC_PDF_RENDERER:-}" ]; then
+  CODE=$(curl -s -o "$WORK/out.pdf" -w '%{http_code}' "$OC/v1/export/pdf?ticket=$TICKET")
+  [ "$CODE" = 200 ] || fail "PDF export answered $CODE: $(head -c 300 "$WORK/out.pdf")"
+  head -c 5 "$WORK/out.pdf" | grep -q '%PDF-' || fail "PDF export is not a PDF"
+  if command -v pdftotext >/dev/null; then
+    pdftotext "$WORK/out.pdf" - | grep -q "Hello from $LABEL" || fail "PDF lacks the edit"
+  fi
+  EXTRA=", PDF renders via $OC_PDF_RENDERER"
+else
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' "$OC/v1/export/pdf?ticket=$TICKET")
+  [ "$CODE" = 501 ] || fail "PDF without a renderer answered $CODE"
+fi
+
 if [ -z "$DB" ]; then
   RAW=$(sqlite3 "$WORK/oc.db" "SELECT grant_json FROM sessions LIMIT 1" 2>/dev/null)
   echo "$RAW" | grep -q '"callback_token":"enc:v1:' || fail "callback token not sealed: ${RAW:-no session row}"
@@ -80,4 +103,4 @@ if [ -z "$DB" ]; then
 fi
 cleanup; PIDS=()
 grep -qiE 'panic' "$WORK/oc.log" && fail "server panicked"
-echo "PASS [$LABEL]: $(grep -c 'saved doc_welcome' "$WORK/host.log") saves reached the host, export contains the edit and the bot's patch, DOCX converts"
+echo "PASS [$LABEL]: $(grep -c 'saved doc_welcome' "$WORK/host.log") saves reached the host, export contains the edit and the bot's patch, DOCX converts${BOARD:+, board $BOARD exports}$EXTRA"
