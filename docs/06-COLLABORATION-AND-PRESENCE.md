@@ -47,9 +47,13 @@ Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
 - **Board:** pointer arrow + name tag in user colour, interpolated
   (60 fps lerp) between 20 Hz updates; selection outline in user colour;
   "laser" tool leaves a fading trail.
-- **Off-screen collaborators:** avatar stack in the top bar; each avatar shows
-  a ↑/↓ edge hint; clicking jumps to their position; long-press = **follow
-  mode** (your viewport tracks theirs until you scroll).
+- **Off-screen collaborators:** avatar stack in the top bar. A **click** on an avatar, or a
+  **long press** (450 ms, for touch), starts **follow mode**: the canvas scrolls to their caret
+  (or their board) and keeps it in view until you scroll, use the wheel or press a key. A click on
+  the avatar you follow stops it; a long press never stops it. The avatar shows a ring and
+  `aria-pressed` while you follow; the "People here" list (+N) follows on click too. Someone with
+  no caret (a viewer, or idle) gets a toast instead. (Changed 2026-11-21, UX-02: the draft said
+  click jumps and long-press follows, with ↑/↓ edge hints; edge hints are not built.)
 - **Block-level presence:** a thin coloured bar in the left gutter of blocks
   someone is editing — cheap and readable on narrow embeds.
 - **Typing indicator** in the avatar stack.
@@ -60,8 +64,11 @@ Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
 - `Y.UndoManager` with `trackedOrigins = {localOrigin}` — undo only reverts
   *your* changes, never a collaborator's.
 - Capture timeout 500 ms groups keystrokes into words.
-- Undo stack is shared between text and boards so Ctrl+Z after drawing undoes
-  the stroke.
+- One stack for the whole canvas: the editor's `Y.UndoManager` (y-prosemirror) is passed to
+  database and board blocks as `BlockEnv.undoManager`; they add their maps to its scope and their
+  origins to its tracked origins. ⌘Z / ⌘⇧Z in the text step through text, header, cells and
+  shapes in the order they were made (`m-open-items` e2e). Structural actions (file actions,
+  adding or removing columns) close the current capture so each is its own step.
 - Undo stack resets on reload (it is not persisted).
 
 ## 5. Connectivity
@@ -69,12 +76,20 @@ Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
 | State | UI | Behaviour |
 |---|---|---|
 | Connected | none | — |
-| Reconnecting (< 30 s) | subtle "Reconnecting…" pill | edits continue locally, buffered |
-| Offline (> 30 s) | banner "Offline — changes will sync" | edits buffered (memory; IndexedDB if host enables) |
+| Reconnecting | "Reconnecting" status | edits continue locally, buffered |
+| Offline | "Offline · kept here" status + banner | edits buffered (memory; IndexedDB if host enables) |
 | Back online | "Synced" toast | Yjs sync step1/2 merges buffered changes |
 | Role downgraded | banner "You now have view access" | editor switches to read-only, local unsynced edits shown as discarded diff |
 | Token expiring | silent refresh via host; else banner | — |
 | Session closed by host | modal "This canvas was closed by the app" | — |
+
+**Detecting a lost connection** (UX-02). A closed socket shows "Reconnecting" at once. A silent
+drop (Wi-Fi gone, a proxy that stops forwarding) closes nothing, so the server sends a control
+`{"t":"ping"}` every 10 s on every connection (docs/15 §3) and the client treats **15 s without
+any frame** as lost: it shows "Reconnecting", drops the socket and reconnects. After a silent drop,
+or a browser `offline` event, "Offline" follows 3 s later (so within 20 s of the drop); any other
+outage turns into "Offline" after 20 s. The browser's `online` event reconnects at once instead of
+waiting for the backoff.
 
 Exponential backoff 0.5 s → 10 s with jitter. Server owner change in cluster
 is invisible to users beyond a ≤ 5 s reconnect.
@@ -91,5 +106,5 @@ is invisible to users beyond a ≤ 5 s reconnect.
   whole block id.
 - Stored in the `comments` Y.Map → travel inside the `.ocanvas` file.
 - Commenters (role `comment`) can write only that subtree (enforced server-side).
-- Mentions in comments trigger an `onMention` webhook to the host so the host
-  can notify (we never send emails/notifications ourselves).
+- Mentions in comments and canvas text call the host's `POST /mentions` (docs/05 §5) so the
+  host can notify (we never send emails/notifications ourselves). Not in WOPI mode.

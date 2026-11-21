@@ -1,4 +1,4 @@
-// Columns layout (COL-01): 2–4 columns, widths snapped to quarters, optional column titles,
+// Columns layout (LAY-01): 2–4 columns, widths snapped to quarters, optional column titles,
 // the active column tinted, add / resize / remove affordances. Everything that is not the
 // schema is a ProseMirror plugin with DOM widgets (no React, no extra chunk).
 //

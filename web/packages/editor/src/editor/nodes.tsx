@@ -232,7 +232,7 @@ export const Columns = Node.create({
   defining: true,
   isolating: true,
   addAttributes: () => ({
-    // COL-01 (ADR-025): whole percents per column, "25,75"; absent = equal widths.
+    // LAY-01 (ADR-025): whole percents per column, "25,75"; absent = equal widths.
     widths: {
       default: null,
       parseHTML: (el: HTMLElement) => el.getAttribute("data-widths"),

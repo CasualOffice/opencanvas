@@ -54,6 +54,9 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    role, user and perms (`401 TOKEN_INVALID` when it answers 4xx). Same `303`. The ticket lives
    until `access_token_ttl` (10 h when absent). `GET /hosting/discovery` (XML) and
    `GET /hosting/capabilities` (JSON). A JWT for a `mode = "wopi"` host is refused.
+   **Open at a block** (UX-02): a `block` form field (or `?block=` query) on either launch adds
+   `&block=<id>` to the fragment (`/app/#t=<ticket>&block=<id>`) when it matches
+   `[A-Za-z0-9_-]{1,64}`; the editor scrolls to that block and flashes it.
 4. Tickets live for the launch token's `exp`. The WS must connect within 60 s of the
    first `GET /v1/sessions`, though reconnects with the same ticket are allowed until `exp`.
 
@@ -84,6 +87,8 @@ get it as the save state),
 drop its local Y.Doc and reconnect, the room now holds the host's version),
 `{"t":"role","role":"view"}` (also sent mid-session when the host changes the role),
 `{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000),
+`{"t":"ping"}` (heartbeat every `OC_HEARTBEAT_MS`, default 10 s, on every connection; clients
+treat 15 s without any frame as a lost connection, docs/06 §5; added 2026-11-21, UX-02),
 `{"t":"reconnect"}` (always followed by close **1012**: the client keeps its Y.Doc and
 reconnects; sent on graceful drain and, in cluster mode, when the room moved to another node).
 (Changed 2026-11-21 by the server hardening: `conflict` carries `policy`.)
@@ -133,7 +138,25 @@ blockquote, codeBlock(language), horizontalRule, image(src,alt,caption), callout
 toggle(open) > toggleSummary + toggleContent, database(dbId), board(boardId),
 bookmark(url,title,description,site), embed(provider,url,title), fileAttachment(name,size,url,mime),
 columns > column, table/tableRow/tableHeader/tableCell, mention(id,label) inline,
-commentMark(threadId) mark`.
+commentMark(threadId) mark, dateMention(date) inline, textColor(color) mark`.
+
+*(UX-02 / FILE-01 / LAY-01, ADR-027; all optional and additive, older clients keep them)*:
+- `textColor(color)` mark: `color` ∈ `gray red amber green blue purple pink` (the tone tokens'
+  `--<tone>-fg`, AA in light and dark). Anything else is ignored on parse and in exports.
+  HTML `<span data-color="blue">`; exports: HTML inline `color` (light palette), DOCX run colour,
+  Markdown plain text.
+- `dateMention(date)` inline atom: `date` = `YYYY-MM-DD`. Shown as a chip ("Today", "Tomorrow",
+  "Nov 24"); inserted with `@today`, `@tomorrow`, "Pick a date…" in the @ menu or `/date`.
+  HTML `<span data-type="dateMention" data-date>` (parses `<time datetime>` too); exports:
+  Markdown `2026-12-04`, HTML `<time datetime="2026-12-04">Dec 4, 2026</time>`, DOCX `Dec 4, 2026`.
+- `fileAttachment` gains `display` (`card` | `preview`; absent = `preview` for PDFs, `card`
+  otherwise) and `height` (inline preview height in CSS px, 240-1600; absent = 70 % of the
+  viewport, at most 900). Exports never embed a viewer: HTML
+  `<p class="oc-file" data-display><a>name</a> <span class="oc-file-meta">PDF · 2 KB</span></p>`,
+  Markdown `[name](url) (PDF, 2 KB)`, DOCX a link.
+- `columns` gains `widths` ("25,75": whole percents, one per column; absent = equal; 2-4
+  columns; the editor snaps boundaries to quarters). `column` gains `title` (a label line above
+  its blocks; absent = none). HTML exports the grid and a bold title line; Markdown a bold line.
 
 **Block ids.** Any block node may carry an optional string attribute `blockId` (convention
 `b_` + 26 lowercase base32 chars, e.g. `b_01jd…`). It is how the host patch API (§6) addresses
@@ -227,6 +250,7 @@ verify `v2` and may fall back to `v1`. Callbacks never follow redirects.)
 | `POST /files/{fileId}/assets` | multipart `file` → 201 `{"assetId","url","mime","size"}` |
 | `GET /users?q=&fileId=` | `[{"id","name","avatar"}]` |
 | `POST /files/{fileId}/copies` | conflict policy `copy`: body `.ocanvas`, `Idempotency-Key`; 200/201 `{"fileId","url"}` |
+| `POST /mentions` *(optional)* | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by, excerpt}`, `Idempotency-Key`; any 2xx; 404/405/410/501 = not implemented. Queued in `notify_outbox` first, retried with backoff (8 attempts). Never in WOPI mode (docs/05 §5) |
 
 The HMAC key is the host's `callback_secret` if set, else `jwt_secret`. `If-Match` is the quoted
 version from the last load/save (`ETag` of `GET`, else the JWT `file.version`). The PUT carries
@@ -298,6 +322,17 @@ room assets with `default-src 'none'; sandbox`. (Changed 2026-11-21 by the secur
 `GET /metrics` needs `Authorization: Bearer <OC_METRICS_TOKEN>` when that variable is set.
 `GET /v1/users` refuses `q` over 200 bytes (`400 QUERY_TOO_LONG`). A room holds at most 550
 connections (the next is closed with 1013 `room full`); a socket that stops reading is closed.
+
+`GET /v1/assets/fetch?ticket=&url=` (FILE-01): an attachment's bytes served from this origin,
+for previews (pdf.js and text previews can't read the host's origin). Same rules as export image
+fetching: the URL must be on the host's `callback_base` origin (fetched signed) or an
+`asset_origins` entry (plain GET), exact origin, no userinfo, never following redirects
+(`403 ASSET_ORIGIN_NOT_ALLOWED`, `502 ASSET_UNAVAILABLE`, `404 ASSET_NOT_FOUND`). Streamed, at most
+50 MB (`413 ASSET_TOO_LARGE`). Any role may preview (`perms.download` only hides the editor's
+Download action; downloads keep the original URL). Answers with the real `Content-Type`,
+`Content-Disposition: inline`, `X-Content-Type-Options: nosniff`,
+`Content-Security-Policy: sandbox; default-src 'none'`. Room-served WOPI assets
+(`/v1/assets/:id`) are already same-origin and are used as they are.
 
 ## 7. Autosave
 

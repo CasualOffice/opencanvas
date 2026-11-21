@@ -666,7 +666,7 @@ button.cic:hover{transform:scale(1.06)}
 }
 @media (prefers-reduced-motion:reduce){.ocviewer,.ocviewer .vimg img{animation:none;transition:none}}
 
-/* ---------- COL-01: columns layout (add, resize, titles, active column, phones) ---------- */
+/* ---------- LAY-01: columns layout (add, resize, titles, active column, phones) ---------- */
 .ProseMirror .cols{position:relative}
 .ProseMirror .cols > .column{position:relative;border-radius:8px;padding:2px 8px;margin:0 -8px;transition:background .2s var(--ease),outline-color .2s}
 .ProseMirror[contenteditable="true"] .cols:is(:hover,:focus-within) > .column{outline:1px dashed color-mix(in srgb,var(--fg-3) 90%,transparent);outline-offset:2px}

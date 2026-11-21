@@ -1,5 +1,5 @@
 // UX-02: text colour mark and date chips (schema, HTML round trip, the @ menu's date items),
-// and COL-01 column width maths.
+// and LAY-01 column width maths.
 import { afterEach, describe, expect, it } from "vitest";
 import { Editor, Node } from "@tiptap/core";
 import { BASE_EXTENSIONS } from "./base";

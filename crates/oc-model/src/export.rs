@@ -778,7 +778,7 @@ fn html_block(cx: &Cx, n: &Value) -> String {
             escape(&file_meta(n).join(" · "))
         ),
         "columns" => {
-            // COL-01: `widths` ("25,75") becomes the grid; only digits and commas get through.
+            // LAY-01: `widths` ("25,75") becomes the grid; only digits and commas get through.
             let w: Vec<u32> = attr_str(n, "widths")
                 .split(',')
                 .filter_map(|x| x.trim().parse().ok())
@@ -817,7 +817,7 @@ fn html_block(cx: &Cx, n: &Value) -> String {
 #[cfg(test)]
 mod tests {
 
-    /// COL-01: column widths and titles survive in HTML; titles become bold lines in Markdown.
+    /// LAY-01: column widths and titles survive in HTML; titles become bold lines in Markdown.
     #[test]
     fn column_titles_and_widths_export() {
         let doc = json!({"content": [{"type": "columns", "attrs": {"widths": "25,75"}, "content": [

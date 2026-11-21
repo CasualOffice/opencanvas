@@ -25,9 +25,12 @@ Screenshots are in `docs/ux-audit/` (`before-*` from the audit, `after-*` from t
 | Severity | Found | Fixed | Open |
 |---|---|---|---|
 | High (broken flow, data or a11y blocker) | 10 | 10 | 0 |
-| Medium (rough edge, missing PRD behaviour) | 25 | 22 | 3 |
-| Low (polish) | 11 | 6 | 5 |
-| **Total** | **46** | **38** | **8** |
+| Medium (rough edge, missing PRD behaviour) | 25 | 25 | 0 |
+| Low (polish) | 11 | 10 | 1 |
+| **Total** | **46** | **45** | **1** |
+
+(Updated by UX-02, 2026-11-21: #39–#45 closed; #43's overlap was the editor's block handle on
+wide blocks, see "UX-02" below. #46 stays a product decision.)
 
 Tests: `src/lib/ux.test.ts`, `src/editor/blockops.test.ts` (unit, headless editor),
 `e2e/specs/k-ux.spec.ts` (Chromium, `#demo` on the real server), `e2e/specs/l-ux-phone.spec.ts`
@@ -75,13 +78,13 @@ Tests: `src/lib/ux.test.ts`, `src/editor/blockops.test.ts` (unit, headless edito
 | 36 | Low | Long menus did not flip above the anchor or cap their height to the visible space. | `before-block-menu.png` | Fixed: `placePopover` · `ux.test` |
 | 37 | Low | The "Type '/' for blocks" hint showed in every empty table cell. | — | Fixed |
 | 38 | Low | Template images were SVG data URLs, which SEC-20 now refuses. | — | Fixed: rasterised to PNG at insert; refused images show a labelled placeholder · `k-ux` SEC-20 |
-| 39 | Med | No text colour mark and no date mentions (PRD §5.1 inline marks). | — | **Open**: schema + export change; needs an ADR |
-| 40 | Med | Silent network loss shows "Unsaved changes" until the socket closes (up to ~30 s) before "Reconnecting/Offline". | — | **Open**: needs a server ping/pong timeout |
-| 41 | Med | Comment mentions are stored but the host's `onMention` is not called yet. | — | **Open**: server (Rust) follow-up |
-| 42 | Low | Board undo is separate from the canvas undo (board package keeps its own stack). | — | **Open**: board package (other session) |
-| 43 | Low | Database block header shows "7 rows" with an overlapping glyph on hover. | `before-block-menu.png` | **Open**: database package (other session) |
-| 44 | Low | docs/06 §3 says click jumps and long-press follows; the editor follows on click and has no ↑/↓ edge hints on avatars. | — | **Open** |
-| 45 | Low | In an embedded session "Copy link to block" copies a `#block=` fragment; the full URL depends on the host handling `UI_Block_Link`. | — | **Open** (host contract documented in docs/05) |
+| 39 | Med | No text colour mark and no date mentions (PRD §5.1 inline marks). | — | Fixed (UX-02, ADR-027): `textColor` mark from the tone palette (AA in light and dark), `dateMention` chips via `@today`, `@tomorrow`, "Pick a date…" or `/date`; MD/HTML/DOCX in web and Rust · `inline.test`, `m-open-items`, `oc-model` export tests |
+| 40 | Med | Silent network loss shows "Unsaved changes" until the socket closes (up to ~30 s) before "Reconnecting/Offline". | — | Fixed (UX-02): server `ping` every 10 s, 15 s of silence = lost, "Offline" within 20 s · `http.rs` heartbeat, `m-open-items` (Playwright `setOffline`, browser offline events suppressed) |
+| 41 | Med | Comment mentions are stored but the host's `onMention` is not called yet. | — | Fixed (UX-02): `POST {callback_base}/mentions` for comment and text mentions, once per message, via `notify_outbox` with retries; sample host lists them · `tests/mentions.rs`, `m-open-items` |
+| 42 | Low | Board undo is separate from the canvas undo (board package keeps its own stack). | — | Fixed (UX-02): the editor passes its `Y.UndoManager` as `BlockEnv.undoManager`; ⌘Z steps through a cell edit, a board move and typing in order · `m-open-items` (seen failing without it) |
+| 43 | Low | Database block header shows "7 rows" with an overlapping glyph on hover. | `before-block-menu.png` → `after-gutter-wide-1440.png` | Fixed (UX-02): the glyph was the editor's block handle, placed at the text column's edge over wide (1100 px) blocks. It now sits at the wide block's own left edge, and wide blocks leave room for it · `m-open-items` at 1440 and 1100 px |
+| 44 | Low | docs/06 §3 says click jumps and long-press follows; the editor follows on click and has no ↑/↓ edge hints on avatars. | — | Fixed (UX-02): click and long press both start following (a long press never stops it); docs/06 §3 rewritten to match, edge hints dropped from the spec · `m-open-items` |
+| 45 | Low | In an embedded session "Copy link to block" copies a `#block=` fragment; the full URL depends on the host handling `UI_Block_Link`. | — | Fixed (UX-02): `UI_BlockLink {fileId, blockId}`, launch `block=`, `Action_ScrollToBlock`; the sample host builds `/files/<id>#block=<id>` and the link opens on the flashing block · `m-open-items` |
 | 46 | Low | Embed providers are named in the UI (allow-list labels). Flagged against the naming rule; they are functional labels the PRD lists. | — | **Open**: product decision |
 
 ## PRD gaps closed (editor side)
@@ -92,7 +95,30 @@ invitations, per-user undo across text/database/header, "Version history in host
 status popover and the More menu (verified, now with an external-link cue), block links.
 Already present and verified: follow mode, block-level presence bar, typing indicator.
 
+## UX-02 (2026-11-21): open items, file previews, columns
+
+Besides #39–#45 above:
+
+- **File previews (FILE-01).** `fileAttachment` cards get a first-page thumbnail (PDF) or
+  image, the first 12 lines of text files, native media controls, and a ⋯ menu (Preview, Expand,
+  Show as preview / card, Download if allowed, Copy link, Rename, Replace file, Comment, Delete
+  with Undo; viewers: Preview, Expand, Download, Copy link). PDFs show inline by default as a page
+  stack with page X/N, zoom and fit width, and a resizable height (drag or ↑/↓ on the handle).
+  Expand / Preview / Enter / Space opens the full viewer (Fullscreen API when granted, else a
+  viewport overlay): every page with a text layer, ←/→ pages, +/−/0 zoom, F full screen, Esc
+  returns to the same page inline, focus trapped and returned, the canvas behind is inert,
+  prev/next between attachments, swipe on phones. Images get the same lightbox (zoom, pan, pinch,
+  prev/next). Host files are read through `GET /v1/assets/fetch` (same origin, allow-listed).
+  `before-file-attachment.png` → `after-file-inline.png`, `after-file-viewer.png`,
+  `after-file-viewer-phone-dark.png` · `tests/preview.rs`, `n-file-preview`.
+- **Columns (LAY-01).** 2–4 columns; "+" between and after columns on hover; the new column gets
+  the caret and the "/" hint; dashed outlines only on hover/focus; the active column is tinted;
+  resize handles snap to quarters (←/→ on the focused handle); optional column titles from the
+  block menu; an empty column offers "Remove column" (and Backspace removes it, with Undo);
+  phones stack columns with a separator. `after-columns-hover.png`,
+  `after-columns-phone-dark.png` · `o-columns` (incl. axe in light and dark), `inline.test`.
+
 ## Bundle
 
-Initial JS 263.3 KB gz (was 257.2; budget 300). Link popover, table tools, block menu and
-shortcuts load on first use.
+Initial JS 271.7 KB gz (budget 300; UX-01 was 263.3). pdf.js (98 KB gz) and its worker, the file
+viewer, the column and date chrome beyond the schema load on first use.

@@ -1,6 +1,7 @@
 // m. Open items from docs/19 (UX-02): offline detection by heartbeat, @mention notifications
 //    to the host, follow mode on click and long-press, text colour and date mentions, block
 //    links inside a host.
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { OC } from "../env";
 import fs from "node:fs";
@@ -198,4 +199,37 @@ test("follow mode: a click or a long press on an avatar starts following", async
   await page.mouse.move(640, 500);
   await page.mouse.wheel(0, 300);
   await expect(peer).toHaveAttribute("aria-pressed", "false");
+});
+
+test("text colour from the toolbar; date chips from @tomorrow and /date", async ({ page }) => {
+  await page.goto(`${OC}/app/#demo&sim=quiet`);
+  const para = page.locator(".ProseMirror p").filter({ hasText: "The file stays" });
+  await para.click({ position: { x: 1, y: 12 } });
+  for (let i = 0; i < 8; i++) await page.keyboard.press("Shift+ArrowRight");
+  await page.getByRole("toolbar", { name: "Text formatting" }).getByRole("button", { name: "Text colour" }).click();
+  await page.getByRole("group", { name: "Text colour" }).getByRole("button", { name: "Red" }).click();
+  await expect(para.locator('span[data-color="red"]')).toHaveText("The file");
+  // Readable in both themes (AA for text).
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+    const r = await new AxeBuilder({ page }).include('.ProseMirror span[data-color="red"]').withRules(["color-contrast"]).analyze();
+    expect(r.violations, theme).toEqual([]);
+  }
+
+  // @tomorrow → a chip; /date → the picker, then a chosen date.
+  await para.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" Due @tom");
+  await expect(page.getByRole("listbox", { name: "Mention" }).getByRole("option", { name: /Tomorrow/ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  const chips = para.locator(".datechip");
+  await expect(chips.first()).toHaveText("Tomorrow");
+  await page.keyboard.type("/date");
+  await page.keyboard.press("Enter");
+  const picker = page.getByRole("dialog", { name: "Date" });
+  await expect(picker).toBeVisible();
+  await picker.getByLabel("Date").fill("2027-03-09");
+  await picker.getByRole("button", { name: "Done" }).click();
+  await expect(chips.nth(1)).toHaveText(/Mar 9, 2027/);
+  await expect(chips.nth(1)).toHaveAttribute("aria-label", /March 9, 2027/);
 });

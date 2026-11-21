@@ -76,7 +76,7 @@ export function TopBar(props: {
             key={p.id}
             className={"av" + (props.following === p.id ? " following" : "")}
             style={{ background: p.color, color: readableOn(p.color) }}
-            title={p.me ? `${p.name} (you)` : props.following === p.id ? `Following ${p.name} · click to stop` : `${p.name}${p.role === "view" ? " · viewing" : ""} · click or press and hold to follow`}
+            title={p.me ? `${p.name} (you)` : p.role === "view" ? `${p.name} · viewing` : props.following === p.id ? `Following ${p.name} · click to stop` : `${p.name} · click or hold to follow`}
             aria-label={peerLabel(p, props.following === p.id)}
             aria-pressed={p.me ? undefined : props.following === p.id}
             onClick={() => {
