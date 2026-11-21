@@ -22,7 +22,7 @@ application implements. Modelled on Collabora Online's WOPI integration
 `opencanvas.hosts.toml` (or `hosts` table):
 ```toml
 [[host]]
-id              = "Acme"
+id              = "acme"
 name            = "Acme"
 mode            = "jwt"                    # jwt | wopi | both
 jwt_alg         = "HS256"                  # or RS256 / EdDSA: jwt_public_key (PEM) or jwt_jwks_url
@@ -46,7 +46,7 @@ exchanged for a session ticket on open).
 
 ```json
 {
-  "iss": "Acme",                    // = host id
+  "iss": "acme",                    // = host id
   "aud": "opencanvas",
   "exp": 1763730000,
   "jti": "9f1c…",                   // single-use

@@ -216,7 +216,7 @@ application implements. Modelled on Collabora Online's WOPI integration
 `opencanvas.hosts.toml` (or `hosts` table):
 ```toml
 [[host]]
-id              = "Acme"
+id              = "acme"
 name            = "Acme"
 mode            = "jwt"                    # jwt | wopi | both
 jwt_alg         = "HS256"                  # or RS256 / EdDSA: jwt_public_key (PEM) or jwt_jwks_url
@@ -240,7 +240,7 @@ exchanged for a session ticket on open).
 
 ```json
 {
-  "iss": "Acme",                    // = host id
+  "iss": "acme",                    // = host id
   "aud": "opencanvas",
   "exp": 1763730000,
   "jti": "9f1c…",                   // single-use
@@ -525,7 +525,7 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    { "ticket":"01J…", "room":"r_7k…", "role":"edit",
      "user": {"id":"u_123","name":"Asha Rao","color":"#7a45f0","avatar":null},
      "file": {"id":"doc_8812","name":"Sprint 42 notes"},
-     "host": {"id":"Acme","name":"Acme"},
+     "host": {"id":"acme","name":"Acme"},
      "perms": {"export":true,"download":true,"comment":true,"print":true},
      "isNew": true,
      "wsUrl": "ws://localhost:8080/v1/collab" }
@@ -1501,7 +1501,7 @@ See [09-ROADMAP.md](09-ROADMAP.md). Summary:
 2. Native file extension `.ocanvas` (zip). OK?
 3. Board renderer: custom SVG/Canvas2D on Yjs (proposed, license-clean) vs
    embedding Excalidraw (MIT, heavier, separate data model).
-4. First host to integrate: `meet` side panel? another internal service?
+4. First host to integrate: a meeting side panel, or another internal service?
 
 
 # Glossary

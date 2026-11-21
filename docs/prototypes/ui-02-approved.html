@@ -726,7 +726,7 @@ function makeBoard(kind){
   const dm=(x,y,w,h,text)=>sh.push({id:nid('s'),type:'diamond',x,y,w,h,text:text||''});
   const tx=(x,y,t,size)=>sh.push({id:nid('s'),type:'text',x,y,text:t,size:size||18});
   const ar=pts=>sh.push({id:nid('s'),type:'arrow',pts});
-  if(kind==='flow'){ rc(30,40,250,170,'Host app',true); st(56,84,'Signs launch\ntoken (JWT)','y',190,96); ar([[280,132],[340,132]]); st(340,84,'Room on owner\nnode + WAL','b'); ar([[490,132],[550,132]]); st(550,84,'Autosave →\nPUT /files/:id','p'); ar([[625,194],[625,250],[160,250],[160,214]]); tx(300,284,'Every edit merges live. Saves go back to the host.',14); }
+  if(kind==='flow'){ rc(30,40,250,170,'Host app (Acme)',true); st(56,84,'Signs launch\ntoken (JWT)','y',190,96); ar([[280,132],[340,132]]); st(340,84,'Room on owner\nnode + WAL','b'); ar([[490,132],[550,132]]); st(550,84,'Autosave →\nPUT /files/:id','p'); ar([[625,194],[625,250],[160,250],[160,214]]); tx(300,284,'Every edit merges live. Saves go back to the host.',14); }
   else if(kind==='brainstorm'){ tx(30,40,'Went well',20); tx(270,40,'To improve',20); tx(510,40,'Ideas',20); st(30,62,'Shipped the\nembed SDK beta','g'); st(30,184,'Pairing on\nthe WAL','g'); st(270,62,'Too many\nmeetings','p'); st(270,184,'Flaky e2e\non Safari','p'); st(510,62,'Demo day\nevery Friday','b'); st(510,184,'Templates for\nretros','y'); }
   else if(kind==='mindmap'){ const nodes=[[60,40,'Audience'],[60,300,'Pricing'],[560,40,'Channels'],[560,300,'Metrics'],[310,10,'Messaging'],[310,330,'Timeline']]; nodes.forEach(([x,y,t])=>ar([[375,207],[x+65,y+24]])); el(290,170,170,74,'Launch plan'); nodes.forEach(([x,y,t])=>{ rc(x,y,130,48,''); sh[sh.length-1].text=t; }); }
   else if(kind==='journey'){ ['Discover','Sign up','First canvas','Invite team','Habit'].forEach((t,i)=>{ rc(20+i*150,30,136,44,''); sh[sh.length-1].text=t; st(20+i*150,92,['Sees a shared\nlink in chat','Lands in the\nhost app','Picks a\ntemplate','Mentions a\nteammate','Opens it in\nevery standup'][i],['b','y','g','p','g'][i],136,96); st(20+i*150,200,['Unclear what\nit is','No account\nneeded','Too many\nchoices?','Needs mobile','Wants\nreminders'][i],'p',136,90); }); }
@@ -739,7 +739,7 @@ function makeBoard(kind){
 function demoDoc(){
   const remote=P('<span data-remote="1"></span>'); remote.remote=true;
   return {title:'Sprint 42 planning',icon:'rocket',tone:'blue',parent:'Engineering',blocks:[
-    CALL('blue','target','<b>Sprint goal:</b> ship the embed SDK beta to two internal hosts, a meeting app and a chat app, by <span class="datechip" contenteditable="false">'+I('calendar','s12')+'Dec 12</span>.'),
+    CALL('blue','target','<b>Sprint goal:</b> ship the embed SDK beta to two internal hosts, Meet and Acme channels, by <span class="datechip" contenteditable="false">'+I('calendar','s12')+'Dec 12</span>.'),
     H2('Decisions'),
     P('The file stays in the host. We save on idle and when the last person leaves. <span class="rs" style="--c:var(--u1)">Autosave runs every 60 seconds by default</span><span class="rc" contenteditable="false" style="--c:var(--u1)"><b>Asha Rao</b></span> and hosts can change it per tenant.'),
     remote,
@@ -856,7 +856,7 @@ const rel=ms=>{ const s=Math.round((Date.now()-ms)/1000); return s<10?'just now'
 function renderDoc(){
   const d=S.doc, doc=$('#doc'); if(!doc) return;
   doc.innerHTML=`<div class="dhead"><div class="dicon tone-${d.tone}">${I(d.icon)}</div><h1 class="dtitle" id="dtitle" contenteditable="${ed()}" spellcheck="false">${esc(d.title)}</h1>
-    <div class="dmeta"><span>${I('clock','s14')}Edited ${S.demo?'2 min ago by Asha':'just now'}</span>${S.demo?`<span>${I('users-round','s14')}4 people worked on this today</span>`:''}<span>${I('shield-check','s14')}Stored in the host app</span></div></div>`
+    <div class="dmeta"><span>${I('clock','s14')}Edited ${S.demo?'2 min ago by Asha':'just now'}</span>${S.demo?`<span>${I('users-round','s14')}4 people worked on this today</span>`:''}<span>${I('shield-check','s14')}Stored in Acme</span></div></div>`
     + d.blocks.map(blockHTML).join('');
   $$('.board',doc).forEach(initBoard);
   if(S.demo) placeRemote();

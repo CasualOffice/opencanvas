@@ -1,6 +1,6 @@
 # Sample host
 
-A zero-dependency Node app that stands in for your app, or for any app that embeds OpenCanvas.
+A zero-dependency Node app that stands in for your app, or any app that embeds OpenCanvas.
 It does the host's half of the contract in [docs/05](../../docs/05-INTEGRATION-GUIDE.md):
 
 - **Owns users and access.** Four demo users get a per-file role (edit, comment, view or none). You change roles on the files page.

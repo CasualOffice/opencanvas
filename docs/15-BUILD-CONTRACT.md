@@ -33,7 +33,7 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    { "ticket":"01J…", "room":"r_7k…", "role":"edit",
      "user": {"id":"u_123","name":"Asha Rao","color":"#7a45f0","avatar":null},
      "file": {"id":"doc_8812","name":"Sprint 42 notes"},
-     "host": {"id":"Acme","name":"Acme"},
+     "host": {"id":"acme","name":"Acme"},
      "perms": {"export":true,"download":true,"comment":true,"print":true},
      "isNew": true,
      "wsUrl": "ws://localhost:8080/v1/collab" }

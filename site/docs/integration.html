@@ -61,7 +61,7 @@
 <h2 id="2-register-your-host">2. Register your host</h2>
 <p><code>opencanvas.hosts.toml</code> (or <code>hosts</code> table):</p>
 <pre><code class="language-toml">[[host]]
-id              = &quot;Acme&quot;
+id              = &quot;acme&quot;
 name            = &quot;Acme&quot;
 mode            = &quot;jwt&quot;                    # jwt | wopi | both
 jwt_alg         = &quot;HS256&quot;                  # or RS256 / EdDSA: jwt_public_key (PEM) or jwt_jwks_url
@@ -79,7 +79,7 @@ on_conflict     = &quot;copy&quot;                   # copy | reload</code></pre
 <h2 id="3-jwt-launch-token">3. JWT launch token</h2>
 <p>Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is exchanged for a session ticket on open).</p>
 <pre><code class="language-json">{
-  &quot;iss&quot;: &quot;Acme&quot;,                    // = host id
+  &quot;iss&quot;: &quot;acme&quot;,                    // = host id
   &quot;aud&quot;: &quot;opencanvas&quot;,
   &quot;exp&quot;: 1763730000,
   &quot;jti&quot;: &quot;9f1c…&quot;,                   // single-use

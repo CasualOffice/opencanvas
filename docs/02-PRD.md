@@ -190,4 +190,4 @@ See [09-ROADMAP.md](09-ROADMAP.md). Summary:
 2. Native file extension `.ocanvas` (zip). OK?
 3. Board renderer: custom SVG/Canvas2D on Yjs (proposed, license-clean) vs
    embedding Excalidraw (MIT, heavier, separate data model).
-4. First host to integrate: `meet` side panel? another internal service?
+4. First host to integrate: a meeting side panel, or another internal service?

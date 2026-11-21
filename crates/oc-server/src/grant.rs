@@ -122,9 +122,9 @@ pub fn room_id(host_id: &str, file_id: &str) -> String {
 mod tests {
     #[test]
     fn room_ids_are_stable_and_short() {
-        let a = super::room_id("Acme", "doc_1");
+        let a = super::room_id("acme", "doc_1");
         assert_eq!(a.len(), 28);
-        assert_eq!(a, super::room_id("Acme", "doc_1"));
-        assert_ne!(a, super::room_id("Acme", "doc_2"));
+        assert_eq!(a, super::room_id("acme", "doc_1"));
+        assert_ne!(a, super::room_id("acme", "doc_2"));
     }
 }
