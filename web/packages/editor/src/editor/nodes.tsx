@@ -1114,9 +1114,51 @@ function BlockSkeleton({ kind, rows = 3, view = "table" }: { kind: "db" | "board
   );
 }
 
+/**
+ * Database and board blocks are draggable atoms, so a press-and-move anywhere inside them
+ * used to start a native drag of the whole block, which cancelled the block's own pointer
+ * drags (moving shapes, resizing columns, kanban cards). They only worked in full screen,
+ * where the block is portalled out of the draggable node. A drag that starts on the block
+ * node itself is refused when the press began inside the block's content. Reordering still
+ * works from the gutter handle, and draggable elements inside the block keep their own drags.
+ */
+function useContentOwnsDrag<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const inner = ref.current;
+    // The draggable element is Tiptap's node container, above NodeViewWrapper.
+    const node = inner?.closest<HTMLElement>('[draggable="true"]');
+    if (!inner || !node) return;
+    // Cancelling dragstart is too late: Chrome has already sent pointercancel to the block's
+    // own gesture. Instead the node stops being draggable for the length of a press that
+    // starts inside the content, so the browser never begins a block drag.
+    const down = (e: PointerEvent) => {
+      if (e.target instanceof globalThis.Node && inner.contains(e.target)) node.draggable = false;
+    };
+    const up = () => {
+      node.draggable = true;
+    };
+    inner.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    return () => {
+      inner.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+      node.draggable = true;
+    };
+  }, []);
+  return ref;
+}
+
 function DatabaseView({ node }: ReactNodeViewProps) {
   const b = useBridge();
-  const ref = useEdgeFade();
+  const fadeRef = useEdgeFade();
+  const dragRef = useContentOwnsDrag<HTMLDivElement>();
+  const ref = (el: HTMLDivElement | null) => {
+    dragRef.current = el;
+    fadeRef.current = el;
+  };
   const dbId = String(node.attrs.dbId);
   const m = b.doc.getMap("databases").get(dbId) as Y.Map<unknown> | undefined;
   const rows = (m?.get("order") as Y.Array<unknown> | undefined)?.length ?? 3;
@@ -1145,9 +1187,10 @@ export const Database = Node.create({
 
 function BoardView({ node }: ReactNodeViewProps) {
   const b = useBridge();
+  const ref = useContentOwnsDrag<HTMLDivElement>();
   return (
     <NodeViewWrapper className="stubhost wideblock" data-board={node.attrs.boardId}>
-      <div contentEditable={false}>
+      <div contentEditable={false} ref={ref}>
         <Suspense fallback={<BlockSkeleton kind="board" />}>
           <BoardBlock doc={b.doc} boardId={String(node.attrs.boardId)} env={b.env} awareness={b.awareness} />
         </Suspense>
