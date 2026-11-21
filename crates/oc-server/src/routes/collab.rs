@@ -43,27 +43,19 @@ pub fn ws_config(ws: WebSocketUpgrade, max_message: usize) -> WebSocketUpgrade {
         .max_frame_size(max_message)
 }
 
+/// Frames written to the socket before one flush: a busy room's backlog goes out in one
+/// write instead of one syscall per frame (docs/22 §9.1).
+const WRITE_BATCH: usize = 64;
+
 /// Sends the actor's frames to `sink` until a close, a send error, a send that takes longer
 /// than [`SEND_TIMEOUT`] or a backlog over [`MAX_BACKLOG`] (a peer that stopped reading).
+/// Frames already queued are written together and flushed once.
 pub async fn write_frames<S>(mut sink: S, mut rx: mpsc::UnboundedReceiver<Outbound>)
 where
     S: futures::Sink<Message> + Unpin,
 {
-    while let Some(out) = rx.recv().await {
-        let msg = match out {
-            Outbound::Frame(b) => Message::Binary(b),
-            Outbound::Close(code, reason) => {
-                let _ = tokio::time::timeout(
-                    SEND_TIMEOUT,
-                    sink.send(Message::Close(Some(CloseFrame {
-                        code,
-                        reason: reason.into(),
-                    }))),
-                )
-                .await;
-                break;
-            }
-        };
+    let mut next = rx.recv().await;
+    while let Some(out) = next.take() {
         if rx.len() > MAX_BACKLOG {
             tracing::info!(backlog = rx.len(), "slow client dropped");
             let _ = tokio::time::timeout(
@@ -76,10 +68,43 @@ where
             .await;
             break;
         }
-        match tokio::time::timeout(SEND_TIMEOUT, sink.send(msg)).await {
+        let mut close = None;
+        let mut batch = Vec::new();
+        let mut item = Some(out);
+        while let Some(o) = item.take() {
+            match o {
+                Outbound::Frame(b) => batch.push(Message::Binary(b)),
+                Outbound::Close(code, reason) => {
+                    close = Some((code, reason));
+                    break;
+                }
+            }
+            if batch.len() < WRITE_BATCH {
+                item = rx.try_recv().ok();
+            }
+        }
+        let write = async {
+            for m in batch {
+                sink.feed(m).await?;
+            }
+            sink.flush().await
+        };
+        match tokio::time::timeout(SEND_TIMEOUT, write).await {
             Ok(Ok(())) => {}
             _ => break,
         }
+        if let Some((code, reason)) = close {
+            let _ = tokio::time::timeout(
+                SEND_TIMEOUT,
+                sink.send(Message::Close(Some(CloseFrame {
+                    code,
+                    reason: reason.into(),
+                }))),
+            )
+            .await;
+            break;
+        }
+        next = rx.recv().await;
     }
 }
 
@@ -209,7 +234,7 @@ async fn serve(
                     // y-protocols message type 1 = awareness (a single-byte varuint).
                     if data.first() == Some(&protocol::MSG_AWARENESS) {
                         if awareness.take() {
-                            membership.send(data.to_vec());
+                            membership.send(data.to_vec()).await;
                         }
                         continue;
                     }
@@ -217,7 +242,7 @@ async fn serve(
                         let _ = tx.send(Outbound::Close(CLOSE_RATE_LIMIT, "rate limit".into()));
                         break;
                     }
-                    membership.send(data.to_vec());
+                    membership.send(data.to_vec()).await;
                 }
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                 Some(Ok(_)) => {}

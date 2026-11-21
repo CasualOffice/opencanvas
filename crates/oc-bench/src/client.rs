@@ -507,6 +507,17 @@ type WsStream =
 /// Runs until the socket ends; returns why it ended.
 async fn session(sh: &Shared, spec: &Spec, ws: WsStream, t0: Instant) -> Option<String> {
     let (mut sink, mut stream) = ws.split();
+    // Like a browser's WebSocket (`bufferedAmount`): sending never stops the client reading.
+    // A server that pushes back (bounded room inbox) delays this client's frames, not its reads.
+    let (send_tx, mut send_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+    let writer = tokio::spawn(async move {
+        while let Some(f) = send_rx.recv().await {
+            if sink.send(Ws::Binary(f.into())).await.is_err() {
+                return;
+            }
+        }
+        let _ = sink.close().await;
+    });
     let mut editor = spec.editor.then(|| Editor::new(sh, spec.idx as u64 + 1));
     let file = file_id(&sh.cfg, spec.room);
     let empty = Doc::new();
@@ -522,7 +533,7 @@ async fn session(sh: &Shared, spec: &Spec, ws: WsStream, t0: Instant) -> Option<
         for f in out.drain(..) {
             sh.c.frames_out.fetch_add(1, Ordering::Relaxed);
             sh.c.bytes_out.fetch_add(f.len() as u64, Ordering::Relaxed);
-            if sink.send(Ws::Binary(f.into())).await.is_err() {
+            if send_tx.send(f).is_err() || writer.is_finished() {
                 return Some("send error".into());
             }
         }

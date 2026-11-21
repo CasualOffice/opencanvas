@@ -9,6 +9,7 @@ use bytes::Bytes;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use yrs::encoding::read::Cursor;
+use yrs::sync::awareness::AwarenessUpdateEntry;
 use yrs::sync::protocol::MessageReader;
 use yrs::sync::{Awareness, AwarenessUpdate, Message, SyncMessage};
 use yrs::updates::decoder::{Decode, DecoderV1};
@@ -16,7 +17,7 @@ use yrs::{ClientID, Doc, Map, ReadTxn, StateVector, Transact, Update};
 
 use super::{
     Cmd, CommitResult, ConflictOutcome, ConnId, Ctx, Outbound, PatchFailure, Patched, RoomInfo,
-    Rooms, filter, protocol,
+    Rooms, filter, presence, protocol,
 };
 use crate::grant::{Grant, Role};
 use crate::host_client::{Fetched, PutOutcome, PutRequest};
@@ -33,6 +34,8 @@ const MAX_AWARENESS_BYTES: usize = 2048;
 pub const MAX_PEERS: usize = 550;
 /// Awareness client ids one connection may own (one per Y.Doc; a few for tabs/reconnects).
 const MAX_CLIENTS_PER_CONN: usize = 8;
+/// A busy room still fans presence out after this many awareness frames.
+const AWARENESS_BATCH: usize = 64;
 /// New @mentions are collected once the room has been quiet this long (a burst of edits in one
 /// block becomes one notification).
 const MENTION_SETTLE: Duration = Duration::from_millis(500);
@@ -100,6 +103,13 @@ struct Room {
     doc: Doc,
     awareness: Awareness,
     peers: HashMap<ConnId, Peer>,
+    /// Which connection owns each awareness client id (kept in step with `Peer::clients`).
+    owners: HashMap<ClientID, ConnId>,
+    /// Stamped awareness waiting for the next fan-out (latest per client).
+    presence: presence::Coalescer,
+    /// Awareness frames since the last fan-out.
+    presence_frames: usize,
+    inbox: Arc<presence::Inbox>,
     host_version: Option<String>,
     dirty_since: Option<Instant>,
     last_update: Instant,
@@ -121,17 +131,29 @@ struct Room {
     mentions: Option<super::mentions::Tracker>,
 }
 
+/// The room task's channels: its own sender (for timers), its command queue and the
+/// shared inbox that bounds it.
+pub(super) struct Channels {
+    pub self_tx: mpsc::UnboundedSender<Cmd>,
+    pub rx: mpsc::UnboundedReceiver<Cmd>,
+    pub inbox: Arc<presence::Inbox>,
+}
+
 pub(super) async fn run(
     ctx: Arc<Ctx>,
     rooms: Weak<Rooms>,
     generation: u64,
     host: Arc<HostConfig>,
     seed: Grant,
-    self_tx: mpsc::UnboundedSender<Cmd>,
-    mut rx: mpsc::UnboundedReceiver<Cmd>,
+    chans: Channels,
 ) {
+    let Channels {
+        self_tx,
+        mut rx,
+        inbox,
+    } = chans;
     let id = seed.room.clone();
-    let mut room = match Room::load(ctx.clone(), host, &seed, self_tx).await {
+    let mut room = match Room::load(ctx.clone(), host, &seed, self_tx, inbox).await {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(room = %id, error = %e, "room load failed");
@@ -149,9 +171,18 @@ pub(super) async fn run(
                 None => break End::Idle,
                 Some(Cmd::Shutdown { by_host, reply }) => break End::Shutdown(by_host, reply),
                 Some(Cmd::StepDown) => break End::StepDown,
-                Some(cmd) => room.handle(cmd).await,
+                Some(cmd) => {
+                    room.handle(cmd).await;
+                    // Presence goes out once the inbox is drained (one frame per batch).
+                    if rx.is_empty() || room.presence_frames >= AWARENESS_BATCH {
+                        room.flush_awareness();
+                    }
+                }
             },
-            _ = tick.tick() => if room.tick().await { break End::Idle },
+            _ = tick.tick() => {
+                room.flush_awareness();
+                if room.tick().await { break End::Idle }
+            }
         }
     };
     match shutdown {
@@ -227,6 +258,7 @@ impl Room {
         host: Arc<HostConfig>,
         seed: &Grant,
         self_tx: mpsc::UnboundedSender<Cmd>,
+        inbox: Arc<presence::Inbox>,
     ) -> anyhow::Result<Self> {
         let id = seed.room.clone();
         let row = ctx.store.room(&id).await?;
@@ -310,6 +342,10 @@ impl Room {
         Ok(Self {
             mentions,
             awareness: Awareness::new(doc.clone()),
+            owners: HashMap::new(),
+            presence: presence::Coalescer::default(),
+            presence_frames: 0,
+            inbox,
             doc_bytes: encoded_len(&doc),
             doc,
             id,
@@ -346,7 +382,10 @@ impl Room {
                 reply,
             } => self.join(conn, grant, tx, reply).await,
             Cmd::Leave { conn } => self.leave(conn),
-            Cmd::Frame { conn, data } => self.frame(conn, &data).await,
+            Cmd::Frame { conn, data, permit } => {
+                self.frame(conn, &data).await;
+                drop(permit);
+            }
             Cmd::Info { reply } => {
                 let _ = reply.send(RoomInfo {
                     is_new: oc_model::is_empty(&self.doc),
@@ -480,10 +519,34 @@ impl Room {
     }
 
     /// Sends `update` to every peer but `except`. Everyone with access sees the same names
-    /// (docs/21 revision 2); `user` is stamped from each sender's grant on the way in.
-    fn fan_out_awareness(&mut self, update: &AwarenessUpdate, except: Option<ConnId>) {
-        let frame = protocol::awareness(update.clone());
-        self.broadcast(frame, except);
+    /// (docs/21 revision 2); `user` is stamped from each sender's grant on the way in, so one
+    /// encoded frame serves every peer.
+    fn fan_out_awareness(&mut self, update: AwarenessUpdate, except: Option<ConnId>) {
+        Metrics::inc(&self.ctx.metrics.awareness_broadcasts_total);
+        self.broadcast(protocol::awareness(update), except);
+    }
+
+    /// Applies the queued presence (and any frames parked while the inbox was full) and fans
+    /// it out as one frame.
+    fn flush_awareness(&mut self) {
+        self.presence_frames = 0;
+        if self.inbox.has_parked() {
+            for (conn, data) in self.inbox.take_parked() {
+                Metrics::inc(&self.ctx.metrics.awareness_coalesced_total);
+                let mut decoder = DecoderV1::new(Cursor::new(&data));
+                for msg in MessageReader::new(&mut decoder).flatten() {
+                    if let Message::Awareness(update) = msg {
+                        self.on_awareness(conn, update);
+                    }
+                }
+            }
+        }
+        let Some((update, except)) = self.presence.take() else {
+            return;
+        };
+        if self.awareness.apply_update(update.clone()).is_ok() {
+            self.fan_out_awareness(update, except);
+        }
     }
 
     /// Everyone's current presence, for one connection.
@@ -501,15 +564,18 @@ impl Room {
         let Some(peer) = self.peers.remove(&conn) else {
             return;
         };
+        self.inbox.forget(conn);
         if !peer.clients.is_empty() {
+            self.presence.forget(peer.clients.iter().copied());
             for c in &peer.clients {
+                self.owners.remove(c);
                 self.awareness.remove_state(*c);
             }
             if let Ok(update) = self
                 .awareness
                 .update_with_clients(peer.clients.iter().copied())
             {
-                self.fan_out_awareness(&update, None);
+                self.fan_out_awareness(update, None);
             }
         }
         if self.peers.is_empty() {
@@ -814,44 +880,41 @@ impl Room {
         }
     }
 
-    fn on_awareness(&mut self, conn: ConnId, mut update: AwarenessUpdate) {
-        let Some(peer) = self.peers.get(&conn) else {
+    /// Stamps each entry once with the sender's grant (docs/06 §2) and queues it; the next
+    /// [`flush_awareness`](Self::flush_awareness) fans everything out as one frame.
+    fn on_awareness(&mut self, conn: ConnId, update: AwarenessUpdate) {
+        let Some(peer) = self.peers.get_mut(&conn) else {
             return;
         };
+        self.presence_frames += 1;
         let user = peer.grant.awareness_user();
-        let foreign: HashSet<ClientID> = self
-            .peers
-            .iter()
-            .filter(|(id, _)| **id != conn)
-            .flat_map(|(_, p)| p.clients.iter().copied())
-            .collect();
-        let mut owned = Vec::new();
         let mut room_left = MAX_CLIENTS_PER_CONN.saturating_sub(peer.clients.len());
-        update.clients.retain(|client, entry| {
-            if foreign.contains(client) || entry.json.len() > MAX_AWARENESS_BYTES {
-                return false;
+        for (client, entry) in update.clients {
+            if entry.json.len() > MAX_AWARENESS_BYTES {
+                continue;
             }
-            if !peer.clients.contains(client) {
-                if room_left == 0 {
-                    return false;
+            match self.owners.get(&client) {
+                Some(owner) if *owner != conn => continue,
+                Some(_) => {}
+                None if room_left == 0 => continue,
+                None => {
+                    room_left -= 1;
+                    self.owners.insert(client, conn);
+                    peer.clients.insert(client);
                 }
-                room_left -= 1;
             }
-            if let Ok(Value::Object(mut state)) = serde_json::from_str::<Value>(&entry.json) {
-                state.insert("user".into(), user.clone());
-                entry.json = Value::Object(state).to_string().into();
-            }
-            owned.push(*client);
-            true
-        });
-        if update.clients.is_empty() {
-            return;
+            let json = presence::stamp(&entry.json, &user);
+            self.presence.push(
+                conn,
+                client,
+                AwarenessUpdateEntry {
+                    clock: entry.clock,
+                    json,
+                },
+            );
         }
-        if let Some(peer) = self.peers.get_mut(&conn) {
-            peer.clients.extend(owned);
-        }
-        if self.awareness.apply_update(update.clone()).is_ok() {
-            self.fan_out_awareness(&update, Some(conn));
+        if self.presence.len() >= presence::MAX_PENDING_CLIENTS {
+            self.flush_awareness();
         }
     }
 

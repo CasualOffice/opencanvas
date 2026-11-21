@@ -205,7 +205,7 @@ impl Client {
     fn flush(&mut self, rng: &mut Rng, n: usize) {
         for _ in 0..n.min(self.outbox.len()) {
             let i = rng.next(self.outbox.len() as u32) as usize;
-            self.membership.send(self.outbox.swap_remove(i));
+            self.membership.try_send(self.outbox.swap_remove(i));
         }
     }
 
