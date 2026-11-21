@@ -34,11 +34,36 @@ export const VIEW_KINDS: ViewKind[] = ["table", "board", "calendar", "gallery"];
 
 /** Per-view preferences, stored as JSON in the db's `views` Y.Map under the view name. */
 export interface ViewPrefs {
-  filter?: { f: string; vals: string[] } | null;
-  sort?: { f: string; dir: 1 | -1 } | null;
+  filter?: FilterRule | null;
+  sort?: SortRule | null;
   q?: string;
   /** Calendar month shown, `YYYY-MM`. */
   cal?: string;
+  /**
+   * Several sort keys, applied in order. When present it wins over `sort`; writers keep
+   * `sort` equal to the first key so older clients still sort by it.
+   */
+  sorts?: SortRule[];
+  /** Several filters, all of which must match (AND). Wins over `filter`, which mirrors the first. */
+  filters?: FilterRule[];
+  /** Table: column widths in px by field id. */
+  widths?: Record<string, number>;
+  /** Board: field id to group columns by (status or select). */
+  group?: string;
+  /** Calendar: date field id the calendar places rows on. */
+  date?: string;
+  /** Gallery: what fills the card cover: "none", "color" (group colour, default) or a URL field id. */
+  cover?: string;
+}
+
+export interface SortRule {
+  f: string;
+  dir: 1 | -1;
+}
+
+export interface FilterRule {
+  f: string;
+  vals: string[];
 }
 
 export type CellValue = string | number | boolean | string[] | null;

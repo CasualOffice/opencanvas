@@ -256,6 +256,67 @@ button.ocdb-pv:hover:not(:disabled),div.ocdb-pv:hover{background:var(--hover)}
 .ocdb-compact .ocdb-chip{height:32px}
 .ocdb-compact .ocdb-chip-x{width:28px;height:28px}
 
+/* UX pass: grid selection, resize, reorder, search highlight, rules, options, empty states */
+mark.ocdb-hl{background:var(--amber-bg);color:inherit;border-radius:3px;box-shadow:0 0 0 1px var(--amber-bg)}
+.ocdb-grid td.hit{box-shadow:inset 0 -2px 0 var(--amber-fg)}
+.ocdb-grid td.sel,.ocdb-grid tbody tr:hover td.sel{background:var(--accent-soft)}
+.ocdb-grid td:focus-within{box-shadow:inset 0 0 0 2px var(--accent-ring)}
+.ocdb-grid td:focus{outline:none}
+.ocdb-grid th{position:relative}
+.ocdb-grid th[aria-sort] .ocdb-hcell{color:var(--fg-2)}
+.ocdb-sortic{display:inline-flex;align-items:center;gap:1px}
+.ocdb-sortic small{font-size:10px;font-variant-numeric:tabular-nums}
+.ocdb-rsz{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:2;touch-action:none;outline:none}
+.ocdb-rsz::after{content:"";position:absolute;top:8px;bottom:8px;left:3px;width:2px;border-radius:1px;background:transparent;transition:background .15s}
+.ocdb-rsz:hover::after,.ocdb-rsz.on::after,.ocdb-rsz:focus-visible::after{background:var(--accent)}
+.ocdb-grid th.drop-b{box-shadow:inset 2px 0 0 var(--accent)}
+.ocdb-grid th.drop-a{box-shadow:inset -2px 0 0 var(--accent)}
+.ocdb-grid tr.drop-b td{box-shadow:inset 0 2px 0 var(--accent)}
+.ocdb-grid tr.drop-a td{box-shadow:inset 0 -2px 0 var(--accent)}
+.ocdb-grid tr.dragging td{opacity:.45}
+.ocdb-grid tr.ocdb-spacer td{border:0;padding:0;background:none}
+.ocdb-grid tbody{overflow-anchor:none}
+.ocdb-ct.grip{padding-left:2px}
+.ocdb-grip{width:20px;height:28px;flex:none;border:0;background:none;border-radius:5px;display:grid;place-items:center;color:var(--fg-3);cursor:grab;opacity:0;touch-action:none;padding:0;transition:opacity .15s var(--ease)}
+.ocdb-grid tr:hover .ocdb-grip,.ocdb-grip:focus-visible{opacity:1}
+.ocdb-grip:hover{background:var(--hover);color:var(--fg)}
+.ocdb-compact .ocdb-grip{opacity:.6;width:26px}
+.ocdb-chip-b{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:inherit;padding:0;font-size:inherit;min-width:0;max-width:100%}
+.ocdb-chip-b>span{overflow:hidden;text-overflow:ellipsis}
+.ocdb-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:36px 16px;border:1px dashed var(--line-2);border-radius:12px;margin-top:12px;color:var(--fg-3);font-size:13.5px}
+.ocdb-empty b{color:var(--fg);font-weight:600;font-size:14.5px}
+.ocdb-empty-ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--sunk);color:var(--fg-2);margin-bottom:4px}
+.ocdb-empty-acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+.ocdb-rule{display:flex;align-items:center;gap:6px;padding:3px 4px 3px 10px;min-height:36px;font-size:13.5px}
+.ocdb-rule .n{width:16px;color:var(--fg-3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.ocdb-rule .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ocdb-rule .ocdb-ib{width:26px;height:26px}
+.ocdb-rule .ocdb-ib:disabled{opacity:.35}
+.ocdb-pop:has(.ocdb-rule),.ocdb-pop:has(.ocdb-opts){min-width:300px;max-width:min(360px,calc(100vw - 16px))}
+.ocdb-fchips{display:flex;flex-wrap:wrap;gap:4px;padding:2px 6px 6px}
+.ocdb-badge{min-width:16px;height:16px;border-radius:8px;background:var(--accent);color:var(--accent-fg);font-size:10.5px;display:inline-grid;place-items:center;padding:0 4px;font-variant-numeric:tabular-nums}
+.ocdb-mi:disabled{opacity:.4}
+.ocdb-mi>.lbl{flex:1 1 auto}
+.ocdb-opts ul{list-style:none;margin:0;padding:0 2px}
+.ocdb-opts li{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:2px 4px}
+.ocdb-opts li .ocdb-pin{flex:1;min-width:0;height:30px;width:auto}
+.ocdb-opts li .ocdb-ib{width:26px;height:26px}
+.ocdb-opts li .ocdb-ib:disabled{opacity:.35}
+.ocdb-tone{width:20px;height:20px;border-radius:6px;border:0;padding:0;flex:none;display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--line-2)}
+.ocdb-tones{display:flex;gap:6px;flex-basis:100%;padding:6px 0 4px 28px}
+.ocdb-tones .ocdb-tone{width:24px;height:24px}
+.ocdb-tones .ocdb-tone[aria-checked="true"]{box-shadow:0 0 0 2px var(--app),0 0 0 4px var(--accent)}
+.ocdb-optadd{display:flex;gap:6px;align-items:center}
+.ocdb-optadd .ocdb-pin{flex:1}
+.ocdb-pnav{display:inline-flex;align-items:center;gap:2px;margin-right:4px}
+.ocdb-pcount{font-size:12px;color:var(--fg-3);font-variant-numeric:tabular-nums;margin-right:4px}
+.ocdb-shd .ocdb-ib:disabled{opacity:.35}
+.ocdb-gcov.img{overflow:hidden;background:var(--sunk)}
+.ocdb-gcov.img img{width:100%;height:100%;object-fit:cover;display:block}
+.ocdb-side:focus{outline:none}
+.ocdb-compact .ocdb-opts li .ocdb-ib,.ocdb-compact .ocdb-rule .ocdb-ib{width:38px;height:38px}
+.ocdb-compact .ocdb-rsz{width:16px;right:-8px}
+
 @keyframes ocdb-pop{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes ocdb-fade{from{opacity:0}}
 @keyframes ocdb-up{from{transform:translateY(100%)}to{transform:none}}
