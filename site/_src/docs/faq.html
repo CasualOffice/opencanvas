@@ -1,0 +1,36 @@
+<!--meta {"title": "FAQ", "description": "Answers about OpenCanvas: its status, what the Business Source License allows, what data it keeps, how users sign in, WOPI, exports and scaling."} -->
+<h1>FAQ</h1>
+<p class="lede">Short answers, with links to the pages that say more.</p>
+
+<h2>Can I use it in production today?</h2>
+<p>Not yet. OpenCanvas is a P1 alpha for evaluation. The server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it still awaits the owner's review and there is no tagged release. The <a href="../roadmap.html">roadmap</a> shows each item's status.</p>
+
+<h2>What does the licence allow?</h2>
+<p>OpenCanvas is source-available under the Business Source License 1.1 (BUSL-1.1), with CasualOffice as the licensor.</p>
+<ul>
+  <li><strong>Allowed at no cost:</strong> running it in production, self-hosting it, and embedding it in your own products and services, whether those are open or closed source, commercial or not.</li>
+  <li><strong>Needs a commercial licence:</strong> offering OpenCanvas to others as a hosted or managed service whose main purpose is collaborative editing of documents, databases or whiteboards.</li>
+  <li><strong>Later:</strong> each version becomes available under the Mozilla Public License 2.0 four years after it is first published under BUSL-1.1.</li>
+</ul>
+<p>The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file states the exact terms and is the authority; this summary is not legal advice. For other arrangements, contact the licensor through the repository.</p>
+
+<h2>Does OpenCanvas keep my documents?</h2>
+<p>Only while a session is live. The server keeps a snapshot and the recent updates so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file lives in your app; OpenCanvas writes it back there. See <a href="architecture.html">Architecture</a>.</p>
+
+<h2>How do users sign in?</h2>
+<p>To your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role (view, comment or edit). OpenCanvas trusts that decision for the life of the token, enforces it on every edit, and switches a user's role live when your app calls the role API. See the <a href="integration.html">integration guide</a>.</p>
+
+<h2>Is there a Save button?</h2>
+<p>No. Every change saves to your app on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Saves go through a durable outbox, so a restart resends them. If your copy of the file changed elsewhere, your chosen policy runs: save a copy, or reload.</p>
+
+<h2>We already use Collabora through WOPI. Can we reuse that?</h2>
+<p>Yes. OpenCanvas is a WOPI client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc URLs it will call. Proof keys are not supported yet. See <a href="wopi.html">WOPI mode</a>.</p>
+
+<h2>What can it import and export?</h2>
+<p>Export: Markdown, HTML, JSON, the native <code>.ocanvas</code> file, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG. Import: Markdown, HTML and CSV. See <a href="operations.html">Operations</a>.</p>
+
+<h2>How does it scale?</h2>
+<p>One node runs on SQLite. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, other nodes relay to it, and if the owner dies another node takes the room over from its log. See <a href="operations.html">Operations</a> and <a href="architecture.html">Architecture</a>.</p>
+
+<h2>Does the demo send anything anywhere?</h2>
+<p>No. The <a href="../app/#demo">demo</a> is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so.</p>

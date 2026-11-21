@@ -1,0 +1,88 @@
+name: pages
+
+# Publish the website to GitHub Pages at https://casualoffice.github.io/opencanvas/.
+# Shaped after OpenSeal's .github/workflows/pages.yml: the site is static and committed
+# (site/), this job regenerates its generated pages from the repository's documents,
+# checks it (links, claims, accessibility), adds the real editor as the demo at app/,
+# and deploys. GitHub Pages must be enabled in the repository settings with
+# "Source: GitHub Actions" for the deploy job to succeed.
+#
+# The demo is web/packages/editor built with OC_EDITOR_BASE=/opencanvas/app/ (the project
+# path); "Try the demo" opens app/#demo, which needs no server. The server's own build
+# keeps the default base /app/.
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "tools/build-*.py", "tools/sitelib.py", "tools/check-site-*", "tools/serve-site.py",
+            "README.md", "docs/**", "web/**", "e2e/package*.json", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - name: Build the editor for the project path
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          OC_EDITOR_BASE=/opencanvas/app/ pnpm --filter @opencanvas/editor build
+      # Regenerated here, so the docs, roadmap and changelog follow README.md and docs/
+      # even when site/ was not rebuilt in the commit.
+      - name: Build the generated pages
+        run: python3 -I tools/build-site.py
+      - name: Every internal link resolves
+        run: python3 -I tools/check-site-links.py
+      - name: Every claim traces to the repository; no page says "open source"
+        run: |
+          python3 -I tools/check-site-claims.py --self-test
+          python3 -I tools/check-site-claims.py
+      - name: Assemble the published tree
+        run: |
+          set -euo pipefail
+          python3 -I tools/build-site.py --publish _site
+          for f in index.html 404.html roadmap.html changelog.html brand.html docs/index.html docs/getting-started.html \
+                   docs/integration.html docs/wopi.html docs/protocol.html docs/operations.html docs/security.html \
+                   docs/architecture.html docs/faq.html search-index.json sitemap.xml robots.txt llms.txt llms-full.txt \
+                   assets/site.css assets/tokens.css assets/site.js assets/theme-init.js assets/logo.svg \
+                   assets/screens/canvas-light.png assets/screens/canvas-light.webp app/index.html; do
+            [ -s "_site/$f" ] || { echo "::error::_site/$f is missing or empty"; exit 1; }
+          done
+          grep -q 'src="/opencanvas/app/' _site/app/index.html || { echo "::error::app/ was not built for /opencanvas/app/"; exit 1; }
+          ! find _site/app -name '*.map' | grep -q . || { echo "::error::source maps were published"; exit 1; }
+          echo "site: $(find _site -type f | wc -l) files"
+      # WCAG 2.2 AA with axe on every page, light and dark, 1440 and 390 px: zero findings.
+      - name: Accessibility, overflow and console errors on every page
+        run: |
+          (cd e2e && npm ci && npx playwright install --with-deps chromium)
+          python3 -I tools/serve-site.py 8700 > /tmp/serve.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8700/opencanvas/ > /dev/null && break; sleep 1; done
+          SHOTS=0 node tools/check-site-pages.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

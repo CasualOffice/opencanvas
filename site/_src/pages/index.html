@@ -1,0 +1,364 @@
+<!--meta {"title": "OpenCanvas", "description": "OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Source-available under BUSL-1.1.", "nav": "home"} -->
+<!-- Product screenshots come from tools/capture-site-screens.mjs: the real editor in its
+     #demo mode, captured by Playwright. No mock-ups. Numbers in claim blocks are quoted
+     from the repository by a source marking; tools/check-site-claims.py checks them. -->
+<section class="hero" aria-labelledby="hero-h">
+  <div class="wrap">
+    <div class="hero-copy">
+      <a class="release-pill" href="changelog.html"><b>P1 alpha</b><span>Pre-release, for evaluation</span>{{icon:arrow-right:14}}</a>
+      <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
+      <p class="lede">OpenCanvas is a collaborative canvas you embed, the way apps embed Collabora: rich text, databases and whiteboards, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app/#demo" data-testid="cta-demo">Try the demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+        <a class="btn btn-secondary" href="docs/getting-started.html#run-it">Run it with Docker</a>
+      </div>
+      <p class="hero-note">The demo is the real editor running in your browser on a sample canvas, with simulated collaborators: no server, no account, nothing sent. <a href="#limits">Pre-release: read the limits first.</a></p>
+      <ul class="hero-meta" aria-label="In short">
+        <li>{{icon:circle-check:16}}Source-available (BUSL-1.1), free to self-host and embed</li>
+        <li>{{icon:circle-check:16}}One Rust server</li>
+        <li>{{icon:circle-check:16}}Your app keeps the files</li>
+      </ul>
+    </div>
+
+    <div class="stage-hero">
+      <div class="window">
+        <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url">{{icon:lock:12}}app.example.com/channels/engineering</span><span></span></div>
+        {{shot:canvas|The OpenCanvas editor in demo mode: the Sprint 42 planning canvas with a sprint goal callout, a Decisions paragraph with a comment highlight and two collaborators' live cursors, and the backlog database below, with five avatars in the top bar.|eager}}
+      </div>
+      <div class="device">{{shot:phone|The same canvas on a phone: the title, the sprint goal, the Decisions paragraph with a collaborator typing, and the backlog database.|eager}}</div>
+      <p class="float-chip" aria-hidden="true"><span class="chip-ic">{{icon:check:18}}</span><b>Saved to your app</b><span>Autosave, no Save button</span></p>
+    </div>
+  </div>
+</section>
+
+<section class="standards" aria-labelledby="std-h">
+  <div class="wrap">
+    <p id="std-h">Built on open protocols your stack already speaks</p>
+    <ul>
+      <li>{{icon:git-branch:16}}Yjs CRDT</li>
+      <li>{{icon:key-round:16}}JWT: HS256, RS256, EdDSA, JWKS</li>
+      <li>{{icon:plug:16}}WOPI-compatible</li>
+      <li>{{icon:braces:16}}postMessage, Collabora-style</li>
+      <li>{{icon:database:16}}SQLite, MySQL, MariaDB</li>
+      <li>{{icon:container:16}}Docker and Helm</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="fit" aria-labelledby="fit-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">How it fits</span>
+      <h2 id="fit-h">Your app decides. OpenCanvas edits.</h2>
+      <p>Your backend checks who may open which file, signs a short launch token, and opens OpenCanvas in an iframe. From then on OpenCanvas runs the live session and calls your app back to load and save the file. Once a session is saved and idle, it keeps nothing.</p>
+    </div>
+    <ul class="engine-strip reveal">
+      <li><b>{{icon:building:16}}Your app owns</b><span>Sign-in, users, who can view, comment or edit, the file itself, its versions and its retention.</span></li>
+      <li><b>{{icon:users:16}}OpenCanvas owns</b><span>The editor, real-time merge, cursors and presence, preview, export, and autosave back to your storage.</span></li>
+      <li><b>{{icon:server:16}}One server</b><span>A Rust binary with the editor built in. SQLite by default; MySQL or MariaDB and Redis when you run several nodes.</span></li>
+      <li><b>{{icon:code:16}}One embed</b><span>An iframe form POST, or the <code>&lt;open-canvas&gt;</code> web component, with events for ready, saved, presence and errors.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="why" aria-labelledby="why-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Why it matters</span>
+      <h2 id="why-h">Three ideas, in plain words.</h2>
+      <p>The names in the strip above are what let OpenCanvas sit inside someone else's product without taking over its data.</p>
+    </div>
+    <ul class="why reveal">
+      <li><span class="term">CRDT</span><h3>Edits that cannot collide</h3><p>Every change is a small update that merges with everyone else's in any order, the same way on every screen. The server orders and relays updates; it never has to resolve a conflict between two people typing.</p><p class="so">So: live co-editing without locks, and brief disconnects resync on their own.</p></li>
+      <li><span class="term">Host callbacks</span><h3>The file never moves house</h3><p>OpenCanvas loads the file from your app when a session opens and writes it back with a plain HTTP call, signed so you know it is us. If your file changed elsewhere, your chosen policy runs: save a copy, or reload.</p><p class="so">So: your storage, versions and retention rules stay the only ones.</p></li>
+      <li><span class="term">Autosave</span><h3>Nobody presses Save</h3><p>Changes save on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Each save is written to an outbox first, so a restart resends it rather than losing it.</p><p class="so">So: the status reads Saved, and that is true.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="limits" aria-labelledby="limits-h">
+  <div class="wrap">
+    <div class="limits reveal" data-testid="limits">
+      <h2 id="limits-h">{{icon:triangle-alert:18}}Pre-release: what it is not yet</h2>
+      <ul>
+        <li><strong>Not for production yet.</strong> OpenCanvas is a P1 alpha for evaluation; there is no tagged release.</li>
+        <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
+        <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet.</li>
+        <li>The Helm chart is linted and rendered in CI but has not been installed in a real cluster yet, and there are no dashboards.</li>
+        <li>The embed web component works but has not yet been tested inside a host page; WOPI mode has no proof keys yet.</li>
+      </ul>
+      <p>Every item is a row in the project's tracker, and the <a href="roadmap.html">roadmap</a> is generated from it.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="product" aria-labelledby="write-h">
+  <div class="wrap feature">
+    <div class="feature__copy reveal">
+      <span class="eyebrow eyebrow--dot">Write together</span>
+      <h2 id="write-h">One canvas, everyone in it.</h2>
+      <p>Type <kbd>/</kbd> for any block. Everyone's cursor and selection show with their name, and the avatars at the top say who is here and who is only viewing.</p>
+      <ul class="points">
+        <li><span class="pt-ic">{{icon:file-text}}</span><strong>Blocks for real documents</strong><span>Headings, lists, checklists, toggles, callouts, code with highlighting, tables, images, files, link cards, sandboxed embeds and columns.</span></li>
+        <li><span class="pt-ic">{{icon:users}}</span><strong>Presence that helps</strong><span>Live cursors with names, a typing dot, follow mode, and comment threads anchored to the text they discuss.</span></li>
+        <li><span class="pt-ic">{{icon:lock}}</span><strong>Roles your app sets</strong><span>View, comment or edit, enforced on the server for every change, and switched live when your app calls the role API.</span></li>
+      </ul>
+    </div>
+    <figure class="feature__media reveal reveal-d1">
+      <div class="window">
+        <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url">{{icon:lock:12}}app.example.com/channels/engineering</span><span></span></div>
+        {{shot:comments|The canvas with the Comments panel open: a thread on "Autosave runs every 60 seconds by default" where Ravi Menon asks whether hosts can set it per channel and Asha Rao answers, with a reply box.}}
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="section-tight" aria-labelledby="blocks-h">
+  <div class="wrap">
+    <h2 id="blocks-h" class="sr-only">Databases and templates</h2>
+    <div class="bento">
+      <article class="cell c-7 reveal">
+        <h3>Databases inside the page</h3>
+        <p>Typed fields and four views over the same rows: table, board, calendar and gallery. Filter, sort and search; drag cards between columns; import and export CSV.</p>
+        <div class="cell-media cell-media--inset">{{shot:database|The Sprint 42 backlog database in its Board view: columns Backlog, In progress, In review and Done, with task cards showing owner, due date and points.}}</div>
+      </article>
+      <article class="cell c-5 reveal reveal-d1" data-claim>
+        <h3>Start from a template</h3>
+        <p>40 templates in 9 categories, plus blank canvas, database, whiteboard and import from Markdown, HTML or CSV.</p>
+        {{claim:source|40 templates in 9 categories|README.md}}
+        <div class="cell-media cell-media--inset">{{shot:templates|The New canvas gallery: template categories on the left, Start blank options for canvas, database, whiteboard and import, and the first templates with their thumbnails.}}</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="board-h">
+  <div class="wrap feature feature--flip">
+    <div class="feature__copy reveal">
+      <span class="eyebrow eyebrow--dot">Whiteboard</span>
+      <h2 id="board-h">Draw it in the same document.</h2>
+      <p>The whiteboard is a block of the canvas, not a separate product: one session, one save, one file. Everyone's pointer shows while they draw.</p>
+      <ul class="points">
+        <li><span class="pt-ic">{{icon:pen-line}}</span><strong>Pen, notes and shapes</strong><span>Sticky notes, rectangles, ellipses, diamonds, text, images, zoom and full screen.</span></li>
+        <li><span class="pt-ic">{{icon:workflow}}</span><strong>Arrows that stay attached</strong><span>Connectors bind to shapes and follow them when they move, straight or elbowed.</span></li>
+        <li><span class="pt-ic">{{icon:smartphone}}</span><strong>Phones and side panels</strong><span>Bottom sheets, a toolbar above the keyboard, and a board you tap before it takes over touch.</span></li>
+      </ul>
+    </div>
+    <figure class="feature__media reveal reveal-d1">
+      <div class="window">
+        <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url">{{icon:lock:12}}app.example.com/channels/engineering</span><span></span></div>
+        {{shot:whiteboard|The "How a session flows" whiteboard: a dashed frame labelled Host app with a sticky note "Signs launch token (JWT)", arrows to "Room on owner node + WAL" and "Autosave → PUT /files/:id", an arrow back to the host, and the board toolbar.}}
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="section band-dark" id="evidence" aria-labelledby="evidence-h">
+  <div class="wrap">
+    <div class="sec-head flush reveal">
+      <span class="eyebrow eyebrow--ok">Saving and safety</span>
+      <h2 id="evidence-h">Built so an edit is never lost or forged.</h2>
+      <p>Each claim below links to the test that proves it, or quotes the project's tracker where it records a measured result.</p>
+    </div>
+    <ol class="chain reveal" aria-label="A session: your app launches it, people edit, the server merges, and the file is saved back to your app">
+      <li>{{icon:key-round}}launch</li><li class="sep" aria-hidden="true">{{icon:arrow-right}}</li>
+      <li>{{icon:pencil}}edit</li><li class="sep" aria-hidden="true">{{icon:arrow-right}}</li>
+      <li>{{icon:git-branch}}merge</li><li class="sep" aria-hidden="true">{{icon:arrow-right}}</li>
+      <li class="sealed">{{icon:save}}saved to your app</li>
+    </ol>
+    <ul class="facts">
+      <li class="reveal"><span class="cell-icon">{{icon:shield-check}}</span><strong>Viewers cannot write, even with devtools</strong><span>The server checks every update against the sender's role; a commenter can change comments and nothing else.</span>{{claim:tested|role filter tests, seen failing first|crates/oc-server/tests/rooms.rs}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:git-branch}}</span><strong>Convergence, fuzzed</strong><span>Random concurrent edits from several editors, delivered out of order: 10 000 iterations pass in 31.8 s, and a nightly CI job runs them with a new seed.</span>{{claim:source|10 000 iterations pass in 31.8 s (release)|docs/10-EXECUTION-TRACKER.md}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:server}}</span><strong>Owner node killed mid-edit</strong><span>In the cluster chaos test the room moved to another node, clients resynced in 0.59 s, and the host's file held 260/260 edits.</span>{{claim:source|resync 0.59 s, 260/260 edits (92 acked before the kill) in the host file|docs/10-EXECUTION-TRACKER.md}}</li>
+      <li class="reveal"><span class="cell-icon">{{icon:save}}</span><strong>Saves survive a restart</strong><span>Each save is written to a durable outbox before your app is called, and resent with the same idempotency key after a crash.</span>{{claim:tested|outbox resume after restart|crates/oc-server/tests/hardening.rs}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:key-round}}</span><strong>Tokens you sign, checked strictly</strong><span>The algorithm is pinned per host, never read from the token; expiry, audience and single use are enforced.</span>{{claim:tested|JWT tests incl. alg=none and key confusion|crates/oc-server/src/jwt.rs}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:lock-keyhole}}</span><strong>Secrets sealed at rest</strong><span>Callback tokens are encrypted with AES-256-GCM under a key you set; the server refuses to start without it outside development.</span>{{claim:deployment|OC_KEK, a 32-byte key you generate and keep}}</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="integrate" aria-labelledby="integrate-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Integrate</span>
+      <h2 id="integrate-h">Three steps to a live canvas in your app.</h2>
+      <p>Register your app with the server, embed the editor with a token your backend signs, then answer a few HTTP callbacks. The code below is from the <a href="docs/integration.html">integration guide</a>.</p>
+    </div>
+    <div class="duo">
+      <div class="duo-cell reveal">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>1. Register your host</div>
+<pre><code><span class="c-cmt"># opencanvas.hosts.toml</span>
+[[host]]
+id              = "Acme"
+name            = "Acme"
+mode            = "jwt"
+jwt_alg         = "HS256"
+jwt_secret      = "env:ACME_OC_SECRET"
+api_key         = "env:ACME_OC_API_KEY"
+callback_base   = "https://api.acme.example/opencanvas"
+allowed_origins = ["https://app.acme.example"]</code></pre>
+        </div>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>2. Embed it with a signed token</div>
+<pre><code>&lt;script type="module"
+  src="https://canvas.example.com/sdk/embed.js"&gt;&lt;/script&gt;
+&lt;open-canvas server="https://canvas.example.com"
+  token="{{ jwt }}" theme="auto"
+  style="height:100vh"&gt;&lt;/open-canvas&gt;
+
+<span class="c-cmt">// Your backend signs the token after its own ACL check:</span>
+<span class="c-cmt">// file, user, role (view | comment | edit), perms</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <p class="muted reveal">3. Answer these callbacks from your backend:</p>
+    <ul class="services reveal">
+      <li>{{icon:download:18}}<span><b>GET /files/{fileId}</b>Load: return the file and its version</span></li>
+      <li>{{icon:save:18}}<span><b>PUT /files/{fileId}</b>Save: store it, answer the new version, or 409</span></li>
+      <li>{{icon:file-up:18}}<span><b>POST /files/{fileId}/assets</b>Store an uploaded image or file</span></li>
+      <li>{{icon:users:18}}<span><b>GET /users?q=</b>People who can see the file, for @mentions</span></li>
+      <li>{{icon:copy:18}}<span><b>POST /files/{fileId}/copies</b>Save a copy when the file changed elsewhere</span></li>
+      <li>{{icon:fingerprint:18}}<span><b>X-OpenCanvas-Signature</b>HMAC-SHA256 on every call, so you know it is us</span></li>
+    </ul>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/integration.html">Integration guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/wopi.html">Already a WOPI host?<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
+  </div>
+</section>
+
+<section class="section section-alt" id="self-host" aria-labelledby="selfhost-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Self-host</span>
+      <h2 id="selfhost-h">One container to start, more nodes when you need them.</h2>
+      <p>A single node runs on SQLite with no database to set up. For many concurrent users, point several nodes at MySQL or MariaDB and Redis: each room has one owner node, and the others relay to it.</p>
+    </div>
+    <div class="duo">
+      <div class="duo-cell reveal">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Single node, SQLite</div>
+<pre><code>docker run -p 8080:8080 -v oc-data:/data \
+  -e OC_PUBLIC_URL=https://canvas.example.com \
+  -e OC_KEK=$(openssl rand -base64 32) \
+  -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
+  opencanvas/server:0.1</code></pre>
+        </div>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Cluster</div>
+<pre><code>DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas
+REDIS_URL=redis://redis:6379      <span class="c-cmt"># enables cluster mode</span>
+OC_NODE_ID=node-1
+OC_CLUSTER_ADVERTISE=http://node-1:8080
+OC_CLUSTER_SECRET=&lt;same on every node&gt;
+OC_KEK=&lt;same on every node&gt;</code></pre>
+        </div>
+      </div>
+    </div>
+    <ul class="services reveal">
+      <li>{{icon:server:18}}<span><b>oc-server</b>Launch, rooms, saves, exports and the editor at /app/</span></li>
+      <li>{{icon:database:18}}<span><b>SQLite or MySQL / MariaDB</b>Only the live session's log and the save outbox</span></li>
+      <li>{{icon:layers:18}}<span><b>Redis (cluster)</b>Room leases, one owner per room</span></li>
+      <li>{{icon:printer:18}}<span><b>Gotenberg (optional)</b>PDF export; Word, PNG and SVG need nothing extra</span></li>
+      <li>{{icon:container:18}}<span><b>Helm chart</b>Single node or cluster, non-root, read-only root</span></li>
+      <li>{{icon:refresh-cw:18}}<span><b>Graceful drain</b>Saves dirty rooms, then tells clients to reconnect</span></li>
+    </ul>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/operations.html">Operations guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/architecture.html">Architecture<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
+  </div>
+</section>
+
+<section class="section" id="tested" aria-labelledby="tested-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Verified</span>
+      <h2 id="tested-h">What the last full check ran.</h2>
+      <p>Quoted from the tracker's integration log, where every merge records how it was verified.</p>
+    </div>
+    <ul class="facts facts--light">
+      <li class="reveal"><span class="cell-icon">{{icon:list-checks}}</span><strong>Server, editor and browser tests</strong><span>cargo test 88, vitest 182, and Playwright 11/11 with two browsers per spec, including a WebKit phone.</span>{{claim:source|cargo test 88, vitest 182, typecheck, initial JS 257.1 KB gz (budget 300), Playwright 11/11|docs/10-EXECUTION-TRACKER.md}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:database}}</span><strong>Three databases, end to end</strong><span>Launch, edit, autosave and export pass on SQLite, MariaDB 11.4 and MySQL 8.4.</span>{{claim:source|e2e-db PASS SQLite (+ real PDF via Gotenberg), MariaDB 11.4, MySQL 8.4|docs/10-EXECUTION-TRACKER.md}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:package}}</span><strong>A small first load</strong><span>The editor's initial JavaScript is 257.1 KB gzipped, under a 300 KB budget that CI enforces.</span>{{claim:source|initial JS 257.1 KB gz (budget 300)|docs/10-EXECUTION-TRACKER.md}}</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section section-alt" aria-labelledby="licence-h">
+  <div class="wrap os-band">
+    <div class="reveal">
+      <div class="sec-head flush">
+        <span class="eyebrow eyebrow--dot">Licence</span>
+        <h2 id="licence-h">Source-available. Free to self-host and embed.</h2>
+        <p>OpenCanvas is under the Business Source License 1.1, with CasualOffice as the licensor. Read the code, run it in production, and build it into your own products, open or closed.</p>
+      </div>
+      <ul class="os-points">
+        <li>{{icon:circle-check}}<span>Self-host it and embed it in your own products and services, including commercial ones, at no cost.</span></li>
+        <li>{{icon:circle-check}}<span>A commercial licence is needed only to offer OpenCanvas to others as a hosted collaborative-editing service.</span></li>
+        <li>{{icon:circle-check}}<span>Each version becomes MPL-2.0 four years after its release.</span></li>
+      </ul>
+    </div>
+    <div class="badge-card reveal reveal-d1">
+      <a class="powered" href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE"><img class="logo-light" src="assets/logo.svg" alt="" width="94" height="16" loading="lazy"><img class="logo-dark" src="assets/logo-dark.svg" alt="" width="94" height="16" loading="lazy"><span>Read the licence</span></a>
+      <p class="muted">The LICENSE file states the exact terms.</p>
+      <a class="btn btn-secondary btn-sm" href="docs/faq.html#what-does-the-licence-allow">What it allows</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="compare-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2 id="compare-h">How it compares.</h2>
+      <p>From the project's research note on Slack Canvas, Zoom Canvas and Microsoft Loop, built from each vendor's public documentation. Where OpenCanvas's answer is not built yet, the table says so.</p>
+    </div>
+    <div class="table-scroll reveal" tabindex="0" role="region" aria-labelledby="compare-h">
+      <table class="compare">
+        <thead><tr><th scope="col">&nbsp;<span class="sr-only">Question</span></th><th scope="col">OpenCanvas</th><th scope="col">Slack Canvas</th><th scope="col">Zoom Canvas</th><th scope="col">Microsoft Loop</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Embed in your own app</th><td><span class="mark yes">{{icon:circle-check:16}}The primary goal: iframe or web component</span></td><td><span class="mark no">{{icon:circle-x:16}}Inside Slack</span></td><td><span class="mark no">{{icon:circle-x:16}}Inside Zoom</span></td><td><span class="mark part">{{icon:circle-alert:16}}Partially, as Loop components</span></td></tr>
+          <tr><th scope="row">Who stores the file</th><td><span class="mark yes">{{icon:circle-check:16}}Your app, through callbacks</span></td><td>Slack</td><td>Zoom</td><td>OneDrive or SharePoint</td></tr>
+          <tr><th scope="row">Run it on your own servers</th><td><span class="mark yes">{{icon:circle-check:16}}Yes, one binary or Docker</span></td><td><span class="mark no">{{icon:circle-x:16}}No</span></td><td><span class="mark no">{{icon:circle-x:16}}No</span></td><td><span class="mark no">{{icon:circle-x:16}}No</span></td></tr>
+          <tr><th scope="row">Whiteboard</th><td data-claim><span class="mark yes">{{icon:circle-check:16}}A native block in the document</span>{{claim:tested|board tests|web/packages/board/src/board.test.tsx}}</td><td><span class="mark no">{{icon:circle-x:16}}No</span></td><td>A separate product, embedded</td><td>The Whiteboard app</td></tr>
+          <tr><th scope="row">Tables and databases</th><td><span class="mark yes">{{icon:circle-check:16}}Tables, and databases with four views</span></td><td>Basic tables</td><td>Tables</td><td>Rich tables</td></tr>
+          <tr><th scope="row">Live cursors and presence</th><td data-claim><span class="mark yes">{{icon:circle-check:16}}Yes, with follow mode</span>{{claim:tested|two-browser presence spec|e2e/specs/a-template-presence.spec.ts}}</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+          <tr><th scope="row">Version history</th><td><span class="mark part">{{icon:circle-alert:16}}Your app's: OpenCanvas saves each change to it</span></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+          <tr><th scope="row">API to create and edit content</th><td data-claim><span class="mark yes">{{icon:circle-check:16}}Markdown and JSON block patches, live</span>{{claim:tested|host API tests|crates/oc-server/tests/host_api.rs}}</td><td>Markdown</td><td>Yes</td><td>Microsoft Graph</td></tr>
+          <tr><th scope="row">Portable live blocks</th><td><span class="mark part">{{icon:circle-alert:16}}Planned for P3</span></td><td><span class="mark no">{{icon:circle-x:16}}No</span></td><td><span class="mark no">{{icon:circle-x:16}}No</span></td><td><span class="mark yes">{{icon:circle-check:16}}Yes, Loop components</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">From <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/01-RESEARCH-COMPETITIVE-ANALYSIS.md">docs/01, the research note</a>, checked 2026-11-21 against the vendors' public pages; vendor pages are marketing claims, and products change. Rows for OpenCanvas follow the <a href="roadmap.html">roadmap</a>.</p>
+  </div>
+</section>
+
+<section class="section section-alt" aria-labelledby="faq-h">
+  <div class="wrap faq-grid">
+    <div class="sec-head reveal">
+      <h2 id="faq-h">Questions people ask.</h2>
+      <p>More in the <a href="docs/faq.html">documentation FAQ</a>.</p>
+    </div>
+    <div class="faq reveal reveal-d1">
+      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div><p>Not yet. OpenCanvas is a P1 alpha for evaluation: the server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it awaits the owner's review and there is no tagged release. The <a href="roadmap.html">roadmap</a> shows each item's status.</p></div></details>
+      <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div><p>OpenCanvas is source-available under the Business Source License 1.1. You may run it in production, self-host it, and embed it in your own products and services, open or closed. You need a commercial licence only to offer OpenCanvas to others as a hosted collaborative-editing service. Each version becomes MPL-2.0 four years after its release. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
+      <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
+      <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
+      <details><summary>We already use Collabora through WOPI. Can we reuse that?{{icon:chevron-down}}</summary><div><p>Yes. OpenCanvas speaks WOPI as a client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc it will call. See <a href="docs/wopi.html">WOPI mode</a>.</p></div></details>
+      <details><summary>What can it export?{{icon:chevron-down}}</summary><div><p>Markdown, HTML, JSON, its native <code>.ocanvas</code>, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG.</p></div></details>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="closing-h">
+  <div class="wrap">
+    <div class="closing reveal">
+      <h2 id="closing-h">Try it in your browser, then run it on yours.</h2>
+      <p class="lede">The demo needs nothing installed. When you want the real thing, run the server and the sample host and open the same file in two tabs.</p>
+      <p class="cmd"><code><span class="c-cmt">$ </span>docker compose up --build</code></p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app/#demo">Try the demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+        <a class="btn btn-secondary" href="docs/getting-started.html">Get started<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+      </div>
+    </div>
+  </div>
+</section>

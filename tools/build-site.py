@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""Build the website in site/ from site/_src/ and the repository's documents. The output
+is committed; GitHub Pages publishes site/ without _src/, plus the editor's demo copy.
+
+    python3 tools/build-site.py                  # write every generated file
+    python3 tools/build-site.py --check          # fail, naming the file, if anything is stale
+    python3 tools/build-site.py --screens DIR    # turn raw captures (tools/capture-site-screens.mjs)
+                                                 # into site/assets/screens/*.webp and *.png (needs Pillow)
+    python3 tools/build-site.py --publish OUT    # assemble the published tree in OUT: site/ without
+                                                 # _src/, plus the built editor in OUT/app/
+
+Ported from OpenSeal's tools/build-site.py (same structure, same commands). What it
+generates:
+
+- site/index.html and the other pages in site/_src/pages/ (hand-written bodies);
+- site/docs/*.html: README.md and docs/*.md rendered (tools/sitelib.py DOCS), so the
+  documentation pages cannot drift from the repository, plus hand-written pages;
+- site/roadmap.html from docs/09 and the tracker, docs/10 (tools/build-roadmap.py);
+- site/changelog.html from the tracker's integration log (docs/10);
+- sitemap.xml, robots.txt, llms.txt (an index) and llms-full.txt (the docs as text);
+- search-index.json for the site search.
+
+The published tree is site/ plus web/packages/editor/dist at app/: the real editor, which
+opens its demo canvas at app/#demo with no server. The copy is made at publish time, not
+committed. Build the editor with OC_EDITOR_BASE=/opencanvas/app/ for GitHub Pages.
+Standard library, except Pillow for --screens.
+"""
+
+from __future__ import annotations
+
+import html
+import importlib.util
+import json
+import pathlib
+import re
+import shutil
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import sitelib  # noqa: E402
+
+ROOT = sitelib.ROOT
+SITE = sitelib.SITE
+SRC = sitelib.SRC
+TRACKER = ROOT / "docs/10-EXECUTION-TRACKER.md"
+EDITOR_DIST = ROOT / "web/packages/editor/dist"
+
+
+def _load(name: str):
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), ROOT / "tools" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# ---- Screenshots -----------------------------------------------------------------------
+
+# raw capture name -> target width of the WebP. Captures are at device scale 2 (2880 px
+# for a 1440 px window, 780 px for a 390 px phone).
+SHOTS = {
+    "canvas": 2000, "database": 2000, "whiteboard": 2000, "templates": 2000, "comments": 2000,
+    "phone": 780,
+}
+PNG_MAX = 1280
+
+
+def screens(raw: pathlib.Path) -> None:
+    """Convert every raw capture present in `raw`; a screen not captured keeps its files."""
+    try:
+        from PIL import Image
+    except ImportError:
+        raise SystemExit("build-site: --screens needs Pillow (pip install pillow)")
+    out = SITE / "assets/screens"
+    out.mkdir(parents=True, exist_ok=True)
+    done = 0
+    for name, width in SHOTS.items():
+        for scheme in ("light", "dark"):
+            path = raw / f"{scheme}-{name}.png"
+            if not path.exists():
+                continue
+            img = Image.open(path).convert("RGB")
+            if img.width > width:
+                img = img.resize((width, round(img.height * width / img.width)), Image.LANCZOS)
+            img.save(out / f"{name}-{scheme}.webp", "WEBP", quality=82, method=6)
+            small = img
+            limit = PNG_MAX if width > PNG_MAX else width
+            if img.width > limit:
+                small = img.resize((limit, round(img.height * limit / img.width)), Image.LANCZOS)
+            small.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(
+                out / f"{name}-{scheme}.png", optimize=True)
+            done += 1
+            print(f"build-site: {name}-{scheme} {img.width}x{img.height}")
+    if not done:
+        raise SystemExit(f"build-site: no captures in {raw}; run tools/capture-site-screens.mjs first")
+
+
+# ---- Documentation from Markdown --------------------------------------------------------
+
+DOC_DESCRIPTIONS = {
+    "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
+    "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
+    "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
+    "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
+    "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
+    "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
+    "architecture": "How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.",
+    "collaboration": "How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.",
+    "product": "What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.",
+    "glossary": "Terms used across the OpenCanvas documentation.",
+}
+
+
+def _md_body(source: str) -> tuple[str, str]:
+    """(file, markdown) for a DOCS source, with the title heading removed."""
+    file, _, section = source.partition("#")
+    text = (ROOT / file).read_text(encoding="utf8")
+    if file == "README.md":
+        # The project page's own sections; the site has its own Documentation and Contributing.
+        text = re.sub(r"^# .*\n", "", text, count=1)
+        text = re.sub(r"^\*\*A real-time.*?\n\n", "", text, count=1, flags=re.S | re.M)
+        text = re.sub(r"^## (Documentation|Contributing|License)\n.*?(?=^## |\Z)", "", text, flags=re.S | re.M)
+        return file, text
+    if section:
+        m = re.search(rf"^## {re.escape(section)}\. .*?\n(.*?)(?=^## |\Z)", text, flags=re.S | re.M)
+        if not m:
+            raise SystemExit(f"build-site: {file} has no section {section}")
+        return file, m.group(1)
+    text = re.sub(r"^# .*\n", "", text, count=1)
+    if file == "docs/05-INTEGRATION-GUIDE.md":
+        text = re.sub(r"^(## 6\. .*?\n).*?(?=^## )",
+                      r"\1\nWOPI mode has its own page: [WOPI mode](wopi.html).\n\n", text, flags=re.S | re.M)
+    return file, text
+
+
+def markdown_doc(slug: str, title: str, source: str) -> str:
+    file, text = _md_body(source)
+    body = sitelib.markdown(text, from_file=file, root="../")
+    body = body.replace('href="https://github.com/CasualOffice/opencanvas/blob/main/docs/wopi.html"', 'href="wopi.html"')
+    lede = ""
+    if slug == "getting-started":
+        lede = ('<p class="lede">The server, the editor and the sample host on your machine, from the project\'s README. '
+                f'To look around first, <a href="../{sitelib.DEMO}">open the demo</a>: it runs in your browser with no server.</p>')
+    article = f"<h1>{html.escape(title)}</h1>\n{lede}\n{body}"
+    return sitelib.docs_page(slug, title, DOC_DESCRIPTIONS[slug], article, source=source)
+
+
+# ---- Pages --------------------------------------------------------------------------------
+
+def jsonld() -> dict:
+    """The home page's structured data: only facts the repository states."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "OpenCanvas",
+        "description": ("A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that "
+                        "applications embed. The host application keeps users, permissions and files; OpenCanvas "
+                        "does the editing and autosaves back to the host."),
+        "url": sitelib.BASE_URL,
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "Collaborative editor",
+        "operatingSystem": "Linux (Docker image); the editor runs in a web browser",
+        "softwareVersion": "0.1.0",
+        "license": sitelib.BLOB + "LICENSE",
+        "isAccessibleForFree": True,
+        "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"},
+        "codeRepository": sitelib.REPO,
+        "sameAs": [sitelib.REPO],
+        "screenshot": sitelib.BASE_URL + sitelib.OG_IMAGE,
+        "featureList": [
+            "Rich text blocks, checklists, tables, images, files, link cards and sandboxed embeds",
+            "Databases with table, board, calendar and gallery views and CSV import and export",
+            "Whiteboard with pen, sticky notes, shapes and attached arrows",
+            "Live co-editing with cursors, presence and comments",
+            "Autosave to the host application through a durable outbox",
+            "JWT and WOPI launch, an embed web component and a postMessage API",
+        ],
+    }
+
+
+def build() -> dict[str, bytes]:
+    """Every generated file, relative to site/."""
+    files: dict[str, bytes] = {}
+    pages: dict[str, str] = {}
+    for path in sorted((SRC / "pages").glob("*.html")):
+        meta, body = sitelib.read_fragment(path)
+        root = meta.get("root", "")
+        body = sitelib.add_heading_ids(sitelib.expand(body, root))
+        pages[path.name] = sitelib.page(title=meta["title"], description=meta["description"], body=body, root=root,
+                                        path=path.name, current=meta.get("nav", ""), main_class=meta.get("main", ""),
+                                        jsonld=jsonld() if path.name == "index.html" else None,
+                                        noindex=path.name == "404.html")
+    for slug, title, _group, source in sitelib.available_docs():
+        if source:
+            pages[f"docs/{slug}.html"] = markdown_doc(slug, title, source)
+        else:
+            meta, body = sitelib.read_fragment(SRC / "docs" / f"{slug}.html")
+            pages[f"docs/{slug}.html"] = sitelib.docs_page(slug, meta.get("title", title), meta["description"],
+                                                           sitelib.expand(body, "../"))
+    pages["changelog.html"] = changelog()
+    pages["roadmap.html"] = _load("build-roadmap").render()
+
+    index = []
+    for rel, text in sorted(pages.items()):
+        files[rel] = text.encode("utf8")
+        if rel != "404.html":
+            index.extend(sitelib.index_entries(rel, text))
+    files["search-index.json"] = (json.dumps(index, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf8")
+    files.update(seo(pages))
+    return files
+
+
+# ---- Changelog: the tracker's integration log ---------------------------------------------
+
+def changelog() -> str:
+    text = TRACKER.read_text(encoding="utf8")
+    m = re.search(r"^## Integration log\n(.*?)(?=^## |\Z)", text, flags=re.S | re.M)
+    if not m:
+        raise SystemExit("build-site: docs/10 has no Integration log")
+    rows = []
+    for line in m.group(1).splitlines():
+        if not line.startswith("|") or line.startswith("|---") or line.startswith("| Date"):
+            continue
+        c = [x.strip() for x in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+        if len(c) >= 3 and re.fullmatch(r"\d{4}-\d\d-\d\d", c[0]):
+            rows.append(c)
+    if not rows:
+        raise SystemExit("build-site: the integration log has no rows")
+    by_date: dict[str, list[list[str]]] = {}
+    for r in rows:
+        by_date.setdefault(r[0], []).append(r)
+    inl = lambda s: sitelib.md_inline(s, "docs/10-EXECUTION-TRACKER.md", "")  # noqa: E731
+    parts = []
+    for date in sorted(by_date, reverse=True):
+        items = "".join(
+            f'<li><strong>{inl(r[1])}</strong>{"" if r[2] in ("", "—") else "<br>" + inl(r[2])}</li>'
+            for r in reversed(by_date[date]))
+        parts.append(f"<h2>{date}</h2>\n<ul>{items}</ul>")
+    body = f"""<section class="page-head"><div class="wrap narrow">
+  <h1>Changelog</h1>
+  <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked. There is no tagged release yet.</p>
+</div></section>
+<section class="section-tight"><div class="wrap narrow prose changelog">
+{chr(10).join(parts)}
+</div></section>"""
+    return sitelib.page(title="Changelog", description="What changed in OpenCanvas and how each change was verified, from the project's integration log.",
+                        body=sitelib.add_heading_ids(body), root="", path="changelog.html", current="changelog")
+
+
+# ---- SEO and agents ------------------------------------------------------------------------
+
+def _desc(page_html: str) -> str:
+    m = re.search(r'<meta name="description" content="([^"]*)"', page_html)
+    return html.unescape(m.group(1)) if m else ""
+
+
+def seo(pages: dict[str, str]) -> dict[str, bytes]:
+    base = sitelib.BASE_URL
+    listed = [rel for rel in sorted(pages) if rel != "404.html"]
+    urls = "".join(f"  <url><loc>{base}{'' if rel == 'index.html' else rel}</loc></url>\n" for rel in listed)
+    sitemap = f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n'
+    robots = f"User-agent: *\nAllow: /\nDisallow: /opencanvas/app/\n\nSitemap: {base}sitemap.xml\n"
+
+    def line(rel: str) -> str:
+        return f"- [{sitelib.page_title(pages[rel], rel)}]({base}{'' if rel == 'index.html' else rel}): {_desc(pages[rel])}"
+    docs = [f"docs/{d[0]}.html" for d in sitelib.available_docs()]
+    llms = "\n".join([
+        "# OpenCanvas",
+        "",
+        "> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications "
+        "embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; "
+        "OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. "
+        "Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. "
+        "Source-available under the Business Source License 1.1 (free to self-host and embed; offering it as a hosted "
+        "collaborative-editing service needs a commercial licence; each version becomes MPL-2.0 four years after release). "
+        "Status: P1 alpha, pre-release.",
+        "",
+        "## Site",
+        line("index.html"),
+        line("roadmap.html"),
+        line("changelog.html"),
+        f"- [Interactive demo]({base}{sitelib.DEMO}): the real editor with a sample canvas, no server",
+        "",
+        "## Documentation",
+        *[line(d) for d in docs],
+        "",
+        "## Source",
+        f"- [Repository]({sitelib.REPO})",
+        f"- [Licence (BUSL-1.1)]({sitelib.BLOB}LICENSE)",
+        f"- [Full documentation as text]({base}llms-full.txt)",
+        "",
+    ])
+    full = [f"# OpenCanvas documentation (full text)\n\nSource: {sitelib.REPO}. Generated from the repository's README.md and docs/*.md.\n"]
+    for slug, title, _g, source in sitelib.available_docs():
+        if source:
+            file, text = _md_body(source)
+            full.append(f"\n\n# {title}\n\nURL: {base}docs/{slug}.html\nSource file: {file}\n\n{text.strip()}\n")
+        else:
+            full.append(f"\n\n# {title}\n\nURL: {base}docs/{slug}.html\n\n{sitelib.main_text(pages[f'docs/{slug}.html'])}\n")
+    return {
+        "sitemap.xml": sitemap.encode("utf8"),
+        "robots.txt": robots.encode("utf8"),
+        "llms.txt": llms.encode("utf8"),
+        "llms-full.txt": "".join(full).encode("utf8"),
+    }
+
+
+# ---- The published tree -----------------------------------------------------------------
+
+def publish(out: pathlib.Path) -> None:
+    """Assemble the published tree in `out` (emptied first): site/ without _src/, and the
+    built editor in out/app/ (without source maps or the build manifest)."""
+    if out.exists():
+        if not out.is_dir() or (any(out.iterdir()) and not (out / ".opencanvas-published").exists()):
+            raise SystemExit(f"build-site: {out} exists and is not a tree this tool published; refusing to empty it")
+        shutil.rmtree(out)
+    shutil.copytree(SITE, out, ignore=lambda d, names: [n for n in names if pathlib.Path(d) == SITE and n == "_src"])
+    app = out / "app"
+    if app.exists():
+        raise SystemExit("build-site: site/app/ exists; the demo copy is published there")
+    if not (EDITOR_DIST / "index.html").exists():
+        raise SystemExit("build-site: web/packages/editor/dist is not built; run "
+                         "OC_EDITOR_BASE=/opencanvas/app/ pnpm --filter @opencanvas/editor build in web/")
+    index = (EDITOR_DIST / "index.html").read_text(encoding="utf8")
+    if 'src="/opencanvas/app/' not in index:
+        raise SystemExit("build-site: the editor was not built with OC_EDITOR_BASE=/opencanvas/app/")
+    shutil.copytree(EDITOR_DIST, app, ignore=lambda d, names: [n for n in names if n.endswith(".map") or n == ".vite"])
+    (out / ".nojekyll").write_bytes(b"")
+    (out / ".opencanvas-published").write_bytes(b"")
+    print(f"build-site: published {sum(1 for p in out.rglob('*') if p.is_file())} files to {out}")
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) >= 2 and argv[0] == "--screens":
+        screens(pathlib.Path(argv[1]))
+        return 0
+    if argv and argv[0] == "--publish" and len(argv) == 2:
+        publish(pathlib.Path(argv[1]).resolve())
+        return 0
+    check = argv == ["--check"]
+    if argv and not check:
+        print(__doc__, file=sys.stderr)
+        return 2
+    files = build()
+    stale = []
+    for rel, data in files.items():
+        dest = SITE / rel
+        if check:
+            if not dest.exists() or dest.read_bytes() != data:
+                stale.append(rel)
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not dest.exists() or dest.read_bytes() != data:
+            dest.write_bytes(data)
+    if check:
+        if stale:
+            print("build-site: stale, run python3 tools/build-site.py: " + ", ".join(stale), file=sys.stderr)
+            return 1
+        print(f"build-site: {len(files)} files up to date")
+        return 0
+    print(f"build-site: wrote {len(files)} files")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

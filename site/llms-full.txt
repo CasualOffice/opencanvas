@@ -1,0 +1,1529 @@
+# OpenCanvas documentation (full text)
+
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md.
+
+
+# Documentation
+
+URL: https://casualoffice.github.io/opencanvas/docs/index.html
+
+## Documentation
+
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. OpenCanvas is a P1 alpha. These pages describe what is built and say so where something is planned. The roadmap has the full picture.
+
+## Start
+
+## Getting started
+
+The server, the editor and the sample host on your machine.
+
+## FAQ
+
+Status, the licence, data and sign-in.
+
+## The demo
+
+The real editor on a sample canvas, in your browser.
+
+## Integrate
+
+## Integration guide
+
+Tokens, the embed, callbacks, postMessage and REST.
+
+## WOPI mode
+
+For hosts that already open Collabora through WOPI.
+
+## Protocol and build contract
+
+The exact wire formats between server, editor and host.
+
+## Operate and understand
+
+## Operations and deployment
+
+Docker, Helm, clusters, PDF export and metrics.
+
+## Security and limits
+
+Threats, controls, limits and privacy.
+
+## Architecture
+
+Components, flows, persistence and scaling.
+
+## Collaboration and presence
+
+Merging, cursors, undo and comments.
+
+## Product requirements
+
+Scope, personas and targets.
+
+## Glossary
+
+The terms these pages use.
+
+
+# Getting started
+
+URL: https://casualoffice.github.io/opencanvas/docs/getting-started.html
+Source file: README.md
+
+> **Status: P1 alpha.** The server, editor, database and whiteboard blocks, and
+> the sample host all run end to end. See [the tracker](docs/10-EXECUTION-TRACKER.md)
+> for what is done and what is open.
+
+## How it fits
+
+```
+Your app  ── signs launch token (who, which file, which role) ──▶ OpenCanvas iframe
+          ◀── load / save / assets / users / copies callbacks ──  OpenCanvas server
+```
+
+- **You own** authentication, users, ACL, files, versions and retention.
+- **OpenCanvas owns** the editor, real-time merge (Yjs CRDT), presence and cursors,
+  preview, export, and autosave back to your storage.
+- **OpenCanvas keeps nothing** once a session is saved and idle. Its database only
+  holds the transient room log and the save outbox.
+
+## What works today
+
+| Area | Status |
+|---|---|
+| Blocks | Text, headings, lists, checklists, toggles, quotes, callouts, code, simple tables, images, files, link cards, sandboxed embeds, columns |
+| Databases | Typed fields; table, board (kanban), calendar and gallery views; filter, sort and search; row detail; CSV import and export |
+| Whiteboard | Pen, sticky notes, shapes, text, arrows that stay attached to shapes, images, zoom and full screen, live pointers, SVG and PNG export |
+| Collaboration | Live co-editing, cursors with names, avatars, follow mode, comments, view, comment and edit roles enforced on the server |
+| Saving | Autosave only, with no save button. Saves go through a durable outbox. Conflicts are handled by either saving a copy or reloading. |
+| Templates | 40 templates in 9 categories, plus blank canvas, database, whiteboard and import |
+| Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
+| Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
+| Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
+
+## Run it
+
+You need Rust (stable), Node 24 and pnpm 9.
+
+```sh
+cd web && pnpm install && pnpm --filter @opencanvas/editor build && cd ..
+OC_DEV=1 cargo run --release -p oc-server     # http://localhost:8080
+node examples/sample-host/server.mjs          # http://localhost:4000
+```
+
+Open http://localhost:4000 and open a file. In a second tab, pick another user under
+"Signed in as" and open the same file to see live collaboration. Use the "Access
+control" column to change roles while people are editing.
+
+To review the UI without a backend, use the editor in demo mode: run
+`pnpm --filter @opencanvas/editor dev` and open `http://localhost:5173/app/#demo`.
+
+`docker compose up --build` runs both services. `OC_DEV=1` allows starting without
+`OC_KEK`. In production, set `OC_KEK` (32 bytes, base64) and the other variables listed
+in [docs/13](docs/13-OPERATIONS-AND-DEPLOYMENT.md).
+
+## Embed it
+
+```html
+<script type="module" src="https://canvas.example.com/sdk/embed.js"></script>
+<open-canvas server="https://canvas.example.com" token="{{ launch_jwt }}" style="height:100vh"></open-canvas>
+```
+
+The host contract (token claims, callbacks, postMessage events and REST) is in
+[docs/05](docs/05-INTEGRATION-GUIDE.md). [docs/15](docs/15-BUILD-CONTRACT.md) has
+the exact wire formats.
+
+## Test
+
+```sh
+OC_DEV=1 cargo test --workspace                  # server, room protocol, role filter, outbox, fuzz
+cd web && pnpm -r typecheck && pnpm -r test      # editor, database, board
+scripts/e2e-db.sh sqlite                         # launch → edit → autosave → export
+scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
+```
+
+
+# FAQ
+
+URL: https://casualoffice.github.io/opencanvas/docs/faq.html
+
+## FAQ
+
+Short answers, with links to the pages that say more.
+
+## Can I use it in production today?
+
+Not yet. OpenCanvas is a P1 alpha for evaluation. The server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it still awaits the owner's review and there is no tagged release. The roadmap shows each item's status.
+
+## What does the licence allow?
+
+OpenCanvas is source-available under the Business Source License 1.1 (BUSL-1.1), with CasualOffice as the licensor. Allowed at no cost: running it in production, self-hosting it, and embedding it in your own products and services, whether those are open or closed source, commercial or not. Needs a commercial licence: offering OpenCanvas to others as a hosted or managed service whose main purpose is collaborative editing of documents, databases or whiteboards. Later: each version becomes available under the Mozilla Public License 2.0 four years after it is first published under BUSL-1.1. The LICENSE file states the exact terms and is the authority; this summary is not legal advice. For other arrangements, contact the licensor through the repository.
+
+## Does OpenCanvas keep my documents?
+
+Only while a session is live. The server keeps a snapshot and the recent updates so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file lives in your app; OpenCanvas writes it back there. See Architecture .
+
+## How do users sign in?
+
+To your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role (view, comment or edit). OpenCanvas trusts that decision for the life of the token, enforces it on every edit, and switches a user's role live when your app calls the role API. See the integration guide .
+
+## Is there a Save button?
+
+No. Every change saves to your app on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Saves go through a durable outbox, so a restart resends them. If your copy of the file changed elsewhere, your chosen policy runs: save a copy, or reload.
+
+## We already use Collabora through WOPI. Can we reuse that?
+
+Yes. OpenCanvas is a WOPI client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc URLs it will call. Proof keys are not supported yet. See WOPI mode .
+
+## What can it import and export?
+
+Export: Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG. Import: Markdown, HTML and CSV. See Operations .
+
+## How does it scale?
+
+One node runs on SQLite. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, other nodes relay to it, and if the owner dies another node takes the room over from its log. See Operations and Architecture .
+
+## Does the demo send anything anywhere?
+
+No. The demo is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so.
+
+
+# Integration guide
+
+URL: https://casualoffice.github.io/opencanvas/docs/integration.html
+Source file: docs/05-INTEGRATION-GUIDE.md
+
+**Status:** draft v0.1, 2026-11-21. This is the contract an integrating
+application implements. Modelled on Collabora Online's WOPI integration
+([01 §4](01-RESEARCH-COMPETITIVE-ANALYSIS.md)).
+
+> **Golden rule:** your application decides *who* may open *which* file with
+> *what* role. OpenCanvas trusts that decision for the life of the token and
+> enforces it on every edit. Your application stores the file.
+
+## 1. Choose a handshake
+
+| | **JWT launch** (recommended for new apps) | **WOPI-compatible** (for existing WOPI hosts) |
+|---|---|---|
+| Who verifies the user | You sign a JWT | OpenCanvas calls your CheckFileInfo |
+| Callbacks you implement | `GET file`, `PUT file`, assets, users | WOPI: CheckFileInfo, GetFile, PutFile (+ assets/users optional) |
+| Extra round-trip on open | none | CheckFileInfo |
+| Good for | Any custom app | Nextcloud, ownCloud, Seafile-style hosts |
+
+## 2. Register your host
+
+`opencanvas.hosts.toml` (or `hosts` table):
+```toml
+[[host]]
+id              = "Acme"
+name            = "Acme"
+mode            = "jwt"                    # jwt | wopi | both
+jwt_alg         = "HS256"                  # or RS256 / EdDSA: jwt_public_key (PEM) or jwt_jwks_url
+jwt_secret      = "env:ACME_OC_SECRET"
+api_key         = "env:ACME_OC_API_KEY"    # for server→server REST calls to us
+callback_base   = "https://api.acme.example/opencanvas"
+allowed_origins = ["https://app.acme.example"]
+asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports (unsigned GET);
+                                           # your callback_base origin is always allowed
+[host.flags]
+embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
+export_formats  = ["md", "html", "pdf", "ocanvas"]
+autosave_secs   = 60
+on_conflict     = "copy"                   # copy | reload
+```
+
+## 3. JWT launch token
+
+Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
+exchanged for a session ticket on open).
+
+```json
+{
+  "iss": "Acme",                    // = host id
+  "aud": "opencanvas",
+  "exp": 1763730000,
+  "jti": "9f1c…",                   // single-use
+  "file": {
+    "id": "doc_8812",               // your stable id
+    "name": "Sprint 42 notes",
+    "version": "17",                // your current version/etag
+    "context": { "type": "channel", "id": "c_55" }   // optional, for UI only
+  },
+  "user": {
+    "id": "u_123",
+    "name": "Asha Rao",
+    "avatar": "https://…/a.png",
+    "color": "#7c3aed"              // optional; we derive one otherwise
+  },
+  "role": "edit",                   // view | comment | edit
+  "perms": {
+    "export": true,
+    "download": true,
+    "print": true,
+    "commitMessage": true,          // may write "Save version" messages
+    "mention": true
+  },
+  "mode": "edit",                   // edit | view | preview
+  "callbackToken": "opaque-…"       // we send it back on every callback; you validate it
+}
+```
+
+## 4. Embed in your page
+
+### Option A — iframe form POST (works everywhere, like Collabora)
+```html
+<form id="oc" target="oc-frame" method="post"
+      action="https://canvas.example.com/v1/launch">
+  <input type="hidden" name="token" value="{{ jwt }}">
+</form>
+<iframe name="oc-frame" style="width:100%;height:100%;border:0"
+        allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+<script>document.getElementById('oc').submit()</script>
+```
+
+### Option B — web component
+```html
+<script type="module" src="https://canvas.example.com/sdk/embed.js"></script>
+<open-canvas server="https://canvas.example.com" token="{{ jwt }}"
+             theme="auto" style="height:100vh"></open-canvas>
+<script>
+  const oc = document.querySelector('open-canvas');
+  oc.addEventListener('oc:ready',  e => {});
+  oc.addEventListener('oc:saved',  e => console.log(e.detail.commitId));
+  oc.addEventListener('oc:presence', e => console.log(e.detail.users));
+  oc.addEventListener('oc:error',  e => {});
+  oc.addEventListener('oc:token-expiring', async e => oc.refresh(await myApi.newToken()));
+  await oc.commit({ message: 'Final' });
+  oc.setReadOnly(true);
+</script>
+```
+
+### postMessage API (iframe ↔ host page)
+Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
+(Collabora-compatible envelope).
+
+| Direction | MessageId | Values |
+|---|---|---|
+| canvas → host | `App_LoadingStatus` | `{ Status: "Frame_Ready" \| "Document_Loaded" }` |
+| canvas → host | `Doc_ModifiedStatus` | `{ Modified: bool }` |
+| canvas → host | `Doc_Saved` | `{ commitId, hostVersion }` |
+| canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role}] }` |
+| canvas → host | `Token_Expiring` | `{ inSeconds }` |
+| canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
+| canvas → host | `Error` | `{ code, message }` |
+| host → canvas | `Host_PostmessageReady` | `{}` |
+| host → canvas | `Action_Commit` | `{ message? }` |
+| host → canvas | `Action_SetReadOnly` | `{ readOnly }` |
+| host → canvas | `Action_RefreshToken` | `{ token }` |
+| host → canvas | `Action_Export` | `{ format }` |
+| host → canvas | `Action_Theme` | `{ theme: "light"\|"dark"\|tokens }` |
+
+Origins are checked against `allowed_origins` both ways.
+
+## 5. Callbacks you implement (JWT mode)
+
+Base: `callback_base`. Every call carries
+`Authorization: Bearer <callbackToken>` and `X-OpenCanvas-Signature:
+t=<ts>,v1=<HMAC-SHA256(secret, ts + "." + body)>` so you can verify it is us.
+
+| Call | Request | Response |
+|---|---|---|
+| **Load file** `GET /files/{fileId}` | — | `200` body = `.ocanvas` / `.md` / `.html` bytes, headers `Content-Type`, `ETag: "<version>"`. `404` → new empty canvas. |
+| **Save (commit)** `PUT /files/{fileId}` | body `.ocanvas`; headers `If-Match: "<version>"`, `Idempotency-Key: <commitId>`, `X-OpenCanvas-Commit-Message`, `X-OpenCanvas-Authors: <json>`, `X-OpenCanvas-Autosave: 0|1` | `200 {"version":"18"}`; `409 {"version":"19"}` if your file changed outside the session; `413` too large. |
+| **Save as copy** `POST /files/{fileId}/copies` (conflict policy `copy`) | body `.ocanvas`; `Idempotency-Key` | `201 {"fileId":"doc_9001","url":"…"}` (create it with the original's ACL) |
+| **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
+| **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
+| **Resolve users** `GET /users?q=as&fileId=` | — | `[{"id","name","avatar"}]` (for @mention; only users who can see the file) |
+| **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
+
+Timeouts: 10 s (load/save), 5 s (others). Retries with exponential backoff
+for save (idempotent by `Idempotency-Key`). A save is written to our commit outbox before
+we call you, so it is retried with the same key even across a restart of OpenCanvas.
+
+With `jwt_jwks_url` we fetch your JWKS (cached 10 min) and pick the key by the token's `kid`;
+the algorithm is still pinned by `jwt_alg`, so a token signed with another algorithm is refused.
+
+## 6. WOPI mode
+
+WOPI mode has its own page: [WOPI mode](wopi.html).
+
+## 7. Server-to-server REST (you → us)
+
+Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
+
+- Revoke or downgrade a user live when you change ACLs:
+  `POST /v1/files/{fileId}/role {"userId":"u_123","role":"view"}` — the
+  user's open session switches to read-only immediately (or is closed with
+  `"role":"none"`). Roles: `view | comment | edit | none`. Answers
+  `200 {"connections":1,"sessions":2}` (live connections switched, tickets updated);
+  `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`.
+- Patch content from a bot: `POST /v1/files/{fileId}/patch` (see 04 §6) with
+  `{"ops":[…],"author":{"id","name"}}`. Ops: `append`, `insertAfter{blockId}`,
+  `replace{blockId}`, `delete{blockId}`, each with `markdown` or Tiptap `blocks`. Blocks are
+  addressed by their `blockId` attribute; the answer lists the ids of the blocks you inserted
+  (`{"applied":2,"blockIds":["b_…"],"live":true}`). If nobody has the file open we load it from
+  you, apply and save straight away (the answer then carries `version`). Send
+  `X-OpenCanvas-Callback-Token: <token>` if your callbacks need a bearer for that load/save.
+- Force save before you snapshot/backup: `POST /v1/files/{fileId}/commit` →
+  `200 {"live":true,"saved":true,"version":"18"}` once your `PUT` answered,
+  `202 {"queued":true}` if it failed and will be retried from the outbox, `409` on a conflict.
+- Close everything (file deleted/moved): `DELETE /v1/files/{fileId}/session` — a final
+  save, then every connection is closed and every ticket for the file is dropped.
+  `200 {"closed":true,"sessions":3}`.
+- Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`
+  with the file as the raw body. DOCX and PDF embed images only from your `callback_base` origin
+  (fetched signed) or an `asset_origins` entry (plain GET) — no redirects, ≤ 10 MB, `image/*`
+  only; other images become links. Boards become pictures (PNG in DOCX, SVG in HTML/PDF).
+  `to=pdf` needs the operator to run the Gotenberg sidecar (`OC_PDF_RENDERER`), else `501`.
+
+## 8. Lifecycle & guarantees
+
+- **One live room per (host, file).** Users who open the same file join the
+  same room — there is no fork. The room loads your file once.
+- **Your file is updated by commits only.** Autosave commits are flagged
+  `X-OpenCanvas-Autosave: 1` so you can collapse them in version history.
+- **At-least-once commit** with idempotency key; final commit before room
+  close; on graceful shutdown all dirty rooms commit.
+- **Nothing is retained** after the room closes and TTL passes.
+- **Role changes** you make during a session take effect only when you call
+  the role API or the token expires — tokens are the contract.
+
+## 9. Checklist for integrators
+
+- [ ] Register host, share secret/API key out of band.
+- [ ] Backend endpoint that signs the launch JWT after *your* ACL check.
+- [ ] Implement load / save (+ assets, users).
+- [ ] Verify `X-OpenCanvas-Signature` on callbacks.
+- [ ] Add OpenCanvas origin to your CSP `frame-src`; add your origin to our `allowed_origins`.
+- [ ] Handle `409` (we save a copy or reload, per your policy). With `copy`, implement
+      `POST /files/{id}/copies`; editors are told the new file's `url` and the session
+      turns read-only. With `reload`, the session's unsaved changes are dropped and everyone
+      reconnects onto your version.
+- [ ] Call the role API when ACLs change.
+- [ ] Try `examples/sample-host` end-to-end before going live (WOPI hosts:
+      `examples/wopi-host` and `scripts/e2e-wopi.sh`).
+
+
+# WOPI mode
+
+URL: https://casualoffice.github.io/opencanvas/docs/wopi.html
+Source file: docs/05-INTEGRATION-GUIDE.md
+
+For hosts that already open Collabora / Office Online through WOPI (Nextcloud, ownCloud,
+Seafile, …). OpenCanvas is the WOPI *client*; you are the WOPI *host*. Reference host:
+`examples/wopi-host/server.mjs`; end-to-end check: `scripts/e2e-wopi.sh`.
+
+**Register** (no JWT key needed):
+```toml
+[[host]]
+id              = "nextcloud"
+name            = "Nextcloud"
+mode            = "wopi"                    # or "both" (JWT launches + WOPI launches)
+wopi_allowlist  = ["https://cloud.example.com/index.php/apps/richdocuments/wopi"]
+allowed_origins = ["https://cloud.example.com"]
+api_key         = "env:NC_OC_API_KEY"       # optional, for the §7 REST API
+[host.flags]
+on_conflict     = "copy"                    # copy = PUT_RELATIVE | reload
+```
+`wopi_allowlist` entries are `scheme://host[:port][/path]`. A `WOPISrc` is accepted only when
+scheme, host and port match an entry exactly and the path starts with the entry's path at a
+`/` boundary; URLs with userinfo, a query, a fragment, or longer than 255 characters are refused
+(`403 WOPISRC_NOT_ALLOWED`) before anything is called. Write `localhost` and `127.0.0.1`
+separately if you need both. Redirects are never followed.
+
+**Discovery.** `GET /hosting/discovery` returns WOPI discovery XML (`net-zone`
+`external-http(s)` from `OC_PUBLIC_URL`): app `application/vnd.opencanvas+zip` with `edit`
+(default) and `view` for `ext="ocanvas"`, app `text/markdown` with `edit`, `view` and `convert`
+(`targetext="ocanvas"`) for `ext="md"`, and `Capabilities` → `GET /hosting/capabilities`.
+Every `urlsrc` is `{OC_PUBLIC_URL}/v1/launch?`; append `WOPISrc=<urlencoded>` (and any other
+placeholders, which are ignored), Collabora style.
+
+**Launch.** Your page form-POSTs `access_token` and `access_token_ttl` (ms since the epoch; 0 or
+absent = 10 h) into an iframe at `/v1/launch?WOPISrc=<urlencoded https://host/wopi/files/<id>>`.
+We answer `303 /app/#t=<ticket>`, like a JWT launch. The session expires at `access_token_ttl`.
+`401 TOKEN_INVALID` when CheckFileInfo answers 4xx or the ttl has passed. The access token is
+opaque to us, sealed at rest under `OC_KEK` like a callback token, sent only in the query string
+of calls to `WOPISrc` (as WOPI requires), and never logged. The file id (room, REST API path) is
+the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
+
+**We call:**
+- `GET  {WOPISrc}?access_token=…` → CheckFileInfo (at launch, on load, and before a save when the
+  file name is not known). We read `BaseFileName`, `Size`, `Version`, `LastModifiedTime`, `UserId`,
+  `UserFriendlyName`, `UserExtraInfo.avatar` (http(s) only), `UserCanWrite`, `ReadOnly`,
+  `UserCanNotWriteRelative`, `DisableExport`, `DisablePrint`, `HideExportOption` and our extension
+  `OpenCanvas_UserCanComment`.
+  Role: `UserCanWrite` and not `ReadOnly` → `edit`; else `OpenCanvas_UserCanComment` → `comment`;
+  else `view`. Perms: `DisableExport` → no export, download or print; `HideExportOption` → no
+  export; `DisablePrint` → no print (PDF). The tracked version is `LastModifiedTime`
+  (`Version` is shown only when there is no `LastModifiedTime`, and then no timestamp is sent).
+- `GET  {WOPISrc}/contents?access_token=…` → GetFile (≤ 100 MB). Empty body = new canvas.
+  `.ocanvas` zip, or Markdown when `BaseFileName` ends in `.md`.
+- `POST {WOPISrc}/contents?access_token=…` → PutFile, body `.ocanvas` (or Markdown for `.md` files —
+  lossy for boards and databases), headers `X-WOPI-Override: PUT`,
+  `X-COOL-WOPI-Timestamp: <LastModifiedTime we loaded / last saved>`, `X-COOL-WOPI-IsAutosave: true`,
+  `X-COOL-WOPI-IsModifiedByUser: true`. Answer `200 {"LastModifiedTime":"…"}` (without it we ask
+  CheckFileInfo). `409 {"COOLStatusCode":1010}` = the file changed elsewhere → your `on_conflict`
+  policy runs (any other 409 is retried like an outage). Saves go through the same outbox,
+  retries and autosave rules as JWT mode (docs/15 §7).
+- `POST {WOPISrc}?access_token=…` with `X-WOPI-Override: PUT_RELATIVE`,
+  `X-WOPI-SuggestedTarget: <UTF-7 "<name> (conflict copy).ocanvas">`, `X-WOPI-Size` → conflict copy
+  (policy `copy`). Answer `{"Name","Url","HostEditUrl"|"HostViewUrl"}`; editors are told the
+  `HostEditUrl` and `Url` without its token. Hosts that set `UserCanNotWriteRelative` should use
+  `on_conflict = "reload"`.
+
+No `LOCK`/`UNLOCK` (we use timestamps, like Collabora) and no proof keys yet.
+
+**Assets.** WOPI has no asset API, so uploads (`POST /v1/assets?ticket=`) are kept with the room
+and answered `201 {"assetId":"a_…","url":"/v1/assets/a_…","mime","size"}`. They are served by
+`GET /v1/assets/:id?ticket=` (images inline, anything else as a download, `nosniff`, sandboxed)
+and inlined into the saved `.ocanvas` as `assets/<id>` (stored) plus `assets/index.json`
+(`{"<id>":{"mime","size"}}`); only assets the document still references are written. On load
+they are read back out of your file. Limits: **10 MB per asset, 50 MB of assets per file**
+(`413 ASSET_TOO_LARGE`); the whole zip stays under the 100 MB `.ocanvas` read limit. DOCX, PDF
+and `.ocanvas` exports include them too.
+
+**Mentions.** `GET /v1/users?ticket=&q=` lists the users who have opened the file (from
+CheckFileInfo), filtered by name or id.
+
+
+# Protocol and build contract
+
+URL: https://casualoffice.github.io/opencanvas/docs/protocol.html
+Source file: docs/15-BUILD-CONTRACT.md
+
+**Status:** binding for the P1 build, 2026-11-21. If a builder needs to change
+anything here, they update this file and say so in their report.
+
+## 1. Repository layout
+
+```
+Cargo.toml                 Rust workspace
+crates/oc-model            .ocanvas zip read/write, Yjs doc helpers, markdown/html export
+crates/oc-server           axum binary `opencanvas`: config, host connector, store, rooms, autosave, routes
+migrations/sqlite|mysql    identical logical schema (docs/04 §5)
+web/packages/ui            design tokens (tokens.css) + shared TS types (BlockEnv, OcUser, Role)
+web/packages/editor        Vite + React app: shell, Tiptap editor, gallery, comments, mobile bar
+web/packages/database      React database block (table / board / calendar / gallery, CSV)
+web/packages/board         React whiteboard block
+examples/sample-host       Node reference host (JWT signing + callbacks + file store)
+examples/wopi-host         Node reference WOPI host (CheckFileInfo/GetFile/PutFile/PutRelative)
+```
+
+The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
+`OC_WEB_DIR` overrides the path.
+
+## 2. Launch flow
+
+1. Host page form-POSTs `token=<JWT>` to `POST /v1/launch`.
+2. Server verifies the JWT (docs/05 §3, HS256 via the host's `jwt_secret`), creates
+   a session row, and answers `303 See Other` → `/app/#t=<ticket>`.
+   (The ticket goes in the fragment so it never appears in server logs or Referer headers.)
+   `GET /v1/launch?token=` does the same, for hosts that use a plain iframe `src`.
+3. The SPA reads `#t`, calls `GET /v1/sessions/<ticket>` → `200`:
+   ```json
+   { "ticket":"01J…", "room":"r_7k…", "role":"edit",
+     "user": {"id":"u_123","name":"Asha Rao","color":"#7a45f0","avatar":null},
+     "file": {"id":"doc_8812","name":"Sprint 42 notes"},
+     "host": {"id":"Acme","name":"Acme"},
+     "perms": {"export":true,"download":true,"comment":true,"print":true},
+     "isNew": true,
+     "wsUrl": "ws://localhost:8080/v1/collab" }
+   ```
+   `isNew` is true when the host returned 404 / an empty file. The SPA then shows
+   the template gallery. `401 {"error":{"code":"TICKET_INVALID"}}` when unknown or expired.
+   (Implementation: `isNew` = the room's doc has no `content` and empty `meta`/`databases`/`boards`,
+   so a second user joining after a template was picked gets `false`.)
+   Launch failures answer `401 {"error":{"code":"TOKEN_INVALID"|"TOKEN_REUSED",…}}`; `jti` is
+   single-use per host (table `launch_jti`). The algorithm is pinned by the host entry
+   (`jwt_alg` = `HS256` with `jwt_secret`, or `RS256`/`EdDSA` with `jwt_public_key` PEM or
+   `jwt_jwks_url`; JWKS is cached 10 min, the token's `kid` must match a key whose type fits
+   `jwt_alg`, an unknown `kid` refetches at most every 30 s), `aud` must be
+   `opencanvas`, `iss` the host id, `exp` at most 10 h ahead, `nbf` honoured, 30 s leeway.
+   **WOPI launch** (docs/05 §6, added 2026-11-21): `POST /v1/launch?WOPISrc=<urlencoded>` with form
+   `access_token` (+ `access_token_ttl`, ms since the epoch) for a host with `mode = "wopi" | "both"`
+   whose `wopi_allowlist` admits the URL (else `403 WOPISRC_NOT_ALLOWED`); CheckFileInfo decides
+   role, user and perms (`401 TOKEN_INVALID` when it answers 4xx). Same `303`. The ticket lives
+   until `access_token_ttl` (10 h when absent). `GET /hosting/discovery` (XML) and
+   `GET /hosting/capabilities` (JSON). A JWT for a `mode = "wopi"` host is refused.
+4. Tickets live for the launch token's `exp`. The WS must connect within 60 s of the
+   first `GET /v1/sessions`, though reconnects with the same ticket are allowed until `exp`.
+
+## 3. Collaboration WebSocket
+
+`GET /v1/collab/<room>?ticket=<ticket>`, upgraded to a WebSocket. This is compatible with
+the stock `y-websocket` `WebsocketProvider(wsUrl, room, doc, { params: { ticket } })`.
+
+Binary frames, y-protocols encoding (lib0 varuint message type first):
+
+| type | meaning |
+|---|---|
+| 0 | sync: 0 = step1, 1 = step2, 2 = update |
+| 1 | awareness update |
+| 2 | auth: the server sends `[2, 0 (permission denied), varString reason]` when a write is rejected |
+| 3 | query awareness (client → server; the server answers with all awareness states) |
+| 100 | OpenCanvas control: varString JSON, both directions |
+
+(Changed 2026-11-21 by the server build: auth is type **2** and query-awareness is 3, as in
+y-protocols / y-websocket and yrs. The earlier draft said 3 for auth.)
+
+Server → client control JSON:
+`{"t":"saving"}`, `{"t":"saved","at":<epoch ms>,"version":"18"}`,
+`{"t":"save_error","retryInMs":10000,"message":"…"}`,
+`{"t":"conflict","policy":"copy","fileId":"doc_9001","url":"…"}` (room stays read-only; joiners
+get it as the save state),
+`{"t":"conflict","policy":"reload"}` (followed by `closed` and close code 1012: the client must
+drop its local Y.Doc and reconnect, the room now holds the host's version),
+`{"t":"role","role":"view"}` (also sent mid-session when the host changes the role),
+`{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000),
+`{"t":"reconnect"}` (always followed by close **1012**: the client keeps its Y.Doc and
+reconnects; sent on graceful drain and, in cluster mode, when the room moved to another node).
+(Changed 2026-11-21 by the server hardening: `conflict` carries `policy`.)
+On connect the server sends sync step1 and the current awareness states. When the client's
+step1 arrives the server answers with step2, then `{"t":"role",…}` and the current save state
+(`saved` with the last known host version, or `saving`). Client → server control messages are
+accepted and ignored for now.
+
+Server rules:
+- `view` role: sync step2 and update messages are dropped, and an auth frame is sent once.
+- `comment` role: an update is accepted only if it touches nothing but the `comments` root
+  (applied to a scratch copy of the doc first; updates that create other roots or cannot fully
+  integrate are refused). The auth frame is sent once per connection.
+- Awareness: the server rewrites the `user` field from the grant before fan-out
+  (`{"id","name","color","avatar"}`), so nobody can spoof another person's name or colour.
+  Entries over 2 KB, or for a client id owned by another connection, are dropped.
+- An update that would push the encoded doc over `OC_MAX_DOC_MB` (20) is refused with an auth
+  frame `document size limit reached`; while a conflict is being handled every write is refused.
+- Frames over `OC_MAX_FRAME_KB` (1024) close the socket with code 1009. More than 60 non-awareness
+  frames/s (burst 120) closes it with **4429** `"rate limit"` (not 1008, which only means access
+  revoked / session expired). Awareness frames (type 1) have their own bucket of 120/s (burst 240);
+  excess awareness frames are dropped silently, never fatal. Clients should still batch (y-websocket
+  awareness throttling, 50 ms update windows).
+  (Changed 2026-11-21: was 1008 with awareness counted against the same bucket; fast typing tripped it.) When the ticket expires the server sends
+  `{"t":"closed","reason":"session expired"}` and closes with 1008; on shutdown (SIGTERM drain)
+  it commits dirty rooms, then sends `{"t":"reconnect"}` and closes with 1012.
+  (Changed 2026-11-21 by CLU-01: was `{"t":"closed","reason":"server shutting down"}`.)
+- Cluster mode (ADR-006): the socket may land on any node. A node that does not own the room
+  relays it to the owner over an internal WebSocket; the protocol above is unchanged, roles
+  are enforced by the owner. If the owner dies the client gets `reconnect` + 1012 (or a
+  dropped socket) and reconnects with the same ticket.
+- Room ids are `r_` + 26 lowercase base32 chars of sha256(`<hostId>:<fileId>`).
+
+## 4. Y.Doc layout (shared by server export and web)
+
+| root | type | contents |
+|---|---|---|
+| `content` | XmlFragment | Tiptap/ProseMirror document (`Collaboration` extension, `field: "content"`) |
+| `meta` | Map | `title` string, `icon` lucide name, `tone` Tone, `template` id |
+| `databases` | Map<dbId, Y.Map> | per database: `name`, `icon`, `tone`, `fields` Y.Array<Y.Map{id,name,type,options(JSON array)}>, `order` Y.Array<rowId>, `rows` Y.Map<rowId, Y.Map<fieldId,value>>, `notes` Y.Map<rowId,string>, `view` string, `views` Y.Map (per-view prefs JSON) |
+| `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId> |
+| `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,text,at}> |
+
+Tiptap node types (names are part of the file format, so don't rename them):
+`paragraph, heading(level 1-3), bulletList, orderedList, listItem, taskList, taskItem(checked),
+blockquote, codeBlock(language), horizontalRule, image(src,alt,caption), callout(tone,icon),
+toggle(open) > toggleSummary + toggleContent, database(dbId), board(boardId),
+bookmark(url,title,description,site), embed(provider,url,title), fileAttachment(name,size,url,mime),
+columns > column, table/tableRow/tableHeader/tableCell, mention(id,label) inline,
+commentMark(threadId) mark`.
+
+**Block ids.** Any block node may carry an optional string attribute `blockId` (convention
+`b_` + 26 lowercase base32 chars, e.g. `b_01jd…`). It is how the host patch API (§6) addresses
+blocks; ids are unique within a document. Blocks the patch API inserts always get one (the
+caller's `attrs.blockId` is kept, else one is generated). The editor must declare `blockId` as a
+global attribute on block nodes (Tiptap `addGlobalAttributes`, default `null`, not rendered) and
+keep it when a node is edited; a split keeps it on the first half only and pasting/duplicating
+clears it. Without that, y-prosemirror drops the attribute the first time a user edits the block.
+(Added 2026-11-21 by the server API build; the web part is still to do.)
+
+Field types for databases: `title text status select tags person date number checkbox url progress`.
+Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.
+
+`.ocanvas` as written by the server: `manifest.json` (`format`, `version` 1, `schemaVersion` 1,
+`createdWith`, `title` from `meta.title`, `commit {id, authors, at}`), `document.json` and `ydoc.bin`.
+`ydoc.bin` is a Yjs **v1** update (`Y.encodeStateAsUpdate(doc)`); readers also accept v2.
+`document.json` is `{type:"doc", content:[…], meta, databases, boards, comments}` where `content`
+nodes are `{type, attrs?, content?}` and text is `{type:"text", text, marks?:[{type, attrs?}]}`
+(y-prosemirror `mark--hash` keys are reduced to `mark`). If `ydoc.bin` is missing the doc is built
+from `document.json` (content and meta exactly; nested maps best-effort).
+
+## 5. Host callbacks (JWT mode). The server calls the host.
+
+Base `callback_base` from the host registry. Headers on every call:
+`Authorization: Bearer <callbackToken from JWT>`,
+`X-OpenCanvas-Signature: t=<unix>,v1=<hex HMAC-SHA256(jwt_secret, "<t>.<body>")>`.
+
+| Call | Notes |
+|---|---|
+| `GET /files/{fileId}` | 200 bytes (`.ocanvas` zip, or `text/markdown`), `ETag`; 404 = new file |
+| `PUT /files/{fileId}` | body `.ocanvas`; `If-Match`, `Idempotency-Key`, `X-OpenCanvas-Autosave: 1`, `X-OpenCanvas-Authors: <json ids>`; 200 `{"version":"…"}`, 409 conflict |
+| `POST /files/{fileId}/assets` | multipart `file` → 201 `{"assetId","url","mime","size"}` |
+| `GET /users?q=&fileId=` | `[{"id","name","avatar"}]` |
+| `POST /files/{fileId}/copies` | conflict policy `copy`: body `.ocanvas`, `Idempotency-Key`; 200/201 `{"fileId","url"}` |
+
+The HMAC key is the host's `callback_secret` if set, else `jwt_secret`. `If-Match` is the quoted
+version from the last load/save (`ETag` of `GET`, else the JWT `file.version`). The PUT carries
+`Content-Type: application/vnd.opencanvas+zip`; 412 is treated like 409. For uploads the multipart
+body is forwarded byte for byte and the signature covers those bytes.
+`OC_CALLBACK_BASE_OVERRIDE`, when set, replaces every host's `callback_base` (dev/compose only;
+logged as a warning).
+
+## 6. Server REST used by the SPA
+
+`GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host; WOPI mode:
+stored with the room, `201 {"assetId","url":"/v1/assets/<id>","mime","size"}`, ≤ 10 MB each, ≤ 50 MB
+per file) · `GET /v1/assets/:id?ticket=` (WOPI mode only, else 404) ·
+`GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx|pdf` ·
+`GET /v1/export/board/:boardId.svg|png?ticket=` · `GET /healthz` · `GET /readyz` · `GET /metrics`.
+
+Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
+(`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
+`POST /v1/files/:fileId/role {"userId","role":"view|comment|edit|none"}` → `{"connections","sessions"}`;
+`DELETE /v1/files/:fileId/session` → final save, close all, drop tickets → `{"closed","sessions"}`;
+`POST /v1/files/:fileId/patch` → `{"applied","blockIds","live"}` (+ `version` when no room was live);
+`POST /v1/files/:fileId/commit` → `200 {"live","saved","version"}` / `202 {"queued":true}` / `409 CONFLICT`;
+`POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf` (raw body in, file out).
+Optional `X-OpenCanvas-Callback-Token`: the bearer used for callbacks made for that request (loading /
+saving a file with no live room, fetching images); without it the bearer is empty and the host
+authenticates the call by the HMAC signature. Details in docs/04 §6 and docs/05 §7.
+
+DOCX (`export/docx`, `convert to=docx`): minimal WordprocessingML written with `zip` (no new crate).
+Headings, marks, links (http/https/mailto only), bullet/numbered/task lists, quotes, code, tables,
+callouts (shaded paragraphs), databases (caption + table), boards (a PNG rendered at 2×, shown at 1×,
+caption "Whiteboard", alt text = the board's texts; a text note only if rendering fails),
+bookmarks/embeds/files (links). Images that were not fetched (see *Images in exports*) become links.
+
+Boards (`oc_model::board`, changed 2026-11-21): `to_svg(doc, boardId)` is a port of the web
+`exportBoardSvg` (light palette, fitted to content + 32 px, stickies, rect/frame, ellipse, diamond,
+swatch, text, pen, arrows incl. bound ends and elbow routes, images as `<image href>`); a parity test
+compares it byte for byte with the web output. `to_png(svg, scale)` renders with `resvg` and the
+embedded Geist Regular/SemiBold (OFL), no system fonts; only inline `data:` images are drawn (remote
+URLs and file paths are never read); ≤ 16384 px a side, ≤ 64 Mpx. Exports: HTML inlines the board
+SVG (`<figure class="board">`); Markdown keeps the note and, for ticketed exports, adds
+`[Whiteboard (SVG)](<OC_PUBLIC_URL>/v1/export/board/<id>.svg?ticket=<ticket>)` (the link carries the
+session ticket and stops working when it expires); `GET /v1/export/board/:boardId.svg` (image URLs
+kept) / `.png` (allowed images inlined) need `perms.export`; unknown board 404 `BOARD_NOT_FOUND`.
+
+PDF (ADR-010): `OC_PDF_RENDERER=gotenberg:<url>` → the print HTML is posted to Gotenberg's
+`/forms/chromium/convert/html` (A4, 0.6" margins, backgrounds) and the PDF is streamed back
+(`502 PDF_RENDERER_FAILED` if it fails). The print HTML is self-contained: allowed images and board
+images inlined as `data:` URLs, other images are links, CSP `default-src 'none'; img-src data:` so the
+renderer fetches nothing. Unset → `501 {"error":{"code":"PDF_RENDERER_NOT_CONFIGURED"}}` (the editor
+uses its print stylesheet instead).
+
+Images in exports (DOCX, board PNG, PDF): fetched only from allowed origins — the host's
+`callback_base` origin (relative `/…` resolves there; signed + callback token), the original
+`callback_base` origin while `OC_CALLBACK_BASE_OVERRIDE` is active (fetched through the override,
+signed), and the host's `asset_origins = ["https://cdn…"]` (plain GET, no signature or token).
+No redirects, ≤ 10 MB, `Content-Type: image/*` required, ≤ 50 per export; anything else is skipped.
+
+`perms.print` (added 2026-11-21 with WOPI mode; JWT `perms.print`, WOPI `DisablePrint`, default
+true) is additionally required for `pdf`.
+`ocanvas` export needs `perms.download`, the others `perms.export` (403 otherwise); unknown formats
+answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment; filename="<file name>.<ext>"`.
+`POST /v1/assets` needs the `edit` role and `multipart/form-data` (≤ 25 MB); the host's status and
+body are passed through. Every response carries `Content-Security-Policy: frame-ancestors 'self'
+<all hosts' allowed_origins>` and `Referrer-Policy: no-referrer`.
+
+## 7. Autosave
+
+No manual save anywhere (ADR-012). A room saves when it is dirty and:
+- 2 s have passed since the last update (`OC_AUTOSAVE_DEBOUNCE_MS`), or
+- 10 s have passed since the first unsaved update (`OC_AUTOSAVE_MAX_MS`), or
+- the last client leaves, or the process gets SIGTERM.
+
+Saves are serialized per room. Each commit (`.ocanvas` bytes, idempotency key, base version,
+sealed callback token) is written to `commit_outbox` as `pending` **before** the PUT; retries
+resend the same row. 200 marks it `done` (payload dropped), 409 `conflict`, a newer commit marks
+older pending rows `superseded`. A failure is retried with backoff (1 s, 2 s, 5 s, 10 s, …) and
+sends `save_error`. At startup (and every 60 s) a sweeper reopens every room with a pending row
+(from WAL, or from the outbox payload when there is no WAL) so the save continues after a restart.
+
+A 409 stops autosave and applies the host's `[host.flags] on_conflict` (default `copy`):
+`copy` → `POST /files/{id}/copies` with the room's state, then `conflict` with `fileId`/`url`;
+the room is read-only and closes as soon as the last client leaves. `reload` → `GET` the
+host's file, replace the room's state with it, send `conflict` + `closed`, close every socket.
+
+Every accepted update is appended to `room_updates` before fan-out; every 500 updates or 30 s the
+WAL is compacted into `room_snapshots`. A room that was dirty when the process died is rebuilt
+from snapshot + WAL on the next join instead of reloading from the host. A clean room with no
+clients for `OC_ROOM_TTL_SECS` (600) closes and its rows are purged.
+
+WOPI mode (docs/05 §6): the same outbox and autosave; `HostClient` sends the save to the WOPI host
+(PutFile with `X-COOL-WOPI-Timestamp` = the tracked `LastModifiedTime`; `409` + `COOLStatusCode`
+1010 = conflict; policy `copy` = PUT_RELATIVE). The `saved` control's `version` is the host's
+`LastModifiedTime`. Assets of a WOPI room live in `room_assets` (migration 0003) and are inlined as
+`assets/<id>` + `assets/index.json` on every save; rows of rooms that are gone and have no pending
+commit are swept by the 60 s sweeper (10 min grace).
+
+## 8. Secrets and limits
+
+`OC_KEK` (base64 of 32 bytes) seals the host callback token (in WOPI mode: the access token) in `sessions.grant_json` and
+`commit_outbox.token` with AES-256-GCM (`enc:v1:<base64(nonce‖ct)>`, bound to the row id). The
+server refuses to start without it unless `OC_DEV=1` (then tokens are stored in clear, with a
+warning). `OC_MAX_DOC_MB` (20) caps the encoded document; 60 frames/s (burst 120) per socket.
+
+Convergence fuzz: `cargo test -p oc-server --test fuzz` runs `OC_FUZZ_ITERS` (200) random rooms;
+`OC_FUZZ_ITERS=10000 cargo test --release -p oc-server --test fuzz -- --nocapture` for the long
+run, `OC_FUZZ_SEED=<n> OC_FUZZ_ITERS=1` to replay a failing seed.
+
+## 9. Ports in dev
+
+Server `:8080`, sample host `:4000`, Vite dev `:5173` (proxying `/v1` to `:8080`, ws included).
+
+
+# Operations and deployment
+
+URL: https://casualoffice.github.io/opencanvas/docs/operations.html
+Source file: docs/13-OPERATIONS-AND-DEPLOYMENT.md
+
+**Status:** draft v0.1, 2026-11-21. Implemented in SCAF-01 / OPS-01.
+
+## Single node (default, SQLite)
+```sh
+docker run -p 8080:8080 -v oc-data:/data \
+  -e OC_PUBLIC_URL=https://canvas.example.com \
+  -e OC_KEK=$(openssl rand -base64 32) \
+  -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
+  opencanvas/server:0.1
+```
+SQLite file at `/data/opencanvas.db` (WAL mode). Back it up only if you care
+about un-committed edits surviving a disk loss — committed content is in the host.
+
+## PDF export (optional Gotenberg sidecar, ADR-010)
+```sh
+docker run -d --name gotenberg gotenberg/gotenberg:8          # internal network only
+-e OC_PDF_RENDERER=gotenberg:http://gotenberg:3000              # on the OpenCanvas container
+```
+Compose: `OC_PDF_RENDERER=gotenberg:http://gotenberg:3000 docker compose --profile pdf up`.
+OpenCanvas sends Gotenberg self-contained HTML (images inlined, CSP `default-src 'none'`), so the
+sidecar needs no route to hosts or the internet; keep it off public networks. Without it
+`GET /v1/export/pdf` answers 501 and the editor prints from the browser. Board PNG/SVG and DOCX
+need no sidecar (rendered in-process with `resvg`, see Fonts below).
+
+## Fonts (board PNG, DOCX board images)
+`oc_model::fonts` builds one font database per process on the first render (ADR-020):
+embedded Geist (Latin) + subsets of Noto Sans Symbols 2 and Noto Sans Math (✓ ✗ → ⇒ ★ ☐ ⚠,
+dingbats, shapes, arrows; ~270 KB), then system fonts, then every directory in `OC_FONT_DIRS`.
+A character the board font lacks falls back to the symbol subsets, then Noto Sans / Noto Sans
+CJK (SC, JP, KR, TC, HK) / other Noto families, then any face that has it. Characters no font
+has render as boxes and log one `WARN` per script (`no font for this script`), never the text.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OC_FONT_DIRS` | image: `/opt/opencanvas/fonts` | Extra font directories, `:`-separated, searched recursively |
+| `OC_SYSTEM_FONTS` | `1` | `0` skips system fonts (deterministic rendering, tests) |
+
+The image installs Debian `fonts-noto-core` + `fonts-noto-cjk` (Sans only; Serif CJK removed),
+so Latin, Greek, Cyrillic, Arabic, Hebrew, Indic, Thai and CJK render out of the box. Add
+fonts by mounting them at `/opt/opencanvas/fonts`. Gotenberg (PDF) uses its own Chromium
+fonts; `gotenberg/gotenberg:8` already ships Noto CJK and symbol fonts. `oc_model::fonts::coverage(text)`
+lists the characters no loaded font can draw.
+
+## Image
+`docker build -f deploy/Dockerfile -t opencanvas .` — three stages: release binary
+(`rust:1.98-slim-bookworm`), editor bundle (`node:24-slim`, `pnpm install --frozen-lockfile`,
+`pnpm --filter @opencanvas/editor build`), runtime `debian:bookworm-slim` with the binary, the
+editor at `/srv/web` (served at `/app/`) and the fonts. Runs as uid 10001, works with a
+read-only root filesystem (`--read-only --tmpfs /tmp` + a writable `/data` for SQLite).
+`HEALTHCHECK` probes `/healthz` on port 8080 through bash's `/dev/tcp` (no curl in the image).
+Size: 327 MB (binary 23 MB, editor 8 MB, fonts 80 MB, the rest Debian).
+
+## Kubernetes (Helm)
+Chart: `deploy/helm/opencanvas` (values documented inline; examples in `ci/`).
+```sh
+helm install oc deploy/helm/opencanvas --set secrets.kek=$(openssl rand -base64 32) \
+  --set publicUrl=https://canvas.example.com --set ingress.enabled=true --set ingress.host=canvas.example.com \
+  --set-file hosts.toml=opencanvas.hosts.toml
+```
+- **SQLite** (no `database.url`): exactly one replica, `Recreate` rollouts, `/data` on an
+  emptyDir (or `persistence.enabled` for a PVC). The chart refuses `replicaCount > 1` or HPA.
+- **Cluster**: `database.url` (or `database.existingSecret`) + `redis.url`; HPA optional
+  (`autoscaling.enabled`, scale-in one pod / 2 min). `OC_NODE_ID` = pod name.
+- **Secrets**: the chart Secret (or `secrets.existingSecret`) is mounted with `envFrom`, so it
+  holds `OC_KEK` and every `env:NAME` the hosts file references (JWT secrets, API keys).
+  The hosts file itself comes from a ConfigMap (`hosts.toml` or `hosts.existingConfigMap`).
+- **Gotenberg**: `gotenberg.enabled` + `mode: deployment` (Service + NetworkPolicy allowing only
+  OpenCanvas pods) or `mode: sidecar` (bound to 127.0.0.1 in each pod), or `externalUrl`.
+- **Ingress (ingress-nginx)**: one Ingress for `/` (round-robin) and, with
+  `ingress.stickyRooms`, a second for `/v1/collab/` with `upstream-hash-by: "$uri"`, so all
+  sockets of a room reach the same pod (the owner, fewer relays). 3600 s proxy timeouts,
+  buffering off. Other controllers: hash on the path segment after `/v1/collab/`.
+- **Drain**: `preStop` sleeps 5 s (endpoints drop the pod), then SIGTERM starts the drain below;
+  `terminationGracePeriodSeconds: 40` covers the ≤ 30 s commit. PDB `maxUnavailable: 1`.
+- Pods run non-root (10001), read-only root, all capabilities dropped, seccomp RuntimeDefault;
+  `/tmp` and `/data` are emptyDirs. Probes: liveness `/healthz`, readiness `/readyz`.
+- CI (`helm` job) lints and renders single-node SQLite, cluster MariaDB + Redis and
+  Gotenberg value sets, and checks SQLite + 2 replicas is refused.
+
+## Cluster (MySQL/MariaDB + Redis, ADR-006)
+```
+DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas
+REDIS_URL=redis://redis:6379                 # enables cluster mode
+OC_NODE_ID=node-1                            # default: $HOSTNAME
+OC_CLUSTER_ADVERTISE=http://node-1:8080      # how other nodes reach this one (default http://$OC_NODE_ID:<port>)
+OC_CLUSTER_SECRET=<≥ 32 chars, same on every node>
+OC_KEK=<same on every node>                  # nodes read each other's sealed rows
+```
+`REDIS_URL` with SQLite refuses to start. Rooms are owned by one node through the Redis
+lease `room:{id}:owner` (`SET NX PX 15000`, renewed every 5 s). A node that receives a socket
+for a room it does not own relays it to the owner over `/v1/internal/relay/:room`; host-API
+room calls go to `/v1/internal/rooms/:room`. **Never expose `/v1/internal/` through the load
+balancer**; nodes must reach each other directly.
+
+LB: HTTP round-robin; WebSocket `hash $room consistent` on the `/v1/collab/<room>` path
+segment, `proxy_connect_timeout 1s` and `proxy_next_upstream error timeout` so a dead node's
+rooms move along the ring (see `deploy/nginx/opencanvas-cluster.conf`).
+`docker-compose.cluster.yml` ships 3 nodes + MariaDB + Redis + nginx (`:8580`) + the sample
+host (`:4580`). `scripts/chaos-cluster.sh` brings it up, types from two clients, `docker kill`s
+the room owner, checks reconnect ≤ 5 s, convergence and that the host's file has every
+acknowledged edit, then removes everything.
+
+## Health & metrics
+- `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining.
+- `/metrics` (Prometheus): `oc_rooms_live`, `oc_connections{role}`,
+  `oc_updates_total`, `oc_update_apply_seconds`, `oc_fanout_bytes_total`,
+  `oc_commit_total{result}`, `oc_commit_seconds`, `oc_host_callback_seconds{op,status}`,
+  `oc_wal_bytes`, `oc_room_doc_bytes` (histogram), `oc_relay_frames_total`.
+- Logs: JSON, request id, room id, host id; never content.
+- Traces: OTLP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` set.
+
+## Graceful shutdown / deploys
+SIGTERM → refuse new rooms → commit all dirty rooms (≤ 20 s each, in parallel) →
+`{"t":"reconnect"}` + close 1012 to every client (local and relayed) → release leases → exit.
+Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a stop grace
+period of ≥ 30 s. (Not yet: `/readyz` does not turn 503 while draining.)
+
+## Sizing
+| Load | Shape |
+|---|---|
+| Team ≤ 200 users | 1 node, 1 vCPU, 512 MB, SQLite |
+| ≤ 5 000 concurrent | 3 nodes × 2 vCPU/2 GB, MariaDB, Redis |
+| Large | scale nodes linearly; split export workers; Redis cluster |
+
+
+# Security and limits
+
+URL: https://casualoffice.github.io/opencanvas/docs/security.html
+Source file: docs/07-SECURITY-AND-LIMITS.md
+
+**Status:** draft v0.1, 2026-11-21. Target: OWASP ASVS Level 2.
+
+## 1. Trust boundaries
+
+```
+[end-user browser] ──(untrusted input)──▶ [OpenCanvas] ──(signed calls)──▶ [host]
+       ▲                                       │
+       └── renders user content (XSS risk) ────┘
+[OpenCanvas] ──(fetches arbitrary URLs: unfurl)──▶ [internet]  (SSRF risk)
+```
+
+## 2. Threats and controls
+
+| Threat | Control |
+|---|---|
+| Forged launch token | Per-host key; verify `alg` from host config (never from header), `iss`, `aud`, `exp ≤ 10h`, `nbf`, `jti` single-use cache (DB/Redis). |
+| Token leakage via URL | JWT posted in form body, not query; WS uses short (≤ 60 s to connect) single-room ticket; tickets never logged. |
+| Privilege escalation (viewer edits) | Server filters every `sync update` by role; commenters restricted to `comments` subtree via scratch-doc diff. Client read-only is cosmetic. |
+| Presence spoofing | Server overwrites `awareness.user` from grant. |
+| XSS via paste/import/markdown | ProseMirror schema whitelist; HTML import through sanitizer (ammonia on server, DOMPurify on client); no raw HTML block; links restricted to `http(s):`, `mailto:`, host-allowed schemes. |
+| Malicious embeds | Provider allow-list per host; `<iframe sandbox="allow-scripts allow-same-origin allow-popups allow-presentation">` only for listed providers, `referrerpolicy=no-referrer`; generic iframe disabled by default. |
+| SSRF via unfurl / image URL | Resolve DNS once, pin IP, block private/link-local/loopback/metadata ranges (v4+v6), HTTPS-only by default, 3 redirects max (re-checked), 2 MB / 5 s caps, content-type check. |
+| Clickjacking / embedding by strangers | CSP `frame-ancestors` = host `allowed_origins`; postMessage origin checks both ways. |
+| Callback spoofing (someone pretends to be us) | HMAC `X-OpenCanvas-Signature` with timestamp (5 min skew). |
+| DoS | Per-IP and per-connection rate limits; frame ≤ 1 MB; doc ≤ 20 MB; ≤ 10 000 blocks; ≤ 5 000 shapes/board; room peers ≤ 550; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal). |
+| Secrets at rest | Host secrets AES-256-GCM encrypted with `OC_KEK`; host callback tokens in `sessions.grant_json` encrypted. |
+| Data retention | Room state deleted after commit + TTL; no content in logs (only ids, sizes, timings); crash dumps disabled in prod. |
+| Supply chain | `cargo deny`, `pnpm audit`, lockfiles, pinned CDN-free bundle (self-hosted assets). |
+
+## 3. Limits (defaults, per host overridable)
+
+| Limit | Default |
+|---|---|
+| Launch token TTL max | 10 h |
+| WS ticket connect window | 60 s |
+| Frame size | 1 MB |
+| Frames/s per connection | 60 (burst 120) |
+| Awareness size / rate | 2 KB / 20 Hz |
+| CRDT doc soft / hard | 5 MB / 20 MB |
+| Blocks per doc | 10 000 |
+| Shapes per board | 5 000 |
+| Image upload | 25 MB |
+| Attachment upload | host-defined (default 100 MB) |
+| Editors per room / viewers | 50 / 500 |
+| Unfurl fetch | 2 MB, 5 s, 3 redirects |
+
+## 4. Privacy
+
+- PII held in memory only: display name, avatar URL, user id — from the token.
+- `sessions` rows hold user id + role until token expiry, then purged hourly.
+- GDPR delete is the host's job (they hold the file); we purge on
+  `DELETE /v1/files/{id}/session`.
+
+
+# Architecture
+
+URL: https://casualoffice.github.io/opencanvas/docs/architecture.html
+Source file: docs/03-HLD-ARCHITECTURE.md
+
+**Status:** draft v0.1, 2026-11-21. Decisions referenced as ADR-xxx live in
+[08-ADR-REGISTER.md](08-ADR-REGISTER.md).
+
+## 1. System context
+
+```
+                        ┌──────────────────────────────────────────────┐
+                        │              HOST APPLICATION                │
+                        │  (your app, Nextcloud, LMS, CRM, any app)    │
+                        │                                              │
+   end user ──login──▶  │  users · auth · ACL · files · versions       │
+                        │                                              │
+                        │  ① mints launch token (JWT) or WOPI token    │
+                        │  ⑤ implements callbacks: load / save /       │
+                        │     assets / users                           │
+                        └───────┬───────────────────────▲──────────────┘
+                     iframe /   │                       │ HTTPS callbacks
+                     web comp.  │                       │ (server → host)
+                                ▼                       │
+   ┌──────────────────────────────────────────────────────────────────┐
+   │                         OPENCANVAS                              │
+   │                                                                  │
+   │  Browser:  editor bundle (ProseMirror/Tiptap + Yjs + board)     │
+   │              │  ② HTTPS: /launch, /preview, /export             │
+   │              │  ③ WSS:   /collab/{room}  (Yjs sync + awareness)  │
+   │              ▼                                                   │
+   │  Server (Rust, single binary):                                   │
+   │    gateway · session mgr · room engine · commit engine ·        │
+   │    export/preview · unfurl · host connector                      │
+   │              │                                                   │
+   │              ▼ ④ transient state only                           │
+   │    SQLite (default)  |  MySQL / MariaDB (+ Redis) in cluster     │
+   └──────────────────────────────────────────────────────────────────┘
+```
+
+**Responsibility split (ADR-001):**
+
+| Host owns | OpenCanvas owns |
+|---|---|
+| Users, login, SSO | Editor UI, block model |
+| ACL / roles per file | Enforcing the role the host handed us, per connection |
+| Canonical file + version history | Live session state (until commit + TTL) |
+| Asset bytes (images, attachments) | Asset upload proxy + cache |
+| Retention, legal hold, search index | Exports (MD/HTML/PDF/DOCX/PNG) and previews |
+| Sharing UI | Presence, cursors, comments-in-file, commits |
+
+## 2. Containers / components
+
+```
+opencanvas-server  (one binary, all components; can be split later)
+├── gateway            axum HTTP + WS, CORS/CSP, rate limits, request ids
+├── auth               launch-token verify (JWT) | WOPI CheckFileInfo
+│                      → produces a SessionGrant {host, file, user, role, perms, exp}
+├── session-manager    open/join/close sessions, room ownership, routing
+├── room-engine        per-document actor: Yrs Doc, awareness, fan-out,
+│                      role filter, update log, snapshotting
+├── commit-engine      autosave/manual commits → serialize .ocanvas → host PutFile,
+│                      conflict handling, retry with backoff, outbox
+├── host-connector     typed client for host callbacks (load/save/assets/users),
+│                      per-host config, circuit breaker, timeouts
+├── render             SSR preview HTML, exports (MD/HTML/PDF/DOCX/PNG/SVG)
+├── unfurl             SSRF-safe link-preview + oEmbed fetcher with cache
+├── store              sqlx Any: SQLite | MySQL | MariaDB; migrations
+├── bus (cluster)      Redis pub/sub + room leases (optional)
+└── ops                /healthz /readyz /metrics, OTel traces, JSON logs
+
+opencanvas-web  (TypeScript)
+├── @opencanvas/core     block schema, Yjs bindings, serializers (shared with server via WASM later)
+├── @opencanvas/editor   Tiptap/ProseMirror editor, slash menu, drag handles, tables
+├── @opencanvas/board    board block: SVG/Canvas2D renderer on Y.Map shapes
+├── @opencanvas/preview  tiny read-only renderer (no Yjs) for preview mode
+└── @opencanvas/embed    host SDK: <open-canvas> web component + postMessage API
+```
+
+## 3. Key flows
+
+### 3.1 Open (JWT launch mode)
+```
+Host backend        Browser (host page)          OpenCanvas            Host callbacks
+     │ sign JWT{file,user,role,perms,cb}  │                    │                      │
+     │──────────────────────────────────▶│                    │                      │
+     │                 │ iframe POST /launch (token) ─────────▶│ verify sig, exp, aud │
+     │                 │                                      │── GET file ─────────▶│ (if room not live)
+     │                 │                                      │◀─ .ocanvas bytes ────│
+     │                 │                                      │ load into room       │
+     │                 │◀─ editor HTML + session cookie/ticket │                      │
+     │                 │── WSS /collab/{room}?ticket ─────────▶│ sync step1/2, awareness
+```
+- If the room is already live (another user editing), the server **does not
+  re-fetch** the file — the new user joins the live CRDT. This is how
+  Collabora/Loop behave and avoids fork-on-open.
+- The JWT is used once; the browser gets a short-lived, single-room
+  **session ticket** for the WebSocket (ADR-005).
+
+### 3.2 Open (WOPI mode)
+Identical, except step "verify" is `GET {WOPISrc}?access_token=…`
+(CheckFileInfo) → role from `UserCanWrite` / `UserCanComment` / ReadOnly, and
+file is fetched with GetFile. Saves use PutFile with `X-WOPI-Override: PUT` and
+`X-COOL-WOPI-Timestamp`-style conflict detection (`LastModifiedTime`).
+
+### 3.3 Edit
+1. Client applies change locally (instant), produces a Yjs update.
+2. Sends `sync:update` over WS.
+3. Room engine: **role check** (edit role; comment role may only touch the
+   `comments` subtree) → apply to server Doc → append to `room_updates`
+   (durable tail) → fan out to all peers (local + other nodes via bus if
+   viewers are spread).
+4. Awareness (cursor, selection, pointer, colour, name) is ephemeral — never
+   stored, fan-out only, throttled to 20 Hz.
+
+### 3.4 Commit
+Triggers: manual "Save version", autosave interval (default 60 s with
+changes), idle (30 s without edits), last user leaves, session close API,
+graceful shutdown.
+```
+room-engine ──(dirty since last commit)──▶ commit-engine
+  serialize Doc → .ocanvas (zip: document.json, ydoc.bin, manifest.json)
+  POST host save callback  (If-Match: last host version)
+    200 → record host_version, clear dirty, emit "saved" to clients
+    409 → host changed file outside session → emit "conflict" →
+          policy: (a) save-as-copy callback, or (b) reload host version
+          and merge as a new branch, per host config
+    5xx/timeout → outbox retry with backoff; UI shows "saving… retrying"
+```
+Commits are **at-least-once** with an idempotency key
+(`commit_id` = ULID) so hosts can dedupe.
+
+### 3.5 Preview / download
+- `GET /preview?token=…` → server fetches file (or uses live room state if
+  `live=1` and room exists), renders static HTML via `render`. No WS, no Yjs on
+  the client — fast and cacheable by `(file_id, host_version)`.
+- `GET /export/{format}?token=…` → same source, renders MD/HTML/PDF/DOCX/PNG.
+  PDF via headless Chromium pool **optional** sidecar; fallback to HTML print.
+
+### 3.6 Close / cleanup
+After final commit succeeds and no clients remain for `ROOM_TTL_SECS`
+(default 10 min): drop room from memory, delete `room_updates` and snapshot
+rows. Nothing about the document remains on our side (Principle 3).
+
+## 4. Data & persistence (transient only)
+
+| Data | Where | Lifetime |
+|---|---|---|
+| Canonical document | **Host** | forever (host-managed) |
+| Room snapshot (Yjs state v2) | DB `room_snapshots` | until room purge |
+| Update tail since snapshot | DB `room_updates` | compacted into snapshot every N=500 updates / 30 s |
+| Sessions, tickets | DB `sessions` | ≤ token exp |
+| Commit outbox | DB `commit_outbox` | until host ack |
+| Host registry (keys, callback base, flags) | DB `hosts` or config file | static |
+| Unfurl cache | DB `unfurl_cache` | 24 h |
+| Awareness | memory only | connection lifetime |
+| Audit events | logs/OTel (optional DB table) | ops policy |
+
+Why keep snapshot + tail at all? So a node crash or deploy never loses an
+acknowledged edit that has not been committed yet. It's a write-ahead log,
+not storage.
+
+Database selection (ADR-004): `DATABASE_URL` unset → `sqlite://./data/opencanvas.db`
+(WAL mode). `mysql://` → MySQL 8 / MariaDB 10.6+. Same migrations, sqlx `Any`
+driver, portable SQL subset.
+
+## 5. Scalability model
+
+### 5.1 Single node (default)
+SQLite + in-process rooms. Handles thousands of connections. Zero
+dependencies.
+
+### 5.2 Cluster (MySQL/MariaDB + Redis)
+```
+             ┌───────── L7 load balancer ─────────┐
+             │ HTTP: round-robin                  │
+             │ WS: hash(room_id) → node (sticky)  │
+             └───────┬──────────┬──────────┬──────┘
+                   node-1     node-2     node-3   (identical binaries)
+                     │  owns rooms by lease   │
+                     └──── Redis (leases) ─ internal WS relay ┘
+                     └──── MySQL/MariaDB (snapshots, tails, outbox) ────┘
+```
+- **One owner per room** (ADR-006). The owner holds the authoritative Yrs Doc
+  in memory. Ownership is a Redis lease (`SET room:{id}:owner node NX PX`)
+  renewed every 5 s.
+- If the LB routes a client to a non-owner, that node **relays** the connection
+  to the owner over one internal WebSocket per client connection
+  (`/v1/internal/relay/:room`, HMAC-signed with `OC_CLUSTER_SECRET`, the grant
+  forwarded signed). Per-connection order is TCP order; the owner treats the relayed
+  connection like a local one and enforces roles. Clients never need to know.
+  Host-API room calls (patch, commit, role, close, state for exports) on a non-owner
+  are forwarded to the owner (`POST /v1/internal/rooms/:room`, same signature).
+- Owner dies → its relays break; the edge node probes the owner's `/healthz` and, if
+  the process is gone, takes the lease over with a compare-and-set on the dead
+  owner's value (otherwise the lease expires after 15 s). The new owner loads
+  snapshot + WAL from the DB and continues; clients are told `reconnect` (1012) and
+  resync in well under 5 s. Unacked client updates are resent by the Yjs client on
+  reconnect (Yjs sync is idempotent). A node whose renewal finds another owner steps
+  the room down (clients reconnect, no save).
+- The outbox sweeper claims a row (`claimed_by`, `claim_until`) and the room lease
+  before resuming it, so two nodes never resend the same commit.
+- SIGTERM drain: refuse new rooms, commit dirty rooms, `{"t":"reconnect"}` + close
+  1012 to every client (local and relayed), release leases, exit.
+- `REDIS_URL` with SQLite refuses to start (SQLite is single-node only).
+- Stateless HTTP (launch/preview/export) scales horizontally with no
+  coordination. Export rendering can be split into a worker pool.
+- Large rooms: viewers can be fanned out by non-owner nodes from a Redis
+  channel, so a 500-viewer room does not saturate one node.
+
+### 5.3 Capacity math (2 vCPU node)
+- Yrs apply + broadcast ≈ 10–50 µs per small update; 300 rooms × 10 upd/s =
+  3 000 upd/s ≪ capacity. Bottleneck is fan-out bytes, not merge.
+- Memory: ~ 3× doc size per live room; 300 rooms × 1 MB × 3 ≈ 900 MB worst,
+  typical 100–200 MB.
+
+## 6. Security architecture (summary — detail in [07](07-SECURITY-AND-LIMITS.md))
+- Per-host keys; JWT `aud`, `iss`, `exp ≤ 10 h`, `jti` replay cache.
+- Role enforced **server-side per frame**; client UI is advisory only.
+- Embeds rendered in `sandbox` iframes from an allow-list; user HTML never
+  rendered unsanitised; CSP `frame-ancestors` = host origins.
+- Unfurl fetcher: DNS-pinned, private-IP block, size/time caps.
+- No document content in logs; PII limited to display name/avatar in memory.
+
+## 7. Deployment
+- Docker image (distroless, ~20 MB) + `docker-compose.yml` (single node,
+  SQLite) + `docker-compose.cluster.yml` (3 nodes, MariaDB, Redis, nginx).
+- Helm chart (P2). Config via env vars + optional `opencanvas.toml`.
+- Graceful shutdown: stop accepting, commit all dirty rooms, release leases.
+
+## 8. Technology choices
+
+| Concern | Choice | ADR |
+|---|---|---|
+| Server | Rust, tokio, axum | ADR-003 |
+| CRDT | Yjs (client) / yrs (server) | ADR-002 |
+| DB | sqlx Any: SQLite default; MySQL/MariaDB | ADR-004 |
+| Cluster bus | Redis (optional) | ADR-006 |
+| Editor | Tiptap (ProseMirror) + y-prosemirror | ADR-007 |
+| Board | custom SVG/Canvas2D on Y.Map | ADR-008 |
+| File format | `.ocanvas` zip (JSON + Yjs state) | ADR-009 |
+| Integration | JWT launch + WOPI-compatible | ADR-005 |
+| Exports | Rust renderers; optional Chromium sidecar for PDF | ADR-010 |
+
+
+# Collaboration and presence
+
+URL: https://casualoffice.github.io/opencanvas/docs/collaboration.html
+Source file: docs/06-COLLABORATION-AND-PRESENCE.md
+
+**Status:** draft v0.1, 2026-11-21.
+
+## 1. Merge semantics (what users see when they collide)
+
+| Situation | Result |
+|---|---|
+| Two users type in the same paragraph | Both texts kept, interleaved by position (Yjs YATA). No lost characters. |
+| Both bold overlapping ranges | Union of marks. One bolds, other unbolds same range → last writer per character. |
+| One deletes a block while another types in it | Delete wins; the typing is lost **and the typer is notified** ("Block removed by Asha · Undo"). Their undo restores it. |
+| Both move the same block | Last move wins (single final position, never duplicated). |
+| Table: one adds a column, other adds a row | Both applied; new cells empty. |
+| Board: two users drag the same shape | Last position wins per field; colour change by the other is kept. |
+| Board: concurrent pen strokes | All strokes kept (append-only). |
+| Task checkbox toggled by two users | Last writer wins. |
+| Comment resolved while someone replies | Reply kept; thread re-opens with indicator. |
+
+These are verified by the convergence fuzz harness (04 §9), and each row is a
+named test case.
+
+## 2. Presence model (awareness)
+
+Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):
+```json
+{
+  "user":   { "id": "u_123", "name": "Asha Rao", "color": "#7c3aed", "avatar": "…", "role": "edit" },
+  "cursor": { "anchor": <RelativePosition>, "head": <RelativePosition> },
+  "board":  { "id": "brd_1", "x": 412.5, "y": 80, "tool": "pen", "selection": ["s_9"] },
+  "view":   { "blockId": "b_44" },          // what they are looking at, for "follow"
+  "typing": true,
+  "idle":   false
+}
+```
+- `user` fields are **overwritten by the server** from the session grant —
+  clients cannot spoof names/colours.
+- Cursor positions are Yjs *relative positions*, so they stay correct while
+  text around them changes.
+- Colour: host-provided or derived from `hash(user.id)` into a 12-colour
+  palette that passes 3:1 contrast in light and dark themes.
+
+## 3. Cursor & selection rendering
+
+- **Text:** caret = 2 px bar in user colour + name label (shown on move, fades
+  after 2 s idle, shown on hover). Selection = 20 % tint of user colour.
+  Labels collision-avoid (stack upward) when carets are on the same line.
+- **Board:** pointer arrow + name tag in user colour, interpolated
+  (60 fps lerp) between 20 Hz updates; selection outline in user colour;
+  "laser" tool leaves a fading trail.
+- **Off-screen collaborators:** avatar stack in the top bar; each avatar shows
+  a ↑/↓ edge hint; clicking jumps to their position; long-press = **follow
+  mode** (your viewport tracks theirs until you scroll).
+- **Block-level presence:** a thin coloured bar in the left gutter of blocks
+  someone is editing — cheap and readable on narrow embeds.
+- **Typing indicator** in the avatar stack.
+- Viewers are shown as presence (eye badge) but have no caret.
+
+## 4. Undo/redo
+
+- `Y.UndoManager` with `trackedOrigins = {localOrigin}` — undo only reverts
+  *your* changes, never a collaborator's.
+- Capture timeout 500 ms groups keystrokes into words.
+- Undo stack is shared between text and boards so Ctrl+Z after drawing undoes
+  the stroke.
+- Undo stack resets on reload (it is not persisted).
+
+## 5. Connectivity
+
+| State | UI | Behaviour |
+|---|---|---|
+| Connected | none | — |
+| Reconnecting (< 30 s) | subtle "Reconnecting…" pill | edits continue locally, buffered |
+| Offline (> 30 s) | banner "Offline — changes will sync" | edits buffered (memory; IndexedDB if host enables) |
+| Back online | "Synced" toast | Yjs sync step1/2 merges buffered changes |
+| Role downgraded | banner "You now have view access" | editor switches to read-only, local unsynced edits shown as discarded diff |
+| Token expiring | silent refresh via host; else banner | — |
+| Session closed by host | modal "This canvas was closed by the app" | — |
+
+Exponential backoff 0.5 s → 10 s with jitter. Server owner change in cluster
+is invisible to users beyond a ≤ 5 s reconnect.
+
+## 6. Save state indicator
+
+`Saved · 2 min ago` → `Unsaved changes` → `Saving…` → `Saved` (or
+`Save failed · retrying`). Click opens a small popover: last commit, authors,
+"Save version…" (message input) if `perms.commitMessage`.
+
+## 7. Comments (P2)
+
+- Anchors: text range (relative positions start/end) or board shape id or
+  whole block id.
+- Stored in the `comments` Y.Map → travel inside the `.ocanvas` file.
+- Commenters (role `comment`) can write only that subtree (enforced server-side).
+- Mentions in comments trigger an `onMention` webhook to the host so the host
+  can notify (we never send emails/notifications ourselves).
+
+
+# Product requirements
+
+URL: https://casualoffice.github.io/opencanvas/docs/product.html
+Source file: docs/02-PRD.md
+
+**Product:** OpenCanvas — an embeddable, real-time collaborative canvas
+(rich document + board) built **for integration**.
+**Status:** draft v0.1, 2026-11-21. Awaiting approval.
+**Owner:** schnsrw1@gmail.com
+
+---
+
+## 1. Problem
+
+Every product that wants a "Slack/Zoom/Loop-style canvas" today has two bad
+options: build a collaborative editor from scratch (months of CRDT, cursor,
+conflict and export work) or adopt a SaaS whose storage, users and permissions
+are not theirs. Collabora Online solved this for office files: the host keeps
+files, users and ACLs, the editor does editing. **Nobody offers that model for
+a modern block canvas.**
+
+## 2. Vision
+
+> Drop one iframe (or one web component) into any app and its users get a
+> live, multi-cursor canvas — text, tables, images, links, embeds and boards —
+> while the app keeps full ownership of the file, the users and who can do what.
+
+## 3. Principles (non-negotiable)
+
+1. **Host owns identity, ACL and storage.** OpenCanvas never authenticates
+   users, never decides permissions, never keeps the canonical file.
+2. **We own editing.** Real-time merge, presence, cursors, preview, export,
+   commit back to host.
+3. **No document persistence beyond a live session.** Session state (CRDT
+   snapshot + update tail) is kept only to survive node restarts and to let
+   late joiners catch up; it is deleted after commit + idle TTL.
+4. **Lightweight.** One server binary; SQLite by default; one JS bundle.
+   Runs on a 1 vCPU / 512 MB box for a small team.
+5. **Scalable.** Stateless HTTP, room-affine WebSocket nodes, MySQL/MariaDB +
+   optional Redis for clusters. Add nodes, not rewrites.
+6. **Lossless.** Anything we cannot render is preserved and round-tripped,
+   never dropped silently.
+
+## 4. Personas
+
+| Persona | Need |
+|---|---|
+| **Integrator developer** (primary customer) | Embed a canvas in ≤ 1 day; implement 3–5 HTTP callbacks; no CRDT knowledge. |
+| **End user — editor** | Write, paste, drag blocks, draw on a board, see others typing live. |
+| **End user — viewer / commenter** | Fast preview, comments, no accidental edits. |
+| **Host admin / ops** | Docker run, health checks, metrics, choose SQLite or MySQL/MariaDB. |
+| **Automation / bots** | Create or patch a canvas with markdown/JSON over REST. |
+
+## 5. Scope
+
+### 5.1 In scope — v1 (MVP, Phases 0–2)
+
+**Integration**
+- Launch modes: **edit**, **comment**, **view (preview)**, **download/export**.
+- Two auth handshakes: **Signed launch token (JWT, HS256/RS256/EdDSA)** and
+  **WOPI-compatible** callbacks (CheckFileInfo / GetFile / PutFile).
+- Host callbacks: load file, save (commit) file, upload/fetch asset, resolve
+  users (mentions), optional token refresh.
+- Embed SDK: `<iframe>` URL + `@opencanvas/embed` (web component + JS API +
+  postMessage events).
+- REST API: create session, export, server-side markdown/JSON patch, force
+  commit, close session, health, metrics.
+- Multi-tenant: many hosts, each with its own secret/keys and callback base URL.
+
+**Content (block types)**
+- Text: paragraph, heading 1–3, quote, callout, divider, code block (syntax
+  highlight), inline marks (bold, italic, underline, strike, code, link,
+  highlight, text colour), mentions (user, date), emoji.
+- Lists: bullet, numbered, checklist (with assignee/due as optional attrs),
+  toggle (collapsible).
+- **Tables**: rows/cols, header row, column width, cell rich text, add/remove/
+  move rows & columns.
+- **Images**: upload, paste, drag-drop, URL; caption, width, alignment.
+- **Files/attachments**: card with name/size/icon, download via host.
+- **Links**: inline link + **link card (unfurl)** with title/desc/image via
+  server-side fetcher (SSRF-safe).
+- **Embeds**: allow-listed oEmbed/iframe providers (YouTube, Vimeo, Loom,
+  Figma, Google Maps, Miro, generic iframe allow-list per host).
+- **Board (whiteboard) block**: infinite pan/zoom surface inside the doc —
+  freehand pen, shapes (rect, ellipse, diamond, arrow/line, text, sticky
+  note), images, select/move/resize/rotate, connectors, z-order, colours.
+- Columns layout (2–3 columns).
+
+**Collaboration**
+- Real-time co-editing, conflict-free (CRDT).
+- Presence: avatars list, **live cursors and selections** in text, **live
+  pointers** on boards, "following" a user, typing indicators.
+- Role enforcement per connection (view / comment / edit) — server rejects
+  writes from non-editors.
+- Undo/redo per user (only your own changes).
+- Offline tolerance: brief disconnects buffer locally and resync.
+
+**Saving (autosave only — decided 2026-11-21, ADR-012)**
+- There is **no Save button**. Every change autosaves to the host: on a short debounce, on idle, when the last user leaves, and on shutdown.
+- Save state is shown as a quiet status (Saved / Saving / Offline / Retrying) with a popover; version history is the host's and is linked from it.
+- Commit carries author list (who contributed since last commit).
+- Conflict detection with host (`version`/`LastModifiedTime`) → 409 flow.
+- Version history is host-owned; we expose "open version N read-only"
+  when the host provides version URLs.
+
+**Preview & download**
+- Preview: read-only render, no WebSocket required (SSR'd HTML from file).
+- Export: `.ocanvas` (native), Markdown, HTML, PDF, DOCX (P2), PNG/SVG (board).
+- Import: Markdown, HTML, plain text (P1); DOCX (P3).
+
+**Databases (P1, ADR-013)** — like Zoom Canvas data tables, Notion databases and Slack Lists
+- A database block with typed fields: title, text, status, select, tags, person, date, number, checkbox, URL, progress.
+- Views over the same rows: **table** (inline cell editing, sort, filter, search, count/sum/average footer), **board** (kanban grouped by status/select, drag between columns), **calendar** (month grid; agenda list on phones), **gallery**.
+- Row detail panel (peek) with all properties and free-form notes.
+- **CSV import** (paste or file, type detection, preview) and **CSV export**; copy as Markdown table.
+
+**Templates (P1, ADR-014)**
+- A "New canvas" gallery with blank starts (canvas, database, whiteboard, import) and **40 templates in 9 categories**: meetings, projects, product & engineering, design & research, team & HR, sales & success, planning, whiteboards, personal.
+- Search, category filter, live thumbnails, and a preview before use. Hosts can add their own team templates.
+
+**Mobile and narrow embeds**
+- Under 720 px: editing toolbar above the keyboard, bottom sheets instead of popovers, a board that has to be tapped before it captures touch (and opens full screen), sticky first column in tables, agenda in calendar view, 16 px inputs (no iOS zoom), 38–44 px touch targets.
+
+**Icons and type**: Lucide icons only (no emoji in UI chrome), Geist / Geist Mono.
+
+**Comments (P2)**
+- Anchored to text ranges or board shapes; threads; resolve; mentions.
+- Stored inside the `.ocanvas` file so the host retains them.
+
+### 5.2 Out of scope for v1
+- User accounts, login, sharing dialogs, folder trees (host's job).
+- Long-term storage, retention, backup of documents (host's job).
+- AI features (P3, pluggable provider).
+- Spreadsheets / slides as blocks (link to OpenCalc / OpenSlide via embed).
+- Native mobile apps (responsive web only).
+
+## 6. User stories (selected, with acceptance criteria)
+
+| ID | Story | Acceptance |
+|---|---|---|
+| US-01 | As an integrator I open a canvas by POSTing a signed token to an iframe. | Canvas renders ≤ 1.5 s p75 for a 200-block doc; invalid token → error screen + `Error` postMessage. |
+| US-02 | As two editors we type in the same paragraph. | Both see each other's characters ≤ 150 ms p95 same region; final docs identical. |
+| US-03 | As a viewer I cannot edit, even with devtools. | Server drops update frames from view/comment roles; test proves it. |
+| US-04 | As an editor I draw on a board while my colleague moves a sticky. | Both converge; pointers visible; no lost shapes. |
+| US-05 | As an editor I never think about saving. | Every change reaches the host within `OC_AUTOSAVE_SECS`; status shows Saved; no Save button exists. |
+| US-06 | As a host I get the file back when the last user leaves. | Final commit within `COMMIT_IDLE_SECS` (default 30 s); session state purged after TTL. |
+| US-07 | As a bot I append a checklist via REST while users are editing. | Patch is merged live; users see it appear; next commit includes it. |
+| US-08 | As a viewer I download as PDF/Markdown. | Export permission flag respected; file downloads. |
+| US-09 | As a host I run with no DB config. | Service starts with SQLite at `./data/opencanvas.db`. |
+| US-10 | As a host I set `DATABASE_URL=mysql://…`. | Migrations run on MySQL 8 / MariaDB 10.6+; cluster mode works with ≥ 2 nodes. |
+| US-11 | As an editor I paste an image. | Image uploaded via host asset callback, inserted, visible to all; on failure, retry chip. |
+| US-12 | As an editor I paste a YouTube link. | Offer "embed / card / link"; embed renders in sandboxed iframe. |
+
+## 7. Non-functional requirements
+
+| Area | Target |
+|---|---|
+| Latency | Local echo < 16 ms; remote update p95 < 150 ms same region. |
+| Capacity per room | 50 concurrent editors, 500 viewers (viewers on fan-out only). |
+| Capacity per node (2 vCPU / 2 GB) | 2 000 concurrent connections, 300 active rooms. |
+| Document size | Soft 5 MB CRDT state, hard 20 MB; 10 000 blocks; 5 000 board shapes per board. |
+| Cold open | p75 < 1.5 s (200 blocks, 4G); JS bundle < 350 KB gz for editor, < 60 KB gz for preview. |
+| Server footprint | Idle RSS < 40 MB; single static binary. |
+| Availability | Node loss → clients reconnect to new owner in < 5 s, no acknowledged edit lost. |
+| Security | OWASP ASVS L2; sandboxed embeds; SSRF-safe unfurl; CSP; token scoping; no PII persisted beyond session. |
+| Accessibility | WCAG 2.2 AA for editor chrome; keyboard-only operable; screen reader labels. |
+| Browsers | Last 2 versions of Chrome, Edge, Firefox, Safari; iOS/Android Safari/Chrome. |
+| i18n | RTL text, IME composition (CJK), UI strings externalised. |
+| Observability | Prometheus metrics, structured JSON logs, OpenTelemetry traces. |
+
+## 8. Success metrics
+
+- Integrator time-to-first-embed ≤ 1 day (measured with the sample host).
+- 0 divergence incidents (fuzz + soak harness: 10 000 random concurrent ops).
+- Commit success rate ≥ 99.9 %; zero silent data loss.
+- p95 remote latency < 150 ms at 50 editors in a room.
+
+## 9. Release plan
+
+See [09-ROADMAP.md](09-ROADMAP.md). Summary:
+- **P0 Foundation** — docs, ADRs, UI approval on artifact, scaffold.
+- **P1 MVP** — text/lists/tables/images/links/embeds, presence, JWT + WOPI,
+  commits, preview, MD/HTML export, SQLite.
+- **P2** — board block, columns, comments, PDF/DOCX export, MySQL/MariaDB
+  cluster + Redis, templates.
+- **P3** — portable live blocks, AI, DOCX import, Loro re-evaluation.
+
+## 10. Open questions (for approval)
+
+1. Server language: **Rust** (matches OpenCalc/OpenSign, lowest footprint) —
+   proposed. Alternative Node + Hocuspocus is faster to start, heavier to run.
+0. ~~Manual save~~ → autosave only (decided). Templates and databases added (decided).
+2. Native file extension `.ocanvas` (zip). OK?
+3. Board renderer: custom SVG/Canvas2D on Yjs (proposed, license-clean) vs
+   embedding Excalidraw (MIT, heavier, separate data model).
+4. First host to integrate: `meet` side panel? another internal service?
+
+
+# Glossary
+
+URL: https://casualoffice.github.io/opencanvas/docs/glossary.html
+Source file: docs/12-GLOSSARY.md
+
+| Term | Meaning |
+|---|---|
+| **Host** | The integrating application. Owns users, ACL, files, versions. |
+| **Canvas** | One collaborative document: blocks + boards + comments. |
+| **Block** | A unit of content with a stable id (paragraph, table, image, board…). |
+| **Board** | A whiteboard surface embedded as a block. |
+| **Room** | The live, in-memory collaboration session for one (host, file). |
+| **Owner node** | The single cluster node holding a room's authoritative Doc. |
+| **Launch token** | Host-signed JWT stating file, user, role, perms. |
+| **Session ticket** | Short-lived, single-room credential for the WebSocket. |
+| **Grant** | Verified result of a launch: {host, file, user, role, perms, exp}. |
+| **Commit** | Serialising the room to `.ocanvas` and saving it to the host (autosave or manual with message). |
+| **WAL** | `room_updates` + `room_snapshots`: transient log so no acked edit is lost before commit. |
+| **Awareness** | Ephemeral presence state (cursor, pointer, name, colour). |
+| **`.ocanvas`** | Native zip file format (manifest, document.json, ydoc.bin). |
+| **WOPI** | Web Application Open Platform Interface — the Collabora/Office host protocol. |
+| **CRDT** | Conflict-free replicated data type (Yjs here). |
+| **Unfurl** | Fetching a link's title/description/image to render a link card. |
