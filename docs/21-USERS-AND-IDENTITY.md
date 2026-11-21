@@ -1,7 +1,7 @@
 # 21 — Users and identity for integrators
 
 **Status:** design, proposed 2026-11-21. It replaces the "Resolve users" row in
-[docs/05](05-INTEGRATION-GUIDE.md) §5 once accepted. ADR-025.
+[docs/05](05-INTEGRATION-GUIDE.md) §5 once accepted. ADR-026.
 
 ## The problem
 
