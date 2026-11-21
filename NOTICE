@@ -1,0 +1,8 @@
+OpenCanvas
+Copyright 2026 CasualOffice
+
+Licensed under the Business Source License 1.1 (LICENSE). Each version converts
+to the Mozilla Public License 2.0 on its Change Date, as stated in LICENSE.
+
+Third-party components keep their own licences; bundled fonts are listed in
+crates/oc-model/fonts/THIRD-PARTY.md.
