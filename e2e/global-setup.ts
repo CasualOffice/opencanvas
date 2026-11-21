@@ -12,7 +12,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { HOST, HOST_RELOAD, OC, ROOT } from "./env";
+import { HOST, HOST_RELOAD, OC, ROOT, SDK_HOST } from "./env";
 
 const children: ChildProcess[] = [];
 
@@ -53,7 +53,7 @@ function stopAll() {
 }
 
 export default async function globalSetup() {
-  for (const port of [8280, 4200, 4201]) {
+  for (const port of [8280, 4200, 4201, 4202]) {
     if (!(await portFree(port))) throw new Error(`[e2e] port ${port} is busy. Stop whatever runs there first (the suite never kills processes it didn't start).`);
   }
   if (process.env.E2E_SKIP_BUILD !== "1") {
@@ -65,7 +65,7 @@ export default async function globalSetup() {
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "oc-e2e-"));
   const hosts = path.join(tmp, "hosts.toml");
-  const entry = (id: string, name: string, origin: string, policy: string) => `
+  const entry = (id: string, name: string, origin: string, policy: string, extra: string[] = []) => `
 [[host]]
 id              = "${id}"
 name            = "${name}"
@@ -74,13 +74,13 @@ jwt_alg         = "HS256"
 jwt_secret      = "dev-secret-change-me"
 api_key         = "dev-api-key-change-me"
 callback_base   = "${origin}/api/opencanvas"
-allowed_origins = ["${origin}"]
+allowed_origins = ["${origin}"${extra.map((o) => `, "${o}"`).join("")}]
 
 [host.flags]
 export_formats = ["md", "html", "json", "ocanvas"]
 on_conflict    = "${policy}"
 `;
-  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy") + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
+  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST]) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
 
   start(
     "oc-server",

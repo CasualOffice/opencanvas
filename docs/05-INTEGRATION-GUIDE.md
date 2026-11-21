@@ -119,6 +119,9 @@ exchanged for a session ticket on open).
 </script>
 ```
 
+The SDK is served with CORS for the host's `allowed_origins` only, and the canvas sets
+`frame-ancestors` to the same list: register every origin your pages embed from.
+
 ### postMessage API (iframe ↔ host page)
 Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 (Collabora-compatible envelope).
