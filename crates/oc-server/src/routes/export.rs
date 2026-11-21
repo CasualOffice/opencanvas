@@ -181,7 +181,10 @@ async fn member_names(
     let json = oc_model::doc_to_json(doc);
     let callback = state.members.callback(&state.host, host, grant, "").await;
     let saved = crate::people::saved_people(&json);
-    crate::people::merge(callback.as_deref(), &grant.members, &grant.user, &saved, "")
+    let merged = crate::people::merge(callback.as_deref(), &grant.members, &grant.user, &saved, "");
+    state
+        .members
+        .without_revoked(&grant.room, merged)
         .into_iter()
         .map(|u| (u.id, u.name))
         .collect()

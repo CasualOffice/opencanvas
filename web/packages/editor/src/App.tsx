@@ -229,6 +229,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
 
   const searchUsers = useCallback((q: string): Promise<OcUser[]> => people.search(q), [people]);
 
+  // docs/21 revision 2: a revoke changes the member list; refetch it without a reload.
+  useEffect(() => collab.onControl((c) => c.t === "members" && void people.load()), [collab, people]);
+
   // ---------- save state, connection, control channel ----------
   useEffect(() => {
     const offs = [

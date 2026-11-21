@@ -254,3 +254,73 @@ async fn session_has_no_email_or_directory() {
         .unwrap();
     assert_ne!(old.status(), 200, "GET /v1/users is gone");
 }
+
+fn host_post(addr: &str, path: &str) -> reqwest::RequestBuilder {
+    http()
+        .post(format!("http://{addr}{path}"))
+        .header("X-OpenCanvas-Host", "sample")
+        .header("X-OpenCanvas-Key", "test-api-key")
+}
+
+/// Revocation is authoritative (docs/21 revision 2): after the role API revokes Sam, the
+/// cached callback answer, Priya's older token and the saved map no longer list him, the
+/// others in the room are told to refetch, and the invalidate call drops the cache.
+#[tokio::test]
+async fn revoke_removes_a_member_at_once() {
+    let (base, host) = mock_host().await;
+    host.lock().unwrap().members = Some(json!([
+        {"id": "u_priya", "name": "Priya"}, {"id": "u_sam", "name": "Sam"}
+    ]));
+    let state = app_custom(&base, room_cfg(), &temp_db(), |h| {
+        h.api_key = Some("test-api-key".into());
+    })
+    .await;
+    let mut g = grant("u_priya", Role::Edit);
+    g.members = vec![person("u_sam", "Sam")];
+    let mut priya = Peer::join(&state, g.clone()).await;
+    let mut sam = Peer::join(&state, grant("u_sam", Role::Edit)).await;
+    priya.settle().await;
+    sam.settle().await;
+    let t = ticket_for(&state, &g).await;
+    let addr = serve_state(state.clone()).await;
+    assert!(ids(&members_of(&addr, &t, "").await).contains(&"u_sam".to_string()));
+
+    // The host revokes Sam, and its callback stops listing him.
+    host.lock().unwrap().members = Some(json!([{"id": "u_priya", "name": "Priya"}]));
+    let r = host_post(&addr, &format!("/v1/files/{FILE}/role"))
+        .json(&json!({"userId": "u_sam", "role": "none"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    priya.settle().await;
+    assert!(
+        priya.controls.iter().any(|c| c["t"] == "members"),
+        "the room is told the list changed: {:?}",
+        priya.controls
+    );
+    let list = ids(&members_of(&addr, &t, "").await);
+    assert!(!list.contains(&"u_sam".to_string()), "{list:?}");
+    assert_eq!(
+        host.lock().unwrap().members_calls.len(),
+        2,
+        "the revoke invalidated the cache"
+    );
+
+    // The invalidate call drops the cache too.
+    members_of(&addr, &t, "").await;
+    assert_eq!(host.lock().unwrap().members_calls.len(), 2, "cached");
+    let r = host_post(&addr, &format!("/v1/files/{FILE}/members/invalidate"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    members_of(&addr, &t, "").await;
+    assert_eq!(host.lock().unwrap().members_calls.len(), 3, "refetched");
+    let r = http()
+        .post(format!("http://{addr}/v1/files/{FILE}/members/invalidate"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 401, "host-authenticated");
+}

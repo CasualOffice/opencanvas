@@ -83,11 +83,16 @@ export class People {
     }
   }
 
-  /** The canvas's members, once per open (a rename or a removal shows on reload). */
-  private async load() {
+  /** The canvas's members: once per open, and again when the server says the list changed
+   *  (a revoke). Replaces the previous list, so someone who lost access drops out. */
+  async load() {
+    if (!this.cfg.ticket) return;
     const list = await this.fetchMembers("");
     if (list) {
-      for (const u of list) this.members.set(u.id, u.id === this.cfg.me.id ? { ...this.cfg.me, ...u, color: this.cfg.me.color } : u);
+      const next = new Map<string, OcUser>([[this.cfg.me.id, this.cfg.me]]);
+      for (const u of list) next.set(u.id, u.id === this.cfg.me.id ? { ...this.cfg.me, ...u, color: this.cfg.me.color } : u);
+      this.members = next;
+      this.searchCache.clear();
       this.loaded = true;
     }
     this.changed();

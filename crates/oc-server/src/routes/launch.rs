@@ -307,6 +307,8 @@ pub async fn session_info(
             first_seen: Instant::now(),
             connected: false,
         });
+    // A fresh token means the host granted access (again).
+    state.members.restore(&grant.room, &grant.user.id);
     let body = json!({
         "ticket": ticket,
         "room": grant.room,

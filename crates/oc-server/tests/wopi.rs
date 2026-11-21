@@ -488,21 +488,22 @@ async fn check_file_info_sets_role_user_perms_and_expiry() {
         .unwrap();
     assert_eq!(pdf.status(), 403, "DisablePrint forbids PDF");
 
-    // Mentions: the users who opened the file.
+    // Mentions: the member list is the users who opened the file (no host source in WOPI).
     let users: Value = http()
-        .get(format!("http://{addr}/v1/users?ticket={ticket}&q=ra"))
+        .get(format!("http://{addr}/v1/members?ticket={ticket}&q=ra"))
         .send()
         .await
         .unwrap()
         .json()
         .await
         .unwrap();
-    let names: Vec<_> = users
+    let mut names: Vec<_> = users["members"]
         .as_array()
         .unwrap()
         .iter()
         .map(|u| u["name"].as_str().unwrap())
         .collect();
+    names.sort();
     assert_eq!(names, ["Asha Rao", "Ravi Menon"]);
     // A JWT launch for a WOPI-only host is refused.
     let res = http()

@@ -36,7 +36,7 @@ confusing duplicates. Integrations stall on this.
 {
   "id": "u_123",                       // required, stable, opaque
   "name": "Asha Rao",                  // required, display name
-  "detail": "Design · Bengaluru",      // optional second line, host-chosen (team, title, email, handle)
+  "detail": "Design · Bengaluru",      // optional second line, host-chosen (team, title, handle)
   "avatar": "https://…/a.png",         // optional
   "color": "#7a45f0"                   // optional; otherwise derived from id
 }
@@ -44,7 +44,7 @@ confusing duplicates. Integrations stall on this.
 
 - The token's `user` claim accepts this shape, so the current user gets their `detail` for free.
 - The `detail` is what the host considers the most recognisable distinction, such as
-  team, job title or handle. OpenCanvas never guesses it from email unless the host allows it.
+  team, job title or handle. OpenCanvas never uses or shows e-mail.
 
 ## Revision 2 (2026-11-22): the people list is the canvas's members
 
@@ -115,51 +115,27 @@ another team shows same-name handling.
 - Removing someone's access marks their existing mentions "No longer has access" after reload.
 - With no members source at all, the list is the people who have opened the canvas.
 
-## Implementation notes (2026-11-22)
+## Implementation notes (revision 2, 2026-11-22)
 
-Where the build settles details this design left open, or departs from it:
+The notes for the first version (relations, resolve caching, per-recipient presence) are
+superseded; see ADR-026 for what was removed.
 
-1. **`coviewers = "contacts"` without a resolve callback behaves like `"all"`.** Only `resolve`
-   can say who is a contact. With tiers 0-2 the server can't tell, so co-viewers are listed and
-   shown by name; a host whose people must not see each other sets `"none"`. This is what makes
-   tier 0 work with the default setting.
-2. **Ids a resolve answer leaves out fall back** to tokens and then the snapshot (the merge
-   order). To hide someone the host answers `relation: "hidden"`; an omitted id is never treated
-   as hidden. Presence of an omitted co-viewer follows `coviewers` (`all` shows them, otherwise
-   "Someone").
-3. **Resolve cache.** 10 minutes per (room, viewer), dropped when that viewer opens the file
-   again (`GET /v1/sessions`), so a rename shows on reload. A 404/405/410/501 means "not
-   implemented" and is remembered for 10 minutes; a failed call is retried after 30 s and the
-   fallback rules apply meanwhile. Search answers are cached 30 s per (room, viewer, query).
-4. **Presence.** The server stamps `user` from the grant (now with `detail`), then rewrites it per
-   recipient: contacts and members get the viewer's name for them, `external` people only what
-   the host returned, `hidden` people `{"id":"anon_<12 hex>","name":"Someone"}` with a neutral
-   colour (the id is per viewer, so it can't be correlated). A person's state is not sent to a
-   viewer until that viewer's resolve answer is in (one batched call per viewer when someone
-   new arrives).
-5. **`people` root.** Written by the server when someone joins (id, name, detail, avatar,
-   `lastSeen`; e-mail only when their own token has `perms.showEmail`). It never makes the room
-   dirty on its own, so it is saved with the next commit; `lastSeen` is refreshed at most hourly;
-   nothing is written when `coviewers = "none"`.
-6. **The Y.Doc is shared.** Everyone in a room receives the same document, so the `people` map
-   and mention labels are data in every client. The editor never renders a snapshot for an id
-   the viewer's resolve answered, and shows a placeholder ("…") while that answer is pending.
-   Hosts with strict isolation use `coviewers = "none"` and `hidden`.
-7. **Comment mentions** record the inserted label per id (`labels: {id: label}` on the message,
-   docs/15 §4), so each viewer sees their own name for the person in the text, and two people
-   with the same name stay apart.
-8. **Exports.** Markdown, HTML, JSON, DOCX and PDF render mention labels and database person
-   cells under the exporting viewer's view (resolve, then their own token, then the snapshot;
-   hidden = "Someone"); person cells become names. The `.ocanvas` download is the file itself and
-   keeps the stored labels. E-mails are dropped from the exported `people` map unless the viewer
-   has `perms.showEmail`.
-9. **Wire shapes.** `POST /users/resolve` gets `{"ids":[…],"fileId":…}` and may answer `[user…]`
-   or `{"users":[…]}` (same for `GET /users`); `access` and `deactivated` pass through. The SPA
-   asks `POST /v1/users/resolve?ticket=` and gets `{"resolve": bool, "users": [...]}`. The session
-   gains `participants`, `directory {coviewers, callbacks}`, `user.detail`/`user.email` and
-   `perms.showEmail` (e-mails stripped everywhere unless set).
-10. **Hover cards** open on hover and on keyboard focus (read-only chips, assignee cells and
-    comment authors are focusable; while editing, the caret right after a chip opens it), stay
-    while hovered and close on Escape. Top-bar avatars keep their tooltip ("Asha Rao · Design ·
-    Bengaluru"), with no card. Deactivated people are struck through with "Former member" and
-    are not offered in the picker.
+1. **Merge.** `GET /v1/members?ticket=&q=` merges by id: members callback > token `members` > the
+   saved `people` map. The saved map decides membership only when the host gave neither (callback
+   absent or 404/405/410/501/failed, and no token `members`); otherwise it only fills a missing
+   `detail`/`avatar`. The viewer is always a member.
+2. **Cache.** Callback answers are cached 60 s per (room, `q`), shared by every viewer of the room.
+3. **Revocation is authoritative.** `POST /v1/files/:id/role` with `"role":"none"` drops the
+   room's cached answers, leaves the person out of the list even where an older token or the saved
+   map still names them (until access is granted again or they open with a new token), closes
+   their sockets (1008) and sends `{"t":"members"}` to everyone else, whose editors refetch the
+   list without a reload. `POST /v1/files/:id/members/invalidate` (host api key) drops the cache
+   and sends the same control. `DELETE /v1/files/:id/session` drops the cache. The cache and the
+   revoke set live on the node that served the call.
+4. **Presence** is stamped from each sender's grant (`id, name, color, avatar, detail?`) and is
+   the same for every recipient.
+5. **Chips.** A mention whose id is a member shows the member's current name. Otherwise the
+   stored label with "No longer has access" (struck through, `aria-label` says so). Exports use
+   the same names; the `.ocanvas` download keeps the stored labels.
+6. **No e-mail.** The server ignores any `email` in tokens, callback answers and old `people`
+   entries, and strips it from exports.

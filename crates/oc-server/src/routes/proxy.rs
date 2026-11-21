@@ -114,17 +114,20 @@ pub async fn members(
     } else {
         vec![]
     };
-    let list: Vec<Value> = people::merge(
+    let merged = people::merge(
         callback.as_deref(),
         &grant.members,
         &grant.user,
         &saved,
         &p.q,
-    )
-    .iter()
-    .take(people::MAX_MEMBERS)
-    .map(people::member_json)
-    .collect();
+    );
+    let list: Vec<Value> = state
+        .members
+        .without_revoked(&grant.room, merged)
+        .iter()
+        .take(people::MAX_MEMBERS)
+        .map(people::member_json)
+        .collect();
     Ok((
         [(header::CACHE_CONTROL, "no-store")],
         Json(json!({"members": list})),

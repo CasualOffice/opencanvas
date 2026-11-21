@@ -52,6 +52,8 @@ export async function fetchSession(ticket: string): Promise<Session> {
 
 export type Control =
   | { t: "saving" }
+  /** docs/21 revision 2: the canvas's member list changed (someone's access was revoked). */
+  | { t: "members" }
   | { t: "saved"; at: number; version?: string }
   | { t: "save_error"; retryInMs?: number; message?: string }
   /** docs/15 §3: `copy` → a copy was saved to the host (`fileId`, `url`) and the room is read-only;

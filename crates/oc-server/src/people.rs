@@ -194,6 +194,8 @@ pub fn member_json(u: &User) -> Value {
 #[derive(Default)]
 pub struct Members {
     cache: Mutex<HashMap<CacheKey, CacheEntry>>,
+    /// (room, user) the host revoked while the room was open.
+    revoked: Mutex<HashSet<(String, String)>>,
 }
 
 /// (room, query).
@@ -244,6 +246,42 @@ impl Members {
         }
         map.insert(key, (Instant::now(), answer.clone()));
         answer
+    }
+
+    /// Drops every cached callback answer for `room`: the next request asks the host again.
+    pub fn invalidate(&self, room: &str) {
+        self.cache
+            .lock()
+            .expect("members")
+            .retain(|(r, _), _| r != room);
+    }
+
+    /// The host revoked `user` on `room` (role API `none`): invalidate, and leave them out of
+    /// the list even where an older token or the saved `people` map still names them, until
+    /// they are granted access again or open the canvas with a new token.
+    pub fn revoke(&self, room: &str, user: &str) {
+        self.invalidate(room);
+        let mut r = self.revoked.lock().expect("members");
+        if r.len() > MAX_CACHE_ENTRIES {
+            r.clear();
+        }
+        r.insert((room.to_string(), user.to_string()));
+    }
+
+    /// `user` has access to `room` again.
+    pub fn restore(&self, room: &str, user: &str) {
+        self.revoked
+            .lock()
+            .expect("members")
+            .remove(&(room.to_string(), user.to_string()));
+    }
+
+    /// Leaves out people revoked on `room`.
+    pub fn without_revoked(&self, room: &str, list: Vec<User>) -> Vec<User> {
+        let r = self.revoked.lock().expect("members");
+        list.into_iter()
+            .filter(|u| !r.contains(&(room.to_string(), u.id.clone())))
+            .collect()
     }
 }
 

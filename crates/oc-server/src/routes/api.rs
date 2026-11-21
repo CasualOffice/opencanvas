@@ -70,11 +70,33 @@ pub async fn set_role(
         .set_session_role(&room, &body.user_id, role)
         .await
         .map_err(ApiError::internal)?;
+    // docs/21 revision 2: revocation is authoritative for the member list at once.
+    if role.is_none() {
+        state.members.revoke(&room, &body.user_id);
+    } else {
+        state.members.restore(&room, &body.user_id);
+    }
     let connections = state.rooms.set_role(&room, &body.user_id, role).await;
     tracing::info!(host = %host.id, room = %room, role = %body.role, connections, sessions, "role API");
     Ok(Json(
         json!({"connections": connections, "sessions": sessions}),
     ))
+}
+
+/// `POST /v1/files/:fileId/members/invalidate`: the host's member list changed. Drops the
+/// cached members callback answers for the file; every open editor refetches `/v1/members`.
+pub async fn invalidate_members(
+    State(state): State<SharedState>,
+    Path(file_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    let host = authenticate(&state, &headers)?;
+    let room = room_id(&host.id, &file_id);
+    state.members.invalidate(&room);
+    // No user has the empty id: this only tells the room the list changed.
+    let _ = state.rooms.set_role(&room, "", None).await;
+    tracing::info!(host = %host.id, room = %room, "members invalidated by host");
+    Ok(Json(json!({"invalidated": true})))
 }
 
 /// `DELETE /v1/files/:fileId/session`: final save, disconnect everyone, drop all tickets.
@@ -85,6 +107,7 @@ pub async fn close_session(
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
     let room = room_id(&host.id, &file_id);
+    state.members.invalidate(&room);
     let sessions = state
         .store
         .delete_room_sessions(&room)

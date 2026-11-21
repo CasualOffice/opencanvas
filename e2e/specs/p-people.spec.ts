@@ -131,6 +131,7 @@ test("no e-mail appears in the DOM, exports, the session or the .ocanvas", async
   await openFile(priya, fileId);
   await caretIn(ravi, "Agenda");
   await typeAfterHeading(priya, "Notes", "Owner @Ravi");
+  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
   await priya.page.keyboard.press("Enter");
   await expect(editor(priya).locator('.mention[data-id="u_ravi"]')).toHaveText(/Ravi Menon/);
   await editor(priya).locator('.mention[data-id="u_ravi"]').hover();
@@ -159,7 +160,7 @@ test("removing someone's access marks their existing mentions 'No longer has acc
   await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
   await priya.page.keyboard.press("Enter");
   const chip = editor(priya).locator('.mention[data-id="u_ravi"]');
-  await expect(chip).toHaveText(/^Ravi Menon$/);
+  await expect(chip).toHaveText(/Ravi Menon$/);
   await expect(priya.oc.locator(".top .status")).toHaveAttribute("aria-label", /^Saved/, { timeout: 10_000 });
   await setAccess(priya, fileId, "u_ravi", "none");
   await openFile(priya, fileId);
@@ -184,10 +185,44 @@ test("with no members source at all, the list is the people who have opened the 
   await expect(priya.oc.getByRole("button", { name: /Follow Asha Rao/ })).toBeVisible();
   await asha.ctx.close();
   await openFile(priya, fileId);
+  const members = await fromFrame(priya, "/v1/members");
+  expect(members).toContain("u_asha");
+  expect(members).not.toContain("u_ravi");
   await typeAfterHeading(priya, "Notes", "Ask @");
   await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toBeVisible();
   await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toContainText("Design · Bengaluru");
   // Ravi has access but never opened it: without a host source OpenCanvas can't know him.
   await expect(picker(priya).getByRole("option", { name: /Ravi/ })).toHaveCount(0);
   await priya.ctx.close();
+});
+
+test("revoking Sam while Priya's canvas is open: he leaves her mention list at once, his socket closes, his chips say so after reload", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const priya = await person(browser, "u_priya");
+  const fileId = await createFile(priya, "E2E p · revoke live");
+  await applyTemplate(priya, "Meeting notes");
+  await setAccess(priya, fileId, "u_sam", "edit");
+  await openFile(priya, fileId);
+  const sam = await person(browser, "u_sam");
+  await openFile(sam, fileId);
+  await expect(priya.oc.getByRole("button", { name: /Follow Sam Ortiz/ })).toBeVisible();
+  // Priya mentions Sam, and the members list is warm (cached) before the revoke.
+  await typeAfterHeading(priya, "Notes", "Ask @Sam");
+  await expect(picker(priya).getByRole("option", { name: /Sam Ortiz/ })).toBeVisible();
+  await priya.page.keyboard.press("Enter");
+  const chip = editor(priya).locator('.mention[data-id="u_sam"]');
+  await expect(chip).toHaveText(/Sam Ortiz$/);
+  await expect(priya.oc.locator(".top .status")).toHaveAttribute("aria-label", /^Saved/, { timeout: 10_000 });
+
+  await setAccess(priya, fileId, "u_sam", "none");
+  // Sam's socket is closed by the server (1008 access revoked).
+  await expect(sam.oc.getByText("Your access to this canvas changed")).toBeVisible({ timeout: 10_000 });
+  // Without a reload, Sam is gone from Priya's mention list.
+  await typeAfterHeading(priya, "Agenda", "@Sam");
+  await expect(priya.oc.locator(".pop").getByRole("option", { name: /Sam/ })).toHaveCount(0);
+  await priya.page.keyboard.press("Escape");
+  // After a reload, the existing chip keeps its label and says he no longer has access.
+  await openFile(priya, fileId);
+  await expect(chip).toHaveText(/Sam Ortiz\s*No longer has access/);
+  for (const p of [priya, sam]) await p.ctx.close();
 });

@@ -515,6 +515,17 @@ impl Room {
 
     /// Host role API (docs/05 §7): switch the role filter live, or disconnect on revoke.
     fn set_role(&mut self, user_id: &str, role: Option<Role>) -> usize {
+        if role.is_none() {
+            // docs/21 revision 2: the member list changed; open editors refetch it.
+            let msg = json!({"t": "members"});
+            for (_, p) in self
+                .peers
+                .iter()
+                .filter(|(_, p)| p.grant.user.id != user_id)
+            {
+                let _ = p.tx.send(Outbound::Frame(protocol::control(&msg)));
+            }
+        }
         let conns: Vec<ConnId> = self
             .peers
             .iter()

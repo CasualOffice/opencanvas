@@ -29,7 +29,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-023 | Editor UX pass (docs/19): optional `image.width` (percent 20-100) and `image.align` (left/right; absent = centred) attrs; comment messages may carry `mentions` (user ids); postMessage gains `UI_Block_Link` (canvas → host) and `Action_ScrollToBlock` (host → canvas) | Accepted |
 | ADR-024 | Board/database data-format additions from the blocks UX pass (docs/15 §4): shape `fill` tones on rect/ellipse/diamond, `size` on shapes, arrow `text` labels, `group`, awareness `board.sel`; database view prefs `sorts`, `filters`, `widths`, `group`, `date`, `cover`. All optional and additive (old clients ignore them); web and Rust board exporters draw them identically with a fixed wrap rule (0.56 em per UTF-16 unit) | Accepted (2026-11-21) |
 | ADR-025 | Blocks open items (docs/15 §4, docs/20): board arrow `via` (manual waypoints, drawn identically by the web and Rust exporters; `pts` keeps the resolved path); database field `description` (shared field map, in `document.json`, footnote line under the table in web and server Markdown, not in CSV); view prefs `fields` (per-view order) and `hidden`, typed `filters` rules `{f, op, v, v2}` (legacy `filter` mirrors the first value-list rule only); `BlockEnv.undoManager` (optional; blocks join the editor's Y.UndoManager instead of a private one). All optional and additive | Accepted (2026-11-21) |
-| ADR-026 | Users and identity (docs/21): one user object (`id, name, detail?, email?, avatar?, color?`) everywhere; four tiers (tokens → `participants` → optional `GET /users` → optional `POST /users/resolve`), merged per id resolve > token > snapshot; everything about other people answered per viewer with their token and cached per (room, viewer); `relation` (`contact member external hidden`) and viewer-specific names; awareness rewritten per recipient (hidden → per-viewer `anon_…` "Someone"); host `[host.directory] coviewers`; `perms.showEmail`; `people` root in the Y.Doc / `document.json`; comment `labels`; WOPI `UserExtraInfo.detail`; `POST /v1/users/resolve` | Accepted (2026-11-22) |
+| ADR-026 | Users and identity (docs/21 revision 2, 2026-11-22): the mention list is the canvas's members (token `members[]` ≤ 500, optional signed `GET /files/{fileId}/members` cached 60 s per room, else the saved `people` map; callback > token > saved); the same list and real names for every viewer; one user object `id, name, detail?, avatar?, color?`, never e-mail; chips show the member's current name or the snapshot + "No longer has access"; revocation via the role API or `POST /v1/files/:id/members/invalidate` takes effect at once; `GET /v1/members`. Revision 1 (per-viewer relations, hidden/external, nicknames, `coviewers`, `participants`, `showEmail`, `/users`, `/users/resolve`) removed | Accepted (revision 2, 2026-11-22) |
 | ADR-027 | Editor/server open items (docs/19 UX-02, FILE-01, LAY-01): host callback `POST /mentions` + `notify_outbox` table; control `ping` heartbeat; `textColor` mark and `dateMention` node; `fileAttachment.display/height`, `columns.widths`, `column.title`; `GET /v1/assets/fetch` preview route; `UI_BlockLink` and launch `block`; `BlockEnv.undoManager` used; new dependency `pdfjs-dist` (lazy) | Accepted (2026-11-21) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
@@ -182,6 +182,22 @@ per-viewer privacy for presence, chips and exports. − the Y.Doc is shared by e
 so the `people` map and mention labels are data in every client (never rendered when resolve
 answers; strict hosts use `coviewers = "none"`); − one resolve call per viewer when someone new
 arrives; − `contacts` without a resolve callback cannot distinguish contacts and lists everyone.
+
+**Revision 2 (2026-11-22).** The owner simplified the model: the mention list is the people with
+access to this canvas, the same for everyone with access, with real names and the `detail`
+second line. Removed: `relation` (contact/member/external/hidden), "Someone", per-viewer
+nicknames, per-recipient awareness rewriting (the grant-based `user` stamp stays),
+`[host.directory] coviewers`, token `participants`, `perms.showEmail`, `user.email` and every
+e-mail field, `GET /users`, `POST /users/resolve` and their SPA endpoints. Added: token
+`members[]` (≤ 500), the optional signed callback `GET {callback_base}/files/{fileId}/members?q=&limit=`
+(cached 60 s per room), `GET /v1/members?ticket=&q=` (callback > token > saved `people` map, the
+last only without a host source), and authoritative revocation: the role API with `none`
+invalidates the cache, leaves the person out even where an older token or the saved map names
+them, and tells the room to refetch (control `{"t":"members"}`); `POST /v1/files/:id/members/invalidate`
+does the same for other changes. A mentioned id that is no longer a member shows its snapshot
+label with "No longer has access". − The revoke set and the cache are per node (in a cluster,
+another node's cache can serve a stale answer for up to 60 s); − with no host source, everyone
+who ever opened the canvas stays listed until the host revokes them.
 
 ### ADR-027 — Editor and server open items: mentions, heartbeat, inline marks, file previews, columns
 

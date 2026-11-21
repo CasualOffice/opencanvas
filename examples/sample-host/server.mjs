@@ -115,6 +115,14 @@ async function pushRole(fileId, userId, role) {
     console.log(`role ${fileId} ${userId}=${role} -> ${r.status} ${await r.text()}`);
   } catch (e) { console.warn(`role API unreachable: ${e.message}`); }
 }
+async function invalidateMembers(fileId) {
+  try {
+    await fetch(`${OC_INTERNAL}/v1/files/${encodeURIComponent(fileId)}/members/invalidate`, {
+      method: "POST",
+      headers: { "x-opencanvas-host": HOST_ID, "x-opencanvas-key": API_KEY },
+    });
+  } catch (e) { console.warn(`members invalidate unreachable: ${e.message}`); }
+}
 
 // ---------- http plumbing ----------
 const readBody = req => new Promise((res, rej) => { const c = []; req.on("data", d => c.push(d)); req.on("end", () => res(Buffer.concat(c))); req.on("error", rej); });
@@ -350,6 +358,7 @@ http.createServer(async (req, res) => {
     if (tsrc && meta.files[tsrc[1]]) {
       const b = JSON.parse((await readBody(req)).toString() || "{}");
       meta.files[tsrc[1]].memberSource = ["both", "token", "callback", "none"].includes(b.source) ? b.source : "both"; saveMeta();
+      await invalidateMembers(tsrc[1]);
       return send(res, 200, { source: sourceOf(meta.files[tsrc[1]]) });
     }
     const tuser = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/users\/(\w+)$/);
@@ -392,6 +401,8 @@ http.createServer(async (req, res) => {
       saveMeta();
       // Tell OpenCanvas about live role changes (docs/05 §7): open sessions switch at once.
       await Promise.all(changed.map(([userId, role]) => pushRole(file.id, userId, role)));
+      // The member list changed (docs/21 revision 2): drop OpenCanvas's cached copy.
+      if (changed.length) await invalidateMembers(file.id);
       res.writeHead(303, { location: "/" }); return res.end();
     }
     const ml = url.pathname.match(/^\/files\/([\w-]+)\/mentions\.json$/);

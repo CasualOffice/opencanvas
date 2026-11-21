@@ -197,6 +197,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/hosting/capabilities", get(launch::capabilities))
         .route("/v1/files/{file_id}/role", post(api::set_role))
         .route("/v1/files/{file_id}/session", delete(api::close_session))
+        .route("/v1/files/{file_id}/members/invalidate", post(api::invalidate_members))
         .route("/v1/files/{file_id}/patch", post(api::patch).layer(DefaultBodyLimit::max(body_limit)))
         .route("/v1/files/{file_id}/commit", post(api::commit))
         .route("/v1/convert", post(api::convert).layer(DefaultBodyLimit::max(body_limit)))
