@@ -129,9 +129,18 @@ Origins are checked against `allowed_origins` both ways.
 
 ## 5. Callbacks you implement (JWT mode)
 
-Base: `callback_base`. Every call carries
-`Authorization: Bearer <callbackToken>` and `X-OpenCanvas-Signature:
-t=<ts>,v1=<HMAC-SHA256(secret, ts + "." + body)>` so you can verify it is us.
+Base: `callback_base`. Every call carries `Authorization: Bearer <callbackToken>` and
+`X-OpenCanvas-Signature: t=<ts>,v1=<hex>,v2=<hex>` so you can verify the call comes from
+OpenCanvas:
+
+- `v2` = hex HMAC-SHA256(secret, `"<ts>.<METHOD>.<path?query>.<body>"`). Verify this one. It
+  binds the request method and path, so a captured signature can't be replayed against
+  another endpoint.
+- `v1` = hex HMAC-SHA256(secret, `"<ts>.<body>"`), kept for hosts written before v2.
+- Reject timestamps more than 5 minutes off, and compare in constant time.
+- OpenCanvas never follows redirects from your callbacks: answer directly.
+
+`examples/sample-host/server.mjs` verifies `v2`.
 
 | Call | Request | Response |
 |---|---|---|
