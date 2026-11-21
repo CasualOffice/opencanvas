@@ -2,24 +2,24 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronUp, Copy, Download, Ellipsis, ExternalLink, GripVertical, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search, SlidersHorizontal,
-  SquareKanban, Sun, Table, Trash2, Upload, X, type LucideIcon,
+  ArrowDown, ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ArrowUp, ArrowUpDown, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight,
+  ChevronUp, Columns3, Copy, Download, Ellipsis, ExternalLink, GripVertical, Inbox, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search,
+  EyeOff, Info, SlidersHorizontal, SquareKanban, Sun, Table, Trash2, Upload, X, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv, OcUser, Tone } from "@opencanvas/ui";
 import { CsvImportDialog } from "./CsvImportDialog";
 import {
   addField, addOption, addRow, appendCsv, clearCells, databasesRoot, databaseToCsv, databaseToMarkdown, DB_ORIGIN, deleteField, deleteRow, FIELD_LABEL,
-  getDbMap, moveField, moveRow, OPTION_TYPES, pasteCells, readDb, renameField, restoreField, restoreRow, setCell, setDbMeta, setFieldType, setNote,
-  setOptions, setPrefs, setView,
+  getDbMap, moveRow, OPTION_TYPES, pasteCells, readDb, renameField, restoreField, restoreRow, setCell, setDbMeta, setFieldType, setNote,
+  setFieldDescription, setOptions, setPrefs, setView,
 } from "./model";
 import { DEMO_PEOPLE } from "./presets";
 import {
-  addDays, dateField, defaultMonth, filterPatch, filtersOf, fmtDate, groupField, highlightParts, isoDate, isoMonth, MONTHS, optOf, shiftMonth,
-  sortPatch, sortsOf, titleField, visibleRows,
+  addDays, dateField, defaultMonth, filterLabel, filterOps, filterPatch, filtersOf, fmtDate, groupField, highlightParts, isoDate, isoMonth, MONTHS,
+  OP_LABEL, optOf, orderedFields, ruleReady, rulesOf, shiftMonth, sortPatch, sortsOf, titleField, viewFields, visibleRows,
 } from "./query";
 import { ensureStyles } from "./styles";
-import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, ViewKind, ViewPrefs } from "./types";
+import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, FilterOp, FilterRule, ViewKind, ViewPrefs } from "./types";
 import { FIELD_TYPES } from "./types";
 import { Avatar, CommitInput, dbIcon, Ic, Pop, TYPE_ICON, type Anchor } from "./ui";
 import { inRange, isGridText, isMulti, moveCell, parseTsv, rangeBounds, rangeToHtml, rangeToTsv, type CellPos, type CellRange } from "./grid";
@@ -200,9 +200,12 @@ function safeUrl(u: string): string {
 type PopState =
   | { kind: "cell"; rowId: string; fid: string; anchor: Anchor; key: string }
   | { kind: "header"; fid: string; anchor: Anchor; key: string }
-  | { kind: "filter"; fid?: string; anchor: Anchor; key: string }
+  | { kind: "filter"; fid?: string; at?: number; anchor: Anchor; key: string }
+  | { kind: "fields"; anchor: Anchor; key: string }
   | { kind: "sort"; anchor: Anchor; key: string }
-  | { kind: "addField"; anchor: Anchor; key: string }
+  /** Naming a field (`isNew`: just added, so Escape removes it again). */
+  | { kind: "fieldNew"; fid: string; isNew: boolean; anchor: Anchor; key: string }
+  | { kind: "describe"; fid: string; anchor: Anchor; key: string }
   | { kind: "more"; anchor: Anchor; key: string }
   | { kind: "settings"; anchor: Anchor; key: string }
   | { kind: "fieldType"; fid: string; anchor: Anchor; key: string }
@@ -248,10 +251,71 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
 
   // Stable so memoised table rows don't re-render when the popover changes.
   const open = useCallback((p: PopState) => setPop((cur) => (cur && cur.key === p.key ? null : p)), []);
-  const closePop = () => setPop(null);
   const patchPrefs = (patch: Partial<ViewPrefs>) => {
     if (edit) setPrefs(doc, dbId, view, patch);
     else setLocalPrefs((lp) => ({ ...lp, [view]: { ...(lp[view] ?? {}), ...patch } }));
+  };
+
+  /* ---- adding a field: add, scroll to it, flash the column, name it in place ---- */
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
+  const flashField = (fid: string) => {
+    clearTimeout(flashTimer.current);
+    setFlash(fid);
+    flashTimer.current = setTimeout(() => setFlash(null), FLASH_MS);
+  };
+  /** Field whose naming popover opens once its header exists (and the anchor to use otherwise). */
+  const pendingNew = useRef<{ fid: string; fallback: Anchor } | null>(null);
+  /** Header to give focus back to after a field popover closes. */
+  const headBack = useRef<string | null>(null);
+  const addFieldAt = (type: FieldType, fallback: Anchor, at?: { fid: string; side: -1 | 1 }) => {
+    if (!edit) return;
+    um?.stopCapturing();
+    const fid = addField(doc, dbId, type);
+    if (at) {
+      const ids = orderedFields(db, prefs).map((f) => f.id).filter((x) => x !== fid);
+      const i = ids.indexOf(at.fid);
+      ids.splice(i < 0 ? ids.length : at.side < 0 ? i : i + 1, 0, fid);
+      patchPrefs({ fields: ids });
+    }
+    // A field hidden in this view would never show its new column: make sure it isn't.
+    if ((prefs.hidden ?? []).includes(fid)) patchPrefs({ hidden: (prefs.hidden ?? []).filter((x) => x !== fid) });
+    pendingNew.current = { fid, fallback };
+    setPop(null);
+    flashField(fid);
+  };
+  useLayoutEffect(() => {
+    const p = pendingNew.current;
+    if (p) {
+      const btn = gwRef.current?.querySelector<HTMLElement>(`th[data-fid="${p.fid}"] .ocdb-hcell`);
+      if (!btn && view === "table" && !db.fields.some((f) => f.id === p.fid)) return; // not in the snapshot yet
+      pendingNew.current = null;
+      btn?.closest("th")?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
+      setPop({ kind: "fieldNew", fid: p.fid, isNew: true, anchor: btn ?? p.fallback, key: "fn" + p.fid });
+      return;
+    }
+    const h = headBack.current;
+    if (h && !pop) {
+      headBack.current = null;
+      const btn = gwRef.current?.querySelector<HTMLElement>(`th[data-fid="${h}"] .ocdb-hcell`) ?? gwRef.current?.querySelector<HTMLElement>(".ocdb-addcol button");
+      btn?.focus({ preventScroll: true });
+    }
+  });
+  const closePop = () => {
+    if (pop && (pop.kind === "fieldNew" || pop.kind === "describe" || pop.kind === "header")) headBack.current = pop.fid;
+    setPop(null);
+  };
+  /** Escape while naming a field that was just added removes it again. */
+  const discardNew = () => {
+    if (pop?.kind !== "fieldNew" || !pop.isNew) return closePop();
+    const f = db.fields.find((x) => x.id === pop.fid);
+    deleteField(doc, dbId, pop.fid);
+    if (prefs.fields?.includes(pop.fid)) patchPrefs({ fields: prefs.fields.filter((x) => x !== pop.fid) });
+    setFlash(null);
+    headBack.current = "__add";
+    setPop(null);
+    env.toast(`Discarded the new field${f ? ` “${f.name}”` : ""}`);
   };
 
   useEffect(() => {
@@ -259,18 +323,30 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
   }, [db.rows, peek]);
 
   /* ---- undo: this user's own changes to this database (Cmd/Ctrl+Z, Shift+Cmd+Z, Ctrl+Y) ---- */
+  // With the editor's manager (env.undoManager) database edits join the canvas undo stack;
+  // without one the block keeps its own.
+  const shared = env.undoManager;
   const um = useMemo(() => {
     const m = getDbMap(doc, dbId);
-    return m ? new Y.UndoManager(m, { trackedOrigins: new Set([DB_ORIGIN]), captureTimeout: 500 }) : null;
-  }, [doc, dbId]);
-  useEffect(() => () => um?.destroy(), [um]);
+    if (!m) return null;
+    if (shared) {
+      shared.addToScope(m);
+      shared.trackedOrigins.add(DB_ORIGIN);
+      return shared;
+    }
+    return new Y.UndoManager(m, { trackedOrigins: new Set([DB_ORIGIN]), captureTimeout: 500 });
+  }, [doc, dbId, shared]);
+  useEffect(() => () => void (um && um !== shared && um.destroy()), [um, shared]);
   const onRootKey = (e: React.KeyboardEvent) => {
     if (!edit || !um || !(e.metaKey || e.ctrlKey) || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k !== "z" && k !== "y") return;
     // Text fields keep their own (native) undo while they have focus.
     const t = e.target as HTMLElement;
-    if (t.closest("textarea,[contenteditable='true']") || (t instanceof HTMLInputElement && !t.readOnly && t.type !== "checkbox" && t.type !== "range")) return;
+    // Only editable elements inside this block count: the block itself lives in the editor's
+    // contenteditable document.
+    const ce = t.closest("textarea,[contenteditable='true']");
+    if ((ce && e.currentTarget.contains(ce)) || (t instanceof HTMLInputElement && !t.readOnly && t.type !== "checkbox" && t.type !== "range")) return;
     e.preventDefault();
     e.stopPropagation();
     const redo = k === "y" || e.shiftKey;
@@ -333,17 +409,21 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
   /* ---- chips ---- */
   const chips: ReactNode[] = [];
   const filters = filtersOf(db, prefs);
+  const rules = rulesOf(db, prefs);
   const sorts = sortsOf(db, prefs);
-  filters.forEach((flt, i) => {
+  const hiddenCount = db.fields.filter((f) => f.type !== "title" && (prefs.hidden ?? []).includes(f.id)).length;
+  const personLabel = (v: string) => (people.resolve(v) ? firstName(people.resolve(v)!) : v);
+  rules.forEach((flt, i) => {
     const f = db.fields.find((x) => x.id === flt.f)!;
-    const label = flt.vals.map((v) => (f.type === "person" ? (people.resolve(v) ? firstName(people.resolve(v)!) : v) : f.type === "checkbox" ? (v === "true" ? "Checked" : "Not checked") : v || "Empty")).join(", ");
+    const label = filterLabel(f, flt, f.type === "person" ? personLabel : undefined);
+    const ready = ruleReady(f, flt);
     chips.push(
-      <span className="ocdb-chip" key={"f" + flt.f}>
-        <button className="ocdb-chip-b" onClick={(e) => open({ kind: "filter", fid: f.id, anchor: e.currentTarget, key: "filter" })} aria-label={`Filter ${f.name}: ${label}. Edit`}>
+      <span className={"ocdb-chip" + (ready ? "" : " draft")} key={"f" + i}>
+        <button className="ocdb-chip-b" onClick={(e) => open({ kind: "filter", fid: f.id, at: i, anchor: e.currentTarget, key: "filter" })} aria-label={`Filter: ${label}${ready ? "" : " (not set yet)"}. Edit`}>
           <Ic i={ListFilter} s={12} />
-          <span>{f.name}: {label}</span>
+          <span>{label}</span>
         </button>
-        <button className="ocdb-chip-x" onClick={() => patchPrefs(filterPatch(filters.filter((_, j) => j !== i)))} aria-label={`Remove filter on ${f.name}`}><Ic i={X} s={12} /></button>
+        <button className="ocdb-chip-x" onClick={() => patchPrefs(filterPatch(rules.filter((_, j) => j !== i)))} aria-label={`Remove filter ${label}`}><Ic i={X} s={12} /></button>
       </span>,
     );
   });
@@ -361,7 +441,7 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
   });
 
   const Icon = dbIcon(db.icon);
-  const ctx: Ctx = { doc, db, env, edit, compact, people, rows, prefs, open, setPeek, newRow, focusRow, setFocusRow, patchPrefs, view, onImport: edit ? () => setImportOpen(true) : undefined };
+  const ctx: Ctx = { doc, db, env, edit, compact, people, rows, prefs, open, setPeek, newRow, focusRow, setFocusRow, patchPrefs, view, flash, addFieldAt, onImport: edit ? () => setImportOpen(true) : undefined };
 
   const importCsv = (csv: string) => {
     // A private origin so the toast's Undo removes exactly this import, whatever happened since.
@@ -456,6 +536,9 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
           <button className={"ocdb-ib" + (filters.length ? " on" : "")} title="Filter" aria-label={filters.length ? `Filter (${filters.length} active)` : "Filter"} aria-haspopup="dialog" onClick={(e) => open({ kind: "filter", anchor: e.currentTarget, key: "filter" })}>
             <Ic i={ListFilter} />
           </button>
+          <button className={"ocdb-ib" + (hiddenCount ? " on" : "")} title="Fields" aria-label={hiddenCount ? `Fields (${hiddenCount} hidden)` : "Fields"} aria-haspopup="dialog" onClick={(e) => open({ kind: "fields", anchor: e.currentTarget, key: "fields" })}>
+            <Ic i={Columns3} />
+          </button>
           <button className={"ocdb-ib" + (sorts.length ? " on" : "")} title="Sort" aria-label={sorts.length ? `Sort (${sorts.length} active)` : "Sort"} aria-haspopup="dialog" onClick={(e) => open({ kind: "sort", anchor: e.currentTarget, key: "sort" })}>
             <Ic i={ArrowUpDown} />
           </button>
@@ -494,7 +577,8 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
           anchor={pop.anchor}
           compact={compact}
           onClose={closePop}
-          alignRight={pop.kind !== "cell" && pop.kind !== "header"}
+          onEscape={pop.kind === "fieldNew" ? discardNew : undefined}
+          alignRight={pop.kind !== "cell" && pop.kind !== "header" && pop.kind !== "fieldNew" && pop.kind !== "describe"}
           title={popTitle(pop, db)}
         >
           <PopBody
@@ -523,6 +607,24 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
   );
 }
 
+/**
+ * The view's whole field order (`prefs.fields`) with `fid` moved to position `to` among the
+ * fields the view shows; hidden fields keep their place. Reordering never rewrites the shared
+ * `fields` array, so a collaborator's rename at the same moment can't be lost.
+ */
+function moveInView(db: DbSnapshot, prefs: ViewPrefs, fid: string, to: number): string[] {
+  const all = orderedFields(db, prefs).map((f) => f.id);
+  const shown = viewFields(db, prefs).map((f) => f.id);
+  const from = shown.indexOf(fid);
+  const t = Math.max(0, Math.min(to, shown.length - 1));
+  if (from < 0 || t === from) return all;
+  const rest = all.filter((x) => x !== fid);
+  const others = shown.filter((x) => x !== fid);
+  if (t < others.length) rest.splice(rest.indexOf(others[t]), 0, fid);
+  else rest.splice(rest.indexOf(others[others.length - 1]) + 1, 0, fid);
+  return rest;
+}
+
 function popTitle(p: PopState, db: DbSnapshot): string {
   const f = "fid" in p && p.fid ? db.fields.find((x) => x.id === p.fid) : undefined;
   switch (p.kind) {
@@ -531,10 +633,14 @@ function popTitle(p: PopState, db: DbSnapshot): string {
       return f?.name ?? "";
     case "filter":
       return "Filter";
+    case "fields":
+      return "Fields";
     case "sort":
       return "Sort";
-    case "addField":
-      return "Add a field";
+    case "fieldNew":
+      return p.isNew ? "New field" : "Field";
+    case "describe":
+      return `${f?.name ?? "Field"}: description`;
     case "more":
       return db.name || "Database";
     case "settings":
@@ -560,6 +666,9 @@ interface Ctx {
   newRow: (values?: Record<string, CellValue>, openPeek?: boolean) => void;
   focusRow: string | null;
   setFocusRow: (rid: string | null) => void;
+  /** Field whose column is briefly highlighted after it was added. */
+  flash: string | null;
+  addFieldAt: (type: FieldType, fallback: Anchor, at?: { fid: string; side: -1 | 1 }) => void;
   patchPrefs: (p: Partial<ViewPrefs>) => void;
   view: ViewKind;
   onImport?: () => void;
@@ -572,6 +681,8 @@ const ROW_H = 41;
 /** Tables longer than this render only the rows near the viewport. */
 export const VIRTUAL_AT = 80;
 const OVERSCAN = 16;
+/** How long a new column stays highlighted. */
+const FLASH_MS = 1200;
 const MIN_W = 70, MAX_W = 900;
 const clampW = (w: number) => Math.round(Math.max(MIN_W, Math.min(MAX_W, w)));
 
@@ -597,12 +708,33 @@ const isTextInput = (t: EventTarget | null): t is HTMLInputElement =>
 
 function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivElement | null> }) {
   const { db, rows, edit, prefs, open, doc, people, env } = ctx;
-  const fields = db.fields;
+  // The view's columns (its order, hidden fields left out). Stable between edits so rows stay memoised.
+  const layoutKey = JSON.stringify([prefs.fields ?? null, prefs.hidden ?? null]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fields = useMemo(() => viewFields(db, prefs), [db.fields, layoutKey]);
   const sorts = sortsOf(db, prefs);
   const [range, setRange] = useState<CellRange | null>(null);
   const [live, setLive] = useState("");
   const [colW, setColW] = useState<{ fid: string; w: number } | null>(null);
   const [dropCol, setDropCol] = useState<number | null>(null);
+  /** Column under the pointer in the header, and the one being dragged (for the column tint / edge). */
+  const [hovCol, setHovCol] = useState<string | null>(null);
+  const [dragFid, setDragFid] = useState<string | null>(null);
+  /** Overlays drawn over whole columns: the new-field flash, the hover tint, the resize / drag edge. */
+  const [marks, setMarks] = useState<{ k: "flash" | "hover" | "edge"; fid: string; left: number; width: number; height: number }[]>([]);
+  useLayoutEffect(() => {
+    const want: { k: "flash" | "hover" | "edge"; fid: string }[] = [];
+    if (ctx.flash) want.push({ k: "flash", fid: ctx.flash });
+    const active = colW?.fid ?? dragFid;
+    if (active) want.push({ k: "edge", fid: active });
+    else if (hovCol && hovCol !== ctx.flash) want.push({ k: "hover", fid: hovCol });
+    const table = headRef.current?.closest("table");
+    const next = want.flatMap((w) => {
+      const th = headRef.current?.querySelector<HTMLElement>(`th[data-fid="${w.fid}"]`);
+      return th && table ? [{ ...w, left: th.offsetLeft, width: th.offsetWidth, height: table.offsetHeight }] : [];
+    });
+    setMarks((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
+  });
   const [dropRow, setDropRow] = useState<{ before: string | null; id: string } | null>(null);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
   const headRef = useRef<HTMLTableRowElement>(null);
@@ -657,6 +789,14 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
 
   /* ---- focus ---- */
   const pendingFocus = useRef<CellPos | null>(null);
+  /** Header to focus after a keyboard column move (the header element moves in the DOM). */
+  const headFocus = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const fid = headFocus.current;
+    const el = fid ? headRef.current?.querySelector<HTMLElement>(`th[data-fid="${fid}"] .ocdb-hcell`) : null;
+    if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+    if (el) headFocus.current = null;
+  });
   const cellEl = (p: CellPos) => tbodyRef.current?.querySelector<HTMLElement>(`td[data-r="${p.r}"][data-c="${p.c}"]`) ?? null;
   const focusIn = (td: HTMLElement) => {
     const t = td.querySelector<HTMLElement>("input.ocdb-ce,button.ocdb-cin,button.ocdb-cbx") ?? td;
@@ -975,18 +1115,19 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
   };
   const shiftField = (f: DbField, j: number, d: -1 | 1) => {
     const to = j + d;
-    if (!edit || to < 0 || to >= fields.length) return;
-    moveField(doc, db.id, f.id, to);
+    if (to < 0 || to >= fields.length) return;
+    ctx.patchPrefs({ fields: moveInView(db, prefs, f.id, to) });
     setLive(`${f.name} moved to column ${to + 1} of ${fields.length}`);
-    requestAnimationFrame(() => headRef.current?.querySelector<HTMLElement>(`th[data-fid="${f.id}"] .ocdb-hcell`)?.focus());
+    headFocus.current = f.id;
   };
   const onHeadDown = (e: React.PointerEvent, f: DbField, j: number) => {
-    if (!edit || e.button !== 0 || e.pointerType !== "mouse") return;
+    if (e.button !== 0 || e.pointerType !== "mouse") return;
     const sx = e.clientX;
     let started = false;
     let to = j;
     const move = (ev: PointerEvent) => {
       if (!started && Math.abs(ev.clientX - sx) < 6) return;
+      if (!started) setDragFid(f.id);
       started = true;
       const ths = [...(headRef.current?.querySelectorAll<HTMLElement>("th[data-fid]") ?? [])];
       to = ths.findIndex((th) => {
@@ -1000,12 +1141,13 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       setDropCol(null);
+      setDragFid(null);
       if (!started) return;
       suppress.current = true;
       setTimeout(() => (suppress.current = false), 0);
       const final = to > j ? to - 1 : to;
       if (final !== j) {
-        moveField(doc, db.id, f.id, final);
+        ctx.patchPrefs({ fields: moveInView(db, prefs, f.id, final) });
         setLive(`${f.name} moved to column ${final + 1}`);
       }
     };
@@ -1054,12 +1196,15 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
                   key={f.id}
                   data-fid={f.id}
                   aria-sort={s ? (s.dir > 0 ? "ascending" : "descending") : undefined}
-                  className={(dropCol === j ? "drop-b" : "") + (dropCol === fields.length && j === fields.length - 1 ? " drop-a" : "")}
+                  className={(dropCol === j ? "drop-b" : "") + (dropCol === fields.length && j === fields.length - 1 ? " drop-a" : "") + (f.description ? " desc" : "")}
+                  onPointerEnter={() => setHovCol(f.id)}
+                  onPointerLeave={() => setHovCol((h) => (h === f.id ? null : h))}
                 >
                   <button
                     className="ocdb-hcell"
                     aria-haspopup="dialog"
-                    aria-keyshortcuts={edit ? "Alt+Shift+ArrowLeft Alt+Shift+ArrowRight" : undefined}
+                    aria-describedby={f.description ? `${db.id}-tip-${f.id}` : undefined}
+                    aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight"
                     onPointerDown={(e) => onHeadDown(e, f, j)}
                     onKeyDown={(e) => {
                       if (e.altKey && e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
@@ -1076,6 +1221,20 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
                     <span>{f.name}</span>
                     {s ? <span className="ocdb-sortic"><Ic i={s.dir > 0 ? ArrowUp : ArrowDown} s={12} />{sorts.length > 1 ? <small>{sorts.indexOf(s) + 1}</small> : null}</span> : null}
                   </button>
+                  {f.description ? (
+                    <span className="ocdb-hinfo-w">
+                      <button
+                        className="ocdb-hinfo"
+                        aria-label={`About ${f.name}`}
+                        aria-describedby={`${db.id}-tip-${f.id}`}
+                        onKeyDown={(e) => e.key === "Escape" && e.currentTarget.blur()}
+                        onClick={(e) => e.currentTarget.focus()}
+                      >
+                        <Ic i={Info} s={13} />
+                      </button>
+                      <span className="ocdb-tip" role="tooltip" id={`${db.id}-tip-${f.id}`}>{f.description}</span>
+                    </span>
+                  ) : null}
                   <span
                     className={"ocdb-rsz" + (colW?.fid === f.id ? " on" : "")}
                     role="separator"
@@ -1095,7 +1254,7 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
             })}
             {edit ? (
               <th className="ocdb-addcol">
-                <button title="Add field" aria-label="Add field" onClick={(e) => open({ kind: "addField", anchor: e.currentTarget, key: "addField" })}>
+                <button title="Add a field" aria-label="Add a field" onClick={(e) => ctx.addFieldAt("text", e.currentTarget)}>
                   <Ic i={Plus} />
                 </button>
               </th>
@@ -1141,6 +1300,9 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
           </tfoot>
         ) : null}
       </table>
+      {marks.map((m) => (
+        <div key={m.k + m.fid} className={`ocdb-colmark ${m.k}`} data-fid={m.fid} aria-hidden="true" style={{ left: m.left, width: m.width, height: m.height }} />
+      ))}
       {edit ? (
         <button className="ocdb-newrow" onClick={() => ctx.newRow({}, false)}>
           <Ic i={Plus} />
@@ -1290,7 +1452,7 @@ function parseNum(x: string): number | null {
 
 function cardMeta(ctx: Ctx, r: DbRow, skip?: string): ReactNode[] {
   const { db, people } = ctx;
-  return db.fields
+  return viewFields(db, ctx.prefs)
     .filter((f) => f.type !== "title" && f.id !== skip && !isEmpty(r.v[f.id]) && ["person", "date", "tags", "select", "status", "number"].includes(f.type))
     .slice(0, 3)
     .map((f) => {
@@ -1626,12 +1788,58 @@ function KanbanView({ ctx }: { ctx: Ctx }) {
 
 /* ======================================================== calendar */
 
+interface CDrag {
+  id: string;
+  x: number;
+  y: number;
+  ox: number;
+  oy: number;
+  w: number;
+  /** Day under the pointer (`YYYY-MM-DD`), "" over the unscheduled tray, null elsewhere. */
+  to: string | null;
+}
+
+const shiftIso = (iso: string, n: number) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return isoDate(new Date(y, m - 1, d + n));
+};
+
+/**
+ * Month grid (agenda list when compact). Items move by drag (mouse; long-press on touch), by
+ * Alt+arrows while focused (a day; up / down a week), or from the row's peek. Rows without a date
+ * sit in a tray beside the grid: drag them onto a day, or focus one and press Alt+an arrow to
+ * put it on today (or the month's first day). Double-click a day to add an item on it.
+ */
 function CalendarView({ ctx }: { ctx: Ctx }) {
-  const { db, rows, compact, setPeek, edit, newRow, people } = ctx;
+  const { db, rows, compact, setPeek, edit, newRow, people, doc } = ctx;
   const df = dateField(db, ctx.prefs);
   // The shown month lives in the view prefs (`views.calendar.cal`) so collaborators see the same month.
   const month = ctx.prefs.cal && /^\d{4}-\d{2}$/.test(ctx.prefs.cal) ? ctx.prefs.cal : defaultMonth(db, undefined, ctx.prefs);
   const setMonth = (m: string) => m !== month && ctx.patchPrefs({ cal: m });
+  const [drag, setDragState] = useState<CDrag | null>(null);
+  const dragRef = useRef<CDrag | null>(null);
+  const setDrag = (d: CDrag | null) => {
+    dragRef.current = d;
+    setDragState(d);
+  };
+  const [live, setLive] = useState("");
+  const [trayOpen, setTrayOpen] = useState(true);
+  const calRef = useRef<HTMLDivElement>(null);
+  const focusItem = useRef<string | null>(null);
+  const suppressClick = useRef(false);
+  const gesture = useRef<(() => void) | null>(null);
+  useEffect(() => () => gesture.current?.(), []);
+  // Keep focus on an item moved from the keyboard: it remounts in its new day.
+  useLayoutEffect(() => {
+    const id = focusItem.current;
+    if (!id) return;
+    const el = calRef.current?.querySelector<HTMLElement>(`[data-cev="${id}"]`);
+    if (el) {
+      focusItem.current = null;
+      if (document.activeElement !== el) el.focus({ preventScroll: false });
+    }
+  });
+
   if (!df) return <NeedField ctx={ctx} type="date" text="The calendar places rows on a Date field." />;
   const tf = titleField(db);
   const g = groupField(db, db.views.board);
@@ -1639,26 +1847,185 @@ function CalendarView({ ctx }: { ctx: Ctx }) {
   const tone = (r: DbRow) => optOf(g, g ? r.v[g.id] : undefined)?.c ?? "gray";
   const [y, m] = month.split("-").map(Number);
   const today = isoDate(new Date());
+  const title = (r: DbRow) => String(r.v[tf.id] ?? "") || "Untitled";
+  const dated = (r: DbRow) => typeof r.v[df.id] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.v[df.id] as string);
+  const undated = rows.filter((r) => !dated(r));
+  const titleOf = (rid: string) => title(db.rows.find((r) => r.id === rid) ?? { id: rid, v: {} });
+
+  /** Put a row on `day` (null unschedules it), following it to its month. */
+  const schedule = (rid: string, day: string | null, keepFocus: boolean) => {
+    setCell(doc, db.id, rid, df.id, day);
+    if (day && !day.startsWith(month)) setMonth(day.slice(0, 7));
+    if (keepFocus) focusItem.current = rid;
+    setLive(day ? `${titleOf(rid)} moved to ${new Date(day + "T12:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}` : `${titleOf(rid)} has no date now`);
+  };
+
+  /* ---- keyboard: Alt+arrows move a focused item; Alt+Backspace unschedules ---- */
+  const onItemKey = (e: React.KeyboardEvent, r: DbRow) => {
+    if (!edit || !e.altKey || e.metaKey || e.ctrlKey) return;
+    const cur = dated(r) ? (r.v[df.id] as string) : null;
+    if (e.key === "Backspace" || e.key === "Delete") {
+      if (!cur) return;
+      e.preventDefault();
+      schedule(r.id, null, false);
+      return;
+    }
+    const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" ? -7 : e.key === "ArrowDown" ? 7 : 0;
+    if (!step) return;
+    e.preventDefault();
+    e.stopPropagation();
+    schedule(r.id, cur ? shiftIso(cur, step) : today.startsWith(month) ? today : month + "-01", true);
+  };
+
+  /* ---- pointer: drag to a day or the tray (mouse: move 4 px; touch / pen: long-press) ---- */
+  const hitTest = (x: number, y: number): string | null => {
+    const hit = typeof document.elementFromPoint === "function" ? document.elementFromPoint(x, y) : null;
+    const el = hit?.closest<HTMLElement>("[data-day],.ocdb-tray");
+    if (!el || !calRef.current?.contains(el)) return null;
+    return el.hasAttribute("data-day") ? el.getAttribute("data-day") : "";
+  };
+  const onItemPointerDown = (e: React.PointerEvent<HTMLButtonElement>, r: DbRow) => {
+    if (!edit || (e.pointerType === "mouse" && e.button !== 0)) return;
+    gesture.current?.();
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const touch = e.pointerType !== "mouse";
+    let started = false;
+    let px = sx, py = sy;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const begin = () => {
+      started = true;
+      try { navigator.vibrate?.(8); } catch { /* not allowed */ }
+      setDrag({ id: r.id, x: px, y: py, ox: sx - rect.left, oy: sy - rect.top, w: Math.max(120, rect.width), to: hitTest(px, py) });
+    };
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      px = ev.clientX;
+      py = ev.clientY;
+      if (!started) {
+        const dist = Math.hypot(px - sx, py - sy);
+        if (touch) {
+          if (dist > 8) end(); // a scroll, not a long-press
+        } else if (dist > 4) begin();
+        return;
+      }
+      setDrag({ ...dragRef.current!, x: px, y: py, to: hitTest(px, py) });
+    };
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      const d = dragRef.current;
+      if (started && d && ev.type === "pointerup" && d.to !== null) {
+        const was = dated(r) ? (r.v[df.id] as string) : null;
+        const to = d.to || null;
+        if (to !== was) schedule(r.id, to, false);
+      }
+      if (started) {
+        suppressClick.current = true;
+        setTimeout(() => (suppressClick.current = false), 0);
+      }
+      end();
+    };
+    const touchMove = (ev: TouchEvent) => {
+      if (started) ev.preventDefault();
+    };
+    const noMenu = (ev: Event) => {
+      if (started || touch) ev.preventDefault();
+    };
+    const end = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      document.removeEventListener("touchmove", touchMove);
+      el.removeEventListener("contextmenu", noMenu);
+      gesture.current = null;
+      if (started) setDrag(null);
+    };
+    gesture.current = end;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    document.addEventListener("touchmove", touchMove, { passive: false });
+    el.addEventListener("contextmenu", noMenu);
+    if (touch) timer = setTimeout(begin, LONG_PRESS_MS);
+  };
+
+  const itemProps = (r: DbRow, day: string | null) => ({
+    "data-cev": r.id,
+    title: title(r),
+    "aria-label": `${title(r)}${day ? `, ${fmtDate(day)}` : ", no date"}. Open`,
+    "aria-roledescription": edit ? "Movable item" : undefined,
+    "aria-keyshortcuts": edit ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" : undefined,
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => onItemPointerDown(e, r),
+    onKeyDown: (e: React.KeyboardEvent) => onItemKey(e, r),
+    onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
+    onClick: () => {
+      if (suppressClick.current) {
+        suppressClick.current = false;
+        return;
+      }
+      setPeek(r.id);
+    },
+  });
+
   const head = (
     <div className="ocdb-calh">
       <b>{MONTHS[m - 1]} {y}</b>
       <button className="ocdb-btn ghost sm" onClick={() => setMonth(isoMonth(new Date()))}>Today</button>
       <button className="ocdb-ib" aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}><Ic i={ChevronLeft} /></button>
       <button className="ocdb-ib" aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))}><Ic i={ChevronRight} /></button>
+      {!compact && undated.length ? (
+        <button className={"ocdb-btn ghost sm" + (trayOpen ? " on" : "")} aria-expanded={trayOpen} aria-controls={`${db.id}-tray`} onClick={() => setTrayOpen((o) => !o)}>
+          <Ic i={Inbox} s={14} />No date<span className="ocdb-badge">{undated.length}</span>
+        </button>
+      ) : null}
     </div>
   );
-  const title = (r: DbRow) => String(r.v[tf.id] ?? "") || "Untitled";
+  const help = edit ? <span className="ocdb-sr" id={`${db.id}-calhelp`}>Drag items to another day, or focus one and press Alt with the arrow keys: left and right move a day, up and down a week.</span> : null;
+  const liveEl = <div className="ocdb-sr" role="status" aria-live="polite">{live}</div>;
+
+  const tray = (
+    <aside
+      id={`${db.id}-tray`}
+      className={"ocdb-tray" + (drag && drag.to === "" ? " over" : "")}
+      aria-label={`No date, ${undated.length} ${undated.length === 1 ? "item" : "items"}`}
+    >
+      <div className="ocdb-trayh"><Ic i={Inbox} s={14} />No date<span className="ocdb-badge">{undated.length}</span></div>
+      {undated.length ? (
+        undated.map((r) => (
+          <button key={r.id} className={`ocdb-cev ocdb-pill ocdb-c-${tone(r)}` + (drag?.id === r.id ? " dragging" : "")} aria-describedby={edit ? `${db.id}-calhelp` : undefined} {...itemProps(r, null)}>
+            {title(r)}
+          </button>
+        ))
+      ) : (
+        <p className="ocdb-hint">{edit ? "Drop an item here to clear its date." : "Every row has a date."}</p>
+      )}
+    </aside>
+  );
+
+  const dragRow = drag ? db.rows.find((r) => r.id === drag.id) : undefined;
+  const ghost =
+    drag && dragRow && typeof document !== "undefined"
+      ? createPortal(
+          <div className={`ocdb-cghost ocdb-pill ocdb-c-${tone(dragRow)}`} style={{ left: drag.x - drag.ox, top: drag.y - drag.oy, width: drag.w }} aria-hidden="true">
+            {title(dragRow)}
+          </div>,
+          document.body,
+        )
+      : null;
 
   if (compact) {
-    const items = rows.filter((r) => typeof r.v[df.id] === "string" && (r.v[df.id] as string).startsWith(month)).sort((a, c) => String(a.v[df.id]).localeCompare(String(c.v[df.id])));
+    const items = rows.filter((r) => dated(r) && (r.v[df.id] as string).startsWith(month)).sort((a, c) => String(a.v[df.id]).localeCompare(String(c.v[df.id])));
     const byDay = new Map<string, DbRow[]>();
     for (const r of items) {
       const k = String(r.v[df.id]);
       byDay.set(k, [...(byDay.get(k) ?? []), r]);
     }
     return (
-      <div className="ocdb-cal">
+      <div className="ocdb-cal" ref={calRef}>
         {head}
+        {help}
         <div className="ocdb-agenda">
           {byDay.size ? (
             [...byDay.entries()].map(([d, list]) => (
@@ -1667,7 +2034,7 @@ function CalendarView({ ctx }: { ctx: Ctx }) {
                 {list.map((r) => {
                   const u = pf ? people.resolve(r.v[pf.id]) : null;
                   return (
-                    <button key={r.id} className="ocdb-ai" onClick={() => setPeek(r.id)}>
+                    <button key={r.id} className="ocdb-ai" data-cev={r.id} aria-describedby={edit ? `${db.id}-calhelp` : undefined} onKeyDown={(e) => onItemKey(e, r)} onClick={() => setPeek(r.id)}>
                       <span className={`ocdb-pill ocdb-c-${tone(r)}`} style={{ padding: 0, width: 8, height: 8, borderRadius: 4 }} />
                       <span className="t">{title(r)}</span>
                       {u ? <Avatar u={u} /> : null}
@@ -1679,6 +2046,17 @@ function CalendarView({ ctx }: { ctx: Ctx }) {
           ) : (
             <p className="ocdb-hint">Nothing scheduled this month.</p>
           )}
+          {undated.length ? (
+            <div>
+              <div className="ocdb-ad">No date</div>
+              {undated.map((r) => (
+                <button key={r.id} className="ocdb-ai" data-cev={r.id} aria-describedby={edit ? `${db.id}-calhelp` : undefined} onKeyDown={(e) => onItemKey(e, r)} onClick={() => setPeek(r.id)}>
+                  <span className={`ocdb-pill ocdb-c-${tone(r)}`} style={{ padding: 0, width: 8, height: 8, borderRadius: 4 }} />
+                  <span className="t">{title(r)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {edit ? (
             <button className="ocdb-kadd" onClick={() => newRow({ [df.id]: month === isoMonth(new Date()) ? today : month + "-01" }, true)}>
               <Ic i={Plus} s={14} />
@@ -1686,6 +2064,7 @@ function CalendarView({ ctx }: { ctx: Ctx }) {
             </button>
           ) : null}
         </div>
+        {liveEl}
       </div>
     );
   }
@@ -1705,28 +2084,43 @@ function CalendarView({ ctx }: { ctx: Ctx }) {
     const inM = date.getMonth() === m - 1;
     const key = isoDate(date);
     cells.push(
-      <div key={key} className={"ocdb-day" + (inM ? "" : " out") + (key === today ? " today" : "")}>
+      <div
+        key={key}
+        data-day={key}
+        className={"ocdb-day" + (inM ? "" : " out") + (key === today ? " today" : "") + (drag && drag.to === key ? " over" : "")}
+        onDoubleClick={edit ? (e) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          newRow({ [df.id]: key }, true);
+        } : undefined}
+      >
         <span className="ocdb-dn">{date.getDate()}</span>
         {edit ? (
-          <button className="ocdb-dadd" aria-label={`Add on ${fmtDate(key)}`} onClick={() => newRow({ [df.id]: key }, true)}>
+          <button className="ocdb-dadd" aria-label={`Add on ${fmtDate(key)}`} title="Add an item (or double-click the day)" onClick={() => newRow({ [df.id]: key }, true)}>
             <Ic i={Plus} s={14} />
           </button>
         ) : null}
         {(byDate.get(key) ?? []).map((r) => (
-          <button key={r.id} className={`ocdb-cev ocdb-pill ocdb-c-${tone(r)}`} title={title(r)} onClick={() => setPeek(r.id)}>
+          <button key={r.id} className={`ocdb-cev ocdb-pill ocdb-c-${tone(r)}` + (drag?.id === r.id ? " dragging" : "")} aria-describedby={edit ? `${db.id}-calhelp` : undefined} {...itemProps(r, key)}>
             {title(r)}
           </button>
         ))}
       </div>,
     );
   }
+  const showTray = trayOpen && (undated.length > 0 || !!drag);
   return (
-    <div className="ocdb-cal">
+    <div className={"ocdb-cal" + (drag ? " dragging" : "")} ref={calRef}>
       {head}
-      <div className="ocdb-calg">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} className="ocdb-dow">{d}</div>)}
-        {cells}
+      {help}
+      <div className={"ocdb-calwrap" + (showTray ? " tray" : "")}>
+        <div className="ocdb-calg">
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} className="ocdb-dow">{d}</div>)}
+          {cells}
+        </div>
+        {showTray ? tray : null}
       </div>
+      {liveEl}
+      {ghost}
     </div>
   );
 }
@@ -1821,16 +2215,21 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
     case "header": {
       const f = db.fields.find((x) => x.id === pop.fid);
       if (!f) return null;
-      const j = db.fields.indexOf(f);
-      const canFilter = FILTERABLE.includes(f.type);
+      const shown = viewFields(db, prefs);
+      const j = shown.indexOf(f);
       const sortBy = (dir: 1 | -1) => {
         // Like a spreadsheet header: this column becomes the sort. More keys live in the Sort menu.
         patchPrefs(sortPatch([{ f: f.id, dir }]));
         close();
       };
       const move = (d: -1 | 1) => {
-        moveField(doc, db.id, f.id, j + d);
+        patchPrefs({ fields: moveInView(db, prefs, f.id, j + d) });
         close();
+      };
+      const hide = () => {
+        patchPrefs({ hidden: [...(prefs.hidden ?? []).filter((x) => x !== f.id), f.id] });
+        close();
+        env.toast(`“${f.name}” hidden in this view`, { label: "Show", run: () => patchPrefs({ hidden: (prefs.hidden ?? []).filter((x) => x !== f.id) }) });
       };
       return (
         <>
@@ -1865,16 +2264,21 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
           <div className="ocdb-msep" />
           <button className="ocdb-mi" onClick={() => sortBy(1)}><Ic i={ArrowUp} />Sort ascending</button>
           <button className="ocdb-mi" onClick={() => sortBy(-1)}><Ic i={ArrowDown} />Sort descending</button>
-          {canFilter ? (
-            <button className="ocdb-mi" onClick={() => setPop({ kind: "filter", fid: f.id, anchor: pop.anchor, key: "filter" })}>
-              <Ic i={ListFilter} />Filter by {f.name.toLowerCase()}
-            </button>
-          ) : null}
+          <button className="ocdb-mi" onClick={() => setPop({ kind: "filter", fid: f.id, anchor: pop.anchor, key: "filter" })}>
+            <Ic i={ListFilter} />Filter by {f.name.toLowerCase()}
+          </button>
+          <div className="ocdb-msep" />
+          <button className="ocdb-mi" disabled={j <= 0} onClick={() => move(-1)}><Ic i={ArrowLeft} /><span className="lbl">Move left</span><span className="mk">Alt Shift ←</span></button>
+          <button className="ocdb-mi" disabled={j < 0 || j === shown.length - 1} onClick={() => move(1)}><Ic i={ArrowRight} /><span className="lbl">Move right</span><span className="mk">Alt Shift →</span></button>
+          {f.type !== "title" ? <button className="ocdb-mi" onClick={hide}><Ic i={EyeOff} /><span className="lbl">Hide in this view</span></button> : null}
           {edit ? (
             <>
               <div className="ocdb-msep" />
-              <button className="ocdb-mi" disabled={j === 0} onClick={() => move(-1)}><Ic i={ArrowLeft} /><span className="lbl">Move left</span><span className="mk">Alt Shift ←</span></button>
-              <button className="ocdb-mi" disabled={j === db.fields.length - 1} onClick={() => move(1)}><Ic i={ArrowRight} /><span className="lbl">Move right</span><span className="mk">Alt Shift →</span></button>
+              <button className="ocdb-mi" onClick={() => ctx.addFieldAt("text", pop.anchor, { fid: f.id, side: -1 })}><Ic i={ArrowLeftToLine} /><span className="lbl">Insert left</span></button>
+              <button className="ocdb-mi" onClick={() => ctx.addFieldAt("text", pop.anchor, { fid: f.id, side: 1 })}><Ic i={ArrowRightToLine} /><span className="lbl">Insert right</span></button>
+              <button className="ocdb-mi" aria-haspopup="dialog" onClick={() => setPop({ kind: "describe", fid: f.id, anchor: pop.anchor, key: "ds" + f.id })}>
+                <Ic i={Info} /><span className="lbl">{f.description ? "Edit description" : "Add a description"}</span>
+              </button>
             </>
           ) : null}
           {edit && f.type !== "title" ? (
@@ -1886,7 +2290,7 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
                   close();
                   const b = deleteField(doc, db.id, f.id);
                   const p: Partial<ViewPrefs> = {};
-                  const s = sortsOf(db, prefs), fl = filtersOf(db, prefs);
+                  const s = sortsOf(db, prefs), fl = rulesOf(db, prefs);
                   if (s.some((x) => x.f === f.id)) Object.assign(p, sortPatch(s.filter((x) => x.f !== f.id)));
                   if (fl.some((x) => x.f === f.id)) Object.assign(p, filterPatch(fl.filter((x) => x.f !== f.id)));
                   if (Object.keys(p).length) patchPrefs(p);
@@ -1938,38 +2342,17 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
       return <OptionsEditor ctx={ctx} f={f} />;
     }
     case "filter":
-      return <FilterBody ctx={ctx} fid={pop.fid} close={close} />;
+      return <FilterBody ctx={ctx} fid={pop.fid} at={pop.at} close={close} />;
+    case "fields":
+      return <FieldsBody ctx={ctx} />;
     case "sort":
       return <SortBody ctx={ctx} close={close} />;
     case "settings":
       return <SettingsBody ctx={ctx} />;
-    case "addField":
-      return (
-        <>
-          <div className="ocdb-mh">Add a field</div>
-          {FIELD_TYPES.filter((t) => t !== "title").map((t) => (
-            <button
-              key={t}
-              className="ocdb-mi"
-              onClick={() => {
-                const fid = addField(doc, db.id, t);
-                setTimeout(() => gwRef.current?.scrollTo?.({ left: gwRef.current.scrollWidth, behavior: "smooth" }), 50);
-                // Go straight to naming it: open the new field's menu with the name selected.
-                setTimeout(() => {
-                  const btn = gwRef.current?.querySelector<HTMLElement>(`th[data-fid="${fid}"] .ocdb-hcell`);
-                  if (btn) {
-                    setPop({ kind: "header", fid, anchor: btn, key: "h" + fid });
-                    setTimeout(() => document.querySelector<HTMLInputElement>(".ocdb-pop .ocdb-pin, .ocdb-sheet .ocdb-pin")?.select(), 30);
-                  } else close();
-                }, 80);
-              }}
-            >
-              <Ic i={TYPE_ICON[t]} />
-              {FIELD_LABEL[t]}
-            </button>
-          ))}
-        </>
-      );
+    case "fieldNew":
+      return <NewFieldBody key={pop.fid} ctx={ctx} fid={pop.fid} isNew={pop.isNew} done={close} />;
+    case "describe":
+      return <DescribeBody key={pop.fid} ctx={ctx} fid={pop.fid} done={close} />;
     case "more":
       return (
         <>
@@ -1979,7 +2362,7 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
           {edit ? (
             <>
               <div className="ocdb-msep" />
-              <button className="ocdb-mi" onClick={(e) => setPop({ kind: "addField", anchor: pop.anchor, key: "addField" + e.timeStamp })}><Ic i={Plus} />Add a field</button>
+              <button className="ocdb-mi" onClick={() => ctx.addFieldAt("text", pop.anchor)}><Ic i={Plus} />Add a field</button>
             </>
           ) : null}
         </>
@@ -1987,7 +2370,6 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
   }
 }
 
-const FILTERABLE: FieldType[] = ["status", "select", "person", "tags", "checkbox"];
 const TONES: Tone[] = ["gray", "blue", "green", "amber", "red", "purple", "pink"];
 const TONE_NAME: Record<Tone, string> = { gray: "Gray", blue: "Blue", green: "Green", amber: "Amber", red: "Red", purple: "Purple", pink: "Pink" };
 
@@ -2045,66 +2427,450 @@ function swap<T>(a: T[], i: number, j: number): T[] {
   return n;
 }
 
-/** Filters on several fields, all of which must match. Pick a field, then the values to show. */
-function FilterBody({ ctx, fid, close }: { ctx: Ctx; fid?: string; close: () => void }) {
-  const { db, prefs, patchPrefs, people, env } = ctx;
-  const filterable = db.fields.filter((f) => FILTERABLE.includes(f.type));
-  const filters = filtersOf(db, prefs);
-  const [cur, setCur] = useState<string | undefined>(fid ?? filters[0]?.f ?? (groupField(db, prefs) ?? filterable[0])?.id);
-  const f = db.fields.find((x) => x.id === cur);
-  if (!filterable.length || !f) {
-    return <p className="ocdb-hint" style={{ padding: "10px 12px" }}>Add a Status, Select, Tags, Person or Checkbox field to filter.</p>;
-  }
-  const vals: { v: string; node: ReactNode }[] =
-    f.type === "person"
-      ? [...people.pickable.map((u) => ({ v: u.id, node: <span className="ocdb-person"><Avatar u={u} /><span>{u.name}{u.id === env.me.id ? " (you)" : ""}</span></span> })), { v: "", node: <span className="ocdb-emptyc">No one</span> }]
-      : f.type === "checkbox"
-        ? [{ v: "true", node: <>Checked</> }, { v: "false", node: <>Not checked</> }]
-        : [...(f.options ?? []).map((o) => ({ v: o.v, node: <Pill label={o.v} c={o.c} st={f.type === "status"} /> })), { v: "", node: <span className="ocdb-emptyc">Empty</span> }];
-  const sel = filters.find((x) => x.f === f.id)?.vals ?? [];
-  const toggle = (v: string) => {
-    const next = sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v];
-    const others = filters.filter((x) => x.f !== f.id);
-    const at = filters.findIndex((x) => x.f === f.id);
-    const rule = next.length ? [{ f: f.id, vals: next }] : [];
-    patchPrefs(filterPatch(at >= 0 ? [...others.slice(0, at), ...rule, ...others.slice(at)] : [...others, ...rule]));
-  };
+/**
+ * Text input that shows its own draft while focused and reports every change, so a value that
+ * is stored converted (numbers) doesn't fight the typing ("4." stays "4." until blur).
+ */
+function LiveInput({ value, onValue, ...rest }: { value: string; onValue: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const [draft, setDraft] = useState<string | null>(null);
   return (
-    <>
-      {filterable.length > 1 ? (
-        <>
-          <div className="ocdb-mh">Field{filters.length > 1 ? " · all filters must match" : ""}</div>
-          <div className="ocdb-fchips" role="tablist" aria-label="Field to filter">
-            {filterable.map((x) => {
-              const n = filters.find((r) => r.f === x.id)?.vals.length ?? 0;
-              return (
-                <button key={x.id} role="tab" aria-selected={x.id === f.id} className={"ocdb-btn sm" + (x.id === f.id ? "" : " ghost")} onClick={() => setCur(x.id)}>
-                  <Ic i={TYPE_ICON[x.type]} s={14} />
-                  {x.name}
-                  {n ? <span className="ocdb-badge" aria-label={`${n} selected`}>{n}</span> : null}
-                </button>
-              );
-            })}
+    <input
+      {...rest}
+      value={draft ?? value}
+      onFocus={(e) => {
+        setDraft(value);
+        rest.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setDraft(null);
+        rest.onBlur?.(e);
+      }}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onValue(e.target.value);
+      }}
+    />
+  );
+}
+
+const numIn = (s: string): number | null => {
+  const t = s.trim().replace(/[,\s]/g, "");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Filter editor: one row per rule (field, condition, value), all of which must match. Text,
+ * number and date fields take a typed condition; option-like fields and checkboxes pick values.
+ * Rules are stored in the view settings (shared), unfinished ones included, and show as chips.
+ */
+function FilterBody({ ctx, fid, at, close }: { ctx: Ctx; fid?: string; at?: number; close: () => void }) {
+  const { db, prefs, patchPrefs, people, env } = ctx;
+  const rules = rulesOf(db, prefs);
+  const set = (next: FilterRule[]) => patchPrefs(filterPatch(next));
+  const [focusAt, setFocusAt] = useState<number | null>(at ?? null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const added = useRef(false);
+  const newRule = (f: DbField): FilterRule => {
+    const ops = filterOps(f.type);
+    return ops ? { f: f.id, op: ops[0] } : { f: f.id, vals: [] };
+  };
+  const add = (f: DbField) => {
+    set([...rules, newRule(f)]);
+    setFocusAt(rules.length);
+  };
+  // "Filter by <field>" from a column menu: edit that field's rule, adding one when it has none.
+  useEffect(() => {
+    if (!fid || at !== undefined || added.current) return;
+    added.current = true;
+    const i = rules.findIndex((r) => r.f === fid);
+    const f = db.fields.find((x) => x.id === fid);
+    if (i >= 0) setFocusAt(i);
+    else if (f) add(f);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (focusAt === null) return;
+    const row = bodyRef.current?.querySelectorAll<HTMLElement>(".ocdb-frule")[focusAt];
+    const el = row?.querySelector<HTMLElement>("input,select:not([data-op]),.ocdb-fval button") ?? row?.querySelector<HTMLElement>("select");
+    if (el) {
+      el.focus({ preventScroll: true });
+      row?.scrollIntoView?.({ block: "nearest" });
+      setFocusAt(null);
+    }
+  });
+  const patch = (i: number, p: Partial<FilterRule>) => {
+    set(rules.map((r, j) => {
+      if (j !== i) return r;
+      const n: FilterRule = { ...r, ...p };
+      for (const k of Object.keys(n) as (keyof FilterRule)[]) if (n[k] === undefined) delete n[k];
+      return n;
+    }));
+  };
+  const remove = (i: number) => {
+    set(rules.filter((_, j) => j !== i));
+    requestAnimationFrame(() => bodyRef.current?.querySelector<HTMLElement>(".ocdb-frule .ocdb-ib, .ocdb-fadd button")?.focus());
+  };
+
+  const valueEditor = (f: DbField, r: FilterRule, i: number): ReactNode => {
+    const label = `${f.name} value`;
+    if (!r.op) {
+      if (f.type === "checkbox") return null;
+      const vals: { v: string; node: ReactNode; text: string }[] =
+        f.type === "person"
+          ? [...people.pickable.map((u) => ({ v: u.id, text: u.name, node: <span className="ocdb-person"><Avatar u={u} size="xs" /><span>{firstName(u)}{u.id === env.me.id ? " (you)" : ""}</span></span> })), { v: "", text: "No one", node: <span className="ocdb-emptyc">No one</span> }]
+          : [...(f.options ?? []).map((o) => ({ v: o.v, text: o.v, node: <Pill label={o.v} c={o.c} st={f.type === "status"} /> })), { v: "", text: "Empty", node: <span className="ocdb-emptyc">Empty</span> }];
+      const sel = r.vals ?? [];
+      return (
+        <div className="ocdb-fval" role="group" aria-label={`${f.name}: show rows with any of`}>
+          {vals.map(({ v, node, text }) => (
+            <button
+              key={v || "__empty"}
+              className={"ocdb-fopt" + (sel.includes(v) ? " on" : "")}
+              aria-pressed={sel.includes(v)}
+              aria-label={text}
+              onClick={() => patch(i, { vals: sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v] })}
+            >
+              {node}
+              {sel.includes(v) ? <Ic i={Check} s={12} /> : null}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (r.op === "empty") return null;
+    if (f.type === "date") {
+      if (r.op === "next" || r.op === "past") {
+        return (
+          <span className="ocdb-fin days">
+            <LiveInput className="ocdb-pin" inputMode="numeric" aria-label={`${f.name}: number of days`} value={r.v == null ? "" : String(r.v)} onValue={(s) => patch(i, { v: numIn(s) ?? undefined })} />
+            <span>days</span>
+          </span>
+        );
+      }
+      return <input type="date" className="ocdb-pin" aria-label={label} value={typeof r.v === "string" ? r.v : ""} onChange={(e) => patch(i, { v: e.target.value || undefined })} />;
+    }
+    if (f.type === "number" || f.type === "progress") {
+      const num = (k: "v" | "v2", aria: string) => (
+        <LiveInput className="ocdb-pin" inputMode="decimal" aria-label={aria} placeholder={k === "v" ? "Value" : "and"} value={r[k] == null ? "" : String(r[k])} onValue={(s) => patch(i, { [k]: numIn(s) ?? undefined })} />
+      );
+      return r.op === "between" ? (
+        <span className="ocdb-fin two">
+          {num("v", `${f.name} from`)}
+          <span>and</span>
+          {num("v2", `${f.name} to`)}
+        </span>
+      ) : (
+        num("v", label)
+      );
+    }
+    return <LiveInput className="ocdb-pin" aria-label={label} placeholder="Type a value" value={typeof r.v === "string" ? r.v : ""} onValue={(s) => patch(i, { v: s })} />;
+  };
+
+  return (
+    <div className="ocdb-filters" ref={bodyRef}>
+      {rules.length ? <div className="ocdb-mh">{rules.length > 1 ? "Rows that match all of these" : "Rows where"}</div> : null}
+      {rules.map((r, i) => {
+        const f = db.fields.find((x) => x.id === r.f)!;
+        const ops = filterOps(f.type);
+        const ready = ruleReady(f, r);
+        const opValue = f.type === "checkbox" ? ((r.vals ?? [])[0] === "false" ? "unchecked" : "checked") : (r.op ?? "");
+        return (
+          <div className={"ocdb-frule" + (ready ? "" : " draft")} key={i}>
+            <div className="ocdb-frow">
+              <span className="ocdb-ffield"><Ic i={TYPE_ICON[f.type]} s={14} /><span>{f.name}</span></span>
+              {ops ? (
+                <select
+                  className="ocdb-fop"
+                  data-op=""
+                  aria-label={`${f.name} condition`}
+                  value={opValue}
+                  onChange={(e) => {
+                    const op = e.target.value as FilterOp;
+                    // Keep a value that still makes sense for the new condition; dates and day counts don't mix.
+                    const keepV = f.type !== "date" || (op === "next" || op === "past") === (r.op === "next" || r.op === "past");
+                    patch(i, { op, v: keepV ? r.v : undefined, v2: op === "between" ? r.v2 : undefined });
+                  }}
+                >
+                  {ops.map((o) => <option key={o} value={o}>{OP_LABEL[o]}</option>)}
+                </select>
+              ) : f.type === "checkbox" ? (
+                <select className="ocdb-fop" data-op="" aria-label={`${f.name} condition`} value={opValue} onChange={(e) => patch(i, { vals: [e.target.value === "unchecked" ? "false" : "true"] })}>
+                  <option value="checked">is checked</option>
+                  <option value="unchecked">is not checked</option>
+                </select>
+              ) : (
+                <span className="ocdb-fop static">is any of</span>
+              )}
+              {ops && r.op !== "empty" && !(r.op === "between") ? <span className="ocdb-fval1">{valueEditor(f, r, i)}</span> : null}
+              <button className="ocdb-ib" aria-label={`Remove filter ${filterLabel(f, r)}`} onClick={() => remove(i)}><Ic i={X} s={14} /></button>
+            </div>
+            {!ops || r.op === "between" ? valueEditor(f, r, i) : null}
           </div>
-        </>
-      ) : null}
-      <div className="ocdb-mh">Show only</div>
-      {vals.map(({ v, node }) => (
-        <button key={v || "__empty"} className="ocdb-mi" role="menuitemcheckbox" aria-checked={sel.includes(v)} onClick={() => toggle(v)}>
-          {node}
-          {sel.includes(v) ? <span className="chk"><Ic i={Check} s={14} /></span> : null}
-        </button>
-      ))}
-      {filters.length ? (
+        );
+      })}
+      <div className="ocdb-mh">{rules.length ? "Add another filter" : "Filter by"}</div>
+      <div className="ocdb-fadd">
+        {db.fields.map((f) => (
+          <button key={f.id} className="ocdb-btn ghost sm" onClick={() => add(f)} aria-label={`${f.name}: add a filter`}>
+            <Ic i={TYPE_ICON[f.type]} s={14} />
+            {f.name}
+          </button>
+        ))}
+      </div>
+      {rules.length ? (
         <>
           <div className="ocdb-msep" />
-          {sel.length && filters.length > 1 ? (
-            <button className="ocdb-mi" onClick={() => patchPrefs(filterPatch(filters.filter((x) => x.f !== f.id)))}><Ic i={X} />Clear {f.name.toLowerCase()} filter</button>
-          ) : null}
-          <button className="ocdb-mi" onClick={() => { patchPrefs(filterPatch([])); close(); }}><Ic i={X} />Clear all filters</button>
+          <button className="ocdb-mi" onClick={() => { set([]); close(); }}><Ic i={X} />Clear all filters</button>
         </>
       ) : null}
-    </>
+    </div>
+  );
+}
+
+/**
+ * Naming a field that was just added: the name is selected, the type picker sits under it.
+ * Enter (or Done, or a click outside) keeps it; Escape removes the new field again (DbView).
+ */
+function NewFieldBody({ ctx, fid, isNew, done }: { ctx: Ctx; fid: string; isNew: boolean; done: () => void }) {
+  const { doc, db, people } = ctx;
+  const f = db.fields.find((x) => x.id === fid);
+  const [name, setName] = useState(f?.name ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const live = useRef({ name, doc, dbId: db.id, fid });
+  live.current = { name, doc, dbId: db.id, fid };
+  useLayoutEffect(() => {
+    inputRef.current?.focus({ preventScroll: true });
+    inputRef.current?.select();
+  }, []);
+  // However the popover closes, the name is kept (renaming a removed field does nothing).
+  useEffect(
+    () => () => {
+      const { name: n, doc: d, dbId, fid: id } = live.current;
+      const m = getDbMap(d, dbId);
+      const cur = m ? readDb(dbId, m).fields.find((x) => x.id === id) : undefined;
+      if (cur && n.trim() && n.trim() !== cur.name) renameField(d, dbId, id, n.trim());
+    },
+    [],
+  );
+  if (!f) return null;
+  const types = FIELD_TYPES.filter((t) => t !== "title");
+  const pick = (t: FieldType) => {
+    if (t !== f.type) {
+      setFieldType(doc, db.id, fid, t, people.pickable);
+      // A name nobody typed follows the type ("Text" becomes "Date").
+      if (!name.trim() || name.trim() === FIELD_LABEL[f.type]) setName(FIELD_LABEL[t]);
+    }
+  };
+  const onRadioKey = (e: React.KeyboardEvent, i: number) => {
+    const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const t = types[(i + d + types.length) % types.length];
+    pick(t);
+    (e.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-t="${t}"]`))?.focus();
+  };
+  return (
+    <div className="ocdb-newf">
+      <div className="ocdb-pad">
+        <input
+          ref={inputRef}
+          className="ocdb-pin ocdb-newf-name"
+          aria-label="Field name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              done();
+            }
+          }}
+        />
+      </div>
+      <div className="ocdb-mh">Type</div>
+      <div className="ocdb-types" role="radiogroup" aria-label="Field type">
+        {types.map((t, i) => (
+          <button
+            key={t}
+            data-t={t}
+            role="radio"
+            aria-checked={f.type === t}
+            tabIndex={f.type === t ? 0 : -1}
+            className={"ocdb-type" + (f.type === t ? " on" : "")}
+            onClick={() => pick(t)}
+            onKeyDown={(e) => onRadioKey(e, i)}
+          >
+            <Ic i={TYPE_ICON[t]} s={14} />
+            <span>{FIELD_LABEL[t]}</span>
+          </button>
+        ))}
+      </div>
+      <div className="ocdb-newf-ft">
+        <span className="ocdb-hintk"><kbd>Enter</kbd> save{isNew ? <> · <kbd>Esc</kbd> discard</> : null}</span>
+        <button className="ocdb-btn sm primary" onClick={done}>Done</button>
+      </div>
+    </div>
+  );
+}
+
+/** A field's description: a short multi-line note shown in its header tooltip and the row peek. */
+function DescribeBody({ ctx, fid, done }: { ctx: Ctx; fid: string; done: () => void }) {
+  const { doc, db } = ctx;
+  const f = db.fields.find((x) => x.id === fid);
+  const [text, setText] = useState(f?.description ?? "");
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const live = useRef({ text, cancelled: false });
+  live.current.text = text;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    el?.focus({ preventScroll: true });
+    el?.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  // Saved when the popover closes (Save, Ctrl+Enter, a click outside); Escape cancels.
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") live.current.cancelled = true;
+    };
+    document.addEventListener("keydown", onEsc, true);
+    return () => {
+      document.removeEventListener("keydown", onEsc, true);
+      if (!live.current.cancelled) setFieldDescription(doc, db.id, fid, live.current.text);
+    };
+  }, [doc, db.id, fid]);
+  if (!f) return null;
+  return (
+    <div className="ocdb-descb">
+      <div className="ocdb-pad">
+        <textarea
+          ref={ref}
+          className="ocdb-pin ocdb-desc"
+          aria-label={`Description of ${f.name}`}
+          placeholder="What goes in this field, and how to fill it"
+          rows={3}
+          maxLength={1000}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              done();
+            }
+          }}
+        />
+      </div>
+      <div className="ocdb-newf-ft">
+        <span className="ocdb-hintk"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> save · <kbd>Esc</kbd> cancel</span>
+        {f.description ? <button className="ocdb-btn sm ghost" onClick={() => { setText(""); live.current.text = ""; done(); }}>Remove</button> : null}
+        <button className="ocdb-btn sm primary" onClick={done}>Save</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Fields shown in this view and their order: a switch per field (the title can't be hidden),
+ * drag the grip or use its arrow keys, or the up / down buttons (single-pointer alternative).
+ */
+function FieldsBody({ ctx }: { ctx: Ctx }) {
+  const { db, prefs, patchPrefs } = ctx;
+  const all = orderedFields(db, prefs);
+  const hidden = new Set(prefs.hidden ?? []);
+  const [msg, setMsg] = useState("");
+  const [drop, setDrop] = useState<number | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const isShown = (f: DbField) => f.type === "title" || !hidden.has(f.id);
+  const toggle = (f: DbField) => {
+    if (f.type === "title") return;
+    const next = isShown(f) ? [...hidden, f.id] : [...hidden].filter((x) => x !== f.id);
+    patchPrefs({ hidden: next });
+    setMsg(`${f.name} ${isShown(f) ? "hidden" : "shown"}`);
+  };
+  const moveTo = (from: number, to: number, focusGrip = false) => {
+    if (to < 0 || to >= all.length || to === from) return;
+    const ids = all.map((f) => f.id);
+    const [x] = ids.splice(from, 1);
+    ids.splice(to, 0, x);
+    patchPrefs({ fields: ids });
+    setMsg(`${all[from].name} moved to position ${to + 1} of ${all.length}`);
+    if (focusGrip) requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`li[data-fid="${x}"] .ocdb-fgrip`)?.focus());
+  };
+  const onGripDown = (e: React.PointerEvent, from: number) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    let to = from;
+    const move = (ev: PointerEvent) => {
+      const lis = [...(listRef.current?.querySelectorAll<HTMLElement>("li[data-fid]") ?? [])];
+      const i = lis.findIndex((li) => {
+        const r = li.getBoundingClientRect();
+        return ev.clientY < r.top + r.height / 2;
+      });
+      to = i < 0 ? lis.length : i;
+      setDrop(to);
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setDrop(null);
+      if (ev.type === "pointerup") moveTo(from, to > from ? to - 1 : to);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+  const hideable = all.filter((f) => f.type !== "title");
+  const shownCount = all.filter(isShown).length;
+  return (
+    <div className="ocdb-fields">
+      <div className="ocdb-mh">
+        <span>{shownCount} of {all.length} shown</span>
+        <span className="grow" />
+        {hidden.size && hideable.some((f) => hidden.has(f.id)) ? (
+          <button className="ocdb-link" onClick={() => { patchPrefs({ hidden: [] }); setMsg("All fields shown"); }}>Show all</button>
+        ) : (
+          <button className="ocdb-link" onClick={() => { patchPrefs({ hidden: hideable.map((f) => f.id) }); setMsg("Fields hidden, except the title"); }}>Hide all</button>
+        )}
+      </div>
+      <ul ref={listRef} aria-label="Fields in this view">
+        {all.map((f, i) => {
+          const on = isShown(f);
+          return (
+            <li key={f.id} data-fid={f.id} className={(on ? "" : "off") + (drop === i ? " drop-b" : "") + (drop === all.length && i === all.length - 1 ? " drop-a" : "")}>
+              <button
+                className="ocdb-fgrip"
+                aria-label={`Reorder ${f.name}. Use the up and down arrow keys`}
+                title="Drag to reorder. Arrow keys move it too."
+                onPointerDown={(e) => onGripDown(e, i)}
+                onKeyDown={(e) => {
+                  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                  e.preventDefault();
+                  moveTo(i, i + (e.key === "ArrowUp" ? -1 : 1), true);
+                }}
+              >
+                <Ic i={GripVertical} s={14} />
+              </button>
+              <Ic i={TYPE_ICON[f.type]} s={14} />
+              <span className="lbl">{f.name}</span>
+              <button className="ocdb-ib" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => moveTo(i, i - 1)}><Ic i={ChevronUp} s={14} /></button>
+              <button className="ocdb-ib" aria-label={`Move ${f.name} down`} disabled={i === all.length - 1} onClick={() => moveTo(i, i + 1)}><Ic i={ChevronDown} s={14} /></button>
+              <button
+                className="ocdb-switch"
+                role="switch"
+                aria-checked={on}
+                aria-label={`Show ${f.name}`}
+                title={f.type === "title" ? "The title is always shown" : undefined}
+                disabled={f.type === "title"}
+                onClick={() => toggle(f)}
+              >
+                <i />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="ocdb-sr" role="status" aria-live="polite">{msg}</div>
+    </div>
   );
 }
 
@@ -2559,6 +3325,7 @@ function PeekProp({ ctx, f, r, open, people }: { ctx: Ctx; f: DbField; r: DbRow;
     <div className="ocdb-pk">
       <Ic i={TYPE_ICON[f.type] ?? TYPE_ICON.text} s={14} />
       <span>{f.name}</span>
+      {f.description ? <small className="ocdb-pdesc">{f.description}</small> : null}
     </div>
   );
   if (f.type === "text" || f.type === "number") {

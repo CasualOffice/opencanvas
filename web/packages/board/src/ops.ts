@@ -23,7 +23,8 @@ export function unionBox(shapes: Shape[]): Box | null {
 
 /** Patch that moves a shape by (dx, dy): x/y for boxes and text, every point for lines. */
 export function movePatch(s: Shape, dx: number, dy: number): Partial<Shape> {
-  if (s.pts) return { pts: s.pts.map((p) => [Math.round((p[0] + dx) * 10) / 10, Math.round((p[1] + dy) * 10) / 10] as Pt) };
+  const shift = (list: Pt[]) => list.map((p) => [Math.round((p[0] + dx) * 10) / 10, Math.round((p[1] + dy) * 10) / 10] as Pt);
+  if (s.pts) return s.via?.length ? { pts: shift(s.pts), via: shift(s.via) } : { pts: shift(s.pts) };
   return { x: Math.round(((s.x ?? 0) + dx) * 10) / 10, y: Math.round(((s.y ?? 0) + dy) * 10) / 10 };
 }
 

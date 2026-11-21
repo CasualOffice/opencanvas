@@ -228,7 +228,7 @@ fn png_renders_shapes_text_and_inlined_images() {
         std::fs::write(out, &png).unwrap();
     }
     let pm = decode(&png);
-    assert_eq!((pm.width(), pm.height()), (1124 * 2, 1004 * 2));
+    assert_eq!((pm.width(), pm.height()), (1264 * 2, 1004 * 2));
     let px = |x: f32, y: f32| {
         // board coordinates → pixels (viewBox starts at -32,-32; scale 2)
         let p = pm

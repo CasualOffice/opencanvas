@@ -82,6 +82,25 @@ pub(crate) fn database_table(doc: &Value, id: &str) -> (String, Vec<String>, Vec
     )
 }
 
+/// `(field name, description)` for fields that carry a non-blank description, whitespace runs
+/// (line breaks included) collapsed to one space.
+pub(crate) fn database_notes(doc: &Value, id: &str) -> Vec<(String, String)> {
+    doc["databases"][id]["fields"]
+        .as_array()
+        .map(|f| {
+            f.iter()
+                .filter_map(|f| {
+                    let d = f["description"]
+                        .as_str()?
+                        .split_whitespace()
+                        .collect::<Vec<_>>();
+                    (!d.is_empty()).then(|| (s(f, "name").to_string(), d.join(" ")))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 pub(crate) struct BoardInfo {
     pub shapes: usize,
     /// Text of stickies, text shapes and frame labels, in board order.
@@ -383,10 +402,21 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             format!("**{summary}**\n\n{body}").trim_end().to_string()
         }
         "database" => {
-            let (name, header, rows) = database_table(cx.doc, attr_str(n, "dbId"));
-            format!("### {}\n\n{}", md_text(&name), md_table(&header, &rows))
+            let id = attr_str(n, "dbId");
+            let (name, header, rows) = database_table(cx.doc, id);
+            let mut out = format!("### {}\n\n{}", md_text(&name), md_table(&header, &rows))
                 .trim_end()
-                .to_string()
+                .to_string();
+            // Field descriptions: one footnote line each under the table (as the web export).
+            let notes: Vec<String> = database_notes(cx.doc, id)
+                .iter()
+                .map(|(f, d)| format!("*{}*: {}", md_text(f), md_text(d)))
+                .collect();
+            if !notes.is_empty() {
+                out.push_str("\n\n");
+                out.push_str(&notes.join("\n"));
+            }
+            out
         }
         "board" => {
             let id = attr_str(n, "boardId");
@@ -775,6 +805,24 @@ mod tests {
         let html = to_html(&doc);
         assert!(html.contains("<strong>bold</strong>"));
         assert!(html.contains("<td>Done</td>"));
+    }
+
+    #[test]
+    fn markdown_lists_field_descriptions_under_the_table() {
+        let doc = json!({
+            "databases": {"d1": {"name": "Tasks", "fields": [
+                {"id":"f1","name":"Name"},
+                {"id":"f2","name":"Points","description":"Story points,\nfibonacci only"},
+                {"id":"f3","name":"Due","description":"   "}],
+                "order": ["r1"], "rows": {"r1": {"f1": "Ship", "f2": 3}}}},
+            "content": [{"type":"database","attrs":{"dbId":"d1"}}]
+        });
+        let md = to_markdown(&doc);
+        assert!(
+            md.contains("| Ship | 3 |  |\n\n*Points*: Story points, fibonacci only"),
+            "{md}"
+        );
+        assert!(!md.contains("*Due*"), "{md}");
     }
 
     #[test]

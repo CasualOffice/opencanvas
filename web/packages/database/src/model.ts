@@ -27,6 +27,7 @@ function fieldToY(f: DbField): Y.Map<unknown> {
   m.set("name", f.name);
   m.set("type", f.type);
   m.set("options", f.options ? f.options.map((o) => ({ v: o.v, c: o.c })) : null);
+  if (f.description) m.set("description", f.description);
   return m;
 }
 
@@ -149,7 +150,8 @@ function readFields(m: Y.Map<unknown>): DbField[] {
         /* ignore malformed */
       }
     }
-    out.push({ id, name: String(f.get("name") ?? ""), type: (f.get("type") as FieldType) ?? "text", options });
+    const description = f.get("description");
+    out.push({ id, name: String(f.get("name") ?? ""), type: (f.get("type") as FieldType) ?? "text", options, ...(typeof description === "string" && description.trim() ? { description } : {}) });
   }
   return out;
 }
@@ -487,7 +489,21 @@ export function databaseToMarkdown(db: DbSnapshot, users: OcUser[] = []): string
   const head = "| " + db.fields.map((f) => esc(f.name)).join(" | ") + " |";
   const sep = "| " + db.fields.map(() => "---").join(" | ") + " |";
   const body = db.rows.map((r) => "| " + db.fields.map((f) => esc(cellToText(f, r.v[f.id], users))).join(" | ") + " |");
-  return [head, sep, ...body].join("\n");
+  // Field descriptions follow the table as one footnote line each.
+  const notes = db.fields.filter((f) => f.description?.trim()).map((f) => `*${esc(f.name)}*: ${f.description!.trim().replace(/\s*\n\s*/g, " ")}`);
+  return [head, sep, ...body, ...(notes.length ? ["", ...notes] : [])].join("\n");
+}
+
+/** Set (or clear, with "") a field's description. */
+export function setFieldDescription(doc: Y.Doc, dbId: string, fid: string, text: string) {
+  tx(doc, dbId, (m) => {
+    const f = fieldY(m, fid);
+    if (!f) return;
+    const t = text.trim() ? text.replace(/\s+$/, "") : "";
+    if (t) {
+      if (f.get("description") !== t) f.set("description", t);
+    } else if (f.has("description")) f.delete("description");
+  });
 }
 
 /* ------------------------------------------------- field editing (UX-01) */
