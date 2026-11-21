@@ -17,6 +17,7 @@
 - [Protocol and build contract](https://casualoffice.github.io/opencanvas/docs/protocol.html): The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.
 - [Operations and deployment](https://casualoffice.github.io/opencanvas/docs/operations.html): Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.
 - [Security and limits](https://casualoffice.github.io/opencanvas/docs/security.html): OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.
+- [Capacity and sizing](https://casualoffice.github.io/opencanvas/docs/capacity.html): Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.
 - [Architecture](https://casualoffice.github.io/opencanvas/docs/architecture.html): How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.
 - [Collaboration and presence](https://casualoffice.github.io/opencanvas/docs/collaboration.html): How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.
 - [Product requirements](https://casualoffice.github.io/opencanvas/docs/product.html): What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.

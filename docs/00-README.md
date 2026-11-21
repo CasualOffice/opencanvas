@@ -17,3 +17,4 @@
 | 13 | [Operations & deployment](13-OPERATIONS-AND-DEPLOYMENT.md) | Running it: single node, cluster, metrics |
 | 15 | [Build contract](15-BUILD-CONTRACT.md) | Exact server ↔ web ↔ host interfaces for the P1 build |
 | 21 | [Users and identity](21-USERS-AND-IDENTITY.md) | How hosts provide people, duplicate names, mentions that stay correct |
+| 22 | [Capacity and sizing](22-CAPACITY-AND-SIZING.md) | Load benchmark (`scripts/bench.sh`), measured limits, sizing table for self-hosters |

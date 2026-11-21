@@ -1701,6 +1701,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "oc-bench"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "futures",
+ "jsonwebtoken",
+ "oc-model",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.28.0",
+ "yrs",
+]
+
+[[package]]
 name = "oc-model"
 version = "0.1.0"
 dependencies = [
