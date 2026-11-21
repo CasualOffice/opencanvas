@@ -13,13 +13,16 @@ export interface Shape {
   y?: number;
   w?: number;
   h?: number;
-  /** sticky: y|p|b|g; swatch: accent|amber|green|pink|purple */
+  /** sticky: y|p|b|g; swatch: accent|amber|green|pink|purple; rect/ellipse/diamond: a tone (blue, green, …) */
   fill?: string;
+  /** text; arrow: label shown at the middle of the connector */
   text?: string;
+  /** Shapes with the same group id select and move together. */
+  group?: string;
   /** rect: small uppercase label in the corner (frames) */
   label?: string;
   dashed?: boolean;
-  /** text: font size */
+  /** text: font size; sticky/rect/ellipse/diamond: text size (default 14) */
   size?: number;
   /** arrow / pen points */
   pts?: Pt[];

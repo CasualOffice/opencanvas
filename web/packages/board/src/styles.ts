@@ -62,6 +62,16 @@ export const CSS = `
 .ocbd-compact .ocbd-swatch .ocbd-ib{width:38px;height:38px}
 .ocbd-compact .ocbd-edit{font-size:16px}
 
+/* UX pass: screen-reader text, multi-select toolbar, fills, peers, guides */
+.ocbd-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.ocbd-swatch{max-width:calc(100% - 16px);overflow-x:auto;scrollbar-width:none}
+.ocbd-swatch::-webkit-scrollbar{display:none}
+.ocbd-swatch.below{transform:translate(-50%,0)}
+.ocbd-swatch button[data-c].none{background:linear-gradient(135deg,transparent 46%,var(--red-fg) 46%,var(--red-fg) 54%,transparent 54%),var(--app)!important}
+.ocbd-swatch .ocbd-ib[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.ocbd-top .ocbd-ib:disabled{opacity:.5}
+.ocbd-empty-k{font-size:12px;color:var(--fg-4)}
+
 @keyframes ocbd-menu{from{opacity:0;transform:translateY(-4px) scale(.98)}}
 @keyframes ocbd-pop{from{opacity:0;transform:translate(-50%,calc(-100% + 4px)) scale(.98)}}
 @media (prefers-reduced-motion:reduce){.ocbd *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
