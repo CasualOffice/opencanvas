@@ -3,8 +3,14 @@ import react from "@vitejs/plugin-react";
 
 // The server serves the built editor at /app/ (docs/15 §1). In dev the SPA
 // talks to the Rust server on :8080 through this proxy (docs/15 §8).
+// OC_EDITOR_BASE overrides the base for a copy served elsewhere: the website's
+// demo is built with OC_EDITOR_BASE=/opencanvas/app/ (.github/workflows/pages.yml).
+// It must start and end with "/".
+const base = process.env.OC_EDITOR_BASE || "/app/";
+if (!/^\/(.*\/)?$/.test(base)) throw new Error(`OC_EDITOR_BASE must start and end with "/": ${base}`);
+
 export default defineConfig({
-  base: "/app/",
+  base,
   plugins: [react()],
   server: {
     port: 5173,
