@@ -8,7 +8,7 @@
 // first paint (docs/02 §7 bundle budget); until it arrives <Ic> keeps an empty
 // box of the same size, so nothing shifts.
 import {
-  Calendar, ChevronDown, ChevronRight, CircleCheck, CirclePause, CirclePlay, Clock, CloudOff, Copy, Download, Ellipsis, Eye,
+  Calendar, ChevronDown, ChevronRight, File as FileIcon, FileArchive, FileAudio, FileCode, FileImage, FileVideo, CircleCheck, CirclePause, CirclePlay, Clock, CloudOff, Copy, Download, Ellipsis, Eye,
   FileSpreadsheet, FileText, Flag, Globe, ImagePlus, Info, LayoutTemplate, Lightbulb, Link2, LoaderCircle, Lock,
   MapPin, Maximize2, MessageSquare, MessageSquarePlus, Paperclip, PenTool, RotateCcw, ShieldCheck, Sparkles, Star,
   Target, TriangleAlert, UsersRound, WifiOff, X,
@@ -17,7 +17,8 @@ import {
 import { createStore, useStore } from "./lib/store";
 
 export const ICONS: Record<string, LucideIcon> = {
-  calendar: Calendar, "chevron-down": ChevronDown, "chevron-right": ChevronRight, "circle-check": CircleCheck, "circle-pause": CirclePause,
+  calendar: Calendar, file: FileIcon, "file-archive": FileArchive, "file-audio": FileAudio, "file-code": FileCode,
+  "file-image": FileImage, "file-video": FileVideo, "chevron-down": ChevronDown, "chevron-right": ChevronRight, "circle-check": CircleCheck, "circle-pause": CirclePause,
   "circle-play": CirclePlay, clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download,
   ellipsis: Ellipsis, eye: Eye, "file-spreadsheet": FileSpreadsheet, "file-text": FileText, flag: Flag,
   globe: Globe, "image-plus": ImagePlus, info: Info, "layout-template": LayoutTemplate, lightbulb: Lightbulb,

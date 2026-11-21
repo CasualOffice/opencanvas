@@ -82,6 +82,22 @@ async fn asset(
             b.resize(10 * 1024 * 1024 + 1, 0);
             return ([("content-type", "image/png")], b).into_response();
         }
+        // A document for the preview route (not an image).
+        "doc.pdf" => {
+            return (
+                [("content-type", "application/pdf")],
+                b"%PDF-1.4\n%%EOF\n".to_vec(),
+            )
+                .into_response();
+        }
+        // Over the 50 MB preview cap.
+        "huge.pdf" => {
+            return (
+                [("content-type", "application/pdf")],
+                vec![0u8; 50 * 1024 * 1024 + 1],
+            )
+                .into_response();
+        }
         // Image bytes, but not served as an image.
         "text" => return ([("content-type", "text/html")], PNG_1X1.to_vec()).into_response(),
         _ => {}

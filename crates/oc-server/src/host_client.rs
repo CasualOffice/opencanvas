@@ -542,6 +542,23 @@ impl HostClient {
         Ok(buf.into())
     }
 
+    /// Opens an asset for streaming (attachment previews): signed like every callback when
+    /// `signed`, never following redirects. The caller checks the origin, status and size.
+    pub async fn open_asset(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        url: Url,
+        signed: bool,
+    ) -> Result<reqwest::Response, HostError> {
+        let req = if signed {
+            Self::signed(&self.assets, host, token, Method::GET, url, Vec::new(), 30)
+        } else {
+            self.assets.get(url).timeout(Duration::from_secs(30))
+        };
+        Ok(req.send().await?)
+    }
+
     /// `POST {callback_base}/mentions` (UX-02, docs/05 §5): a JSON body, signed like every
     /// callback, with an `Idempotency-Key` so a host can drop a retried call it already has.
     /// Returns the host's status; the caller decides between done, retry and give up.

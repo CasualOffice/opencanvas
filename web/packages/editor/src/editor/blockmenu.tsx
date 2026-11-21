@@ -14,6 +14,8 @@ import { toast } from "../lib/store";
 import { Popover, type Anchor } from "../components/overlay";
 import { deleteBlock, duplicateBlock, indexAt, moveBlock } from "./blockops";
 import { TURN, kindOfNode, turnInto } from "./slash";
+import { fileActions } from "./files/actions";
+import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
 
 // ---------- comments from the editor ----------
 
@@ -123,6 +125,35 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
               />
             ))}
           </div>
+          <div className="msep" />
+        </>
+      ) : null}
+      {node.type.name === "fileAttachment" ? (
+        <>
+          <div className="mh">File</div>
+          {fileActions({
+            kind: fileKind(node.attrs.mime, node.attrs.name),
+            display: fileDisplay(node.attrs.display, fileKind(node.attrs.mime, node.attrs.name)),
+            role: bridge.env?.role ?? "edit",
+            editable: editor.isEditable,
+            canDownload: bridge.session?.perms?.download !== false,
+            hasFile: hasBytes(node.attrs.url) && !node.attrs.upload,
+            inBlockMenu: true,
+          }).map((a) => (
+            <button
+              key={a.id}
+              className="mi"
+              onClick={() =>
+                run(() => {
+                  const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
+                  dom?.querySelector(".filev")?.dispatchEvent(new CustomEvent(FILE_EVENT, { detail: a.id }));
+                })
+              }
+            >
+              <Ic name={a.icon} />
+              {a.label}
+            </button>
+          ))}
           <div className="msep" />
         </>
       ) : null}

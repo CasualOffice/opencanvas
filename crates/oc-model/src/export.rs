@@ -411,8 +411,54 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             fallback(attr_str(n, "title"), attr_str(n, "provider")),
             attr_str(n, "url"),
         ),
-        "fileAttachment" => md_link(attr_str(n, "name"), attr_str(n, "url")),
+        "fileAttachment" => {
+            let meta = file_meta(n).join(", ");
+            let link = md_link(attr_str(n, "name"), attr_str(n, "url"));
+            if meta.is_empty() {
+                link
+            } else {
+                format!("{link} ({meta})")
+            }
+        }
         _ => md_children(cx, n, "\n\n"),
+    }
+}
+
+/// `PDF`, `2 KB`: a file block's type (extension) and size, for exports.
+pub fn file_meta(n: &Value) -> Vec<String> {
+    let name = attr_str(n, "name");
+    let mut out = Vec::new();
+    if let Some((_, ext)) = name.rsplit_once('.')
+        && !ext.is_empty()
+        && ext.len() <= 8
+        && ext.chars().all(|c| c.is_ascii_alphanumeric())
+    {
+        out.push(ext.to_ascii_uppercase());
+    }
+    let size = n["attrs"]["size"].as_f64().unwrap_or(0.0);
+    if size >= 1.0 {
+        out.push(if size < 1024.0 {
+            format!("{size:.0} B")
+        } else if size < 1024.0 * 1024.0 {
+            format!("{:.0} KB", size / 1024.0)
+        } else {
+            format!("{:.1} MB", size / 1024.0 / 1024.0)
+        });
+    }
+    out
+}
+
+/// `card` or `preview` (docs/15 §4): absent means preview for PDFs, card otherwise.
+pub fn file_display(n: &Value) -> &'static str {
+    match attr_str(n, "display") {
+        "card" => "card",
+        "preview" => "preview",
+        _ if attr_str(n, "mime") == "application/pdf"
+            || attr_str(n, "name").to_ascii_lowercase().ends_with(".pdf") =>
+        {
+            "preview"
+        }
+        _ => "card",
     }
 }
 
@@ -624,10 +670,14 @@ fn html_block(cx: &Cx, n: &Value) -> String {
                 escape(label)
             )
         }
+        // FILE-01: a card (link + type + size). `display` records how the canvas showed it; an
+        // embedded viewer is never exported.
         "fileAttachment" => format!(
-            "<p><a href=\"{}\">{}</a></p>",
+            "<p class=\"oc-file\" data-display=\"{}\"><a href=\"{}\">{}</a> <span class=\"oc-file-meta\">{}</span></p>",
+            file_display(n),
             safe_url(attr_str(n, "url")),
-            escape(attr_str(n, "name"))
+            escape(attr_str(n, "name")),
+            escape(&file_meta(n).join(" · "))
         ),
         "columns" => format!("<div class=\"columns\">{}</div>", html_children(cx, n)),
         "column" => format!("<div class=\"column\">{}</div>", html_children(cx, n)),
@@ -637,6 +687,32 @@ fn html_block(cx: &Cx, n: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// FILE-01: a file block exports as a card (name, type, size, how it was shown), never
+    /// as an embedded viewer; Markdown keeps a plain link with the type and size.
+    #[test]
+    fn file_blocks_export_as_cards() {
+        let doc = json!({"content": [
+            {"type": "fileAttachment", "attrs": {"url": "https://files.example/a.pdf", "name": "Brief <v2>.pdf",
+                "mime": "application/pdf", "size": 2048, "display": "preview", "height": 640}},
+            {"type": "fileAttachment", "attrs": {"url": "https://files.example/n.txt", "name": "notes.txt", "mime": "text/plain", "size": 0}}
+        ]});
+        let html = to_html(&doc);
+        assert!(
+            html.contains("<p class=\"oc-file\" data-display=\"preview\"><a href=\"https://files.example/a.pdf\">Brief &lt;v2&gt;.pdf</a> <span class=\"oc-file-meta\">PDF · 2 KB</span></p>"),
+            "{html}"
+        );
+        assert!(html.contains("<p class=\"oc-file\" data-display=\"card\"><a href=\"https://files.example/n.txt\">notes.txt</a> <span class=\"oc-file-meta\">TXT</span></p>"), "{html}");
+        let md = to_markdown(&doc);
+        assert!(
+            md.contains("[Brief \\<v2>.pdf](https://files.example/a.pdf) (PDF, 2 KB)"),
+            "{md}"
+        );
+        assert!(
+            md.contains("[notes.txt](https://files.example/n.txt) (TXT)"),
+            "{md}"
+        );
+    }
 
     /// SEC-15: Markdown output is rendered by hosts. Script URLs must not become links and raw
     /// HTML in text must not become markup.
