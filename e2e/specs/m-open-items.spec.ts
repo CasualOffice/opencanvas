@@ -3,7 +3,70 @@
 //    links inside a host.
 import { expect, test } from "@playwright/test";
 import { OC } from "../env";
-import { applyTemplate, createFile, editor, person } from "../helpers";
+import fs from "node:fs";
+import path from "node:path";
+import { applyTemplate, createFile, editor, person, sharedFile, typeAfterHeading } from "../helpers";
+
+/** The sample host's stored mention notifications for a file (its meta.json). */
+function hostMentions(fileId: string): { by: string; mentioned: string[]; blockId: string | null; threadId: string | null; excerpt: string }[] {
+  const meta = JSON.parse(fs.readFileSync(path.join(process.env.E2E_TMP!, "host", "meta.json"), "utf8"));
+  return meta.mentions?.[fileId] ?? [];
+}
+
+test("@mentions reach the host once; host block links and Show in canvas scroll to the block", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const { priya, sam, fileId } = await sharedFile(browser, { name: "E2E m · mentions", samRole: "edit" });
+  await typeAfterHeading(priya, "Notes", "Review with @Sam");
+  await expect(priya.oc.locator(".pop").filter({ hasText: "People" }).getByRole("option", { name: /Sam Ortiz/ })).toBeVisible();
+  await priya.page.keyboard.press("Enter");
+  await priya.page.keyboard.type("before Friday");
+  await expect.poll(() => hostMentions(fileId).length, { timeout: 10_000 }).toBe(1);
+  const [m] = hostMentions(fileId);
+  expect(m).toMatchObject({ by: "u_priya", mentioned: ["u_sam"], threadId: null });
+  expect(m.blockId).toMatch(/^b_[0-9a-z]{26}$/);
+  expect(m.excerpt).toContain("Review with @Sam Ortiz");
+  // More typing in the same block is not a new notification.
+  await priya.page.keyboard.type(" please");
+  await priya.page.waitForTimeout(1500);
+  expect(hostMentions(fileId)).toHaveLength(1);
+
+  // A comment mention: one more call, with the thread.
+  await editor(sam).locator("p", { hasText: "Review with" }).selectText();
+  await sam.oc.getByRole("button", { name: "Comment", exact: true }).first().click();
+  const box = sam.oc.getByRole("combobox").first();
+  await box.pressSequentially("Agreed @Pri");
+  await sam.oc.getByRole("listbox", { name: "People" }).getByRole("option", { name: "Priya Shah" }).click();
+  await box.press("Enter");
+  await expect.poll(() => hostMentions(fileId).length, { timeout: 10_000 }).toBe(2);
+  expect(hostMentions(fileId)[0]).toMatchObject({ by: "u_sam", mentioned: ["u_priya"], blockId: null });
+  expect(hostMentions(fileId)[0].threadId).toMatch(/^t_/);
+
+  // The host lists them; "Show in canvas" scrolls to the block and flashes it.
+  await priya.page.getByRole("button", { name: /^Mentions/ }).click();
+  const panel = priya.page.getByRole("region", { name: "Mentions" });
+  await expect(panel.locator("li")).toHaveCount(2, { timeout: 5_000 });
+  await editor(priya).evaluate((el) => el.closest(".scroll")?.scrollTo({ top: 99999 }));
+  await panel.getByRole("button", { name: "Show in canvas" }).click();
+  const block = editor(priya).locator(`[data-block-id="${m.blockId}"]`);
+  await expect(block).toHaveClass(/flash/);
+  await expect(block).toBeInViewport();
+
+  // "Copy link to block": the host builds its own URL; opening it lands on the block.
+  await priya.page.keyboard.press("Escape");
+  await block.click();
+  await priya.page.keyboard.press("ControlOrMeta+/");
+  await priya.oc.getByRole("menuitem", { name: "Copy link to block" }).click();
+  await expect.poll(() => priya.page.evaluate(() => document.body.dataset.blockLink ?? "")).toMatch(new RegExp(`/files/${fileId}#block=${m.blockId}$`));
+  const url = await priya.page.evaluate(() => document.body.dataset.blockLink!);
+  const reader = await priya.ctx.newPage();
+  await reader.goto(url);
+  const there = reader.frameLocator('iframe[name="oc"]').locator(`.ProseMirror [data-block-id="${m.blockId}"]`);
+  await expect(there).toHaveClass(/flash/, { timeout: 15_000 });
+  await expect(there).toBeInViewport();
+
+  await priya.ctx.close();
+  await sam.ctx.close();
+});
 
 test("a silent network drop shows Offline within 20 s, and the canvas recovers", async ({ browser }) => {
   test.setTimeout(90_000);
@@ -104,3 +167,35 @@ for (const width of [1440, 1100]) {
     await ctx.close();
   });
 }
+
+test("follow mode: a click or a long press on an avatar starts following", async ({ page }) => {
+  await page.goto(`${OC}/app/#demo&sim=quiet`);
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // Someone with a caret in the text (the demo's collaborators).
+  const peer = page.locator(".avs .av[aria-pressed]").first();
+  await expect(peer).toBeVisible();
+  const name = (await peer.getAttribute("aria-label"))!.replace(/^Follow /, "");
+  await peer.click();
+  await expect(peer).toHaveAttribute("aria-pressed", "true");
+  await expect(peer).toHaveAttribute("aria-label", `Stop following ${name}`);
+  await peer.click();
+  await expect(peer).toHaveAttribute("aria-pressed", "false");
+  // Long press: starts following, and the release does not toggle it off again.
+  const b = (await peer.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await expect(peer).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  await expect(peer).toHaveAttribute("aria-pressed", "true");
+  // A second long press keeps following (it never stops it).
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await expect(peer).toHaveAttribute("aria-pressed", "true");
+  // Scrolling the canvas stops following.
+  await page.mouse.move(640, 500);
+  await page.mouse.wheel(0, 300);
+  await expect(peer).toHaveAttribute("aria-pressed", "false");
+});

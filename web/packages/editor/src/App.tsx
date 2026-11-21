@@ -4,6 +4,7 @@ import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import type { BlockEnv, OcUser, Role } from "@opencanvas/ui";
 import { Ic, loadExtraIcons } from "./icons";
 import { CanvasEditor } from "./editor/CanvasEditor";
+import { flashBlock } from "./editor/blockId";
 import { loadDatabase } from "./editor/blockdata";
 import type { TB } from "./editor/content";
 import type { EmptyAction } from "./editor/CanvasEditor";
@@ -408,15 +409,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   }, [editor, doc]);
 
   // ---------- deep links to a block: `#...&block=b_...` or the host's Action_ScrollToBlock ----------
-  const scrollToBlock = useCallback((id: string) => {
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
-    if (!el) return toast("That block isn't in this canvas any more", { icon: "link" });
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.classList.remove("flash");
-    void el.offsetWidth;
-    el.classList.add("flash");
-    window.setTimeout(() => el.classList.remove("flash"), 1800);
-  }, []);
+  const scrollToBlock = useCallback(
+    (id: string) => {
+      if (!editor || !flashBlock(editor, id)) toast("That block isn't in this canvas any more", { icon: "link" });
+    },
+    [editor],
+  );
   useEffect(() => {
     if (!editor) return;
     const id = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("block");
@@ -583,9 +581,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
 
   // ---------- follow mode ----------
   const follow = useCallback(
-    (p: Peer) => {
+    (p: Peer, start?: boolean) => {
       if (following === p.id) {
-        setFollowing(null);
+        if (!start) setFollowing(null);
         return;
       }
       const target = scrollRef.current?.querySelector(`.collaboration-carets__caret[data-uid="${CSS.escape(p.id)}"]`);

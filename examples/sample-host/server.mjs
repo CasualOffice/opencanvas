@@ -280,7 +280,7 @@ function openFile(res, me, id) {
     console.log('[opencanvas]', MessageId, Values);
     if (MessageId === 'App_LoadingStatus' && Values.Status === 'Frame_Ready') post('Host_PostmessageReady');
     // "Copy link to block": we own the URLs, so we build the link (docs/05 §4).
-    if (MessageId === 'UI_BlockLink' && Values.fileId === FILE && /^[\w-]{1,64}$/.test(Values.blockId || '')) {
+    if (MessageId === 'UI_BlockLink' && Values.fileId === FILE && /^[A-Za-z0-9_-]{1,64}$/.test(Values.blockId || '')) {
       const url = location.origin + '/files/' + FILE + '#block=' + Values.blockId;
       navigator.clipboard?.writeText(url).catch(() => {});
       document.body.dataset.blockLink = url;

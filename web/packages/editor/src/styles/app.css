@@ -717,3 +717,6 @@ button.cic:hover{transform:scale(1.06)}
 .datepick .dquick{display:flex;gap:6px;flex-wrap:wrap}
 .datepick .dfoot{display:flex;justify-content:space-between;gap:8px}
 .mi .dateic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:none}
+
+/* UX-02: long press on an avatar follows (no callout or text selection on touch). */
+.avs .av{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}

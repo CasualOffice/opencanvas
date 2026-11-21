@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+const LONG_PRESS_MS = 450;
 import type { Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
 import type { Peer } from "../lib/presence";
@@ -33,7 +35,8 @@ export function TopBar(props: {
   canExport: boolean;
   canDownload: boolean;
   onGallery(): void;
-  onFollow(p: Peer): void;
+  /** Click toggles following; a long press (touch) always starts it. */
+  onFollow(p: Peer, start?: boolean): void;
   onComments(): void;
   onWide(): void;
   onExport(fmt: ExportFormat): void;
@@ -42,6 +45,7 @@ export function TopBar(props: {
   onShortcuts(): void;
 }) {
   const { compact } = useShell();
+  const pressed = useRef<{ id: number; fired: boolean } | null>(null);
   const [pop, setPop] = useState<{ kind: "status" | "more" | "people"; anchor: Anchor } | null>(null);
   const open = (kind: "status" | "more" | "people") => (e: React.MouseEvent) =>
     setPop(pop?.kind === kind ? null : { kind, anchor: e.currentTarget as HTMLElement });
@@ -72,10 +76,29 @@ export function TopBar(props: {
             key={p.id}
             className={"av" + (props.following === p.id ? " following" : "")}
             style={{ background: p.color, color: readableOn(p.color) }}
-            title={p.me ? `${p.name} (you)` : p.role === "view" ? `${p.name} · viewing` : props.following === p.id ? `Following ${p.name} · click to stop` : `${p.name} · click to follow`}
+            title={p.me ? `${p.name} (you)` : props.following === p.id ? `Following ${p.name} · click to stop` : `${p.name}${p.role === "view" ? " · viewing" : ""} · click or press and hold to follow`}
             aria-label={peerLabel(p, props.following === p.id)}
             aria-pressed={p.me ? undefined : props.following === p.id}
-            onClick={() => !p.me && props.onFollow(p)}
+            onClick={() => {
+              if (p.me) return;
+              // The click that ends a long press must not stop what the press started.
+              if (pressed.current?.fired) return void (pressed.current = null);
+              props.onFollow(p);
+            }}
+            onPointerDown={(e) => {
+              if (p.me || e.button !== 0) return;
+              const id = window.setTimeout(() => {
+                if (!pressed.current) return;
+                pressed.current.fired = true;
+                navigator.vibrate?.(10);
+                props.onFollow(p, true);
+              }, LONG_PRESS_MS);
+              pressed.current = { id, fired: false };
+            }}
+            onPointerUp={() => pressed.current && !pressed.current.fired && (window.clearTimeout(pressed.current.id), (pressed.current = null))}
+            onPointerLeave={() => pressed.current && !pressed.current.fired && (window.clearTimeout(pressed.current.id), (pressed.current = null))}
+            onPointerCancel={() => pressed.current && (window.clearTimeout(pressed.current.id), (pressed.current = null))}
+            onContextMenu={(e) => !p.me && e.preventDefault()}
           >
             {p.avatar ? <img src={p.avatar} alt="" /> : <span aria-hidden="true">{initials(p.name)}</span>}
             {p.typing && !p.me ? <span className="dot" /> : null}
