@@ -257,8 +257,15 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
    its room closes with 1012 (docs/03 §5.2). Evidence: `tests/durability.rs`
    `epoch_1_writes_are_refused_once_epoch_2_owns_the_room` (run on SQLite and on MariaDB 10.11)
    and `stale_owner_stops_at_its_first_write_and_clients_get_1012`, both seen failing before
-   the fix. **K2 rerun: pending: Docker unavailable** (Docker Desktop stopped answering during
-   this work; `scripts/bench.sh K2` now also counts `fenced` and `WAL append failed` per node).
+   the fix. **K2 rerun 2026-11-22 (§11.1): PASS.** The stale node was fenced at its first write
+   within about 1 s of `SIGCONT`; 0 duplicate-key WAL errors, 0 `WALSEQ` refusals, 0 of 71,536
+   acknowledged edits lost, 20 rooms closed with 1012 and every client back within 288 ms. Same
+   result with node 2 in Docker under `docker pause` and under a network partition (KD, 0 of
+   81,754 lost). Caveat: with `REDIS_URL` set the hot WAL is always in Redis (`OC_WAL_REDIS_URL`
+   defaults to it and an empty value falls back), so in cluster mode the MariaDB WAL guard
+   (`INSERT … SELECT … WHERE epoch = ?`) is not exercised: `room_updates` held 0 rows in every
+   cluster run. The fencing that worked here is the Redis `APPEND` script's epoch check plus the
+   guarded outbox/snapshot writes in MariaDB.
 4. **A failed WAL append still acknowledges the update.** `Room::accepted` logs `WAL append failed`
    and fans the update out anyway (`crates/oc-server/src/room/actor.rs`, `accepted`). Peers see the
    edit, but it is not durable until the next compaction or save. In K2 this lasted 25 s for 20
@@ -268,6 +275,9 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
    patch calls get 503 `ROOM_UNAVAILABLE`. Evidence: `tests/durability.rs`
    `failed_wal_append_is_not_fanned_out` (the WAL table is renamed away mid-session; the peer
    never sees the edit, the sender resends it after reconnecting), seen failing before the fix.
+   **Seen under chaos 2026-11-22 (§11.1):** in the KD partition 53 Redis appends failed and every
+   one closed its room (`storage error`) instead of fanning out; 0 of 81,754 acknowledged edits
+   lost. In K, 60 appends failed while Redis restarted, same outcome.
 5. **MariaDB deadlocks (1213) are not retried.** After a restart with many recovered rooms
    (mR) and during cluster chaos (K), these failed with `Deadlock found … try restarting
    transaction`: `compaction failed` (35), `writing the commit outbox failed`, `marking commit done
@@ -279,8 +289,18 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
    A save is no longer sent without its outbox row: the save fails loudly (`save not started`,
    `oc_save_errors_total`, `save_error` status) and retries with the save backoff. Evidence:
    `store::tests::transient_errors_are_retried_up_to_three_attempts` (seen failing) and
-   `deadlocks_and_lock_waits_are_transient`. **mR rerun (deadlock count): pending: Docker
-   unavailable**; `scripts/bench.sh mR` now prints deadlock errors left after retries and the
+   `deadlocks_and_lock_waits_are_transient`. **mR rerun 2026-11-22 (§10.1): data PASS, deadlocks
+   not fully gone.** Two runs, 0 acknowledged edits lost in both. Run 1: 86 retries, **9
+   `compaction failed` with 1213 after all 3 attempts** (all within 50 ms, 30 s after restart, when
+   200 recovered rooms compact together); run 2: 62 retries, 0 left. Compaction runs again on its
+   next interval, so nothing was lost, but the retry budget is not enough for that burst. The
+   InnoDB deadlocks captured in run 2 are all insert-intention waits on gap locks: `INSERT INTO
+   rooms`, `INSERT INTO room_epochs`, `INSERT INTO room_snapshots` (compaction deletes then
+   inserts) and `INSERT INTO commit_outbox` (index `ix_outbox_status`). Likely fixes, not tried:
+   upserts (`INSERT … ON DUPLICATE KEY UPDATE`) instead of delete-then-insert or
+   check-then-insert, more attempts for compaction, or `READ COMMITTED` for these transactions.
+   Repro: `scripts/bench.sh mR`, then `grep '"level":"ERROR"' server-*.restart.log | grep -c
+   Deadlock`. `scripts/bench.sh mR` prints deadlock errors left after retries and the
    number of retries. The missing WAL latency metric is added: `oc_wal_append_seconds`
    (histogram, docs/13; `wal_append_latency_is_a_histogram`).
 6. **MariaDB runs are sensitive to the database's own state.** The same 1-node load gave p95
@@ -296,7 +316,11 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
    **FIXED 2026-11-22.** While draining, `GET /v1/collab/:room` answers HTTP 503 with
    `Retry-After: 5` before the upgrade (and `/readyz` is 503). Evidence: `tests/http.rs`
    `draining_node_refuses_websocket_upgrades_with_503`, seen failing before the fix (the
-   upgrade was accepted). Not rerun under K (pending: Docker unavailable).
+   upgrade was accepted). **K rerun 2026-11-22 (§11.1): PASS.** During the rolling restart the
+   verified clients got **211 HTTP 503** refusals (178 from bench-1, 33 from bench-2, 0 from
+   bench-3) and **0 accepted-then-closed** upgrades (`join failed: server is draining`: 0; it was
+   8,760 before the fix). Another 175 connects were refused at TCP level while a node was down
+   between stop and start.
 8. **Three nodes held less load than one on this laptop (T).** With a room's clients spread
    over the nodes, 3 nodes hit p95 9.8 s at 5,000 connections, where 1 node held p95 8.9 ms. The
    same thing happened in two separate runs. It is not CPU-bound and not root-caused (§12).
@@ -317,9 +341,14 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
 | R (§9.3) | `kill -9` with the Redis WAL (SQLite; Redis `kill -9` + restart first; MariaDB) | 0 acked lost | **PASS**: 0 / 38,305; 0 / 38,213; 0 / 38,302 |
 | R | `kill -9` during typing, 200 rooms × 2, SQLite | 0 acked lost; converge; server = clients; first save after restart complete | **PASS**: 0 / 38,756 lost; ready in 28 ms; 200 rooms replayed in 234 ms |
 | mR | same on MariaDB | same | **PASS** (0 / 35,196 lost; replay 2.2 s); 38 deadlock errors logged |
+| mR rerun (§10.1) | same, with deadlock retries | same; deadlock errors left after retries = 0 | data **PASS** (0 / 38,408 and 0 / 38,004 lost); deadlocks **FAIL** in 1 of 2 runs (9 compactions failed after 3 attempts; 86 and 62 retries) |
 | K | 3 nodes under load: `kill -9` owner, rolling restart | 0 acked lost; converge; no two writers | **PASS**: 0 / 93,374 lost, resync max 20.5 s |
 | K2 | Redis killed (keys lost) | same | **PASS**: 0 lost, resync max 2.4 s, no two writers |
 | K2 | one node frozen 20 s | same | **FAIL**: two writers on 20 rooms (2,525 duplicate-key WAL errors); 0 / 68,389 acked lost |
+| K2 rerun (§11.1) | one node frozen 20 s, fencing epochs, Redis WAL with AOF | same, plus stale node's clients get 1012 | **PASS**: fenced at first write; 0 duplicate / `WALSEQ`; 0 / 71,536 lost; resync max 288 ms |
+| K2 rerun, original config | Redis `docker kill` (no AOF), then frozen node | same | **PASS**: 0 / 70,308 lost; 0 duplicate / `WALSEQ`; Redis loss fences every room (all reconnect, resync max 2.5 s) |
+| KD (§11.1) | node 2 in Docker: `docker pause` 20 s, then network partition 25 s | same | **PASS**: 0 / 81,754 lost; 0 duplicate / `WALSEQ`; resync max 208 ms |
+| K rerun (§11.1) | owner `kill -9`, rolling restart, Redis kill (AOF), pause; Redis WAL | same; draining refusals are 503 | **PASS**: 0 / 105,123 lost; resync p50 0.4 / p95 0.9 / max 5.4 s; 211 × 503, 0 accepted-then-closed |
 | T | 1 node vs 3 nodes, rooms spread over nodes, host 20–50 ms | most connections / updates/s at p95 ≤ 150 ms | 1 node: 5,000 / 3,000 per s; 3 nodes: 2,500 / 1,460 per s (failed at 5,000). Relay: p95 +1.2 ms, CPU +35 %, RSS +62 % |
 
 ## 9. Sustained editing at the cap
@@ -579,6 +608,29 @@ restart holds every edit acknowledged before the kill; the latest host file hold
 | server errors after restart | 0 | **38** (InnoDB deadlocks, see weaknesses) |
 | **Result** | **PASS** | **PASS** (data); deadlock errors logged |
 
+### 10.1 mR rerun with fencing and deadlock retries (2026-11-22)
+
+Branch `chaos-rerun-fencing` off main `6d59084`, release build, MariaDB 10.11 in Docker, no Redis.
+`scripts/bench.sh mR` twice (the second with an InnoDB status poller saving each new `LATEST
+DETECTED DEADLOCK`).
+
+| | run 1 | run 2 |
+|---|---|---|
+| edits sent before the kill / acknowledged | 38,509 / 38,408 | 38,133 / 38,004 |
+| acknowledged before the kill, missing after restart | **0** | **0** |
+| process start → `/readyz`; 200 rooms reopened | 83 ms; 2,359 ms | 164 ms; 1,419 ms |
+| first host save after restart: missing pre-kill acked edits | 0 (p50 1.6 s, max 2.4 s) | 0 (p50 1.0 s, max 1.6 s) |
+| client resync p50 / max | 4.4 / 6.1 s | 3.1 / 3.2 s |
+| total edits / missing from server at end; rooms converged | 63,228 / 0; 200 | 64,905 / 0; 200 |
+| transient retries (op × attempt) | compaction 35 + 27, outbox write 14, outbox mark done 10 | compaction 31 + 10, outbox write 21 |
+| deadlock errors left after 3 attempts | **9** (`compaction failed`) | **0** |
+| **Result** | data **PASS**; deadlocks **FAIL** | **PASS** |
+
+Run 1 also logged 9 `compaction failed … expected to read 4 bytes, got 0 bytes at EOF` at the
+very end: the harness's `stop_server` cannot `wait` for the restarted server (it is not the
+script's child), so the MariaDB container was removed while the server was still shutting down.
+That is a harness artifact, not a server fault.
+
 Notes: resync gap includes the 1 s the harness waits after the kill and the restart + viewer
 check, so it is an upper bound on what a browser would see. On MariaDB 9 % of edits were not yet
 acknowledged at the kill (35,196 of 38,556): WAL appends are slower than on SQLite, so fan-out lags
@@ -646,6 +698,72 @@ Failover time: clients were back on a working node within p50 5.3 s, max 20.5 s 
 kill and the rolling restart (K); for a frozen node the floor is the clients' own 15 s silence
 timeout plus the lease TTL.
 
+### 11.1 Rerun with fencing epochs, the Redis hot WAL and draining 503 (2026-11-22)
+
+Branch `chaos-rerun-fencing` off main `6d59084` (fencing epochs, ADR-028 Redis hot WAL with
+periodic DB sync, deadlock retries, 503 while draining). Release build, same laptop, MariaDB 10.11
+and Redis 7 in Docker, ports 89xx. Same load and verified clients as above. In cluster mode the
+hot WAL is in Redis (`REDIS_URL` turns it on), so the WAL rows live in Redis streams and
+MariaDB gets snapshots and outbox rows; `room_updates` stayed empty in every run. **Two writers**
+would show as `Duplicate entry` (DB WAL), `WALSEQ` (a Redis append whose seq is not above the
+stream's last entry) or a non-fenced WAL failure on the new owner; the stale owner's refused
+writes show as `a newer owner holds the room`. Redis ran with `--appendonly yes --appendfsync
+always` (the documented setting for the hot WAL) except where noted.
+
+| run | events | lost acked | converged / server = clients / host file | resync p50 / p95 / max | duplicate / `WALSEQ` | result |
+|---|---|---|---|---|---|---|
+| K2 | bench-2 (121 rooms) `SIGSTOP` 20 s, `SIGCONT` | 0 of 71,536 | 60 / 60 / complete | 118 / 174 / 288 ms | 0 / 0 | **PASS** |
+| K2, original config | Redis `docker kill` + start without AOF; then the same pause | 0 of 70,308 | 60 / 60 / complete | 136 / 151 / 2,538 ms | 0 / 0 | **PASS** |
+| KD | node 2 in Docker: `docker pause` 20 s (95 rooms), then partition 25 s (90 rooms) | 0 of 81,754 | 60 / 60 / complete | 103 / 137 / 208 ms | 0 / 0 | **PASS** |
+| K | `kill -9` bench-3 (restart after 5 s), rolling restart, Redis kill (AOF kept 582 keys), bench-2 pause 20 s | 0 of 105,123 | 60 / 60 / complete | 392 / 861 / 5,371 ms (707 reconnects) | 0 / 0 | **PASS** |
+
+**K2, frozen node.** bench-2 resumed and its first writes were refused: 46 `a newer owner holds
+the room; this node stops writing` and 19 outbox writes refused (`save not started … a newer
+owner holds the room (stale epoch)`) between 0 and 1 s after `SIGCONT`, then 20 rooms closed with
+`room moved`. Its relayed clients got **1012** (40 closes `Restart`, all reconnected); its 60
+direct clients had already left after 15 s of silence. No node logged a takeover (leases
+expired normally), and the other nodes logged no WAL failure. Redis epoch keys were never lower
+than `room_epochs`. Before the fix this run gave 2,525 duplicate-key errors.
+
+**K2 in the original configuration (Redis without AOF).** `docker kill` lost every Redis key,
+including the mirrored fencing epochs (`oc:epoch:{room}`). The next append of every room on
+every node was refused as fenced (105 / 192 / 124 fenced log lines on bench-1/2/3) and those rooms
+closed with 1012 (`room moved`, 245 client closes) and reloaded from MariaDB; clients resent
+what was missing. That is safe (no writer without a valid epoch) but heavy: a Redis restart
+without persistence reconnects every client of the cluster. Edits acknowledged since the last
+DB sync (≤ 5 s) existed only in the clients in that window; a client that left in it would have
+lost them. The server already warns at start (`WAL Redis has appendonly=no`).
+
+**KD, container freeze and partition.** Node 2 ran in Docker (`NODE2_IMAGE`, the `server`
+stage of `deploy/Dockerfile`); its network namespace belonged to a socat container forwarding
+`127.0.0.1:<port>` to the host for Redis, MariaDB, the other nodes and the mock hosts.
+`docker pause` of node 2 behaved like `SIGSTOP` (60 direct clients silent, fenced on resume).
+For the partition the forwarder was paused: node 2 kept running and kept answering on its own
+port but could not reach Redis, the DB, the other nodes or the host. Its Redis appends hit the
+5 s response timeout (55 `slow Redis WAL append` at 4.0–5.0 s, 53 `WAL append failed`); 75 rooms closed with
+`storage error` without fanning the update out; DB work failed with pool timeouts (41 compaction,
+22 outbox, 22 `marking room dirty failed`). No edit was acknowledged without a durable append
+and no other node saw a conflicting write. The partition was one-way (others could still reach
+node 2's port); a symmetric partition was not built.
+
+**K, owner kill, rolling restart, Redis kill, with the Redis WAL.** 22 takeovers after the
+`kill -9` (12 on bench-1, 10 on bench-2). While Redis restarted (`BusyLoading`), 60 appends failed
+and those rooms closed with `storage error` and resynced; one room load failed mirroring its epoch
+and was retried. The pause fenced 58 writes on bench-2. Deadlocks: 13 retries, 0 left. Draining:
+211 × HTTP 503, 0 accepted-then-closed (weakness 7). Resync times are for the whole run (the
+harness does not split them per event); the 5.4 s maximum fell in the rolling restart. `room
+full` (weakness 9) did not recur (0 lines).
+
+**Found, not fixed (server source unchanged):**
+
+- **MariaDB WAL fencing is unreachable in cluster mode.** `OC_WAL_REDIS_URL` falls back to
+  `REDIS_URL`, and an empty value is ignored, so a cluster cannot run with the WAL in MariaDB.
+  Either document that the DB WAL is single-node only, or add an explicit off switch so the
+  guarded MariaDB append can be chaos-tested.
+- **A refused (fenced) outbox write is logged at ERROR** (`save not started`), 19 per frozen node.
+  It is the expected outcome after losing a room; WARN would keep the error count meaningful.
+- **Compaction deadlocks can exhaust the retries** (weakness 5, §10.1).
+
 ## 12. Throughput: 1 node vs 3 nodes (`scripts/bench.sh T1,T3`)
 
 PERF-01 B's load (rooms of 5, 20 % editors with burst pauses, demo doc), 40 s per step, MariaDB in
@@ -690,6 +808,7 @@ scripts/bench.sh S2        # 1,000 rooms × 5, 100 % editors, no pauses, 10 buck
 scripts/bench.sh R,mR      # kill -9 during typing, restart, verify (SQLite, then MariaDB in Docker)
 scripts/bench.sh K         # 3 nodes under load: kill -9 the owner, rolling restart, Redis kill, pause
 scripts/bench.sh K2        # Redis kill and a 20 s SIGSTOP inside the verified window (repro for weakness 3-4)
+scripts/bench.sh KD        # node 2 in Docker (NODE2_IMAGE): docker pause 20 s, then a 25 s partition
 scripts/bench.sh T1,T3     # throughput: 1 node, then 3 nodes, each on a fresh MariaDB (host 20-50 ms)
 scripts/bench.sh T         # both halves back to back on one container (what §12 calls "reused")
 scripts/bench.sh S2m       # S2 on MariaDB for 3 minutes
@@ -714,7 +833,18 @@ Not run, or run short:
 - The pause was a `SIGSTOP` of a node process, not a network partition of a container: the nodes
   run as processes on the host, so `docker pause` was not available. A frozen process and a
   partitioned node look alike to the others (no answers), but a partitioned node keeps running and
-  would keep serving its own direct clients for longer. That case was not tested.
+  would keep serving its own direct clients for longer. That case was not tested. **Covered
+  2026-11-22 by `scripts/bench.sh KD`** (§11.1): `docker pause` of a containerised node and a
+  one-way partition (outbound blocked, its own port still served). A symmetric partition was
+  not built (Docker Desktop on macOS has no host networking here).
+- Reruns of 2026-11-22 (§10.1, §11.1): `scripts/bench.sh mR`; `REDIS_ARGS="--appendonly yes
+  --appendfsync always" K2_REDIS_KILL=0 scripts/bench.sh K2`; `scripts/bench.sh K2`;
+  `NODE2_IMAGE=<server image> REDIS_ARGS=… scripts/bench.sh KD`; `REDIS_ARGS=… scripts/bench.sh K`.
+  With ports moved off the defaults: `OC_PORT=8901 HOST_PORT=8902 MARIA_PORT=8933
+  REDIS_PORT=8934 NODE_BASE=8910 HOST2_PORT=8942 HOST3_PORT=8952 CPFX=oc-k2`. `OC_BIN` / `OC_LG`
+  run prebuilt binaries without `cargo build`; `WORK` keeps node logs. The lease watch and the
+  owner lookups now read all leases in one Redis call (one `docker exec` per key took about 18 s
+  for 360 keys, which had delayed the events and made the "1 s" lease watch far slower).
 - The sample host (`examples/sample-host`) was not used for T. The mock host in the load generator
   answered over real HTTP with 20-50 ms added latency.
 - Everything ran on one laptop: the three nodes, MariaDB, Redis and the load generator shared 10

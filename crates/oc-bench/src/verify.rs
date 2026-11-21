@@ -138,7 +138,17 @@ async fn client(
         .await
         {
             Ok(Ok((ws, _))) => ws,
-            _ => {
+            r => {
+                // Count refusals by kind (a draining node answers HTTP 503 before the upgrade).
+                let why = match r {
+                    Ok(Err(tokio_tungstenite::tungstenite::Error::Http(resp))) => {
+                        format!("connect http {}", resp.status().as_u16())
+                    }
+                    Ok(Err(_)) => "connect error".to_string(),
+                    Err(_) => "connect timeout".to_string(),
+                    Ok(Ok(_)) => unreachable!(),
+                };
+                me.lock().unwrap().closes.push(why);
                 down_since.get_or_insert_with(Instant::now);
                 fails += 1;
                 // Like a load balancer: after two failures on a node, try the next one.
