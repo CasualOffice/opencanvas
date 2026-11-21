@@ -3,6 +3,7 @@
 mod actor;
 pub mod filter;
 pub mod mentions;
+pub mod presence;
 pub mod protocol;
 mod remote;
 
@@ -56,6 +57,8 @@ pub(crate) enum Cmd {
     Frame {
         conn: ConnId,
         data: Vec<u8>,
+        /// The inbox slot this frame holds (local rooms); freed once the room handled it.
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     },
     Info {
         reply: oneshot::Sender<RoomInfo>,
@@ -143,6 +146,7 @@ pub struct Ctx {
 struct Entry {
     generation: u64,
     tx: mpsc::UnboundedSender<Cmd>,
+    inbox: Arc<presence::Inbox>,
     abort: AbortHandle,
 }
 
@@ -153,7 +157,7 @@ pub struct NotOwner(pub String);
 
 /// Where a room's actor runs.
 enum Placement {
-    Local(mpsc::UnboundedSender<Cmd>),
+    Local(mpsc::UnboundedSender<Cmd>, Arc<presence::Inbox>),
     Remote(Owner),
 }
 
@@ -177,13 +181,43 @@ pub struct Rooms {
 pub struct Membership {
     pub conn: ConnId,
     tx: mpsc::UnboundedSender<Cmd>,
+    /// The local room's bounded inbox (`None`: relayed to the owner, which bounds it there).
+    inbox: Option<Arc<presence::Inbox>>,
 }
 
 impl Membership {
-    pub fn send(&self, data: Vec<u8>) {
+    /// Hands a client frame to the room. When the room's inbox is full, a Yjs update waits
+    /// for room (back-pressure on the client's socket; never dropped) and an awareness frame
+    /// replaces this connection's parked one instead (latest wins; docs/22 §8 weakness 1).
+    pub async fn send(&self, data: Vec<u8>) {
+        let permit = match &self.inbox {
+            None => None,
+            Some(inbox) if data.first() == Some(&protocol::MSG_AWARENESS) => {
+                match inbox.permits.clone().try_acquire_owned() {
+                    Ok(p) => Some(p),
+                    Err(_) => return inbox.park(self.conn, data),
+                }
+            }
+            Some(inbox) => inbox.permits.clone().acquire_owned().await.ok(),
+        };
+        self.push(data, permit);
+    }
+
+    /// Like [`send`](Self::send) but never waits: an update that finds the inbox full is
+    /// queued without a slot. For tests and tools, not for client sockets.
+    pub fn try_send(&self, data: Vec<u8>) {
+        let permit = self
+            .inbox
+            .as_ref()
+            .and_then(|i| i.permits.clone().try_acquire_owned().ok());
+        self.push(data, permit);
+    }
+
+    fn push(&self, data: Vec<u8>, permit: Option<tokio::sync::OwnedSemaphorePermit>) {
         let _ = self.tx.send(Cmd::Frame {
             conn: self.conn,
             data,
+            permit,
         });
     }
 }
@@ -225,12 +259,17 @@ impl Rooms {
         self.draining.load(Ordering::SeqCst)
     }
 
-    fn sender(&self, host: &Arc<HostConfig>, grant: &Grant) -> mpsc::UnboundedSender<Cmd> {
+    fn sender(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+    ) -> (mpsc::UnboundedSender<Cmd>, Arc<presence::Inbox>) {
         let mut map = self.map.lock().expect("rooms lock");
         if let Some(e) = map.get(&grant.room).filter(|e| !e.tx.is_closed()) {
-            return e.tx.clone();
+            return (e.tx.clone(), e.inbox.clone());
         }
         let (tx, rx) = mpsc::unbounded_channel();
+        let inbox = Arc::new(presence::Inbox::default());
         let generation = self.generation.fetch_add(1, Ordering::Relaxed);
         let task = tokio::spawn(actor::run(
             self.ctx.clone(),
@@ -238,18 +277,22 @@ impl Rooms {
             generation,
             host.clone(),
             grant.clone(),
-            tx.clone(),
-            rx,
+            actor::Channels {
+                self_tx: tx.clone(),
+                rx,
+                inbox: inbox.clone(),
+            },
         ));
         map.insert(
             grant.room.clone(),
             Entry {
                 generation,
                 tx: tx.clone(),
+                inbox: inbox.clone(),
                 abort: task.abort_handle(),
             },
         );
-        tx
+        (tx, inbox)
     }
 
     /// Finds (or becomes) the room's owner. Single node: always local. Cluster: the actor
@@ -265,11 +308,15 @@ impl Rooms {
             anyhow::bail!("server is draining");
         }
         let Some(c) = self.cluster() else {
-            return Ok(Placement::Local(self.sender(host, grant)));
+            let (tx, inbox) = self.sender(host, grant);
+            return Ok(Placement::Local(tx, inbox));
         };
         let _gate = c.leases.gate().await;
         match c.leases.claim(&grant.room).await? {
-            Claim::Mine => Ok(Placement::Local(self.sender(host, grant))),
+            Claim::Mine => {
+                let (tx, inbox) = self.sender(host, grant);
+                Ok(Placement::Local(tx, inbox))
+            }
             Claim::Held(o) if forward => Ok(Placement::Remote(o)),
             Claim::Held(_) => Err(NotOwner(grant.room.clone()).into()),
         }
@@ -312,7 +359,7 @@ impl Rooms {
         let mut last = String::from("room unavailable");
         while Instant::now() < deadline {
             match self.place(host, grant, forward).await {
-                Ok(Placement::Local(tx)) => {
+                Ok(Placement::Local(tx, _)) => {
                     local_tries += 1;
                     let (reply, rx) = oneshot::channel();
                     if tx.send(make(reply)).is_ok() {
@@ -446,10 +493,14 @@ impl Rooms {
         let mut local_tries = 0;
         while Instant::now() < deadline && local_tries < 3 {
             match self.place(host, &grant, forward).await {
-                Ok(Placement::Local(tx)) => {
+                Ok(Placement::Local(tx, inbox)) => {
                     local_tries += 1;
                     if self.join_local(&tx, conn, &grant, &out).await {
-                        return Ok(Membership { conn, tx });
+                        return Ok(Membership {
+                            conn,
+                            tx,
+                            inbox: Some(inbox),
+                        });
                     }
                 }
                 Ok(Placement::Remote(owner)) => {
@@ -467,7 +518,11 @@ impl Rooms {
                     match relay::connect(&c, &owner, &grant, out.clone(), on_end).await {
                         Ok(tx) => {
                             tracing::info!(room = %grant.room, owner = %owner.node, "relaying connection to the room owner");
-                            return Ok(Membership { conn, tx });
+                            return Ok(Membership {
+                                conn,
+                                tx,
+                                inbox: None,
+                            });
                         }
                         Err(e) => {
                             self.relays.lock().expect("relays lock").remove(&conn);
@@ -581,7 +636,10 @@ impl Rooms {
     /// Starts the room actor if it is not running (outbox sweeper). Cluster: only when this
     /// node owns or can claim the room; false when another node owns it.
     pub async fn open(&self, host: &Arc<HostConfig>, grant: &Grant) -> bool {
-        matches!(self.place(host, grant, true).await, Ok(Placement::Local(_)))
+        matches!(
+            self.place(host, grant, true).await,
+            Ok(Placement::Local(..))
+        )
     }
 
     /// Cluster: the lease is gone; the actor tells its clients to reconnect and stops.

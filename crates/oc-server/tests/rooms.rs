@@ -169,6 +169,70 @@ async fn awareness_user_is_stamped_from_the_grant() {
     assert_eq!(state_json["user"]["color"], "#123456");
 }
 
+fn presence(client: u64, clock: u32, cursor: u32) -> Vec<u8> {
+    let state = json!({"user": {"name": "spoof"}, "cursor": cursor}).to_string();
+    protocol::awareness(AwarenessUpdate {
+        clients: [(
+            ClientID::new(client),
+            AwarenessUpdateEntry {
+                clock,
+                json: Arc::from(state.as_str()),
+            },
+        )]
+        .into(),
+    })
+}
+
+/// docs/22 §8 weakness 1: a burst of awareness frames that queued while the room was busy is
+/// stamped once per frame and fanned out as one encoded frame, latest state per client.
+#[tokio::test]
+async fn queued_awareness_is_encoded_once_per_batch() {
+    use std::sync::atomic::Ordering;
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let mut peers = Vec::new();
+    for i in 0..20 {
+        let mut p = Peer::join(&state, grant(&format!("u_{i}"), Role::Edit)).await;
+        p.settle().await;
+        peers.push(p);
+    }
+    let before = state
+        .metrics
+        .awareness_broadcasts_total
+        .load(Ordering::Relaxed);
+    // Every peer sends three cursor moves before the room gets to run.
+    for clock in 1..=3 {
+        for (i, p) in peers.iter().enumerate() {
+            p.send(presence(1000 + i as u64, clock, clock * 10));
+        }
+    }
+    for p in &mut peers {
+        p.settle().await;
+    }
+    let sent = state
+        .metrics
+        .awareness_broadcasts_total
+        .load(Ordering::Relaxed)
+        - before;
+    assert_eq!(sent, 1, "60 queued frames went out as one shared frame");
+    let got = peers[0].awareness.last().expect("presence fanned out");
+    assert_eq!(got.clients.len(), 20);
+    for i in 0..20u64 {
+        let e = &got.clients[&ClientID::new(1000 + i)];
+        let s: Value = serde_json::from_str(&e.json).unwrap();
+        assert_eq!(
+            (e.clock, s["cursor"].as_u64()),
+            (3, Some(30)),
+            "latest wins"
+        );
+        assert_eq!(
+            s["user"]["id"],
+            format!("u_{i}"),
+            "stamped from the sender's grant"
+        );
+    }
+}
+
 #[tokio::test]
 async fn unsaved_edits_survive_a_crashed_room() {
     let (base, host) = mock_host().await;

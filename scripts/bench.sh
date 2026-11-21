@@ -38,7 +38,7 @@ NODE_BASE=${NODE_BASE:-8710}; HOST2_PORT=${HOST2_PORT:-8742}; HOST3_PORT=${HOST3
 # Docker container name prefix (set it to run next to another bench without clashing).
 CPFX=${CPFX:-ocbench}
 SECRET=bench-secret-0123456789abcdef0123456789
-BIN=target/release/opencanvas; LG=target/release/oc-bench
+TGT=${CARGO_TARGET_DIR:-target}; BIN=$TGT/release/opencanvas; LG=$TGT/release/oc-bench
 mkdir -p "$OUT"
 WORK=$(mktemp -d)
 PIDS=(); CONTAINERS=()
@@ -54,7 +54,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cargo build -q --release -p oc-server --bin opencanvas -p oc-bench || exit 1
+cargo build -q --release -p oc-server --bin opencanvas -p oc-bench --bin oc-bench || exit 1
 for port in "$OC_PORT" "$HOST_PORT"; do
   if nc -z 127.0.0.1 "$port" 2>/dev/null; then echo "port $port is in use (set OC_PORT / HOST_PORT)"; exit 1; fi
 done
@@ -273,7 +273,7 @@ scenario() {
       echo "# unix wal_rows wal_bytes snapshots snapshot_bytes db_bytes db_wal_bytes" > "$OUT/S1-wal.txt"
       wal_watch "$WORK/S1.db" "$OUT/S1-wal.raw"
       lg S1-sustained-550 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 550 --editors 1.0 --no-pauses \
-        --probes 10 --doc demo --steps 550,550,550,550,550,550,550,550,550,550 --step-secs 55 --settle-secs 5 \
+        --probes 10 --doc demo --steps ${S1_STEPS:-550,550,550,550,550,550,550,550,550,550} --step-secs 55 --settle-secs 5 \
         --connect-rate 100 --sqlite "$WORK/S1.db"
       cat "$OUT/S1-wal.raw" >> "$OUT/S1-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S1-sustained-550.md"
       stop_server "$SERVER_PID" ;;
@@ -282,7 +282,7 @@ scenario() {
       echo "# unix wal_rows wal_bytes snapshots snapshot_bytes db_bytes db_wal_bytes" > "$OUT/S2-wal.txt"
       wal_watch "$WORK/S2.db" "$OUT/S2-wal.raw"
       lg S2-sustained-1000x5 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 5 --editors 1.0 --no-pauses \
-        --probes 5 --doc demo --steps 5000,5000,5000,5000,5000,5000,5000,5000,5000,5000 --step-secs 55 --settle-secs 5 \
+        --probes 5 --doc demo --steps ${S2_STEPS:-5000,5000,5000,5000,5000,5000,5000,5000,5000,5000} --step-secs 55 --settle-secs 5 \
         --connect-rate 250 --sqlite "$WORK/S2.db"
       cat "$OUT/S2-wal.raw" >> "$OUT/S2-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S2-sustained-1000x5.md"
       stop_server "$SERVER_PID" ;;

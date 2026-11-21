@@ -431,7 +431,7 @@ impl Peer {
     }
 
     pub fn send(&self, frame: Vec<u8>) {
-        self.membership.as_ref().unwrap().send(frame);
+        self.membership.as_ref().unwrap().try_send(frame);
     }
 
     fn on_frame(&mut self, data: &[u8]) {

@@ -88,7 +88,7 @@ async fn pump(socket: WebSocket, membership: Membership, rx: mpsc::UnboundedRece
     loop {
         tokio::select! {
             msg = stream.next() => match msg {
-                Some(Ok(Message::Binary(b))) => membership.send(b.to_vec()),
+                Some(Ok(Message::Binary(b))) => membership.send(b.to_vec()).await,
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                 Some(Ok(_)) => {}
             },

@@ -55,6 +55,10 @@ pub struct Metrics {
     pub save_conflicts_total: AtomicI64,
     /// Time of one WAL append (including retries after a deadlock), success or not.
     pub wal_append_seconds: Histogram,
+    /// Awareness frames encoded and fanned out (one per batch, shared by every peer).
+    pub awareness_broadcasts_total: AtomicI64,
+    /// Awareness frames parked because a room's inbox was full (latest per connection kept).
+    pub awareness_coalesced_total: AtomicI64,
 }
 
 impl Metrics {
@@ -67,7 +71,7 @@ impl Metrics {
     }
 
     pub fn render(&self) -> String {
-        let rows: [(&str, &str, &AtomicI64); 9] = [
+        let rows: [(&str, &str, &AtomicI64); 11] = [
             ("oc_rooms_active", "gauge", &self.rooms_active),
             ("oc_connections_active", "gauge", &self.connections_active),
             ("oc_launches_total", "counter", &self.launches_total),
@@ -88,6 +92,16 @@ impl Metrics {
                 "oc_save_conflicts_total",
                 "counter",
                 &self.save_conflicts_total,
+            ),
+            (
+                "oc_awareness_broadcasts_total",
+                "counter",
+                &self.awareness_broadcasts_total,
+            ),
+            (
+                "oc_awareness_coalesced_total",
+                "counter",
+                &self.awareness_coalesced_total,
             ),
         ];
         let mut out: String = rows
