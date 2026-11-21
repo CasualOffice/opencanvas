@@ -40,8 +40,8 @@ pub struct AppState {
     pub jwks: jwt::Jwks,
     /// First `GET /v1/sessions` per ticket, for the 60 s WebSocket connect window.
     pub tickets: Mutex<HashMap<String, TicketUse>>,
-    /// Per-viewer people answers (docs/21): resolve and search caches.
-    pub directory: Arc<people::Directory>,
+    /// Members callback answers per room (docs/21 revision 2).
+    pub members: Arc<people::Members>,
 }
 
 #[derive(Clone, Copy)]
@@ -57,13 +57,12 @@ impl AppState {
         let store = Store::connect(&cfg.database_url, cfg.kek.clone()).await?;
         let metrics = Arc::new(Metrics::default());
         let host = HostClient::new().with_store(store.clone());
-        let directory = Arc::new(people::Directory::default());
+        let members = Arc::new(people::Members::default());
         let rooms = Rooms::new(Arc::new(Ctx {
             store: store.clone(),
             host: host.clone(),
             cfg: cfg.rooms.clone(),
             metrics: metrics.clone(),
-            directory: directory.clone(),
         }));
         Ok(Arc::new(Self {
             cfg,
@@ -74,7 +73,7 @@ impl AppState {
             metrics,
             jwks: jwt::Jwks::new(),
             tickets: Mutex::default(),
-            directory,
+            members,
         }))
     }
 }
@@ -129,7 +128,7 @@ impl AppState {
                 },
                 perms: grant::Perms::default(),
                 callback_token: row.token.clone(),
-                participants: vec![],
+                members: vec![],
             };
             if !self.rooms.open(&host, &grant).await {
                 continue;

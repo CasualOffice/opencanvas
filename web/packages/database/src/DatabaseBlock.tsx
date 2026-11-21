@@ -125,8 +125,8 @@ function usePeople(env: BlockEnv, db: DbSnapshot | null): People {
     const referenced = new Set(demoKey.split(","));
     for (const d of DEMO_PEOPLE) if (!byId.has(d.id) && referenced.has(d.id)) byId.set(d.id, d);
     const pickable = [...byId.values()];
-    // docs/21: any id renders as this viewer sees it (resolve > token > snapshot) when the
-    // editor offers it, so former members and hidden people show correctly too.
+    // docs/21: any id renders with its current member name when the
+    // editor offers it, so people who lost access show their snapshot label.
     const person = env.person;
     const resolve = (id: unknown): OcUser | null => {
       if (!id) return null;
@@ -167,9 +167,9 @@ function Value({ f, v, people, peek, q }: { f: DbField; v: CellValue | undefined
       const u = people.resolve(v);
       // `data-person-id`: the editor's hover card (name, second line, avatar) on hover/focus.
       return u ? (
-        <span className={"ocdb-person" + (u.deactivated ? " former" : "")} data-person-id={u.relation === "hidden" ? undefined : u.id}>
+        <span className={"ocdb-person" + (u.deactivated ? " former" : "")} data-person-id={u.id}>
           <Avatar u={u} />
-          <span aria-label={u.deactivated ? `${u.name}, former member` : undefined}><Hl text={u.name} q={q} /></span>
+          <span aria-label={u.deactivated ? `${u.name}, no longer has access` : undefined}><Hl text={u.name} q={q} /></span>
         </span>
       ) : empty;
     }
@@ -1465,7 +1465,7 @@ function cardMeta(ctx: Ctx, r: DbRow, skip?: string): ReactNode[] {
       const v = r.v[f.id];
       if (f.type === "person") {
         const u = people.resolve(v);
-        return u ? <span key={f.id} className={"ocdb-person" + (u.deactivated ? " former" : "")} data-person-id={u.relation === "hidden" ? undefined : u.id}><Avatar u={u} size="xs" /><span>{firstName(u)}</span></span> : null;
+        return u ? <span key={f.id} className={"ocdb-person" + (u.deactivated ? " former" : "")} data-person-id={u.id}><Avatar u={u} size="xs" /><span>{firstName(u)}</span></span> : null;
       }
       if (f.type === "date") return <span key={f.id}><Ic i={Calendar} s={12} />{fmtDate(v)}</span>;
       if (f.type === "number") return <span key={f.id}>{f.name.replace(/ \(.*\)/, "")} {fmtNum(Number(v))}</span>;

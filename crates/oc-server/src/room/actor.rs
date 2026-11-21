@@ -19,10 +19,9 @@ use super::{
 };
 use crate::grant::{Grant, Role};
 use crate::host_client::{Fetched, PutOutcome, PutRequest};
-use crate::hosts::Coviewers;
 use crate::hosts::{ConflictPolicy, HostConfig};
 use crate::metrics::Metrics;
-use crate::people::{self, Peek};
+use crate::people;
 use crate::store::{NotifyRow, OutboxRow};
 use crate::util::{now_ms, rfc3339};
 
@@ -119,20 +118,6 @@ struct Room {
     commit_waiters: Vec<(i64, tokio::sync::oneshot::Sender<CommitResult>)>,
     /// New @mentions to tell the host about (`None`: WOPI or no callbacks, UX-02).
     mentions: Option<super::mentions::Tracker>,
-    /// The host can be asked `POST /users/resolve` (JWT callbacks; never WOPI).
-    resolvable: bool,
-    /// Viewers (user ids) whose resolve call is in flight.
-    resolving: HashSet<String>,
-}
-
-/// How one viewer sees one person's awareness `user` (docs/21).
-enum Shown {
-    /// As stamped from the person's grant.
-    Same,
-    /// Rewritten for this viewer (their name for them, external label, or "Someone").
-    As(Value),
-    /// Not until the viewer's resolve answer is in.
-    Withhold,
 }
 
 pub(super) async fn run(
@@ -321,11 +306,8 @@ impl Room {
         let status = json!({"t": "saved", "at": now_ms(), "version": host_version});
         let mentions = crate::notify::enabled(&host, &seed.file.id)
             .then(|| super::mentions::Tracker::new(&doc));
-        let resolvable = people::has_callbacks(&host, &seed.file.id);
         Ok(Self {
             mentions,
-            resolvable,
-            resolving: HashSet::new(),
             awareness: Awareness::new(doc.clone()),
             doc_bytes: encoded_len(&doc),
             doc,
@@ -389,7 +371,6 @@ impl Room {
                 let _ = reply.send(self.patch(&ops, &author).await);
             }
             Cmd::Commit { reply } => self.commit(reply),
-            Cmd::Directory { viewer } => self.directory_ready(&viewer),
             Cmd::Shutdown { .. } | Cmd::StepDown => unreachable!("handled by run loop"),
         }
     }
@@ -451,12 +432,8 @@ impl Room {
 
     /// Tier 0 (docs/21): remembers who opened the file in the `people` root (id, name,
     /// detail, avatar, last seen), so mentions work with nothing but launch tokens. Saved with
-    /// the next commit; a visit alone never makes the room dirty. Skipped when co-viewers
-    /// must not see each other.
+    /// the next commit; a visit alone never makes the room dirty.
     async fn note_person(&mut self, grant: &Grant) {
-        if self.host.directory.coviewers == Coviewers::None {
-            return;
-        }
         let now = now_ms();
         let entry = people::people_entry(grant, now);
         let update = {
@@ -498,178 +475,22 @@ impl Room {
         self.broadcast(&protocol::update(update), None);
     }
 
-    /// How `viewer` may see the person whose stamped awareness `user` is `seen` (docs/21
-    /// "Every viewer has their own network"). Real names never reach a viewer who mustn't
-    /// see them: `hidden` people become "Someone" with a per-viewer id, `external` people
-    /// carry only the host's label, and nothing is sent before the viewer's resolve answer.
-    fn shown(&self, viewer: &Grant, seen: &Value) -> Shown {
-        let Some(id) = seen["id"].as_str() else {
-            return Shown::Same;
-        };
-        if id == viewer.user.id {
-            return Shown::Same;
-        }
-        let coviewers = self.host.directory.coviewers;
-        let anon = || people::anonymous(&people::anon_id(&self.id, &viewer.user.id, id));
-        if !self.resolvable {
-            return if coviewers == Coviewers::None {
-                Shown::As(anon())
-            } else {
-                Shown::Same
-            };
-        }
-        match self.ctx.directory.peek(&self.id, &viewer.user.id, id) {
-            Peek::Known {
-                person: Some(person),
-                ..
-            } => Shown::As(person.awareness(seen, &people::anon_id(&self.id, &viewer.user.id, id))),
-            // Asked, but not listed: the host gave no relation, so `coviewers` decides.
-            Peek::Known { person: None, .. } if coviewers == Coviewers::All => Shown::Same,
-            Peek::Known { person: None, .. } => Shown::As(anon()),
-            Peek::NoResolve if coviewers == Coviewers::None => Shown::As(anon()),
-            Peek::NoResolve => Shown::Same,
-            Peek::Failed if coviewers == Coviewers::All => Shown::Same,
-            Peek::Failed => Shown::As(anon()),
-            Peek::Pending => Shown::Withhold,
-        }
-    }
-
-    /// `update` as `viewer` may see it; `None` when nothing is left. The second value is true
-    /// when an entry waits for (or needs a refresh of) the viewer's resolve answer.
-    fn rewrite_for(
-        &self,
-        viewer: &Grant,
-        update: &AwarenessUpdate,
-    ) -> (Option<AwarenessUpdate>, bool) {
-        let mut out = update.clone();
-        let mut want = false;
-        out.clients.retain(|_, entry| {
-            if entry.json.as_ref() == "null" {
-                return true;
-            }
-            let Ok(Value::Object(mut state)) = serde_json::from_str::<Value>(&entry.json) else {
-                return true;
-            };
-            let seen = state.get("user").cloned().unwrap_or(Value::Null);
-            if let Some(id) = seen["id"].as_str()
-                && id != viewer.user.id
-                && self.resolvable
-                && let Peek::Known { refresh: true, .. } =
-                    self.ctx.directory.peek(&self.id, &viewer.user.id, id)
-            {
-                want = true;
-            }
-            match self.shown(viewer, &seen) {
-                Shown::Same => true,
-                Shown::Withhold => {
-                    want = true;
-                    false
-                }
-                Shown::As(user) => {
-                    if user != seen {
-                        state.insert("user".into(), user);
-                        entry.json = Value::Object(state).to_string().into();
-                    }
-                    true
-                }
-            }
-        });
-        if out.clients.is_empty() {
-            (None, want)
-        } else {
-            (Some(out), want)
-        }
-    }
-
-    /// Sends `update` to every peer but `except`, rewritten per viewer.
+    /// Sends `update` to every peer but `except`. Everyone with access sees the same names
+    /// (docs/21 revision 2); `user` is stamped from each sender's grant on the way in.
     fn fan_out_awareness(&mut self, update: &AwarenessUpdate, except: Option<ConnId>) {
-        let plain = protocol::awareness(update.clone());
-        let mut fetch = Vec::new();
-        for (id, p) in &self.peers {
-            if Some(*id) == except {
-                continue;
-            }
-            let (mine, want) = self.rewrite_for(&p.grant, update);
-            if want {
-                fetch.push(*id);
-            }
-            let Some(mine) = mine else { continue };
-            let frame = if mine.clients.len() == update.clients.len()
-                && mine
-                    .clients
-                    .iter()
-                    .all(|(c, e)| update.clients.get(c).is_some_and(|o| o.json == e.json))
-            {
-                plain.clone()
-            } else {
-                protocol::awareness(mine)
-            };
-            let _ = p.tx.send(Outbound::Frame(frame));
-        }
-        for conn in fetch {
-            self.want_resolve(conn);
-        }
+        let frame = protocol::awareness(update.clone());
+        self.broadcast(&frame, except);
     }
 
-    /// Everyone's current presence, as `conn`'s viewer may see it.
+    /// Everyone's current presence, for one connection.
     fn send_awareness_to(&mut self, conn: ConnId) {
-        let Some(grant) = self.peers.get(&conn).map(|p| p.grant.clone()) else {
-            return;
-        };
         let Ok(update) = self.awareness.update() else {
             return;
         };
         if update.clients.is_empty() {
             return;
         }
-        let (mine, want) = self.rewrite_for(&grant, &update);
-        if let Some(mine) = mine {
-            self.send(conn, protocol::awareness(mine));
-        }
-        if want {
-            self.want_resolve(conn);
-        }
-    }
-
-    /// Asks the host who everyone here is for `conn`'s viewer (one batched call, in the
-    /// background); [`Cmd::Directory`] follows.
-    fn want_resolve(&mut self, conn: ConnId) {
-        let Some(grant) = self.peers.get(&conn).map(|p| p.grant.clone()) else {
-            return;
-        };
-        if !self.resolvable || !self.resolving.insert(grant.user.id.clone()) {
-            return;
-        }
-        let mut ids: Vec<String> = self
-            .peers
-            .values()
-            .map(|p| p.grant.user.id.clone())
-            .filter(|i| *i != grant.user.id)
-            .collect();
-        ids.sort();
-        ids.dedup();
-        let ctx = self.ctx.clone();
-        let host = self.host.clone();
-        let tx = self.self_tx.clone();
-        tokio::spawn(async move {
-            ctx.directory.resolve(&ctx.host, &host, &grant, &ids).await;
-            let _ = tx.send(Cmd::Directory {
-                viewer: grant.user.id.clone(),
-            });
-        });
-    }
-
-    fn directory_ready(&mut self, viewer: &str) {
-        self.resolving.remove(viewer);
-        let conns: Vec<ConnId> = self
-            .peers
-            .iter()
-            .filter(|(_, p)| p.grant.user.id == viewer)
-            .map(|(c, _)| *c)
-            .collect();
-        for conn in conns {
-            self.send_awareness_to(conn);
-        }
+        self.send(conn, protocol::awareness(update));
     }
 
     fn leave(&mut self, conn: ConnId) {

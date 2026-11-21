@@ -1,10 +1,9 @@
-// p. Users and identity (docs/21, ADR-026), one test per acceptance bullet: tier 0 mentions
-//    with no user callbacks, two people called Asha Rao told apart everywhere, a host rename
-//    reaching existing mentions through resolve (and the snapshot without it), and per-viewer
-//    networks: Sam never finds Priya, sees her only by the host's external label, and sees a
-//    hidden person as "Someone" with no real name anywhere in his DOM.
-import { expect, test, type FrameLocator } from "@playwright/test";
-import { applyTemplate, createFile, editor, openFile, person, setAccess, setDirectory, typeAfterHeading, updateHostUser, type Person } from "../helpers";
+// p. Users and identity (docs/21 revision 2, ADR-026), one test per acceptance bullet: the
+//    mention list is exactly the canvas's members, everyone sees real names, two people called
+//    Asha Rao are told apart everywhere, no e-mail anywhere, removing access marks mentions
+//    "No longer has access", and with no members source the list is who opened the canvas.
+import { expect, test, type FrameLocator, type Locator } from "@playwright/test";
+import { applyTemplate, createFile, editor, openFile, person, setAccess, setMemberSource, typeAfterHeading, type Person } from "../helpers";
 
 const picker = (p: Person) => p.oc.locator(".pop").filter({ hasText: "People" });
 
@@ -15,39 +14,62 @@ async function frameHtml(p: Person): Promise<string> {
   return frame.content();
 }
 
+/** A `/v1/…` GET from inside the OpenCanvas frame with its session ticket. */
+async function fromFrame(p: Person, path: string): Promise<string> {
+  const frame = p.page.frame({ name: "oc" });
+  if (!frame) throw new Error("no OpenCanvas frame");
+  const t = new URLSearchParams(new URL(frame.url()).hash.slice(1)).get("t") ?? "";
+  return frame.evaluate(async ([path, t]) => (await fetch(`${path}${path.includes("?") ? "&" : "?"}ticket=${encodeURIComponent(t)}`)).text(), [path, t] as const);
+}
+
 async function caretIn(p: Person, heading: string) {
   await editor(p).locator("h1, h2, h3").filter({ hasText: heading }).first().click();
   await p.page.keyboard.press("End");
 }
 
-const label = (oc: FrameLocator, text: string | RegExp) => oc.locator(".collaboration-carets__label", { hasText: text });
+const label = (oc: FrameLocator | Locator, text: string | RegExp) => oc.locator(".collaboration-carets__label", { hasText: text });
 
-test("tier 0: with only launch tokens, mentions list everyone who has opened the file", async ({ browser }) => {
+test("the mention list is exactly the members: a member who never opened it is there, a non-member never is", async ({ browser }) => {
   test.setTimeout(90_000);
   const priya = await person(browser, "u_priya");
-  const fileId = await createFile(priya, "E2E p · tier 0");
+  const fileId = await createFile(priya, "E2E p · members");
   await applyTemplate(priya, "Meeting notes");
-  await setAccess(priya, fileId, "u_asha", "edit");
   await setAccess(priya, fileId, "u_ravi", "edit");
-  // No participants, no search, no resolve: the host only signs launch tokens.
-  await setDirectory(fileId, { tier: 0 });
-  const asha = await person(browser, "u_asha");
-  await openFile(asha, fileId);
-  await expect(priya.oc.getByRole("button", { name: "Follow Asha Rao" })).toBeVisible();
-  await asha.ctx.close();
-  // Priya reopens with a tier-0 token. Asha opened the file, so she is listed; Ravi has
-  // access but never opened it, and without callbacks OpenCanvas can't know about him.
+  // Sam has no access to this file.
   await openFile(priya, fileId);
   await typeAfterHeading(priya, "Notes", "Ask @");
-  await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toBeVisible();
-  await expect(picker(priya).getByRole("option", { name: /Ravi/ })).toHaveCount(0);
-  // Her second line came with her own launch token.
-  await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toContainText("Design · Bengaluru");
-  await priya.page.keyboard.type("Ash");
-  await expect(picker(priya).getByRole("option").first()).toContainText("Asha Rao");
-  await priya.page.keyboard.press("Enter");
-  await expect(editor(priya).locator('.mention[data-id="u_asha"]')).toHaveText(/Asha Rao/);
+  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
+  await expect(picker(priya).getByRole("option", { name: /Sam/ })).toHaveCount(0);
+  await priya.page.keyboard.type("Sam");
+  await expect(picker(priya).getByRole("option", { name: /Sam/ })).toHaveCount(0);
+  await priya.page.keyboard.press("Escape");
+  const members = await fromFrame(priya, "/v1/members");
+  expect(members).toContain("u_ravi");
+  expect(members).not.toContain("u_sam");
   await priya.ctx.close();
+});
+
+test("everyone with access sees real names, never Someone or Unknown", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const priya = await person(browser, "u_priya");
+  const fileId = await createFile(priya, "E2E p · real names");
+  await applyTemplate(priya, "Meeting notes");
+  await setAccess(priya, fileId, "u_sam", "edit");
+  await setAccess(priya, fileId, "u_ravi", "edit");
+  await openFile(priya, fileId);
+  const sam = await person(browser, "u_sam");
+  await openFile(sam, fileId);
+  await caretIn(priya, "Agenda");
+  await expect(label(editor(sam), "Priya Shah")).toBeVisible();
+  await expect(sam.oc.locator('.avs .av[title^="Priya Shah"]')).toBeVisible();
+  await typeAfterHeading(sam, "Notes", "@Ravi");
+  await expect(picker(sam).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
+  await sam.page.keyboard.press("Enter");
+  await expect(editor(priya).locator('.mention[data-id="u_ravi"]')).toHaveText(/Ravi Menon$/);
+  const html = await frameHtml(sam);
+  expect(html).not.toContain("Someone");
+  expect(html).not.toContain("Unknown");
+  for (const p of [priya, sam]) await p.ctx.close();
 });
 
 test("two people called Asha Rao are distinguishable in the picker, avatars, cursors and hover cards", async ({ browser }) => {
@@ -69,9 +91,8 @@ test("two people called Asha Rao are distinguishable in the picker, avatars, cur
   await expect(finance).toBeVisible();
   const ini = [await design.innerText(), await finance.innerText()].sort();
   expect(ini).toEqual(["AR", "AR₂"]);
-  await expect(priya.oc.getByRole("button", { name: "Follow Asha Rao · Finance · Pune" })).toBeVisible();
 
-  // Cursor labels: "Asha Rao · Design · Bengaluru" and "Asha Rao · Finance · Pune".
+  // Cursor labels.
   await caretIn(asha, "Agenda");
   await caretIn(asha2, "Notes");
   await expect(label(editor(priya), "Asha Rao · Design · Bengaluru")).toBeVisible();
@@ -94,22 +115,43 @@ test("two people called Asha Rao are distinguishable in the picker, avatars, cur
   const card = priya.oc.getByRole("tooltip");
   await expect(card).toContainText("Asha Rao");
   await expect(card).toContainText("Finance · Pune");
-  await expect(chip).toHaveAttribute("aria-describedby", "oc-person-card");
-  // Escape dismisses it (WCAG 1.4.13).
   await priya.page.keyboard.press("Escape");
   await expect(card).toHaveCount(0);
-  // Keyboard: with the caret right after the chip, the card opens too.
-  await editor(priya).locator("p", { hasText: "Over to" }).click();
-  await priya.page.keyboard.press("End");
-  await priya.page.keyboard.press("ArrowLeft");
-  await expect(priya.oc.getByRole("tooltip")).toContainText("Finance · Pune");
   for (const p of [priya, asha, asha2]) await p.ctx.close();
 });
 
-test("a rename in the host reaches existing mentions after reload with resolve, and the snapshot is used without it", async ({ browser }) => {
+test("no e-mail appears in the DOM, exports, the session or the .ocanvas", async ({ browser }) => {
   test.setTimeout(90_000);
   const priya = await person(browser, "u_priya");
-  const fileId = await createFile(priya, "E2E p · rename");
+  const fileId = await createFile(priya, "E2E p · no email");
+  await applyTemplate(priya, "Meeting notes");
+  await setAccess(priya, fileId, "u_ravi", "edit");
+  const ravi = await person(browser, "u_ravi");
+  await openFile(ravi, fileId);
+  await openFile(priya, fileId);
+  await caretIn(ravi, "Agenda");
+  await typeAfterHeading(priya, "Notes", "Owner @Ravi");
+  await priya.page.keyboard.press("Enter");
+  await expect(editor(priya).locator('.mention[data-id="u_ravi"]')).toHaveText(/Ravi Menon/);
+  await editor(priya).locator('.mention[data-id="u_ravi"]').hover();
+  await expect(priya.oc.getByRole("tooltip")).toContainText("Engineering · Kochi");
+  const email = /[\w.+-]+@[\w-]+\.[\w.]+/;
+  expect(await frameHtml(priya)).not.toMatch(email);
+  for (const path of ["/v1/members", "/v1/export/md", "/v1/export/html", "/v1/export/json"]) {
+    expect(await fromFrame(priya, path), path).not.toMatch(email);
+  }
+  await expect(priya.oc.locator(".top .status")).toHaveAttribute("aria-label", /^Saved/, { timeout: 10_000 });
+  // The .ocanvas is a zip; its document.json is deflated, so check the server's JSON of it.
+  expect(await fromFrame(priya, "/v1/export/json")).toContain("u_ravi");
+  const ocanvas = await fromFrame(priya, "/v1/export/ocanvas");
+  expect(ocanvas).not.toMatch(email);
+  for (const p of [priya, ravi]) await p.ctx.close();
+});
+
+test("removing someone's access marks their existing mentions 'No longer has access' after reload", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const priya = await person(browser, "u_priya");
+  const fileId = await createFile(priya, "E2E p · access removed");
   await applyTemplate(priya, "Meeting notes");
   await setAccess(priya, fileId, "u_ravi", "edit");
   await openFile(priya, fileId);
@@ -117,89 +159,35 @@ test("a rename in the host reaches existing mentions after reload with resolve, 
   await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
   await priya.page.keyboard.press("Enter");
   const chip = editor(priya).locator('.mention[data-id="u_ravi"]');
-  await expect(chip).toHaveText(/Ravi Menon$/);
+  await expect(chip).toHaveText(/^Ravi Menon$/);
   await expect(priya.oc.locator(".top .status")).toHaveAttribute("aria-label", /^Saved/, { timeout: 10_000 });
-  try {
-    await updateHostUser("u_ravi", { name: "Ravi Iyer" });
-    await openFile(priya, fileId);
-    await expect(chip).toHaveText(/Ravi Iyer$/);
-    // Without resolve (and nothing about Ravi in a token), the stored label is shown.
-    await setDirectory(fileId, { tier: 0 });
-    await openFile(priya, fileId);
-    await expect(chip).toHaveText(/Ravi Menon$/);
-  } finally {
-    await updateHostUser("u_ravi", { name: "Ravi Menon" });
-  }
+  await setAccess(priya, fileId, "u_ravi", "none");
+  await openFile(priya, fileId);
+  await expect(chip).toHaveText(/Ravi Menon\s*No longer has access/);
+  await expect(chip).toHaveClass(/former/);
+  await typeAfterHeading(priya, "Agenda", "@Ravi");
+  await expect(priya.oc.locator(".pop").getByRole("option", { name: /Ravi/ })).toHaveCount(0);
   await priya.ctx.close();
 });
 
-/** Priya and Sam on a file with the contacts graph on: they are not contacts. */
-async function networks(browser: Parameters<typeof person>[0], name: string, extra: ("u_ravi")[] = []) {
+test("with no members source at all, the list is the people who have opened the canvas", async ({ browser }) => {
+  test.setTimeout(90_000);
   const priya = await person(browser, "u_priya");
-  const fileId = await createFile(priya, name);
-  // A template without sample databases: their example owners are made-up people.
-  await applyTemplate(priya, "Daily standup");
-  await setAccess(priya, fileId, "u_sam", "edit");
-  for (const u of extra) await setAccess(priya, fileId, u, "edit");
-  await setDirectory(fileId, { tier: 3, networks: true });
+  const fileId = await createFile(priya, "E2E p · no source");
+  await applyTemplate(priya, "Meeting notes");
+  await setAccess(priya, fileId, "u_asha", "edit");
+  await setAccess(priya, fileId, "u_ravi", "edit");
+  await setMemberSource(fileId, "none");
+  const asha = await person(browser, "u_asha");
+  await openFile(asha, fileId);
   await openFile(priya, fileId);
-  return { priya, fileId };
-}
-
-test("per-viewer networks: Sam's mention search never returns Priya", async ({ browser }) => {
-  test.setTimeout(90_000);
-  const { priya, fileId } = await networks(browser, "E2E p · Sam never finds Priya");
-  const sam = await person(browser, "u_sam");
-  await openFile(sam, fileId);
-  // Priya is right here (and in the file's people), yet she isn't Sam's contact.
-  await expect(sam.oc.locator(".avs .av")).toHaveCount(2);
-  for (const q of ["Pri", "Shah"]) {
-    await typeAfterHeading(sam, "Today", `@${q}`);
-    await expect(sam.oc.locator(".pop")).toContainText(`No one matches “${q}”`);
-    await expect(sam.oc.locator(".pop").getByRole("option", { name: /Priya/ })).toHaveCount(0);
-    await sam.page.keyboard.press("Escape");
-    // The next click on the same heading must not count as a double-click (it would select the word).
-    await sam.page.waitForTimeout(600);
-  }
-  // Sam's own contacts are there.
-  await typeAfterHeading(sam, "Today", "@Ash");
-  await expect(picker(sam).getByRole("option", { name: /Asha Rao/ }).first()).toBeVisible();
-  await expect(picker(sam).getByRole("option", { name: /Priya/ })).toHaveCount(0);
-  for (const p of [priya, sam]) await p.ctx.close();
-});
-
-test("per-viewer networks: Sam sees Priya's cursor with the host's external label", async ({ browser }) => {
-  test.setTimeout(90_000);
-  const { priya, fileId } = await networks(browser, "E2E p · external label");
-  const sam = await person(browser, "u_sam");
-  await openFile(sam, fileId);
-  await caretIn(priya, "Yesterday");
-  await expect(label(editor(sam), "Priya S.")).toBeVisible();
-  await expect(sam.oc.locator('.avs .av[title^="Priya S. · Not in your contacts"]')).toBeVisible();
-  expect(await frameHtml(sam)).not.toContain("Priya Shah");
-  for (const p of [priya, sam]) await p.ctx.close();
-});
-
-test('per-viewer networks: a hidden person is "Someone" to Sam, with no real name anywhere in his DOM', async ({ browser }) => {
-  test.setTimeout(90_000);
-  const { priya, fileId } = await networks(browser, "E2E p · hidden", ["u_ravi"]);
-  const ravi = await person(browser, "u_ravi");
-  await openFile(ravi, fileId);
-  await caretIn(ravi, "Yesterday");
-  // Priya mentions Ravi (her own nickname for him) in the canvas.
-  await typeAfterHeading(priya, "Today", "Owner @Ravi");
-  await expect(picker(priya).getByRole("option", { name: /Ravi \(eng lead\)/ })).toBeVisible();
-  await priya.page.keyboard.press("Enter");
-  await expect(editor(priya).locator('.mention[data-id="u_ravi"]')).toHaveText(/Ravi \(eng lead\)/);
-
-  const sam = await person(browser, "u_sam");
-  await openFile(sam, fileId);
-  await expect(editor(sam).locator('.mention[data-id="u_ravi"]')).toHaveText(/Someone$/);
-  await expect(label(editor(sam), "Someone")).toBeVisible();
-  await expect(sam.oc.locator('.avs .av[title^="Someone"]')).toBeVisible();
-  await caretIn(ravi, "Blockers");
-  await sam.page.waitForTimeout(500);
-  const html = await frameHtml(sam);
-  for (const real of ["Ravi", "Menon", "eng lead", "Engineering"]) expect(html).not.toContain(real);
-  for (const p of [priya, ravi, sam]) await p.ctx.close();
+  await expect(priya.oc.getByRole("button", { name: /Follow Asha Rao/ })).toBeVisible();
+  await asha.ctx.close();
+  await openFile(priya, fileId);
+  await typeAfterHeading(priya, "Notes", "Ask @");
+  await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toBeVisible();
+  await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toContainText("Design · Bengaluru");
+  // Ravi has access but never opened it: without a host source OpenCanvas can't know him.
+  await expect(picker(priya).getByRole("option", { name: /Ravi/ })).toHaveCount(0);
+  await priya.ctx.close();
 });

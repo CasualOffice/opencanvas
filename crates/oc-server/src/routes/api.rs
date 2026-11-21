@@ -140,7 +140,7 @@ fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -
         },
         perms: Perms::default(),
         callback_token: token,
-        participants: vec![],
+        members: vec![],
     }
 }
 

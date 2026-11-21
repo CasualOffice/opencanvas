@@ -41,9 +41,6 @@ pub struct User {
     /// Host-chosen second line (team, title, handle) that tells same-named people apart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
-    /// Shown only to viewers whose token sets `perms.showEmail` (stripped otherwise).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,13 +61,6 @@ pub struct Perms {
     /// PDF export / print (WOPI `DisablePrint`; JWT `perms.print`).
     #[serde(default = "yes")]
     pub print: bool,
-    /// docs/21: e-mail addresses may be shown to (and stored for) this viewer.
-    #[serde(
-        default,
-        rename = "showEmail",
-        skip_serializing_if = "std::ops::Not::not"
-    )]
-    pub show_email: bool,
 }
 
 fn yes() -> bool {
@@ -86,10 +76,10 @@ pub struct Grant {
     pub file: FileRef,
     pub perms: Perms,
     pub callback_token: String,
-    /// Tier 1 (docs/21): people this viewer may mention, from their own launch token only.
-    /// Never shown to anyone else.
+    /// docs/21 revision 2: the people with access to this canvas, from the launch token
+    /// (`members[]`, at most 500).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub participants: Vec<User>,
+    pub members: Vec<User>,
 }
 
 /// Like the derived `Debug`, with the callback bearer (WOPI: the access token) redacted, so
@@ -103,7 +93,7 @@ impl std::fmt::Debug for Grant {
             .field("user", &self.user)
             .field("file", &self.file)
             .field("perms", &self.perms)
-            .field("participants", &self.participants.len())
+            .field("members", &self.members.len())
             .field("callback_token", &"<redacted>")
             .finish()
     }
@@ -120,23 +110,13 @@ impl Grant {
         self.role != Role::View
     }
 
-    /// The `user` object stamped into awareness states (never the e-mail: awareness goes to
-    /// everyone in the room).
+    /// The `user` object stamped into awareness states.
     pub fn awareness_user(&self) -> Value {
         let mut v = json!({"id": self.user.id, "name": self.user.name, "color": self.user.color, "avatar": self.user.avatar});
         if let Some(d) = &self.user.detail {
             v["detail"] = json!(d);
         }
         v
-    }
-
-    /// A person as this viewer may see them: the e-mail only with `perms.showEmail`.
-    pub fn for_viewer(&self, u: &User) -> User {
-        let mut u = u.clone();
-        if !self.perms.show_email {
-            u.email = None;
-        }
-        u
     }
 }
 
@@ -196,7 +176,7 @@ mod tests {
             },
             perms: super::Perms::default(),
             callback_token: "super-secret-bearer".into(),
-            participants: vec![],
+            members: vec![],
         };
         let dbg = format!("{g:?}");
         assert!(!dbg.contains("super-secret-bearer"), "{dbg}");

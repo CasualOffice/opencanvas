@@ -84,11 +84,6 @@ pub(crate) enum Cmd {
     Commit {
         reply: oneshot::Sender<CommitResult>,
     },
-    /// A viewer's `resolve` answer arrived (docs/21): resend them everyone's presence as they
-    /// may see it.
-    Directory {
-        viewer: String,
-    },
     /// Cluster: the lease went to another node. Tell clients to reconnect and stop without
     /// saving (the new owner continues from the WAL).
     StepDown,
@@ -137,8 +132,6 @@ pub struct Ctx {
     pub host: HostClient,
     pub cfg: RoomConfig,
     pub metrics: Arc<Metrics>,
-    /// Per-viewer people answers, shared with the HTTP routes (docs/21).
-    pub directory: Arc<crate::people::Directory>,
 }
 
 struct Entry {

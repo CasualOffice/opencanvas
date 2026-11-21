@@ -3,10 +3,9 @@
 // card opens on hover *and* on keyboard focus (or with the caret right after a mention while
 // editing), stays while the pointer is over it, and Escape dismisses it.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { foldName, relationNote, secondLine, timeAgo } from "@opencanvas/ui";
+import { foldName, accessNote, secondLine, timeAgo } from "@opencanvas/ui";
 import type { People } from "../lib/people";
 import { readableOn } from "../lib/color";
-import { Ic } from "../icons";
 
 const CARD_ID = "oc-person-card";
 const OPEN_MS = 350;
@@ -125,11 +124,9 @@ export function PersonCards({ root, people }: { root: HTMLElement | null; people
 
   if (!open || !open.el.isConnected) return null;
   const p = people.get(open.id);
-  if (p.pending) return null;
-  const hidden = p.relation === "hidden";
-  const dup = !hidden && people.isDuplicate(p.name);
-  const note = relationNote(p);
-  const second = hidden ? null : p.detail ?? (dup ? secondLine(p, { showEmail: people.cfg.showEmail }) : null);
+  const dup = people.isDuplicate(p.name);
+  const note = accessNote(p);
+  const second = p.detail ?? (dup ? secondLine(p) : null);
   const top = Math.min(open.rect.bottom + 6, window.innerHeight - 140);
   const left = Math.max(8, Math.min(open.rect.left, window.innerWidth - 288));
   return (
@@ -143,14 +140,13 @@ export function PersonCards({ root, people }: { root: HTMLElement | null; people
       data-dup={dup || undefined}
     >
       <span className="av lg" style={{ background: p.color, color: readableOn(p.color) }} aria-hidden="true">
-        {hidden ? <Ic name="user-round" size={18} /> : p.avatar ? <img src={p.avatar} alt="" /> : people.initialsOf(p.id, p.name)}
+        {p.avatar ? <img src={p.avatar} alt="" /> : people.initialsOf(p.id, p.name)}
       </span>
       <span className="pc-body">
         <b className="pc-name">{p.name}</b>
         {second ? <span className="pc-detail">{second}</span> : null}
-        {people.cfg.showEmail && p.email && p.email !== second ? <span className="pc-detail">{p.email}</span> : null}
         {note ? <span className="pc-note">{note}</span> : null}
-        {!hidden && p.lastSeen && foldName(second ?? "").indexOf("last here") < 0 ? <span className="pc-seen">Last here {timeAgo(p.lastSeen)}</span> : null}
+        {p.lastSeen && foldName(second ?? "").indexOf("last here") < 0 ? <span className="pc-seen">Last here {timeAgo(p.lastSeen)}</span> : null}
       </span>
     </div>
   );

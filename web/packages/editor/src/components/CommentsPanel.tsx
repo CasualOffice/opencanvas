@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
-import { firstName, secondLine, type OcUser, type Role } from "@opencanvas/ui";
+import { secondLine, type OcUser, type Role } from "@opencanvas/ui";
 import { peopleRef } from "../lib/people";
 import { Ic } from "../icons";
 import { addMessage, insertMention, mentionQuery, mentionsIn, setResolved, splitMentions, viewMentions, type Message, type Thread } from "../lib/comments";
@@ -183,14 +183,14 @@ function ThreadCard({
         {t.quote || "Comment"}
       </button>
       {t.messages.map((m, i) => {
-        // The author as this viewer sees them (docs/21), not the name stored with the message.
+        // The author's current name (docs/21), not the name stored with the message.
         const a: OcUser = people ? people.get(m.user, m.name) : { id: m.user, name: m.name, color: m.color };
-        const color = a.relation === "hidden" || a.pending ? a.color : m.color;
+        const color = m.color;
         return (
           <div className="msg" key={i}>
             <Avatar name={a.name} color={color} avatar={a.avatar} />
             <div className="mb">
-              <b data-person-id={a.relation === "hidden" ? undefined : m.user} tabIndex={a.relation === "hidden" ? undefined : 0}>
+              <b data-person-id={m.user} tabIndex={0}>
                 {a.name}
               </b>
               <time dateTime={m.at ? new Date(m.at).toISOString() : undefined}>{rel(m.at)}</time>
@@ -267,8 +267,7 @@ function ThreadCard({
                   <Avatar name={u.name} color={u.color} avatar={u.avatar} />
                   <span className="pl">
                     <span>{u.name}</span>
-                    <span className="p2">{secondLine(u, { showEmail: !!people?.cfg.showEmail })}</span>
-                    {u.access === false ? <span className="warn">{firstName(u.name)} can't open this canvas</span> : null}
+                    <span className="p2">{secondLine(u)}</span>
                   </span>
                 </div>
               ))}

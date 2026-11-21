@@ -1,33 +1,19 @@
-// People for one viewer (docs/21, ADR-026). The host owns its users; this module merges what
-// OpenCanvas knows about them, per id, in the documented order:
-//
-//   resolve (tier 3, this viewer's answer) > tokens (presence, participants) > document snapshot
-//
-// Presence arrives already rewritten for this viewer by the server, so it ranks with tokens.
-// When a resolve answer exists, the document's snapshot labels are never shown for that id.
-// Nothing here decides who knows whom: relations and search results come from the host.
+// People on this canvas (docs/21 revision 2, ADR-026). The mention list is the people with
+// access to this canvas: the server's `/v1/members` (members callback > token `members` > the
+// saved `people` map). The list is the same for every viewer, everyone sees real names, and
+// e-mail is never read or shown. A mentioned id that is no longer a member keeps its snapshot
+// label and is marked "No longer has access".
 import type * as Y from "yjs";
-import { HIDDEN_COLOR, HIDDEN_NAME, USER_PALETTE, duplicateNames, foldName, initialsById, type OcUser, type Relation } from "@opencanvas/ui";
+import { USER_PALETTE, duplicateNames, foldName, initialsById, type OcUser } from "@opencanvas/ui";
 import { createStore, type Store } from "./store";
 
-export type Coviewers = "all" | "contacts" | "none";
-
 export interface PeopleConfig {
-  /** Session ticket for `/v1/users` and `/v1/users/resolve`; absent in `#demo`. */
+  /** Session ticket for `/v1/members`; absent in `#demo`. */
   ticket?: string;
   me: OcUser;
-  /** Tier 1: from this viewer's own token only. */
-  participants: OcUser[];
-  coviewers: Coviewers;
-  /** The host has user callbacks (JWT); false for WOPI and `#demo`. */
-  callbacks: boolean;
-  showEmail: boolean;
-  /** Demo/offline directory (search runs locally). */
+  /** Demo/offline members (no server). */
   local?: OcUser[];
 }
-
-/** `unknown`: the first resolve answer isn't in yet; `none`: no resolve callback (tiers 0-2). */
-export type ResolveState = "unknown" | "available" | "none";
 
 const SEARCH_TTL = 30_000;
 
@@ -39,22 +25,16 @@ export function colorOf(id: string): string {
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
-/** A user object from the server (search, resolve, participants, the `people` root). */
+/** A user object from the server (`/v1/members`, the `people` root). Any e-mail is dropped. */
 export function toUser(v: Record<string, unknown>): OcUser | null {
   const id = str(v.id);
   if (!id) return null;
-  const relation = str(v.relation) as Relation | undefined;
-  const hidden = relation === "hidden";
   return {
     id,
-    name: hidden ? HIDDEN_NAME : str(v.name) ?? id,
-    color: hidden ? HIDDEN_COLOR : str(v.color) ?? colorOf(id),
-    avatar: hidden ? undefined : str(v.avatar),
-    detail: hidden ? undefined : str(v.detail),
-    email: hidden ? undefined : str(v.email),
-    relation,
-    deactivated: v.deactivated === true || undefined,
-    access: typeof v.access === "boolean" ? v.access : undefined,
+    name: str(v.name) ?? id,
+    color: str(v.color) ?? colorOf(id),
+    avatar: str(v.avatar),
+    detail: str(v.detail),
     lastSeen: typeof v.lastSeen === "number" ? v.lastSeen : undefined,
   };
 }
@@ -62,26 +42,21 @@ export function toUser(v: Record<string, unknown>): OcUser | null {
 export class People {
   /** Bumped on every change, for `useSyncExternalStore` and node views. */
   readonly version: Store<number> = createStore(0);
-  state: ResolveState;
-  private resolved = new Map<string, OcUser>();
-  /** Ids a finished resolve call asked about (listed or not). */
-  private answered = new Set<string>();
-  private queued = new Set<string>();
-  private timer: number | undefined;
-  private inflight = 0;
+  /** The member list arrived (until then nobody is marked "No longer has access"). */
+  loaded: boolean;
+  private members = new Map<string, OcUser>();
   private docPeople = new Map<string, OcUser>();
   private peers = new Map<string, OcUser>();
-  private participants: Map<string, OcUser>;
   private searchCache = new Map<string, { at: number; list: OcUser[] }>();
   private derived: { dupes: Set<string>; initials: Map<string, string> } | null = null;
   private off: (() => void) | null = null;
 
   constructor(readonly cfg: PeopleConfig, doc?: Y.Doc) {
-    this.state = cfg.callbacks && cfg.ticket ? "unknown" : "none";
-    this.participants = new Map(cfg.participants.map((u) => [u.id, u]));
+    this.loaded = !cfg.ticket;
+    for (const u of cfg.local ?? []) this.members.set(u.id, u);
+    this.members.set(cfg.me.id, cfg.me);
     if (doc) this.watchDoc(doc);
-    // Ask once right away, so "no resolve callback" is known before any chip waits on it.
-    if (this.state === "unknown") this.request([cfg.me.id]);
+    if (cfg.ticket) void this.load();
   }
 
   private changed() {
@@ -95,12 +70,30 @@ export class People {
 
   destroy() {
     this.off?.();
-    window.clearTimeout(this.timer);
   }
 
-  // ---------- sources ----------
+  private async fetchMembers(q: string): Promise<OcUser[] | null> {
+    try {
+      const r = await fetch(`/v1/members?ticket=${encodeURIComponent(this.cfg.ticket!)}&q=${encodeURIComponent(q)}`);
+      if (!r.ok) return null;
+      const j = (await r.json()) as { members?: Record<string, unknown>[] };
+      return (j.members ?? []).map(toUser).filter((u): u is OcUser => !!u);
+    } catch {
+      return null;
+    }
+  }
 
-  /** Tier 0: the document's `people` root (who opened the file). */
+  /** The canvas's members, once per open (a rename or a removal shows on reload). */
+  private async load() {
+    const list = await this.fetchMembers("");
+    if (list) {
+      for (const u of list) this.members.set(u.id, u.id === this.cfg.me.id ? { ...this.cfg.me, ...u, color: this.cfg.me.color } : u);
+      this.loaded = true;
+    }
+    this.changed();
+  }
+
+  /** The document's `people` root (who opened the file). */
   private watchDoc(doc: Y.Doc) {
     const map = doc.getMap<Record<string, unknown>>("people");
     const read = () => {
@@ -109,7 +102,6 @@ export class People {
         const u = v && typeof v === "object" ? toUser({ ...v, id }) : null;
         if (u) this.docPeople.set(id, u);
       });
-      this.request([...this.docPeople.keys()]);
       this.changed();
     };
     map.observe(read);
@@ -117,98 +109,36 @@ export class People {
     this.off = () => map.unobserve(read);
   }
 
-  /** Presence (already rewritten for this viewer by the server). */
+  /** Presence: someone here right now has access. */
   setPeers(list: OcUser[]) {
     const next = new Map(list.map((u) => [u.id, u]));
-    const key = (m: Map<string, OcUser>) => JSON.stringify([...m.values()].map((u) => [u.id, u.name, u.detail, u.relation, u.avatar, u.color]));
+    const key = (m: Map<string, OcUser>) => JSON.stringify([...m.values()].map((u) => [u.id, u.name, u.detail, u.avatar, u.color]));
     if (key(next) === key(this.peers)) return;
     this.peers = next;
     this.changed();
   }
 
-  // ---------- tier 3: resolve ----------
-
-  /** Queues ids for this viewer's resolve call (batched, at most one call in flight per batch). */
-  request(ids: Iterable<string>) {
-    if (this.state === "none" || !this.cfg.ticket) return;
-    let added = false;
-    for (const id of ids) {
-      if (!id || this.answered.has(id) || this.queued.has(id) || id.startsWith("anon_")) continue;
-      this.queued.add(id);
-      added = true;
-    }
-    if (added && this.timer === undefined) this.timer = window.setTimeout(() => void this.flush(), 40);
-  }
-
-  private async flush() {
-    this.timer = undefined;
-    const ids = [...this.queued].slice(0, 500);
-    if (!ids.length) return;
-    ids.forEach((i) => this.queued.delete(i));
-    this.inflight++;
-    try {
-      const r = await fetch(`/v1/users/resolve?ticket=${encodeURIComponent(this.cfg.ticket!)}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      const j = r.ok ? ((await r.json()) as { resolve?: boolean; users?: Record<string, unknown>[] }) : { resolve: false };
-      if (!j.resolve) {
-        // No resolve callback, or the host can't be reached: tokens and snapshots apply.
-        this.state = "none";
-        this.queued.clear();
-      } else {
-        this.state = "available";
-        for (const v of j.users ?? []) {
-          const u = toUser(v);
-          if (u) this.resolved.set(u.id, u);
-        }
-      }
-    } catch {
-      this.state = "none";
-    } finally {
-      this.inflight--;
-      ids.forEach((i) => this.answered.add(i));
-      this.changed();
-      if (this.queued.size && this.state !== "none") this.timer = window.setTimeout(() => void this.flush(), 0);
-    }
-  }
-
-  // ---------- reading ----------
-
-  /** The resolve answer for `id`, if any. */
-  resolvedOf(id: string): OcUser | undefined {
-    return this.resolved.get(id);
+  /** Whether `id` has access to this canvas. */
+  isMember(id: string): boolean {
+    return this.members.has(id) || this.peers.has(id);
   }
 
   /**
-   * How this viewer sees `id`: resolve > presence/tokens > the `people` root > `snapshot` (the
-   * label stored with a mention or comment). `pending` while a resolve answer may still
-   * replace a document snapshot, so a name the viewer mustn't see is never shown meanwhile.
+   * `id` as shown: the member's current name; else (no longer a member) the `snapshot` label
+   * stored with the mention or comment, marked `deactivated` ("No longer has access").
    */
   get(id: string, snapshot?: string | null): OcUser {
-    if (id === this.cfg.me.id) return this.resolved.get(id) ? { ...this.cfg.me, ...pickName(this.resolved.get(id)!) } : this.cfg.me;
-    const r = this.resolved.get(id);
-    if (r) return r;
-    const tok = this.peers.get(id) ?? this.participants.get(id) ?? this.cfg.local?.find((u) => u.id === id);
-    if (tok) {
-      this.request([id]);
-      const d = this.docPeople.get(id);
-      return d && !tok.lastSeen ? { ...tok, lastSeen: d.lastSeen } : tok;
-    }
-    this.request([id]);
-    const waiting = this.state === "unknown" || (this.state === "available" && !this.answered.has(id));
-    if (waiting) return { id, name: "…", color: HIDDEN_COLOR, pending: true };
+    if (id === this.cfg.me.id) return this.members.get(id) ?? this.cfg.me;
+    const m = this.members.get(id) ?? this.peers.get(id);
     const d = this.docPeople.get(id);
-    if (d) return d;
-    return { id, name: snapshot || id, color: colorOf(id) };
+    if (m) return d?.lastSeen && !m.lastSeen ? { ...m, lastSeen: d.lastSeen } : m;
+    if (!this.loaded && d) return d;
+    return { id, name: snapshot || d?.name || id, color: colorOf(id), deactivated: this.loaded || undefined };
   }
 
   private allKnown(): OcUser[] {
-    const m = new Map<string, OcUser>();
-    for (const src of [this.docPeople, this.participants, this.peers, this.resolved]) for (const [id, u] of src) m.set(id, u);
-    m.set(this.cfg.me.id, this.cfg.me);
-    return [...m.keys()].map((id) => this.get(id)).filter((u) => !u.pending);
+    const ids = new Set([...this.members.keys(), ...this.peers.keys(), ...this.docPeople.keys()]);
+    return [...ids].map((id) => this.get(id));
   }
 
   private derive() {
@@ -233,71 +163,35 @@ export class People {
     return this.derive().initials.get(id) ?? initialsFallback(name);
   }
 
-  // ---------- who can be mentioned ----------
-
-  /** Whether a co-viewer (opened the file, is here, or is in the document) may be listed. */
-  private coviewerListed(id: string): boolean {
-    const r = this.resolved.get(id);
-    if (r) return r.relation === "contact" || r.relation === "member" || r.relation === undefined;
-    if (this.cfg.coviewers === "none") return false;
-    if (this.cfg.coviewers === "all") return true;
-    // "contacts": only a resolve answer can say so. Without a resolve callback the server
-    // can't tell contacts apart, and lists co-viewers like "all" (docs/21 deviation note).
-    return this.state === "none";
-  }
-
-  /** People this viewer can mention or assign without a search: themselves, their token's
-   *  participants, and co-viewers the host allows. */
+  /** The canvas's members (who can be mentioned or assigned). Before the list arrives:
+   *  everyone who opened the canvas and everyone here. */
   pickable(): OcUser[] {
     const out = new Map<string, OcUser>();
-    out.set(this.cfg.me.id, this.cfg.me);
-    for (const u of this.cfg.local ?? []) out.set(u.id, this.get(u.id));
-    for (const id of this.participants.keys()) out.set(id, this.get(id));
-    for (const id of new Set([...this.docPeople.keys(), ...this.peers.keys()])) {
-      if (out.has(id) || id.startsWith("anon_")) continue;
-      if (this.coviewerListed(id)) out.set(id, this.get(id));
-    }
-    return [...out.values()].filter((u) => !u.pending && u.relation !== "hidden" && u.relation !== "external" && !u.deactivated);
+    if (!this.loaded) for (const id of this.docPeople.keys()) out.set(id, this.get(id));
+    for (const id of new Set([...this.members.keys(), ...this.peers.keys()])) out.set(id, this.get(id));
+    return [...out.values()].filter((u) => !u.deactivated);
   }
 
-  /** The mention picker: the host's per-viewer search (tier 2) plus [`pickable`], matched
-   *  case- and accent-insensitively on the name or second line, same-name rows together. */
+  /** The mention picker: members matched case- and accent-insensitively on the name or second
+   *  line (plus the host's members search for big lists), same-name rows together. */
   async search(q: string): Promise<OcUser[]> {
     const fq = foldName(q);
-    const host = await this.hostSearch(q);
     const out = new Map<string, OcUser>();
     for (const u of this.pickable()) out.set(u.id, u);
-    for (const h of host) {
-      // The host's search is per viewer and authoritative: even an external person it lists may
-      // be mentioned. Fresh resolve answers still win for the name.
-      const r = this.resolved.get(h.id);
-      out.set(h.id, { ...h, ...(r ? pickName(r) : {}), access: h.access });
-    }
+    for (const h of await this.hostSearch(q)) if (!out.has(h.id)) out.set(h.id, h);
     return [...out.values()]
-      .filter((u) => u.relation !== "hidden" && !u.deactivated)
       .filter((u) => !fq || foldName(u.name).includes(fq) || (u.detail ? foldName(u.detail).includes(fq) : false))
       .sort((a, b) => foldName(a.name).localeCompare(foldName(b.name)) || (a.detail ?? "").localeCompare(b.detail ?? "") || a.id.localeCompare(b.id));
   }
 
   private async hostSearch(q: string): Promise<OcUser[]> {
-    if (!this.cfg.callbacks || !this.cfg.ticket || !q) return [];
+    if (!this.cfg.ticket || !q) return [];
     const hit = this.searchCache.get(q);
     if (hit && Date.now() - hit.at < SEARCH_TTL) return hit.list;
-    try {
-      const r = await fetch(`/v1/users?ticket=${encodeURIComponent(this.cfg.ticket)}&q=${encodeURIComponent(q)}`);
-      if (!r.ok) return [];
-      const j = (await r.json()) as Record<string, unknown>[];
-      const list = (Array.isArray(j) ? j : []).map(toUser).filter((u): u is OcUser => !!u);
-      this.searchCache.set(q, { at: Date.now(), list });
-      return list;
-    } catch {
-      return [];
-    }
+    const list = (await this.fetchMembers(q)) ?? [];
+    this.searchCache.set(q, { at: Date.now(), list });
+    return list;
   }
-}
-
-function pickName(r: OcUser): Partial<OcUser> {
-  return { name: r.name, detail: r.detail ?? undefined, relation: r.relation, deactivated: r.deactivated, avatar: r.avatar ?? undefined };
 }
 
 function initialsFallback(name: string): string {

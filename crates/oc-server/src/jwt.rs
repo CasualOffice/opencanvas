@@ -55,8 +55,6 @@ struct UserClaim {
     color: Option<String>,
     #[serde(default)]
     detail: Option<String>,
-    #[serde(default)]
-    email: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,9 +70,9 @@ pub struct LaunchClaims {
     perms: Option<Perms>,
     #[serde(default)]
     callback_token: Option<String>,
-    /// Tier 1 (docs/21): people this user may mention; read leniently, at most 200.
+    /// docs/21 revision 2: the people with access to this canvas; read leniently, at most 500.
     #[serde(default)]
-    participants: Option<Value>,
+    members: Option<Value>,
 }
 
 impl LaunchClaims {
@@ -89,7 +87,6 @@ impl LaunchClaims {
             download: true,
             comment: true,
             print: true,
-            show_email: false,
         });
         if self.role == Role::View {
             perms.comment = false;
@@ -97,11 +94,11 @@ impl LaunchClaims {
         // The same rules as every other user object (docs/21): trimmed, http(s) avatars only.
         let me = crate::people::user_from_json(&serde_json::json!({
             "id": self.user.id, "name": self.user.name, "detail": self.user.detail,
-            "email": self.user.email, "avatar": self.user.avatar, "color": self.user.color,
+            "avatar": self.user.avatar, "color": self.user.color,
         }));
-        let participants = crate::people::participants_from_json(self.participants.as_ref());
+        let members = crate::people::members_from_json(self.members.as_ref());
         Grant {
-            participants,
+            members,
             room: room_id(&self.iss, &self.file.id),
             host_id: self.iss,
             role: self.role,
@@ -116,7 +113,6 @@ impl LaunchClaims {
                     .map_or_else(|| self.user.id.clone(), |u| u.name.clone()),
                 avatar: me.as_ref().and_then(|u| u.avatar.clone()),
                 detail: me.as_ref().and_then(|u| u.detail.clone()),
-                email: me.as_ref().and_then(|u| u.email.clone()),
                 id: self.user.id,
             },
             file: FileRef {

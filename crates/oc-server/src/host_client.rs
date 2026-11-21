@@ -579,48 +579,30 @@ impl HostClient {
         Ok(res.status())
     }
 
-    pub async fn users(
+    /// `GET {callback_base}/files/{fileId}/members?q=&limit=` (docs/21 revision 2): the people
+    /// with access to this file, signed like every callback. Returns status and body.
+    pub async fn members(
         &self,
         host: &HostConfig,
         token: &str,
         file_id: &str,
         q: &str,
-    ) -> Result<(StatusCode, String, Bytes), HostError> {
-        let mut url = Self::url(host, &["users"])?;
+        limit: usize,
+    ) -> Result<(StatusCode, Bytes), HostError> {
+        let mut url = Self::url(host, &["files", file_id, "members"])?;
         url.query_pairs_mut()
             .append_pair("q", q)
-            .append_pair("fileId", file_id);
-        let res = self
+            .append_pair("limit", &limit.to_string());
+        let mut res = self
             .request(host, token, Method::GET, url, Vec::new(), 5)
-            .send()
-            .await?;
-        Self::passthrough(res).await
-    }
-
-    /// `POST {callback_base}/users/resolve` (docs/21 tier 3): `{"ids":[…],"fileId":…}` with the
-    /// viewer's callback token, so the host answers for that viewer. Returns status and body.
-    pub async fn resolve_users(
-        &self,
-        host: &HostConfig,
-        token: &str,
-        file_id: &str,
-        ids: &[String],
-    ) -> Result<(StatusCode, Bytes), HostError> {
-        let url = Self::url(host, &["users", "resolve"])?;
-        let body = serde_json::to_vec(&serde_json::json!({"ids": ids, "fileId": file_id}))
-            .unwrap_or_default();
-        let res = self
-            .request(host, token, Method::POST, url, body, 5)
-            .header(header::CONTENT_TYPE, "application/json")
             .send()
             .await?;
         let status = res.status();
         let mut buf = Vec::new();
-        let mut res = res;
         while let Some(chunk) = res.chunk().await? {
             buf.extend_from_slice(&chunk);
             if buf.len() > 4 * 1024 * 1024 {
-                return Err(HostError::Body("users/resolve answer too large".into()));
+                return Err(HostError::Body("members answer too large".into()));
             }
         }
         Ok((status, buf.into()))

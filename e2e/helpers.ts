@@ -7,15 +7,15 @@ import { storedDocument } from "./ocanvas";
 export type UserId = "u_priya" | "u_asha" | "u_asha2" | "u_ravi" | "u_sam";
 export const NAMES: Record<UserId, string> = { u_priya: "Priya Shah", u_asha: "Asha Rao", u_asha2: "Asha Rao", u_ravi: "Ravi Menon", u_sam: "Sam Ortiz" };
 
-/** docs/21: the sample host's directory tier for a file (0 tokens only … 3 resolve), its
- *  contacts graph and whether e-mails may be shown. Takes effect on the next open. */
-export async function setDirectory(fileId: string, d: { tier: 0 | 1 | 2 | 3; networks?: boolean; showEmail?: boolean }, host = HOST) {
-  const r = await fetch(`${host}/__test/files/${fileId}/directory`, { method: "POST", body: JSON.stringify(d) });
+/** docs/21 revision 2: where the sample host's member list for a file comes from (token,
+ *  members callback, both, or none). Takes effect on the next open. */
+export async function setMemberSource(fileId: string, source: "both" | "token" | "callback" | "none", host = HOST) {
+  const r = await fetch(`${host}/__test/files/${fileId}/members`, { method: "POST", body: JSON.stringify({ source }) });
   expect(r.ok).toBe(true);
 }
 
-/** Renames (or deactivates) someone in the sample host, as the host's own admin would. */
-export async function updateHostUser(id: UserId, change: { name?: string; deactivated?: boolean }, host = HOST) {
+/** Renames someone in the sample host, as the host's own admin would. */
+export async function updateHostUser(id: UserId, change: { name?: string }, host = HOST) {
   const r = await fetch(`${host}/__test/users/${id}`, { method: "POST", body: JSON.stringify(change) });
   expect(r.ok).toBe(true);
 }
