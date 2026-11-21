@@ -127,9 +127,13 @@ export function TopBar(props: {
                     <Ic name="code-xml" />
                     Web page<span className="mk">.html</span>
                   </button>
-                  <button className="mi" onClick={() => (close(), props.onExport("pdf"))}>
+                  <button className="mi" onClick={() => (close(), props.onExport("docx"))}>
+                    <Ic name="file-type" />
+                    Word<span className="mk">.docx</span>
+                  </button>
+                  <button className="mi" onClick={() => (close(), props.onExport("pdf"))} title="Downloads a PDF, or opens the print dialog when the server can't render one">
                     <Ic name="printer" />
-                    Print or save as PDF<span className="mk">.pdf</span>
+                    PDF<span className="mk">.pdf</span>
                   </button>
                 </>
               ) : null}

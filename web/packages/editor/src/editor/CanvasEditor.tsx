@@ -1,14 +1,15 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import { BASE_EXTENSIONS } from "./base";
+import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TaskItem } from "@tiptap/extension-list/task-item";
+import { TaskList } from "@tiptap/extension-list/task-list";
 import { TableNodes } from "./table";
 import Highlight from "@tiptap/extension-highlight";
-import Mention from "@tiptap/extension-mention";
-import { Placeholder } from "@tiptap/extensions";
+import { Placeholder } from "@tiptap/extensions/placeholder";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Extension } from "@tiptap/core";
 import type * as Y from "yjs";
@@ -17,18 +18,18 @@ import type { OcUser, Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
 
-import { hostOf, resolveEmbed } from "../lib/embeds";
+import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 import { createStore, useStore } from "../lib/store";
 import { insertUploads } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { Popover, useShell } from "../components/overlay";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
-import { SlashCommand, bookmarkNode, type SlashItem } from "./slash";
+import type { SlashItem } from "./slash";
 
 const Gutter = lazy(() => import("./chrome").then((m) => ({ default: m.Gutter })));
 const MobileBar = lazy(() => import("./mobilebar").then((m) => ({ default: m.MobileBar })));
 const SelectionToolbar = lazy(() => import("./chrome").then((m) => ({ default: m.SelectionToolbar })));
-import { dismissSuggest, suggestRender, suggestStore } from "./suggest";
+import { dismissSuggest, suggestStore } from "./suggest";
 
 export interface EditorProps {
   doc: Y.Doc;
@@ -122,6 +123,8 @@ function colorFor(id: string): string {
   return ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6"][h % 7];
 }
 
+const MentionNode = mentionNode(colorFor);
+
 export function CanvasEditor(p: EditorProps) {
   const { compact, root } = useShell();
   const searchRef = useRef(p.searchUsers);
@@ -135,13 +138,7 @@ export function CanvasEditor(p: EditorProps) {
       shouldRerenderOnTransaction: false,
       editorProps: { attributes: { class: "oc-prose", spellcheck: "true", "aria-label": "Canvas" } },
       extensions: [
-        StarterKit.configure({
-          undoRedo: false,
-          codeBlock: false,
-          heading: { levels: [1, 2, 3] },
-          link: { openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
-          dropcursor: { width: 3, class: "ProseMirror-dropcursor" },
-        }),
+        ...BASE_EXTENSIONS,
         OcCodeBlock,
         BlockId,
         Collaboration.configure({ document: p.doc, field: "content" }),
@@ -177,25 +174,7 @@ export function CanvasEditor(p: EditorProps) {
           placeholder: ({ node }) =>
             node.type.name === "heading" ? "Heading" : node.type.name === "toggleSummary" ? "Toggle" : "Type '/' for blocks",
         }),
-        Mention.configure({
-          HTMLAttributes: { class: "mention" },
-          renderHTML: ({ node }) => {
-            const id = String(node.attrs.id ?? "");
-            const label = String(node.attrs.label ?? id);
-            return [
-              "span",
-              { class: "mention", "data-type": "mention", "data-id": id, "data-label": label },
-              ["span", { class: "av", style: `background:${colorFor(id)}` }, initialsOf(label)],
-              label,
-            ];
-          },
-          renderText: ({ node }) => "@" + (node.attrs.label ?? node.attrs.id),
-          suggestion: {
-            char: "@",
-            items: async ({ query }) => (await searchRef.current(query)).slice(0, 8).map((u) => ({ id: u.id, label: u.name, color: u.color })),
-            render: suggestRender("mention"),
-          },
-        }),
+        MentionNode,
         Callout,
         Toggle,
         ToggleSummary,
@@ -209,7 +188,6 @@ export function CanvasEditor(p: EditorProps) {
         Database,
         Board,
         CommentMark,
-        SlashCommand,
         FileDrop,
         PasteUrl,
       ],
@@ -220,6 +198,22 @@ export function CanvasEditor(p: EditorProps) {
   useEffect(() => {
     editor.setEditable(editable);
   }, [editor, editable]);
+
+  // Slash menu, @mentions, autolink and link-on-paste: plugins only, right after first paint.
+  useEffect(() => {
+    let off = false;
+    const t = window.setTimeout(() => {
+      void import("./late")
+        .then((m) => {
+          if (!off) m.installLate(editor, async (q) => (await searchRef.current(q)).slice(0, 8).map((u) => ({ id: u.id, label: u.name, color: u.color })));
+        })
+        .catch(() => undefined);
+    }, 0);
+    return () => {
+      off = true;
+      window.clearTimeout(t);
+    };
+  }, [editor]);
 
   // Warm the database/board chunks once the page is idle so inserting one is instant.
   useEffect(() => {
