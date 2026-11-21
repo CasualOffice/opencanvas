@@ -1,6 +1,6 @@
 import type { OcUser } from "@opencanvas/ui";
 import { cellToText, personName } from "./model";
-import type { DbField, DbOption, DbRow, DbSnapshot, FilterRule, SortRule, ViewPrefs } from "./types";
+import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, FilterOp, FilterRule, SortRule, ViewPrefs } from "./types";
 
 export const optOf = (f: DbField | undefined, v: unknown): DbOption | undefined => (f?.options ?? []).find((o) => o.v === v);
 /** Field the board view groups by: the view's choice when it is a status/select field, else the first status, else the first select. */
@@ -18,15 +18,178 @@ export function sortsOf(db: DbSnapshot, prefs: ViewPrefs): SortRule[] {
   const list = prefs.sorts ?? (prefs.sort ? [prefs.sort] : []);
   return list.filter((s) => s && db.fields.some((f) => f.id === s.f));
 }
-/** The view's filters (`filters`, else the single legacy `filter`), dropping empty ones and unknown fields. */
-export function filtersOf(db: DbSnapshot, prefs: ViewPrefs): FilterRule[] {
+/** Field types filtered by picking values (any of): option-like fields and checkboxes. */
+export const VALUE_FILTER_TYPES: FieldType[] = ["status", "select", "tags", "person", "checkbox"];
+
+/** Conditions offered for a field type; `null` for value-list fields (see `VALUE_FILTER_TYPES`). */
+export function filterOps(t: FieldType): FilterOp[] | null {
+  if (VALUE_FILTER_TYPES.includes(t)) return null;
+  if (t === "number" || t === "progress") return ["eq", "ne", "lt", "le", "gt", "ge", "between", "empty"];
+  if (t === "date") return ["is", "before", "after", "next", "past", "empty"];
+  return ["contains", "is", "empty"];
+}
+
+export const OP_LABEL: Record<FilterOp, string> = {
+  contains: "contains", is: "is", empty: "is empty", eq: "=", ne: "≠", lt: "<", le: "≤", gt: ">", ge: "≥", between: "between",
+  before: "is before", after: "is after", next: "within the next", past: "within the past",
+};
+
+const numOf = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/** True when the rule has everything it needs to filter (a value, a valid condition for the field type). */
+export function ruleReady(f: DbField, r: FilterRule): boolean {
+  const ops = filterOps(f.type);
+  if (!ops) return !r.op && Array.isArray(r.vals) && r.vals.length > 0;
+  if (!r.op || !ops.includes(r.op)) return false;
+  if (r.op === "empty") return true;
+  if (f.type === "date") return r.op === "next" || r.op === "past" ? (numOf(r.v) ?? -1) >= 0 : isDay(r.v);
+  if (ops.includes("between")) return numOf(r.v) !== null && (r.op !== "between" || numOf(r.v2) !== null);
+  return typeof r.v === "string" && r.v.trim() !== "";
+}
+
+/** Every rule on a field that still exists (finished or not), for the filter editor and chips. */
+export function rulesOf(db: DbSnapshot, prefs: ViewPrefs): FilterRule[] {
   const list = prefs.filters ?? (prefs.filter ? [prefs.filter] : []);
-  return list.filter((x) => x && x.vals?.length && db.fields.some((f) => f.id === x.f));
+  return list.filter((x) => x && typeof x === "object" && db.fields.some((f) => f.id === x.f));
+}
+/** The view's filters that apply: finished rules on fields that exist. */
+export function filtersOf(db: DbSnapshot, prefs: ViewPrefs): FilterRule[] {
+  return rulesOf(db, prefs).filter((x) => ruleReady(db.fields.find((f) => f.id === x.f)!, x));
 }
 /** Prefs patch that stores sort keys, mirroring the first into the legacy `sort`. */
 export const sortPatch = (sorts: SortRule[]): Partial<ViewPrefs> => ({ sorts, sort: sorts[0] ?? null });
-/** Prefs patch that stores filters, mirroring the first into the legacy `filter`. */
-export const filterPatch = (filters: FilterRule[]): Partial<ViewPrefs> => ({ filters, filter: filters[0] ?? null });
+/**
+ * Prefs patch that stores filters. The legacy `filter` mirrors the first value-list rule only,
+ * the one kind older clients understand.
+ */
+export const filterPatch = (filters: FilterRule[]): Partial<ViewPrefs> => ({ filters, filter: filters.find((x) => !x.op && x.vals?.length) ?? null });
+
+const shiftDay = (iso: string, n: number) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return isoDate(new Date(y, m - 1, d + n));
+};
+
+/** Does cell value `v` pass rule `r` on field `f`? `today` is `YYYY-MM-DD`. */
+export function matchRule(f: DbField, r: FilterRule, v: unknown, users: OcUser[] = [], today = isoDate(new Date())): boolean {
+  if (!r.op) {
+    const vals = r.vals ?? [];
+    if (f.type === "checkbox") return vals.includes(v ? "true" : "false");
+    if (Array.isArray(v)) return v.length ? v.some((x) => vals.includes(x)) : vals.includes("");
+    return vals.includes(v == null ? "" : String(v));
+  }
+  const empty = v == null || v === "" || (Array.isArray(v) && !v.length);
+  if (r.op === "empty") return empty;
+  if (f.type === "date") {
+    if (!isDay(v)) return false;
+    const n = Math.round(numOf(r.v) ?? 0);
+    switch (r.op) {
+      case "is":
+        return v === r.v;
+      case "before":
+        return v < String(r.v);
+      case "after":
+        return v > String(r.v);
+      case "next":
+        return v >= today && v <= shiftDay(today, n);
+      case "past":
+        return v <= today && v >= shiftDay(today, -n);
+    }
+    return false;
+  }
+  if (f.type === "number" || f.type === "progress") {
+    const x = numOf(v), a = numOf(r.v) ?? 0;
+    if (r.op === "ne") return x === null || x !== a;
+    if (x === null) return false;
+    switch (r.op) {
+      case "eq":
+        return x === a;
+      case "lt":
+        return x < a;
+      case "le":
+        return x <= a;
+      case "gt":
+        return x > a;
+      case "ge":
+        return x >= a;
+      case "between": {
+        const b = numOf(r.v2) ?? a;
+        return x >= Math.min(a, b) && x <= Math.max(a, b);
+      }
+    }
+    return false;
+  }
+  const text = cellToText(f, v as CellValue, users).toLowerCase();
+  const q = String(r.v ?? "").trim().toLowerCase();
+  return r.op === "contains" ? text.includes(q) : r.op === "is" ? text.trim() === q : false;
+}
+
+const dayLabel = (v: unknown) => (isDay(v) ? fmtDate(v) : String(v));
+const blank = (v: unknown) => v === undefined || v === null || v === "";
+
+/**
+ * Short text for a rule's chip: "Points ≥ 3", "Due within the next 7 days", "Status: Done, Empty".
+ * `name` maps a value of a value-list rule to its label (people's names).
+ */
+export function filterLabel(f: DbField, r: FilterRule, name: (v: string) => string = (v) => v): string {
+  if (!r.op) {
+    const vals = r.vals ?? [];
+    const label = (v: string) => (f.type === "checkbox" ? (v === "true" ? "Checked" : "Not checked") : v ? name(v) : "Empty");
+    return `${f.name}: ${vals.length ? vals.map(label).join(", ") : "…"}`;
+  }
+  const v = blank(r.v) ? "…" : String(r.v);
+  switch (r.op) {
+    case "empty":
+      return `${f.name} is empty`;
+    case "contains":
+    case "is":
+      if (f.type === "date") return `${f.name} is ${blank(r.v) ? "…" : dayLabel(r.v)}`;
+      return `${f.name} ${r.op} ${blank(r.v) ? "…" : `“${v}”`}`;
+    case "between":
+      return `${f.name} between ${v} and ${blank(r.v2) ? "…" : String(r.v2)}`;
+    case "next":
+    case "past": {
+      const n = numOf(r.v);
+      return `${f.name} ${OP_LABEL[r.op]} ${n === null ? "…" : n === 1 ? "day" : `${n} days`}`;
+    }
+    case "before":
+    case "after":
+      return `${f.name} ${r.op} ${blank(r.v) ? "…" : dayLabel(r.v)}`;
+    default:
+      return `${f.name} ${OP_LABEL[r.op]} ${v}`;
+  }
+}
+
+/* ------------------------------------------------------- fields per view */
+
+/** All fields in the view's order: `prefs.fields` first (known ids), then the rest in database order. */
+export function orderedFields(db: DbSnapshot, prefs: ViewPrefs): DbField[] {
+  const order = Array.isArray(prefs.fields) ? prefs.fields : [];
+  if (!order.length) return db.fields;
+  const byId = new Map(db.fields.map((f) => [f.id, f]));
+  const out: DbField[] = [];
+  const seen = new Set<string>();
+  for (const id of order) {
+    const f = byId.get(id);
+    if (f && !seen.has(id)) {
+      seen.add(id);
+      out.push(f);
+    }
+  }
+  for (const f of db.fields) if (!seen.has(f.id)) out.push(f);
+  return out;
+}
+
+/** The fields this view shows, in its order. The title field is never hidden. */
+export function viewFields(db: DbSnapshot, prefs: ViewPrefs): DbField[] {
+  const hidden = Array.isArray(prefs.hidden) ? prefs.hidden : [];
+  const list = orderedFields(db, prefs);
+  return hidden.length ? list.filter((f) => f.type === "title" || !hidden.includes(f.id)) : list;
+}
 
 /** Split `text` into plain and matching parts for search highlighting (case-insensitive). */
 export function highlightParts(text: string, q: string): { t: string; hit: boolean }[] {
@@ -45,14 +208,12 @@ export function highlightParts(text: string, q: string): { t: string; hit: boole
 }
 
 /** Apply a view's filters (all must match), search and sort keys. Returns a new array. */
-export function visibleRows(db: DbSnapshot, prefs: ViewPrefs, users: OcUser[]): DbRow[] {
+export function visibleRows(db: DbSnapshot, prefs: ViewPrefs, users: OcUser[], now = new Date()): DbRow[] {
   let rows = db.rows.slice();
+  const today = isoDate(now);
   for (const flt of filtersOf(db, prefs)) {
-    rows = rows.filter((r) => {
-      const v = r.v[flt.f];
-      if (Array.isArray(v)) return v.length ? v.some((x) => flt.vals.includes(x)) : flt.vals.includes("");
-      return flt.vals.includes(v == null ? "" : String(v));
-    });
+    const f = db.fields.find((x) => x.id === flt.f)!;
+    rows = rows.filter((r) => matchRule(f, flt, r.v[flt.f], users, today));
   }
   const q = (prefs.q ?? "").trim().toLowerCase();
   if (q) {

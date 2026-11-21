@@ -165,6 +165,7 @@ missing from `order` by id.
 | `group` | any | *(UX pass)* shapes with the same group id select and move together; no visual |
 | `start`, `end` | arrow | `{shapeId, anchor}`, anchor `top right bottom left center` |
 | `route` | arrow | `"elbow"` orthogonal route, `"straight"`/unset a line |
+| `via` | arrow | *(open items, ADR-025)* manual waypoints `[[x,y],…]`, in order. The path runs end → waypoints → end; a `center`-bound end aims at the nearest waypoint (straight: outline toward it; elbow: the side facing it). Elbow with waypoints: each leg is an L (one corner), the first leaves along the start side's axis (else the leg's longer axis), each next leg leaves at a right angle to how the previous arrived, the last enters along the end side's axis (two corners at the leg's midpoint when an L can't). Entries that aren't arrays of ≥ 2 read as missing; non-numbers read as 0. Writers keep `pts` = the resolved path. Moving a connector with both bound shapes moves its waypoints too |
 | `src`, `alt` | image | URL or `data:` URL; alt text |
 
 Text wrapping *(UX pass)*: sticky, rect, ellipse and diamond text wraps greedily at whitespace to
@@ -185,6 +186,20 @@ gallery`; source `web/packages/database/src/types.ts` `ViewPrefs`): `q` search; 
 `{fieldId: px}` table column widths; `group` field id the board view groups by (status/select);
 `date` field id the calendar places rows on; `cover` gallery cover: `"none"`, `"color"` (default) or
 a URL field id.
+*(Open items, ADR-025)*: `fields` field ids in this view's order (unknown ids ignored, fields missing
+from it follow in the shared order; column moves write this, never the shared `fields` array);
+`hidden` field ids hidden in this view (the title field is always shown). `filters` rules may be
+typed: `{f, op, v?, v2?}` with `op` per field type — text/title/url `contains is empty` (case-insensitive,
+on the cell's text); number/progress `eq ne lt le gt ge between empty` (`v`, `v2` numbers; `ne` also
+matches empty cells; `between` is inclusive in either order); date `is before after` (`v` `YYYY-MM-DD`),
+`next past` (`v` days, inclusive of today), `empty`. Status/select/tags/person/checkbox rules keep
+`vals` (any of; checkbox `"true"`/`"false"`). Unfinished rules (no value yet, or an `op` the field type
+doesn't take) are kept but filter nothing. `filter` mirrors the first `vals` rule only.
+
+**Database field keys** (`fields` Y.Array of Y.Map): `id`, `name`, `type`, `options` (as above) and
+*(ADR-025)* `description` — optional plain-text note (may be multi-line, absent when blank). Shown as a
+header tooltip and in the row peek; exported in `document.json` (as stored) and as a footnote line
+`*Field*: text` under the table in Markdown (web "Copy as Markdown" and the server export), not in CSV.
 
 Field types for databases: `title text status select tags person date number checkbox url progress`.
 Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.

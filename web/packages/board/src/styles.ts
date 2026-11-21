@@ -72,6 +72,20 @@ export const CSS = `
 .ocbd-top .ocbd-ib:disabled{opacity:.5}
 .ocbd-empty-k{font-size:12px;color:var(--fg-4)}
 
+/* Open items: minimap, connector waypoints */
+.ocbd-zs{width:1px;height:16px;background:var(--line-2);margin:0 3px}
+.ocbd-zoom .ocbd-ib[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.ocbd-mini{position:absolute;right:12px;bottom:56px;z-index:2;border-radius:12px;background:var(--pop);box-shadow:var(--sh-pop);padding:0;overflow:hidden;animation:ocbd-menu .18s var(--ease);outline:none;line-height:0}
+.ocbd-mini:focus-visible{box-shadow:var(--sh-pop),0 0 0 2px var(--accent-ring)}
+.ocbd-mini svg{display:block;cursor:pointer;touch-action:none}
+.ocbd-mini-vp{fill:var(--accent);fill-opacity:.08;stroke:var(--accent);stroke-width:1.5;cursor:grab}
+.ocbd-mini-vp:active{cursor:grabbing}
+.ocbd-wp,.ocbd-wpadd{transition:r .15s var(--ease),fill-opacity .15s var(--ease)}
+.ocbd-wpadd{fill-opacity:.9}
+.ocbd-wpadd:hover{fill:var(--accent-soft)}
+.ocbd-compact .ocbd-mini{bottom:auto;top:58px;right:12px}
+.ocbd-compact .ocbd-zs{height:22px}
+
 @keyframes ocbd-menu{from{opacity:0;transform:translateY(-4px) scale(.98)}}
 @keyframes ocbd-pop{from{opacity:0;transform:translate(-50%,calc(-100% + 4px)) scale(.98)}}
 @media (prefers-reduced-motion:reduce){.ocbd *{animation-duration:.01ms!important;transition-duration:.01ms!important}}

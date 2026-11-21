@@ -16,7 +16,7 @@ export const CSS = `
 .ocdb-hn{font-size:17px;font-weight:620;letter-spacing:-.012em;border:0;background:none;outline:none;min-width:0;flex:0 1 auto;padding:2px 4px;margin-left:-4px;border-radius:6px;field-sizing:content;max-width:100%}
 .ocdb-hn:hover:not(:read-only){background:var(--hover)}
 .ocdb-hn:focus{background:var(--hover)}
-.ocdb-hc{font-size:12px;color:var(--fg-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ocdb-hc{margin-left:auto;padding-left:12px;font-size:12px;color:var(--fg-3);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 .ocdb-bar{display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--line);min-height:40px}
 .ocdb-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;align-self:stretch}
@@ -42,7 +42,7 @@ export const CSS = `
 /* table */
 .ocdb-gw{overflow-x:auto;overscroll-behavior-x:contain}
 .ocdb-grid{border-collapse:separate;border-spacing:0;font-size:14px;min-width:100%;table-layout:fixed}
-.ocdb-grid th{height:36px;padding:0;text-align:left;font-weight:500;color:var(--fg-3);font-size:12.5px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;background:var(--app)}
+.ocdb-grid th{height:36px;padding:0;text-align:left;font-weight:500;color:var(--fg-3);font-size:12.5px;border-bottom:1px solid var(--line-2);border-right:1px solid var(--line);white-space:nowrap;background:var(--app)}
 .ocdb-grid th:last-child,.ocdb-grid td:last-child{border-right:0}
 .ocdb-hcell{width:100%;height:36px;display:flex;align-items:center;gap:6px;padding:0 10px;border:0;background:none;color:inherit;font-weight:500;font-size:12.5px;text-align:left;overflow:hidden}
 .ocdb-hcell span{overflow:hidden;text-overflow:ellipsis}
@@ -63,8 +63,10 @@ button.ocdb-cin:disabled{cursor:default;background:none}
 .ocdb-num .ocdb-ce{text-align:right;font-variant-numeric:tabular-nums}
 .ocdb-peekbtn{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border-radius:6px;border:0;background:var(--app);box-shadow:inset 0 0 0 1px var(--line-2),var(--sh-1);font-size:11.5px;color:var(--fg-2);opacity:0;transition:opacity .2s var(--ease);flex:none}
 .ocdb-grid tr:hover .ocdb-peekbtn,.ocdb-peekbtn:focus-visible{opacity:1}
-.ocdb-addcol button{width:100%;height:36px;border:0;background:none;color:var(--fg-3);display:grid;place-items:center}
-.ocdb-addcol button:hover{background:var(--hover);color:var(--fg)}
+.ocdb-addcol{text-align:center}
+.ocdb-addcol button{width:28px;height:28px;margin:4px auto;border:0;border-radius:7px;background:none;color:var(--fg-2);display:grid;place-items:center;transition:background .15s var(--ease),color .15s var(--ease),box-shadow .15s var(--ease)}
+.ocdb-addcol button:hover{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
+.ocdb-addcol button:active{transform:scale(.94)}
 .ocdb-grid tfoot td{height:34px;border-bottom:0;font-size:12px;color:var(--fg-3);background:var(--app)}
 .ocdb-grid tfoot tr:hover td{background:var(--app)}
 .ocdb-grid tfoot .ocdb-cin{height:34px;font-variant-numeric:tabular-nums;font-size:12px}
@@ -232,6 +234,8 @@ textarea.ocdb-pin{height:120px;padding:10px;resize:vertical;font-family:var(--mo
 .ocdb-props{display:grid;grid-template-columns:120px minmax(0,1fr);gap:2px 8px;align-items:center;font-size:13.5px}
 .ocdb-pk{display:flex;align-items:center;gap:8px;color:var(--fg-3);height:36px;min-width:0;white-space:nowrap;overflow:hidden}
 .ocdb-pk span{overflow:hidden;text-overflow:ellipsis}
+.ocdb-pk:has(.ocdb-pdesc){flex-wrap:wrap;height:auto;min-height:36px;padding:8px 0 4px;row-gap:2px;white-space:normal}
+.ocdb-pdesc{flex-basis:100%;padding-left:22px;color:var(--fg-3);font-size:12px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
 .ocdb-pv{min-height:36px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;border-radius:8px;padding:0 8px;min-width:0;border:0;background:none;text-align:left;width:100%;color:inherit;font-size:13.5px}
 button.ocdb-pv:hover:not(:disabled),div.ocdb-pv:hover{background:var(--hover)}
 .ocdb-pv .ocdb-ce{font-size:13.5px;height:36px}
@@ -246,7 +250,7 @@ button.ocdb-pv:hover:not(:disabled),div.ocdb-pv:hover{background:var(--hover)}
 .ocdb-compact .ocdb-ib{width:38px;height:38px}
 .ocdb-compact .ocdb-tab{height:44px}
 .ocdb-compact .ocdb-search.show{width:110px;font-size:16px}
-.ocdb-compact .ocdb-gw td:first-child,.ocdb-compact .ocdb-gw th:first-child{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 var(--line)}
+.ocdb-compact .ocdb-gw td:first-child,.ocdb-compact .ocdb-gw th:first-child{position:sticky;left:0;z-index:1}
 .ocdb-compact .ocdb-kcol{flex-basis:78%}
 .ocdb-compact .ocdb-gal{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .ocdb-compact .ocdb-ce{font-size:16px}
@@ -260,7 +264,7 @@ button.ocdb-pv:hover:not(:disabled),div.ocdb-pv:hover{background:var(--hover)}
 mark.ocdb-hl{background:var(--amber-bg);color:inherit;border-radius:3px;box-shadow:0 0 0 1px var(--amber-bg)}
 .ocdb-grid td.hit{box-shadow:inset 0 -2px 0 var(--amber-fg)}
 .ocdb-grid td.sel,.ocdb-grid tbody tr:hover td.sel{background:var(--accent-soft)}
-.ocdb-grid td:focus-within{box-shadow:inset 0 0 0 2px var(--accent-ring)}
+.ocdb-grid tbody td:focus-within::after{content:"";position:absolute;inset:0;border:2px solid var(--accent);border-radius:3px;pointer-events:none;z-index:2}
 .ocdb-grid td:focus{outline:none}
 .ocdb-grid th{position:relative}
 .ocdb-grid th[aria-sort] .ocdb-hcell{color:var(--fg-2)}
@@ -316,6 +320,102 @@ mark.ocdb-hl{background:var(--amber-bg);color:inherit;border-radius:3px;box-shad
 .ocdb-side:focus{outline:none}
 .ocdb-compact .ocdb-opts li .ocdb-ib,.ocdb-compact .ocdb-rule .ocdb-ib{width:38px;height:38px}
 .ocdb-compact .ocdb-rsz{width:16px;right:-8px}
+
+/* Adding a field: column highlight, naming popover; column overlays; field descriptions */
+.ocdb-gw{position:relative}
+.ocdb-colmark{position:absolute;top:0;pointer-events:none;z-index:3;border-radius:3px}
+.ocdb-colmark.flash{background:color-mix(in srgb,var(--accent) 9%,transparent);box-shadow:inset 0 0 0 2px var(--accent);animation:ocdb-colflash 1.2s var(--ease) forwards}
+.ocdb-colmark.hover{background:var(--hover);border-radius:0}
+.ocdb-colmark.edge{background:color-mix(in srgb,var(--accent) 6%,transparent);box-shadow:inset 2px 0 0 var(--accent),inset -2px 0 0 var(--accent);border-radius:0}
+@keyframes ocdb-colflash{0%,55%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.ocdb-colmark.flash{animation-name:none!important}}
+.ocdb-grid th.desc .ocdb-hcell{padding-right:32px}
+.ocdb-hinfo-w{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:4;line-height:0}
+.ocdb-hinfo{width:24px;height:24px;border:0;border-radius:6px;background:none;color:var(--fg-3);display:grid;place-items:center;padding:0}
+.ocdb-hinfo:hover,.ocdb-hinfo:focus-visible{background:var(--hover);color:var(--fg)}
+.ocdb-tip{display:none;position:absolute;right:-4px;top:calc(100% + 8px);width:max-content;max-width:min(280px,70vw);padding:8px 10px;border-radius:8px;background:var(--fg);color:var(--app);font-size:12.5px;font-weight:400;line-height:1.45;letter-spacing:0;text-transform:none;white-space:pre-wrap;overflow-wrap:anywhere;text-align:left;box-shadow:var(--sh-pop);z-index:6;pointer-events:auto}
+.ocdb-hinfo-w:hover .ocdb-tip,.ocdb-hinfo:focus + .ocdb-tip{display:block;animation:ocdb-fade .15s var(--ease)}
+.ocdb-pop:has(.ocdb-newf),.ocdb-pop:has(.ocdb-descb){min-width:300px;max-width:min(340px,calc(100vw - 16px))}
+.ocdb-newf-name{font-weight:550}
+.ocdb-types{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:0 4px 4px}
+.ocdb-type{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border:0;border-radius:7px;background:none;font-size:13px;color:var(--fg);text-align:left}
+.ocdb-type svg{color:var(--fg-3)}
+.ocdb-type:hover{background:var(--hover)}
+.ocdb-type.on{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
+.ocdb-type.on svg{color:var(--accent)}
+.ocdb-newf-ft{display:flex;align-items:center;gap:6px;padding:6px 8px 4px;border-top:1px solid var(--line);margin-top:2px}
+.ocdb-hintk{flex:1;font-size:11.5px;color:var(--fg-3)}
+.ocdb-hintk kbd{font-family:var(--font);font-size:10.5px;padding:1px 5px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--sunk);color:var(--fg-2)}
+textarea.ocdb-pin.ocdb-desc{height:auto;min-height:84px;font-family:var(--font);font-size:13.5px;line-height:1.45}
+.ocdb-compact .ocdb-type{height:44px;font-size:15px}
+.ocdb-compact .ocdb-addcol button{width:36px;height:36px}
+
+/* Open items: typed filters, fields per view, calendar drag + tray */
+.ocdb-chip.draft{background:none;box-shadow:inset 0 0 0 1px var(--accent-ring);border-style:dashed}
+.ocdb-pop:has(.ocdb-filters),.ocdb-pop:has(.ocdb-fields){min-width:340px;max-width:min(420px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 24px))}
+.ocdb-frule{padding:4px 4px 6px 8px;border-radius:10px;margin:0 2px 4px}
+.ocdb-frule.draft{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+.ocdb-frow{display:flex;align-items:center;gap:6px;min-height:34px}
+.ocdb-ffield{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:550;min-width:0;max-width:34%;flex:none;color:var(--fg)}
+.ocdb-ffield span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ocdb-ffield svg{color:var(--fg-3)}
+.ocdb-fop{height:30px;border:0;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--app);color:var(--fg);font:inherit;font-size:12.5px;padding:0 6px;flex:none;max-width:9.5em;cursor:pointer}
+.ocdb-fop:focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px var(--accent)}
+.ocdb-fop.static{box-shadow:none;background:none;color:var(--fg-3);padding:0 2px;cursor:default;display:inline-flex;align-items:center}
+.ocdb-fval1{flex:1;min-width:0;display:flex}
+.ocdb-fval1 .ocdb-pin,.ocdb-fin .ocdb-pin{height:30px;width:100%;min-width:0}
+.ocdb-frow .ocdb-ib{width:26px;height:26px;margin-left:auto;flex:none}
+.ocdb-fin{display:flex;align-items:center;gap:6px;flex:1;min-width:0;font-size:12.5px;color:var(--fg-3)}
+.ocdb-fin.two{padding:4px 30px 0 0}
+.ocdb-fin.days .ocdb-pin{max-width:72px}
+.ocdb-fval{display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 2px}
+.ocdb-fopt{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:2px 8px 2px 4px;border:0;border-radius:8px;background:none;box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;color:var(--fg-2);transition:background .15s var(--ease),box-shadow .15s var(--ease)}
+.ocdb-fopt:hover{background:var(--hover)}
+.ocdb-fopt.on{box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft);color:var(--accent)}
+.ocdb-fopt .ocdb-pill{margin:0}
+.ocdb-fadd{display:flex;flex-wrap:wrap;gap:4px;padding:2px 6px 6px}
+.ocdb-fadd .ocdb-btn{box-shadow:inset 0 0 0 1px var(--line)}
+.ocdb-mh .grow{flex:1}
+.ocdb-link{border:0;background:none;color:var(--accent);font-size:12px;letter-spacing:0;text-transform:none;padding:2px 4px;border-radius:5px}
+.ocdb-link:hover{background:var(--accent-soft)}
+.ocdb-fields ul{list-style:none;margin:0;padding:0 2px 4px}
+.ocdb-fields li{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 4px 0 0;border-radius:8px;font-size:13.5px;position:relative}
+.ocdb-fields li:hover{background:var(--hover)}
+.ocdb-fields li>svg{color:var(--fg-3)}
+.ocdb-fields li .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ocdb-fields li.off .lbl,.ocdb-fields li.off>svg{color:var(--fg-4)}
+.ocdb-fields li .ocdb-ib{width:24px;height:24px;opacity:0;transition:opacity .15s var(--ease)}
+.ocdb-fields li:hover .ocdb-ib,.ocdb-fields li .ocdb-ib:focus-visible,.ocdb-fields li:focus-within .ocdb-ib{opacity:1}
+.ocdb-fields li .ocdb-ib:disabled{opacity:0!important}
+.ocdb-fields li.drop-b::before,.ocdb-fields li.drop-a::after{content:"";position:absolute;left:6px;right:6px;height:2px;border-radius:1px;background:var(--accent)}
+.ocdb-fields li.drop-b::before{top:-1px} .ocdb-fields li.drop-a::after{bottom:-1px}
+.ocdb-fgrip{width:22px;height:28px;border:0;background:none;color:var(--fg-4);display:grid;place-items:center;border-radius:6px;cursor:grab;touch-action:none;padding:0}
+.ocdb-fgrip:hover{color:var(--fg-2);background:var(--hover)}
+.ocdb-switch{width:30px;height:18px;border:0;border-radius:9px;padding:0;background:var(--line-2);position:relative;flex:none;transition:background .2s var(--ease)}
+.ocdb-switch i{position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--app);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s var(--ease)}
+.ocdb-switch[aria-checked="true"]{background:var(--accent)}
+.ocdb-switch[aria-checked="true"] i{transform:translateX(12px)}
+.ocdb-switch:disabled{opacity:.45;cursor:not-allowed}
+@media (hover:none){.ocdb-fields li .ocdb-ib{opacity:1}}
+.ocdb-compact .ocdb-fields li{min-height:46px}
+.ocdb-compact .ocdb-fields li .ocdb-ib{width:36px;height:36px;opacity:1}
+.ocdb-compact .ocdb-switch{width:40px;height:24px;border-radius:12px} .ocdb-compact .ocdb-switch i{width:20px;height:20px} .ocdb-compact .ocdb-switch[aria-checked="true"] i{transform:translateX(16px)}
+.ocdb-compact .ocdb-fop,.ocdb-compact .ocdb-fval1 .ocdb-pin,.ocdb-compact .ocdb-fin .ocdb-pin{height:40px;font-size:16px}
+.ocdb-calh .ocdb-btn.on{color:var(--fg);background:var(--hover)}
+.ocdb-calh .ocdb-btn .ocdb-badge{background:var(--fg-3)}
+.ocdb-calwrap{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
+.ocdb-calwrap.tray{grid-template-columns:minmax(0,1fr) 200px}
+.ocdb-tray{border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);background:var(--panel);padding:8px;display:flex;flex-direction:column;gap:4px;max-height:560px;overflow:auto;transition:box-shadow .15s var(--ease),background .15s var(--ease)}
+.ocdb-tray.over{box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft)}
+.ocdb-trayh{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:550;color:var(--fg-2);padding:2px 2px 6px}
+.ocdb-trayh .ocdb-badge{background:var(--fg-3);margin-left:auto}
+.ocdb-tray .ocdb-hint{padding:6px 2px;font-size:12.5px}
+.ocdb-day.over{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.ocdb-cev{cursor:pointer;touch-action:manipulation;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.ocdb-cev.dragging{opacity:.35}
+.ocdb-cal.dragging,.ocdb-cal.dragging *{cursor:grabbing!important}
+.ocdb-cghost{position:fixed;z-index:2000;pointer-events:none;font-family:var(--font);font-size:12px;font-weight:500;padding:3px 8px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:var(--sh-pop);transform:rotate(1.5deg) scale(1.03);opacity:.96}
+@media (max-width:900px){.ocdb-calwrap.tray{grid-template-columns:minmax(0,1fr)}.ocdb-tray{max-height:none;flex-direction:row;flex-wrap:wrap}.ocdb-tray .ocdb-cev{width:auto;max-width:100%}.ocdb-trayh{flex-basis:100%}}
 
 @keyframes ocdb-pop{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes ocdb-fade{from{opacity:0}}

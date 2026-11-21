@@ -33,6 +33,11 @@ export interface Shape {
   end?: Binding;
   /** arrow: "elbow" for an orthogonal route; "straight" (or unset with a binding) for a line */
   route?: ArrowRoute;
+  /**
+   * arrow: manual waypoints `[[x,y],…]` the connector passes through, in order. Ends still come
+   * from bindings or `pts`; `pts` keeps the resolved path for readers that ignore `via`.
+   */
+  via?: Pt[];
   /** image: URL (host asset or data: URL) */
   src?: string;
   /** image: alt text / file name */

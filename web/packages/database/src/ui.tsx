@@ -48,14 +48,18 @@ interface PopProps {
   alignRight?: boolean;
   children: ReactNode;
   label?: string;
+  /** Escape runs this instead of `onClose` (e.g. to discard a field that was just added). */
+  onEscape?: () => void;
 }
 
 /** Anchored popover on desktop, bottom sheet with scrim when compact. Portaled to body. */
-export function Pop({ anchor, compact, title, onClose, alignRight, children, label }: PopProps) {
+export function Pop({ anchor, compact, title, onClose, alignRight, children, label, onEscape }: PopProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const close = useRef(onClose);
   close.current = onClose;
+  const escape = useRef(onEscape);
+  escape.current = onEscape;
 
   useLayoutEffect(() => {
     if (compact) return;
@@ -83,11 +87,21 @@ export function Pop({ anchor, compact, title, onClose, alignRight, children, lab
     };
   }, [anchor, compact, alignRight]);
 
+  // When the popover goes away with focus inside it (or lost to <body>), focus goes back to
+  // the element that opened it, so keyboard users keep their place (and the cell its ring).
+  useLayoutEffect(() => {
+    const node = ref.current;
+    return () => {
+      const a = document.activeElement;
+      if (anchor instanceof HTMLElement && anchor.isConnected && (!a || a === document.body || node?.contains(a))) anchor.focus({ preventScroll: true });
+    };
+  }, [anchor]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        close.current();
+        (escape.current ?? close.current)();
       }
     };
     const onDown = (e: PointerEvent) => {

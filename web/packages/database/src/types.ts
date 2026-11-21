@@ -27,6 +27,8 @@ export interface DbField {
   name: string;
   type: FieldType;
   options?: DbOption[];
+  /** Optional note on the field (what it means, how to fill it). Plain text, may be multi-line. */
+  description?: string;
 }
 
 export type ViewKind = "table" | "board" | "calendar" | "gallery";
@@ -54,6 +56,13 @@ export interface ViewPrefs {
   date?: string;
   /** Gallery: what fills the card cover: "none", "color" (group colour, default) or a URL field id. */
   cover?: string;
+  /**
+   * Field ids in this view's order. Fields missing from the list (added later) follow in the
+   * database's order. Reordering columns writes this, never the shared `fields` array.
+   */
+  fields?: string[];
+  /** Field ids hidden in this view. The title field is always shown. */
+  hidden?: string[];
 }
 
 export interface SortRule {
@@ -61,9 +70,21 @@ export interface SortRule {
   dir: 1 | -1;
 }
 
+/**
+ * Typed filter conditions. Option-like fields (status, select, tags, person, checkbox) use
+ * `vals` (any of); the others use `op` with `v` (and `v2` for "between").
+ * - text, title, url: `contains`, `is`, `empty`
+ * - number, progress: `eq ne lt le gt ge between empty`
+ * - date (`v` is `YYYY-MM-DD`, or a day count for `next` / `past`): `is before after next past empty`
+ */
+export type FilterOp = "contains" | "is" | "empty" | "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "between" | "before" | "after" | "next" | "past";
+
 export interface FilterRule {
   f: string;
-  vals: string[];
+  vals?: string[];
+  op?: FilterOp;
+  v?: string | number | null;
+  v2?: string | number | null;
 }
 
 export type CellValue = string | number | boolean | string[] | null;

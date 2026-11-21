@@ -30,6 +30,13 @@ export interface BlockEnv {
   upload?: (file: File) => Promise<{ url: string }>;
   /** Maps a stored asset URL to one this viewer can load (adds the session ticket to room-served `/v1/assets/…`). */
   resolveAsset?: (src: string) => string;
+  /**
+   * Optional: the editor's undo manager. When given, a block adds its own Yjs type to the
+   * manager's scope and its local origin to `trackedOrigins` instead of keeping a private
+   * stack, so one Cmd/Ctrl+Z (and the editor's undo buttons) step through block edits too.
+   * The block never destroys it.
+   */
+  undoManager?: import("yjs").UndoManager;
 }
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];
