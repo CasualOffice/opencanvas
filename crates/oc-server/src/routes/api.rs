@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 
 use super::ApiError;
 use crate::SharedState;
+use crate::cluster::bus::MembersEvent;
 use crate::grant::{FileRef, Grant, Perms, Role, User, derive_color, room_id};
 use crate::hosts::HostConfig;
 use crate::room::{CommitResult, PatchFailure};
@@ -70,12 +71,16 @@ pub async fn set_role(
         .set_session_role(&room, &body.user_id, role)
         .await
         .map_err(ApiError::internal)?;
-    // docs/21 revision 2: revocation is authoritative for the member list at once.
-    if role.is_none() {
-        state.members.revoke(&room, &body.user_id);
-    } else {
-        state.members.restore(&room, &body.user_id);
-    }
+    // docs/21 revision 2: revocation is authoritative for the member list at once, on every
+    // node (cluster: published before the room is told, so refetches see it).
+    let (room_s, user) = (room.clone(), body.user_id.clone());
+    state
+        .members_event(if role.is_none() {
+            MembersEvent::Revoke { room: room_s, user }
+        } else {
+            MembersEvent::Restore { room: room_s, user }
+        })
+        .await;
     let connections = state.rooms.set_role(&room, &body.user_id, role).await;
     tracing::info!(host = %host.id, room = %room, role = %body.role, connections, sessions, "role API");
     Ok(Json(
@@ -92,7 +97,9 @@ pub async fn invalidate_members(
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
     let room = room_id(&host.id, &file_id);
-    state.members.invalidate(&room);
+    state
+        .members_event(MembersEvent::Invalidate { room: room.clone() })
+        .await;
     // No user has the empty id: this only tells the room the list changed.
     let _ = state.rooms.set_role(&room, "", None).await;
     tracing::info!(host = %host.id, room = %room, "members invalidated by host");
@@ -107,7 +114,9 @@ pub async fn close_session(
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
     let room = room_id(&host.id, &file_id);
-    state.members.invalidate(&room);
+    state
+        .members_event(MembersEvent::Invalidate { room: room.clone() })
+        .await;
     let sessions = state
         .store
         .delete_room_sessions(&room)

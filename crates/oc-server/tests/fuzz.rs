@@ -212,7 +212,7 @@ impl Client {
     fn pump(&mut self) {
         while let Ok(out) = self.rx.try_recv() {
             if let Outbound::Frame(f) = out {
-                self.inbox.push(f);
+                self.inbox.push(f.to_vec());
             }
         }
     }

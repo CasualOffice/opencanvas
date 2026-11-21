@@ -6,6 +6,7 @@
 //! that finds the owner unreachable (`/healthz` probe fails); the new owner rebuilds the room
 //! from snapshot + WAL in MySQL/MariaDB exactly like a single-node restart.
 
+pub mod bus;
 pub mod lease;
 pub mod relay;
 pub mod server;
@@ -15,11 +16,14 @@ use std::time::Duration;
 
 use axum::http::HeaderMap;
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 
+use crate::people::Members;
 use crate::room::RemoteOp;
 use crate::util::now_secs;
+use bus::{Bus, BusMsg, FakeBus, MembersEvent, RedisBus};
 use lease::{LeaseBackend, Leases, Owner, RedisLeases};
 
 pub const LEASE_TTL: Duration = Duration::from_millis(15_000);
@@ -145,6 +149,17 @@ pub struct Cluster {
     pub leases: Leases,
     redis: Option<Arc<RedisLeases>>,
     http: reqwest::Client,
+    /// Member events to and from every node (docs/21 revision 2).
+    bus: Arc<dyn Bus>,
+}
+
+/// A signed member event on the bus.
+#[derive(Serialize, Deserialize)]
+struct Envelope {
+    node: String,
+    ts: i64,
+    ev: MembersEvent,
+    sig: String,
 }
 
 impl Cluster {
@@ -154,18 +169,31 @@ impl Cluster {
                 .await
                 .map_err(|e| anyhow::anyhow!("connecting to REDIS_URL: {e}"))?,
         );
-        Ok(Self::build(cfg, redis.clone(), Some(redis)))
+        let bus = RedisBus::connect(&cfg.redis_url)
+            .await
+            .map_err(|e| anyhow::anyhow!("connecting to REDIS_URL (members bus): {e}"))?;
+        Ok(Self::build(cfg, redis.clone(), Some(redis), bus))
     }
 
-    /// A cluster on any lease backend (tests use the in-memory fake).
+    /// A cluster on any lease backend (tests use the in-memory fake), with a bus of its own.
     pub fn with_backend(cfg: ClusterConfig, backend: Arc<dyn LeaseBackend>) -> Arc<Self> {
-        Self::build(cfg, backend, None)
+        Self::build(cfg, backend, None, Arc::new(FakeBus::default()))
+    }
+
+    /// A cluster on any lease backend and members bus (tests share one fake between nodes).
+    pub fn with_backends(
+        cfg: ClusterConfig,
+        backend: Arc<dyn LeaseBackend>,
+        bus: Arc<dyn Bus>,
+    ) -> Arc<Self> {
+        Self::build(cfg, backend, None, bus)
     }
 
     fn build(
         cfg: ClusterConfig,
         backend: Arc<dyn LeaseBackend>,
         redis: Option<Arc<RedisLeases>>,
+        bus: Arc<dyn Bus>,
     ) -> Arc<Self> {
         let leases = Leases::new(backend, &cfg.node_id, &cfg.advertise, cfg.lease_ttl);
         let http = reqwest::Client::builder()
@@ -177,7 +205,44 @@ impl Cluster {
             leases,
             redis,
             http,
+            bus,
         })
+    }
+
+    fn members_mac(&self, ts: i64, node: &str, ev: &MembersEvent) -> Hmac<Sha256> {
+        let body = serde_json::to_vec(ev).expect("event json");
+        self.mac(ts, &format!("{}:{node}", bus::CHANNEL), &body)
+    }
+
+    /// Tells every other node about a member change. Best effort: a Redis error is logged
+    /// (the other nodes' caches then expire within 60 s, as without a bus).
+    pub async fn publish_members(&self, ev: &MembersEvent) {
+        let ts = now_secs();
+        let node = self.cfg.node_id.clone();
+        let sig = hex::encode(self.members_mac(ts, &node, ev).finalize().into_bytes());
+        let env = Envelope {
+            node,
+            ts,
+            ev: ev.clone(),
+            sig,
+        };
+        let msg = serde_json::to_vec(&env).expect("envelope json");
+        if let Err(e) = self.bus.publish(msg).await {
+            tracing::warn!(error = %e, "members bus: publish failed");
+        }
+    }
+
+    /// The event in a bus message from another node, if its signature and time check out.
+    fn open_members(&self, msg: &[u8]) -> Option<MembersEvent> {
+        let env: Envelope = serde_json::from_slice(msg).ok()?;
+        if env.node == self.cfg.node_id || (now_secs() - env.ts).abs() > MAX_SKEW_SECS {
+            return None;
+        }
+        let sig = hex::decode(&env.sig).ok()?;
+        self.members_mac(env.ts, &env.node, &env.ev)
+            .verify_slice(&sig)
+            .ok()?;
+        Some(env.ev)
     }
 
     pub async fn redis_ok(&self) -> bool {
@@ -279,9 +344,77 @@ pub fn spawn_renewer(rooms: Arc<crate::room::Rooms>, cluster: Arc<Cluster>) {
     });
 }
 
+/// Applies other nodes' member events (revoke, restore, invalidate) to this node's members
+/// cache and revoke set as they arrive. A (re)subscription clears the whole cache: events
+/// published while the subscription was down are lost.
+pub fn spawn_members_listener(members: Arc<Members>, cluster: Arc<Cluster>) {
+    let mut rx = cluster.bus.subscribe();
+    tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            match msg {
+                BusMsg::Resubscribed => members.invalidate_all(),
+                BusMsg::Message(m) => {
+                    if let Some(ev) = cluster.open_members(&m) {
+                        tracing::debug!(event = ?ev, "members event from another node");
+                        ev.apply(&members);
+                    }
+                }
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn member_events_are_signed_and_skip_their_own_node() {
+        let cfg = |id: &str, secret: &str| {
+            ClusterConfig::build(
+                Some("redis://r".into()),
+                "mysql://db/oc",
+                Some(id.into()),
+                None,
+                Some(secret.into()),
+                "0.0.0.0:8080",
+            )
+            .unwrap()
+            .unwrap()
+        };
+        let bus = Arc::new(FakeBus::default());
+        let fake = || Arc::new(lease::FakeLeases::default());
+        let a = Cluster::with_backends(cfg("a", SECRET), fake(), bus.clone());
+        let b = Cluster::with_backends(cfg("b", SECRET), fake(), bus.clone());
+        let evil = Cluster::with_backends(
+            cfg("c", "another-secret-another-secret-xx"),
+            fake(),
+            bus.clone(),
+        );
+        let mut rx = bus.subscribe();
+        assert_eq!(rx.recv().await, Some(BusMsg::Resubscribed));
+        let ev = MembersEvent::Revoke {
+            room: "r_1".into(),
+            user: "u_sam".into(),
+        };
+        a.publish_members(&ev).await;
+        let Some(BusMsg::Message(m)) = rx.recv().await else {
+            panic!()
+        };
+        assert_eq!(b.open_members(&m), Some(ev.clone()));
+        assert_eq!(a.open_members(&m), None, "own events are already applied");
+        evil.publish_members(&ev).await;
+        let Some(BusMsg::Message(evil_m)) = rx.recv().await else {
+            panic!()
+        };
+        assert_eq!(b.open_members(&evil_m), None, "wrong secret");
+        let mut tampered: serde_json::Value = serde_json::from_slice(&m).unwrap();
+        tampered["ev"]["user"] = "u_other".into();
+        assert_eq!(
+            b.open_members(&serde_json::to_vec(&tampered).unwrap()),
+            None
+        );
+    }
 
     fn build(
         redis: Option<&str>,

@@ -157,12 +157,61 @@ the server's hosts file pointing `bench` at a mock you run next to it).
 On one laptop E shows relay and lease overhead and how load spreads, not real scale-out: all three
 nodes share the same cores.
 
-## 7. Findings for the server (not fixed here)
+## 7. Findings for the server
 
-- **Memory per idle connection is high (0.20 MB).** Not root-caused. A likely part is the WebSocket
-  read buffer, which tungstenite allocates per connection (128 KiB by default) and which
-  `collab::upgrade` does not set. Checking needs a heap profile; a smaller `read_buffer_size` on the
-  `WebSocketUpgrade` would be the first thing to try.
+### Fixed 2026-11-22 (branch `perf-revocation-fanout`)
+
+Measured on the same M4 laptop, but **not idle**: another session was running Docker cluster
+benchmarks (load average 14–22 on 10 cores), so CPU and latency below are noisy. Every number
+comes from `oc-bench` with the same arguments as §2, run back to back against a release build
+of main (`79fa518`) and of the branch, on ports 8901/8902.
+
+- **Memory per idle connection: 0.20 → 0.087 MB (−57 %).** Root cause: tungstenite's read
+  buffer. Its default `read_buffer_size` is 128 KiB and the codec zero-fills the buffer up to
+  its capacity on the first read (`FrameCodec::read_in`: `in_buffer.resize(capacity, 0)`), so
+  every connection kept 128 KiB resident. `routes::collab::ws_config` now sets an 8 KiB read
+  buffer on client sockets and the cluster relay (a larger frame still grows the buffer, up to
+  the frame limit). Guard: `collab::tests::websocket_read_buffer_stays_small`.
+
+  | scenario C, idle viewers over 100 demo rooms | RSS at 1,000 | RSS at 4,000 | MB per connection |
+  |---|---|---|---|
+  | main | 237 MB | 848 MB | 0.204 |
+  | read buffer 8 KiB | 122 MB | 386 MB | 0.088 |
+  | branch (read buffer + shared fan-out) | 120 MB | 381 MB | 0.087 |
+  | branch, empty doc | 38 MB | 116 MB | 0.026 |
+
+  **Left:** the rest scales with the document (0.087 MB with the 49 KB demo doc, 0.026 MB with an
+  empty one). Likely cause, not verified with a heap profile: tungstenite's write buffer (`out_buffer`,
+  a `Vec` that never shrinks) keeps the capacity of the largest frame sent, which is the
+  initial sync step 2 (the whole document). The WebSocket config has no setting for this, so a fix
+  would mean sending the initial state in chunks or a patched writer.
+- **Fan-out shares one buffer.** `Outbound::Frame` now carries `bytes::Bytes`; `broadcast`
+  clones a reference per peer instead of `to_vec()` per peer, and the relay forwards the owner's
+  frames without a copy. Wire format unchanged. Test: `tests/rooms.rs`
+  `fan_out_shares_one_buffer_between_peers` (two viewers get the same allocation; failed on main).
+  Scenario A at 550 (20 % editors, 60 s), one step:
+
+  | build | p50 ms | p95 ms | p99 ms | server CPU % | RSS MB | frames/s out |
+  |---|---|---|---|---|---|---|
+  | main, run 1 | 19.1 | 1,057.6 | 1,571.0 | 151 | 152 | 331,621 |
+  | main, run 2 | 8.1 | 16.6 | 22.4 | 178 | 148 | 340,336 |
+  | read buffer only | 4.1 | 7.5 | 10.3 | 195 | 82 | 340,327 |
+  | branch, run 1 | 8.1 | 22.2 | 33.8 | 166 | 79 | 340,566 |
+  | branch, run 2 | 9.3 | 21.1 | 32.4 | 176 | 78 | 340,955 |
+
+  **No measurable CPU or latency gain from the shared buffer** on this loaded machine: CPU
+  differs by less than the run-to-run spread (151–195 %), and p95 moves with the background
+  load, not with the build (main's first run hit 1 s). The RSS drop at 550 (150 → 79 MB) comes
+  from the read buffer. The change stays because it removes ~340,000 allocations and copies per
+  second at the cap; rerun A on an idle machine to see whether it shows.
+- **Revocation in a cluster** (docs/21 note 3): the members cache and revoke set are still per
+  node, but every revoke, restore and invalidate is now published on Redis pub/sub
+  (`oc:members`, HMAC-signed) and applied by every node within a second. Tests:
+  `tests/cluster.rs` `revoke_on_one_node_reaches_every_node` (+ `…_over_redis` with
+  `OC_TEST_REDIS_URL`).
+
+### Still open
+
 - **Room memory is 5–14× the document**, not the "~3× doc size" in docs/03 §5.3; docs/03's 300-room
   estimate is low for database/board-heavy documents.
 - **`/metrics` lists fewer series than docs/13 says.** The server exports `oc_rooms_active`,
@@ -170,6 +219,5 @@ nodes share the same cores.
   counters; `oc_update_apply_seconds`, `oc_fanout_bytes_total`, `oc_commit_seconds`,
   `oc_host_callback_seconds`, `oc_wal_bytes` and `oc_room_doc_bytes` do not exist yet, so save
   latency here was measured at the mock host.
-- **Fan-out copies each frame per peer** (`broadcast` does `frame.to_vec()` for every peer). At 550
-  peers that is 345,255 allocations and copies per second; a shared `Bytes` would avoid it. Not
-  limiting at the cap on this machine.
+- **§2–§4 still show main's numbers** (0.20 MB per connection). With the read-buffer fix the
+  per-user memory rule of thumb in §4 is conservative; update it after a clean rerun of B and C.

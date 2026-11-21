@@ -256,6 +256,12 @@ impl Members {
             .retain(|(r, _), _| r != room);
     }
 
+    /// Drops every cached callback answer (cluster: the members bus resubscribed and may have
+    /// missed invalidations).
+    pub fn invalidate_all(&self) {
+        self.cache.lock().expect("members").clear();
+    }
+
     /// The host revoked `user` on `room` (role API `none`): invalidate, and leave them out of
     /// the list even where an older token or the saved `people` map still names them, until
     /// they are granted access again or open the canvas with a new token.

@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
         let node = cc.node_id.clone();
         let advertise = cc.advertise.clone();
         let c = Cluster::connect(cc).await?;
-        state.rooms.set_cluster(c.clone());
+        state.join_cluster(c.clone());
         cluster::spawn_renewer(state.rooms.clone(), c);
         tracing::info!(node = %node, advertise = %advertise, "cluster mode: room leases in Redis");
     }

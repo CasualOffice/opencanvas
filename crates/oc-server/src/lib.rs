@@ -79,6 +79,24 @@ impl AppState {
 }
 
 impl AppState {
+    /// Switches to cluster mode (once, before serving): rooms get one owner node, and member
+    /// events from other nodes are applied here as they arrive.
+    pub fn join_cluster(&self, cluster: Arc<cluster::Cluster>) {
+        self.rooms.set_cluster(cluster.clone());
+        cluster::spawn_members_listener(self.members.clone(), cluster);
+    }
+
+    /// Applies a member change (revoke, restore, invalidate) here and, in a cluster, on every
+    /// other node (docs/21 revision 2: revocation is authoritative cluster-wide).
+    pub async fn members_event(&self, ev: cluster::bus::MembersEvent) {
+        ev.apply(&self.members);
+        if let Some(c) = self.rooms.cluster() {
+            c.publish_members(&ev).await;
+        }
+    }
+}
+
+impl AppState {
     /// Startup sweeper: reopens every room that has a pending commit so its save is retried
     /// (with the same idempotency key). Returns how many rooms were resumed.
     pub async fn resume_outbox(&self) -> anyhow::Result<usize> {

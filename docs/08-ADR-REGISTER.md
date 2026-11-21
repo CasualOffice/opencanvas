@@ -195,8 +195,9 @@ last only without a host source), and authoritative revocation: the role API wit
 invalidates the cache, leaves the person out even where an older token or the saved map names
 them, and tells the room to refetch (control `{"t":"members"}`); `POST /v1/files/:id/members/invalidate`
 does the same for other changes. A mentioned id that is no longer a member shows its snapshot
-label with "No longer has access". − The revoke set and the cache are per node (in a cluster,
-another node's cache can serve a stale answer for up to 60 s); − with no host source, everyone
+label with "No longer has access". − In a cluster the revoke set and the cache are per node and kept in step over Redis
+pub/sub (`oc:members`, signed; 2026-11-22), so a revoke reaches every node within a second;
+a node that was unsubscribed when it was published can serve a stale answer for up to 60 s; − with no host source, everyone
 who ever opened the canvas stays listed until the host revokes them.
 
 ### ADR-027 — Editor and server open items: mentions, heartbeat, inline marks, file previews, columns
