@@ -277,6 +277,7 @@ below is from a real run; raw JSON and Markdown are written to `target/bench/` b
 | run | what | criterion | result |
 |---|---|---|---|
 | S1 | 1 room × 550, 100 % editors, no pauses, 12 min, SQLite | p95 ≤ 150 ms every bucket; RSS flat; host save ≤ 30 s; 0 errors | **FAIL**: p95 156 s → 638 s; RSS 299 → 929 MB; 2 saves in 12 min; 0 errors |
+| S1 rerun | same, 5 min, presence fan-out + bounded inbox + batched writes (§9.1.1) | same | **FAIL**: p95 39 s → 220 s; RSS 161 → 452 MB; 3 saves in 5 min; 0 errors, 0 disconnects |
 | S2 | 1,000 rooms × 5, 100 % editors, no pauses, 10 min, SQLite | same | **FAIL**: p95 57 s → 521 s; autosave lag p95 255 s; 0 errors, 0 drops |
 | R | `kill -9` during typing, 200 rooms × 2, SQLite | 0 acked lost; converge; server = clients; first save after restart complete | **PASS**: 0 / 38,756 lost; ready in 28 ms; 200 rooms replayed in 234 ms |
 | mR | same on MariaDB | same | **PASS** (0 / 35,196 lost; replay 2.2 s); 38 deadlock errors logged |
@@ -326,6 +327,54 @@ written only at the end, so per-bucket max latency was not kept; p99 is within 1
 Criteria: p95 ≤ 150 ms in every bucket, RSS growth < 10 % after the first bucket, a host save
 at least every 30 s per room, 0 errors. Result: **FAIL** on latency, memory and autosave; PASS on
 errors and WAL growth.
+
+#### 9.1.1 Rerun after the awareness fan-out fix (2026-11-22) — still **FAIL**
+
+Branch `perf-awareness-fanout` on top of `cf9c390` (which had already removed `rewrite_for`):
+
+- **Presence** (`room/presence.rs`): each awareness update is stamped once from the sender's
+  grant, held latest-per-client, and fanned out as one shared frame per batch. The client-id
+  ownership map is kept incrementally.
+- **Bounded room inbox**: 2,048 permits per room. Yjs updates wait for a permit and are never
+  dropped. An awareness frame that finds the inbox full is held, one per connection (newest wins).
+- **Socket writes**: `write_frames` feeds up to 64 queued frames, then flushes once.
+- **Load generator**: `oc-bench` sends from its own task, as a browser's `bufferedAmount` does, so
+  server pushback never stops a client reading.
+
+`OUT=… S1_STEPS=550,550,550,550,550 scripts/bench.sh S1`: same scenario, 5 one-minute buckets
+(55 s measured + 5 s gap), same machine. Clients offered **≈ 2,750 update frames/s** and
+≈ 2,610 awareness frames/s in every bucket.
+
+| bucket | p50 ms | p95 ms | p99 ms | samples | srv CPU % | RSS MB | upd/s applied | frames/s out | MB/s out | live | err | drop |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 22,432 | 39,046 | 40,576 | 523,825 | 498 | 161 | 954 | 1,020,394 | 183.6 | 550 | 0 | 0 |
+| 2 | 62,095 | 78,955 | 81,614 | 469,839 | 466 | 229 | 855 | 915,424 | 174.1 | 550 | 0 | 0 |
+| 3 | 105,993 | 125,795 | 127,418 | 362,470 | 343 | 302 | 660 | 705,937 | 135.1 | 550 | 0 | 0 |
+| 4 | 156,193 | 173,511 | 174,811 | 326,020 | 316 | 376 | 594 | 635,572 | 122.0 | 550 | 0 | 0 |
+| 5 | 199,720 | 220,475 | 222,066 | 316,892 | 308 | 452 | 577 | 617,168 | 118.5 | 550 | 0 | 0 |
+
+Host: 4 saves (3 during the run, 1 at shutdown), save lag p50 48.5 s, max 188 s. WAL rows ≤ 285,
+SQLite file 5.3 MB, `-wal` file 7.1 MB. The server log had no warnings beyond the 4 start-up
+config notices (short bench API keys, web app not built), and no slow-client drops.
+
+- **Better than before, not enough.** Compared with §9.1 (p95 156 s after 3 minutes), p95 is 39 s
+  after 1 minute and 220 s after 5. The room still applies only 21–35 % of what is offered, so
+  latency grows by about 45 s per minute and RSS by about 70 MB per minute.
+- **No disconnects.** An earlier run on this branch lost all 550 clients in bucket 2. In that run
+  the load generator wrote and read on one task, so a send blocked by the bounded inbox also
+  stopped that client's reads. With sends on their own task, all 550 stayed live through all 5
+  buckets, with 0 closes and 0 errors.
+- **Where the time goes** (macOS `sample`, 5 s, bucket 3): the room actor task was busy in about
+  6 % of samples and the 8 SQLite workers in about 1.5 % each. Worker threads spent most of their
+  busy time in `__sendto`, called from `poll_flush` once per batch. Nothing is saturated: the room
+  applies one update, waits for its WAL append (`Room::accepted`), then takes the next. Throughput
+  is bounded by that round trip, not by CPU. Applied updates/s fall as the document and snapshot
+  grow (954 → 577).
+- **Next:** batch WAL appends in `accepted`, after fencing (weakness 3) has merged. This branch
+  does not touch `accepted` or the WAL.
+
+Criteria as §9.1. Result: **FAIL** on latency, memory and autosave; PASS on errors, disconnects
+and WAL growth.
 
 ### 9.2 S2: 1,000 rooms × 5, every client typing with no pauses — **FAIL**
 

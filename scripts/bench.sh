@@ -34,7 +34,7 @@ WHAT=${1:-quick}
 OUT=${OUT:-$ROOT/target/bench}
 OC_PORT=${OC_PORT:-8701}; HOST_PORT=${HOST_PORT:-8702}; MARIA_PORT=${MARIA_PORT:-8733}; REDIS_PORT=${REDIS_PORT:-8734}
 SECRET=bench-secret-0123456789abcdef0123456789
-BIN=target/release/opencanvas; LG=target/release/oc-bench
+TGT=${CARGO_TARGET_DIR:-target}; BIN=$TGT/release/opencanvas; LG=$TGT/release/oc-bench
 mkdir -p "$OUT"
 WORK=$(mktemp -d)
 PIDS=(); CONTAINERS=()
@@ -50,7 +50,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cargo build -q --release -p oc-server --bin opencanvas -p oc-bench || exit 1
+cargo build -q --release -p oc-server --bin opencanvas -p oc-bench --bin oc-bench || exit 1
 for port in "$OC_PORT" "$HOST_PORT"; do
   if nc -z 127.0.0.1 "$port" 2>/dev/null; then echo "port $port is in use (set OC_PORT / HOST_PORT)"; exit 1; fi
 done
