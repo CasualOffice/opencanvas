@@ -103,6 +103,7 @@ DOC_DESCRIPTIONS = {
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
+    "capacity": "Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.",
     "architecture": "How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.",
     "collaboration": "How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.",
     "product": "What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.",

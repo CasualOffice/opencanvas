@@ -118,8 +118,15 @@ Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a
 period of ≥ 30 s. (Not yet: `/readyz` does not turn 503 while draining.)
 
 ## Sizing
-| Load | Shape |
+Measured on an Apple M4 laptop (10 cores, 16 GB); method, raw tables and caveats in
+[22](22-CAPACITY-AND-SIZING.md). Keep ≤ 60 % of measured use.
+
+| Load (small rooms, 20 % typing) | Shape |
 |---|---|
-| Team ≤ 200 users | 1 node, 1 vCPU, 512 MB, SQLite |
-| ≤ 5 000 concurrent | 3 nodes × 2 vCPU/2 GB, MariaDB, Redis |
-| Large | scale nodes linearly; split export workers; Redis cluster |
+| ≤ 1 000 concurrent users | 1 node, 1 vCPU, 512 MB, SQLite |
+| ≤ 5 000 concurrent users | 1 node, 2 vCPU, 2 GB, SQLite |
+| One room at the 550 cap | 3 vCPU and ≥ 600 Mbit/s for that room |
+| Beyond 5 000 | cluster mode (MariaDB + Redis), about one node per 5 000 users (not measured yet) |
+
+Memory ≈ 50 MB + 0.25 MB per user + 5–14× the document per open room. Raise `nofile` above the
+connection count. Rerun on your hardware: `scripts/bench.sh`.

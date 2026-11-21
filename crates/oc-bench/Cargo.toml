@@ -1,0 +1,21 @@
+[package]
+name = "oc-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Load generator for OpenCanvas capacity runs (docs/22)"
+
+# Only crates the workspace already uses: no new dependency (docs/08).
+[dependencies]
+oc-model.workspace = true
+yrs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+axum.workspace = true
+jsonwebtoken.workspace = true
+reqwest.workspace = true
+futures.workspace = true
+tokio-tungstenite = "0.28"
