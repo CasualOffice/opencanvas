@@ -22,6 +22,9 @@ pub struct Config {
     /// `OC_WAL_REDIS_URL` (default: `REDIS_URL`): the hot WAL lives in Redis and the database
     /// gets a snapshot every `OC_DB_SYNC_MS` (5 s) or `OC_DB_SYNC_UPDATES` (500) updates (ADR-021).
     pub wal_redis_url: Option<String>,
+    /// Redis-only storage (ADR-030): `REDIS_URL` set and `DATABASE_URL` not. Every piece of
+    /// server state lives in this Redis (the WAL Redis); `database_url` is empty and unused.
+    pub storage_redis_url: Option<String>,
     pub rooms: RoomConfig,
 }
 
@@ -137,13 +140,23 @@ impl Config {
             tracing::warn!("OC_DEV=1 and no OC_KEK: callback tokens are stored unencrypted");
         }
         let wal_redis = var("OC_WAL_REDIS_URL").or_else(|| var("REDIS_URL"));
+        let database_url = var("DATABASE_URL");
+        let storage_redis_url = storage_redis(
+            var("REDIS_URL").is_some(),
+            database_url.is_some(),
+            wal_redis.as_deref(),
+        );
         let durability = Durability::parse(var("OC_DURABILITY").as_deref(), wal_redis.is_some())?;
         let memory = durability == Durability::Memory;
         Ok(Self {
             bind: var("OC_BIND").unwrap_or_else(|| "0.0.0.0:8080".into()),
             public_url: var("OC_PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string()),
-            database_url: var("DATABASE_URL")
-                .unwrap_or_else(|| "sqlite://./data/opencanvas.db?mode=rwc".into()),
+            database_url: match (&database_url, &storage_redis_url) {
+                (Some(u), _) => u.clone(),
+                (None, Some(_)) => String::new(),
+                (None, None) => "sqlite://./data/opencanvas.db?mode=rwc".into(),
+            },
+            storage_redis_url,
             hosts_file: var("OC_HOSTS_FILE")
                 .unwrap_or_else(|| "./opencanvas.hosts.toml".into())
                 .into(),
@@ -190,9 +203,28 @@ impl Config {
     }
 }
 
+/// Where state lives (ADR-030): a cluster (`REDIS_URL`) without `DATABASE_URL` keeps all of it
+/// in the WAL Redis; anything else uses the database (SQLite by default).
+pub fn storage_redis(cluster: bool, database: bool, wal_redis: Option<&str>) -> Option<String> {
+    if cluster && !database {
+        wal_redis.map(str::to_string)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_cluster_without_database_url_stores_everything_in_redis() {
+        let r = Some("redis://r:6379");
+        assert_eq!(storage_redis(true, false, r).as_deref(), r);
+        assert_eq!(storage_redis(true, true, r), None);
+        assert_eq!(storage_redis(false, false, r), None);
+        assert_eq!(storage_redis(false, true, None), None);
+    }
 
     #[test]
     fn idle_eviction_defaults_to_a_minute_and_reads_oc_room_idle_ms() {

@@ -365,6 +365,7 @@ pub async fn app_full(
         pdf_renderer: None,
         metrics_token: None,
         wal_redis_url: None,
+        storage_redis_url: None,
         kek: Some(oc_server::crypto::Kek::from_b64(TEST_KEK).unwrap()),
         rooms,
     };

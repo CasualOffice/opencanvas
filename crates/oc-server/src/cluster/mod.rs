@@ -87,8 +87,8 @@ impl ClusterConfig {
         };
         if database_url.starts_with("sqlite:") {
             anyhow::bail!(
-                "REDIS_URL enables cluster mode, which needs MySQL or MariaDB: SQLite is single-node only. \
-                 Set DATABASE_URL=mysql://… or unset REDIS_URL."
+                "REDIS_URL enables cluster mode, which needs MySQL or MariaDB or no database at all: SQLite is single-node only. \
+                 Set DATABASE_URL=mysql://…, unset DATABASE_URL (Redis-only storage, ADR-030) or unset REDIS_URL."
             );
         }
         let secret = secret.ok_or_else(|| {
