@@ -491,9 +491,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     [session],
   );
   // Blocks (board images, …) store files through the same host proxy (BlockEnv.upload).
+  // The editor's undo manager (y-prosemirror) is the canvas's one undo stack (docs/06 §4): database
+  // and board blocks add their edits to it, so ⌘Z / ⌘⇧Z step through text, cells and shapes in order.
+  const undoManager = useMemo(() => (editor ? yUndoPluginKey.getState(editor.state)?.undoManager : undefined), [editor]);
   const env: BlockEnv = useMemo(
-    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset }),
-    [effectiveRole, me, allUsers, compact, upload],
+    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager }),
+    [effectiveRole, me, allUsers, compact, upload, undoManager],
   );
 
   const openThread = useCallback((id: string) => {

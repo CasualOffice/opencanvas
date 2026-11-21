@@ -243,6 +243,9 @@ button.cic:hover{transform:scale(1.06)}
    blocks: inside columns or toggles they keep their parent's width. */
 .scroll{container-type:inline-size}
 .ProseMirror>.react-renderer>.wideblock{--bw:max(100%, min(1100px, 100cqw - 32px));width:var(--bw);margin-left:calc((100% - var(--bw)) / 2)}
+/* Editors: keep room for the block gutter (+ and grip, 56px) left of a wide block, so the
+   handle sits at the block's own left edge without covering it. Phones have no gutter. */
+.app:not(.compact):not(.ro) .ProseMirror>.react-renderer>.wideblock{--bw:max(100%, min(1100px, 100cqw - 128px))}
 /* Sideways scrollers fade at an edge that hides more columns. */
 .wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs){--fl:0px;--fr:0px}
 .wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs)[data-fade-l="true"]{--fl:44px}

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import DragHandle from "@tiptap/extension-drag-handle-react";
-import { offset } from "@floating-ui/dom";
+import { offset, type Middleware } from "@floating-ui/dom";
 import { NodeSelection } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Role } from "@opencanvas/ui";
@@ -20,7 +20,22 @@ import { linkStore, openLinkEditor } from "./linkstate";
 
 export function Gutter({ editor }: { editor: Editor }) {
   const cur = useRef<{ node: PMNode | null; pos: number }>({ node: null, pos: -1 });
-  const pos = useMemo(() => ({ placement: "left-start" as const, strategy: "absolute" as const, middleware: [offset({ mainAxis: 6, crossAxis: 3 })] }), []);
+  const pos = useMemo(() => {
+    // Database and board blocks break out of the text column (`.wideblock`): put the handle at
+    // the wide block's own left edge, not the text column's, where it would cover the block.
+    const atWideEdge: Middleware = {
+      name: "atWideEdge",
+      fn({ x }) {
+        const p = cur.current.pos;
+        const dom = p >= 0 ? (editor.view.nodeDOM(p) as HTMLElement | null) : null;
+        const wide = dom?.querySelector?.(".wideblock");
+        if (!dom || !wide) return {};
+        const dx = wide.getBoundingClientRect().left - dom.getBoundingClientRect().left;
+        return dx < 0 ? { x: x + dx } : {};
+      },
+    };
+    return { placement: "left-start" as const, strategy: "absolute" as const, middleware: [offset({ mainAxis: 6, crossAxis: 3 }), atWideEdge] };
+  }, [editor]);
   const menu = useStore(blockMenuStore);
   // Keep the handle on its block while the menu is open; release it after.
   useEffect(() => {
