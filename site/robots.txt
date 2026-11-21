@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /opencanvas/app/
+
+Sitemap: https://casualoffice.github.io/opencanvas/sitemap.xml

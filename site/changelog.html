@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Changelog | OpenCanvas</title>
+<meta name="description" content="What changed in OpenCanvas and how each change was verified, from the project&#x27;s integration log.">
+<link rel="canonical" href="https://casualoffice.github.io/opencanvas/changelog.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Changelog | OpenCanvas">
+<meta property="og:description" content="What changed in OpenCanvas and how each change was verified, from the project&#x27;s integration log.">
+<meta property="og:url" content="https://casualoffice.github.io/opencanvas/changelog.html">
+<meta property="og:image" content="https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/theme-init.js"></script>
+<script type="module" src="assets/site.js"></script>
+</head>
+<body data-root="">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="index.html#product">Product</a><a href="docs/integration.html">Integrate</a><a href="docs/index.html">Docs</a><a href="roadmap.html">Roadmap</a><a href="changelog.html" aria-current="page">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="index.html#product">Product</a><a href="docs/integration.html">Integrate</a><a href="docs/index.html">Docs</a><a href="roadmap.html">Roadmap</a><a href="changelog.html" aria-current="page">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+<section class="page-head"><div class="wrap narrow">
+  <h1>Changelog</h1>
+  <p class="lede">What was merged and verified, newest first, from the integration log in <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked. There is no tagged release yet.</p>
+</div></section>
+<section class="section-tight"><div class="wrap narrow prose changelog">
+<h2 id="2026-11-21">2026-11-21</h2>
+<ul><li><strong>SITE-01 website: home, 12 docs pages, roadmap, changelog, brand, 404; real editor screenshots; demo at app/#demo</strong><br>check-site-links, check-site-claims (self-test + site), axe WCAG 2.2 A/AA zero violations on every page in light and dark at 1440 and 390 px (check-site-pages.mjs)</li><li><strong>Final verification on main</strong><br>fmt, clippy -D warnings, cargo test 88, vitest 182, typecheck, initial JS 257.1 KB gz (budget 300), Playwright 11/11, e2e-db PASS SQLite (+ real PDF via Gotenberg), MariaDB 11.4, MySQL 8.4</li><li><strong>Merged board rendering (resvg), PDF via Gotenberg, asset origins; editor bundle trim + Word/PDF menu; Markdown boards embedded (no ticket links)</strong></li><li><strong>Branch <code>perf/initial-js-budget</code>: WEB-08 initial JS 299.3 → 257.1 KB gz + CI budget check; WEB-09 Word + server PDF (print fallback on 501)</strong><br>typecheck, vitest 182 (editor schema test new), <code>pnpm --filter @opencanvas/editor build</code> (budget check passes), Playwright 11/11 twice (new specs i exports, j late plugins)</li><li><strong>Branch <code>exports-board-pdf</code>: board SVG/PNG in Rust, DOCX board pictures, HTML inline boards, MD board links, PDF via Gotenberg, <code>asset_origins</code></strong><br>cargo test, clippy -D warnings, fmt green; <code>OC_PORT=8180 HOST_PORT=4100 scripts/e2e-db.sh sqlite</code> PASS with and without <code>OC_PDF_RENDERER=gotenberg:http://localhost:3301</code> (real gotenberg/gotenberg:8, <code>%PDF</code>, pdftotext has the edit)</li><li><strong>Final verification on main</strong><br>fmt, clippy -D warnings, cargo test 68, vitest 180, typecheck, Playwright 9/9 (Chromium + WebKit phone), e2e-db PASS on SQLite, MariaDB 11.4, MySQL 8.4 incl. patch + DOCX</li><li><strong>Editor: keep <code>blockId</code> (global attribute, not copied on split); 4429 reconnects instead of ending the session</strong><br>e2e spec h fails without BlockId (<code>Received: &quot;&quot;</code>), passes with it</li><li><strong>Merged host API (patch/commit/convert), DOCX export, live conflict tests, nightly fuzz job, rate-limit split (awareness bucket, close 4429)</strong><br>cargo test 68</li><li><strong>Fix: fast typing closed the socket (update + awareness frame per key &gt; 60/s)</strong><br>awareness has its own 120/s bucket, excess dropped; rate limit closes with 4429 (was 1008). Test: 150 updates + 150 awareness in 2 s stay connected (seen failing before). Web should treat 4429 as "reconnect", not "access revoked".</li><li><strong>Branch <code>server-api-docx-conflict</code>: patch/commit/convert API, DOCX export, live WS conflict tests (copy + reload), nightly fuzz job, rate limit 4429 + awareness bucket</strong><br>cargo test, clippy, fmt green; <code>OC_PORT=8180 HOST_PORT=4100 scripts/e2e-db.sh sqlite</code> PASS (now also patches, commits, converts to DOCX; kills only its own PIDs)</li><li><strong>E2E-01 Playwright suite + WEB-07 code highlighting</strong><br>8/8 specs green twice + repeat-each=3; initial JS 299.3 KB gz; client frame coalescing fixes rate-limit disconnects while typing fast</li><li><strong>Full re-verification on main</strong><br>cargo test 49, clippy -D warnings, fmt, vitest 180, typecheck, build, e2e sqlite PASS</li><li><strong>Server route <code>/sdk/embed.js</code></strong><br>200 text/javascript</li><li><strong>Merged editor: initial JS 298 KB gz (was 396), wide db/board blocks, uploads via /v1/assets (live), MD/.ocanvas/PDF export, conflict copy/reload + live role + close codes</strong><br>typecheck/build green; uploads, role change, host close verified live; reload-conflict path only unit/demo-checked</li><li><strong>Editor: exports menu downloads md/html/ocanvas/json via <code>GET /v1/export/:fmt</code>, PDF via print stylesheet; conflict <code>copy</code>/<code>reload</code>, close codes 1000/1008, live role changes</strong><br>Live: md + .ocanvas downloads, role view→edit without reload, host session close modal (role/session API)</li><li><strong>Editor: database/board blocks break out to 1100 px (16 px gutters on phones) with edge fades on sideways scrollers; skeletons while their code loads</strong><br>headless Chrome 1400×1000 + 390×844, light + dark</li><li><strong>Editor <code>editor-bundle-uploads-exports</code>: initial JS 396 → 298 KB gz (lazy database/board, gallery+templates, comments, dialogs, CSV, exports, marked, demo seed, desktop chrome, mobile bar, table editing, template icons; vendor chunks react/yjs/tiptap); CSS 62 → 11 KB gz (fonts no longer inlined)</strong><br><code>vite build</code>; typecheck green</li><li><strong>Fix: out-of-order delete-only updates were neither relayed nor logged (found by the fuzz)</strong><br>room treats yrs <code>pending_ds</code> as a change</li><li><strong>Server hardening branch <code>server-hardening</code>: outbox, 409 policy, doc cap, JWKS, OC_KEK, fuzz, role API</strong><br>cargo test (49) + clippy -D warnings green; e2e-db PASS on SQLite, MariaDB 11.4, MySQL 8.4; fuzz 10k OK</li><li><strong>Merged board/database finishing (connectors, board images, SVG/PNG export, touch kanban, shared calendar, real people in presets)</strong><br>board 42 + database 138 pass; one board test failed once under parallel load and did not reproduce in 9 reruns, watch in CI</li><li><strong><code>scripts/e2e-db.sh</code> on SQLite, MariaDB 11.4, MySQL 8.4</strong><br>PASS on all three</li><li><strong>Fix: MySQL 8.4 could not connect (caching_sha2 needs RSA or TLS)</strong><br>sqlx <code>mysql-rsa</code> + rustls features</li><li><strong>Fix: <code>{&quot;t&quot;:&quot;save&quot;}</code> control (Retry now) was ignored</strong><br>skips backoff, saves on next tick</li><li><strong>Fix: viewers' empty sync step 2 was answered with "permission denied"</strong><br><code>filter::adds_nothing</code>; non-writes from view/comment are ignored silently</li><li><strong>Two-browser live test via sample host (Priya edit, Sam view)</strong><br>Template applied; content, cursors, avatars both ways; DB checkbox live to viewer; autosaves v1–v3 landed in host</li><li><strong>Merged server, database/board, editor branches into main</strong><br>cargo test (30) + vitest (131) + typecheck + editor build green</li></ul>
+</div></section>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>A source-available collaborative canvas you embed, under <span class="nowrap">BUSL-1.1</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="index.html#product">Overview</a></li><li><a href="app/#demo">Try the demo</a></li><li><a href="roadmap.html">Roadmap</a></li><li><a href="changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="docs/getting-started.html">Getting started</a></li><li><a href="docs/integration.html">Integration guide</a></li><li><a href="docs/wopi.html">WOPI mode</a></li><li><a href="docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="docs/security.html">Security and limits</a></li><li><a href="docs/architecture.html">Architecture</a></li><li><a href="docs/protocol.html">Protocol</a></li><li><a href="docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (BUSL-1.1)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

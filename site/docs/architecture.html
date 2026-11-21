@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Architecture | OpenCanvas</title>
+<meta name="description" content="How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.">
+<link rel="canonical" href="https://casualoffice.github.io/opencanvas/docs/architecture.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Architecture | OpenCanvas">
+<meta property="og:description" content="How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.">
+<meta property="og:url" content="https://casualoffice.github.io/opencanvas/docs/architecture.html">
+<meta property="og:image" content="https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html" aria-current="page">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html" aria-current="page">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Architecture</h1>
+
+<p><strong>Status:</strong> draft v0.1, 2026-11-21. Decisions referenced as ADR-xxx live in <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/08-ADR-REGISTER.md">08-ADR-REGISTER.md</a>.</p>
+<h2 id="1-system-context">1. System context</h2>
+<pre><code>                        ┌──────────────────────────────────────────────┐
+                        │              HOST APPLICATION                │
+                        │  (your app, Nextcloud, LMS, CRM, any app)    │
+                        │                                              │
+   end user ──login──▶  │  users · auth · ACL · files · versions       │
+                        │                                              │
+                        │  ① mints launch token (JWT) or WOPI token    │
+                        │  ⑤ implements callbacks: load / save /       │
+                        │     assets / users                           │
+                        └───────┬───────────────────────▲──────────────┘
+                     iframe /   │                       │ HTTPS callbacks
+                     web comp.  │                       │ (server → host)
+                                ▼                       │
+   ┌──────────────────────────────────────────────────────────────────┐
+   │                         OPENCANVAS                              │
+   │                                                                  │
+   │  Browser:  editor bundle (ProseMirror/Tiptap + Yjs + board)     │
+   │              │  ② HTTPS: /launch, /preview, /export             │
+   │              │  ③ WSS:   /collab/{room}  (Yjs sync + awareness)  │
+   │              ▼                                                   │
+   │  Server (Rust, single binary):                                   │
+   │    gateway · session mgr · room engine · commit engine ·        │
+   │    export/preview · unfurl · host connector                      │
+   │              │                                                   │
+   │              ▼ ④ transient state only                           │
+   │    SQLite (default)  |  MySQL / MariaDB (+ Redis) in cluster     │
+   └──────────────────────────────────────────────────────────────────┘</code></pre>
+<p><strong>Responsibility split (ADR-001):</strong></p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Host owns</th><th scope="col">OpenCanvas owns</th></tr></thead><tbody><tr><td>Users, login, SSO</td><td>Editor UI, block model</td></tr><tr><td>ACL / roles per file</td><td>Enforcing the role the host handed us, per connection</td></tr><tr><td>Canonical file + version history</td><td>Live session state (until commit + TTL)</td></tr><tr><td>Asset bytes (images, attachments)</td><td>Asset upload proxy + cache</td></tr><tr><td>Retention, legal hold, search index</td><td>Exports (MD/HTML/PDF/DOCX/PNG) and previews</td></tr><tr><td>Sharing UI</td><td>Presence, cursors, comments-in-file, commits</td></tr></tbody></table></div>
+<h2 id="2-containers--components">2. Containers / components</h2>
+<pre><code>opencanvas-server  (one binary, all components; can be split later)
+├── gateway            axum HTTP + WS, CORS/CSP, rate limits, request ids
+├── auth               launch-token verify (JWT) | WOPI CheckFileInfo
+│                      → produces a SessionGrant {host, file, user, role, perms, exp}
+├── session-manager    open/join/close sessions, room ownership, routing
+├── room-engine        per-document actor: Yrs Doc, awareness, fan-out,
+│                      role filter, update log, snapshotting
+├── commit-engine      autosave/manual commits → serialize .ocanvas → host PutFile,
+│                      conflict handling, retry with backoff, outbox
+├── host-connector     typed client for host callbacks (load/save/assets/users),
+│                      per-host config, circuit breaker, timeouts
+├── render             SSR preview HTML, exports (MD/HTML/PDF/DOCX/PNG/SVG)
+├── unfurl             SSRF-safe link-preview + oEmbed fetcher with cache
+├── store              sqlx Any: SQLite | MySQL | MariaDB; migrations
+├── bus (cluster)      Redis pub/sub + room leases (optional)
+└── ops                /healthz /readyz /metrics, OTel traces, JSON logs
+
+opencanvas-web  (TypeScript)
+├── @opencanvas/core     block schema, Yjs bindings, serializers (shared with server via WASM later)
+├── @opencanvas/editor   Tiptap/ProseMirror editor, slash menu, drag handles, tables
+├── @opencanvas/board    board block: SVG/Canvas2D renderer on Y.Map shapes
+├── @opencanvas/preview  tiny read-only renderer (no Yjs) for preview mode
+└── @opencanvas/embed    host SDK: &lt;open-canvas&gt; web component + postMessage API</code></pre>
+<h2 id="3-key-flows">3. Key flows</h2>
+<h3 id="31-open-jwt-launch-mode">3.1 Open (JWT launch mode)</h3>
+<pre><code>Host backend        Browser (host page)          OpenCanvas            Host callbacks
+     │ sign JWT{file,user,role,perms,cb}  │                    │                      │
+     │──────────────────────────────────▶│                    │                      │
+     │                 │ iframe POST /launch (token) ─────────▶│ verify sig, exp, aud │
+     │                 │                                      │── GET file ─────────▶│ (if room not live)
+     │                 │                                      │◀─ .ocanvas bytes ────│
+     │                 │                                      │ load into room       │
+     │                 │◀─ editor HTML + session cookie/ticket │                      │
+     │                 │── WSS /collab/{room}?ticket ─────────▶│ sync step1/2, awareness</code></pre>
+<ul><li>If the room is already live (another user editing), the server <strong>does not re-fetch</strong> the file — the new user joins the live CRDT. This is how Collabora/Loop behave and avoids fork-on-open.</li><li>The JWT is used once; the browser gets a short-lived, single-room <strong>session ticket</strong> for the WebSocket (ADR-005).</li></ul>
+<h3 id="32-open-wopi-mode">3.2 Open (WOPI mode)</h3>
+<p>Identical, except step "verify" is <code>GET {WOPISrc}?access_token=…</code> (CheckFileInfo) → role from <code>UserCanWrite</code> / <code>UserCanComment</code> / ReadOnly, and file is fetched with GetFile. Saves use PutFile with <code>X-WOPI-Override: PUT</code> and <code>X-COOL-WOPI-Timestamp</code>-style conflict detection (<code>LastModifiedTime</code>).</p>
+<h3 id="33-edit">3.3 Edit</h3>
+<ol><li>Client applies change locally (instant), produces a Yjs update.</li><li>Sends <code>sync:update</code> over WS.</li><li>Room engine: <strong>role check</strong> (edit role; comment role may only touch the <code>comments</code> subtree) → apply to server Doc → append to <code>room_updates</code> (durable tail) → fan out to all peers (local + other nodes via bus if viewers are spread).</li><li>Awareness (cursor, selection, pointer, colour, name) is ephemeral — never stored, fan-out only, throttled to 20 Hz.</li></ol>
+<h3 id="34-commit">3.4 Commit</h3>
+<p>Triggers: manual "Save version", autosave interval (default 60 s with changes), idle (30 s without edits), last user leaves, session close API, graceful shutdown.</p>
+<pre><code>room-engine ──(dirty since last commit)──▶ commit-engine
+  serialize Doc → .ocanvas (zip: document.json, ydoc.bin, manifest.json)
+  POST host save callback  (If-Match: last host version)
+    200 → record host_version, clear dirty, emit &quot;saved&quot; to clients
+    409 → host changed file outside session → emit &quot;conflict&quot; →
+          policy: (a) save-as-copy callback, or (b) reload host version
+          and merge as a new branch, per host config
+    5xx/timeout → outbox retry with backoff; UI shows &quot;saving… retrying&quot;</code></pre>
+<p>Commits are <strong>at-least-once</strong> with an idempotency key (<code>commit_id</code> = ULID) so hosts can dedupe.</p>
+<h3 id="35-preview--download">3.5 Preview / download</h3>
+<ul><li><code>GET /preview?token=…</code> → server fetches file (or uses live room state if <code>live=1</code> and room exists), renders static HTML via <code>render</code>. No WS, no Yjs on the client — fast and cacheable by <code>(file_id, host_version)</code>.</li><li><code>GET /export/{format}?token=…</code> → same source, renders MD/HTML/PDF/DOCX/PNG. PDF via headless Chromium pool <strong>optional</strong> sidecar; fallback to HTML print.</li></ul>
+<h3 id="36-close--cleanup">3.6 Close / cleanup</h3>
+<p>After final commit succeeds and no clients remain for <code>ROOM_TTL_SECS</code> (default 10 min): drop room from memory, delete <code>room_updates</code> and snapshot rows. Nothing about the document remains on our side (Principle 3).</p>
+<h2 id="4-data--persistence-transient-only">4. Data &amp; persistence (transient only)</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Data</th><th scope="col">Where</th><th scope="col">Lifetime</th></tr></thead><tbody><tr><td>Canonical document</td><td><strong>Host</strong></td><td>forever (host-managed)</td></tr><tr><td>Room snapshot (Yjs state v2)</td><td>DB <code>room_snapshots</code></td><td>until room purge</td></tr><tr><td>Update tail since snapshot</td><td>DB <code>room_updates</code></td><td>compacted into snapshot every N=500 updates / 30 s</td></tr><tr><td>Sessions, tickets</td><td>DB <code>sessions</code></td><td>≤ token exp</td></tr><tr><td>Commit outbox</td><td>DB <code>commit_outbox</code></td><td>until host ack</td></tr><tr><td>Host registry (keys, callback base, flags)</td><td>DB <code>hosts</code> or config file</td><td>static</td></tr><tr><td>Unfurl cache</td><td>DB <code>unfurl_cache</code></td><td>24 h</td></tr><tr><td>Awareness</td><td>memory only</td><td>connection lifetime</td></tr><tr><td>Audit events</td><td>logs/OTel (optional DB table)</td><td>ops policy</td></tr></tbody></table></div>
+<p>Why keep snapshot + tail at all? So a node crash or deploy never loses an acknowledged edit that has not been committed yet. It's a write-ahead log, not storage.</p>
+<p>Database selection (ADR-004): <code>DATABASE_URL</code> unset → <code>sqlite://./data/opencanvas.db</code> (WAL mode). <code>mysql://</code> → MySQL 8 / MariaDB 10.6+. Same migrations, sqlx <code>Any</code> driver, portable SQL subset.</p>
+<h2 id="5-scalability-model">5. Scalability model</h2>
+<h3 id="51-single-node-default">5.1 Single node (default)</h3>
+<p>SQLite + in-process rooms. Handles thousands of connections. Zero dependencies.</p>
+<h3 id="52-cluster-mysqlmariadb--redis">5.2 Cluster (MySQL/MariaDB + Redis)</h3>
+<pre><code>             ┌───────── L7 load balancer ─────────┐
+             │ HTTP: round-robin                  │
+             │ WS: hash(room_id) → node (sticky)  │
+             └───────┬──────────┬──────────┬──────┘
+                   node-1     node-2     node-3   (identical binaries)
+                     │  owns rooms by lease   │
+                     └──── Redis (leases) ─ internal WS relay ┘
+                     └──── MySQL/MariaDB (snapshots, tails, outbox) ────┘</code></pre>
+<ul><li><strong>One owner per room</strong> (ADR-006). The owner holds the authoritative Yrs Doc in memory. Ownership is a Redis lease (<code>SET room:{id}:owner node NX PX</code>) renewed every 5 s.</li><li>If the LB routes a client to a non-owner, that node <strong>relays</strong> the connection to the owner over one internal WebSocket per client connection (<code>/v1/internal/relay/:room</code>, HMAC-signed with <code>OC_CLUSTER_SECRET</code>, the grant forwarded signed). Per-connection order is TCP order; the owner treats the relayed connection like a local one and enforces roles. Clients never need to know. Host-API room calls (patch, commit, role, close, state for exports) on a non-owner are forwarded to the owner (<code>POST /v1/internal/rooms/:room</code>, same signature).</li><li>Owner dies → its relays break; the edge node probes the owner's <code>/healthz</code> and, if the process is gone, takes the lease over with a compare-and-set on the dead owner's value (otherwise the lease expires after 15 s). The new owner loads snapshot + WAL from the DB and continues; clients are told <code>reconnect</code> (1012) and resync in well under 5 s. Unacked client updates are resent by the Yjs client on reconnect (Yjs sync is idempotent). A node whose renewal finds another owner steps the room down (clients reconnect, no save).</li><li>The outbox sweeper claims a row (<code>claimed_by</code>, <code>claim_until</code>) and the room lease before resuming it, so two nodes never resend the same commit.</li><li>SIGTERM drain: refuse new rooms, commit dirty rooms, <code>{&quot;t&quot;:&quot;reconnect&quot;}</code> + close 1012 to every client (local and relayed), release leases, exit.</li><li><code>REDIS_URL</code> with SQLite refuses to start (SQLite is single-node only).</li><li>Stateless HTTP (launch/preview/export) scales horizontally with no coordination. Export rendering can be split into a worker pool.</li><li>Large rooms: viewers can be fanned out by non-owner nodes from a Redis channel, so a 500-viewer room does not saturate one node.</li></ul>
+<h3 id="53-capacity-math-2-vcpu-node">5.3 Capacity math (2 vCPU node)</h3>
+<ul><li>Yrs apply + broadcast ≈ 10–50 µs per small update; 300 rooms × 10 upd/s = 3 000 upd/s ≪ capacity. Bottleneck is fan-out bytes, not merge.</li><li>Memory: ~ 3× doc size per live room; 300 rooms × 1 MB × 3 ≈ 900 MB worst, typical 100–200 MB.</li></ul>
+<h2 id="6-security-architecture-summary--detail-in-07">6. Security architecture (summary — detail in <a href="../docs/security.html">07</a>)</h2>
+<ul><li>Per-host keys; JWT <code>aud</code>, <code>iss</code>, <code>exp ≤ 10 h</code>, <code>jti</code> replay cache.</li><li>Role enforced <strong>server-side per frame</strong>; client UI is advisory only.</li><li>Embeds rendered in <code>sandbox</code> iframes from an allow-list; user HTML never rendered unsanitised; CSP <code>frame-ancestors</code> = host origins.</li><li>Unfurl fetcher: DNS-pinned, private-IP block, size/time caps.</li><li>No document content in logs; PII limited to display name/avatar in memory.</li></ul>
+<h2 id="7-deployment">7. Deployment</h2>
+<ul><li>Docker image (distroless, ~20 MB) + <code>docker-compose.yml</code> (single node, SQLite) + <code>docker-compose.cluster.yml</code> (3 nodes, MariaDB, Redis, nginx).</li><li>Helm chart (P2). Config via env vars + optional <code>opencanvas.toml</code>.</li><li>Graceful shutdown: stop accepting, commit all dirty rooms, release leases.</li></ul>
+<h2 id="8-technology-choices">8. Technology choices</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Concern</th><th scope="col">Choice</th><th scope="col">ADR</th></tr></thead><tbody><tr><td>Server</td><td>Rust, tokio, axum</td><td>ADR-003</td></tr><tr><td>CRDT</td><td>Yjs (client) / yrs (server)</td><td>ADR-002</td></tr><tr><td>DB</td><td>sqlx Any: SQLite default; MySQL/MariaDB</td><td>ADR-004</td></tr><tr><td>Cluster bus</td><td>Redis (optional)</td><td>ADR-006</td></tr><tr><td>Editor</td><td>Tiptap (ProseMirror) + y-prosemirror</td><td>ADR-007</td></tr><tr><td>Board</td><td>custom SVG/Canvas2D on Y.Map</td><td>ADR-008</td></tr><tr><td>File format</td><td><code>.ocanvas</code> zip (JSON + Yjs state)</td><td>ADR-009</td></tr><tr><td>Integration</td><td>JWT launch + WOPI-compatible</td><td>ADR-005</td></tr><tr><td>Exports</td><td>Rust renderers; optional Chromium sidecar for PDF</td><td>ADR-010</td></tr></tbody></table></div>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/03-HLD-ARCHITECTURE.md">docs/03-HLD-ARCHITECTURE.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="security.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Security and limits</span></a><a class="pn pn-next" href="collaboration.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Collaboration and presence</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#1-system-context">1. System context</a></li><li><a href="#2-containers--components">2. Containers / components</a></li><li><a href="#3-key-flows">3. Key flows</a></li><li><a href="#4-data--persistence-transient-only">4. Data &amp; persistence (transient only)</a></li><li><a href="#5-scalability-model">5. Scalability model</a></li><li><a href="#6-security-architecture-summary--detail-in-07">6. Security architecture (summary — detail in 07)</a></li><li><a href="#7-deployment">7. Deployment</a></li><li><a href="#8-technology-choices">8. Technology choices</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>A source-available collaborative canvas you embed, under <span class="nowrap">BUSL-1.1</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (BUSL-1.1)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

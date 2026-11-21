@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Collaboration and presence | OpenCanvas</title>
+<meta name="description" content="How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.">
+<link rel="canonical" href="https://casualoffice.github.io/opencanvas/docs/collaboration.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Collaboration and presence | OpenCanvas">
+<meta property="og:description" content="How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.">
+<meta property="og:url" content="https://casualoffice.github.io/opencanvas/docs/collaboration.html">
+<meta property="og:image" content="https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html" aria-current="page">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html" aria-current="page">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Collaboration and presence</h1>
+
+<p><strong>Status:</strong> draft v0.1, 2026-11-21.</p>
+<h2 id="1-merge-semantics-what-users-see-when-they-collide">1. Merge semantics (what users see when they collide)</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Situation</th><th scope="col">Result</th></tr></thead><tbody><tr><td>Two users type in the same paragraph</td><td>Both texts kept, interleaved by position (Yjs YATA). No lost characters.</td></tr><tr><td>Both bold overlapping ranges</td><td>Union of marks. One bolds, other unbolds same range → last writer per character.</td></tr><tr><td>One deletes a block while another types in it</td><td>Delete wins; the typing is lost <strong>and the typer is notified</strong> ("Block removed by Asha · Undo"). Their undo restores it.</td></tr><tr><td>Both move the same block</td><td>Last move wins (single final position, never duplicated).</td></tr><tr><td>Table: one adds a column, other adds a row</td><td>Both applied; new cells empty.</td></tr><tr><td>Board: two users drag the same shape</td><td>Last position wins per field; colour change by the other is kept.</td></tr><tr><td>Board: concurrent pen strokes</td><td>All strokes kept (append-only).</td></tr><tr><td>Task checkbox toggled by two users</td><td>Last writer wins.</td></tr><tr><td>Comment resolved while someone replies</td><td>Reply kept; thread re-opens with indicator.</td></tr></tbody></table></div>
+<p>These are verified by the convergence fuzz harness (04 §9), and each row is a named test case.</p>
+<h2 id="2-presence-model-awareness">2. Presence model (awareness)</h2>
+<p>Each connection publishes a small state (≤ 2 KB, ≤ 20 Hz):</p>
+<pre><code class="language-json">{
+  &quot;user&quot;:   { &quot;id&quot;: &quot;u_123&quot;, &quot;name&quot;: &quot;Asha Rao&quot;, &quot;color&quot;: &quot;#7c3aed&quot;, &quot;avatar&quot;: &quot;…&quot;, &quot;role&quot;: &quot;edit&quot; },
+  &quot;cursor&quot;: { &quot;anchor&quot;: &lt;RelativePosition&gt;, &quot;head&quot;: &lt;RelativePosition&gt; },
+  &quot;board&quot;:  { &quot;id&quot;: &quot;brd_1&quot;, &quot;x&quot;: 412.5, &quot;y&quot;: 80, &quot;tool&quot;: &quot;pen&quot;, &quot;selection&quot;: [&quot;s_9&quot;] },
+  &quot;view&quot;:   { &quot;blockId&quot;: &quot;b_44&quot; },          // what they are looking at, for &quot;follow&quot;
+  &quot;typing&quot;: true,
+  &quot;idle&quot;:   false
+}</code></pre>
+<ul><li><code>user</code> fields are <strong>overwritten by the server</strong> from the session grant — clients cannot spoof names/colours.</li><li>Cursor positions are Yjs <em>relative positions</em>, so they stay correct while text around them changes.</li><li>Colour: host-provided or derived from <code>hash(user.id)</code> into a 12-colour palette that passes 3:1 contrast in light and dark themes.</li></ul>
+<h2 id="3-cursor--selection-rendering">3. Cursor &amp; selection rendering</h2>
+<ul><li><strong>Text:</strong> caret = 2 px bar in user colour + name label (shown on move, fades after 2 s idle, shown on hover). Selection = 20 % tint of user colour. Labels collision-avoid (stack upward) when carets are on the same line.</li><li><strong>Board:</strong> pointer arrow + name tag in user colour, interpolated (60 fps lerp) between 20 Hz updates; selection outline in user colour; "laser" tool leaves a fading trail.</li><li><strong>Off-screen collaborators:</strong> avatar stack in the top bar; each avatar shows a ↑/↓ edge hint; clicking jumps to their position; long-press = <strong>follow mode</strong> (your viewport tracks theirs until you scroll).</li><li><strong>Block-level presence:</strong> a thin coloured bar in the left gutter of blocks someone is editing — cheap and readable on narrow embeds.</li><li><strong>Typing indicator</strong> in the avatar stack.</li><li>Viewers are shown as presence (eye badge) but have no caret.</li></ul>
+<h2 id="4-undoredo">4. Undo/redo</h2>
+<ul><li><code>Y.UndoManager</code> with <code>trackedOrigins = {localOrigin}</code> — undo only reverts <em>your</em> changes, never a collaborator's.</li><li>Capture timeout 500 ms groups keystrokes into words.</li><li>Undo stack is shared between text and boards so Ctrl+Z after drawing undoes the stroke.</li><li>Undo stack resets on reload (it is not persisted).</li></ul>
+<h2 id="5-connectivity">5. Connectivity</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">State</th><th scope="col">UI</th><th scope="col">Behaviour</th></tr></thead><tbody><tr><td>Connected</td><td>none</td><td>—</td></tr><tr><td>Reconnecting (&lt; 30 s)</td><td>subtle "Reconnecting…" pill</td><td>edits continue locally, buffered</td></tr><tr><td>Offline (&gt; 30 s)</td><td>banner "Offline — changes will sync"</td><td>edits buffered (memory; IndexedDB if host enables)</td></tr><tr><td>Back online</td><td>"Synced" toast</td><td>Yjs sync step1/2 merges buffered changes</td></tr><tr><td>Role downgraded</td><td>banner "You now have view access"</td><td>editor switches to read-only, local unsynced edits shown as discarded diff</td></tr><tr><td>Token expiring</td><td>silent refresh via host; else banner</td><td>—</td></tr><tr><td>Session closed by host</td><td>modal "This canvas was closed by the app"</td><td>—</td></tr></tbody></table></div>
+<p>Exponential backoff 0.5 s → 10 s with jitter. Server owner change in cluster is invisible to users beyond a ≤ 5 s reconnect.</p>
+<h2 id="6-save-state-indicator">6. Save state indicator</h2>
+<p><code>Saved · 2 min ago</code> → <code>Unsaved changes</code> → <code>Saving…</code> → <code>Saved</code> (or <code>Save failed · retrying</code>). Click opens a small popover: last commit, authors, "Save version…" (message input) if <code>perms.commitMessage</code>.</p>
+<h2 id="7-comments-p2">7. Comments (P2)</h2>
+<ul><li>Anchors: text range (relative positions start/end) or board shape id or whole block id.</li><li>Stored in the <code>comments</code> Y.Map → travel inside the <code>.ocanvas</code> file.</li><li>Commenters (role <code>comment</code>) can write only that subtree (enforced server-side).</li><li>Mentions in comments trigger an <code>onMention</code> webhook to the host so the host can notify (we never send emails/notifications ourselves).</li></ul>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/06-COLLABORATION-AND-PRESENCE.md">docs/06-COLLABORATION-AND-PRESENCE.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="architecture.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Architecture</span></a><a class="pn pn-next" href="product.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Product requirements</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#1-merge-semantics-what-users-see-when-they-collide">1. Merge semantics (what users see when they collide)</a></li><li><a href="#2-presence-model-awareness">2. Presence model (awareness)</a></li><li><a href="#3-cursor--selection-rendering">3. Cursor &amp; selection rendering</a></li><li><a href="#4-undoredo">4. Undo/redo</a></li><li><a href="#5-connectivity">5. Connectivity</a></li><li><a href="#6-save-state-indicator">6. Save state indicator</a></li><li><a href="#7-comments-p2">7. Comments (P2)</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>A source-available collaborative canvas you embed, under <span class="nowrap">BUSL-1.1</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (BUSL-1.1)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

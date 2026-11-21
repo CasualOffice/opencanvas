@@ -1,0 +1,343 @@
+/* OpenCanvas website tokens.
+ *
+ * Ported from the CasualOffice site system (OpenSeal's site/assets/tokens.css, Apache-2.0,
+ * same owner): warm neutrals (canvas #f4f3f0, white surfaces, ink #18181b, muted zinc),
+ * hairlines at 6-8 % ink, radii 6/8/12/14, soft layered shadows, Geist type. The token
+ * names stay the family's (`--os-*`) so site.css is shared unchanged.
+ *
+ * The one change is the accent: OpenCanvas cobalt from web/packages/ui/src/tokens.css
+ * (`--accent`: #2a5ad7 light, #86a5ff dark) in place of OpenSeal's red. Measured
+ * (WCAG 2.2, relative luminance): #2a5ad7 on #ffffff 5.93:1, on #f4f3f0 5.34:1, on
+ * #ecf1fd 5.24:1; white on the #2a5ad7 fill 5.93:1; #86a5ff on #18181b 7.46:1, on
+ * #0f0f11 8.06:1, on #1f1f23 6.91:1. Every text use is >= 4.5:1.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Colour (light) ---------------------------------------------------- */
+  --os-bg: #ffffff;            /* the content card and every surface on it */
+  --os-canvas: #f4f3f0;        /* the window behind the card: sidebar, editor */
+  --os-surface: #fafaf9;       /* row hover, table and group headers */
+  --os-surface-2: #f4f3f0;     /* subtle buttons, inputs at rest, chips */
+  --os-raised: #ffffff;        /* menus, dialogs, popovers */
+  --os-stage: #efeeea;         /* behind PDF pages */
+  --os-text: #18181b;
+  --os-text-2: #52525b;        /* secondary body text, nav links */
+  --os-muted: #6b6b74;
+  --os-faint: #a1a1aa;         /* separators in breadcrumbs, disabled glyphs (never text that must be read) */
+  --os-border: rgba(24, 24, 27, 0.08);
+  --os-hairline: rgba(24, 24, 27, 0.06);
+  --os-border-strong: #8b8b94; /* ≥ 3:1 on every surface: control edges meet SC 1.4.11 */
+  --os-accent: #2a5ad7;        /* OpenCanvas cobalt */
+  --os-accent-hover: #2350c8;
+  --os-accent-fill: #2a5ad7;
+  --os-accent-hover-fill: #2350c8;
+  --os-on-accent: #ffffff;
+  --os-accent-soft: #ecf1fd;
+  --os-strong: #18181b;        /* the dark secondary button of the canvas inspector */
+  --os-strong-hover: #27272a;
+  --os-on-strong: #ffffff;
+  /* Destructive, declined and error (UX-02): a burgundy rose, a clearly different colour
+   * from the accent so Void or Delete never reads as primary. */
+  --os-danger: #9d174d;
+  --os-danger-fill: #9d174d;
+  --os-danger-hover: #831843;
+  --os-on-danger: #ffffff;
+  --os-select-soft: #f5f8fe;   /* a selected row (canvas), with an inset accent edge */
+  --os-success: #14763a;
+  --os-warning: #a54b08;
+  --os-info: #1d5fbf;
+  --os-focus: #2a5ad7;         /* the canvas's focus ring: 2 px cobalt, 2 px offset */
+  /* Status pairs, exactly the canvas's pills: text on its own tint. */
+  --os-st-you: #2a5ad7;
+  --os-st-you-soft: #ecf1fd;
+  --os-st-wait: #b45309;
+  --os-st-wait-soft: #fdf6ec;
+  --os-st-done: #15803d;
+  --os-st-done-soft: #eff8f2;
+  --os-st-draft: #52525b;
+  --os-st-draft-soft: #f4f4f5;
+  /* Model suggestions (WEB-18) and nothing else. */
+  --os-ml: #6d28d9;
+  --os-ml-soft: #f5f3ff;
+  --os-ml-edge: rgba(109, 40, 217, 0.22);
+  --os-ml-mark: #ede9fe;
+  --os-ml-ink: #4c1d95;
+  /* Personal-data callout (canvas): amber on cream. */
+  --os-pii: #92400e;
+  --os-pii-text: #78350f;
+  --os-pii-soft: #fffbeb;
+  --os-pii-edge: rgba(180, 83, 9, 0.18);
+  --os-shadow: 0 0 0 1px rgba(24, 24, 27, 0.06), 0 1px 0.1875rem rgba(24, 24, 27, 0.04);
+  --os-shadow-sm: 0 0 0 1px rgba(24, 24, 27, 0.07), 0 1px 0.125rem rgba(24, 24, 27, 0.04);
+  --os-shadow-md: 0 0 0 1px rgba(24, 24, 27, 0.06), 0 0.5rem 1.25rem -10px rgba(24, 24, 27, 0.25);
+  --os-shadow-pop: 0 0 0 1px rgba(24, 24, 27, 0.08), 0 1.5rem 3.75rem -12px rgba(24, 24, 27, 0.35);
+  --os-shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 0.125rem rgba(20, 50, 140, 0.35);
+  --os-tag: #fff4c2;           /* the signer's Start/Next guide tag */
+  --os-tag-edge: #8a5a00;
+  --os-overlay: rgba(24, 24, 27, 0.28);
+  --os-skeleton: #f1f0ed;
+  --os-skeleton-hi: #f8f7f5;
+  --os-illus-line: #d4d4d8;
+  --os-illus-fill: #e4e4e7;
+  --os-illus-paper: #ffffff;
+  --os-illus-shadow: rgba(24, 24, 27, 0.06);
+
+  /* Recipient colours: 3:1 or better against white as outlines (SC 1.4.11). */
+  --os-r1: #1d5fbf;
+  --os-r2: #157f3b;
+  --os-r3: #7a3fc4;
+  --os-r4: #b24a00;
+  --os-r5: #0e7490;
+  --os-r6: #b0306f;
+
+  /* ---- Type ------------------------------------------------------------- */
+  --os-font: "OpenCanvas Geist", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --os-font-mono: "OpenCanvas Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --os-fs-11: max(0.6875rem, 11px); /* px-ok: WCAG legibility floor; kbd hints and badges only */
+  --os-fs-12: max(0.75rem, 12px); /* px-ok: WCAG legibility floor; never under 12 px, even at a 15 px root (A11) */
+  --os-fs-13: 0.8125rem;
+  --os-fs-14: 0.875rem;
+  --os-fs-15: 0.9375rem;
+  --os-fs-16: 1rem;
+  --os-fs-20: 1.25rem;
+  --os-fs-24: 1.5rem;
+  --os-fs-32: 2rem;
+  --os-fs-body: var(--os-fs-14);
+  --os-lh-body: 1.5;
+  --os-lh-heading: 1.25;
+
+  /* ---- Space: a 4 px grid ---------------------------------------------- */
+  --os-s1: 0.25rem;
+  --os-s2: 0.5rem;
+  --os-s3: 0.75rem;
+  --os-s4: 1rem;
+  --os-s5: 1.25rem;
+  --os-s6: 1.5rem;
+  --os-s8: 2rem;
+  --os-s12: 3rem;
+
+  /* ---- Shape: 6 / 8 / 12 / 14, controls 7 ------------------------------- */
+  --os-radius-sm: 0.375rem;
+  --os-radius-ctl: 0.4375rem;
+  --os-radius: 0.5rem;
+  --os-radius-lg: 0.75rem;
+  --os-radius-xl: 0.875rem;
+
+  /* ---- Icons ------------------------------------------------------------ */
+  --os-icon-sm: 1rem;
+  --os-icon: 1.25rem;
+  --os-icon-lg: 1.5rem;
+
+  /* ---- Controls --------------------------------------------------------- */
+  --os-btn-sm: 1.75rem;
+  --os-btn: 2rem;
+  --os-btn-lg: 2.75rem;
+  --os-target-min: max(1.5rem, 24px);   /* px-ok: WCAG 2.5.8 target floor in CSS px; WCAG 2.2 SC 2.5.8: 24 CSS px, whatever the root size */
+  --os-target-touch: max(2.75rem, 44px); /* px-ok: WCAG 2.5.5 target floor in CSS px; SC 2.5.5: signing page, phones */
+  --os-focus-width: 0.125rem;
+  --os-focus-offset: 0.125rem;
+
+  /* ---- Motion (canvas curves) ------------------------------------------- */
+  --os-ease: cubic-bezier(.2, .8, .2, 1);
+  --os-ease-out: cubic-bezier(.16, 1, .3, 1);     /* entrances: rise, pop, slide */
+  --os-ease-state: cubic-bezier(.2, .8, .2, 1);   /* state changes: hover, select */
+  --os-ease-spring: cubic-bezier(.34, 1.56, .64, 1); 
+  --os-ease-wave: cubic-bezier(.45, 0, .55, 1);   /* float, scan */
+  --os-dur-fast: 160ms;
+  --os-dur: 200ms;
+  --os-dur-slow: 260ms;
+  --os-dur-enter: 360ms;
+
+  /* ---- Layout ----------------------------------------------------------- */
+  /* One bar height for the app's top row, Verify and the site (WEB-12); the editor's and
+   * signer's own bars keep the canvas's heights (Editor and Signer artboards). */
+  --os-topbar-h: 3.25rem;
+  /* The page's side gutter (WEB-12): the content card's padding and the screen search
+   * row share it, so their edges line up; 1rem on phones (shell.css). */
+  --os-gutter: 2rem;
+  --os-side-w: 15.5rem;
+  --os-nav-w: 15.5rem;
+  --os-card-inset: 0.5rem;
+  --os-z-menu: 60;
+  --os-z-toast: 900;
+  --os-z-dialog: 1000;
+}
+
+/* Dark: by explicit choice, and by OS preference unless the user chose light. The
+ * canvas has no dark artboard; this is the same structure in zinc: the window darker
+ * than the card, hairlines in white, the cobalt kept for fills, a lighter cobalt for
+ * text, violet lifted for suggestions. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --os-bg: #18181b;
+  --os-canvas: #0f0f11;
+  --os-surface: #1f1f23;
+  --os-surface-2: #27272a;
+  --os-raised: #1f1f23;
+  --os-stage: #0b0b0d;
+  --os-text: #f4f4f5;
+  --os-text-2: #d4d4d8;
+  --os-muted: #a1a1aa;
+  --os-faint: #52525b;
+  --os-border: rgba(255, 255, 255, 0.09);
+  --os-hairline: rgba(255, 255, 255, 0.07);
+  --os-border-strong: #7c7c86;
+  --os-accent: #86a5ff;
+  --os-accent-hover: #a9bfff;
+  --os-accent-fill: #2a5ad7;
+  --os-accent-hover-fill: #2350c8;
+  --os-on-accent: #ffffff;
+  --os-accent-soft: #1c2440;
+  --os-strong: #f4f4f5;
+  --os-strong-hover: #e4e4e7;
+  --os-on-strong: #18181b;
+  --os-danger: #f472b6;
+  --os-danger-fill: #9d174d;
+  --os-danger-hover: #831843;
+  --os-on-danger: #ffffff;
+  --os-select-soft: #1a1f30;
+  --os-success: #4ade80;
+  --os-warning: #fbbf24;
+  --os-info: #8ab4ff;
+  --os-focus: #86a5ff;
+  --os-st-you: #86a5ff;
+  --os-st-you-soft: #1c2440;
+  --os-st-wait: #fbbf24;
+  --os-st-wait-soft: #2a2213;
+  --os-st-done: #4ade80;
+  --os-st-done-soft: #13261b;
+  --os-st-draft: #d4d4d8;
+  --os-st-draft-soft: #27272a;
+  --os-ml: #a78bfa;
+  --os-ml-soft: #1f1a2e;
+  --os-ml-edge: rgba(167, 139, 250, 0.3);
+  --os-ml-mark: #3b2a63;
+  --os-ml-ink: #ddd6fe;
+  --os-pii: #fbbf24;
+  --os-pii-text: #fde68a;
+  --os-pii-soft: #241d10;
+  --os-pii-edge: rgba(251, 191, 36, 0.25);
+  --os-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 1px 0.1875rem rgba(0, 0, 0, 0.4);
+  --os-shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 0.125rem rgba(0, 0, 0, 0.4);
+  --os-shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0.5rem 1.25rem -10px rgba(0, 0, 0, 0.7);
+  --os-shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1.5rem 3.75rem -12px rgba(0, 0, 0, 0.75);
+  --os-shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 0.125rem rgba(0, 0, 0, 0.5);
+  --os-tag: #4a3b00;
+  --os-tag-edge: #f2c14e;
+  --os-overlay: rgba(0, 0, 0, 0.55);
+  --os-skeleton: #232327;
+  --os-skeleton-hi: #2c2c31;
+  --os-illus-line: #52525b;
+  --os-illus-fill: #3f3f46;
+  --os-illus-paper: #27272a;
+  --os-illus-shadow: rgba(0, 0, 0, 0.35);
+  --os-r1: #8ab4ff;
+  --os-r2: #5fd38d;
+  --os-r3: #c9a2ff;
+  --os-r4: #ffad6b;
+  --os-r5: #5fd0e6;
+  --os-r6: #ff8fc8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --os-bg: #18181b;
+    --os-canvas: #0f0f11;
+    --os-surface: #1f1f23;
+    --os-surface-2: #27272a;
+    --os-raised: #1f1f23;
+    --os-stage: #0b0b0d;
+    --os-text: #f4f4f5;
+    --os-text-2: #d4d4d8;
+    --os-muted: #a1a1aa;
+    --os-faint: #52525b;
+    --os-border: rgba(255, 255, 255, 0.09);
+    --os-hairline: rgba(255, 255, 255, 0.07);
+    --os-border-strong: #7c7c86;
+    --os-accent: #86a5ff;
+    --os-accent-hover: #a9bfff;
+    --os-accent-fill: #2a5ad7;
+    --os-accent-hover-fill: #2350c8;
+    --os-on-accent: #ffffff;
+    --os-accent-soft: #1c2440;
+    --os-strong: #f4f4f5;
+    --os-strong-hover: #e4e4e7;
+    --os-on-strong: #18181b;
+    --os-danger: #f472b6;
+    --os-danger-fill: #9d174d;
+    --os-danger-hover: #831843;
+    --os-on-danger: #ffffff;
+    --os-select-soft: #1a1f30;
+    --os-success: #4ade80;
+    --os-warning: #fbbf24;
+    --os-info: #8ab4ff;
+    --os-focus: #86a5ff;
+    --os-st-you: #86a5ff;
+    --os-st-you-soft: #1c2440;
+    --os-st-wait: #fbbf24;
+    --os-st-wait-soft: #2a2213;
+    --os-st-done: #4ade80;
+    --os-st-done-soft: #13261b;
+    --os-st-draft: #d4d4d8;
+    --os-st-draft-soft: #27272a;
+    --os-ml: #a78bfa;
+    --os-ml-soft: #1f1a2e;
+    --os-ml-edge: rgba(167, 139, 250, 0.3);
+    --os-ml-mark: #3b2a63;
+    --os-ml-ink: #ddd6fe;
+    --os-pii: #fbbf24;
+    --os-pii-text: #fde68a;
+    --os-pii-soft: #241d10;
+    --os-pii-edge: rgba(251, 191, 36, 0.25);
+    --os-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 1px 0.1875rem rgba(0, 0, 0, 0.4);
+    --os-shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 0.125rem rgba(0, 0, 0, 0.4);
+    --os-shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0.5rem 1.25rem -10px rgba(0, 0, 0, 0.7);
+    --os-shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1.5rem 3.75rem -12px rgba(0, 0, 0, 0.75);
+    --os-shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 0.125rem rgba(0, 0, 0, 0.5);
+    --os-tag: #4a3b00;
+    --os-tag-edge: #f2c14e;
+    --os-overlay: rgba(0, 0, 0, 0.55);
+    --os-skeleton: #232327;
+    --os-skeleton-hi: #2c2c31;
+    --os-illus-line: #52525b;
+    --os-illus-fill: #3f3f46;
+    --os-illus-paper: #27272a;
+    --os-illus-shadow: rgba(0, 0, 0, 0.35);
+    --os-r1: #8ab4ff;
+    --os-r2: #5fd38d;
+    --os-r3: #c9a2ff;
+    --os-r4: #ffad6b;
+    --os-r5: #5fd0e6;
+    --os-r6: #ff8fc8;
+  }
+}
+
+/* Reduced motion: every duration collapses; transitions still end in the same state. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --os-dur-fast: 0ms;
+    --os-dur: 0ms;
+    --os-dur-slow: 0ms;
+    --os-dur-enter: 0ms;
+  }
+}
+
+/* The bundled UI fonts (WEB-17): Geist and Geist Mono 1.3.1 (OFL; fonts/ui/,
+ * OFL-1.1-Geist.txt), variable weight. Other scripts fall back to the
+ * system stack. */
+@font-face {
+  font-family: "OpenCanvas Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/ui/geist-1.3.1-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "OpenCanvas Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/ui/geist-mono-1.3.1-variable.woff2") format("woff2");
+}

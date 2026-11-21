@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Operations and deployment | OpenCanvas</title>
+<meta name="description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.">
+<link rel="canonical" href="https://casualoffice.github.io/opencanvas/docs/operations.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Operations and deployment | OpenCanvas">
+<meta property="og:description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.">
+<meta property="og:url" content="https://casualoffice.github.io/opencanvas/docs/operations.html">
+<meta property="og:image" content="https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html" aria-current="page">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html" aria-current="page">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Operations and deployment</h1>
+
+<p><strong>Status:</strong> draft v0.1, 2026-11-21. Implemented in SCAF-01 / OPS-01.</p>
+<h2 id="single-node-default-sqlite">Single node (default, SQLite)</h2>
+<pre><code class="language-sh">docker run -p 8080:8080 -v oc-data:/data \
+  -e OC_PUBLIC_URL=https://canvas.example.com \
+  -e OC_KEK=$(openssl rand -base64 32) \
+  -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
+  opencanvas/server:0.1</code></pre>
+<p>SQLite file at <code>/data/opencanvas.db</code> (WAL mode). Back it up only if you care about un-committed edits surviving a disk loss — committed content is in the host.</p>
+<h2 id="pdf-export-optional-gotenberg-sidecar-adr-010">PDF export (optional Gotenberg sidecar, ADR-010)</h2>
+<pre><code class="language-sh">docker run -d --name gotenberg gotenberg/gotenberg:8          # internal network only
+-e OC_PDF_RENDERER=gotenberg:http://gotenberg:3000              # on the OpenCanvas container</code></pre>
+<p>Compose: <code>OC_PDF_RENDERER=gotenberg:http://gotenberg:3000 docker compose --profile pdf up</code>. OpenCanvas sends Gotenberg self-contained HTML (images inlined, CSP <code>default-src &#x27;none&#x27;</code>), so the sidecar needs no route to hosts or the internet; keep it off public networks. Without it <code>GET /v1/export/pdf</code> answers 501 and the editor prints from the browser. Board PNG/SVG and DOCX need no sidecar (rendered in-process with <code>resvg</code>, see Fonts below).</p>
+<h2 id="fonts-board-png-docx-board-images">Fonts (board PNG, DOCX board images)</h2>
+<p><code>oc_model::fonts</code> builds one font database per process on the first render (ADR-020): embedded Geist (Latin) + subsets of Noto Sans Symbols 2 and Noto Sans Math (✓ ✗ → ⇒ ★ ☐ ⚠, dingbats, shapes, arrows; ~270 KB), then system fonts, then every directory in <code>OC_FONT_DIRS</code>. A character the board font lacks falls back to the symbol subsets, then Noto Sans / Noto Sans CJK (SC, JP, KR, TC, HK) / other Noto families, then any face that has it. Characters no font has render as boxes and log one <code>WARN</code> per script (<code>no font for this script</code>), never the text.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Variable</th><th scope="col">Default</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>OC_FONT_DIRS</code></td><td>image: <code>/opt/opencanvas/fonts</code></td><td>Extra font directories, <code>:</code>-separated, searched recursively</td></tr><tr><td><code>OC_SYSTEM_FONTS</code></td><td><code>1</code></td><td><code>0</code> skips system fonts (deterministic rendering, tests)</td></tr></tbody></table></div>
+<p>The image installs Debian <code>fonts-noto-core</code> + <code>fonts-noto-cjk</code> (Sans only; Serif CJK removed), so Latin, Greek, Cyrillic, Arabic, Hebrew, Indic, Thai and CJK render out of the box. Add fonts by mounting them at <code>/opt/opencanvas/fonts</code>. Gotenberg (PDF) uses its own Chromium fonts; <code>gotenberg/gotenberg:8</code> already ships Noto CJK and symbol fonts. <code>oc_model::fonts::coverage(text)</code> lists the characters no loaded font can draw.</p>
+<h2 id="image">Image</h2>
+<p><code>docker build -f deploy/Dockerfile -t opencanvas .</code> — three stages: release binary (<code>rust:1.98-slim-bookworm</code>), editor bundle (<code>node:24-slim</code>, <code>pnpm install --frozen-lockfile</code>, <code>pnpm --filter @opencanvas/editor build</code>), runtime <code>debian:bookworm-slim</code> with the binary, the editor at <code>/srv/web</code> (served at <code>/app/</code>) and the fonts. Runs as uid 10001, works with a read-only root filesystem (<code>--read-only --tmpfs /tmp</code> + a writable <code>/data</code> for SQLite). <code>HEALTHCHECK</code> probes <code>/healthz</code> on port 8080 through bash's <code>/dev/tcp</code> (no curl in the image). Size: 327 MB (binary 23 MB, editor 8 MB, fonts 80 MB, the rest Debian).</p>
+<h2 id="kubernetes-helm">Kubernetes (Helm)</h2>
+<p>Chart: <code>deploy/helm/opencanvas</code> (values documented inline; examples in <code>ci/</code>).</p>
+<pre><code class="language-sh">helm install oc deploy/helm/opencanvas --set secrets.kek=$(openssl rand -base64 32) \
+  --set publicUrl=https://canvas.example.com --set ingress.enabled=true --set ingress.host=canvas.example.com \
+  --set-file hosts.toml=opencanvas.hosts.toml</code></pre>
+<ul><li><strong>SQLite</strong> (no <code>database.url</code>): exactly one replica, <code>Recreate</code> rollouts, <code>/data</code> on an emptyDir (or <code>persistence.enabled</code> for a PVC). The chart refuses <code>replicaCount &gt; 1</code> or HPA.</li><li><strong>Cluster</strong>: <code>database.url</code> (or <code>database.existingSecret</code>) + <code>redis.url</code>; HPA optional (<code>autoscaling.enabled</code>, scale-in one pod / 2 min). <code>OC_NODE_ID</code> = pod name.</li><li><strong>Secrets</strong>: the chart Secret (or <code>secrets.existingSecret</code>) is mounted with <code>envFrom</code>, so it holds <code>OC_KEK</code> and every <code>env:NAME</code> the hosts file references (JWT secrets, API keys). The hosts file itself comes from a ConfigMap (<code>hosts.toml</code> or <code>hosts.existingConfigMap</code>).</li><li><strong>Gotenberg</strong>: <code>gotenberg.enabled</code> + <code>mode: deployment</code> (Service + NetworkPolicy allowing only OpenCanvas pods) or <code>mode: sidecar</code> (bound to 127.0.0.1 in each pod), or <code>externalUrl</code>.</li><li><strong>Ingress (ingress-nginx)</strong>: one Ingress for <code>/</code> (round-robin) and, with <code>ingress.stickyRooms</code>, a second for <code>/v1/collab/</code> with <code>upstream-hash-by: &quot;$uri&quot;</code>, so all sockets of a room reach the same pod (the owner, fewer relays). 3600 s proxy timeouts, buffering off. Other controllers: hash on the path segment after <code>/v1/collab/</code>.</li><li><strong>Drain</strong>: <code>preStop</code> sleeps 5 s (endpoints drop the pod), then SIGTERM starts the drain below; <code>terminationGracePeriodSeconds: 40</code> covers the ≤ 30 s commit. PDB <code>maxUnavailable: 1</code>.</li><li>Pods run non-root (10001), read-only root, all capabilities dropped, seccomp RuntimeDefault; <code>/tmp</code> and <code>/data</code> are emptyDirs. Probes: liveness <code>/healthz</code>, readiness <code>/readyz</code>.</li><li>CI (<code>helm</code> job) lints and renders single-node SQLite, cluster MariaDB + Redis and Gotenberg value sets, and checks SQLite + 2 replicas is refused.</li></ul>
+<h2 id="cluster-mysqlmariadb--redis-adr-006">Cluster (MySQL/MariaDB + Redis, ADR-006)</h2>
+<pre><code>DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas
+REDIS_URL=redis://redis:6379                 # enables cluster mode
+OC_NODE_ID=node-1                            # default: $HOSTNAME
+OC_CLUSTER_ADVERTISE=http://node-1:8080      # how other nodes reach this one (default http://$OC_NODE_ID:&lt;port&gt;)
+OC_CLUSTER_SECRET=&lt;≥ 32 chars, same on every node&gt;
+OC_KEK=&lt;same on every node&gt;                  # nodes read each other&#x27;s sealed rows</code></pre>
+<p><code>REDIS_URL</code> with SQLite refuses to start. Rooms are owned by one node through the Redis lease <code>room:{id}:owner</code> (<code>SET NX PX 15000</code>, renewed every 5 s). A node that receives a socket for a room it does not own relays it to the owner over <code>/v1/internal/relay/:room</code>; host-API room calls go to <code>/v1/internal/rooms/:room</code>. **Never expose <code>/v1/internal/</code> through the load balancer**; nodes must reach each other directly.</p>
+<p>LB: HTTP round-robin; WebSocket <code>hash $room consistent</code> on the <code>/v1/collab/&lt;room&gt;</code> path segment, <code>proxy_connect_timeout 1s</code> and <code>proxy_next_upstream error timeout</code> so a dead node's rooms move along the ring (see <code>deploy/nginx/opencanvas-cluster.conf</code>). <code>docker-compose.cluster.yml</code> ships 3 nodes + MariaDB + Redis + nginx (<code>:8580</code>) + the sample host (<code>:4580</code>). <code>scripts/chaos-cluster.sh</code> brings it up, types from two clients, <code>docker kill</code>s the room owner, checks reconnect ≤ 5 s, convergence and that the host's file has every acknowledged edit, then removes everything.</p>
+<h2 id="health--metrics">Health &amp; metrics</h2>
+<ul><li><code>/healthz</code> — process alive. <code>/readyz</code> — DB reachable, (cluster) Redis reachable, not draining.</li><li><code>/metrics</code> (Prometheus): <code>oc_rooms_live</code>, <code>oc_connections{role}</code>, <code>oc_updates_total</code>, <code>oc_update_apply_seconds</code>, <code>oc_fanout_bytes_total</code>, <code>oc_commit_total{result}</code>, <code>oc_commit_seconds</code>, <code>oc_host_callback_seconds{op,status}</code>, <code>oc_wal_bytes</code>, <code>oc_room_doc_bytes</code> (histogram), <code>oc_relay_frames_total</code>.</li><li>Logs: JSON, request id, room id, host id; never content.</li><li>Traces: OTLP exporter when <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> set.</li></ul>
+<h2 id="graceful-shutdown--deploys">Graceful shutdown / deploys</h2>
+<p>SIGTERM → refuse new rooms → commit all dirty rooms (≤ 20 s each, in parallel) → <code>{&quot;t&quot;:&quot;reconnect&quot;}</code> + close 1012 to every client (local and relayed) → release leases → exit. Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a stop grace period of ≥ 30 s. (Not yet: <code>/readyz</code> does not turn 503 while draining.)</p>
+<h2 id="sizing">Sizing</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Load</th><th scope="col">Shape</th></tr></thead><tbody><tr><td>Team ≤ 200 users</td><td>1 node, 1 vCPU, 512 MB, SQLite</td></tr><tr><td>≤ 5 000 concurrent</td><td>3 nodes × 2 vCPU/2 GB, MariaDB, Redis</td></tr><tr><td>Large</td><td>scale nodes linearly; split export workers; Redis cluster</td></tr></tbody></table></div>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/13-OPERATIONS-AND-DEPLOYMENT.md">docs/13-OPERATIONS-AND-DEPLOYMENT.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="protocol.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Protocol and build contract</span></a><a class="pn pn-next" href="security.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Security and limits</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#single-node-default-sqlite">Single node (default, SQLite)</a></li><li><a href="#pdf-export-optional-gotenberg-sidecar-adr-010">PDF export (optional Gotenberg sidecar, ADR-010)</a></li><li><a href="#fonts-board-png-docx-board-images">Fonts (board PNG, DOCX board images)</a></li><li><a href="#image">Image</a></li><li><a href="#kubernetes-helm">Kubernetes (Helm)</a></li><li><a href="#cluster-mysqlmariadb--redis-adr-006">Cluster (MySQL/MariaDB + Redis, ADR-006)</a></li><li><a href="#health--metrics">Health &amp; metrics</a></li><li><a href="#graceful-shutdown--deploys">Graceful shutdown / deploys</a></li><li><a href="#sizing">Sizing</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>A source-available collaborative canvas you embed, under <span class="nowrap">BUSL-1.1</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (BUSL-1.1)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

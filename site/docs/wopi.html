@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>WOPI mode | OpenCanvas</title>
+<meta name="description" content="Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.">
+<link rel="canonical" href="https://casualoffice.github.io/opencanvas/docs/wopi.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="WOPI mode | OpenCanvas">
+<meta property="og:description" content="Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.">
+<meta property="og:url" content="https://casualoffice.github.io/opencanvas/docs/wopi.html">
+<meta property="og:image" content="https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html" aria-current="page">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html" aria-current="page">WOPI mode</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>WOPI mode</h1>
+
+<p>For hosts that already open Collabora / Office Online through WOPI (Nextcloud, ownCloud, Seafile, …). OpenCanvas is the WOPI <em>client</em>; you are the WOPI <em>host</em>. Reference host: <code>examples/wopi-host/server.mjs</code>; end-to-end check: <code>scripts/e2e-wopi.sh</code>.</p>
+<p><strong>Register</strong> (no JWT key needed):</p>
+<pre><code class="language-toml">[[host]]
+id              = &quot;nextcloud&quot;
+name            = &quot;Nextcloud&quot;
+mode            = &quot;wopi&quot;                    # or &quot;both&quot; (JWT launches + WOPI launches)
+wopi_allowlist  = [&quot;https://cloud.example.com/index.php/apps/richdocuments/wopi&quot;]
+allowed_origins = [&quot;https://cloud.example.com&quot;]
+api_key         = &quot;env:NC_OC_API_KEY&quot;       # optional, for the §7 REST API
+[host.flags]
+on_conflict     = &quot;copy&quot;                    # copy = PUT_RELATIVE | reload</code></pre>
+<p><code>wopi_allowlist</code> entries are <code>scheme://host[:port][/path]</code>. A <code>WOPISrc</code> is accepted only when scheme, host and port match an entry exactly and the path starts with the entry's path at a <code>/</code> boundary; URLs with userinfo, a query, a fragment, or longer than 255 characters are refused (<code>403 WOPISRC_NOT_ALLOWED</code>) before anything is called. Write <code>localhost</code> and <code>127.0.0.1</code> separately if you need both. Redirects are never followed.</p>
+<p><strong>Discovery.</strong> <code>GET /hosting/discovery</code> returns WOPI discovery XML (<code>net-zone</code> <code>external-http(s)</code> from <code>OC_PUBLIC_URL</code>): app <code>application/vnd.opencanvas+zip</code> with <code>edit</code> (default) and <code>view</code> for <code>ext=&quot;ocanvas&quot;</code>, app <code>text/markdown</code> with <code>edit</code>, <code>view</code> and <code>convert</code> (<code>targetext=&quot;ocanvas&quot;</code>) for <code>ext=&quot;md&quot;</code>, and <code>Capabilities</code> → <code>GET /hosting/capabilities</code>. Every <code>urlsrc</code> is <code>{OC_PUBLIC_URL}/v1/launch?</code>; append <code>WOPISrc=&lt;urlencoded&gt;</code> (and any other placeholders, which are ignored), Collabora style.</p>
+<p><strong>Launch.</strong> Your page form-POSTs <code>access_token</code> and <code>access_token_ttl</code> (ms since the epoch; 0 or absent = 10 h) into an iframe at <code>/v1/launch?WOPISrc=&lt;urlencoded https://host/wopi/files/&lt;id&gt;&gt;</code>. We answer <code>303 /app/#t=&lt;ticket&gt;</code>, like a JWT launch. The session expires at <code>access_token_ttl</code>. <code>401 TOKEN_INVALID</code> when CheckFileInfo answers 4xx or the ttl has passed. The access token is opaque to us, sealed at rest under <code>OC_KEK</code> like a callback token, sent only in the query string of calls to <code>WOPISrc</code> (as WOPI requires), and never logged. The file id (room, REST API path) is the normalized <code>WOPISrc</code>: URL-encode it in <code>/v1/files/{fileId}/…</code>.</p>
+<p><strong>We call:</strong></p>
+<ul><li><code>GET  {WOPISrc}?access_token=…</code> → CheckFileInfo (at launch, on load, and before a save when the file name is not known). We read <code>BaseFileName</code>, <code>Size</code>, <code>Version</code>, <code>LastModifiedTime</code>, <code>UserId</code>, <code>UserFriendlyName</code>, <code>UserExtraInfo.avatar</code> (http(s) only), <code>UserCanWrite</code>, <code>ReadOnly</code>, <code>UserCanNotWriteRelative</code>, <code>DisableExport</code>, <code>DisablePrint</code>, <code>HideExportOption</code> and our extension <code>OpenCanvas_UserCanComment</code>. Role: <code>UserCanWrite</code> and not <code>ReadOnly</code> → <code>edit</code>; else <code>OpenCanvas_UserCanComment</code> → <code>comment</code>; else <code>view</code>. Perms: <code>DisableExport</code> → no export, download or print; <code>HideExportOption</code> → no export; <code>DisablePrint</code> → no print (PDF). The tracked version is <code>LastModifiedTime</code> (<code>Version</code> is shown only when there is no <code>LastModifiedTime</code>, and then no timestamp is sent).</li><li><code>GET  {WOPISrc}/contents?access_token=…</code> → GetFile (≤ 100 MB). Empty body = new canvas. <code>.ocanvas</code> zip, or Markdown when <code>BaseFileName</code> ends in <code>.md</code>.</li><li><code>POST {WOPISrc}/contents?access_token=…</code> → PutFile, body <code>.ocanvas</code> (or Markdown for <code>.md</code> files — lossy for boards and databases), headers <code>X-WOPI-Override: PUT</code>, <code>X-COOL-WOPI-Timestamp: &lt;LastModifiedTime we loaded / last saved&gt;</code>, <code>X-COOL-WOPI-IsAutosave: true</code>, <code>X-COOL-WOPI-IsModifiedByUser: true</code>. Answer <code>200 {&quot;LastModifiedTime&quot;:&quot;…&quot;}</code> (without it we ask CheckFileInfo). <code>409 {&quot;COOLStatusCode&quot;:1010}</code> = the file changed elsewhere → your <code>on_conflict</code> policy runs (any other 409 is retried like an outage). Saves go through the same outbox, retries and autosave rules as JWT mode (docs/15 §7).</li><li><code>POST {WOPISrc}?access_token=…</code> with <code>X-WOPI-Override: PUT_RELATIVE</code>, <code>X-WOPI-SuggestedTarget: &lt;UTF-7 &quot;&lt;name&gt; (conflict copy).ocanvas&quot;&gt;</code>, <code>X-WOPI-Size</code> → conflict copy (policy <code>copy</code>). Answer <code>{&quot;Name&quot;,&quot;Url&quot;,&quot;HostEditUrl&quot;|&quot;HostViewUrl&quot;}</code>; editors are told the <code>HostEditUrl</code> and <code>Url</code> without its token. Hosts that set <code>UserCanNotWriteRelative</code> should use <code>on_conflict = &quot;reload&quot;</code>.</li></ul>
+<p>No <code>LOCK</code>/<code>UNLOCK</code> (we use timestamps, like Collabora) and no proof keys yet.</p>
+<p><strong>Assets.</strong> WOPI has no asset API, so uploads (<code>POST /v1/assets?ticket=</code>) are kept with the room and answered <code>201 {&quot;assetId&quot;:&quot;a_…&quot;,&quot;url&quot;:&quot;/v1/assets/a_…&quot;,&quot;mime&quot;,&quot;size&quot;}</code>. They are served by <code>GET /v1/assets/:id?ticket=</code> (images inline, anything else as a download, <code>nosniff</code>, sandboxed) and inlined into the saved <code>.ocanvas</code> as <code>assets/&lt;id&gt;</code> (stored) plus <code>assets/index.json</code> (<code>{&quot;&lt;id&gt;&quot;:{&quot;mime&quot;,&quot;size&quot;}}</code>); only assets the document still references are written. On load they are read back out of your file. Limits: <strong>10 MB per asset, 50 MB of assets per file</strong> (<code>413 ASSET_TOO_LARGE</code>); the whole zip stays under the 100 MB <code>.ocanvas</code> read limit. DOCX, PDF and <code>.ocanvas</code> exports include them too.</p>
+<p><strong>Mentions.</strong> <code>GET /v1/users?ticket=&amp;q=</code> lists the users who have opened the file (from CheckFileInfo), filtered by name or id.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/05-INTEGRATION-GUIDE.md">docs/05-INTEGRATION-GUIDE.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="integration.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Integration guide</span></a><a class="pn pn-next" href="protocol.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Protocol and build contract</span></a></nav>
+  </article>
+  
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>A source-available collaborative canvas you embed, under <span class="nowrap">BUSL-1.1</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (BUSL-1.1)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

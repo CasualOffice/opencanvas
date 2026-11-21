@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>OpenCanvas: a collaborative canvas you embed</title>
+<meta name="description" content="OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Source-available under BUSL-1.1.">
+<link rel="canonical" href="https://casualoffice.github.io/opencanvas/">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="OpenCanvas: a collaborative canvas you embed">
+<meta property="og:description" content="OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Source-available under BUSL-1.1.">
+<meta property="og:url" content="https://casualoffice.github.io/opencanvas/">
+<meta property="og:image" content="https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/theme-init.js"></script>
+<script type="module" src="assets/site.js"></script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "OpenCanvas", "description": "A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed. The host application keeps users, permissions and files; OpenCanvas does the editing and autosaves back to the host.", "url": "https://casualoffice.github.io/opencanvas/", "applicationCategory": "DeveloperApplication", "applicationSubCategory": "Collaborative editor", "operatingSystem": "Linux (Docker image); the editor runs in a web browser", "softwareVersion": "0.1.0", "license": "https://github.com/CasualOffice/opencanvas/blob/main/LICENSE", "isAccessibleForFree": true, "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"}, "codeRepository": "https://github.com/CasualOffice/opencanvas", "sameAs": ["https://github.com/CasualOffice/opencanvas"], "screenshot": "https://casualoffice.github.io/opencanvas/assets/screens/canvas-light.png", "featureList": ["Rich text blocks, checklists, tables, images, files, link cards and sandboxed embeds", "Databases with table, board, calendar and gallery views and CSV import and export", "Whiteboard with pen, sticky notes, shapes and attached arrows", "Live co-editing with cursors, presence and comments", "Autosave to the host application through a durable outbox", "JWT and WOPI launch, an embed web component and a postMessage API"]}</script>
+</head>
+<body data-root="">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="index.html#product">Product</a><a href="docs/integration.html">Integrate</a><a href="docs/index.html">Docs</a><a href="roadmap.html">Roadmap</a><a href="changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="index.html#product">Product</a><a href="docs/integration.html">Integrate</a><a href="docs/index.html">Docs</a><a href="roadmap.html">Roadmap</a><a href="changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+<!-- Product screenshots come from tools/capture-site-screens.mjs: the real editor in its
+     #demo mode, captured by Playwright. No mock-ups. Numbers in claim blocks are quoted
+     from the repository by a source marking; tools/check-site-claims.py checks them. -->
+<section class="hero" aria-labelledby="hero-h">
+  <div class="wrap">
+    <div class="hero-copy">
+      <a class="release-pill" href="changelog.html"><b>P1 alpha</b><span>Pre-release, for evaluation</span><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+      <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
+      <p class="lede">OpenCanvas is a collaborative canvas you embed, the way apps embed Collabora: rich text, databases and whiteboards, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app/#demo" data-testid="cta-demo">Try the demo<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+        <a class="btn btn-secondary" href="docs/getting-started.html#run-it">Run it with Docker</a>
+      </div>
+      <p class="hero-note">The demo is the real editor running in your browser on a sample canvas, with simulated collaborators: no server, no account, nothing sent. <a href="#limits">Pre-release: read the limits first.</a></p>
+      <ul class="hero-meta" aria-label="In short">
+        <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Source-available (BUSL-1.1), free to self-host and embed</li>
+        <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>One Rust server</li>
+        <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Your app keeps the files</li>
+      </ul>
+    </div>
+
+    <div class="stage-hero">
+      <div class="window">
+        <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url"><svg class="i" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>app.example.com/channels/engineering</span><span></span></div>
+        <span class="shot" data-shot="canvas"><picture class="shot__light"><source type="image/webp" srcset="assets/screens/canvas-light.webp"><img src="assets/screens/canvas-light.png" width="1280" height="800" alt="The OpenCanvas editor in demo mode: the Sprint 42 planning canvas with a sprint goal callout, a Decisions paragraph with a comment highlight and two collaborators&#x27; live cursors, and the backlog database below, with five avatars in the top bar." loading="eager" decoding="async" fetchpriority="high"></picture><picture class="shot__dark"><source type="image/webp" srcset="assets/screens/canvas-dark.webp"><img src="assets/screens/canvas-dark.png" width="1280" height="800" alt="The OpenCanvas editor in demo mode: the Sprint 42 planning canvas with a sprint goal callout, a Decisions paragraph with a comment highlight and two collaborators&#x27; live cursors, and the backlog database below, with five avatars in the top bar." loading="eager" decoding="async"></picture></span>
+      </div>
+      <div class="device"><span class="shot" data-shot="phone"><picture class="shot__light"><source type="image/webp" srcset="assets/screens/phone-light.webp"><img src="assets/screens/phone-light.png" width="780" height="1688" alt="The same canvas on a phone: the title, the sprint goal, the Decisions paragraph with a collaborator typing, and the backlog database." loading="eager" decoding="async" fetchpriority="high"></picture><picture class="shot__dark"><source type="image/webp" srcset="assets/screens/phone-dark.webp"><img src="assets/screens/phone-dark.png" width="780" height="1688" alt="The same canvas on a phone: the title, the sprint goal, the Decisions paragraph with a collaborator typing, and the backlog database." loading="eager" decoding="async"></picture></span></div>
+      <p class="float-chip" aria-hidden="true"><span class="chip-ic"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"/></svg></span><b>Saved to your app</b><span>Autosave, no Save button</span></p>
+    </div>
+  </div>
+</section>
+
+<section class="standards" aria-labelledby="std-h">
+  <div class="wrap">
+    <p id="std-h">Built on open protocols your stack already speaks</p>
+    <ul>
+      <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg>Yjs CRDT</li>
+      <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>JWT: HS256, RS256, EdDSA, JWKS</li>
+      <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg>WOPI-compatible</li>
+      <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>postMessage, Collabora-style</li>
+      <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>SQLite, MySQL, MariaDB</li>
+      <li><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/></svg>Docker and Helm</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="fit" aria-labelledby="fit-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">How it fits</span>
+      <h2 id="fit-h">Your app decides. OpenCanvas edits.</h2>
+      <p>Your backend checks who may open which file, signs a short launch token, and opens OpenCanvas in an iframe. From then on OpenCanvas runs the live session and calls your app back to load and save the file. Once a session is saved and idle, it keeps nothing.</p>
+    </div>
+    <ul class="engine-strip reveal">
+      <li><b><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M12 6h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M8 6h.01"/><path d="M9 22v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><rect x="4" y="2" width="16" height="20" rx="2"/></svg>Your app owns</b><span>Sign-in, users, who can view, comment or edit, the file itself, its versions and its retention.</span></li>
+      <li><b><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>OpenCanvas owns</b><span>The editor, real-time merge, cursors and presence, preview, export, and autosave back to your storage.</span></li>
+      <li><b><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>One server</b><span>A Rust binary with the editor built in. SQLite by default; MySQL or MariaDB and Redis when you run several nodes.</span></li>
+      <li><b><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>One embed</b><span>An iframe form POST, or the <code>&lt;open-canvas&gt;</code> web component, with events for ready, saved, presence and errors.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="why" aria-labelledby="why-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Why it matters</span>
+      <h2 id="why-h">Three ideas, in plain words.</h2>
+      <p>The names in the strip above are what let OpenCanvas sit inside someone else's product without taking over its data.</p>
+    </div>
+    <ul class="why reveal">
+      <li><span class="term">CRDT</span><h3 id="edits-that-cannot-collide">Edits that cannot collide</h3><p>Every change is a small update that merges with everyone else's in any order, the same way on every screen. The server orders and relays updates; it never has to resolve a conflict between two people typing.</p><p class="so">So: live co-editing without locks, and brief disconnects resync on their own.</p></li>
+      <li><span class="term">Host callbacks</span><h3 id="the-file-never-moves-house">The file never moves house</h3><p>OpenCanvas loads the file from your app when a session opens and writes it back with a plain HTTP call, signed so you know it is us. If your file changed elsewhere, your chosen policy runs: save a copy, or reload.</p><p class="so">So: your storage, versions and retention rules stay the only ones.</p></li>
+      <li><span class="term">Autosave</span><h3 id="nobody-presses-save">Nobody presses Save</h3><p>Changes save on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Each save is written to an outbox first, so a restart resends it rather than losing it.</p><p class="so">So: the status reads Saved, and that is true.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="limits" aria-labelledby="limits-h">
+  <div class="wrap">
+    <div class="limits reveal" data-testid="limits">
+      <h2 id="limits-h"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Pre-release: what it is not yet</h2>
+      <ul>
+        <li><strong>Not for production yet.</strong> OpenCanvas is a P1 alpha for evaluation; there is no tagged release.</li>
+        <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
+        <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet.</li>
+        <li>The Helm chart is linted and rendered in CI but has not been installed in a real cluster yet, and there are no dashboards.</li>
+        <li>The embed web component works but has not yet been tested inside a host page; WOPI mode has no proof keys yet.</li>
+      </ul>
+      <p>Every item is a row in the project's tracker, and the <a href="roadmap.html">roadmap</a> is generated from it.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="product" aria-labelledby="write-h">
+  <div class="wrap feature">
+    <div class="feature__copy reveal">
+      <span class="eyebrow eyebrow--dot">Write together</span>
+      <h2 id="write-h">One canvas, everyone in it.</h2>
+      <p>Type <kbd>/</kbd> for any block. Everyone's cursor and selection show with their name, and the avatars at the top say who is here and who is only viewing.</p>
+      <ul class="points">
+        <li><span class="pt-ic"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span><strong>Blocks for real documents</strong><span>Headings, lists, checklists, toggles, callouts, code with highlighting, tables, images, files, link cards, sandboxed embeds and columns.</span></li>
+        <li><span class="pt-ic"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><strong>Presence that helps</strong><span>Live cursors with names, a typing dot, follow mode, and comment threads anchored to the text they discuss.</span></li>
+        <li><span class="pt-ic"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><strong>Roles your app sets</strong><span>View, comment or edit, enforced on the server for every change, and switched live when your app calls the role API.</span></li>
+      </ul>
+    </div>
+    <figure class="feature__media reveal reveal-d1">
+      <div class="window">
+        <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url"><svg class="i" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>app.example.com/channels/engineering</span><span></span></div>
+        <span class="shot" data-shot="comments"><picture class="shot__light"><source type="image/webp" srcset="assets/screens/comments-light.webp"><img src="assets/screens/comments-light.png" width="1280" height="800" alt="The canvas with the Comments panel open: a thread on &quot;Autosave runs every 60 seconds by default&quot; where Ravi Menon asks whether hosts can set it per channel and Asha Rao answers, with a reply box." loading="lazy" decoding="async"></picture><picture class="shot__dark"><source type="image/webp" srcset="assets/screens/comments-dark.webp"><img src="assets/screens/comments-dark.png" width="1280" height="800" alt="The canvas with the Comments panel open: a thread on &quot;Autosave runs every 60 seconds by default&quot; where Ravi Menon asks whether hosts can set it per channel and Asha Rao answers, with a reply box." loading="lazy" decoding="async"></picture></span>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="section-tight" aria-labelledby="blocks-h">
+  <div class="wrap">
+    <h2 id="blocks-h" class="sr-only">Databases and templates</h2>
+    <div class="bento">
+      <article class="cell c-7 reveal">
+        <h3 id="databases-inside-the-page">Databases inside the page</h3>
+        <p>Typed fields and four views over the same rows: table, board, calendar and gallery. Filter, sort and search; drag cards between columns; import and export CSV.</p>
+        <div class="cell-media cell-media--inset"><span class="shot" data-shot="database"><picture class="shot__light"><source type="image/webp" srcset="assets/screens/database-light.webp"><img src="assets/screens/database-light.png" width="1280" height="800" alt="The Sprint 42 backlog database in its Board view: columns Backlog, In progress, In review and Done, with task cards showing owner, due date and points." loading="lazy" decoding="async"></picture><picture class="shot__dark"><source type="image/webp" srcset="assets/screens/database-dark.webp"><img src="assets/screens/database-dark.png" width="1280" height="800" alt="The Sprint 42 backlog database in its Board view: columns Backlog, In progress, In review and Done, with task cards showing owner, due date and points." loading="lazy" decoding="async"></picture></span></div>
+      </article>
+      <article class="cell c-5 reveal reveal-d1" data-claim>
+        <h3 id="start-from-a-template">Start from a template</h3>
+        <p>40 templates in 9 categories, plus blank canvas, database, whiteboard and import from Markdown, HTML or CSV.</p>
+        <a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="40 templates in 9 categories" href="https://github.com/CasualOffice/opencanvas/blob/main/README.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: README.md, “40 templates in 9 categories”</span></a>
+        <div class="cell-media cell-media--inset"><span class="shot" data-shot="templates"><picture class="shot__light"><source type="image/webp" srcset="assets/screens/templates-light.webp"><img src="assets/screens/templates-light.png" width="1280" height="800" alt="The New canvas gallery: template categories on the left, Start blank options for canvas, database, whiteboard and import, and the first templates with their thumbnails." loading="lazy" decoding="async"></picture><picture class="shot__dark"><source type="image/webp" srcset="assets/screens/templates-dark.webp"><img src="assets/screens/templates-dark.png" width="1280" height="800" alt="The New canvas gallery: template categories on the left, Start blank options for canvas, database, whiteboard and import, and the first templates with their thumbnails." loading="lazy" decoding="async"></picture></span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="board-h">
+  <div class="wrap feature feature--flip">
+    <div class="feature__copy reveal">
+      <span class="eyebrow eyebrow--dot">Whiteboard</span>
+      <h2 id="board-h">Draw it in the same document.</h2>
+      <p>The whiteboard is a block of the canvas, not a separate product: one session, one save, one file. Everyone's pointer shows while they draw.</p>
+      <ul class="points">
+        <li><span class="pt-ic"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span><strong>Pen, notes and shapes</strong><span>Sticky notes, rectangles, ellipses, diamonds, text, images, zoom and full screen.</span></li>
+        <li><span class="pt-ic"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg></span><strong>Arrows that stay attached</strong><span>Connectors bind to shapes and follow them when they move, straight or elbowed.</span></li>
+        <li><span class="pt-ic"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span><strong>Phones and side panels</strong><span>Bottom sheets, a toolbar above the keyboard, and a board you tap before it takes over touch.</span></li>
+      </ul>
+    </div>
+    <figure class="feature__media reveal reveal-d1">
+      <div class="window">
+        <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url"><svg class="i" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>app.example.com/channels/engineering</span><span></span></div>
+        <span class="shot" data-shot="whiteboard"><picture class="shot__light"><source type="image/webp" srcset="assets/screens/whiteboard-light.webp"><img src="assets/screens/whiteboard-light.png" width="1280" height="800" alt="The &quot;How a session flows&quot; whiteboard: a dashed frame labelled Host app with a sticky note &quot;Signs launch token (JWT)&quot;, arrows to &quot;Room on owner node + WAL&quot; and &quot;Autosave → PUT /files/:id&quot;, an arrow back to the host, and the board toolbar." loading="lazy" decoding="async"></picture><picture class="shot__dark"><source type="image/webp" srcset="assets/screens/whiteboard-dark.webp"><img src="assets/screens/whiteboard-dark.png" width="1280" height="800" alt="The &quot;How a session flows&quot; whiteboard: a dashed frame labelled Host app with a sticky note &quot;Signs launch token (JWT)&quot;, arrows to &quot;Room on owner node + WAL&quot; and &quot;Autosave → PUT /files/:id&quot;, an arrow back to the host, and the board toolbar." loading="lazy" decoding="async"></picture></span>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="section band-dark" id="evidence" aria-labelledby="evidence-h">
+  <div class="wrap">
+    <div class="sec-head flush reveal">
+      <span class="eyebrow eyebrow--ok">Saving and safety</span>
+      <h2 id="evidence-h">Built so an edit is never lost or forged.</h2>
+      <p>Each claim below links to the test that proves it, or quotes the project's tracker where it records a measured result.</p>
+    </div>
+    <ol class="chain reveal" aria-label="A session: your app launches it, people edit, the server merges, and the file is saved back to your app">
+      <li><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>launch</li><li class="sep" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>edit</li><li class="sep" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg>merge</li><li class="sep" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></li>
+      <li class="sealed"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>saved to your app</li>
+    </ol>
+    <ul class="facts">
+      <li class="reveal"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><strong>Viewers cannot write, even with devtools</strong><span>The server checks every update against the sender's role; a commenter can change comments and nothing else.</span><a class="claim-mark claim-mark--tested" data-claim-mark="tested" href="https://github.com/CasualOffice/opencanvas/blob/main/crates/oc-server/tests/rooms.rs"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Tested: role filter tests, seen failing first</span></a></li>
+      <li class="reveal reveal-d1"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg></span><strong>Convergence, fuzzed</strong><span>Random concurrent edits from several editors, delivered out of order: 10 000 iterations pass in 31.8 s, and a nightly CI job runs them with a new seed.</span><a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="10 000 iterations pass in 31.8 s (release)" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/10, “10 000 iterations pass in 31.8 s (release)”</span></a></li>
+      <li class="reveal reveal-d2"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg></span><strong>Owner node killed mid-edit</strong><span>In the cluster chaos test the room moved to another node, clients resynced in 0.59 s, and the host's file held 260/260 edits.</span><a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="resync 0.59 s, 260/260 edits (92 acked before the kill) in the host file" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/10, “resync 0.59 s, 260/260 edits (92 acked before the kill) in the host file”</span></a></li>
+      <li class="reveal"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg></span><strong>Saves survive a restart</strong><span>Each save is written to a durable outbox before your app is called, and resent with the same idempotency key after a crash.</span><a class="claim-mark claim-mark--tested" data-claim-mark="tested" href="https://github.com/CasualOffice/opencanvas/blob/main/crates/oc-server/tests/hardening.rs"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Tested: outbox resume after restart</span></a></li>
+      <li class="reveal reveal-d1"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></span><strong>Tokens you sign, checked strictly</strong><span>The algorithm is pinned per host, never read from the token; expiry, audience and single use are enforced.</span><a class="claim-mark claim-mark--tested" data-claim-mark="tested" href="https://github.com/CasualOffice/opencanvas/blob/main/crates/oc-server/src/jwt.rs"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Tested: JWT tests incl. alg=none and key confusion</span></a></li>
+      <li class="reveal reveal-d2"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg></span><strong>Secrets sealed at rest</strong><span>Callback tokens are encrypted with AES-256-GCM under a key you set; the server refuses to start without it outside development.</span><span class="claim-mark claim-mark--deploy" data-claim-mark="deployment"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg><span>Depends on your deployment: OC_KEK, a 32-byte key you generate and keep</span></span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="integrate" aria-labelledby="integrate-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Integrate</span>
+      <h2 id="integrate-h">Three steps to a live canvas in your app.</h2>
+      <p>Register your app with the server, embed the editor with a token your backend signs, then answer a few HTTP callbacks. The code below is from the <a href="docs/integration.html">integration guide</a>.</p>
+    </div>
+    <div class="duo">
+      <div class="duo-cell reveal">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>1. Register your host</div>
+<pre><code><span class="c-cmt"># opencanvas.hosts.toml</span>
+[[host]]
+id              = "Acme"
+name            = "Acme"
+mode            = "jwt"
+jwt_alg         = "HS256"
+jwt_secret      = "env:ACME_OC_SECRET"
+api_key         = "env:ACME_OC_API_KEY"
+callback_base   = "https://api.acme.example/opencanvas"
+allowed_origins = ["https://app.acme.example"]</code></pre>
+        </div>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>2. Embed it with a signed token</div>
+<pre><code>&lt;script type="module"
+  src="https://canvas.example.com/sdk/embed.js"&gt;&lt;/script&gt;
+&lt;open-canvas server="https://canvas.example.com"
+  token="{{ jwt }}" theme="auto"
+  style="height:100vh"&gt;&lt;/open-canvas&gt;
+
+<span class="c-cmt">// Your backend signs the token after its own ACL check:</span>
+<span class="c-cmt">// file, user, role (view | comment | edit), perms</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <p class="muted reveal">3. Answer these callbacks from your backend:</p>
+    <ul class="services reveal">
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg><span><b>GET /files/{fileId}</b>Load: return the file and its version</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg><span><b>PUT /files/{fileId}</b>Save: store it, answer the new version, or 409</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg><span><b>POST /files/{fileId}/assets</b>Store an uploaded image or file</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg><span><b>GET /users?q=</b>People who can see the file, for @mentions</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span><b>POST /files/{fileId}/copies</b>Save a copy when the file changed elsewhere</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg><span><b>X-OpenCanvas-Signature</b>HMAC-SHA256 on every call, so you know it is us</span></li>
+    </ul>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/integration.html">Integration guide<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a><a class="btn btn-secondary" href="docs/wopi.html">Already a WOPI host?<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a></p>
+  </div>
+</section>
+
+<section class="section section-alt" id="self-host" aria-labelledby="selfhost-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Self-host</span>
+      <h2 id="selfhost-h">One container to start, more nodes when you need them.</h2>
+      <p>A single node runs on SQLite with no database to set up. For many concurrent users, point several nodes at MySQL or MariaDB and Redis: each room has one owner node, and the others relay to it.</p>
+    </div>
+    <div class="duo">
+      <div class="duo-cell reveal">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Single node, SQLite</div>
+<pre><code>docker run -p 8080:8080 -v oc-data:/data \
+  -e OC_PUBLIC_URL=https://canvas.example.com \
+  -e OC_KEK=$(openssl rand -base64 32) \
+  -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
+  opencanvas/server:0.1</code></pre>
+        </div>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Cluster</div>
+<pre><code>DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas
+REDIS_URL=redis://redis:6379      <span class="c-cmt"># enables cluster mode</span>
+OC_NODE_ID=node-1
+OC_CLUSTER_ADVERTISE=http://node-1:8080
+OC_CLUSTER_SECRET=&lt;same on every node&gt;
+OC_KEK=&lt;same on every node&gt;</code></pre>
+        </div>
+      </div>
+    </div>
+    <ul class="services reveal">
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg><span><b>oc-server</b>Launch, rooms, saves, exports and the editor at /app/</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg><span><b>SQLite or MySQL / MariaDB</b>Only the live session's log and the save outbox</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span><b>Redis (cluster)</b>Room leases, one owner per room</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg><span><b>Gotenberg (optional)</b>PDF export; Word, PNG and SVG need nothing extra</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/></svg><span><b>Helm chart</b>Single node or cluster, non-root, read-only root</span></li>
+      <li><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span><b>Graceful drain</b>Saves dirty rooms, then tells clients to reconnect</span></li>
+    </ul>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/operations.html">Operations guide<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a><a class="btn btn-secondary" href="docs/architecture.html">Architecture<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a></p>
+  </div>
+</section>
+
+<section class="section" id="tested" aria-labelledby="tested-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Verified</span>
+      <h2 id="tested-h">What the last full check ran.</h2>
+      <p>Quoted from the tracker's integration log, where every merge records how it was verified.</p>
+    </div>
+    <ul class="facts facts--light">
+      <li class="reveal"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg></span><strong>Server, editor and browser tests</strong><span>cargo test 88, vitest 182, and Playwright 11/11 with two browsers per spec, including a WebKit phone.</span><a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="cargo test 88, vitest 182, typecheck, initial JS 257.1 KB gz (budget 300), Playwright 11/11" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/10, “cargo test 88, vitest 182, typecheck, initial JS 257.1 KB gz (budget 300), Playwright 11/11”</span></a></li>
+      <li class="reveal reveal-d1"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg></span><strong>Three databases, end to end</strong><span>Launch, edit, autosave and export pass on SQLite, MariaDB 11.4 and MySQL 8.4.</span><a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="e2e-db PASS SQLite (+ real PDF via Gotenberg), MariaDB 11.4, MySQL 8.4" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/10, “e2e-db PASS SQLite (+ real PDF via Gotenberg), MariaDB 11.4, MySQL 8.4”</span></a></li>
+      <li class="reveal reveal-d2"><span class="cell-icon"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg></span><strong>A small first load</strong><span>The editor's initial JavaScript is 257.1 KB gzipped, under a 300 KB budget that CI enforces.</span><a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="initial JS 257.1 KB gz (budget 300)" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/10, “initial JS 257.1 KB gz (budget 300)”</span></a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section section-alt" aria-labelledby="licence-h">
+  <div class="wrap os-band">
+    <div class="reveal">
+      <div class="sec-head flush">
+        <span class="eyebrow eyebrow--dot">Licence</span>
+        <h2 id="licence-h">Source-available. Free to self-host and embed.</h2>
+        <p>OpenCanvas is under the Business Source License 1.1, with CasualOffice as the licensor. Read the code, run it in production, and build it into your own products, open or closed.</p>
+      </div>
+      <ul class="os-points">
+        <li><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Self-host it and embed it in your own products and services, including commercial ones, at no cost.</span></li>
+        <li><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>A commercial licence is needed only to offer OpenCanvas to others as a hosted collaborative-editing service.</span></li>
+        <li><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Each version becomes MPL-2.0 four years after its release.</span></li>
+      </ul>
+    </div>
+    <div class="badge-card reveal reveal-d1">
+      <a class="powered" href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE"><img class="logo-light" src="assets/logo.svg" alt="" width="94" height="16" loading="lazy"><img class="logo-dark" src="assets/logo-dark.svg" alt="" width="94" height="16" loading="lazy"><span>Read the licence</span></a>
+      <p class="muted">The LICENSE file states the exact terms.</p>
+      <a class="btn btn-secondary btn-sm" href="docs/faq.html#what-does-the-licence-allow">What it allows</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="compare-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2 id="compare-h">How it compares.</h2>
+      <p>From the project's research note on Slack Canvas, Zoom Canvas and Microsoft Loop, built from each vendor's public documentation. Where OpenCanvas's answer is not built yet, the table says so.</p>
+    </div>
+    <div class="table-scroll reveal" tabindex="0" role="region" aria-labelledby="compare-h">
+      <table class="compare">
+        <thead><tr><th scope="col">&nbsp;<span class="sr-only">Question</span></th><th scope="col">OpenCanvas</th><th scope="col">Slack Canvas</th><th scope="col">Zoom Canvas</th><th scope="col">Microsoft Loop</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Embed in your own app</th><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>The primary goal: iframe or web component</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>Inside Slack</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>Inside Zoom</span></td><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Partially, as Loop components</span></td></tr>
+          <tr><th scope="row">Who stores the file</th><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Your app, through callbacks</span></td><td>Slack</td><td>Zoom</td><td>OneDrive or SharePoint</td></tr>
+          <tr><th scope="row">Run it on your own servers</th><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Yes, one binary or Docker</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>No</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>No</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>No</span></td></tr>
+          <tr><th scope="row">Whiteboard</th><td data-claim><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>A native block in the document</span><a class="claim-mark claim-mark--tested" data-claim-mark="tested" href="https://github.com/CasualOffice/opencanvas/blob/main/web/packages/board/src/board.test.tsx"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Tested: board tests</span></a></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>No</span></td><td>A separate product, embedded</td><td>The Whiteboard app</td></tr>
+          <tr><th scope="row">Tables and databases</th><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Tables, and databases with four views</span></td><td>Basic tables</td><td>Tables</td><td>Rich tables</td></tr>
+          <tr><th scope="row">Live cursors and presence</th><td data-claim><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Yes, with follow mode</span><a class="claim-mark claim-mark--tested" data-claim-mark="tested" href="https://github.com/CasualOffice/opencanvas/blob/main/e2e/specs/a-template-presence.spec.ts"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Tested: two-browser presence spec</span></a></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+          <tr><th scope="row">Version history</th><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Your app's: OpenCanvas saves each change to it</span></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+          <tr><th scope="row">API to create and edit content</th><td data-claim><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Markdown and JSON block patches, live</span><a class="claim-mark claim-mark--tested" data-claim-mark="tested" href="https://github.com/CasualOffice/opencanvas/blob/main/crates/oc-server/tests/host_api.rs"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span>Tested: host API tests</span></a></td><td>Markdown</td><td>Yes</td><td>Microsoft Graph</td></tr>
+          <tr><th scope="row">Portable live blocks</th><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Planned for P3</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>No</span></td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>No</span></td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Yes, Loop components</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">From <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/01-RESEARCH-COMPETITIVE-ANALYSIS.md">docs/01, the research note</a>, checked 2026-11-21 against the vendors' public pages; vendor pages are marketing claims, and products change. Rows for OpenCanvas follow the <a href="roadmap.html">roadmap</a>.</p>
+  </div>
+</section>
+
+<section class="section section-alt" aria-labelledby="faq-h">
+  <div class="wrap faq-grid">
+    <div class="sec-head reveal">
+      <h2 id="faq-h">Questions people ask.</h2>
+      <p>More in the <a href="docs/faq.html">documentation FAQ</a>.</p>
+    </div>
+    <div class="faq reveal reveal-d1">
+      <details><summary>Can I use it in production today?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div><p>Not yet. OpenCanvas is a P1 alpha for evaluation: the server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it awaits the owner's review and there is no tagged release. The <a href="roadmap.html">roadmap</a> shows each item's status.</p></div></details>
+      <details><summary>What does the licence allow?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div><p>OpenCanvas is source-available under the Business Source License 1.1. You may run it in production, self-host it, and embed it in your own products and services, open or closed. You need a commercial licence only to offer OpenCanvas to others as a hosted collaborative-editing service. Each version becomes MPL-2.0 four years after its release. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
+      <details><summary>Does OpenCanvas keep my documents?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
+      <details><summary>How do users sign in?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
+      <details><summary>We already use Collabora through WOPI. Can we reuse that?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div><p>Yes. OpenCanvas speaks WOPI as a client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc it will call. See <a href="docs/wopi.html">WOPI mode</a>.</p></div></details>
+      <details><summary>What can it export?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div><p>Markdown, HTML, JSON, its native <code>.ocanvas</code>, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG.</p></div></details>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="closing-h">
+  <div class="wrap">
+    <div class="closing reveal">
+      <h2 id="closing-h">Try it in your browser, then run it on yours.</h2>
+      <p class="lede">The demo needs nothing installed. When you want the real thing, run the server and the sample host and open the same file in two tabs.</p>
+      <p class="cmd"><code><span class="c-cmt">$ </span>docker compose up --build</code></p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app/#demo">Try the demo<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+        <a class="btn btn-secondary" href="docs/getting-started.html">Get started<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>A source-available collaborative canvas you embed, under <span class="nowrap">BUSL-1.1</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="index.html#product">Overview</a></li><li><a href="app/#demo">Try the demo</a></li><li><a href="roadmap.html">Roadmap</a></li><li><a href="changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="docs/getting-started.html">Getting started</a></li><li><a href="docs/integration.html">Integration guide</a></li><li><a href="docs/wopi.html">WOPI mode</a></li><li><a href="docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="docs/security.html">Security and limits</a></li><li><a href="docs/architecture.html">Architecture</a></li><li><a href="docs/protocol.html">Protocol</a></li><li><a href="docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (BUSL-1.1)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>
