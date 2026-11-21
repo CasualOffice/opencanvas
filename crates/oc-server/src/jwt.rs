@@ -53,6 +53,10 @@ struct UserClaim {
     avatar: Option<String>,
     #[serde(default)]
     color: Option<String>,
+    #[serde(default)]
+    detail: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,6 +72,9 @@ pub struct LaunchClaims {
     perms: Option<Perms>,
     #[serde(default)]
     callback_token: Option<String>,
+    /// Tier 1 (docs/21): people this user may mention; read leniently, at most 200.
+    #[serde(default)]
+    participants: Option<Value>,
 }
 
 impl LaunchClaims {
@@ -82,11 +89,19 @@ impl LaunchClaims {
             download: true,
             comment: true,
             print: true,
+            show_email: false,
         });
         if self.role == Role::View {
             perms.comment = false;
         }
+        // The same rules as every other user object (docs/21): trimmed, http(s) avatars only.
+        let me = crate::people::user_from_json(&serde_json::json!({
+            "id": self.user.id, "name": self.user.name, "detail": self.user.detail,
+            "email": self.user.email, "avatar": self.user.avatar, "color": self.user.color,
+        }));
+        let participants = crate::people::participants_from_json(self.participants.as_ref());
         Grant {
+            participants,
             room: room_id(&self.iss, &self.file.id),
             host_id: self.iss,
             role: self.role,
@@ -96,8 +111,12 @@ impl LaunchClaims {
                     .color
                     .filter(|c| is_hex_color(c))
                     .unwrap_or_else(|| derive_color(&self.user.id)),
-                name: self.user.name.unwrap_or_else(|| self.user.id.clone()),
-                avatar: self.user.avatar,
+                name: me
+                    .as_ref()
+                    .map_or_else(|| self.user.id.clone(), |u| u.name.clone()),
+                avatar: me.as_ref().and_then(|u| u.avatar.clone()),
+                detail: me.as_ref().and_then(|u| u.detail.clone()),
+                email: me.as_ref().and_then(|u| u.email.clone()),
                 id: self.user.id,
             },
             file: FileRef {
@@ -111,11 +130,7 @@ impl LaunchClaims {
     }
 }
 
-/// `#rgb`, `#rrggbb` or `#rrggbbaa` (SEC-12): the colour ends up in other people's CSS.
-fn is_hex_color(c: &str) -> bool {
-    c.strip_prefix('#')
-        .is_some_and(|h| matches!(h.len(), 3 | 6 | 8) && h.bytes().all(|b| b.is_ascii_hexdigit()))
-}
+use crate::grant::is_hex_color;
 
 fn peek_issuer(token: &str) -> Result<String, JwtError> {
     let payload = token.split('.').nth(1).ok_or(JwtError::Malformed)?;

@@ -39,7 +39,12 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
    `isNew` is true when the host returned 404 / an empty file. The SPA then shows
-   the template gallery. `401 {"error":{"code":"TICKET_INVALID"}}` when unknown or expired.
+   the template gallery.
+   *(docs/21, ADR-026, 2026-11-22)*: `user` may carry `detail` and (only with `perms.showEmail`)
+   `email`; the body adds `participants` (the token's tier-1 list, ≤ 200, e-mails stripped the
+   same way), `directory: {"coviewers": "all"|"contacts"|"none", "callbacks": bool}` (callbacks =
+   JWT user callbacks exist; false for WOPI) and `perms.showEmail` when true. Each `GET` drops
+   that viewer's cached resolve answers for the room (a reopen sees renames). `401 {"error":{"code":"TICKET_INVALID"}}` when unknown or expired.
    (Implementation: `isNew` = the room's doc has no `content` and empty `meta`/`databases`/`boards`,
    so a second user joining after a template was picked gets `false`.)
    Launch failures answer `401 {"error":{"code":"TOKEN_INVALID"|"TOKEN_REUSED",…}}`; `jti` is
@@ -103,7 +108,14 @@ Server rules:
   (applied to a scratch copy of the doc first; updates that create other roots or cannot fully
   integrate are refused). The auth frame is sent once per connection.
 - Awareness: the server rewrites the `user` field from the grant before fan-out
-  (`{"id","name","color","avatar"}`), so nobody can spoof another person's name or colour.
+  (`{"id","name","color","avatar","detail"?}`), so nobody can spoof another person's name or colour.
+  *(docs/21)* Fan-out is then per recipient: with the recipient's resolve answer, contacts and
+  members carry the recipient's name for them (+ `relation`, `deactivated`), `external` people
+  only the host's `name`/`detail`/`avatar`, and `hidden` people become
+  `{"id":"anon_<12 hex of sha256(room, viewer, id)>","name":"Someone","color":"#6b7280","avatar":null,"relation":"hidden"}`.
+  A state is withheld from a recipient until their resolve answer is in (one background call per
+  recipient). Without a resolve callback (or WOPI) states pass unchanged, except
+  `directory.coviewers = "none"` (anonymous) and, after a failed call, `contacts`/`none` (anonymous).
   Entries over 2 KB, or for a client id owned by another connection, are dropped.
 - An update that would push the encoded doc over `OC_MAX_DOC_MB` (20) is refused with an auth
   frame `document size limit reached`; while a conflict is being handled every write is refused.
@@ -130,7 +142,8 @@ Server rules:
 | `meta` | Map | `title` string, `icon` lucide name, `tone` Tone, `template` id |
 | `databases` | Map<dbId, Y.Map> | per database: `name`, `icon`, `tone`, `fields` Y.Array<Y.Map{id,name,type,options(JSON array)}>, `order` Y.Array<rowId>, `rows` Y.Map<rowId, Y.Map<fieldId,value>>, `notes` Y.Map<rowId,string>, `view` string, `views` Y.Map (per-view prefs JSON) |
 | `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId> |
-| `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,text,at}> |
+| `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,name,color,text,at,mentions?,labels?}>; *(docs/21)* `labels` = `{userId: "@label as inserted"}`, so each viewer shows their own name for the person |
+| `people` | Map<userId, object> | *(docs/21 tier 0, optional)* who opened the file: `{id, name, detail?, avatar?, email?, lastSeen}` (ms). Written by the server on join (never makes the room dirty; `lastSeen` refreshed at most hourly; e-mail only with that person's `perms.showEmail`; not written when `coviewers = "none"`). Display fallback only: resolve and tokens win |
 
 Tiptap node types (names are part of the file format, so don't rename them):
 `paragraph, heading(level 1-3), bulletList, orderedList, listItem, taskList, taskItem(checked),
@@ -230,7 +243,8 @@ Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`
 `.ocanvas` as written by the server: `manifest.json` (`format`, `version` 1, `schemaVersion` 1,
 `createdWith`, `title` from `meta.title`, `commit {id, authors, at}`), `document.json` and `ydoc.bin`.
 `ydoc.bin` is a Yjs **v1** update (`Y.encodeStateAsUpdate(doc)`); readers also accept v2.
-`document.json` is `{type:"doc", content:[…], meta, databases, boards, comments}` where `content`
+`document.json` is `{type:"doc", content:[…], meta, databases, boards, comments, people?}` (`people` only
+when non-empty) where `content`
 nodes are `{type, attrs?, content?}` and text is `{type:"text", text, marks?:[{type, attrs?}]}`
 (y-prosemirror `mark--hash` keys are reduced to `mark`). If `ydoc.bin` is missing the doc is built
 from `document.json` (content and meta exactly; nested maps best-effort).
@@ -248,7 +262,8 @@ verify `v2` and may fall back to `v1`. Callbacks never follow redirects.)
 | `GET /files/{fileId}` | 200 bytes (`.ocanvas` zip, or `text/markdown`), `ETag`; 404 = new file |
 | `PUT /files/{fileId}` | body `.ocanvas`; `If-Match`, `Idempotency-Key`, `X-OpenCanvas-Autosave: 1`, `X-OpenCanvas-Authors: <json ids>`; 200 `{"version":"…"}`, 409 conflict |
 | `POST /files/{fileId}/assets` | multipart `file` → 201 `{"assetId","url","mime","size"}` |
-| `GET /users?q=&fileId=` | `[{"id","name","avatar"}]` |
+| `GET /users?q=&fileId=` *(optional)* | the viewer's `callbackToken`; `[{"id","name","detail","email","avatar","access"}]` or `{"users":[…]}`; 404/405/410/501 = not implemented (the SPA gets `[]`) |
+| `POST /users/resolve` *(optional, docs/21)* | JSON `{"ids":[…≤200],"fileId"}`, the viewer's `callbackToken`; `[{"id","name","detail","avatar","email","relation","deactivated"}]` or `{"users":[…]}`; `relation` ∈ `contact member external hidden` (absent = `member`); 404/405/410/501 = not implemented (remembered 10 min) |
 | `POST /files/{fileId}/copies` | conflict policy `copy`: body `.ocanvas`, `Idempotency-Key`; 200/201 `{"fileId","url"}` |
 | `POST /mentions` *(optional)* | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by, excerpt}`, `Idempotency-Key`; any 2xx; 404/405/410/501 = not implemented. Queued in `notify_outbox` first, retried with backoff (8 attempts). Never in WOPI mode (docs/05 §5) |
 
@@ -264,7 +279,13 @@ logged as a warning).
 `GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host; WOPI mode:
 stored with the room, `201 {"assetId","url":"/v1/assets/<id>","mime","size"}`, ≤ 10 MB each, ≤ 50 MB
 per file) · `GET /v1/assets/:id?ticket=` (WOPI mode only, else 404) ·
-`GET /v1/users?ticket=&q=` (proxied) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx|pdf` ·
+`GET /v1/users?ticket=&q=` (proxied with the viewer's token, sanitised user objects, e-mail only with
+`perms.showEmail`, cached 30 s per viewer and query; `[]` when the host has no search) ·
+`POST /v1/users/resolve?ticket=` `{"ids":[…≤500]}` → `{"resolve": bool, "users": [{id,name,color,detail?,email?,avatar?,relation,deactivated?}]}`
+(docs/21: batched, cached 10 min per room and viewer; `hidden` entries carry only `name:"Someone"`;
+ids the host left out are omitted; `resolve:false` = no callback or unreachable) ·
+`GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx|pdf` (all but `ocanvas`
+render mention labels and person cells as the exporting viewer sees them, docs/21) ·
 `GET /v1/export/board/:boardId.svg|png?ticket=` · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
-import type { Role } from "@opencanvas/ui";
+import type { Relation, Role } from "@opencanvas/ui";
 
 export interface Peer {
   clientId: number;
@@ -8,6 +8,10 @@ export interface Peer {
   name: string;
   color: string;
   avatar?: string | null;
+  /** Second line (docs/21); presence is rewritten per viewer by the server. */
+  detail?: string;
+  relation?: Relation;
+  deactivated?: boolean;
   role: Role;
   typing: boolean;
   me: boolean;
@@ -17,7 +21,7 @@ export interface Peer {
 function read(aw: Awareness): Peer[] {
   const byUser = new Map<string, Peer>();
   aw.getStates().forEach((st, clientId) => {
-    const u = st.user as { id?: string; name?: string; color?: string; avatar?: string; role?: Role } | undefined;
+    const u = st.user as { id?: string; name?: string; color?: string; avatar?: string; role?: Role; detail?: string; relation?: Relation; deactivated?: boolean } | undefined;
     if (!u?.name) return;
     const id = u.id ?? String(clientId);
     const me = clientId === aw.clientID;
@@ -28,6 +32,9 @@ function read(aw: Awareness): Peer[] {
       name: u.name,
       color: u.color ?? "#6b7280",
       avatar: u.avatar,
+      detail: typeof u.detail === "string" ? u.detail : undefined,
+      relation: u.relation,
+      deactivated: u.deactivated === true || undefined,
       role: (st.role as Role | undefined) ?? u.role ?? "edit",
       typing: !!st.typing,
       me,
@@ -45,7 +52,7 @@ export function usePeers(aw: Awareness): Peer[] {
     let last = "";
     const f = () => {
       const next = read(aw);
-      const key = JSON.stringify(next.map((p) => [p.id, p.name, p.color, p.role, p.typing, p.hasCursor, p.me]));
+      const key = JSON.stringify(next.map((p) => [p.id, p.name, p.color, p.avatar, p.detail, p.relation, p.role, p.typing, p.hasCursor, p.me]));
       if (key !== last) {
         last = key;
         setPeers(next);

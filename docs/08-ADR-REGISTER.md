@@ -29,6 +29,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-023 | Editor UX pass (docs/19): optional `image.width` (percent 20-100) and `image.align` (left/right; absent = centred) attrs; comment messages may carry `mentions` (user ids); postMessage gains `UI_Block_Link` (canvas → host) and `Action_ScrollToBlock` (host → canvas) | Accepted |
 | ADR-024 | Board/database data-format additions from the blocks UX pass (docs/15 §4): shape `fill` tones on rect/ellipse/diamond, `size` on shapes, arrow `text` labels, `group`, awareness `board.sel`; database view prefs `sorts`, `filters`, `widths`, `group`, `date`, `cover`. All optional and additive (old clients ignore them); web and Rust board exporters draw them identically with a fixed wrap rule (0.56 em per UTF-16 unit) | Accepted (2026-11-21) |
 | ADR-025 | Blocks open items (docs/15 §4, docs/20): board arrow `via` (manual waypoints, drawn identically by the web and Rust exporters; `pts` keeps the resolved path); database field `description` (shared field map, in `document.json`, footnote line under the table in web and server Markdown, not in CSV); view prefs `fields` (per-view order) and `hidden`, typed `filters` rules `{f, op, v, v2}` (legacy `filter` mirrors the first value-list rule only); `BlockEnv.undoManager` (optional; blocks join the editor's Y.UndoManager instead of a private one). All optional and additive | Accepted (2026-11-21) |
+| ADR-026 | Users and identity (docs/21): one user object (`id, name, detail?, email?, avatar?, color?`) everywhere; four tiers (tokens → `participants` → optional `GET /users` → optional `POST /users/resolve`), merged per id resolve > token > snapshot; everything about other people answered per viewer with their token and cached per (room, viewer); `relation` (`contact member external hidden`) and viewer-specific names; awareness rewritten per recipient (hidden → per-viewer `anon_…` "Someone"); host `[host.directory] coviewers`; `perms.showEmail`; `people` root in the Y.Doc / `document.json`; comment `labels`; WOPI `UserExtraInfo.detail`; `POST /v1/users/resolve` | Accepted (2026-11-22) |
 | ADR-027 | Editor/server open items (docs/19 UX-02, FILE-01, LAY-01): host callback `POST /mentions` + `notify_outbox` table; control `ping` heartbeat; `textColor` mark and `dateMention` node; `fileAttachment.display/height`, `columns.widths`, `column.title`; `GET /v1/assets/fetch` preview route; `UI_BlockLink` and launch `block`; `BlockEnv.undoManager` used; new dependency `pdfjs-dist` (lazy) | Accepted (2026-11-21) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
@@ -162,6 +163,25 @@ the host builds its own URL and brings a reader back with `Action_ScrollToBlock 
 `block=` launch fragment).
 **Consequences.** + layout and mentions round-trip in the file; − server exports do not yet apply
 image width/alignment; − `onMention` delivery is a server follow-up.
+
+### ADR-026 — Users and identity for integrators
+
+**Context.** Every host had to build user search before mentions worked, two people with the same
+name looked identical, and stored mention labels went stale. Viewers don't share one directory:
+Priya's contacts aren't Ravi's.
+**Decision.** As [docs/21](21-USERS-AND-IDENTITY.md): the id is the identity; zero required user
+endpoints (tier 0 = launch tokens and a `people` map kept in the file); optional `participants`,
+search and resolve, all per viewer; the host returns `relation` and may return a viewer-specific
+name; the server rewrites presence per recipient so `hidden`/`external` names never reach a
+client that mustn't see them; the editor tells same-named people apart (second line, grouped
+picker rows, "Name · detail" labels, initials with subscripts, hover cards) and renders stored
+mentions through the viewer's resolve. Additive file-format changes: `people` root, comment
+`labels`.
+**Consequences.** + mentions work with no host user API; + renames and departures show up; +
+per-viewer privacy for presence, chips and exports. − the Y.Doc is shared by everyone in the room,
+so the `people` map and mention labels are data in every client (never rendered when resolve
+answers; strict hosts use `coviewers = "none"`); − one resolve call per viewer when someone new
+arrives; − `contacts` without a resolve callback cannot distinguish contacts and lists everyone.
 
 ### ADR-027 — Editor and server open items: mentions, heartbeat, inline marks, file previews, columns
 

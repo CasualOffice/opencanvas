@@ -11,7 +11,7 @@ import {
   Calendar, ChevronDown, ChevronRight, File as FileIcon, FileArchive, FileAudio, FileCode, FileImage, FileVideo, CircleCheck, CirclePause, CirclePlay, Clock, CloudOff, Copy, Download, Ellipsis, Eye,
   FileSpreadsheet, FileText, Flag, Globe, ImagePlus, Info, LayoutTemplate, Lightbulb, Link2, LoaderCircle, Lock,
   MapPin, Maximize2, MessageSquare, MessageSquarePlus, Paperclip, PenTool, RotateCcw, ShieldCheck, Sparkles, Star,
-  Target, TriangleAlert, UsersRound, WifiOff, X,
+  Target, TriangleAlert, UserRound, UsersRound, WifiOff, X,
   type LucideIcon,
 } from "lucide-react";
 import { createStore, useStore } from "./lib/store";
@@ -25,7 +25,7 @@ export const ICONS: Record<string, LucideIcon> = {
   "link-2": Link2, "loader-circle": LoaderCircle, lock: Lock, "map-pin": MapPin, "maximize-2": Maximize2,
   "message-square": MessageSquare, "message-square-plus": MessageSquarePlus, paperclip: Paperclip,
   "pen-tool": PenTool, "rotate-ccw": RotateCcw, "shield-check": ShieldCheck, sparkles: Sparkles, star: Star,
-  target: Target, "triangle-alert": TriangleAlert, "users-round": UsersRound, "wifi-off": WifiOff, x: X,
+  target: Target, "triangle-alert": TriangleAlert, "user-round": UserRound, "users-round": UsersRound, "wifi-off": WifiOff, x: X,
 };
 
 /** Icons a person can pick for the canvas header and callouts. */

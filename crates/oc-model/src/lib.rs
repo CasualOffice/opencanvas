@@ -9,6 +9,7 @@ pub mod html;
 pub mod import;
 pub mod ocanvas;
 pub mod patch;
+pub mod people;
 
 pub use doc::{doc_to_json, ensure_roots, is_empty, new_doc};
 pub use ocanvas::{CommitInfo, Error, read_ocanvas, write_ocanvas};
@@ -21,5 +22,7 @@ pub mod roots {
     pub const BOARDS: &str = "boards";
     pub const COMMENTS: &str = "comments";
     pub const ASSETS: &str = "assets";
-    pub const MAPS: [&str; 5] = [META, DATABASES, BOARDS, COMMENTS, ASSETS];
+    /// docs/21 tier 0: who opened the file, `{id → {id, name, detail?, avatar?, lastSeen}}`.
+    pub const PEOPLE: &str = "people";
+    pub const MAPS: [&str; 6] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE];
 }

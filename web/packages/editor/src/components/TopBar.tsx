@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 
 const LONG_PRESS_MS = 450;
-import type { Role } from "@opencanvas/ui";
+import { nameWithDetail, relationNote, type Role } from "@opencanvas/ui";
+import { peopleRef } from "../lib/people";
 import { Ic } from "../icons";
 import type { Peer } from "../lib/presence";
 import { rel, useTick, type Meta } from "../lib/meta";
@@ -53,6 +54,14 @@ export function TopBar(props: {
   const { meta, save } = props;
   const visible = compact ? props.peers.slice(0, 2) : props.peers.slice(0, 6);
   const extra = props.peers.length - visible.length;
+  // docs/21: shared names carry their second line; initials get a subscript on collision.
+  const people = peopleRef.current;
+  const dupes = people?.dupes() ?? new Set<string>();
+  const shown = (p: Peer) => nameWithDetail(p, dupes);
+  const note = (p: Peer) => {
+    const n = relationNote(p);
+    return n ? ` · ${n}` : "";
+  };
 
   return (
     <div className="top">
@@ -76,8 +85,8 @@ export function TopBar(props: {
             key={p.id}
             className={"av" + (props.following === p.id ? " following" : "")}
             style={{ background: p.color, color: readableOn(p.color) }}
-            title={p.me ? `${p.name} (you)` : p.role === "view" ? `${p.name} · viewing` : props.following === p.id ? `Following ${p.name} · click to stop` : `${p.name} · click or hold to follow`}
-            aria-label={peerLabel(p, props.following === p.id)}
+            title={p.me ? `${shown(p)} (you)` : p.role === "view" ? `${shown(p)}${note(p)} · viewing` : props.following === p.id ? `Following ${shown(p)} · click to stop` : `${shown(p)}${note(p)} · click or hold to follow`}
+            aria-label={peerLabel({ ...p, name: shown(p) }, props.following === p.id)}
             aria-pressed={p.me ? undefined : props.following === p.id}
             onClick={() => {
               if (p.me) return;
@@ -100,7 +109,13 @@ export function TopBar(props: {
             onPointerCancel={() => pressed.current && (window.clearTimeout(pressed.current.id), (pressed.current = null))}
             onContextMenu={(e) => !p.me && e.preventDefault()}
           >
-            {p.avatar ? <img src={p.avatar} alt="" /> : <span aria-hidden="true">{initials(p.name)}</span>}
+            {p.relation === "hidden" ? (
+              <Ic name="user-round" size={14} />
+            ) : p.avatar ? (
+              <img src={p.avatar} alt="" />
+            ) : (
+              <span aria-hidden="true">{people?.initialsOf(p.id, p.name) ?? initials(p.name)}</span>
+            )}
             {p.typing && !p.me ? <span className="dot" /> : null}
             {p.role === "view" ? (
               <span className="eye">
@@ -141,7 +156,7 @@ export function TopBar(props: {
               <Avatar name={p.name} color={p.color} avatar={p.avatar} />
               <span className="ml">
                 <b>
-                  {p.name}
+                  {shown(p)}
                   {p.me ? " (you)" : ""}
                 </b>
                 <span>{p.role === "view" ? "Viewing" : p.typing ? "Typing" : p.role === "comment" ? "Commenting" : "Editing"}</span>

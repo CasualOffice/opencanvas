@@ -40,6 +40,16 @@ import { linkStore, openLinkActions, openLinkEditor } from "./linkstate";
 import { postToHost } from "../lib/host";
 import { readableOn } from "../lib/color";
 import { tableStore, trackTable } from "./tablestate";
+import { peopleRef } from "../lib/people";
+import { firstName, nameWithDetail, relationNote, secondLine, type Relation } from "@opencanvas/ui";
+
+/** A cursor label (docs/21): "Asha Rao · Design" when the name is shared, as the viewer sees it. */
+export function caretCaption(u: { id?: string; name?: string; detail?: string; relation?: Relation }): string {
+  const name = u.name ?? "";
+  const people = peopleRef.current;
+  if (!people || !u.detail || u.relation === "hidden") return name;
+  return nameWithDetail({ id: u.id ?? "", name, detail: u.detail }, people.dupes());
+}
 
 export interface EditorProps {
   doc: Y.Doc;
@@ -233,7 +243,7 @@ export function CanvasEditor(p: EditorProps) {
             l.className = "collaboration-carets__label";
             l.style.background = u.color;
             l.style.color = readableOn(u.color);
-            l.textContent = u.name;
+            l.textContent = caretCaption(u as { id?: string; name?: string; detail?: string; relation?: Relation });
             c.append(l);
             return c;
           },
@@ -289,7 +299,22 @@ export function CanvasEditor(p: EditorProps) {
     const t = window.setTimeout(() => {
       void import("./late")
         .then((m) => {
-          if (!off) m.installLate(editor, async (q) => (await searchRef.current(q)).slice(0, 8).map((u) => ({ id: u.id, label: u.name, color: u.color })));
+          if (!off)
+            m.installLate(editor, async (q) => {
+              const showEmail = !!peopleRef.current?.cfg.showEmail;
+              const people = peopleRef.current;
+              return (await searchRef.current(q)).slice(0, 8).map((u) => ({
+                id: u.id,
+                label: u.name,
+                color: u.color,
+                avatar: u.avatar,
+                initials: people?.initialsOf(u.id, u.name),
+                second: secondLine(u, { showEmail }),
+                note: relationNote(u) ?? undefined,
+                dup: !!people?.isDuplicate(u.name),
+                warn: u.access === false ? `${firstName(u.name)} can't open this canvas` : undefined,
+              }));
+            });
         })
         .catch(() => undefined);
     }, 0);
@@ -386,7 +411,7 @@ function SuggestMenu({ editor }: { editor: Editor }) {
   const hold = (e: React.MouseEvent | React.PointerEvent) => e.preventDefault();
 
   if (s.kind === "mention") {
-    const items = s.items as { id: string; label: string; color: string; date?: string; pick?: boolean }[];
+    const items = s.items as { id: string; label: string; color: string; avatar?: string; initials?: string; second?: string; note?: string; dup?: boolean; warn?: string; date?: string; pick?: boolean }[];
     const people = items.filter((u) => !u.date).length;
     let last = "";
     return (
@@ -404,17 +429,31 @@ function SuggestMenu({ editor }: { editor: Editor }) {
             return (
               <span key={u.id} style={{ display: "contents" }}>
                 {head}
-                <button className={"mi" + (i === s.sel ? " on" : "")} onClick={() => s.pick(u)}>
+                <button className={"mi" + (i === s.sel ? " on" : "") + (u.dup ? " dup" : "")} onClick={() => s.pick(u)}>
                   {u.date ? (
                     <span className="ftile tone-blue dateic" aria-hidden="true">
                       <Ic name={u.pick ? "calendar-plus" : "calendar"} size={14} />
                     </span>
                   ) : (
-                    <span className="av sm" style={{ background: u.color }}>
-                      {initialsOf(u.label)}
+                    <span className="av sm" style={{ background: u.color, color: readableOn(u.color) }} aria-hidden="true">
+                      {u.avatar ? <img src={u.avatar} alt="" /> : u.initials ?? initialsOf(u.label)}
                     </span>
                   )}
-                  {u.label}
+                  {u.date ? (
+                    u.label
+                  ) : (
+                    // Every person has a second line (docs/21): detail, e-mail if allowed, last seen, or the id's end.
+                    <span className="pl">
+                      <span>{u.label}</span>
+                      <span className="p2">{[u.second, u.note].filter(Boolean).join(" · ")}</span>
+                      {u.warn ? (
+                        <span className="warn">
+                          <Ic name="triangle-alert" size={12} />
+                          {u.warn}
+                        </span>
+                      ) : null}
+                    </span>
+                  )}
                   {u.date && !u.pick ? <span className="mk">{new Date(u.date + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span> : null}
                 </button>
               </span>

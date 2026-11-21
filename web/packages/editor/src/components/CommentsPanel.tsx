@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
-import type { OcUser, Role } from "@opencanvas/ui";
+import { firstName, secondLine, type OcUser, type Role } from "@opencanvas/ui";
+import { peopleRef } from "../lib/people";
 import { Ic } from "../icons";
-import { addMessage, insertMention, mentionQuery, mentionsIn, setResolved, splitMentions, type Thread } from "../lib/comments";
+import { addMessage, insertMention, mentionQuery, mentionsIn, setResolved, splitMentions, viewMentions, type Message, type Thread } from "../lib/comments";
 import { rel, useTick } from "../lib/meta";
 import { toast } from "../lib/store";
 import { Avatar } from "./overlay";
@@ -65,10 +66,14 @@ export function CommentsPanel(props: {
   );
 }
 
-function MessageText({ text, names }: { text: string; names: string[] }) {
+function MessageText({ m, names }: { m: Message; names: string[] }) {
+  // Messages that recorded their labels are shown with this viewer's names (docs/21); older
+  // ones highlight known names as before.
+  const people = peopleRef.current;
+  const runs = m.labels && people ? viewMentions(m.text, m.labels, (id) => people.get(id, m.labels?.[id]).name) : splitMentions(m.text, names);
   return (
     <div className="mt">
-      {splitMentions(text, names).map((r, i) =>
+      {runs.map((r, i) =>
         r.mention ? (
           <span key={i} className="cmention">
             {r.text}
@@ -113,17 +118,28 @@ function ThreadCard({
     }
   }, [isActive]);
   const names = useMemo(() => users.map((u) => u.name).concat(t.messages.map((m) => m.name)), [users, t.messages]);
+  const people = peopleRef.current;
   const matches = useMemo(() => {
     if (!mq) return [];
-    const q = mq.query.toLowerCase();
-    return users.filter((u) => u.id !== me.id && u.name.toLowerCase().includes(q)).slice(0, 6);
+    const q = foldQ(mq.query);
+    return users
+      .filter((u) => u.id !== me.id && (foldQ(u.name).includes(q) || foldQ(u.detail ?? "").includes(q)))
+      .sort((a, b) => foldQ(a.name).localeCompare(foldQ(b.name)) || (a.detail ?? "").localeCompare(b.detail ?? ""))
+      .slice(0, 6);
   }, [mq, users, me.id]);
+  // Who was picked for each inserted `@label`, so two people with the same name stay apart.
+  const picked = useRef(new Map<string, string>());
 
   const send = () => {
     const text = draft.trim();
     if (!text) return;
-    const mentions = mentionsIn(text, users);
-    addMessage(doc, t.id, { user: me.id, name: me.name, color: me.color, text, mentions });
+    const labels: Record<string, string> = {};
+    for (const [label, id] of picked.current) if (text.includes("@" + label)) labels[id] = label;
+    const rest = Object.values(labels).reduce((s, l) => s.split("@" + l).join(" "), text);
+    for (const id of mentionsIn(rest, users)) labels[id] ??= users.find((u) => u.id === id)?.name ?? id;
+    const mentions = Object.keys(labels);
+    addMessage(doc, t.id, { user: me.id, name: me.name, color: me.color, text, mentions, labels });
+    picked.current.clear();
     setDraft("");
     setMq(null);
   };
@@ -136,6 +152,7 @@ function ThreadCard({
     const el = ta.current;
     if (!el || !mq) return;
     const r = insertMention(draft, mq.start, el.selectionStart ?? draft.length, u.name);
+    picked.current.set(u.name, u.id);
     setDraft(r.text);
     setMq(null);
     requestAnimationFrame(() => {
@@ -165,16 +182,23 @@ function ThreadCard({
       <button className="tq" onClick={() => onJump(t.id)} title="Show in canvas" aria-label={`Show in canvas: ${t.quote || "Comment"}`}>
         {t.quote || "Comment"}
       </button>
-      {t.messages.map((m, i) => (
-        <div className="msg" key={i}>
-          <Avatar name={m.name} color={m.color} />
-          <div className="mb">
-            <b>{m.name}</b>
-            <time dateTime={m.at ? new Date(m.at).toISOString() : undefined}>{rel(m.at)}</time>
-            <MessageText text={m.text} names={names} />
+      {t.messages.map((m, i) => {
+        // The author as this viewer sees them (docs/21), not the name stored with the message.
+        const a: OcUser = people ? people.get(m.user, m.name) : { id: m.user, name: m.name, color: m.color };
+        const color = a.relation === "hidden" || a.pending ? a.color : m.color;
+        return (
+          <div className="msg" key={i}>
+            <Avatar name={a.name} color={color} avatar={a.avatar} />
+            <div className="mb">
+              <b data-person-id={a.relation === "hidden" ? undefined : m.user} tabIndex={a.relation === "hidden" ? undefined : 0}>
+                {a.name}
+              </b>
+              <time dateTime={m.at ? new Date(m.at).toISOString() : undefined}>{rel(m.at)}</time>
+              <MessageText m={m} names={names} />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       {canWrite ? (
         <div className="reply">
           <textarea
@@ -241,7 +265,11 @@ function ThreadCard({
                   onMouseEnter={() => setSel(i)}
                 >
                   <Avatar name={u.name} color={u.color} avatar={u.avatar} />
-                  {u.name}
+                  <span className="pl">
+                    <span>{u.name}</span>
+                    <span className="p2">{secondLine(u, { showEmail: !!people?.cfg.showEmail })}</span>
+                    {u.access === false ? <span className="warn">{firstName(u.name)} can't open this canvas</span> : null}
+                  </span>
                 </div>
               ))}
             </div>
@@ -251,3 +279,5 @@ function ThreadCard({
     </div>
   );
 }
+
+const foldQ = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase();

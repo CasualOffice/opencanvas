@@ -3,10 +3,11 @@
 A zero-dependency Node app that stands in for your app, or any app that embeds OpenCanvas.
 It does the host's half of the contract in [docs/05](../../docs/05-INTEGRATION-GUIDE.md):
 
-- **Owns users and access.** Four demo users get a per-file role (edit, comment, view or none). You change roles on the files page.
+- **Owns users and access.** Five demo users (two of them called Asha Rao, on different teams) get a per-file role (edit, comment, view or none). You change roles on the files page.
+- **Owns the directory** ([docs/21](../../docs/21-USERS-AND-IDENTITY.md)). Every user has a `detail` second line. Per file you pick the directory tier: 0 = launch tokens only, 1 = + `participants`, 2 = + `GET /api/opencanvas/users` search, 3 = + `POST /api/opencanvas/users/resolve`. "Contacts graph" makes answers per viewer: Priya and Sam are not contacts (each is `external` to the other), Ravi and Sam are `hidden` from each other, and Priya calls Ravi "Ravi (eng lead)". "Show e-mail" sets `perms.showEmail`. Reopen the file after a change.
 - **Signs launch tokens.** These are HS256 JWTs carrying the file, user, role and permissions. The page form-posts the token into an iframe at `OC_SERVER/v1/launch`.
 - **Stores the file.** OpenCanvas saves to `PUT /api/opencanvas/files/:id` and loads from `GET` on the same path. Each save bumps the version. A stale `If-Match` gets a 409.
-- **Stores assets and resolves users.** Assets go to `POST /api/opencanvas/files/:id/assets`. User lookup is `GET /api/opencanvas/users`.
+- **Stores assets.** Assets go to `POST /api/opencanvas/files/:id/assets`.
 - **Verifies every callback.** It checks the bearer callback token and the `X-OpenCanvas-Signature` HMAC on each call.
 
 ```sh

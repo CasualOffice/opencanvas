@@ -5,12 +5,30 @@
 export type Role = "view" | "comment" | "edit";
 export type Tone = "gray" | "blue" | "green" | "amber" | "red" | "purple" | "pink";
 
+import type { Relation } from "./people";
+export * from "./people";
+
+/** A person as this viewer sees them (docs/21 "The user object"). */
 export interface OcUser {
   id: string;
   name: string;
   /** CSS colour, assigned by the server from the session grant. */
   color: string;
   avatar?: string;
+  /** Host-chosen second line (team, title, handle) that tells same-named people apart. */
+  detail?: string;
+  /** Only present when the viewer's token sets `perms.showEmail`. */
+  email?: string;
+  /** How the host says they relate to this viewer (tier 3 `resolve`). */
+  relation?: Relation;
+  /** They left: shown struck through as "former member". */
+  deactivated?: boolean;
+  /** Search results: false = they can't open this canvas (the picker warns). */
+  access?: boolean;
+  /** Tier 0: when they last opened this file (ms since the epoch). */
+  lastSeen?: number;
+  /** The viewer's resolve answer for them is still on its way: show a placeholder. */
+  pending?: boolean;
 }
 
 /** What every embedded block view (database, board) receives from the editor. */
@@ -19,6 +37,11 @@ export interface BlockEnv {
   me: OcUser;
   /** People who can be assigned/mentioned (host-resolved). */
   users: OcUser[];
+  /**
+   * Optional: how this viewer sees any person id (resolve > token > the document's snapshot,
+   * docs/21), for ids that aren't in `users` (former members, hidden people).
+   */
+  person?: (id: string) => OcUser | null;
   /** True below 720px wide (side panel, phone). */
   compact: boolean;
   /** Show a short toast in the editor chrome. */
@@ -41,7 +64,4 @@ export interface BlockEnv {
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];
 
-export function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
-}
+

@@ -13,7 +13,7 @@ application implements. Modelled on Collabora Online's WOPI integration
 | | **JWT launch** (recommended for new apps) | **WOPI-compatible** (for existing WOPI hosts) |
 |---|---|---|
 | Who verifies the user | You sign a JWT | OpenCanvas calls your CheckFileInfo |
-| Callbacks you implement | `GET file`, `PUT file`, assets, users | WOPI: CheckFileInfo, GetFile, PutFile (+ assets/users optional) |
+| Callbacks you implement | `GET file`, `PUT file`, assets (people search and resolve optional) | WOPI: CheckFileInfo, GetFile, PutFile |
 | Extra round-trip on open | none | CheckFileInfo |
 | Good for | Any custom app | Nextcloud, ownCloud, Seafile-style hosts |
 
@@ -37,7 +37,15 @@ embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
 export_formats  = ["md", "html", "pdf", "ocanvas"]
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
+
+[host.directory]                           # people (docs/21)
+coviewers       = "contacts"               # all | contacts | none
 ```
+
+`directory.coviewers` decides whether people who opened the same canvas see each other in the
+@mention list and by name in presence: `all` always, `none` never ("Someone"), `contacts` (default)
+only when your `POST /users/resolve` says they are a `contact` or `member` of the viewer. Without
+a resolve callback OpenCanvas can't tell contacts apart, and `contacts` behaves like `all`.
 
 ## 3. JWT launch token
 
@@ -57,18 +65,24 @@ exchanged for a session ticket on open).
     "context": { "type": "channel", "id": "c_55" }   // optional, for UI only
   },
   "user": {
-    "id": "u_123",
+    "id": "u_123",                  // stable, opaque: the identity (names are display only)
     "name": "Asha Rao",
-    "avatar": "https://…/a.png",
+    "detail": "Design · Bengaluru", // optional second line that tells same-named people apart
+    "email": "asha@acme.example",   // optional; shown only with perms.showEmail
+    "avatar": "https://…/a.png",    // http(s) only
     "color": "#7c3aed"              // optional; we derive one otherwise
   },
+  "participants": [                 // optional (tier 1, docs/21): people THIS user may mention,
+    { "id": "u_200", "name": "Ravi Menon", "detail": "Engineering" }   // e.g. the channel; ≤ 200,
+  ],                                // never shown to anyone else
   "role": "edit",                   // view | comment | edit
   "perms": {
     "export": true,
     "download": true,
     "print": true,
     "commitMessage": true,          // may write "Save version" messages
-    "mention": true
+    "mention": true,
+    "showEmail": false              // e-mails of people may be shown to (and stored for) this user
   },
   "mode": "edit",                   // edit | view | preview
   "callbackToken": "opaque-…"       // we send it back on every callback; you validate it
@@ -114,7 +128,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `App_LoadingStatus` | `{ Status: "Frame_Ready" \| "Document_Loaded" }` |
 | canvas → host | `Doc_ModifiedStatus` | `{ Modified: bool }` |
 | canvas → host | `Doc_Saved` | `{ commitId, hostVersion }` |
-| canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role}] }` |
+| canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role,detail?}] }` (as this viewer sees them: a `hidden` person is `{id:"anon_…",name:"Someone"}`) |
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
 | canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
@@ -158,7 +172,8 @@ OpenCanvas:
 | **Save as copy** `POST /files/{fileId}/copies` (conflict policy `copy`) | body `.ocanvas`; `Idempotency-Key` | `201 {"fileId":"doc_9001","url":"…"}` (create it with the original's ACL) |
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
-| **Resolve users** `GET /users?q=as&fileId=` | — | `[{"id","name","avatar"}]` (for @mention; only users who can see the file) |
+| **Search people** *(optional, tier 2)* `GET /users?q=as&fileId=` | called with the **viewer's** `callbackToken`; cached 30 s per viewer | `[{"id","name","detail","email","avatar","access"}]` (or `{"users":[…]}`): the people *this viewer* may see. `access: false` = can't open the file (the picker warns "Ravi can't open this canvas"). `404`/`405`/`410`/`501` = not implemented |
+| **Resolve people** *(optional, tier 3)* `POST /users/resolve` | JSON `{"ids":[…],"fileId"}` (≤ 200 per call), the **viewer's** `callbackToken`; cached 10 min per (file, viewer), refreshed when they reopen | `[{"id","name","detail","avatar","relation","deactivated"}]` (or `{"users":[…]}`): how *this viewer* sees each id. `relation`: `contact`, `member`, `external` (show only the `name` you return, e.g. "Asha R.") or `hidden` ("Someone"). `name` may be the viewer's own nickname. Ids you leave out fall back to tokens and the stored label |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
 
@@ -177,6 +192,17 @@ is written to our notification outbox first, sent at once, and retried with back
 `4xx` drops it. Signed like every callback. `examples/sample-host` logs each call and lists them
 on the file page. **WOPI hosts get no mention calls** (WOPI has no notification API); use JWT
 mode, or `mode = "both"`, if you need them.
+
+**People** (docs/21, ADR-026). Every person is keyed by your stable `user.id`. OpenCanvas learns
+about people in four tiers, each optional beyond the first: (0) launch tokens only: everyone who
+opened the file is remembered in the canvas (`people` in the `.ocanvas`: id, name, detail, avatar,
+last seen; e-mail only with `perms.showEmail`); (1) `participants` in the token; (2) `GET /users`
+search; (3) `POST /users/resolve`. Sources merge per id: **resolve > token > the document's stored
+label**. Everything about other people is answered per viewer, with that viewer's token, so two
+people on one canvas may see different names, or "Someone". Presence (avatars, cursors) is
+rewritten per viewer by OpenCanvas, so a real name never reaches someone who mustn't see it.
+Exports render people as the exporting viewer sees them. Mentions store the id plus the label
+the author saw; each viewer sees their own name for the person.
 
 Timeouts: 10 s (load/save), 5 s (others). Retries with exponential backoff
 for save (idempotent by `Idempotency-Key`). A save is written to our commit outbox before
@@ -227,7 +253,8 @@ the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
 **We call:**
 - `GET  {WOPISrc}?access_token=…` → CheckFileInfo (at launch, on load, and before a save when the
   file name is not known). We read `BaseFileName`, `Size`, `Version`, `LastModifiedTime`, `UserId`,
-  `UserFriendlyName`, `UserExtraInfo.avatar` (http(s) only), `UserCanWrite`, `ReadOnly`,
+  `UserFriendlyName`, `UserExtraInfo.avatar` (http(s) only), `UserExtraInfo.detail` (the
+  person's second line, docs/21), `UserCanWrite`, `ReadOnly`,
   `UserCanNotWriteRelative`, `DisableExport`, `DisablePrint`, `HideExportOption` and our extension
   `OpenCanvas_UserCanComment`.
   Role: `UserCanWrite` and not `ReadOnly` → `edit`; else `OpenCanvas_UserCanComment` → `comment`;
@@ -261,8 +288,8 @@ they are read back out of your file. Limits: **10 MB per asset, 50 MB of assets 
 and `.ocanvas` exports include them too.
 
 **Mentions.** `GET /v1/users?ticket=&q=` lists the users who have opened the file (from
-CheckFileInfo), filtered by name or id. Mention notifications (`POST /mentions`, §5) are not
-sent in WOPI mode.
+CheckFileInfo, with their `detail`), filtered by name or id: tier 0 of §5 "People", which works
+unchanged. Mention notifications (`POST /mentions`, §5) are not sent in WOPI mode.
 
 ## 7. Server-to-server REST (you → us)
 
@@ -309,7 +336,8 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 
 - [ ] Register host, share secret/API key out of band.
 - [ ] Backend endpoint that signs the launch JWT after *your* ACL check.
-- [ ] Implement load / save (+ assets, users).
+- [ ] Implement load / save (+ assets). People: give `user.detail` in the token; add
+      `participants`, `GET /users` and `POST /users/resolve` as your directory needs (docs/21).
 - [ ] Verify `X-OpenCanvas-Signature` on callbacks.
 - [ ] Add OpenCanvas origin to your CSP `frame-src`; add your origin to our `allowed_origins`.
 - [ ] Handle `409` (we save a copy or reload, per your policy). With `copy`, implement

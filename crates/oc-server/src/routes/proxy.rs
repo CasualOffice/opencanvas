@@ -7,13 +7,14 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{ApiError, session};
 use crate::SharedState;
 use crate::grant::{Grant, Role};
 use crate::host_client::SaveTarget;
 use crate::hosts::HostConfig;
+use crate::people;
 use crate::util::now_ms;
 use crate::wopi;
 
@@ -68,6 +69,10 @@ pub async fn upload_asset(
     Ok(passthrough(status, ct, bytes))
 }
 
+/// `GET /v1/users?ticket=&q=` (tier 2, docs/21): the host's search, always with the viewer's
+/// own callback token and cached per viewer (never per room). Optional: a host without the
+/// callback (404/405/410/501) answers `[]` and the editor lists tier 0/1 people only.
+/// Results are sanitised user objects; the e-mail only with `perms.showEmail`.
 pub async fn users(
     State(state): State<SharedState>,
     Query(p): Query<ProxyParams>,
@@ -83,12 +88,71 @@ pub async fn users(
     if is_wopi(&host, &grant) {
         return users_wopi(&state, &grant, &p.q).await;
     }
+    if let Some(v) = state.directory.search_cached(&grant, &p.q) {
+        return Ok(Json(v).into_response());
+    }
     let (status, ct, bytes) = state
         .host
         .users(&host, &grant.callback_token, &grant.file.id, &p.q)
         .await
         .map_err(ApiError::host)?;
-    Ok(passthrough(status, ct, bytes))
+    if people::not_implemented(status) {
+        let empty = json!([]);
+        state.directory.search_store(&grant, &p.q, empty.clone());
+        return Ok(Json(empty).into_response());
+    }
+    if !status.is_success() {
+        return Ok(passthrough(status, ct, bytes));
+    }
+    let v = people::search_answer(&bytes, &grant).map_err(ApiError::host)?;
+    state.directory.search_store(&grant, &p.q, v.clone());
+    Ok(Json(v).into_response())
+}
+
+#[derive(Deserialize)]
+pub struct ResolveBody {
+    #[serde(default)]
+    ids: Vec<Value>,
+}
+
+/// `POST /v1/users/resolve?ticket=` `{"ids":[…]}` (tier 3, docs/21): how this viewer sees
+/// each id, from the host's `POST /users/resolve` with the viewer's token (batched, cached
+/// 10 min per room and viewer). `{"resolve": false}` when the host has no such callback or
+/// can't be reached: the editor then falls back to tokens and the document's snapshot.
+pub async fn resolve_users(
+    State(state): State<SharedState>,
+    Query(p): Query<ProxyParams>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let (host, grant) = session(&state, &p.ticket).await?;
+    let req: ResolveBody = serde_json::from_slice(&body).map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "BAD_REQUEST",
+            "expected {\"ids\":[…]}",
+        )
+    })?;
+    if req.ids.len() > people::MAX_RESOLVE_IDS {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "TOO_MANY_IDS",
+            format!("at most {} ids per call", people::MAX_RESOLVE_IDS),
+        ));
+    }
+    let ids: Vec<String> = req
+        .ids
+        .iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect();
+    let r = state
+        .directory
+        .resolve(&state.host, &host, &grant, &ids)
+        .await;
+    Ok((
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({"resolve": r.available, "users": r.people})),
+    )
+        .into_response())
 }
 
 // ---------------------------------------------------------------- WOPI mode (docs/05 §6)
@@ -349,7 +413,13 @@ async fn users_wopi(state: &SharedState, grant: &Grant, q: &str) -> Result<Respo
             q.is_empty() || u.name.to_lowercase().contains(&q) || u.id.to_lowercase().contains(&q)
         })
         .take(20)
-        .map(|u| json!({"id": u.id, "name": u.name, "avatar": u.avatar}))
+        .map(|u| {
+            let mut v = json!({"id": u.id, "name": u.name, "avatar": u.avatar});
+            if let Some(d) = u.detail {
+                v["detail"] = json!(d);
+            }
+            v
+        })
         .collect();
     Ok(Json(users).into_response())
 }

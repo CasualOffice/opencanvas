@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Editor } from "@tiptap/react";
 import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import type { BlockEnv, OcUser, Role } from "@opencanvas/ui";
@@ -17,6 +17,8 @@ import { onHost, postToHost } from "./lib/host";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { isMac } from "./lib/keys";
 import { usePeers, type Peer } from "./lib/presence";
+import { People, setPeople, toUser } from "./lib/people";
+import { PersonCards } from "./components/PersonCard";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
 import { toast } from "./lib/store";
 import { DocHeader } from "./components/DocHeader";
@@ -159,7 +161,6 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     }
   });
   const [following, setFollowing] = useState<string | null>(null);
-  const [users, setUsers] = useState<OcUser[]>([]);
   const [lastEditBy, setLastEditBy] = useState<string | null>(null);
   const [csv, setCsv] = useState<((csv: string) => void) | null>(null);
   const [urlAsk, setUrlAsk] = useState<{ kind: "bookmark" | "embed"; cb: (u: string) => void } | null>(null);
@@ -176,7 +177,10 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const threads = useThreads(doc);
   const openThreads = threads.filter((t) => !t.resolved).length;
 
-  const me: OcUser = useMemo(() => ({ id: session.user.id, name: session.user.name, color: session.user.color, avatar: session.user.avatar ?? undefined }), [session.user]);
+  const me: OcUser = useMemo(
+    () => ({ id: session.user.id, name: session.user.name, color: session.user.color, avatar: session.user.avatar ?? undefined, detail: session.user.detail, email: session.user.email }),
+    [session.user],
+  );
 
   // Template / picker icons: fetch right after first paint (the header may use one).
   useEffect(() => {
@@ -194,43 +198,41 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     return () => ro.disconnect();
   }, []);
 
-  // ---------- people (mentions, assignees) ----------
+  // ---------- people (docs/21: mentions, assignees, presence) ----------
+  // One merged view per viewer: resolve > tokens (presence, participants) > document snapshot.
+  const people = useMemo(() => {
+    const local = demo ? Object.values(demo.users).map(({ id, name, color }) => ({ id, name, color })) : undefined;
+    const p = new People(
+      {
+        ticket: session.demo ? undefined : session.ticket,
+        me,
+        participants: (session.participants ?? []).map((u) => toUser(u as Record<string, unknown>)).filter((u): u is OcUser => !!u),
+        coviewers: session.directory?.coviewers ?? "contacts",
+        callbacks: !session.demo && (session.directory?.callbacks ?? true),
+        showEmail: !!session.perms.showEmail,
+        local,
+      },
+      doc,
+    );
+    // Set before the editor's first render, so no mention chip ever shows a stored label
+    // that this viewer's resolve answer would replace.
+    setPeople(p);
+    return p;
+  }, [session, doc, demo, me]);
   useEffect(() => {
-    if (demo) {
-      setUsers(Object.values(demo.users).map(({ id, name, color }) => ({ id, name, color })));
-      return;
-    }
-    fetch(`/v1/users?ticket=${encodeURIComponent(session.ticket)}&q=`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: { id: string; name: string; avatar?: string; color?: string }[]) =>
-        setUsers(list.map((u, i) => ({ id: u.id, name: u.name, avatar: u.avatar, color: u.color ?? ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78"][i % 5] }))),
-      )
-      .catch(() => undefined);
-  }, [session, demo]);
+    setPeople(people);
+    // The doc observer lives as long as the doc (StrictMode re-runs this effect).
+    return () => setPeople(null);
+  }, [people]);
+  const peopleVersion = useSyncExternalStore(people.version.subscribe, people.version.get);
+  useEffect(() => {
+    people.setPeers(peers.filter((p) => !p.me).map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar ?? undefined, detail: p.detail, relation: p.relation, deactivated: p.deactivated })));
+  }, [people, peers]);
 
-  const allUsers = useMemo(() => {
-    const m = new Map<string, OcUser>();
-    [me, ...users, ...peers.map((p) => ({ id: p.id, name: p.name, color: p.color }))].forEach((u) => m.set(u.id, { ...m.get(u.id), ...u }));
-    return [...m.values()];
-  }, [me, users, peers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const allUsers = useMemo(() => people.pickable(), [people, peopleVersion]);
 
-  const searchUsers = useCallback(
-    async (q: string): Promise<OcUser[]> => {
-      const local = allUsers.filter((u) => u.name.toLowerCase().includes(q.toLowerCase()));
-      if (session.demo || !q) return local;
-      try {
-        const r = await fetch(`/v1/users?ticket=${encodeURIComponent(session.ticket)}&q=${encodeURIComponent(q)}`);
-        if (!r.ok) return local;
-        const list = (await r.json()) as { id: string; name: string; avatar?: string }[];
-        const m = new Map(local.map((u) => [u.id, u]));
-        list.forEach((u) => m.set(u.id, m.get(u.id) ?? { id: u.id, name: u.name, avatar: u.avatar, color: "#6b7280" }));
-        return [...m.values()];
-      } catch {
-        return local;
-      }
-    },
-    [allUsers, session],
-  );
+  const searchUsers = useCallback((q: string): Promise<OcUser[]> => people.search(q), [people]);
 
   // ---------- save state, connection, control channel ----------
   useEffect(() => {
@@ -328,7 +330,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   peersRef.current = peers;
 
   useEffect(() => {
-    postToHost("Presence_Changed", { users: peers.map((p) => ({ id: p.id, name: p.name, color: p.color, role: p.role })) });
+    postToHost("Presence_Changed", { users: peers.map((p) => ({ id: p.id, name: p.name, color: p.color, role: p.role, ...(p.detail ? { detail: p.detail } : {}) })) });
   }, [peers]);
 
   // ---------- host page commands ----------
@@ -493,8 +495,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // and board blocks add their edits to it, so ⌘Z / ⌘⇧Z step through text, cells and shapes in order.
   const undoManager = useMemo(() => (editor ? yUndoPluginKey.getState(editor.state)?.undoManager : undefined), [editor]);
   const env: BlockEnv = useMemo(
-    () => ({ role: effectiveRole, me, users: allUsers, compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager }),
-    [effectiveRole, me, allUsers, compact, upload, undoManager],
+    () => ({ role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager }),
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager],
   );
 
   const openThread = useCallback((id: string) => {
@@ -846,6 +848,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             </div>
           </div>
           <Toasts />
+          <PersonCards root={root} people={people} />
 
           <Suspense fallback={null}>
           {csv ? (

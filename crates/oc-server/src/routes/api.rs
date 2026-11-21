@@ -131,7 +131,7 @@ fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -
             id: author.id.clone(),
             name: author.name.clone().unwrap_or_else(|| author.id.clone()),
             color: derive_color(&author.id),
-            avatar: None,
+            ..Default::default()
         },
         file: FileRef {
             id: file_id.to_string(),
@@ -140,6 +140,7 @@ fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -
         },
         perms: Perms::default(),
         callback_token: token,
+        participants: vec![],
     }
 }
 
@@ -311,6 +312,7 @@ pub async fn convert(
         token: &token,
         author: "opencanvas",
         wopi_room: None,
+        people: None,
     };
     let (bytes, ctype, _) = super::export::render(&state, &host, &doc, &p.to, req).await?;
     Ok((
