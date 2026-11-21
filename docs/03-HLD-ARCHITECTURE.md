@@ -199,12 +199,17 @@ dependencies.
   its TTL from writing before its next renewal. Every room actor takes the room's next
   **epoch** from the database (`room_epochs`, bumped in one transaction) as it loads, with the
   lease held and before it reads the WAL. WAL appends are a single guarded
-  `INSERT … SELECT … FROM room_epochs WHERE room_id = ? AND epoch = ?`; snapshots, outbox rows
+  `INSERT … SELECT … FROM room_epochs WHERE room_id = ? AND epoch = ?` per room batch (one
+  `SELECT` per row joined with `UNION ALL`, so a stale batch is refused whole); snapshots, outbox rows
   and the closing purge start their transaction with `UPDATE room_epochs … WHERE epoch = ?`
   (row lock). A write with an older epoch changes nothing and the actor stops at once: no
   fan-out, no save, clients get 1012 and reconnect to the new owner. The same holds on SQLite
   and MySQL/MariaDB, and with Redis lost (the epoch lives in the database).
-- An update is fanned out only after its WAL append succeeded. A failed append (after
+- An update is fanned out only after its WAL append succeeded. Updates that queue while a
+  room's append runs are written as one batch (a row and `seq` each), then fanned out in order;
+  anything that reads the doc's state (sync step 1, joins, exports, patches, saves) writes the
+  pending batch first. On SQLite one writer task commits many rooms' batches per transaction
+  (group commit). A failed append (after
   deadlock retries) closes the room with 1012 and no save: the next actor rebuilds from the
   WAL and clients resend what it lacks. Deadlocks (1213) and lock waits (1205) are retried
   3 times with jittered backoff (25-50 ms, 50-100 ms); a save never goes to the host without
@@ -219,6 +224,24 @@ dependencies.
   coordination. Export rendering can be split into a worker pool.
 - Large rooms: viewers can be fanned out by non-owner nodes from a Redis
   channel, so a 500-viewer room does not saturate one node.
+
+### 5.2.1 Write path: batches, outbound tick, hot WAL in Redis (ADR-028)
+- A room applies updates as they arrive and queues them. At most every 40 ms (armed by the
+  first queued item) it appends the queue as one batch, then sends **one** merged update frame
+  and one presence frame shared by every peer. Nothing is fanned out before the batch is
+  durable; a failed append closes the room with 1012 and fans nothing out.
+- **Without Redis** the WAL is `room_updates` in the database (one guarded multi-row insert per
+  batch; on SQLite one writer task commits many rooms' batches per transaction).
+- **With Redis** (`OC_WAL_REDIS_URL`, default `REDIS_URL`) the hot WAL is one stream per room,
+  `oc:wal:{room}`, appended by a Lua script that checks the epoch mirrored at
+  `oc:epoch:{room}`; the database gets a snapshot every `OC_DB_SYNC_MS` (5 s) or 500 updates and
+  on close/drain, and the stream is trimmed only after that snapshot commits. Recovery: DB
+  snapshot + stream entries after it.
+- **Durability contract.** An edit is acknowledged (fanned out) once the WAL store has it:
+  the database, or Redis when configured. With Redis AOF `appendfsync always` a Redis crash
+  loses nothing acknowledged; with `everysec`, up to about 1 s; with AOF off, up to the last DB
+  sync. Run Redis with `appendonly yes` and `appendfsync always` (or `everysec` plus a replica,
+  accepting ≤ 1 s). The server warns at start-up otherwise (docs/13).
 
 ### 5.3 Capacity math (2 vCPU node)
 - Yrs apply + broadcast ≈ 10–50 µs per small update; 300 rooms × 10 upd/s =

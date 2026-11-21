@@ -225,3 +225,42 @@ initial JS stays under budget. (6) postMessage `UI_BlockLink {fileId, blockId}` 
 − the DB holds short excerpts until a notification is delivered (transient, like the commit
 outbox); − a new third-party dependency (pdf.js, Apache-2.0) in a lazy chunk; − hosts must check
 access before notifying the ids they get.
+
+### ADR-028 — Batched WAL, outbound tick, and the hot WAL in Redis
+
+**Context.** docs/22 §8–§9: with everyone typing, a room applied one update, waited for its own
+WAL append, then took the next (S1: 954 → 577 of ≈ 2,750 updates/s), and 1,000 small rooms
+queued on SQLite's single writer lock (S2: 90 % of SQLite time in the busy handler). A room of
+550 also sent each update to 549 peers as its own frame (≈ 1.5 M frames/s).
+**Decision.** (1) **Batch per room.** Updates are applied to the Y.Doc as they arrive and queued;
+the queue is written as one batch (one row and `seq` per update, one epoch-guarded statement or
+script, all or nothing), and only then fanned out. Anything that reads the doc's state (sync
+step 1, joins, exports, patches, saves, commits) writes the queue first. (2) **Outbound tick.**
+A room writes its batch and sends **one** update frame (the batch merged with
+`merge_updates_v1`, shared by every peer) plus one presence frame at most every 40 ms, armed by
+the first queued item. A batch is merged only when every update in it integrated in order (no
+pending structs); otherwise its updates go out one by one, as before (merging updates with
+gaps lost structs in `tests/fuzz.rs`). The sender gets the merged frame too when the batch has
+several senders; Yjs ignores structs it already has. (3) **SQLite group commit.** One writer
+task commits the batches of every room queued while the previous commit ran, in one
+transaction (`OC_WAL_GROUP_COMMIT=0` turns it off; `OC_WAL_GROUP_WINDOW_MS` ≤ 5 adds a wait).
+A fenced room in the group writes nothing; any other error retries each room alone.
+(4) **Hot WAL in Redis** when `OC_WAL_REDIS_URL` (default `REDIS_URL`) is set: one stream per
+room (`oc:wal:{room}`, entry id `<seq>-0`), appended per batch by a Lua script that refuses a
+stale epoch (`oc:epoch:{room}`, raised to the DB epoch whenever an actor claims the room, before
+it reads the WAL) or a non-increasing `seq`, before adding anything. The database gets a
+snapshot every `OC_DB_SYNC_MS` (5 s) or `OC_DB_SYNC_UPDATES` (500) updates and on close/drain,
+under the DB epoch guard; only after that commit is the stream trimmed (`XTRIM MINID seq+1`).
+Load = DB snapshot + DB rows + stream entries after them. A room row is marked dirty **before**
+its first append, so a restart never purges a stream that holds acknowledged edits.
+**Durability contract.** Acknowledged (fanned out) means durable in the WAL store: the database
+without Redis; Redis with it. With Redis AOF `appendfsync always` a Redis crash loses nothing
+acknowledged; with `everysec` it can lose about the last second; without AOF, everything since
+the last DB sync (≤ 5 s). Recommended: `appendonly yes` + `appendfsync always`, or `everysec`
+with a replica and `WAIT`-free failover accepted as ≤ 1 s loss. The server logs a warning at
+start-up when `appendonly` is `no` or `appendfsync` is not `always`.
+**Consequences.** + a 550 room keeps up at p95 ≈ 50–70 ms (docs/22 §9.3); + peers get ≤ 25
+update frames/s; + DB write load drops to one snapshot per room per 5 s with Redis; − Redis
+becomes part of the durability path (and its persistence settings matter); − edit latency has a
+floor of the tick (≤ 40 ms) plus one append; − a snapshot every 5 s re-encodes the whole doc
+(cost grows with the doc).

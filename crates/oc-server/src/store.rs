@@ -6,6 +6,7 @@ use anyhow::Context;
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 use sqlx::migrate::Migrator;
 use sqlx::{AnyPool, Executor, Row};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::crypto::{self, Kek};
 use crate::grant::{Grant, Role};
@@ -17,7 +18,37 @@ static MYSQL: Migrator = sqlx::migrate!("../../migrations/mysql");
 pub struct Store {
     pool: AnyPool,
     kek: Option<Kek>,
+    /// SQLite: the single WAL writer task that commits the batches of many rooms in one
+    /// transaction (group commit, docs/22 §9.3). `None` on MySQL/MariaDB, where each room
+    /// commits its own batch.
+    group: Option<mpsc::UnboundedSender<GroupJob>>,
+    /// The hot WAL in Redis (`OC_WAL_REDIS_URL`, or `REDIS_URL`): appends go there, and the
+    /// database gets snapshots (ADR-021). `None`: the WAL is the `room_updates` table.
+    redis: Option<crate::redis_wal::RedisWal>,
 }
+
+/// One Yjs update for the WAL, at its own `seq`.
+#[derive(Debug, Clone)]
+pub struct WalRow {
+    pub seq: i64,
+    pub data: Vec<u8>,
+    pub origin: String,
+    pub at: i64,
+}
+
+/// One room's batch waiting for the SQLite group writer.
+struct GroupJob {
+    room: String,
+    epoch: i64,
+    rows: Vec<WalRow>,
+    reply: oneshot::Sender<anyhow::Result<()>>,
+}
+
+/// Rows per multi-row `INSERT` (5 parameters each: well under SQLite's 32,766 and MySQL's
+/// 65,535 placeholders).
+const WAL_ROWS_PER_INSERT: usize = 500;
+/// The group writer stops collecting more rooms once a transaction holds this many rows.
+const GROUP_MAX_ROWS: usize = 4_096;
 
 /// A commit waiting in (or done with) `commit_outbox`; `token` is decrypted.
 #[derive(Debug, Clone)]
@@ -189,7 +220,28 @@ impl Store {
             MYSQL.run(&pool).await
         }
         .context("running migrations")?;
-        Ok(Self { pool, kek })
+        let group = (sqlite && group_commit_enabled()).then(|| {
+            let (tx, rx) = mpsc::unbounded_channel();
+            tokio::spawn(group_writer(pool.clone(), rx, group_window()));
+            tx
+        });
+        Ok(Self {
+            pool,
+            kek,
+            group,
+            redis: None,
+        })
+    }
+
+    /// Moves the hot WAL to Redis (ADR-021): appends, epoch mirror, replay and trim.
+    pub async fn with_redis_wal(mut self, url: &str) -> anyhow::Result<Self> {
+        self.redis = Some(crate::redis_wal::RedisWal::connect(url).await?);
+        Ok(self)
+    }
+
+    /// The Redis WAL, when the hot WAL lives there.
+    pub fn redis_wal(&self) -> Option<&crate::redis_wal::RedisWal> {
+        self.redis.as_ref()
     }
 
     pub async fn ping(&self) -> bool {
@@ -656,7 +708,12 @@ impl Store {
     /// epoch are refused with [`Fenced`]. A room seen for the first time (or swept) starts at
     /// `now_ms`, so an epoch never goes back.
     pub async fn claim_epoch(&self, room: &str, now_ms: i64) -> anyhow::Result<i64> {
-        retry_transient("epoch claim", move || self.claim_epoch_once(room, now_ms)).await
+        let epoch =
+            retry_transient("epoch claim", move || self.claim_epoch_once(room, now_ms)).await?;
+        if let Some(r) = &self.redis {
+            r.mirror_epoch(room, epoch).await?;
+        }
+        Ok(epoch)
     }
 
     async fn claim_epoch_once(&self, room: &str, now_ms: i64) -> anyhow::Result<i64> {
@@ -782,8 +839,8 @@ impl Store {
         Ok(())
     }
 
-    /// Appends one update to the room's WAL. Refused with [`Fenced`] when `epoch` is no longer
-    /// the room's latest.
+    /// Appends one update to the room's WAL (a batch of one). Refused with [`Fenced`] when
+    /// `epoch` is no longer the room's latest.
     pub async fn append_update(
         &self,
         room: &str,
@@ -793,45 +850,78 @@ impl Store {
         origin: &str,
         now_ms: i64,
     ) -> anyhow::Result<()> {
-        retry_transient("WAL append", move || {
-            self.append_update_once(room, epoch, seq, data, origin, now_ms)
+        let row = WalRow {
+            seq,
+            data: data.to_vec(),
+            origin: origin.into(),
+            at: now_ms,
+        };
+        self.append_updates(room, epoch, vec![row]).await
+    }
+
+    /// Appends a room's batch of updates (in `seq` order) to its WAL, all or nothing. The
+    /// whole batch is refused with [`Fenced`] when `epoch` is no longer the room's latest.
+    /// On SQLite the batch goes to the single group writer, which commits it together with
+    /// other rooms' batches; on MySQL/MariaDB it is one guarded multi-row insert. Deadlocks
+    /// and `busy` are retried.
+    pub async fn append_updates(
+        &self,
+        room: &str,
+        epoch: i64,
+        rows: Vec<WalRow>,
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        if let Some(r) = &self.redis {
+            let started = std::time::Instant::now();
+            let res = r.append(room, epoch, &rows).await;
+            if started.elapsed() > Duration::from_millis(500) {
+                tracing::warn!(
+                    room,
+                    rows = rows.len(),
+                    ms = started.elapsed().as_millis() as u64,
+                    "slow Redis WAL append"
+                );
+            }
+            return res;
+        }
+        if let Some(group) = &self.group {
+            let (reply, done) = oneshot::channel();
+            let job = GroupJob {
+                room: room.into(),
+                epoch,
+                rows,
+                reply,
+            };
+            group
+                .send(job)
+                .map_err(|_| anyhow::anyhow!("WAL writer stopped"))?;
+            return done
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("WAL writer stopped")));
+        }
+        let rows = rows.as_slice();
+        retry_transient("WAL append", move || async move {
+            if rows.len() <= WAL_ROWS_PER_INSERT {
+                // One statement is atomic on its own: no transaction round trips.
+                return insert_guarded(&self.pool, room, epoch, rows).await;
+            }
+            commit_batches(&self.pool, &[(room, epoch, rows)])
+                .await?
+                .pop()
+                .unwrap_or(Ok(()))
         })
         .await
     }
 
-    /// One statement: the row is inserted only while `epoch` is the room's latest (the
-    /// `room_epochs` row is read in the same statement, under a shared lock on InnoDB).
-    async fn append_update_once(
-        &self,
-        room: &str,
-        epoch: i64,
-        seq: i64,
-        data: &[u8],
-        origin: &str,
-        now_ms: i64,
-    ) -> anyhow::Result<()> {
-        let n = sqlx::query(
-            "INSERT INTO room_updates (room_id, seq, data, origin, created_at) \
-             SELECT ?, ?, ?, ?, ? FROM room_epochs WHERE room_id = ? AND epoch = ?",
-        )
-        .bind(room)
-        .bind(seq)
-        .bind(data.to_vec())
-        .bind(origin)
-        .bind(now_ms)
-        .bind(room)
-        .bind(epoch)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
-        if n == 0 {
-            return Err(Fenced(room.into()).into());
-        }
-        Ok(())
-    }
-
     pub async fn load_wal(&self, room: &str) -> anyhow::Result<Wal> {
-        retry_transient("room load", move || self.load_wal_once(room)).await
+        let mut wal = retry_transient("room load", move || self.load_wal_once(room)).await?;
+        if let Some(r) = &self.redis {
+            let after = wal.last_seq();
+            wal.updates.extend(r.read_after(room, after).await?);
+        }
+        Ok(wal)
     }
 
     async fn load_wal_once(&self, room: &str) -> anyhow::Result<Wal> {
@@ -869,7 +959,14 @@ impl Store {
         retry_transient("compaction", move || {
             self.compact_once(room, epoch, seq, state, now_ms)
         })
-        .await
+        .await?;
+        // Only once the snapshot is in the database: the Redis entries it covers can go.
+        if let Some(r) = &self.redis
+            && let Err(e) = r.trim(room, seq).await
+        {
+            tracing::warn!(room, seq, error = %e, "trimming the Redis WAL failed; replay skips the covered entries");
+        }
+        Ok(())
     }
 
     async fn compact_once(
@@ -1033,7 +1130,11 @@ impl Store {
             tx.commit().await?;
             Ok(())
         })
-        .await
+        .await?;
+        if let Some(r) = &self.redis {
+            r.purge(room, Some(epoch)).await?;
+        }
+        Ok(())
     }
 
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
@@ -1043,7 +1144,11 @@ impl Store {
             tx.commit().await?;
             Ok(())
         })
-        .await
+        .await?;
+        if let Some(r) = &self.redis {
+            r.purge(room, None).await?;
+        }
+        Ok(())
     }
 }
 
@@ -1064,6 +1169,147 @@ async fn hold_epoch(tx: &mut Tx<'_>, room: &str, epoch: i64) -> anyhow::Result<(
         return Err(Fenced(room.into()).into());
     }
     Ok(())
+}
+
+/// One guarded statement for up to [`WAL_ROWS_PER_INSERT`] rows: each row is selected from
+/// the room's `room_epochs` row only while `epoch` is the latest (read in the same statement,
+/// under a shared lock on InnoDB), so either every row lands or none does ([`Fenced`]).
+async fn insert_guarded<'e, E>(ex: E, room: &str, epoch: i64, rows: &[WalRow]) -> anyhow::Result<()>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Any>,
+{
+    let one = "SELECT ?, ?, ?, ?, ? FROM room_epochs WHERE room_id = ? AND epoch = ?";
+    let sql = format!(
+        "INSERT INTO room_updates (room_id, seq, data, origin, created_at) {}",
+        vec![one; rows.len()].join(" UNION ALL ")
+    );
+    let mut q = sqlx::query(sqlx::AssertSqlSafe(sql));
+    for r in rows {
+        q = q
+            .bind(room)
+            .bind(r.seq)
+            .bind(r.data.clone())
+            .bind(r.origin.clone())
+            .bind(r.at)
+            .bind(room)
+            .bind(epoch);
+    }
+    let n = q.execute(ex).await?.rows_affected();
+    if n == 0 {
+        return Err(Fenced(room.into()).into());
+    }
+    anyhow::ensure!(
+        n == rows.len() as u64,
+        "WAL append for room {room}: {n} of {} rows inserted",
+        rows.len()
+    );
+    Ok(())
+}
+
+/// Commits the batches of one or more rooms in one transaction, each in `seq` order. A fenced
+/// room gets its [`Fenced`] error and writes nothing; the others commit. Any other error
+/// rolls the whole transaction back and is returned.
+async fn commit_batches(
+    pool: &AnyPool,
+    batches: &[(&str, i64, &[WalRow])],
+) -> anyhow::Result<Vec<anyhow::Result<()>>> {
+    let mut tx = pool.begin().await?;
+    let mut out = Vec::new();
+    for &(room, epoch, rows) in batches {
+        let mut res = Ok(());
+        for chunk in rows.chunks(WAL_ROWS_PER_INSERT) {
+            if let Err(e) = insert_guarded(&mut *tx, room, epoch, chunk).await {
+                if !is_fenced(&e) {
+                    return Err(e);
+                }
+                // Only the first chunk can be fenced: the epoch row stays locked until commit.
+                res = Err(e);
+                break;
+            }
+        }
+        out.push(res);
+    }
+    tx.commit().await?;
+    Ok(out)
+}
+
+/// `OC_WAL_GROUP_COMMIT=0` turns the SQLite group writer off: each room then commits its own
+/// batch on the pool, as on MySQL/MariaDB.
+fn group_commit_enabled() -> bool {
+    std::env::var("OC_WAL_GROUP_COMMIT").map_or(true, |v| v.trim() != "0")
+}
+
+/// `OC_WAL_GROUP_WINDOW_MS` (default 0, at most 5): how long the group writer waits for more
+/// rooms after the first. With 0 it takes whatever queued while the previous commit ran.
+fn group_window() -> Duration {
+    let ms = std::env::var("OC_WAL_GROUP_WINDOW_MS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(0);
+    Duration::from_millis(ms.min(5))
+}
+
+/// The SQLite WAL writer: takes every room batch queued (up to [`GROUP_MAX_ROWS`] rows, or
+/// what arrives within `window`) and commits them in one transaction, so pooled connections
+/// no longer queue on SQLite's single writer lock for one row each.
+async fn group_writer(pool: AnyPool, mut rx: mpsc::UnboundedReceiver<GroupJob>, window: Duration) {
+    while let Some(first) = rx.recv().await {
+        let deadline = tokio::time::Instant::now() + window;
+        let mut rows = first.rows.len();
+        let mut jobs = vec![first];
+        while rows < GROUP_MAX_ROWS {
+            let next = match rx.try_recv() {
+                Ok(j) => Some(j),
+                Err(mpsc::error::TryRecvError::Empty) if !window.is_zero() => {
+                    tokio::time::timeout_at(deadline, rx.recv())
+                        .await
+                        .ok()
+                        .flatten()
+                }
+                Err(_) => None,
+            };
+            let Some(j) = next else { break };
+            rows += j.rows.len();
+            jobs.push(j);
+        }
+        commit_group(&pool, jobs).await;
+    }
+}
+
+/// Commits a group and answers each room. When the shared transaction fails for a reason
+/// other than fencing, each room's batch is retried alone, so one bad batch cannot fail the
+/// rooms it happened to share a transaction with.
+async fn commit_group(pool: &AnyPool, jobs: Vec<GroupJob>) {
+    let batches: Vec<(&str, i64, &[WalRow])> = jobs
+        .iter()
+        .map(|j| (j.room.as_str(), j.epoch, j.rows.as_slice()))
+        .collect();
+    let batches = batches.as_slice();
+    let res = retry_transient("WAL group commit", move || commit_batches(pool, batches)).await;
+    match res {
+        Ok(results) => {
+            for (j, r) in jobs.into_iter().zip(results) {
+                let _ = j.reply.send(r);
+            }
+        }
+        Err(e) if jobs.len() == 1 => {
+            if let Some(j) = jobs.into_iter().next() {
+                let _ = j.reply.send(Err(e));
+            }
+        }
+        Err(e) => {
+            tracing::warn!(rooms = jobs.len(), error = %e, "WAL group commit failed; committing each room alone");
+            for j in jobs {
+                let one = &(j.room.as_str(), j.epoch, j.rows.as_slice());
+                let r = retry_transient("WAL append", move || {
+                    commit_batches(pool, std::slice::from_ref(one))
+                })
+                .await
+                .and_then(|mut r| r.pop().unwrap_or(Ok(())));
+                let _ = j.reply.send(r);
+            }
+        }
+    }
 }
 
 async fn purge_in(tx: &mut Tx<'_>, room: &str) -> anyhow::Result<()> {

@@ -24,7 +24,7 @@ use crate::host_client::{Fetched, PutOutcome, PutRequest};
 use crate::hosts::{ConflictPolicy, HostConfig};
 use crate::metrics::Metrics;
 use crate::people;
-use crate::store::{NotifyRow, OutboxRow};
+use crate::store::{NotifyRow, OutboxRow, WalRow};
 use crate::util::{now_ms, rfc3339};
 
 const BACKOFF_SECS: [u64; 4] = [1, 2, 5, 10];
@@ -34,8 +34,12 @@ const MAX_AWARENESS_BYTES: usize = 2048;
 pub const MAX_PEERS: usize = 550;
 /// Awareness client ids one connection may own (one per Y.Doc; a few for tabs/reconnects).
 const MAX_CLIENTS_PER_CONN: usize = 8;
-/// A busy room still fans presence out after this many awareness frames.
-const AWARENESS_BATCH: usize = 64;
+/// Outbound tick (docs/22 §9.3): a room writes its WAL batch and sends one merged update frame
+/// and one presence frame at most this often, so a peer gets ≤ 25 + 25 frames/s however many
+/// people type. Edit latency is bounded by about this plus the WAL commit.
+const OUT_TICK: Duration = Duration::from_millis(40);
+/// A busy room writes its WAL batch after this many queued updates, even if more frames wait.
+const WAL_BATCH: usize = 256;
 /// New @mentions are collected once the room has been quiet this long (a burst of edits in one
 /// block becomes one notification).
 const MENTION_SETTLE: Duration = Duration::from_millis(500);
@@ -136,6 +140,24 @@ struct Room {
     /// fenced, or a WAL append failed): the run loop closes the room without saving and every
     /// client reconnects (1012) to a room rebuilt from the WAL, resending what it missed.
     lost: Option<&'static str>,
+    /// Updates applied to the doc and waiting for the next WAL batch (docs/22 §9.3): not yet
+    /// durable, so not yet fanned out, and flushed before anything reads the doc's state.
+    wal_queue: Vec<Queued>,
+    /// When the queued updates and presence go out (armed by the first one, `OUT_TICK` later).
+    flush_at: Option<tokio::time::Instant>,
+    /// Every update queued since the last flush integrated in order (none left pending).
+    batch_in_order: bool,
+}
+
+/// An update applied to the doc, waiting for its WAL batch.
+struct Queued {
+    seq: i64,
+    bytes: Vec<u8>,
+    user_id: String,
+    /// The sender, who does not get its own update back.
+    from: Option<ConnId>,
+    /// An edit (makes the room dirty, counts as a contribution); false for the `people` entry.
+    edit: bool,
 }
 
 /// The room task's channels: its own sender (for timers), its command queue and the
@@ -175,18 +197,38 @@ pub(super) async fn run(
     let shutdown = loop {
         tokio::select! {
             cmd = rx.recv() => match cmd {
-                None => break End::Idle,
-                Some(Cmd::Shutdown { by_host, reply }) => break End::Shutdown(by_host, reply),
+                None => {
+                    room.flush_wal().await;
+                    break End::Idle;
+                }
+                Some(Cmd::Shutdown { by_host, reply }) => {
+                    room.flush_wal().await;
+                    break End::Shutdown(by_host, reply);
+                }
+                // Another node owns the room: whatever is queued is not written (clients resend).
                 Some(Cmd::StepDown) => break End::StepDown,
                 Some(cmd) => {
                     room.handle(cmd).await;
-                    // Presence goes out once the inbox is drained (one frame per batch).
-                    if rx.is_empty() || room.presence_frames >= AWARENESS_BATCH {
-                        room.flush_awareness();
+                    // A full batch is written at once; otherwise the outbound tick does it.
+                    if room.wal_batch_full() {
+                        room.flush_wal().await;
+                    }
+                    // The first queued update or presence arms the outbound tick (docs/22 §9.3).
+                    if room.flush_at.is_none() && room.has_outbound() {
+                        room.flush_at = Some(tokio::time::Instant::now() + OUT_TICK);
                     }
                 }
             },
+            // Outbound tick: one durable WAL batch, then one merged update frame and one
+            // presence frame shared by every peer, at most once per OUT_TICK.
+            _ = tokio::time::sleep_until(room.flush_at.unwrap_or_else(tokio::time::Instant::now)),
+                if room.flush_at.is_some() => {
+                room.flush_at = None;
+                room.flush_wal().await;
+                room.flush_awareness();
+            }
             _ = tick.tick() => {
+                room.flush_wal().await;
                 room.flush_awareness();
                 if room.tick().await { break End::Idle }
             }
@@ -398,11 +440,19 @@ impl Room {
             self_tx,
             commit_waiters: Vec::new(),
             lost: None,
+            wal_queue: Vec::new(),
+            flush_at: None,
+            batch_in_order: true,
             ctx,
         })
     }
 
     async fn handle(&mut self, cmd: Cmd) {
+        // Only Yjs frames join a WAL batch. Everything else (joins, state reads, patches,
+        // saves, commits) sees durable state only.
+        if !matches!(cmd, Cmd::Frame { .. }) {
+            self.flush_wal().await;
+        }
         match cmd {
             Cmd::Join {
                 conn,
@@ -534,11 +584,9 @@ impl Room {
             people_map.insert(&mut txn, grant.user.id.as_str(), any);
             txn.encode_update_v1()
         };
-        self.doc_bytes += update.len();
-        if !self.wal_append(&update, &grant.user.id).await {
-            return;
-        }
-        self.broadcast(protocol::update(update), None);
+        // Logged and fanned out with the next WAL batch; a visit alone never makes the room
+        // dirty.
+        self.queue(update, &grant.user.id, None, false);
     }
 
     /// Sends `update` to every peer but `except`. Everyone with access sees the same names
@@ -673,6 +721,10 @@ impl Room {
             }
             match msg {
                 Message::Sync(SyncMessage::SyncStep1(sv)) => {
+                    // The answer must not carry updates that are not durable yet.
+                    if !self.flush_wal().await {
+                        return;
+                    }
                     let diff = self.doc.transact().encode_state_as_update_v1(&sv);
                     self.send(conn, protocol::step2(diff));
                     self.after_handshake(conn);
@@ -767,47 +819,142 @@ impl Room {
         };
         let changed = {
             let mut txn = self.doc.transact_mut();
+            let was_pending =
+                txn.store().pending_update().is_some() || txn.store().pending_ds().is_some();
             if txn.apply_update(update).is_err() {
                 drop(txn);
                 return self.deny(conn, "update could not be applied");
             }
             txn.commit();
+            let pending =
+                txn.store().pending_update().is_some() || txn.store().pending_ds().is_some();
+            // A batch is merged into one frame only if every update in it integrated in order
+            // (no gaps): merging updates with gaps loses structs (seen in tests/fuzz.rs).
+            if was_pending || pending {
+                self.batch_in_order = false;
+            }
             // Out-of-order updates wait in yrs' pending structs and must still be relayed and
             // logged: a delete-only update for items not yet integrated lands in `pending_ds`.
-            txn.has_changes()
-                || txn.store().pending_update().is_some()
-                || txn.store().pending_ds().is_some()
+            txn.has_changes() || pending
         };
         if !changed {
             return;
         }
-        self.accepted(bytes, &grant.user.id, Some(conn)).await;
+        self.queue(bytes, &grant.user.id, Some(conn), true);
     }
 
-    /// Appends `update` to the WAL as the next `seq`. False when it is not durable: the room
-    /// is then marked lost (closed with 1012 by the run loop) and nothing may be fanned out.
-    async fn wal_append(&mut self, update: &[u8], user_id: &str) -> bool {
+    /// An update now in the doc: queued for the next WAL batch as the next `seq`. Nothing is
+    /// fanned out or acknowledged until [`Room::flush_wal`] has made it durable.
+    fn queue(&mut self, bytes: Vec<u8>, user_id: &str, from: Option<ConnId>, edit: bool) {
         if self.lost.is_some() {
+            return;
+        }
+        self.doc_bytes += bytes.len();
+        self.seq += 1;
+        self.wal_queue.push(Queued {
+            seq: self.seq,
+            bytes,
+            user_id: user_id.to_string(),
+            from,
+            edit,
+        });
+    }
+
+    /// Updates or presence waiting for the outbound tick.
+    pub(super) fn has_outbound(&self) -> bool {
+        !self.wal_queue.is_empty() || !self.presence.is_empty() || self.inbox.has_parked()
+    }
+
+    /// True when the batch should be written before taking more frames.
+    pub(super) fn wal_batch_full(&self) -> bool {
+        self.wal_queue.len() >= WAL_BATCH
+    }
+
+    /// Writes every queued update to the WAL in one batch (one transaction, epoch-guarded),
+    /// then fans each out in `seq` order and marks the room dirty. False when the batch is not
+    /// durable: the room is marked lost (closed with 1012 by the run loop), nothing of the
+    /// batch is fanned out, and later queued updates are dropped with it.
+    async fn flush_wal(&mut self) -> bool {
+        if self.lost.is_some() {
+            self.wal_queue.clear();
             return false;
         }
-        self.seq += 1;
+        if self.wal_queue.is_empty() {
+            return true;
+        }
+        let batch = std::mem::take(&mut self.wal_queue);
+        let at = now_ms();
+        let rows = batch
+            .iter()
+            .map(|q| WalRow {
+                seq: q.seq,
+                data: q.bytes.clone(),
+                origin: q.user_id.clone(),
+                at,
+            })
+            .collect::<Vec<_>>();
+        if self.dirty_since.is_none() && batch.iter().any(|q| q.edit) && !self.mark_dirty().await {
+            return false;
+        }
         let started = Instant::now();
         let res = self
             .ctx
             .store
-            .append_update(&self.id, self.epoch, self.seq, update, user_id, now_ms())
+            .append_updates(&self.id, self.epoch, rows)
             .await;
-        self.ctx
-            .metrics
-            .wal_append_seconds
-            .observe(started.elapsed());
-        match res {
-            Ok(()) => true,
-            Err(e) => {
-                self.fail(&e, "WAL append failed");
-                false
+        let m = &self.ctx.metrics;
+        m.wal_append_seconds.observe(started.elapsed());
+        Metrics::inc(&m.wal_batches_total);
+        m.wal_rows_total
+            .fetch_add(batch.len() as i64, std::sync::atomic::Ordering::Relaxed);
+        if let Err(e) = res {
+            self.fail(&e, "WAL append failed");
+            return false;
+        }
+        let mut edited = false;
+        // The sender does not get its own update back; with several senders in one batch the
+        // merged frame goes to everyone (Yjs ignores structs it already has).
+        let first = batch[0].from;
+        let except = first.filter(|_| batch.iter().all(|q| q.from == first));
+        for q in &batch {
+            if q.edit {
+                if let Some(m) = self.mentions.as_mut() {
+                    m.note(&q.bytes, &q.user_id);
+                }
+                Metrics::inc(&self.ctx.metrics.updates_total);
+                self.contributors.insert(q.user_id.clone());
+                edited = true;
             }
         }
+        // One frame for the whole batch, shared by every peer (docs/22 §9.3).
+        let in_order = std::mem::replace(&mut self.batch_in_order, true);
+        let merged = if !in_order {
+            Err((None, batch))
+        } else if batch.len() == 1 {
+            Ok(batch
+                .into_iter()
+                .next()
+                .map(|q| q.bytes)
+                .unwrap_or_default())
+        } else {
+            yrs::merge_updates_v1(batch.iter().map(|q| q.bytes.as_slice()))
+                .map_err(|e| (Some(e), batch))
+        };
+        match merged {
+            Ok(update) => self.broadcast(protocol::update(update), except),
+            Err((e, batch)) => {
+                if let Some(e) = e {
+                    tracing::warn!(room = %self.id, error = %e, "merging a batch failed; sending it update by update");
+                }
+                for q in batch {
+                    self.broadcast(protocol::update(q.bytes), q.from);
+                }
+            }
+        }
+        if edited {
+            self.accepted().await;
+        }
+        true
     }
 
     /// A persistence write failed for good: a fenced write means another node owns the room
@@ -822,37 +969,30 @@ impl Room {
         }
     }
 
-    /// An update now in the doc: WAL first, then fan-out, then mark the room dirty. False when
-    /// the WAL append failed: nothing was fanned out or acknowledged, and the room closes.
-    async fn accepted(&mut self, bytes: Vec<u8>, user_id: &str, from: Option<ConnId>) -> bool {
-        self.doc_bytes += bytes.len();
-        if !self.wal_append(&bytes, user_id).await {
+    /// Edits of a durable batch were fanned out: the room is dirty.
+    async fn accepted(&mut self) {
+        self.last_update = Instant::now();
+    }
+
+    /// The room row is marked dirty before the first edit of a clean room is appended, so a
+    /// restart always replays the WAL (a clean row is purged on load, Redis stream included).
+    async fn mark_dirty(&mut self) -> bool {
+        if let Err(e) = self
+            .ctx
+            .store
+            .mark_room(
+                &self.id,
+                self.host_version.as_deref(),
+                true,
+                now_ms(),
+                false,
+            )
+            .await
+        {
+            self.fail(&e, "marking room dirty failed");
             return false;
         }
-        if let Some(m) = self.mentions.as_mut() {
-            m.note(&bytes, user_id);
-        }
-        self.broadcast(protocol::update(bytes), from);
-        Metrics::inc(&self.ctx.metrics.updates_total);
-        self.last_update = Instant::now();
-        self.contributors.insert(user_id.to_string());
-        if self.dirty_since.is_none() {
-            self.dirty_since = Some(Instant::now());
-            if let Err(e) = self
-                .ctx
-                .store
-                .mark_room(
-                    &self.id,
-                    self.host_version.as_deref(),
-                    true,
-                    now_ms(),
-                    false,
-                )
-                .await
-            {
-                tracing::error!(room = %self.id, error = %e, "marking room dirty failed");
-            }
-        }
+        self.dirty_since = Some(Instant::now());
         true
     }
 
@@ -892,8 +1032,11 @@ impl Room {
             txn.commit();
             txn.has_changes()
         };
-        if changed && !self.accepted(out.update, author, None).await {
-            return Err(PatchFailure::Unavailable);
+        if changed {
+            self.queue(out.update, author, None, true);
+            if !self.flush_wal().await {
+                return Err(PatchFailure::Unavailable);
+            }
         }
         tracing::info!(room = %self.id, ops = ops.len(), changed, "patch applied by host API");
         Ok(Patched {

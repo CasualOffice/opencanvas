@@ -16,6 +16,7 @@
 # Resilience and worst case (docs/22 §8-§11):
 # S1 sustained: one room of 550, 100 % editors typing with no pauses, 10 one-minute buckets
 # S2 sustained: 1,000 rooms x 5, 100 % editors, no pauses, 10 one-minute buckets
+#    (S1/S2: S_DB=maria syncs to MariaDB in Docker; OC_WAL_REDIS_URL puts the hot WAL in Redis)
 # R  crash recovery on SQLite: 200 rooms x 2 typing, kill -9 the server, restart, verify
 # mR the same on MariaDB (Docker)
 # K  cluster chaos: 3 nodes, load (300 rooms x 5 at 20 % + one 550 room), verified rooms spread
@@ -39,6 +40,7 @@ NODE_BASE=${NODE_BASE:-8710}; HOST2_PORT=${HOST2_PORT:-8742}; HOST3_PORT=${HOST3
 CPFX=${CPFX:-ocbench}
 SECRET=bench-secret-0123456789abcdef0123456789
 TGT=${CARGO_TARGET_DIR:-target}; BIN=$TGT/release/opencanvas; LG=$TGT/release/oc-bench
+case $BIN in /*) ;; *) BIN=$ROOT/$BIN; LG=$ROOT/$LG ;; esac
 mkdir -p "$OUT"
 WORK=$(mktemp -d)
 PIDS=(); CONTAINERS=()
@@ -50,7 +52,7 @@ echo "fd limit: $(ulimit -n)"
 cleanup() {
   for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null; done
   wait 2>/dev/null
-  for c in "${CONTAINERS[@]}"; do docker rm -f "$c" >/dev/null 2>&1; done
+  for c in "${CONTAINERS[@]}"; do docker rm -f -v "$c" >/dev/null 2>&1; done
 }
 trap cleanup EXIT
 
@@ -129,9 +131,20 @@ wal_watch() {
 }
 
 sqlite_url() { echo "sqlite://$WORK/$1.db?mode=rwc"; }
+# s_db <name>: the sustained runs (S1, S2) on SQLite, or on MariaDB with S_DB=maria. Sets DBURL,
+# WALDB (for wal_watch) and SQLARG (oc-bench --sqlite, SQLite only). With OC_WAL_REDIS_URL set the
+# hot WAL is in Redis and the DB only gets snapshots (docs/22 §9.3).
+s_db() {
+  if [ "${S_DB:-sqlite}" = maria ]; then
+    [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
+    mariadb_reset; DBURL=$MARIA_URL; WALDB=maria; SQLARG=()
+  else
+    DBURL=$(sqlite_url "$1"); WALDB=$WORK/$1.db; SQLARG=(--sqlite "$WORK/$1.db")
+  fi
+}
 
 mariadb_up() {
-  docker rm -f $CPFX-mariadb >/dev/null 2>&1
+  docker rm -f -v $CPFX-mariadb >/dev/null 2>&1
   docker run -d --name $CPFX-mariadb -p 127.0.0.1:$MARIA_PORT:3306 -e MARIADB_ROOT_PASSWORD=root \
     -e MARIADB_DATABASE=opencanvas mariadb:10.11 --max-connections=500 >/dev/null || exit 1
   CONTAINERS+=($CPFX-mariadb)
@@ -269,21 +282,21 @@ scenario() {
       grep -c 'relaying connection' "$WORK"/server-$((NODE_BASE / 10))*.log | tee -a "$OUT/E-cluster3.md"
       for p in ${pids//,/ }; do stop_server "$p"; done ;;
     S1)
-      start_server "$(sqlite_url S1)"
+      s_db S1; start_server "$DBURL"
       echo "# unix wal_rows wal_bytes snapshots snapshot_bytes db_bytes db_wal_bytes" > "$OUT/S1-wal.txt"
-      wal_watch "$WORK/S1.db" "$OUT/S1-wal.raw"
-      lg S1-sustained-550 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 550 --editors 1.0 --no-pauses \
+      wal_watch "$WALDB" "$OUT/S1-wal.raw"
+      lg S1-sustained-550 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room ${S1_PER_ROOM:-550} --editors 1.0 --no-pauses \
         --probes 10 --doc demo --steps ${S1_STEPS:-550,550,550,550,550,550,550,550,550,550} --step-secs 55 --settle-secs 5 \
-        --connect-rate 100 --sqlite "$WORK/S1.db"
+        --connect-rate 100 "${SQLARG[@]}"
       cat "$OUT/S1-wal.raw" >> "$OUT/S1-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S1-sustained-550.md"
       stop_server "$SERVER_PID" ;;
     S2)
-      start_server "$(sqlite_url S2)"
+      s_db S2; start_server "$DBURL"
       echo "# unix wal_rows wal_bytes snapshots snapshot_bytes db_bytes db_wal_bytes" > "$OUT/S2-wal.txt"
-      wal_watch "$WORK/S2.db" "$OUT/S2-wal.raw"
+      wal_watch "$WALDB" "$OUT/S2-wal.raw"
       lg S2-sustained-1000x5 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 5 --editors 1.0 --no-pauses \
         --probes 5 --doc demo --steps ${S2_STEPS:-5000,5000,5000,5000,5000,5000,5000,5000,5000,5000} --step-secs 55 --settle-secs 5 \
-        --connect-rate 250 --sqlite "$WORK/S2.db"
+        --connect-rate 250 "${SQLARG[@]}"
       cat "$OUT/S2-wal.raw" >> "$OUT/S2-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S2-sustained-1000x5.md"
       stop_server "$SERVER_PID" ;;
     R|mR)
@@ -296,7 +309,7 @@ scenario() {
       else db=$(sqlite_url R); fi
       local kek; kek=$(openssl rand -base64 32)
       start_server "$db" "$OC_PORT" OC_KEK="$kek"
-      local restart="env -u OC_DEV DATABASE_URL='$db' OC_KEK='$kek' OC_HOSTS_FILE='$WORK/hosts.toml' OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=http://127.0.0.1:$OC_PORT OC_LOG=info nohup $ROOT/$BIN >> '$WORK/server-$OC_PORT.restart.log' 2>&1 & echo \$! > '$WORK/restarted.pid'"
+      local restart="env -u OC_DEV DATABASE_URL='$db' OC_KEK='$kek' OC_HOSTS_FILE='$WORK/hosts.toml' OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=http://127.0.0.1:$OC_PORT OC_LOG=info nohup $BIN >> '$WORK/server-$OC_PORT.restart.log' 2>&1 & echo \$! > '$WORK/restarted.pid'"
       echo; echo "== $1-crash"
       "$LG" verify --label "$1-crash" --server "http://127.0.0.1:$OC_PORT" --host-port "$HOST_PORT" --secret "$SECRET" \
         --rooms 200 --per-room 2 --secs 45 --crash-at 25 --kill-pid "$SERVER_PID" --restart "$restart" \
