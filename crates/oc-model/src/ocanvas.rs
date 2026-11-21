@@ -143,3 +143,129 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
     }
     Ok(Loaded { doc, manifest })
 }
+
+/// An image or file stored inside the `.ocanvas` zip as `assets/<id>` (WOPI mode, where the
+/// host has no asset API). `assets/index.json` maps each id to its MIME type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Asset {
+    pub id: String,
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
+/// Asset ids: 1-64 chars of `[A-Za-z0-9_-]` (no paths).
+pub fn valid_asset_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// Reads the `assets/<id>` entries of a `.ocanvas` (same limits as [`read_ocanvas`]).
+pub fn read_assets(bytes: &[u8]) -> Result<Vec<Asset>, Error> {
+    let mut zip = ZipArchive::new(Cursor::new(bytes))?;
+    if zip.len() > MAX_ENTRIES {
+        return Err(Error::Limit("too many entries"));
+    }
+    let mut total = 0u64;
+    let mut index = serde_json::Map::new();
+    let mut blobs = Vec::new();
+    for i in 0..zip.len() {
+        let entry = zip.by_index(i)?;
+        if entry.enclosed_name().is_none() {
+            return Err(Error::Limit("unsafe path"));
+        }
+        total += entry.size();
+        if total > MAX_TOTAL {
+            return Err(Error::Limit("too large"));
+        }
+        let name = entry.name().to_string();
+        let Some(id) = name.strip_prefix("assets/") else {
+            continue;
+        };
+        let mut buf = Vec::with_capacity(entry.size() as usize);
+        entry.take(MAX_TOTAL).read_to_end(&mut buf)?;
+        if id == "index.json" {
+            if let Ok(Value::Object(m)) = serde_json::from_slice(&buf) {
+                index = m;
+            }
+        } else if valid_asset_id(id) {
+            blobs.push((id.to_string(), buf));
+        }
+    }
+    Ok(blobs
+        .into_iter()
+        .map(|(id, data)| {
+            let mime = index
+                .get(&id)
+                .and_then(|v| v.get("mime"))
+                .and_then(Value::as_str)
+                .unwrap_or("application/octet-stream")
+                .to_string();
+            Asset { id, mime, data }
+        })
+        .collect())
+}
+
+/// Returns `bytes` (a `.ocanvas`) with its `assets/` replaced by `assets`. Assets are stored
+/// uncompressed (images are already compressed).
+pub fn with_assets(bytes: &[u8], assets: &[Asset]) -> Result<Vec<u8>, Error> {
+    let mut src = ZipArchive::new(Cursor::new(bytes))?;
+    let mut out = ZipWriter::new(Cursor::new(Vec::new()));
+    for i in 0..src.len() {
+        let entry = src.by_index_raw(i)?;
+        if entry.name().starts_with("assets/") {
+            continue;
+        }
+        out.raw_copy_file(entry)?;
+    }
+    if !assets.is_empty() {
+        let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        let mut index = serde_json::Map::new();
+        for a in assets.iter().filter(|a| valid_asset_id(&a.id)) {
+            out.start_file(format!("assets/{}", a.id), stored)?;
+            out.write_all(&a.data)?;
+            index.insert(a.id.clone(), json!({"mime": a.mime, "size": a.data.len()}));
+        }
+        out.start_file(
+            "assets/index.json",
+            SimpleFileOptions::default().compression_method(CompressionMethod::Deflated),
+        )?;
+        out.write_all(&serde_json::to_vec(&Value::Object(index))?)?;
+    }
+    Ok(out.finish()?.into_inner())
+}
+
+#[cfg(test)]
+mod asset_tests {
+    use super::*;
+
+    #[test]
+    fn assets_round_trip_through_the_zip() {
+        let doc = new_doc();
+        let base = write_ocanvas(&doc, &CommitInfo::default()).unwrap();
+        let assets = vec![
+            Asset {
+                id: "a_1".into(),
+                mime: "image/png".into(),
+                data: vec![1, 2, 3],
+            },
+            Asset {
+                id: "a_2".into(),
+                mime: "application/pdf".into(),
+                data: vec![9; 2000],
+            },
+        ];
+        let packed = with_assets(&base, &assets).unwrap();
+        assert!(read_ocanvas(&packed).is_ok(), "still a readable .ocanvas");
+        let mut back = read_assets(&packed).unwrap();
+        back.sort_by(|a, b| a.id.cmp(&b.id));
+        assert_eq!(back, assets);
+        // Replacing drops the old set.
+        let again = with_assets(&packed, &assets[..1]).unwrap();
+        assert_eq!(read_assets(&again).unwrap(), assets[..1].to_vec());
+        assert!(!valid_asset_id("../x"));
+        assert!(valid_asset_id("a_01JD"));
+    }
+}

@@ -320,6 +320,7 @@ pub async fn convert(
     let req = super::export::RenderReq {
         token: &token,
         author: "opencanvas",
+        wopi_room: None,
     };
     let (bytes, ctype, _) = super::export::render(&state, &host, &doc, &p.to, req).await?;
     Ok(([(header::CONTENT_TYPE, ctype)], bytes).into_response())

@@ -152,23 +152,81 @@ the algorithm is still pinned by `jwt_alg`, so a token signed with another algor
 
 ## 6. WOPI mode
 
-Host page POSTs `access_token`, `access_token_ttl` to
-`/v1/launch?WOPISrc=<urlencoded https://host/wopi/files/<id>>`.
+For hosts that already open Collabora / Office Online through WOPI (Nextcloud, ownCloud,
+Seafile, …). OpenCanvas is the WOPI *client*; you are the WOPI *host*. Reference host:
+`examples/wopi-host/server.mjs`; end-to-end check: `scripts/e2e-wopi.sh`.
 
-We call:
-- `GET  {WOPISrc}?access_token=…` → CheckFileInfo. We read: `BaseFileName`,
-  `Size`, `Version`, `LastModifiedTime`, `UserId`, `UserFriendlyName`,
-  `UserCanWrite`, `ReadOnly`, `UserCanNotWriteRelative`, `DisableExport`,
-  `DisablePrint`, `UserExtraInfo.avatar`, and our extensions
-  `OpenCanvas_UserCanComment`, `OpenCanvas_AssetsUrl`, `OpenCanvas_UsersUrl`.
-- `GET  {WOPISrc}/contents?access_token=…` → GetFile.
-- `POST {WOPISrc}/contents?access_token=…` with `X-WOPI-Override: PUT`,
-  `X-COOL-WOPI-Timestamp: <LastModifiedTime>` → PutFile; `409` with
-  `{"COOLStatusCode":1010}` = conflict.
-- `POST {WOPISrc}` with `X-WOPI-Override: PUT_RELATIVE` for save-as-copy.
+**Register** (no JWT key needed):
+```toml
+[[host]]
+id              = "nextcloud"
+name            = "Nextcloud"
+mode            = "wopi"                    # or "both" (JWT launches + WOPI launches)
+wopi_allowlist  = ["https://cloud.example.com/index.php/apps/richdocuments/wopi"]
+allowed_origins = ["https://cloud.example.com"]
+api_key         = "env:NC_OC_API_KEY"       # optional, for the §7 REST API
+[host.flags]
+on_conflict     = "copy"                    # copy = PUT_RELATIVE | reload
+```
+`wopi_allowlist` entries are `scheme://host[:port][/path]`. A `WOPISrc` is accepted only when
+scheme, host and port match an entry exactly and the path starts with the entry's path at a
+`/` boundary; URLs with userinfo, a query, a fragment, or longer than 255 characters are refused
+(`403 WOPISRC_NOT_ALLOWED`) before anything is called. Write `localhost` and `127.0.0.1`
+separately if you need both. Redirects are never followed.
 
-Discovery: `GET /hosting/discovery` returns WOPI discovery XML advertising
-`ocanvas` (edit/view) and `md` (edit/view, convert-on-save option).
+**Discovery.** `GET /hosting/discovery` returns WOPI discovery XML (`net-zone`
+`external-http(s)` from `OC_PUBLIC_URL`): app `application/vnd.opencanvas+zip` with `edit`
+(default) and `view` for `ext="ocanvas"`, app `text/markdown` with `edit`, `view` and `convert`
+(`targetext="ocanvas"`) for `ext="md"`, and `Capabilities` → `GET /hosting/capabilities`.
+Every `urlsrc` is `{OC_PUBLIC_URL}/v1/launch?`; append `WOPISrc=<urlencoded>` (and any other
+placeholders, which are ignored), Collabora style.
+
+**Launch.** Your page form-POSTs `access_token` and `access_token_ttl` (ms since the epoch; 0 or
+absent = 10 h) into an iframe at `/v1/launch?WOPISrc=<urlencoded https://host/wopi/files/<id>>`.
+We answer `303 /app/#t=<ticket>`, like a JWT launch. The session expires at `access_token_ttl`.
+`401 TOKEN_INVALID` when CheckFileInfo answers 4xx or the ttl has passed. The access token is
+opaque to us, sealed at rest under `OC_KEK` like a callback token, sent only in the query string
+of calls to `WOPISrc` (as WOPI requires), and never logged. The file id (room, REST API path) is
+the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
+
+**We call:**
+- `GET  {WOPISrc}?access_token=…` → CheckFileInfo (at launch, on load, and before a save when the
+  file name is not known). We read `BaseFileName`, `Size`, `Version`, `LastModifiedTime`, `UserId`,
+  `UserFriendlyName`, `UserExtraInfo.avatar` (http(s) only), `UserCanWrite`, `ReadOnly`,
+  `UserCanNotWriteRelative`, `DisableExport`, `DisablePrint`, `HideExportOption` and our extension
+  `OpenCanvas_UserCanComment`.
+  Role: `UserCanWrite` and not `ReadOnly` → `edit`; else `OpenCanvas_UserCanComment` → `comment`;
+  else `view`. Perms: `DisableExport` → no export, download or print; `HideExportOption` → no
+  export; `DisablePrint` → no print (PDF). The tracked version is `LastModifiedTime`
+  (`Version` is shown only when there is no `LastModifiedTime`, and then no timestamp is sent).
+- `GET  {WOPISrc}/contents?access_token=…` → GetFile (≤ 100 MB). Empty body = new canvas.
+  `.ocanvas` zip, or Markdown when `BaseFileName` ends in `.md`.
+- `POST {WOPISrc}/contents?access_token=…` → PutFile, body `.ocanvas` (or Markdown for `.md` files —
+  lossy for boards and databases), headers `X-WOPI-Override: PUT`,
+  `X-COOL-WOPI-Timestamp: <LastModifiedTime we loaded / last saved>`, `X-COOL-WOPI-IsAutosave: true`,
+  `X-COOL-WOPI-IsModifiedByUser: true`. Answer `200 {"LastModifiedTime":"…"}` (without it we ask
+  CheckFileInfo). `409 {"COOLStatusCode":1010}` = the file changed elsewhere → your `on_conflict`
+  policy runs (any other 409 is retried like an outage). Saves go through the same outbox,
+  retries and autosave rules as JWT mode (docs/15 §7).
+- `POST {WOPISrc}?access_token=…` with `X-WOPI-Override: PUT_RELATIVE`,
+  `X-WOPI-SuggestedTarget: <UTF-7 "<name> (conflict copy).ocanvas">`, `X-WOPI-Size` → conflict copy
+  (policy `copy`). Answer `{"Name","Url","HostEditUrl"|"HostViewUrl"}`; editors are told the
+  `HostEditUrl` and `Url` without its token. Hosts that set `UserCanNotWriteRelative` should use
+  `on_conflict = "reload"`.
+
+No `LOCK`/`UNLOCK` (we use timestamps, like Collabora) and no proof keys yet.
+
+**Assets.** WOPI has no asset API, so uploads (`POST /v1/assets?ticket=`) are kept with the room
+and answered `201 {"assetId":"a_…","url":"/v1/assets/a_…","mime","size"}`. They are served by
+`GET /v1/assets/:id?ticket=` (images inline, anything else as a download, `nosniff`, sandboxed)
+and inlined into the saved `.ocanvas` as `assets/<id>` (stored) plus `assets/index.json`
+(`{"<id>":{"mime","size"}}`); only assets the document still references are written. On load
+they are read back out of your file. Limits: **10 MB per asset, 50 MB of assets per file**
+(`413 ASSET_TOO_LARGE`); the whole zip stays under the 100 MB `.ocanvas` read limit. DOCX, PDF
+and `.ocanvas` exports include them too.
+
+**Mentions.** `GET /v1/users?ticket=&q=` lists the users who have opened the file (from
+CheckFileInfo), filtered by name or id.
 
 ## 7. Server-to-server REST (you → us)
 
@@ -223,4 +281,5 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
       turns read-only. With `reload`, the session's unsaved changes are dropped and everyone
       reconnects onto your version.
 - [ ] Call the role API when ACLs change.
-- [ ] Try `examples/sample-host` end-to-end before going live.
+- [ ] Try `examples/sample-host` end-to-end before going live (WOPI hosts:
+      `examples/wopi-host` and `scripts/e2e-wopi.sh`).

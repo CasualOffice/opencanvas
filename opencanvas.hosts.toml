@@ -15,3 +15,16 @@ allowed_origins = ["http://localhost:4000"]
 [host.flags]
 export_formats = ["md", "html", "json", "ocanvas"]
 on_conflict    = "copy"                        # copy | reload (on a 409 from PUT /files/{id})
+
+# WOPI-compatible host (docs/05 §6): examples/wopi-host/server.mjs. No JWT; OpenCanvas calls
+# CheckFileInfo / GetFile / PutFile on WOPISrc, which must match wopi_allowlist.
+[[host]]
+id              = "wopi-sample"
+name            = "WOPI sample host"
+mode            = "wopi"
+api_key         = "dev-wopi-api-key-change-me" # optional: role / commit / patch API
+wopi_allowlist  = ["http://localhost:4300"]    # scheme://host[:port][/path] prefixes of WOPISrc
+allowed_origins = ["http://localhost:4300"]
+
+[host.flags]
+on_conflict     = "copy"                       # copy = PUT_RELATIVE | reload

@@ -223,6 +223,7 @@ pub fn host_config(base: &str) -> HostConfig {
         callback_secret: None,
         api_key: None,
         callback_base: base.into(),
+        wopi_allowlist: vec![],
         allowed_origins: vec!["http://localhost:4000".into()],
         asset_origins: vec![],
         original_callback_base: None,
@@ -307,6 +308,7 @@ pub fn grant(user: &str, role: Role) -> Grant {
             export: true,
             download: true,
             comment: true,
+            print: true,
         },
         callback_token: format!("cb-{user}"),
     }

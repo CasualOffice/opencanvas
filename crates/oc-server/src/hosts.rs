@@ -28,7 +28,13 @@ pub struct HostConfig {
     pub callback_secret: Option<String>,
     #[serde(default)]
     pub api_key: Option<String>,
+    /// JWT-mode callback base; unused (may be empty) for `mode = "wopi"`.
+    #[serde(default)]
     pub callback_base: String,
+    /// WOPI mode: the only places a `WOPISrc` may point to, as `scheme://host[:port][/path]`
+    /// prefixes (docs/05 §6). Anything else is refused before we call it (SSRF guard).
+    #[serde(default)]
+    pub wopi_allowlist: Vec<String>,
     #[serde(default)]
     pub allowed_origins: Vec<String>,
     /// Origins exports may fetch images from (e.g. a CDN), besides the `callback_base` origin,
@@ -61,6 +67,16 @@ pub enum ConflictPolicy {
 }
 
 impl HostConfig {
+    /// `mode = "wopi"`: launches only through WOPI (CheckFileInfo), never a JWT.
+    pub fn wopi_only(&self) -> bool {
+        self.mode == "wopi"
+    }
+
+    /// `mode = "wopi" | "both"`.
+    pub fn accepts_wopi(&self) -> bool {
+        matches!(self.mode.as_str(), "wopi" | "both")
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
@@ -121,6 +137,32 @@ impl Hosts {
             h.callback_secret = resolve(h.callback_secret)?;
             h.api_key = resolve(h.api_key)?;
             h.jwt_jwks_url = resolve(h.jwt_jwks_url)?;
+            match h.mode.as_str() {
+                "jwt" | "both" | "wopi" => {}
+                other => bail!("host {}: unknown mode {other} (jwt | wopi | both)", h.id),
+            }
+            if h.accepts_wopi() {
+                if h.wopi_allowlist.is_empty() {
+                    bail!("host {}: mode {} requires wopi_allowlist", h.id, h.mode);
+                }
+                for entry in &h.wopi_allowlist {
+                    crate::wopi::AllowEntry::parse(entry).with_context(|| {
+                        format!("host {}: bad wopi_allowlist entry {entry:?}", h.id)
+                    })?;
+                }
+            }
+            if h.wopi_only() {
+                h.callback_base = h.callback_base.trim_end_matches('/').to_string();
+                list.push(h);
+                continue;
+            }
+            if h.callback_base.is_empty() {
+                bail!(
+                    "host {}: callback_base is required for mode {}",
+                    h.id,
+                    h.mode
+                );
+            }
             match h.jwt_alg.as_str() {
                 "HS256" if h.jwt_secret.is_none() => {
                     bail!("host {}: HS256 requires jwt_secret", h.id)
@@ -158,6 +200,16 @@ impl Hosts {
 
     pub fn get(&self, id: &str) -> Option<Arc<HostConfig>> {
         self.0.get(id).cloned()
+    }
+
+    /// The WOPI-capable host whose `wopi_allowlist` admits `src`, with the normalized URL.
+    /// Hosts are tried in id order so the choice is stable.
+    pub fn wopi_host_for(&self, src: &str) -> Option<(Arc<HostConfig>, reqwest::Url)> {
+        let mut hosts: Vec<_> = self.0.values().filter(|h| h.accepts_wopi()).collect();
+        hosts.sort_by(|a, b| a.id.cmp(&b.id));
+        hosts
+            .into_iter()
+            .find_map(|h| crate::wopi::check_src(&h.wopi_allowlist, src).map(|u| (h.clone(), u)))
     }
 
     pub fn allowed_origins(&self) -> Vec<String> {
@@ -207,5 +259,32 @@ mod tests {
             h.original_callback_base.as_deref(),
             Some("http://localhost:4000/api/opencanvas")
         );
+    }
+
+    #[test]
+    fn wopi_hosts_need_an_allowlist_but_no_jwt_key() {
+        let ok = r#"
+            [[host]]
+            id = "wopi-sample"
+            name = "WOPI sample"
+            mode = "wopi"
+            wopi_allowlist = ["http://localhost:4300"]
+        "#;
+        let hosts = Hosts::parse(ok, None).unwrap();
+        assert!(hosts.get("wopi-sample").unwrap().wopi_only());
+        assert!(
+            hosts
+                .wopi_host_for("http://localhost:4300/wopi/files/a")
+                .is_some()
+        );
+        assert!(
+            hosts
+                .wopi_host_for("http://localhost:4301/wopi/files/a")
+                .is_none()
+        );
+        let missing = ok.replace("wopi_allowlist = [\"http://localhost:4300\"]", "");
+        assert!(Hosts::parse(&missing, None).is_err());
+        let bad_mode = ok.replace("mode = \"wopi\"", "mode = \"wopy\"");
+        assert!(Hosts::parse(&bad_mode, None).is_err());
     }
 }
