@@ -1,9 +1,10 @@
 use std::time::Duration;
 
+use oc_server::cluster::{self, Cluster, ClusterConfig};
 use oc_server::config::Config;
 use oc_server::hosts::Hosts;
 use oc_server::util::now_secs;
-use oc_server::{AppState, router};
+use oc_server::{AppState, app};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -15,11 +16,21 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::from_env()?;
+    // REDIS_URL → cluster mode; refused on SQLite before anything else starts (ADR-004/006).
+    let cluster_cfg = ClusterConfig::from_env(&cfg.database_url, &cfg.bind)?;
     let hosts = Hosts::load(&cfg.hosts_file, cfg.callback_base_override.as_deref())?;
     if !cfg.web_dir.join("index.html").exists() {
         tracing::warn!(dir = %cfg.web_dir.display(), "web app not built; /app/ will 404");
     }
     let state = AppState::new(cfg.clone(), hosts).await?;
+    if let Some(cc) = cluster_cfg {
+        let node = cc.node_id.clone();
+        let advertise = cc.advertise.clone();
+        let c = Cluster::connect(cc).await?;
+        state.rooms.set_cluster(c.clone());
+        cluster::spawn_renewer(state.rooms.clone(), c);
+        tracing::info!(node = %node, advertise = %advertise, "cluster mode: room leases in Redis");
+    }
 
     let sweeper = state.clone();
     tokio::spawn(async move {
@@ -49,10 +60,10 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&cfg.bind).await?;
     tracing::info!(bind = %cfg.bind, hosts = state.hosts.len(), "opencanvas listening");
     let rooms = state.rooms.clone();
-    axum::serve(listener, router(state))
+    axum::serve(listener, app(state))
         .with_graceful_shutdown(async move {
             shutdown_signal().await;
-            tracing::info!("shutting down: saving dirty rooms");
+            tracing::info!("shutting down: saving dirty rooms, releasing leases");
             rooms.shutdown_all().await;
         })
         .await?;

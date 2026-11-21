@@ -134,22 +134,30 @@ pub(super) async fn run(
     let shutdown = loop {
         tokio::select! {
             cmd = rx.recv() => match cmd {
-                None => break None,
-                Some(Cmd::Shutdown { by_host, reply }) => break Some((by_host, reply)),
+                None => break End::Idle,
+                Some(Cmd::Shutdown { by_host, reply }) => break End::Shutdown(by_host, reply),
+                Some(Cmd::StepDown) => break End::StepDown,
                 Some(cmd) => room.handle(cmd).await,
             },
-            _ = tick.tick() => if room.tick().await { break None },
+            _ = tick.tick() => if room.tick().await { break End::Idle },
         }
     };
     match shutdown {
-        Some((by_host, reply)) => {
+        End::StepDown => {
+            // Another node owns the room now and continues from the WAL: no save, no purge.
+            room.step_down();
+            if let Some(r) = rooms.upgrade() {
+                r.remove(&id, generation);
+            }
+        }
+        End::Shutdown(by_host, reply) => {
             room.shutdown(&mut rx, by_host).await;
             if let Some(r) = rooms.upgrade() {
                 r.remove(&id, generation);
             }
             let _ = reply.send(());
         }
-        None => {
+        End::Idle => {
             if let Err(e) = ctx.store.purge_room(&id).await {
                 tracing::warn!(room = %id, error = %e, "purge failed");
             }
@@ -163,6 +171,12 @@ pub(super) async fn run(
     while rx.try_recv().is_ok() {}
     Metrics::dec(&ctx.metrics.rooms_active);
     tracing::info!(room = %id, "room closed");
+}
+
+enum End {
+    Idle,
+    StepDown,
+    Shutdown(bool, tokio::sync::oneshot::Sender<()>),
 }
 
 /// Builds a doc from what the host's `GET /files/{id}` returned.
@@ -343,7 +357,7 @@ impl Room {
                 let _ = reply.send(self.patch(&ops, &author).await);
             }
             Cmd::Commit { reply } => self.commit(reply),
-            Cmd::Shutdown { .. } => unreachable!("handled by run loop"),
+            Cmd::Shutdown { .. } | Cmd::StepDown => unreachable!("handled by run loop"),
         }
     }
 
@@ -1105,6 +1119,21 @@ impl Room {
         tracing::info!(room = %self.id, version = ?self.host_version, "conflict: reloaded the host version");
     }
 
+    /// Control `{"t":"reconnect"}` then close 1012 for every peer.
+    fn tell_reconnect(&mut self, reason: &str) {
+        let frame = protocol::control(&json!({"t": "reconnect"}));
+        for p in self.peers.values() {
+            let _ = p.tx.send(Outbound::Frame(frame.clone()));
+            let _ = p.tx.send(Outbound::Close(1012, reason.into()));
+        }
+        self.peers.clear();
+    }
+
+    fn step_down(&mut self) {
+        tracing::warn!(room = %self.id, seq = self.seq, "room moved to another node");
+        self.tell_reconnect("room moved");
+    }
+
     /// SIGTERM or host close: wait for an in-flight save, make a final one if still dirty,
     /// then close peers.
     async fn shutdown(&mut self, rx: &mut mpsc::UnboundedReceiver<Cmd>, by_host: bool) {
@@ -1126,15 +1155,16 @@ impl Room {
         if self.seq > self.compacted_seq {
             self.compact().await;
         }
-        let (reason, code) = if by_host {
-            ("closed by the host", 1000)
+        if by_host {
+            let reason = "closed by the host";
+            let closed = protocol::control(&json!({"t": "closed", "reason": reason}));
+            for p in self.peers.values() {
+                let _ = p.tx.send(Outbound::Frame(closed.clone()));
+                let _ = p.tx.send(Outbound::Close(1000, reason.into()));
+            }
         } else {
-            ("server shutting down", 1012)
-        };
-        let closed = protocol::control(&json!({"t": "closed", "reason": reason}));
-        for p in self.peers.values() {
-            let _ = p.tx.send(Outbound::Frame(closed.clone()));
-            let _ = p.tx.send(Outbound::Close(code, reason.into()));
+            // Drain (SIGTERM): the work is committed; clients reconnect to another node.
+            self.tell_reconnect("server shutting down");
         }
         if self.dirty_since.is_none() {
             let _ = self.ctx.store.purge_room(&self.id).await;

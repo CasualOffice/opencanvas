@@ -175,17 +175,31 @@ dependencies.
              └───────┬──────────┬──────────┬──────┘
                    node-1     node-2     node-3   (identical binaries)
                      │  owns rooms by lease   │
-                     └──── Redis (leases, pub/sub relay) ────┘
+                     └──── Redis (leases) ─ internal WS relay ┘
                      └──── MySQL/MariaDB (snapshots, tails, outbox) ────┘
 ```
 - **One owner per room** (ADR-006). The owner holds the authoritative Yrs Doc
   in memory. Ownership is a Redis lease (`SET room:{id}:owner node NX PX`)
   renewed every 5 s.
-- If the LB routes a client to a non-owner, that node **relays** frames to the
-  owner over Redis pub/sub (or an internal WS) — clients never need to know.
-- Owner dies → lease expires (≤ 10 s) → next node to receive a client claims
-  the lease, loads snapshot + tail from DB, continues. Unacked client updates
-  are resent by the Yjs client on reconnect (Yjs sync is idempotent).
+- If the LB routes a client to a non-owner, that node **relays** the connection
+  to the owner over one internal WebSocket per client connection
+  (`/v1/internal/relay/:room`, HMAC-signed with `OC_CLUSTER_SECRET`, the grant
+  forwarded signed). Per-connection order is TCP order; the owner treats the relayed
+  connection like a local one and enforces roles. Clients never need to know.
+  Host-API room calls (patch, commit, role, close, state for exports) on a non-owner
+  are forwarded to the owner (`POST /v1/internal/rooms/:room`, same signature).
+- Owner dies → its relays break; the edge node probes the owner's `/healthz` and, if
+  the process is gone, takes the lease over with a compare-and-set on the dead
+  owner's value (otherwise the lease expires after 15 s). The new owner loads
+  snapshot + WAL from the DB and continues; clients are told `reconnect` (1012) and
+  resync in well under 5 s. Unacked client updates are resent by the Yjs client on
+  reconnect (Yjs sync is idempotent). A node whose renewal finds another owner steps
+  the room down (clients reconnect, no save).
+- The outbox sweeper claims a row (`claimed_by`, `claim_until`) and the room lease
+  before resuming it, so two nodes never resend the same commit.
+- SIGTERM drain: refuse new rooms, commit dirty rooms, `{"t":"reconnect"}` + close
+  1012 to every client (local and relayed), release leases, exit.
+- `REDIS_URL` with SQLite refuses to start (SQLite is single-node only).
 - Stateless HTTP (launch/preview/export) scales horizontally with no
   coordination. Export rendering can be split into a worker pool.
 - Large rooms: viewers can be fanned out by non-owner nodes from a Redis

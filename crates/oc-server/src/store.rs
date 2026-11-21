@@ -348,6 +348,29 @@ impl Store {
         Ok(())
     }
 
+    /// Cluster sweeper: claims a pending row for `node` until `until_ms`. False when another
+    /// node holds an unexpired claim (or the row is no longer pending).
+    pub async fn outbox_claim(
+        &self,
+        id: &str,
+        node: &str,
+        now_ms: i64,
+        until_ms: i64,
+    ) -> anyhow::Result<bool> {
+        let res = sqlx::query(
+            "UPDATE commit_outbox SET claimed_by = ?, claim_until = ? WHERE id = ? AND status = 'pending' \
+             AND (claim_until IS NULL OR claim_until < ? OR claimed_by = ?)",
+        )
+        .bind(node)
+        .bind(until_ms)
+        .bind(id)
+        .bind(now_ms)
+        .bind(node)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
     pub async fn outbox_failed(
         &self,
         id: &str,

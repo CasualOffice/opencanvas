@@ -76,7 +76,9 @@ get it as the save state),
 `{"t":"conflict","policy":"reload"}` (followed by `closed` and close code 1012: the client must
 drop its local Y.Doc and reconnect, the room now holds the host's version),
 `{"t":"role","role":"view"}` (also sent mid-session when the host changes the role),
-`{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000).
+`{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000),
+`{"t":"reconnect"}` (always followed by close **1012**: the client keeps its Y.Doc and
+reconnects; sent on graceful drain and, in cluster mode, when the room moved to another node).
 (Changed 2026-11-21 by the server hardening: `conflict` carries `policy`.)
 On connect the server sends sync step1 and the current awareness states. When the client's
 step1 arrives the server answers with step2, then `{"t":"role",…}` and the current save state
@@ -99,8 +101,13 @@ Server rules:
   excess awareness frames are dropped silently, never fatal. Clients should still batch (y-websocket
   awareness throttling, 50 ms update windows).
   (Changed 2026-11-21: was 1008 with awareness counted against the same bucket; fast typing tripped it.) When the ticket expires the server sends
-  `{"t":"closed","reason":"session expired"}` and closes with 1008; on shutdown it sends
-  `{"t":"closed","reason":"server shutting down"}` and closes with 1012.
+  `{"t":"closed","reason":"session expired"}` and closes with 1008; on shutdown (SIGTERM drain)
+  it commits dirty rooms, then sends `{"t":"reconnect"}` and closes with 1012.
+  (Changed 2026-11-21 by CLU-01: was `{"t":"closed","reason":"server shutting down"}`.)
+- Cluster mode (ADR-006): the socket may land on any node. A node that does not own the room
+  relays it to the owner over an internal WebSocket; the protocol above is unchanged, roles
+  are enforced by the owner. If the owner dies the client gets `reconnect` + 1012 (or a
+  dropped socket) and reconnects with the same ticket.
 - Room ids are `r_` + 26 lowercase base32 chars of sha256(`<hostId>:<fileId>`).
 
 ## 4. Y.Doc layout (shared by server export and web)
