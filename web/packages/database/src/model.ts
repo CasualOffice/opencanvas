@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import type { OcUser, Tone } from "@opencanvas/ui";
-import { coerce, detectFields, parseCsv, toCsv, toneFor } from "./csv";
+import { coerce, detectFields, parseCsv, splitTags, toCsv, toneFor } from "./csv";
 import { DEMO_PEOPLE, PRESETS, type DbPreset } from "./presets";
 import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, ViewKind, ViewPrefs } from "./types";
 import { VIEW_KINDS } from "./types";
@@ -488,4 +488,152 @@ export function databaseToMarkdown(db: DbSnapshot, users: OcUser[] = []): string
   const sep = "| " + db.fields.map(() => "---").join(" | ") + " |";
   const body = db.rows.map((r) => "| " + db.fields.map((f) => esc(cellToText(f, r.v[f.id], users))).join(" | ") + " |");
   return [head, sep, ...body].join("\n");
+}
+
+/* ------------------------------------------------- field editing (UX-01) */
+
+/** Option-backed field types (their `options` list is shown and edited). */
+export const OPTION_TYPES: FieldType[] = ["status", "select", "tags"];
+
+/**
+ * Change a field's type, converting every cell through its text form (as CSV import would).
+ * Options are kept when moving between option types and otherwise built from the distinct
+ * values. The title field cannot change type, and no field can become the title.
+ */
+export function setFieldType(doc: Y.Doc, dbId: string, fid: string, type: FieldType, users: OcUser[] = []) {
+  if (type === "title") return;
+  tx(doc, dbId, (m) => {
+    const fy = fieldY(m, fid);
+    const f = readFields(m).find((x) => x.id === fid);
+    if (!fy || !f || f.type === "title" || f.type === type) return;
+    const rows = rowsOf(m);
+    const texts = new Map<string, string>();
+    rows.forEach((r, rid) => r instanceof Y.Map && texts.set(rid, cellToText(f, r.get(fid) as CellValue, users)));
+    let options: DbOption[] | null = null;
+    if (OPTION_TYPES.includes(type)) {
+      const vals = new Set<string>();
+      for (const t of texts.values()) for (const x of type === "tags" ? splitTags(t) : [t.trim()]) if (x) vals.add(x);
+      const kept = OPTION_TYPES.includes(f.type) ? (f.options ?? []).map((o) => ({ ...o })) : [];
+      for (const v of vals) if (!kept.some((o) => o.v === v)) kept.push({ v, c: toneFor(v, kept.length) });
+      options = kept.length ? kept : (defaultOptions(type) ?? []);
+    }
+    fy.set("type", type);
+    fy.set("options", options);
+    rows.forEach((r, rid) => {
+      if (!(r instanceof Y.Map)) return;
+      const t = (texts.get(rid) ?? "").trim();
+      const v = type === "checkbox" ? /^(true|yes|y|x|1)$/i.test(t) : t ? coerce(t, type, users) : emptyValue(type);
+      r.set(fid, Array.isArray(v) ? v.slice() : v);
+    });
+  });
+}
+
+/**
+ * Replace a field's options. `renames` maps old option values to new ones so cells follow a
+ * rename; cells holding an option that no longer exists are cleared.
+ */
+export function setOptions(doc: Y.Doc, dbId: string, fid: string, options: DbOption[], renames: Record<string, string> = {}) {
+  tx(doc, dbId, (m) => {
+    const fy = fieldY(m, fid);
+    if (!fy) return;
+    const seen = new Set<string>();
+    const next = options.filter((o) => o.v.trim() && !seen.has(o.v) && (seen.add(o.v), true)).map((o) => ({ v: o.v, c: o.c }));
+    fy.set("options", next);
+    const keep = new Set(next.map((o) => o.v));
+    const map = (v: string) => (v in renames ? renames[v] : v);
+    rowsOf(m).forEach((r) => {
+      if (!(r instanceof Y.Map)) return;
+      const v = r.get(fid);
+      if (Array.isArray(v)) {
+        const nv = v.map((x) => map(String(x))).filter((x) => keep.has(x));
+        if (nv.length !== v.length || nv.some((x, i) => x !== v[i])) r.set(fid, nv);
+      } else if (typeof v === "string" && v) {
+        const nv = map(v);
+        if (!keep.has(nv)) r.set(fid, null);
+        else if (nv !== v) r.set(fid, nv);
+      }
+    });
+  });
+}
+
+/**
+ * Move a field to position `to` (0-based, in the final list). Yjs can't move a nested type,
+ * so the field map is re-created at the new index with the same id, name, type and options.
+ */
+export function moveField(doc: Y.Doc, dbId: string, fid: string, to: number) {
+  tx(doc, dbId, (m) => {
+    const arr = fieldsOf(m);
+    const list = arr.toArray();
+    const from = list.findIndex((f) => f instanceof Y.Map && f.get("id") === fid);
+    if (from < 0) return;
+    const f = readFields(m).find((x) => x.id === fid)!;
+    const at = Math.max(0, Math.min(to, list.length - 1));
+    if (at === from) return;
+    arr.delete(from, 1);
+    arr.insert(at, [fieldToY(f)]);
+  });
+}
+
+/**
+ * Write a block of text values (rows × columns, as pasted from a spreadsheet) starting at
+ * `rowIds[0]` / `fieldIds[0]`. Values are converted for each field's type; rows are added
+ * after the last given row when the block is taller. Returns the ids of rows written.
+ */
+export function pasteCells(doc: Y.Doc, dbId: string, rowIds: string[], fieldIds: string[], block: string[][], users: OcUser[] = []): string[] {
+  const written: string[] = [];
+  tx(doc, dbId, (m) => {
+    const fields = readFields(m);
+    const rows = rowsOf(m);
+    const order = orderOf(m);
+    let after = rowIds[rowIds.length - 1];
+    block.forEach((line, i) => {
+      let rid = rowIds[i];
+      if (!rid) {
+        rid = nid("r");
+        const v: Record<string, CellValue> = {};
+        for (const f of fields) v[f.id] = f.type === "title" ? "" : emptyValue(f.type);
+        rows.set(rid, rowToY(fields, v));
+        const at = after ? order.toArray().indexOf(after) : -1;
+        order.insert(at >= 0 ? at + 1 : order.length, [rid]);
+        after = rid;
+      }
+      const r = rows.get(rid);
+      if (!(r instanceof Y.Map)) return;
+      written.push(rid);
+      line.forEach((raw, j) => {
+        const f = fields.find((x) => x.id === fieldIds[j]);
+        if (!f) return;
+        const v: CellValue = f.type === "title" ? raw.trim() : coerce(raw, f.type, users);
+        if ((f.type === "status" || f.type === "select") && typeof v === "string" && v && !f.options?.some((o) => o.v === v)) {
+          f.options = [...(f.options ?? []), { v, c: toneFor(v, f.options?.length ?? 0) }];
+          fieldY(m, f.id)?.set("options", f.options);
+        }
+        if (f.type === "tags" && Array.isArray(v)) {
+          const missing = v.filter((t) => !f.options?.some((o) => o.v === t));
+          if (missing.length) {
+            f.options = [...(f.options ?? []), ...missing.map((t, k) => ({ v: t, c: toneFor(t, (f.options?.length ?? 0) + k) }))];
+            fieldY(m, f.id)?.set("options", f.options);
+          }
+        }
+        r.set(f.id, Array.isArray(v) ? v.slice() : v);
+      });
+    });
+  });
+  return written;
+}
+
+/** Clear cells (title becomes "", other fields their empty value). */
+export function clearCells(doc: Y.Doc, dbId: string, rowIds: string[], fieldIds: string[]) {
+  tx(doc, dbId, (m) => {
+    const fields = readFields(m);
+    const rows = rowsOf(m);
+    for (const rid of rowIds) {
+      const r = rows.get(rid);
+      if (!(r instanceof Y.Map)) continue;
+      for (const fid of fieldIds) {
+        const f = fields.find((x) => x.id === fid);
+        if (f) r.set(fid, f.type === "title" ? "" : emptyValue(f.type));
+      }
+    }
+  });
 }

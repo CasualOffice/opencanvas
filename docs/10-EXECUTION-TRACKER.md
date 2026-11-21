@@ -70,6 +70,8 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 |---|---|---|
 | BRD-01 | Board block: shapes, pen, text, sticky, select/transform | Todo |
 | BRD-02 | Connectors, frames, images on board, PNG/SVG export | Todo |
+| DB-04 | Database UX pass: spreadsheet keyboard + ranges + clipboard, field type/options editor, column resize/reorder, row reorder, multi-sort, AND filters, search highlight, view settings, peek prev/next, undo, CSV import undo, virtualised table | Review | docs/20-BLOCKS-UX-AUDIT.md D1–D27 (20 fixed, 6 open, 1 by design). `database/src/ux.test.tsx` (18); UI tests seen failing on the old DatabaseBlock. 1,000 rows: 860 → ~16 ms per edit. |
+| BRD-03 | Board UX pass: multi-select, box select, groups, align/distribute, snapping, copy/paste, z-order, labels, fills, sticky auto-grow, keyboard alternatives (2.5.7), peer selections, 2,000-shape culling | Review | docs/20-BLOCKS-UX-AUDIT.md B1–B23 (17 fixed, 5 open, 1 by design). `board/src/ux.test.tsx` (14); UI tests seen failing on the old BoardBlock. Open: export of new styles (B18, needs Rust EXP-02 too), minimap, waypoints. |
 | LAY-01 | Columns layout | Todo |
 | CMN-01 | Comments (anchors, threads, commenter role filter) | Todo |
 | WOPI-01 | WOPI client mode + discovery | Todo |
@@ -97,6 +99,7 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-21 | Blocks UX audit (database + board) in a two-doc harness, Playwright 1440/390 px, light/dark | vitest database 156, board 56; typecheck green; harness removed |
 | 2026-11-21 | Merged server, database/board, editor branches into main | cargo test (30) + vitest (131) + typecheck + editor build green |
 | 2026-11-21 | Two-browser live test via sample host (Priya edit, Sam view) | Template applied; content, cursors, avatars both ways; DB checkbox live to viewer; autosaves v1–v3 landed in host |
 | 2026-11-21 | Fix: viewers' empty sync step 2 was answered with "permission denied" | `filter::adds_nothing`; non-writes from view/comment are ignored silently |

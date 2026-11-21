@@ -206,8 +206,16 @@ interface CommitInputProps {
 export function CommitInput({ value, onCommit, readOnly, placeholder, className, inputMode, ariaLabel, autoFocus, onEnter }: CommitInputProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const skip = useRef(false);
+  /** The shared value when editing started; only a draft that differs from it is committed. */
+  const base = useRef<string | null>(null);
+  // Focused but untouched: follow the shared value (a remote edit, a paste into a range).
+  if (draft !== null && draft === base.current && value !== base.current) {
+    base.current = value;
+    setDraft(value);
+  }
   const commit = () => {
-    if (draft !== null && draft !== value) onCommit(draft);
+    if (draft !== null && draft !== base.current && draft !== value) onCommit(draft);
+    base.current = null;
     setDraft(null);
   };
   return (
@@ -220,7 +228,11 @@ export function CommitInput({ value, onCommit, readOnly, placeholder, className,
       aria-label={ariaLabel}
       autoFocus={autoFocus}
       spellCheck={false}
-      onFocus={() => !readOnly && setDraft(value)}
+      onFocus={() => {
+        if (readOnly) return;
+        base.current = value;
+        setDraft(value);
+      }}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
         if (skip.current) {

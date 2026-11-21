@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import {
-  ArrowUpRight, Circle, Copy, CornerDownRight, Diamond, Ellipsis, FileCode2, FileImage, Hand, ImagePlus, Maximize2, Minimize2, Minus,
-  MousePointer2, MoveUpRight, Pencil, Plus, Shapes, Square, StickyNote, Trash2, Type, type LucideIcon,
+  AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
+  AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, Copy, CornerDownRight, Diamond, Ellipsis,
+  FileCode2, FileImage, Group, Hand, ImagePlus, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus, Redo2, SendToBack,
+  Shapes, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
-  addShape, bbox, boardsRoot, contentBounds, deleteShape, duplicateShape, getBoardMap, readShapes, simplify, smooth, updateShape,
+  addShape, bbox, boardsRoot, contentBounds, deleteShape, getBoardMap, readShapes, simplify, smooth, updateShape,
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
-import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, withResolvedArrows, type ArrowRoute, type Binding } from "./connectors";
+import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, withResolvedArrows, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { exportBoardPng, exportBoardSvg } from "./export";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
+import {
+  alignMoves, cloneShapes, distributeMoves, insertShapes, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
+  stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
+} from "./ops";
 
 type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text";
 const TOOLS: [Tool, LucideIcon, string, string][] = [
@@ -31,19 +37,35 @@ const TOOLS: [Tool, LucideIcon, string, string][] = [
 const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "sticky", r: "rect", o: "ellipse", d: "diamond", a: "arrow", t: "text" };
 const STICKY: Record<string, string> = { y: "var(--sticky-y)", p: "var(--sticky-p)", b: "var(--sticky-b)", g: "var(--sticky-g)" };
 const SWATCH: Record<string, string> = { accent: "var(--accent)", amber: "var(--amber-fg)", green: "var(--green-fg)", pink: "var(--pink-fg)", purple: "var(--purple-fg)", red: "var(--red-fg)", blue: "var(--blue-fg)" };
-const TEXTUAL: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "text"];
+/** Shape fills for rect / ellipse / diamond: a tone's background with its foreground as the outline. */
+const TONES = ["gray", "blue", "green", "amber", "red", "purple", "pink"] as const;
+const TONE_NAME: Record<string, string> = { gray: "Gray", blue: "Blue", green: "Green", amber: "Amber", red: "Red", purple: "Purple", pink: "Pink" };
+const TEXTUAL: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "text", "arrow"];
 const SIZED: ShapeType[] = ["sticky", "rect", "ellipse", "diamond", "swatch", "image"];
+const BOXY: ShapeType[] = ["rect", "ellipse", "diamond"];
+/** Text sizes offered for text shapes and shape labels. */
+const TEXT_SIZES = [14, 18, 24, 32];
+const SHAPE_SIZES = [13, 14, 16, 20];
+const TYPE_NAME: Record<ShapeType, string> = { sticky: "Sticky note", rect: "Rectangle", ellipse: "Ellipse", diamond: "Diamond", text: "Text", arrow: "Connector", pen: "Drawing", swatch: "Colour swatch", image: "Image" };
 const SW = 1.75;
-const ZMIN = 0.25, ZMAX = 3;
+const ZMIN = 0.1, ZMAX = 4;
+/** Above this many shapes only the ones in (or near) the viewport are rendered. */
+const CULL_AT = 300;
 
 interface View { tx: number; ty: number; z: number }
-interface Peer { id: number; name: string; color: string; x: number; y: number }
+interface Peer { id: number; name: string; color: string; x: number | null; y: number | null; sel: string[] }
+
+/* --------------------------------------------------- clipboard (shared) */
+
+/** Last shapes copied from any board on the page (the system clipboard carries them too). */
+let CLIP: { shapes: Shape[]; text: string; pastes: number } | null = null;
+const CLIP_ATTR = "data-oc-board";
 
 /* ------------------------------------------------------------- store */
 
 function useShapes(doc: Y.Doc, boardId: string): Shape[] | null {
-  const cache = useRef<{ ver: number; at: number; val: Shape[] | null; key: string }>({ ver: 0, at: -1, val: null, key: boardId });
-  if (cache.current.key !== boardId) cache.current = { ver: 0, at: -1, val: null, key: boardId };
+  const cache = useRef<{ ver: number; at: number; val: Shape[] | null; key: string; byId: Map<string, { j: string; s: Shape }> }>({ ver: 0, at: -1, val: null, key: boardId, byId: new Map() });
+  if (cache.current.key !== boardId) cache.current = { ver: 0, at: -1, val: null, key: boardId, byId: new Map() };
   const subscribe = useCallback(
     (cb: () => void) => {
       const root = boardsRoot(doc);
@@ -78,7 +100,19 @@ function useShapes(doc: Y.Doc, boardId: string): Shape[] | null {
     const c = cache.current;
     if (c.at !== c.ver) {
       const m = getBoardMap(doc, boardId);
-      c.val = m ? readShapes(m) : null;
+      const list = m ? readShapes(m) : null;
+      // Keep unchanged shapes as the same objects so memoised shapes skip re-rendering.
+      if (list) {
+        const next = new Map<string, { j: string; s: Shape }>();
+        c.val = list.map((s) => {
+          const j = JSON.stringify(s);
+          const old = c.byId.get(s.id);
+          const keep = old && old.j === j ? old.s : s;
+          next.set(s.id, { j, s: keep });
+          return keep;
+        });
+        c.byId = next;
+      } else c.val = null;
       c.at = c.ver;
     }
     return c.val;
@@ -94,10 +128,13 @@ function usePeers(awareness: Awareness | undefined, boardId: string): Peer[] {
       const out: Peer[] = [];
       awareness.getStates().forEach((st, id) => {
         if (id === awareness.clientID || !st) return;
-        const b = st.board as { id?: string; x?: number; y?: number } | null | undefined;
-        if (!b || b.id !== boardId || typeof b.x !== "number" || typeof b.y !== "number") return;
+        const b = st.board as { id?: string; x?: number; y?: number; sel?: unknown } | null | undefined;
+        if (!b || b.id !== boardId) return;
+        const hasPt = typeof b.x === "number" && typeof b.y === "number";
+        const sel = Array.isArray(b.sel) ? b.sel.filter((x): x is string => typeof x === "string").slice(0, 200) : [];
+        if (!hasPt && !sel.length) return;
         const u = (st.user ?? {}) as { name?: string; color?: string };
-        out.push({ id, name: String(u.name ?? "Someone"), color: String(u.color ?? "var(--u2)"), x: b.x, y: b.y });
+        out.push({ id, name: String(u.name ?? "Someone"), color: String(u.color ?? "var(--u2)"), x: hasPt ? b.x! : null, y: hasPt ? b.y! : null, sel });
       });
       setPeers(out);
     };
@@ -125,12 +162,18 @@ export function BoardBlock({ doc, boardId, env, awareness }: { doc: Y.Doc; board
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; v: View }
-  | { kind: "move"; sid: string; ox: number; oy: number; orig: Shape; moved: boolean }
+  | { kind: "move"; ids: string[]; ox: number; oy: number; orig: Map<string, Shape>; box: Box | null; others: Box[]; moved: boolean }
   | { kind: "resize"; sid: string; ox: number; oy: number; orig: Shape; moved: boolean }
+  | { kind: "box"; x0: number; y0: number; base: string[]; add: boolean }
   | { kind: "pen" }
   | { kind: "arrow" }
   | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
   | { kind: "pinch"; d0: number; c0: [number, number]; v: View };
+
+const describeShape = (s: Shape) => {
+  const t = (s.text ?? s.label ?? s.alt ?? "").replace(/\s+/g, " ").trim();
+  return TYPE_NAME[s.type] + (t ? `: ${t.length > 40 ? t.slice(0, 39) + "…" : t}` : "");
+};
 
 function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boardId: string; env: BlockEnv; awareness?: Awareness; shapes: Shape[] }) {
   // Arrows bound to shapes are drawn (and hit-tested, moved, exported) from their resolved points.
@@ -141,12 +184,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const origin = useMemo(() => ({ board: boardId, local: uid }), [boardId, uid]);
   const [tool, setToolState] = useState<Tool>("select");
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSelState] = useState<string[]>([]);
   const [view, setView] = useState<View>({ tx: 0, ty: 0, z: 1 });
+  const [size, setSize] = useState<[number, number]>([0, 0]);
   const [full, setFull] = useState(false);
   const [active, setActive] = useState(false);
   const [draft, setDraftState] = useState<Shape | null>(null);
   const [editing, setEditingState] = useState<{ id: string; text: string } | null>(null);
+  const [marquee, setMarquee] = useState<Box | null>(null);
+  const [guides, setGuides] = useState<{ gx: number[]; gy: number[] } | null>(null);
+  const [live, setLive] = useState("");
   // Mirrors so handlers never act on stale state (and never run side effects in updaters).
   const draftRef = useRef<Shape | null>(null);
   const editRef = useRef<{ id: string; text: string } | null>(null);
@@ -169,10 +216,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const pointers = useRef(new Map<number, [number, number]>());
-  const pending = useRef<{ sid: string; patch: Partial<Shape> } | null>(null);
+  const pending = useRef(new Map<string, Partial<Shape>>());
   const raf = useRef(0);
   const cursorRaf = useRef(0);
   const fitted = useRef(false);
+  const space = useRef(false);
+  const lastPt = useRef<Pt | null>(null);
 
   // Always-fresh values for event handlers.
   const S = useRef({ shapes, view, tool, sel, edit, editing });
@@ -181,14 +230,74 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const tool_ = edit ? tool : tool === "hand" ? "hand" : "select";
   const setTool = (t: Tool) => setToolState(edit || t === "select" || t === "hand" ? t : "select");
 
+  /* ---- presence: pointer + selection ---- */
+  const publishNow = (sel: string[]) => {
+    if (!awareness) return;
+    const p = lastPt.current;
+    const next = p ? { id: boardId, x: Math.round(p[0] * 10) / 10, y: Math.round(p[1] * 10) / 10, sel } : sel.length ? { id: boardId, sel } : null;
+    const cur = awareness.getLocalState()?.board;
+    if (!next && !cur) return;
+    awareness.setLocalStateField("board", next);
+  };
+  const publish = (x: number | null, y = 0) => {
+    if (!awareness) return;
+    cancelAnimationFrame(cursorRaf.current);
+    lastPt.current = x === null ? null : [x, y];
+    if (x === null) return publishNow(S.current.sel);
+    cursorRaf.current = requestAnimationFrame(() => publishNow(S.current.sel));
+  };
+  useEffect(() => () => {
+    cancelAnimationFrame(cursorRaf.current);
+    if (awareness?.getLocalState()?.board) awareness.setLocalStateField("board", null);
+  }, [awareness]);
+
+  const setSel = (ids: string[]) => {
+    S.current.sel = ids;
+    setSelState(ids);
+    publishNow(ids);
+  };
+  const selShapes = () => S.current.shapes.filter((s) => S.current.sel.includes(s.id));
+  const announceSel = (ids: string[]) => {
+    if (!ids.length) return setLive("Nothing selected");
+    if (ids.length === 1) {
+      const s = S.current.shapes.find((x) => x.id === ids[0]);
+      const i = S.current.shapes.findIndex((x) => x.id === ids[0]);
+      if (s) setLive(`${describeShape(s)}. ${i + 1} of ${S.current.shapes.length}`);
+    } else setLive(`${ids.length} shapes selected`);
+  };
+
   /* ---- undo ---- */
   const um = useMemo(() => {
     const m = getBoardMap(doc, boardId);
     return m ? new Y.UndoManager(m, { trackedOrigins: new Set([origin]), captureTimeout: 400 }) : null;
   }, [doc, boardId, origin]);
-  useEffect(() => () => um?.destroy(), [um]);
+  const [, setStacks] = useState(0);
+  useEffect(() => {
+    if (!um) return;
+    const bump = () => setStacks((n) => n + 1);
+    um.on("stack-item-added", bump);
+    um.on("stack-item-popped", bump);
+    um.on("stack-cleared", bump);
+    return () => um.destroy();
+  }, [um]);
+  const undo = (redo = false) => {
+    if (!um) return;
+    if (redo ? !um.redoStack.length : !um.undoStack.length) return setLive(redo ? "Nothing to redo" : "Nothing to undo");
+    if (redo) um.redo();
+    else um.undo();
+    setLive(redo ? "Redone" : "Undone");
+  };
 
-  /* ---- fit content on first layout ---- */
+  /* ---- size + fit content on first layout ---- */
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const measure = () => setSize((p) => (p[0] === svg.clientWidth && p[1] === svg.clientHeight ? p : [svg.clientWidth, svg.clientHeight]));
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(svg);
+    return () => ro?.disconnect();
+  }, [full]);
   useLayoutEffect(() => {
     if (fitted.current) return;
     const svg = svgRef.current;
@@ -222,48 +331,40 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const svg = svgRef.current;
     if (svg) zoomAt(f, svg.clientWidth / 2, svg.clientHeight / 2);
   };
-  const fit = () => {
+  const fitBox = (b: Box | null, maxZ = 1) => {
     const svg = svgRef.current;
-    const b = contentBounds(S.current.shapes);
     if (!svg || !b) return setView({ tx: 0, ty: 0, z: 1 });
     const W = svg.clientWidth, H = svg.clientHeight;
     const pad = 32, bottom = 72;
     const bw = b[2] - b[0], bh = b[3] - b[1];
-    const z = Math.max(ZMIN, Math.min(1, (W - pad * 2) / Math.max(bw, 1), (H - pad - bottom) / Math.max(bh, 1)));
+    const z = Math.max(ZMIN, Math.min(maxZ, (W - pad * 2) / Math.max(bw, 1), (H - pad - bottom) / Math.max(bh, 1)));
     setView({ z, tx: (W - bw * z) / 2 - b[0] * z, ty: pad + (H - pad - bottom - bh * z) / 2 - b[1] * z });
   };
+  const fit = () => fitBox(contentBounds(S.current.shapes));
 
-  /* ---- presence ---- */
-  const publish = (x: number | null, y = 0) => {
-    if (!awareness) return;
-    cancelAnimationFrame(cursorRaf.current);
-    if (x === null) {
-      if (awareness.getLocalState()?.board) awareness.setLocalStateField("board", null);
-      return;
-    }
-    cursorRaf.current = requestAnimationFrame(() => awareness.setLocalStateField("board", { id: boardId, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }));
-  };
-  useEffect(() => () => {
-    cancelAnimationFrame(cursorRaf.current);
-    if (awareness?.getLocalState()?.board) awareness.setLocalStateField("board", null);
-  }, [awareness]);
-
-  /* ---- writes ---- */
+  /* ---- writes (batched per frame, one transaction) ---- */
   const flush = () => {
     cancelAnimationFrame(raf.current);
     raf.current = 0;
     const p = pending.current;
-    pending.current = null;
-    if (p) updateShape(doc, boardId, p.sid, p.patch, origin);
+    if (!p.size) return;
+    pending.current = new Map();
+    doc.transact(() => p.forEach((patch, sid) => updateShape(doc, boardId, sid, patch, origin)), origin);
   };
   const schedule = (sid: string, patch: Partial<Shape>) => {
-    pending.current = { sid, patch };
+    pending.current.set(sid, patch);
     if (!raf.current) raf.current = requestAnimationFrame(flush);
+  };
+  const applyMoves = (moves: { id: string; patch: Partial<Shape> }[]) => {
+    if (!moves.length) return;
+    um?.stopCapturing();
+    doc.transact(() => moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin)), origin);
+    syncBoundArrows(doc, boardId, origin);
   };
 
   const startEdit = (s: Shape) => {
     if (!S.current.edit || !TEXTUAL.includes(s.type)) return;
-    setSel(s.id);
+    setSel([s.id]);
     setEditing({ id: s.id, text: s.text ?? "" });
   };
   const commitEdit = (cancel = false) => {
@@ -272,32 +373,79 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setEditing(null);
     const s = S.current.shapes.find((x) => x.id === e.id);
     if (!s) return;
-    if (!cancel && e.text !== (s.text ?? "")) updateShape(doc, boardId, s.id, { text: e.text }, origin);
+    if (!cancel && e.text !== (s.text ?? "")) {
+      const patch: Partial<Shape> = { text: e.text };
+      // Sticky notes grow to fit their text (they never shrink below what the user set).
+      if (s.type === "sticky") {
+        const need = stickyHeight(e.text, s.w ?? 150, s.h ?? 110);
+        if (need > (s.h ?? 110)) patch.h = need;
+      }
+      updateShape(doc, boardId, s.id, patch, origin);
+    }
     if (s.type === "text" && !(cancel ? s.text : e.text)?.trim()) {
       deleteShape(doc, boardId, s.id, origin);
-      setSel(null);
+      setSel([]);
     }
     rootRef.current?.focus({ preventScroll: true });
   };
 
   const removeSel = () => {
-    const sid = S.current.sel;
-    if (!sid) return;
-    deleteShape(doc, boardId, sid, origin);
-    setSel(null);
-  };
-  const dupSel = () => {
-    const s = S.current.shapes.find((x) => x.id === S.current.sel);
-    if (!s) return;
+    const ids = S.current.sel;
+    if (!ids.length) return;
     um?.stopCapturing();
-    setSel(duplicateShape(doc, boardId, s, 24, 24, origin));
+    doc.transact(() => ids.forEach((sid) => deleteShape(doc, boardId, sid, origin)), origin);
+    setLive(ids.length === 1 ? "Deleted" : `Deleted ${ids.length} shapes`);
+    setSel([]);
+  };
+  /** Copies of the selection, offset, on top; the copies become the selection. */
+  const paste = (src: Shape[], dx: number, dy: number) => {
+    if (!src.length) return;
+    um?.stopCapturing();
+    const copies = cloneShapes(src, dx, dy);
+    setSel(insertShapes(doc, boardId, copies, origin));
+    syncBoundArrows(doc, boardId, origin);
+    setLive(copies.length === 1 ? `Pasted ${describeShape(copies[0])}` : `Pasted ${copies.length} shapes`);
+  };
+  const dupSel = () => paste(selShapes(), 24, 24);
+  const zSel = (how: ZMove) => {
+    const ids = S.current.sel;
+    if (!ids.length) return;
+    um?.stopCapturing();
+    reorderShapes(doc, boardId, ids, how, origin);
+    setLive({ front: "Brought to front", back: "Sent to back", forward: "Brought forward", backward: "Sent backward" }[how]);
+  };
+  const groupSel = (on: boolean) => {
+    const ids = S.current.sel;
+    if (on ? ids.length < 2 : !selShapes().some((s) => s.group)) return;
+    um?.stopCapturing();
+    setGroup(doc, boardId, ids, on ? "" : null, origin);
+    setLive(on ? `Grouped ${ids.length} shapes` : "Ungrouped");
+  };
+  const align = (mode: AlignMode) => applyMoves(alignMoves(selShapes(), mode));
+  const distribute = (axis: "h" | "v") => applyMoves(distributeMoves(selShapes(), axis));
+  /** Keyboard / single-click alternative to drawing a connector: join two selected shapes. */
+  const connectSel = () => {
+    const [a, b] = selShapes().filter((s) => s.type !== "arrow" && s.type !== "pen");
+    if (!a || !b) return;
+    const [ax0, ay0, ax1, ay1] = bbox(a), [bx0, by0, bx1, by1] = bbox(b);
+    const dx = (bx0 + bx1) / 2 - (ax0 + ax1) / 2, dy = (by0 + by1) / 2 - (ay0 + ay1) / 2;
+    const h = Math.abs(dx) >= Math.abs(dy);
+    const sa: Anchor = h ? (dx >= 0 ? "right" : "left") : dy >= 0 ? "bottom" : "top";
+    const sb: Anchor = h ? (dx >= 0 ? "left" : "right") : dy >= 0 ? "top" : "bottom";
+    const s: Shape = { id: "tmp", type: "arrow", pts: [anchorPoint(a, sa), anchorPoint(b, sb)], start: { shapeId: a.id, anchor: sa }, end: { shapeId: b.id, anchor: sb }, ...(route === "elbow" ? { route } : {}) };
+    um?.stopCapturing();
+    const { id: _tmp, ...rest } = s;
+    void _tmp;
+    const sid = addShape(doc, boardId, { ...rest, pts: resolveArrow(s, byId).map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt) }, origin);
+    setSel([sid]);
+    setLive(`Connected ${describeShape(a)} to ${describeShape(b)}`);
   };
 
   /* ---- images ---- */
   const viewCenter = (): Pt => {
     const svg = svgRef.current;
     const v = S.current.view;
-    return svg ? [(svg.clientWidth / 2 - v.tx) / v.z, (svg.clientHeight / 2 - v.ty) / v.z] : [200, 150];
+    return svg && svg.clientWidth ? [(svg.clientWidth / 2 - v.tx) / v.z, (svg.clientHeight / 2 - v.ty) / v.z] : [200, 150];
   };
   const insertImages = async (files: File[], at: Pt) => {
     if (!S.current.edit) return;
@@ -315,7 +463,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const off = i++ * 24;
       um?.stopCapturing();
       const sid = addShape(doc, boardId, { type: "image", x: Math.round(at[0] - w / 2 + off), y: Math.round(at[1] - h / 2 + off), w, h, src, alt: file.name || "Image" }, origin);
-      setSel(sid);
+      setSel([sid]);
     }
   };
   const onDragOver = (e: React.DragEvent) => {
@@ -331,14 +479,88 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     e.stopPropagation();
     void insertImages(files, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter());
   };
-  const onPaste = (e: React.ClipboardEvent) => {
-    if (!S.current.edit || editRef.current) return;
-    const files = imageFiles(e.clipboardData);
-    if (!files.length) return;
-    e.preventDefault();
-    e.stopPropagation();
-    void insertImages(files, viewCenter());
-  };
+
+  /* ---- clipboard: copy / cut / paste shapes (and images, and plain text as a text shape) ---- */
+  useEffect(() => {
+    const mine = (e: Event) => {
+      const root = rootRef.current;
+      if (!root) return false;
+      const a = document.activeElement;
+      if (a && a !== root && a.closest?.("textarea,input")) return false; // editing text
+      return root.contains(e.target as Node) || root.contains(a);
+    };
+    const onCopy = (e: ClipboardEvent) => {
+      if (!mine(e) || editRef.current) return;
+      const list = S.current.shapes.filter((s) => S.current.sel.includes(s.id));
+      if (!list.length) return;
+      e.preventDefault();
+      const text = list.map((s) => s.text ?? "").filter(Boolean).join("\n");
+      CLIP = { shapes: JSON.parse(JSON.stringify(list)), text, pastes: 0 };
+      e.clipboardData?.setData("text/plain", text);
+      e.clipboardData?.setData("text/html", `<span ${CLIP_ATTR}="${encodeURIComponent(JSON.stringify(list))}"></span>`);
+      if (e.type === "cut" && S.current.edit) removeSelRef.current();
+      else setLive(list.length === 1 ? "Copied" : `Copied ${list.length} shapes`);
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      if (!mine(e) || !S.current.edit || editRef.current) return;
+      const files = imageFiles(e.clipboardData);
+      if (files.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        void insertImagesRef.current(files, viewCenterRef.current());
+        return;
+      }
+      const html = e.clipboardData?.getData?.("text/html") ?? "";
+      const text = e.clipboardData?.getData?.("text/plain") ?? "";
+      let list: Shape[] | null = null;
+      const m = html.match(new RegExp(`${CLIP_ATTR}="([^"]*)"`));
+      if (m) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(m[1]));
+          if (Array.isArray(parsed)) list = parsed.filter((s) => s && typeof s.type === "string");
+        } catch {
+          /* not ours */
+        }
+      } else if (CLIP && text === CLIP.text) list = CLIP.shapes;
+      e.preventDefault();
+      if (list?.length) {
+        const n = CLIP && CLIP.shapes === list ? ++CLIP.pastes : 1;
+        // Paste next to the originals when they're on screen, else in the middle of the view.
+        const u = unionBox(list)!;
+        const v = S.current.view;
+        const svg = svgRef.current;
+        const vis: Box = [-v.tx / v.z, -v.ty / v.z, ((svg?.clientWidth || 600) - v.tx) / v.z, ((svg?.clientHeight || 400) - v.ty) / v.z];
+        if (intersects(u, vis)) pasteRef.current(list, 24 * n, 24 * n);
+        else {
+          const c = viewCenterRef.current();
+          pasteRef.current(list, c[0] - (u[0] + u[2]) / 2, c[1] - (u[1] + u[3]) / 2);
+        }
+      } else if (text.trim()) {
+        const c = viewCenterRef.current();
+        um?.stopCapturing();
+        const t = text.trim().slice(0, 2000);
+        const sid = addShape(doc, boardId, t.length > 60 || t.includes("\n") ? { type: "sticky", x: c[0] - 75, y: c[1] - 55, w: 150, h: stickyHeight(t, 150, 110), fill: "y", text: t } : { type: "text", x: c[0] - 40, y: c[1], text: t, size: 18 }, origin);
+        setSel([sid]);
+      }
+    };
+    document.addEventListener("copy", onCopy);
+    document.addEventListener("cut", onCopy);
+    document.addEventListener("paste", onPaste);
+    return () => {
+      document.removeEventListener("copy", onCopy);
+      document.removeEventListener("cut", onCopy);
+      document.removeEventListener("paste", onPaste);
+    };
+  }, [doc, boardId, origin, um]);
+  // Handlers used by the document listeners above.
+  const removeSelRef = useRef(removeSel);
+  removeSelRef.current = removeSel;
+  const pasteRef = useRef(paste);
+  pasteRef.current = paste;
+  const insertImagesRef = useRef(insertImages);
+  insertImagesRef.current = insertImages;
+  const viewCenterRef = useRef(viewCenter);
+  viewCenterRef.current = viewCenter;
 
   /* ---- export ---- */
   const save = (blob: Blob, name: string) => {
@@ -361,6 +583,20 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
   };
 
+  /* ---- creating shapes ---- */
+  const createAt = (t: Tool, x: number, y: number) => {
+    let s: Omit<Shape, "id">;
+    if (t === "sticky") s = { type: "sticky", x: x - 75, y: y - 55, w: 150, h: 110, fill: ["y", "b", "p", "g"][S.current.shapes.filter((q) => q.type === "sticky").length % 4], text: "" };
+    else if (t === "text") s = { type: "text", x, y: y + 9, text: "", size: 18 };
+    else s = { type: t as ShapeType, x: x - 70, y: y - (t === "diamond" ? 50 : 40), w: 140, h: t === "diamond" ? 100 : 80, text: "" };
+    um?.stopCapturing();
+    const nidv = addShape(doc, boardId, s, origin);
+    setSel([nidv]);
+    setTool("select");
+    if (t === "sticky" || t === "text") setEditing({ id: nidv, text: "" });
+    else setLive(`Added ${TYPE_NAME[s.type].toLowerCase()}`);
+  };
+
   /* ---- pointer ---- */
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current!;
@@ -368,11 +604,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (editRef.current) commitEdit();
     pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
     if (pointers.current.size === 2) {
-      // Pinch: cancel whatever the first finger started.
+      // Pinch / two-finger pan: cancel whatever the first finger started.
       const [a, b] = [...pointers.current.values()];
       const r = svg.getBoundingClientRect();
       if (drag.current?.kind === "pen" || drag.current?.kind === "arrow") setDraft(null);
       setHint(null);
+      setMarquee(null);
+      setGuides(null);
       flush();
       drag.current = { kind: "pinch", d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, c0: [(a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top], v: S.current.view };
       try { svg.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
@@ -386,26 +624,57 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const cap = () => {
       try { svg.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
     };
-    if (t === "hand" || e.button === 1 || (!S.current.edit && t !== "select")) {
+    if (t === "hand" || e.button === 1 || space.current || (!S.current.edit && t !== "select")) {
       drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, v: S.current.view };
       cap();
       return;
     }
     if (t === "select") {
       if (sid) {
-        setSel(sid);
         const s = S.current.shapes.find((q) => q.id === sid);
+        const handle = (e.target as Element).classList?.contains("ocbd-rz") || (e.target as Element).getAttribute?.("data-end");
+        // A click picks the shape's whole group; Shift adds or removes it.
+        const ids = handle ? [sid] : withGroups(S.current.shapes, [sid]);
+        const cur = S.current.sel;
+        if (e.shiftKey && !handle) {
+          const all = ids.every((i) => cur.includes(i));
+          const next = all ? cur.filter((i) => !ids.includes(i)) : [...cur, ...ids.filter((i) => !cur.includes(i))];
+          setSel(next);
+          announceSel(next);
+          return;
+        }
+        const next = cur.includes(sid) ? cur : ids;
+        if (next !== cur) {
+          setSel(next);
+          announceSel(next);
+        }
         if (s && S.current.edit) {
           um?.stopCapturing();
-          const rz = (e.target as Element).classList?.contains("ocbd-rz");
           const end = (e.target as Element).getAttribute?.("data-end");
           if (end === "start" || end === "end") drag.current = { kind: "end", sid, which: end, orig: JSON.parse(JSON.stringify(s)), moved: false };
-          else drag.current = { kind: rz ? "resize" : "move", sid, ox: x, oy: y, orig: JSON.parse(JSON.stringify(s)), moved: false };
+          else if ((e.target as Element).classList?.contains("ocbd-rz")) drag.current = { kind: "resize", sid, ox: x, oy: y, orig: JSON.parse(JSON.stringify(s)), moved: false };
+          else {
+            const moving = S.current.shapes.filter((q) => next.includes(q.id));
+            const set = new Set(next);
+            const others = S.current.shapes.length > 1500 ? [] : S.current.shapes.filter((q) => !set.has(q.id) && q.type !== "arrow" && q.type !== "pen").map((q) => bbox(q));
+            drag.current = {
+              kind: "move", ids: next, ox: x, oy: y, moved: false, others,
+              orig: new Map(moving.map((q) => [q.id, JSON.parse(JSON.stringify(q)) as Shape])),
+              box: unionBox(moving.filter((q) => q.type !== "arrow" && q.type !== "pen")),
+            };
+          }
           cap();
         }
-      } else {
-        setSel(null);
+      } else if (e.pointerType === "touch") {
+        // One finger on empty canvas pans (a box-select would fight with scrolling).
+        if (!e.shiftKey) setSel([]);
         drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, v: S.current.view };
+        cap();
+      } else {
+        // Mouse / pen on empty canvas: box-select (Shift adds). Space or the hand tool pans.
+        const base = e.shiftKey ? S.current.sel : [];
+        if (!e.shiftKey) setSel([]);
+        drag.current = { kind: "box", x0: x, y0: y, base, add: e.shiftKey };
         cap();
       }
       return;
@@ -427,14 +696,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       cap();
       return;
     }
-    let s: Omit<Shape, "id">;
-    if (t === "sticky") s = { type: "sticky", x: x - 75, y: y - 55, w: 150, h: 110, fill: ["y", "b", "p", "g"][S.current.shapes.filter((q) => q.type === "sticky").length % 4], text: "" };
-    else if (t === "text") s = { type: "text", x, y: y + 9, text: "", size: 18 };
-    else s = { type: t as ShapeType, x: x - 70, y: y - (t === "diamond" ? 50 : 40), w: 140, h: t === "diamond" ? 100 : 80, text: "" };
-    const nidv = addShape(doc, boardId, s, origin);
-    setSel(nidv);
-    setTool("select");
-    if (t === "sticky" || t === "text") setEditing({ id: nidv, text: "" });
+    createAt(t, x, y);
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -452,7 +714,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const r = svgRef.current!.getBoundingClientRect();
       const c: [number, number] = [(a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top];
       const z = Math.min(ZMAX, Math.max(ZMIN, d.v.z * (Math.hypot(a[0] - b[0], a[1] - b[1]) / d.d0)));
-      // keep the world point under the initial centre under the current centre
+      // keep the world point under the initial centre under the current centre (pans with two fingers)
       const wx = (d.c0[0] - d.v.tx) / d.v.z, wy = (d.c0[1] - d.v.ty) / d.v.z;
       setView({ z, tx: c[0] - wx * z, ty: c[1] - wy * z });
       return;
@@ -462,6 +724,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       return;
     }
     const [x, y] = toWorld(e.clientX, e.clientY);
+    if (d.kind === "box") {
+      const b: Box = [Math.min(d.x0, x), Math.min(d.y0, y), Math.max(d.x0, x), Math.max(d.y0, y)];
+      if ((b[2] - b[0]) * S.current.view.z < 3 && (b[3] - b[1]) * S.current.view.z < 3) return;
+      setMarquee(b);
+      const hits = withGroups(S.current.shapes, S.current.shapes.filter((s) => intersects(bbox(s), b)).map((s) => s.id));
+      const next = d.add ? [...d.base, ...hits.filter((h) => !d.base.includes(h))] : hits;
+      const cur = S.current.sel;
+      if (next.length !== cur.length || next.some((id, i) => id !== cur[i])) setSel(next);
+      return;
+    }
     if (d.kind === "pen") {
       const p = draftRef.current;
       if (!p?.pts) return;
@@ -497,23 +769,35 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
-    const dx = x - d.ox, dy = y - d.oy;
+    let dx = x - d.ox, dy = y - d.oy;
     if (!d.moved && Math.hypot(dx, dy) * S.current.view.z < 2) return;
     if (!d.moved) setDragging(true);
     d.moved = true;
-    const o = d.orig;
     if (d.kind === "resize") {
+      const o = d.orig;
       if (o.type === "image" && o.w && o.h && !e.shiftKey) {
         // Images keep their aspect ratio (Shift frees it).
         const k = Math.max(40 / o.w, 30 / o.h, Math.max((o.w + dx) / o.w, (o.h + dy) / o.h));
         schedule(d.sid, { w: Math.round(o.w * k), h: Math.round(o.h * k) });
-      } else schedule(d.sid, { w: Math.max(40, (o.w ?? 0) + dx), h: Math.max(30, (o.h ?? 0) + dy) });
-    } else if (o.pts) {
-      // Moving a connector by its body detaches it.
-      schedule(d.sid, { pts: o.pts.map((p) => [p[0] + dx, p[1] + dy] as Pt), ...(o.start || o.end ? { start: undefined, end: undefined } : {}) });
-    } else {
-      schedule(d.sid, { x: (o.x ?? 0) + dx, y: (o.y ?? 0) + dy });
+      } else schedule(d.sid, { w: Math.round(Math.max(40, (o.w ?? 0) + dx)), h: Math.round(Math.max(30, (o.h ?? 0) + dy)) });
+      return;
     }
+    // Move: snap the selection's box to other shapes' edges and centres (Alt moves freely).
+    if (d.box && !e.altKey) {
+      const sn = snapOffset(d.box, d.others, dx, dy, 6 / S.current.view.z);
+      dx = sn.dx;
+      dy = sn.dy;
+      setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
+    } else setGuides(null);
+    const set = new Set(d.ids);
+    d.orig.forEach((o) => {
+      if (o.pts) {
+        const bound = [o.start, o.end].filter(Boolean) as Binding[];
+        // A connector moved with both of its shapes follows them; moved alone it detaches.
+        if (bound.length && bound.every((b) => set.has(b.shapeId))) return;
+        schedule(o.id, { ...movePatch(o, dx, dy), ...(bound.length ? { start: undefined, end: undefined } : {}) });
+      } else schedule(o.id, movePatch(o, dx, dy));
+    });
   };
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -525,8 +809,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
     drag.current = null;
     setDragging(false);
+    setGuides(null);
     if (!d) return;
     setHint(null);
+    if (d.kind === "box") {
+      setMarquee(null);
+      announceSel(S.current.sel);
+      return;
+    }
     if (d.kind === "move" || d.kind === "resize" || d.kind === "end") {
       flush();
       if (d.moved) syncBoundArrows(doc, boardId, origin);
@@ -550,7 +840,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           if (p.start) s.start = p.start;
           if (p.end && p.end.shapeId !== p.start?.shapeId) s.end = p.end;
           if (p.route) s.route = p.route;
-          setSel(addShape(doc, boardId, s, origin));
+          setSel([addShape(doc, boardId, s, origin)]);
         }
       }
       setTool("select");
@@ -571,7 +861,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (S.current.tool !== "select") return;
     const [x, y] = toWorld(e.clientX, e.clientY);
     const nidv = addShape(doc, boardId, { type: "text", x, y: y + 9, text: "", size: 18 }, origin);
-    setSel(nidv);
+    setSel([nidv]);
     setEditing({ id: nidv, text: "" });
   };
 
@@ -594,14 +884,37 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   }, [full]);
 
   /* ---- keyboard ---- */
+  const nudge = (dx: number, dy: number) => {
+    const list = selShapes();
+    const set = new Set(list.map((s) => s.id));
+    const moves: { id: string; patch: Partial<Shape> }[] = [];
+    for (const s of list) {
+      if (s.pts) {
+        const bound = [s.start, s.end].filter(Boolean) as Binding[];
+        if (bound.length && bound.every((b) => set.has(b.shapeId))) continue;
+        moves.push({ id: s.id, patch: { ...movePatch(raw.find((q) => q.id === s.id) ?? s, dx, dy), ...(bound.length ? { start: undefined, end: undefined } : {}) } });
+      } else moves.push({ id: s.id, patch: movePatch(s, dx, dy) });
+    }
+    doc.transact(() => moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin)), origin);
+    syncBoundArrows(doc, boardId, origin);
+  };
+  const onKeyUp = (e: React.KeyboardEvent) => {
+    if (e.key === " ") space.current = false;
+  };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
     if (t.closest("textarea,input,[contenteditable='true']")) return;
+    // Buttons in the toolbars keep Space / Enter / Tab; board shortcuts only from the canvas.
+    const onCanvas = t === rootRef.current;
     const mod = e.metaKey || e.ctrlKey;
+    const k = e.key.toLowerCase();
     if (e.key === "Escape") {
       if (menu) setMenu(false);
-      else if (S.current.sel) setSel(null);
-      else if (full) exitFull();
+      else if (S.current.tool !== "select") setTool("select");
+      else if (S.current.sel.length) {
+        setSel([]);
+        announceSel([]);
+      } else if (full) exitFull();
       return;
     }
     if (mod && (e.key === "=" || e.key === "+")) {
@@ -614,53 +927,130 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       zoomCenter(1 / 1.2);
       return;
     }
-    if (mod && e.key === "0") {
+    if ((mod && e.key === "0") || (e.shiftKey && e.code === "Digit0")) {
       e.preventDefault();
-      setView((v) => ({ ...v, z: 1 }));
+      setView((v) => {
+        const svg = svgRef.current;
+        const cx = (svg?.clientWidth ?? 0) / 2, cy = (svg?.clientHeight ?? 0) / 2;
+        return { z: 1, tx: cx - (cx - v.tx) / v.z, ty: cy - (cy - v.ty) / v.z };
+      });
+      return;
+    }
+    if (e.shiftKey && !mod && e.code === "Digit1") {
+      e.preventDefault();
+      fit();
+      return;
+    }
+    if (e.shiftKey && !mod && e.code === "Digit2" && S.current.sel.length) {
+      e.preventDefault();
+      fitBox(unionBox(selShapes()), 2);
+      return;
+    }
+    if (onCanvas && e.key === " ") {
+      e.preventDefault();
+      space.current = true;
+      return;
+    }
+    // Tab / Shift+Tab walk through the shapes; past the last one focus leaves the board.
+    if (onCanvas && e.key === "Tab" && !mod && !e.altKey) {
+      const list = S.current.shapes;
+      if (!list.length) return;
+      const cur = S.current.sel.length === 1 ? list.findIndex((s) => s.id === S.current.sel[0]) : -1;
+      const next = cur < 0 ? (e.shiftKey ? list.length - 1 : 0) : cur + (e.shiftKey ? -1 : 1);
+      if (next < 0 || next >= list.length) {
+        setSel([]);
+        return;
+      }
+      e.preventDefault();
+      setSel([list[next].id]);
+      announceSel([list[next].id]);
+      return;
+    }
+    if (mod && k === "a") {
+      e.preventDefault();
+      const all = S.current.shapes.map((s) => s.id);
+      setSel(all);
+      announceSel(all);
       return;
     }
     if (!S.current.edit) {
-      if (!mod && (e.key === "v" || e.key === "h")) setTool(KEY_TOOL[e.key]);
+      if (!mod && (k === "v" || k === "h")) setTool(KEY_TOOL[k]);
       return;
     }
-    if (mod && e.key.toLowerCase() === "z") {
+    if (mod && k === "z") {
       e.preventDefault();
-      if (e.shiftKey) um?.redo();
-      else um?.undo();
+      undo(e.shiftKey);
       return;
     }
-    if (mod && e.key.toLowerCase() === "y") {
+    if (mod && k === "y") {
       e.preventDefault();
-      um?.redo();
+      undo(true);
       return;
     }
-    if (mod && e.key.toLowerCase() === "d") {
+    if (mod && k === "d") {
       e.preventDefault();
       dupSel();
       return;
     }
-    const sel = S.current.shapes.find((x) => x.id === S.current.sel);
-    if ((e.key === "Backspace" || e.key === "Delete") && sel) {
+    if (mod && k === "g") {
+      e.preventDefault();
+      groupSel(!e.shiftKey);
+      return;
+    }
+    if (mod && (e.key === "]" || e.key === "[" || e.code === "BracketRight" || e.code === "BracketLeft")) {
+      e.preventDefault();
+      const up = e.key === "]" || e.code === "BracketRight";
+      zSel(e.shiftKey || e.altKey ? (up ? "front" : "back") : up ? "forward" : "backward");
+      return;
+    }
+    const list = selShapes();
+    if ((e.key === "Backspace" || e.key === "Delete") && list.length) {
       e.preventDefault();
       removeSel();
       return;
     }
-    if (e.key === "Enter" && sel) {
-      e.preventDefault();
-      startEdit(sel);
+    if (e.key === "Enter" && onCanvas) {
+      const T = S.current.tool;
+      if (T === "arrow" && list.length >= 2) {
+        e.preventDefault();
+        connectSel();
+        setTool("select");
+        return;
+      }
+      if (T !== "select" && T !== "hand" && T !== "pen" && T !== "arrow") {
+        // Keyboard placement: the active tool drops its shape in the middle of the view.
+        e.preventDefault();
+        const c = viewCenter();
+        createAt(T, c[0], c[1]);
+        return;
+      }
+      if (list.length === 1) {
+        e.preventDefault();
+        startEdit(list[0]);
+      }
       return;
     }
-    if (sel && e.key.startsWith("Arrow")) {
+    if (list.length && e.key.startsWith("Arrow")) {
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;
       const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
       const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-      if (sel.pts) updateShape(doc, boardId, sel.id, { pts: sel.pts.map((p) => [p[0] + dx, p[1] + dy] as Pt), ...(sel.start || sel.end ? { start: undefined, end: undefined } : {}) }, origin);
-      else updateShape(doc, boardId, sel.id, { x: (sel.x ?? 0) + dx, y: (sel.y ?? 0) + dy }, origin);
-      syncBoundArrows(doc, boardId, origin);
+      if (e.altKey) {
+        // Alt+arrows resize (the keyboard alternative to dragging the handle).
+        const s = list[0];
+        if (list.length !== 1 || !SIZED.includes(s.type)) return;
+        updateShape(doc, boardId, s.id, { w: Math.max(40, (s.w ?? 0) + dx), h: Math.max(30, (s.h ?? 0) + dy) }, origin);
+        syncBoundArrows(doc, boardId, origin);
+        setLive(`${Math.round(Math.max(40, (s.w ?? 0) + dx))} by ${Math.round(Math.max(30, (s.h ?? 0) + dy))}`);
+        return;
+      }
+      nudge(dx, dy);
       return;
     }
-    if (!mod && !e.altKey && KEY_TOOL[e.key.toLowerCase()]) setTool(KEY_TOOL[e.key.toLowerCase()]);
+    if (!mod && !e.altKey && KEY_TOOL[k]) {
+      setTool(KEY_TOOL[k]);
+      if (KEY_TOOL[k] !== "select" && KEY_TOOL[k] !== "hand" && KEY_TOOL[k] !== "pen") setLive(`${TOOLS.find((x) => x[0] === KEY_TOOL[k])![2]} tool. Press Enter to place one in the middle of the view`);
+    }
   };
 
   /* ---- full screen ---- */
@@ -671,7 +1061,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   useEffect(() => {
     if (!full) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !editRef.current && !S.current.sel) exitFull();
+      if (e.key === "Escape" && !editRef.current && !S.current.sel.length) exitFull();
     };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -693,70 +1083,95 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     return () => cancelAnimationFrame(id);
   }, [full]);
 
-  // Drop selection if the shape disappears (remote delete).
+  // Drop selected shapes that disappear (remote delete, undo).
   useEffect(() => {
-    if (sel && !shapes.some((s) => s.id === sel)) setSel(null);
-    if (editing && !shapes.some((s) => s.id === editing.id)) setEditing(null);
-  }, [shapes, sel, editing]);
+    if (sel.length && sel.some((id) => !byId.has(id))) setSel(sel.filter((id) => byId.has(id)));
+    if (editing && !byId.has(editing.id)) setEditing(null);
+  }, [byId, sel, editing]);
 
   /* ---- render ---- */
-  const selShape = shapes.find((s) => s.id === sel) ?? null;
+  const selList = sel.map((id) => byId.get(id)).filter((s): s is Shape => !!s);
+  const selShape = selList.length === 1 ? selList[0] : null;
   const { tx, ty, z } = view;
   const ah = `ocbd-ah-${uid}`;
   const dots = `ocbd-dots-${uid}`;
   const cursor = tool_ === "hand" ? (drag.current?.kind === "pan" ? "grabbing" : "grab") : tool_ === "select" ? "default" : "crosshair";
 
+  // Viewport culling for big boards (selected / edited shapes always render).
+  const [W, H] = size;
+  const visible = useMemo(() => {
+    if (shapes.length <= CULL_AT || !W) return shapes;
+    const m = 200 / z;
+    const vb: Box = [-tx / z - m, -ty / z - m, (W - tx) / z + m, (H - ty) / z + m];
+    return shapes.filter((s) => intersects(bbox(s), vb) || sel.includes(s.id) || editing?.id === s.id);
+  }, [shapes, W, H, tx, ty, z, sel, editing]);
+
   let selection: ReactNode = null;
-  if (selShape && !editing) {
-    const b = bbox(selShape);
+  if (selList.length && !editing) {
+    const sw = 1.5 / z;
     selection = (
       <>
-        {selShape.type === "arrow" ? null : (
-          <rect x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={1.5 / z} pointerEvents="none" />
+        {selList.map((s) =>
+          s.type === "arrow" ? (
+            s.pts && s.pts.length >= 2 ? <path key={s.id} d={"M" + s.pts.map((q) => q.join(" ")).join(" L")} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeOpacity={0.5} pointerEvents="none" /> : null
+          ) : (
+            (() => {
+              const b = bbox(s);
+              return <rect key={s.id} x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={sw} pointerEvents="none" />;
+            })()
+          ),
         )}
-        {selShape.type === "arrow" && selShape.pts && selShape.pts.length >= 2 ? (
-          <>
-            <path d={"M" + selShape.pts.map((q) => q.join(" ")).join(" L")} fill="none" stroke="var(--accent)" strokeWidth={1.5 / z} strokeOpacity={0.5} pointerEvents="none" />
-            {edit
-              ? (["start", "end"] as const).map((which) => {
-                  const q = which === "start" ? selShape.pts![0] : selShape.pts![selShape.pts!.length - 1];
-                  const bound = !!selShape[which];
-                  return (
-                    <circle
-                      key={which}
-                      className="ocbd-ep"
-                      data-s={selShape.id}
-                      data-end={which}
-                      cx={q[0]}
-                      cy={q[1]}
-                      r={(compact ? 10 : 6) / z}
-                      fill={bound ? "var(--accent)" : "var(--app)"}
-                      stroke="var(--accent)"
-                      strokeWidth={1.5 / z}
-                      style={{ cursor: "crosshair" }}
-                    >
-                      <title>{bound ? "Drag away to detach" : "Drag onto a shape to connect"}</title>
-                    </circle>
-                  );
-                })
-              : null}
-          </>
-        ) : null}
-        {edit && SIZED.includes(selShape.type) ? (
-          <rect
-            className="ocbd-rz"
-            data-s={selShape.id}
-            x={b[2] + 6 - 5 / z}
-            y={b[3] + 6 - 5 / z}
-            width={(compact ? 16 : 10) / z}
-            height={(compact ? 16 : 10) / z}
-            rx={2 / z}
-            fill="var(--app)"
-            stroke="var(--accent)"
-            strokeWidth={1.5 / z}
-            style={{ cursor: "nwse-resize" }}
-          />
-        ) : null}
+        {selList.length > 1
+          ? (() => {
+              const u = unionBox(selList)!;
+              return <rect x={u[0] - 12} y={u[1] - 12} width={u[2] - u[0] + 24} height={u[3] - u[1] + 24} rx={8} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeDasharray={`${4 / z} ${4 / z}`} pointerEvents="none" />;
+            })()
+          : null}
+        {selShape?.type === "arrow" && selShape.pts && selShape.pts.length >= 2 && edit
+          ? (["start", "end"] as const).map((which) => {
+              const q = which === "start" ? selShape.pts![0] : selShape.pts![selShape.pts!.length - 1];
+              const bound = !!selShape[which];
+              return (
+                <circle
+                  key={which}
+                  className="ocbd-ep"
+                  data-s={selShape.id}
+                  data-end={which}
+                  cx={q[0]}
+                  cy={q[1]}
+                  r={(compact ? 10 : 6) / z}
+                  fill={bound ? "var(--accent)" : "var(--app)"}
+                  stroke="var(--accent)"
+                  strokeWidth={sw}
+                  style={{ cursor: "crosshair" }}
+                >
+                  <title>{bound ? "Drag away to detach" : "Drag onto a shape to connect"}</title>
+                </circle>
+              );
+            })
+          : null}
+        {edit && selShape && SIZED.includes(selShape.type)
+          ? (() => {
+              const b = bbox(selShape);
+              return (
+                <rect
+                  className="ocbd-rz"
+                  data-s={selShape.id}
+                  x={b[2] + 6 - 5 / z}
+                  y={b[3] + 6 - 5 / z}
+                  width={(compact ? 16 : 10) / z}
+                  height={(compact ? 16 : 10) / z}
+                  rx={2 / z}
+                  fill="var(--app)"
+                  stroke="var(--accent)"
+                  strokeWidth={sw}
+                  style={{ cursor: "nwse-resize" }}
+                >
+                  <title>Drag to resize (Alt+arrow keys too)</title>
+                </rect>
+              );
+            })()
+          : null}
       </>
     );
   }
@@ -777,74 +1192,116 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     );
   }
 
+  // Other people's selections, outlined in their colour.
+  const peerSel: ReactNode[] = [];
+  for (const p of peers) {
+    const list = p.sel.map((id) => byId.get(id)).filter((s): s is Shape => !!s);
+    if (!list.length) continue;
+    const u = unionBox(list)!;
+    peerSel.push(
+      <g key={p.id} pointerEvents="none" className="ocbd-peersel">
+        {list.map((s) => {
+          if (s.pts && s.pts.length > 1) return <path key={s.id} d={"M" + s.pts.map((q) => q.join(" ")).join(" L")} fill="none" stroke={p.color} strokeOpacity={0.6} strokeWidth={4 / z} strokeLinecap="round" strokeLinejoin="round" />;
+          const b = bbox(s);
+          return <rect key={s.id} x={b[0] - 4} y={b[1] - 4} width={b[2] - b[0] + 8} height={b[3] - b[1] + 8} rx={6} fill="none" stroke={p.color} strokeWidth={2 / z} />;
+        })}
+        <g transform={`translate(${u[0] - 4} ${u[1] - 4}) scale(${1 / z})`}>
+          <rect x={0} y={-18} width={Math.min(140, p.name.length * 6.4 + 12)} height={17} rx={4} fill={p.color} />
+          <text x={6} y={-6} fontSize={11} fontWeight={600} fill="#fff">{p.name.length > 20 ? p.name.slice(0, 19) + "…" : p.name}</text>
+        </g>
+      </g>,
+    );
+  }
+
+  /* ---- contextual toolbar ---- */
   let swatch: ReactNode = null;
-  if (selShape && edit && !editing && !dragging) {
-    const b = bbox(selShape);
-    const W = svgRef.current?.clientWidth ?? 600;
-    const sx = Math.max(110, Math.min(W - 110, ((b[0] + b[2]) / 2) * z + tx));
-    const sy = Math.max(compact ? 64 : 56, b[1] * z + ty - 14);
+  if (selList.length && edit && !editing && !dragging && !marquee) {
+    const u = unionBox(selList)!;
+    const Wd = svgRef.current?.clientWidth ?? 600;
+    const half = selList.length > 1 ? 200 : 150;
+    const sx = Math.max(Math.min(half, Wd / 2), Math.min(Wd - Math.min(half, Wd / 2), ((u[0] + u[2]) / 2) * z + tx));
+    // Above the selection; when there's no room, pinned under the board's top edge.
+    const sy = Math.max(compact ? 64 : 56, u[1] * z + ty - 14);
+    const s1 = selShape;
+    const rawSel = s1 ? raw.find((q) => q.id === s1.id) : undefined;
+    const btn = (label: string, I: LucideIcon, run: () => void, opts: { pressed?: boolean; disabled?: boolean; keys?: string } = {}) => (
+      <button key={label} className="ocbd-ib" title={label + (opts.keys ? ` (${opts.keys})` : "")} aria-label={label} aria-pressed={opts.pressed} aria-keyshortcuts={opts.keys?.replace(/Ctrl/g, "Control")} disabled={opts.disabled} onClick={run}>
+        <I size={14} strokeWidth={SW} />
+      </button>
+    );
+    const sep = (k: string) => <span key={k} className="sep" />;
+    const items: ReactNode[] = [];
+    if (s1?.type === "sticky") {
+      (["y", "p", "b", "g"] as const).forEach((c) =>
+        items.push(
+          <button key={c} data-c={c} style={{ background: STICKY[c] }} aria-label={{ y: "Yellow", p: "Pink", b: "Blue", g: "Green" }[c]} aria-pressed={(s1.fill ?? "y") === c} onClick={() => updateShape(doc, boardId, s1.id, { fill: c }, origin)} />,
+        ),
+      );
+      items.push(sep("s1"));
+    } else if (s1?.type === "swatch") {
+      Object.keys(SWATCH).slice(0, 5).forEach((c) =>
+        items.push(<button key={c} data-c={c} style={{ background: SWATCH[c] }} aria-label={c} aria-pressed={s1.fill === c} onClick={() => updateShape(doc, boardId, s1.id, { fill: c }, origin)} />),
+      );
+      items.push(sep("s1"));
+    } else if (s1 && BOXY.includes(s1.type) && !s1.dashed) {
+      items.push(
+        <button key="none" data-c="none" className="none" style={{ background: "var(--app)" }} aria-label="No fill" aria-pressed={!s1.fill} onClick={() => updateShape(doc, boardId, s1.id, { fill: undefined }, origin)} />,
+      );
+      TONES.forEach((c) =>
+        items.push(<button key={c} data-c={c} style={{ background: `var(--${c}-bg)`, boxShadow: `inset 0 0 0 1.5px var(--${c}-fg)` }} aria-label={`${TONE_NAME[c]} fill`} aria-pressed={s1.fill === c} onClick={() => updateShape(doc, boardId, s1.id, { fill: c }, origin)} />),
+      );
+      items.push(sep("s1"));
+    } else if (s1?.type === "arrow") {
+      ([["straight", MoveUpRight, "Straight connector"], ["elbow", CornerDownRight, "Elbow connector"]] as const).forEach(([r, I, label]) =>
+        items.push(
+          btn(label, I, () => {
+            setRoute(r);
+            updateShape(doc, boardId, s1.id, { route: r }, origin);
+            syncBoundArrows(doc, boardId, origin);
+          }, { pressed: (rawSel?.route ?? "straight") === r }),
+        ),
+      );
+      items.push(sep("s1"));
+    }
+    if (s1 && (s1.type === "text" || BOXY.includes(s1.type))) {
+      const sizes = s1.type === "text" ? TEXT_SIZES : SHAPE_SIZES;
+      const cur = s1.size ?? (s1.type === "text" ? 18 : 14);
+      const i = sizes.indexOf(cur);
+      const next = sizes[(i + 1) % sizes.length] ?? sizes[0];
+      const names = ["Small", "Medium", "Large", "Extra large"];
+      items.push(btn(`Text size: ${names[Math.max(0, i)] ?? cur + " px"}. Change to ${names[sizes.indexOf(next)]}`, ALargeSmall, () => updateShape(doc, boardId, s1.id, { size: next }, origin)));
+    }
+    if (s1 && TEXTUAL.includes(s1.type)) items.push(btn(s1.type === "arrow" ? "Edit label" : "Edit text", Type, () => startEdit(s1), { keys: "Enter" }));
+    if (selList.length > 1) {
+      items.push(btn("Align left", AlignStartVertical, () => align("left")));
+      items.push(btn("Align centres horizontally", AlignCenterVertical, () => align("hcenter")));
+      items.push(btn("Align right", AlignEndVertical, () => align("right")));
+      items.push(btn("Align top", AlignStartHorizontal, () => align("top")));
+      items.push(btn("Align middles", AlignCenterHorizontal, () => align("vcenter")));
+      items.push(btn("Align bottom", AlignEndHorizontal, () => align("bottom")));
+      if (selList.length > 2) {
+        items.push(btn("Distribute horizontally", AlignHorizontalDistributeCenter, () => distribute("h")));
+        items.push(btn("Distribute vertically", AlignVerticalDistributeCenter, () => distribute("v")));
+      }
+      items.push(sep("s2"));
+      if (selList.filter((s) => s.type !== "arrow" && s.type !== "pen").length === 2) items.push(btn("Connect with an arrow", Waypoints, connectSel));
+      const grouped = selList.length > 1 && selList.every((s) => s.group && s.group === selList[0].group);
+      items.push(grouped ? btn("Ungroup", Ungroup, () => groupSel(false), { keys: "Ctrl+Shift+G" }) : btn("Group", Group, () => groupSel(true), { keys: "Ctrl+G" }));
+    }
+    items.push(btn("Bring to front", BringToFront, () => zSel("front"), { keys: "Ctrl+Shift+]" }));
+    items.push(btn("Send to back", SendToBack, () => zSel("back"), { keys: "Ctrl+Shift+[" }));
+    items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
+    items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
     swatch = (
-      <div className="ocbd-swatch" style={{ left: sx, top: sy }} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label="Shape options">
-        {selShape.type === "sticky" ? (
-          <>
-            {(["y", "p", "b", "g"] as const).map((c) => (
-              <button
-                key={c}
-                data-c={c}
-                style={{ background: STICKY[c] }}
-                aria-label={{ y: "Yellow", p: "Pink", b: "Blue", g: "Green" }[c]}
-                aria-pressed={(selShape.fill ?? "y") === c}
-                onClick={() => updateShape(doc, boardId, selShape.id, { fill: c }, origin)}
-              />
-            ))}
-            <span className="sep" />
-          </>
-        ) : selShape.type === "swatch" ? (
-          <>
-            {Object.keys(SWATCH).slice(0, 5).map((c) => (
-              <button key={c} data-c={c} style={{ background: SWATCH[c] }} aria-label={c} aria-pressed={selShape.fill === c} onClick={() => updateShape(doc, boardId, selShape.id, { fill: c }, origin)} />
-            ))}
-            <span className="sep" />
-          </>
-        ) : selShape.type === "arrow" ? (
-          <>
-            {([["straight", MoveUpRight, "Straight connector"], ["elbow", CornerDownRight, "Elbow connector"]] as const).map(([r, I, label]) => (
-              <button
-                key={r}
-                className="ocbd-ib"
-                title={label}
-                aria-label={label}
-                aria-pressed={(raw.find((q) => q.id === selShape.id)?.route ?? "straight") === r}
-                onClick={() => {
-                  setRoute(r);
-                  updateShape(doc, boardId, selShape.id, { route: r }, origin);
-                  syncBoundArrows(doc, boardId, origin);
-                }}
-              >
-                <I size={14} strokeWidth={SW} />
-              </button>
-            ))}
-            <span className="sep" />
-          </>
-        ) : null}
-        {TEXTUAL.includes(selShape.type) ? (
-          <button className="ocbd-ib" title="Edit text" aria-label="Edit text" onClick={() => startEdit(selShape)}>
-            <Type size={14} strokeWidth={SW} />
-          </button>
-        ) : null}
-        <button className="ocbd-ib" title="Duplicate" aria-label="Duplicate" onClick={dupSel}>
-          <Copy size={14} strokeWidth={SW} />
-        </button>
-        <button className="ocbd-ib" title="Delete" aria-label="Delete" onClick={removeSel}>
-          <Trash2 size={14} strokeWidth={SW} />
-        </button>
+      <div className="ocbd-swatch" style={{ left: sx, top: sy }} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
+        {items}
       </div>
     );
   }
 
   let editor: ReactNode = null;
   if (editing) {
-    const s = shapes.find((q) => q.id === editing.id);
+    const s = byId.get(editing.id);
     if (s) editor = <TextEditor s={s} view={view} compact={compact} value={editing.text} onChange={(text) => setEditing({ id: s.id, text })} onDone={commitEdit} />;
   }
 
@@ -852,19 +1309,28 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     <div
       ref={rootRef}
       className={"ocbd" + (compact ? " ocbd-compact" : "") + (full ? " ocbd-full" : "") + (active ? " active" : "")}
-      tabIndex={-1}
+      tabIndex={0}
+      role="group"
+      aria-roledescription="whiteboard"
+      aria-label={`Whiteboard, ${shapes.length} ${shapes.length === 1 ? "shape" : "shapes"}`}
+      aria-describedby={`${uid}-help`}
       onKeyDown={onKeyDown}
+      onKeyUp={onKeyUp}
+      onBlur={() => (space.current = false)}
       onPointerLeave={() => !drag.current && publish(null)}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onPaste={onPaste}
       data-board={boardId}
     >
+      <span id={`${uid}-help`} className="ocbd-sr">
+        {edit
+          ? "Tab moves through shapes. Arrow keys move the selection, Alt with arrows resizes, Enter edits text. Pick a tool with its letter and press Enter to place it. Control C, X, V, D copy, cut, paste and duplicate."
+          : "Tab moves through shapes. Use the zoom buttons or Control plus and minus to zoom."}
+      </span>
       <svg
         ref={svgRef}
         className="ocbd-svg"
-        role="application"
-        aria-label="Whiteboard"
+        aria-hidden="true"
         style={{ cursor }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -883,13 +1349,31 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         </defs>
         <rect width="100%" height="100%" fill={`url(#${dots})`} />
         <g transform={`translate(${tx} ${ty}) scale(${z})`}>
-          {shapes.map((s) => <ShapeView resolve={env.resolveAsset} key={s.id} s={s} ah={ah} hideText={editing?.id === s.id} />)}
+          {visible.map((s) => (
+            <ShapeView
+              resolve={env.resolveAsset}
+              key={s.id}
+              s={s}
+              ah={ah}
+              hideText={editing?.id === s.id}
+              growH={editing?.id === s.id && s.type === "sticky" ? stickyHeight(editing.text, s.w ?? 150, s.h ?? 110) : undefined}
+            />
+          ))}
           {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
+          {peerSel}
           {selection}
           {hintDots}
+          {guides ? (
+            <g pointerEvents="none" className="ocbd-guides">
+              {guides.gx.map((gx) => <line key={"x" + gx} x1={gx} x2={gx} y1={-ty / z} y2={(H - ty) / z} stroke="var(--pink-fg)" strokeWidth={1 / z} strokeDasharray={`${3 / z} ${3 / z}`} />)}
+              {guides.gy.map((gy) => <line key={"y" + gy} y1={gy} y2={gy} x1={-tx / z} x2={(W - tx) / z} stroke="var(--pink-fg)" strokeWidth={1 / z} strokeDasharray={`${3 / z} ${3 / z}`} />)}
+            </g>
+          ) : null}
+          {marquee ? <rect className="ocbd-marquee" x={marquee[0]} y={marquee[1]} width={marquee[2] - marquee[0]} height={marquee[3] - marquee[1]} fill="var(--accent-soft)" fillOpacity={0.5} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" /> : null}
         </g>
         <g pointerEvents="none">
           {peers.map((p) => {
+            if (p.x === null || p.y === null) return null;
             const px = p.x * z + tx, py = p.y * z + ty;
             const w = Math.min(160, p.name.length * 6.6 + 16);
             return (
@@ -902,15 +1386,27 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           })}
         </g>
       </svg>
+      <div className="ocbd-sr" role="status" aria-live="polite">{live}</div>
 
       {!shapes.length && !draft ? (
         <div className="ocbd-empty">
           <Shapes size={22} strokeWidth={1.5} />
           <span>{edit ? "Pick a tool below, or double-click to add text." : "This board is empty."}</span>
+          {edit ? <span className="ocbd-empty-k">Press N then Enter for a sticky note</span> : null}
         </div>
       ) : null}
 
       <div className="ocbd-top">
+        {edit ? (
+          <>
+            <button className="ocbd-ib" title="Undo (Ctrl+Z)" aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" disabled={!um?.undoStack.length} onClick={() => undo()}>
+              <Undo2 size={16} strokeWidth={SW} />
+            </button>
+            <button className="ocbd-ib" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z" disabled={!um?.redoStack.length} onClick={() => undo(true)}>
+              <Redo2 size={16} strokeWidth={SW} />
+            </button>
+          </>
+        ) : null}
         <button className="ocbd-ib" title="Board options" aria-label="Board options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
           <Ellipsis size={16} strokeWidth={SW} />
         </button>
@@ -960,7 +1456,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         {TOOLS.filter(([t]) => edit || t === "select" || t === "hand").map(([t, I, label, key], i) => (
           <span key={t} style={{ display: "contents" }}>
             {i === 2 ? <span className="ocbd-vs" /> : null}
-            <button className="ocbd-ib" title={`${label} (${key})`} aria-label={label} aria-pressed={tool_ === t} onClick={() => setTool(t)}>
+            <button className="ocbd-ib" title={`${label} (${key})`} aria-label={label} aria-keyshortcuts={key} aria-pressed={tool_ === t} onClick={() => setTool(t)}>
               <I size={16} strokeWidth={SW} />
             </button>
           </span>
@@ -971,7 +1467,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <button className="ocbd-ib" aria-label="Zoom out" onClick={() => zoomCenter(1 / 1.2)} disabled={z <= ZMIN + 1e-6}>
           <Minus size={14} strokeWidth={SW} />
         </button>
-        <button className="ocbd-zl" title="Zoom to fit" aria-label={`Zoom ${Math.round(z * 100)}%. Zoom to fit`} onClick={fit}>
+        <button className="ocbd-zl" title="Zoom to fit (Shift+1)" aria-label={`Zoom ${Math.round(z * 100)}%. Zoom to fit`} aria-keyshortcuts="Shift+1" onClick={fit}>
           {Math.round(z * 100)}%
         </button>
         <button className="ocbd-ib" aria-label="Zoom in" onClick={() => zoomCenter(1.2)} disabled={z >= ZMAX - 1e-6}>
@@ -1020,8 +1516,8 @@ function snapArrow(a: Pt, b: Pt, shift: boolean): Pt {
 
 /* ------------------------------------------------------------ shapes */
 
-function Lines({ text, x, y, lh, anchor, size = 14, weight }: { text: string; x: number; y: number; lh: number; anchor?: boolean; size?: number; weight?: number }) {
-  const lines = String(text || "").split("\n");
+function Lines({ text, x, y, lh, anchor, size = 14, weight, wrap }: { text: string; x: number; y: number; lh: number; anchor?: boolean; size?: number; weight?: number; wrap?: number }) {
+  const lines = wrap ? wrapText(text, wrap, size) : String(text || "").split("\n");
   return (
     <>
       {lines.map((l, i) => (
@@ -1033,47 +1529,55 @@ function Lines({ text, x, y, lh, anchor, size = 14, weight }: { text: string; x:
   );
 }
 
-function centered(s: Shape, lh: number) {
-  const n = String(s.text ?? "").split("\n").length;
-  return (s.y ?? 0) + (s.h ?? 0) / 2 + 5 - ((n - 1) * lh) / 2;
+function centered(s: Shape, lh: number, size: number, wrap: number) {
+  const n = wrapText(String(s.text ?? ""), wrap, size).length;
+  return (s.y ?? 0) + (s.h ?? 0) / 2 + size * 0.36 - ((n - 1) * lh) / 2;
 }
 
-function ShapeView({ s, ah, hideText, resolve }: { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string }) {
+const toneFill = (s: Shape) => (s.fill && TONES.includes(s.fill as (typeof TONES)[number]) ? { fill: `var(--${s.fill}-bg)`, stroke: `var(--${s.fill}-fg)` } : null);
+
+const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string; growH?: number }) {
   const stroke = s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)";
-  const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = s.h ?? 0;
+  const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = growH ?? s.h ?? 0;
   const text = hideText ? "" : (s.text ?? "");
+  const tone = toneFill(s);
   switch (s.type) {
     case "sticky":
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--sticky-fg)" }}>
           <rect x={x + 1} y={y + 4} width={w} height={h} rx={6} fill="#000" opacity={0.07} />
           <rect x={x} y={y} width={w} height={h} rx={6} fill={STICKY[s.fill ?? "y"] ?? STICKY.y} />
-          <Lines text={text} x={x + 14} y={y + 30} lh={20} />
+          <Lines text={text} x={x + STICKY_TEXT.pad} y={y + STICKY_TEXT.top} lh={STICKY_TEXT.lh} wrap={w - STICKY_TEXT.pad * 2} />
         </g>
       );
-    case "rect":
+    case "rect": {
+      const size = s.size ?? 14, lh = Math.round(size * 1.3);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <rect x={x} y={y} width={w} height={h} rx={12} fill="var(--app)" fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : stroke} strokeWidth={1.5} strokeDasharray={s.dashed ? "6 5" : undefined} />
+          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (tone?.stroke ?? stroke)} strokeWidth={1.5} strokeDasharray={s.dashed ? "6 5" : undefined} />
           {s.label ? (
             <text x={x + 14} y={y + 24} fontSize={11.5} fontWeight={600} fill="var(--fg-3)" letterSpacing=".6">{s.label.toUpperCase()}</text>
           ) : null}
-          {text ? <Lines text={text} x={x + w / 2} y={centered(s, 18)} lh={18} anchor /> : null}
+          {text ? <Lines text={text} x={x + w / 2} y={centered(s, lh, size, Math.max(20, w - 16))} lh={lh} anchor size={size} wrap={Math.max(20, w - 16)} /> : null}
         </g>
       );
-    case "ellipse":
+    }
+    case "ellipse": {
+      const size = s.size ?? 15, lh = Math.round(size * 1.27);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="var(--app)" stroke={stroke} strokeWidth={1.5} />
-          {text ? <Lines text={text} x={x + w / 2} y={centered(s, 19)} lh={19} anchor size={15} weight={600} /> : null}
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} />
+          {text ? <Lines text={text} x={x + w / 2} y={centered(s, lh, size, Math.max(20, w * 0.72))} lh={lh} anchor size={size} weight={600} wrap={Math.max(20, w * 0.72)} /> : null}
         </g>
       );
+    }
     case "diamond": {
       const cx = x + w / 2, cy = y + h / 2;
+      const size = s.size ?? 14, lh = Math.round(size * 1.3);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill="var(--app)" stroke={stroke} strokeWidth={1.5} strokeLinejoin="round" />
-          {text ? <Lines text={text} x={cx} y={centered(s, 18)} lh={18} anchor /> : null}
+          <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} strokeLinejoin="round" />
+          {text ? <Lines text={text} x={cx} y={centered(s, lh, size, Math.max(20, w * 0.6))} lh={lh} anchor size={size} wrap={Math.max(20, w * 0.6)} /> : null}
         </g>
       );
     }
@@ -1112,10 +1616,27 @@ function ShapeView({ s, ah, hideText, resolve }: { s: Shape; ah: string; hideTex
     case "arrow": {
       if (!s.pts || s.pts.length < 2) return null;
       const d = "M" + s.pts.map((q) => q.join(" ")).join(" L");
+      const label = text.trim();
+      let tag: ReactNode = null;
+      if (label) {
+        const [mx, my] = midPoint(s.pts);
+        const lines = wrapText(label, 180, 12.5);
+        const lw = Math.max(...lines.map((l) => l.length)) * 12.5 * 0.56 + 14;
+        const lh = 16, bh = lines.length * lh + 6;
+        tag = (
+          <g className="ocbd-alabel">
+            <rect x={mx - lw / 2} y={my - bh / 2} width={lw} height={bh} rx={6} fill="var(--panel)" stroke="var(--line-2)" />
+            {lines.map((l, i) => (
+              <text key={i} x={mx} y={my - bh / 2 + 3 + lh * (i + 1) - 4} textAnchor="middle" fontSize={12.5} fontWeight={500} fill="var(--fg-2)">{l}</text>
+            ))}
+          </g>
+        );
+      }
       return (
         <g data-s={s.id} style={{ cursor: "move" }}>
           <path d={d} stroke="transparent" strokeWidth={14} fill="none" />
           <path d={d} stroke="var(--fg-2)" strokeWidth={1.6} fill="none" strokeLinejoin="round" strokeLinecap="round" markerEnd={`url(#${ah})`} />
+          {tag}
         </g>
       );
     }
@@ -1131,7 +1652,7 @@ function ShapeView({ s, ah, hideText, resolve }: { s: Shape; ah: string; hideTex
     }
   }
   return null;
-}
+});
 
 /* ------------------------------------------------------- text editor */
 
@@ -1145,13 +1666,18 @@ function TextEditor({ s, view, compact, value, onChange, onDone }: { s: Shape; v
   }, []);
   const { tx, ty, z } = view;
   let style: React.CSSProperties;
-  const base = s.type === "text" ? s.size || 18 : s.type === "ellipse" ? 15 : 14;
+  const base = s.type === "text" ? s.size || 18 : s.type === "ellipse" ? (s.size ?? 15) : s.type === "arrow" ? 12.5 : (s.size ?? 14);
   const fs = compact ? Math.max(16, base * z) : base * z;
   if (s.type === "text") {
     const b = bbox(s);
     style = { left: b[0] * z + tx - 4, top: b[1] * z + ty - 2, width: Math.max(160, (b[2] - b[0]) * z + 40), height: Math.max(fs * 1.5, (b[3] - b[1]) * z + 8), fontSize: fs, fontWeight: 600, color: "var(--fg)", padding: "0 4px" };
   } else if (s.type === "sticky") {
-    style = { left: ((s.x ?? 0) + 10) * z + tx, top: ((s.y ?? 0) + 14) * z + ty, width: ((s.w ?? 150) - 20) * z, height: ((s.h ?? 110) - 22) * z, fontSize: fs, color: "var(--sticky-fg)", lineHeight: `${20 * z}px`, padding: `0 ${4 * z}px` };
+    // Grows with the text, like the note itself does.
+    const h = stickyHeight(value, s.w ?? 150, s.h ?? 110);
+    style = { left: ((s.x ?? 0) + 10) * z + tx, top: ((s.y ?? 0) + 14) * z + ty, width: ((s.w ?? 150) - 20) * z, height: (h - 22) * z, fontSize: fs, color: "var(--sticky-fg)", lineHeight: `${STICKY_TEXT.lh * z}px`, padding: `0 ${4 * z}px` };
+  } else if (s.type === "arrow") {
+    const [mx, my] = midPoint(s.pts ?? []);
+    style = { left: mx * z + tx - 90, top: my * z + ty - fs, width: 180, height: fs * 2.2, fontSize: fs, textAlign: "center", color: "var(--fg-2)", background: "var(--panel)", padding: "2px 6px" };
   } else {
     style = { left: ((s.x ?? 0) + 8) * z + tx, top: ((s.y ?? 0) + 8) * z + ty, width: ((s.w ?? 140) - 16) * z, height: ((s.h ?? 80) - 16) * z, fontSize: fs, textAlign: "center", color: "var(--fg)", fontWeight: s.type === "ellipse" ? 600 : 400, display: "flex", paddingTop: Math.max(0, ((s.h ?? 80) - 16) * z / 2 - fs) };
   }
@@ -1161,8 +1687,8 @@ function TextEditor({ s, view, compact, value, onChange, onDone }: { s: Shape; v
       className="ocbd-edit"
       style={style}
       value={value}
-      aria-label="Shape text"
-      placeholder={s.type === "text" ? "Type something" : ""}
+      aria-label={s.type === "arrow" ? "Connector label" : "Shape text"}
+      placeholder={s.type === "text" ? "Type something" : s.type === "arrow" ? "Label" : ""}
       onChange={(e) => onChange(e.target.value)}
       onBlur={() => onDone()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -1171,7 +1697,7 @@ function TextEditor({ s, view, compact, value, onChange, onDone }: { s: Shape; v
         if (e.key === "Escape") {
           e.preventDefault();
           onDone(true);
-        } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey || (s.type === "text" && !e.shiftKey))) {
+        } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey || ((s.type === "text" || s.type === "arrow") && !e.shiftKey))) {
           e.preventDefault();
           onDone();
         }
