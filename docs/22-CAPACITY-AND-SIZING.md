@@ -59,7 +59,7 @@ and 65 MB/s, and uses 1.8 cores.
 
 No errors, no disconnects, no save errors; 11,028 autosaves reached the host (598 MB in total).
 Autosave lag (oldest unsaved edit → PUT at the host) p50 8.3 s, p95 10.2 s: under continuous typing
-rooms save on the 10 s `OC_AUTOSAVE_MAX_MS`, as designed. **No knee up to 5,000 connections**:
+rooms save on the 10 s `OC_AUTOSAVE_MAX_MS`, as designed. No knee up to 5,000 connections:
 p95 stayed ≤ 10.2 ms and CPU under one core. Memory grew linearly (about 0.24 MB per connection
 with this document) and is what runs out first. 10,000 connections were not run (timebox); by the
 linear memory slope that would need about 2.4 GB (extrapolated, not measured).
@@ -102,6 +102,9 @@ Not limiting on this machine: threads, the 550 room cap's own overhead, SQLite (
 3,000 WAL rows/s with no errors; see §6 for what was not measured).
 
 ## 4. Sizing for self-hosters
+
+In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB;
+beyond 5,000, cluster mode.
 
 Rules of thumb (keep ≤ 60 % of what was measured):
 

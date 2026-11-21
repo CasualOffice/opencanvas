@@ -257,6 +257,12 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
         </div>
       </div>
     </div>
+    <ul class="facts facts--light" aria-label="Measured capacity">
+      <li class="reveal"><span class="cell-icon">{{icon:users}}</span><strong>550 people in one canvas</strong><span>One canvas held its full 550-person cap with no errors or disconnects, on 1.8 cores.</span>{{claim:source|at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores|docs/22-CAPACITY-AND-SIZING.md}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:layers}}</span><strong>5,000 people on one server</strong><span>Edits still reached every peer within 10.2 ms at p95, and the server stayed under one core.</span>{{claim:source|No knee up to 5,000 connections: p95 stayed ≤ 10.2 ms and CPU under one core|docs/22-CAPACITY-AND-SIZING.md}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:server}}</span><strong>Small to run</strong><span>Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.</span>{{claim:source|In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.|docs/22-CAPACITY-AND-SIZING.md}}</li>
+    </ul>
+    <p class="note reveal">Measured on one laptop (Apple M4, 10 cores, 16 GB) with SQLite and the load generator on the same machine. Rerun it on your hardware with <code>scripts/bench.sh</code>.</p>
     <ul class="services reveal">
       <li>{{icon:server:18}}<span><b>oc-server</b>Launch, rooms, saves, exports and the editor at /app/</span></li>
       <li>{{icon:database:18}}<span><b>SQLite or MySQL / MariaDB</b>Only the live session's log and the save outbox</span></li>
@@ -265,7 +271,7 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
       <li>{{icon:container:18}}<span><b>Helm chart</b>Single node or cluster, non-root, read-only root</span></li>
       <li>{{icon:refresh-cw:18}}<span><b>Graceful drain</b>Saves dirty rooms, then tells clients to reconnect</span></li>
     </ul>
-    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/operations.html">Operations guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/architecture.html">Architecture<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/capacity.html">Sizing guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/operations.html">Operations guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/architecture.html">Architecture<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
   </div>
 </section>
 
