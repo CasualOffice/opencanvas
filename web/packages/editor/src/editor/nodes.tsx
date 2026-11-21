@@ -1,18 +1,19 @@
 // Custom Tiptap nodes per docs/15 §4. Node and attribute names are part of the
 // file format: never rename them.
-import { InputRule, Mark, Node, mergeAttributes } from "@tiptap/core";
+import { InputRule, Mark, Node, mergeAttributes, type Editor } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type DragEvent } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type * as Y from "yjs";
 import { Ic } from "../icons";
 import { useBridge, bridge } from "../lib/bridge";
 import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from "../lib/embeds";
-import { toast, useStore } from "../lib/store";
+import { createStore, toast, useStore } from "../lib/store";
 import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
+import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
 
 const TONES = ["blue", "green", "amber", "red", "purple", "pink", "gray"] as const;
 const CALLOUT_ICONS = ["lightbulb", "info", "target", "triangle-alert", "sparkles", "clock", "calendar", "flag", "star", "map-pin"];
@@ -520,17 +521,63 @@ export const OcImage = Image.extend({
   },
 }).configure({ inline: false, allowBase64: true });
 
-// ---------- code block with language header ----------
+// ---------- code block: language picker, copy, lazy highlighting ----------
+
+type HighlightModule = typeof import("./highlight");
+const hlStore = createStore<HighlightModule | null>(null);
+let hlLoad: Promise<HighlightModule> | null = null;
+const loadHighlight = () => (hlLoad ??= import("./highlight").then((m) => (hlStore.set(m), m)));
+const hlInstalled = new WeakSet<Editor>();
+
+function hasCodeBlock(editor: Editor) {
+  let found = false;
+  editor.state.doc.descendants((n) => {
+    if (found) return false;
+    if (n.type.name === "codeBlock") found = true;
+    return !found;
+  });
+  return found;
+}
+
+/** Load the grammars after first paint, and only once the document has a code block. */
+function ensureHighlight(editor: Editor) {
+  if (hlInstalled.has(editor) || !hasCodeBlock(editor)) return;
+  hlInstalled.add(editor);
+  requestAnimationFrame(() =>
+    window.setTimeout(() => {
+      loadHighlight()
+        .then((m) => m.installHighlight(editor))
+        .catch(() => hlInstalled.delete(editor));
+    }, 0),
+  );
+}
 
 function CodeView({ node, updateAttributes, editor }: ReactNodeViewProps) {
-  const lang = String(node.attrs.language ?? "");
+  const stored = String(node.attrs.language ?? "");
+  const lang = canonicalLang(stored);
+  const hl = useStore(hlStore);
+  const text = node.textContent;
+  const detected = useMemo(() => (!lang && hl ? hl.detect(text) : null), [lang, hl, text]);
+  const known = CODE_LANGS.some(([id]) => id === lang);
+  const label = lang ? langLabel(lang) : detected ? `Auto · ${langLabel(detected)}` : "Auto-detect";
   return (
-    <NodeViewWrapper className="code">
+    <NodeViewWrapper className="code" data-language={lang || undefined}>
       <div className="chead" contentEditable={false}>
         {editor.isEditable ? (
-          <input value={lang} placeholder="text" onChange={(e) => updateAttributes({ language: e.target.value.replace(/[^\w+#-]/g, "").slice(0, 24) })} aria-label="Language" spellCheck={false} />
+          <label className="clang">
+            <span>{label}</span>
+            <Ic name="chevron-down" size={12} />
+            <select value={known ? lang : stored} onChange={(e) => updateAttributes({ language: e.target.value || null })} aria-label="Code language">
+              {known ? null : <option value={stored}>{stored}</option>}
+              {CODE_LANGS.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
-          <span>{lang || "text"}</span>
+          <span className="clang">{label}</span>
         )}
         <button
           className="ib"
@@ -545,7 +592,7 @@ function CodeView({ node, updateAttributes, editor }: ReactNodeViewProps) {
         </button>
       </div>
       <pre spellCheck={false}>
-        <NodeViewContent<"code"> as="code" />
+        <NodeViewContent<"code"> as="code" className="hljs" />
       </pre>
     </NodeViewWrapper>
   );
@@ -554,6 +601,12 @@ function CodeView({ node, updateAttributes, editor }: ReactNodeViewProps) {
 export const OcCodeBlock = CodeBlock.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeView);
+  },
+  onCreate() {
+    ensureHighlight(this.editor);
+  },
+  onUpdate() {
+    ensureHighlight(this.editor);
   },
 });
 

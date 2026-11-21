@@ -6,7 +6,8 @@
     "build": "pnpm -r --filter ./packages/editor... build",
     "dev": "pnpm --filter @opencanvas/editor dev",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "e2e": "npm --prefix ../e2e run e2e"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",

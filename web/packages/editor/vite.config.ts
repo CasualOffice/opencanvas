@@ -35,8 +35,9 @@ export default defineConfig({
           if (/[\\/]packages[\\/]database[\\/]src[\\/]/.test(id)) return "database";
           if (/[\\/]packages[\\/]board[\\/]src[\\/]/.test(id)) return "board";
           if (!id.includes("node_modules")) return undefined;
-          // Loaded lazily: desktop editing chrome (chrome.tsx) and table editing (table.ts).
-          if (/[\\/]node_modules[\\/](@floating-ui[\\/]|@tiptap[\\/](extension-drag-handle|extension-drag-handle-react|extension-node-range|extension-bubble-menu|extension-floating-menu)[\\/]|@tiptap[\\/]react[\\/]dist[\\/]menus|prosemirror-tables[\\/]|@tiptap[\\/]pm[\\/]dist[\\/]tables)/.test(id)) return undefined;
+          // Loaded lazily: desktop editing chrome (chrome.tsx), table editing (table.ts)
+          // and code highlighting (highlight.ts).
+          if (/[\\/]node_modules[\\/](@floating-ui[\\/]|@tiptap[\\/]extension-code-block-lowlight[\\/]|lowlight[\\/]|highlight\.js[\\/]|@tiptap[\\/](extension-drag-handle|extension-drag-handle-react|extension-node-range|extension-bubble-menu|extension-floating-menu)[\\/]|@tiptap[\\/]react[\\/]dist[\\/]menus|prosemirror-tables[\\/]|@tiptap[\\/]pm[\\/]dist[\\/]tables)/.test(id)) return undefined;
           if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "react";
           if (/[\\/]node_modules[\\/](yjs|lib0|y-protocols|y-websocket|@tiptap[\\/]y-tiptap)[\\/]/.test(id)) return "yjs";
           if (/[\\/]node_modules[\\/](prosemirror-[^\\/]+|@tiptap[\\/](core|pm|react|starter-kit|extension-[^\\/]+|extensions|suggestion)|linkifyjs|@floating-ui[\\/][^\\/]+|orderedmap|rope-sequence|w3c-keyname|fast-equals|use-sync-external-store)[\\/]/.test(id)) return "tiptap";

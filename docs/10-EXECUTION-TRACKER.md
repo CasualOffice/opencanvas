@@ -53,7 +53,8 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | SDK-01 | `@opencanvas/embed` web component + postMessage | Review | `public/sdk/embed.js` (served at `/app/sdk/embed.js`): `<open-canvas server token theme>` form-POSTs the token, maps postMessage to `oc:*` events, `commit/setReadOnly/refresh/export/setTheme`. Not yet tested in a host page. `https://<server>/sdk/embed.js` (docs/05 §4) needs a server route: `.route_service("/sdk/embed.js", ServeFile::new(web.join("sdk/embed.js")))` before `.layer(cors)`. |
 | RND-01 | Preview SSR + `@opencanvas/preview` | Todo | |
 | UNF-01 | SSRF-safe unfurl | Todo | |
-| E2E-01 | Playwright two-browser suite | Todo | |
+| E2E-01 | Playwright two-browser suite | Review | `e2e/` (`npm run e2e`, CI job `browser-e2e`): global setup builds `oc-server` + editor, starts the server on :8280 (OC_DEV, temp SQLite, temp hosts.toml) and sample hosts on :4200 (`on_conflict=copy`) and :4201 (`reload`, host id `sample-reload`), never touching 8080/4000. 8 specs, two browser contexts each: template + presence, live text/DB cells + autosave + reload, live role view→edit→none, conflict copy + reload, image paste upload, phone (WebKit 390×844), code highlighting. Sample host gained `POST /__test/files/:id/bump` behind `SAMPLE_HOST_TEST=1`. 2 full runs + `--repeat-each=3` green (~30 s/run). Found: fast typing tripped the 60 frames/s limit and showed "access changed" → client now coalesces outgoing doc/awareness frames (50 ms) and reconnects on 1008 `rate limit` (seen failing first in spec b). |
+| WEB-07 | Code-block syntax highlighting | Review | lowlight `common` grammars + CodeBlockLowlight's decoration plugin registered on the live editor after first paint, only once the doc has a code block (`editor/highlight.ts`, 61.8 KB gz lazy chunk). Picker (auto-detect shows the detected language, 30 languages, aliases folded), copy button, `.hljs-*` colours from theme tokens (light + dark). Initial JS 298.1 → 299.3 KB gz. |
 
 ## P2 — Board & scale
 
@@ -100,3 +101,4 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | 2026-11-21 | Merged editor: initial JS 298 KB gz (was 396), wide db/board blocks, uploads via /v1/assets (live), MD/.ocanvas/PDF export, conflict copy/reload + live role + close codes | typecheck/build green; uploads, role change, host close verified live; reload-conflict path only unit/demo-checked |
 | 2026-11-21 | Server route `/sdk/embed.js` | 200 text/javascript |
 | 2026-11-21 | Full re-verification on main | cargo test 49, clippy -D warnings, fmt, vitest 180, typecheck, build, e2e sqlite PASS |
+| 2026-11-21 | E2E-01 Playwright suite + WEB-07 code highlighting | 8/8 specs green twice + repeat-each=3; initial JS 299.3 KB gz; client frame coalescing fixes rate-limit disconnects while typing fast |
