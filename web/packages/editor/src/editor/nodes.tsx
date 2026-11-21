@@ -17,6 +17,8 @@ import { resolveAsset } from "../lib/assets";
 import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
 import { Popover } from "../components/overlay";
 import { keyLabel } from "../lib/keys";
+import { safeHref, safeImageSrc } from "../lib/urls";
+import { clampWidth } from "./imagelayout";
 
 const TONES = ["blue", "green", "amber", "red", "purple", "pink", "gray"] as const;
 const CALLOUT_ICONS = ["lightbulb", "info", "target", "triangle-alert", "sparkles", "clock", "calendar", "flag", "star", "map-pin"];
@@ -244,7 +246,7 @@ function BookmarkView({ node }: ReactNodeViewProps) {
     <NodeViewWrapper data-drag-handle="">
       <a
         className="bookmark"
-        href={url}
+        href={safeHref(url)}
         target="_blank"
         rel="noopener noreferrer"
         contentEditable={false}
@@ -423,7 +425,7 @@ function FileView({ node }: ReactNodeViewProps) {
         {up && upId ? (
           <UploadStatus id={upId} up={up} label="File" />
         ) : url && b.session?.perms?.download !== false ? (
-          <a className="ib" href={resolveAsset(url)} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
+          <a className="ib" href={safeHref(resolveAsset(url))} download={name} target="_blank" rel="noopener noreferrer" title="Download" aria-label={`Download ${name}`}>
             <Ic name="download" />
           </a>
         ) : (
@@ -543,7 +545,14 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
         style={{ width: shownWidth ? `${shownWidth}%` : undefined }}
       >
         <div className={"fwrap" + (up ? " uploading" : "")} contentEditable={false}>
-          <img src={resolveAsset(shown)} alt={alt || caption || ""} draggable={false} />
+          {safeImageSrc(resolveAsset(shown)) ? (
+            <img src={safeImageSrc(resolveAsset(shown))} alt={alt || caption || ""} draggable={false} />
+          ) : (
+            <div className="fblocked" role="img" aria-label={alt || caption || "Image that can't be shown"}>
+              <Ic name="image-plus" />
+              This image can't be shown here.{editor.isEditable ? " Replace it to fix it." : ""}
+            </div>
+          )}
           {up && upId ? (
             <div className="fup">
               <UploadStatus id={upId} up={up} label="Image" />
@@ -597,12 +606,6 @@ const IMAGE_SIZES: [string, number][] = [
   ["Large", 100],
 ];
 
-/** Image width as a whole percent of the text column (20–100), or null for full width. */
-export function clampWidth(v: unknown): number | null {
-  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
-  if (!Number.isFinite(n)) return null;
-  return Math.max(20, Math.min(100, Math.round(n)));
-}
 
 function CaptionInput({ value, editable, onChange }: { value: string; editable: boolean; onChange(v: string): void }) {
   const [v, setV] = useState(value);
@@ -637,7 +640,7 @@ export const OcImage = Image.extend({
     return {
       ...this.parent?.(),
       caption: { default: "", parseHTML: (el: HTMLElement) => el.getAttribute("data-caption") ?? "", renderHTML: (a: Record<string, unknown>) => ({ "data-caption": a.caption }) },
-      // Optional layout (ADR-025): width in % of the text column, alignment. Default = full width, centred.
+      // Optional layout (ADR-023): width in % of the text column, alignment. Default = full width, centred.
       width: {
         default: null,
         parseHTML: (el: HTMLElement) => clampWidth(el.getAttribute("data-width")),

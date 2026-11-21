@@ -26,7 +26,7 @@ export function LinkPopover({ editor, edit }: { editor: Editor; edit: LinkEdit }
 
   if (edit.mode === "view") {
     return (
-      <Popover anchor={anchor} onClose={close} title="Link" kind="menu" autoFocus={false} minWidth={260}>
+      <Popover key="view" anchor={anchor} onClose={close} title="Link" kind="menu" autoFocus={false} minWidth={260}>
         <div className="lk-url" title={edit.href}>
           <Ic name="globe" size={14} />
           <span>{edit.href.replace(/^mailto:/, "") || "No address"}</span>
@@ -69,7 +69,7 @@ export function LinkPopover({ editor, edit }: { editor: Editor; edit: LinkEdit }
     close();
   };
   return (
-    <Popover anchor={anchor} onClose={close} title={edit.href ? "Edit link" : "Add link"} kind="dialog" minWidth={300}>
+    <Popover key="edit" anchor={anchor} onClose={close} title={edit.href ? "Edit link" : "Add link"} kind="dialog" minWidth={300}>
       <form
         className="lk-form"
         onSubmit={(e) => {

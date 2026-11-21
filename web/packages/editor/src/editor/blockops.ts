@@ -65,7 +65,8 @@ export function cloneEmbeddedData(json: Record<string, unknown>): Record<string,
 }
 
 export function duplicateBlock(editor: Editor, pos: number, node: PMNode): boolean {
-  const json = cloneEmbeddedData(node.toJSON() as Record<string, unknown>);
+  // A deep copy: toJSON() shares the node's own attrs object, which must never be mutated.
+  const json = cloneEmbeddedData(JSON.parse(JSON.stringify(node.toJSON())) as Record<string, unknown>);
   return editor.chain().focus().insertContentAt(pos + node.nodeSize, json).run();
 }
 

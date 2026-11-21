@@ -73,7 +73,16 @@ export const SLASH: SlashItem[] = [
       bridge.importCsv((csv) => insertLater(e, null, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).importCsvToDatabase(bridge.doc, csv) } }, { type: "paragraph" }]));
     },
   },
-  { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => insertBlock(e, r, [tableJSON(3, 3), { type: "paragraph" }]) },
+  { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => {
+      insertBlock(e, r, [tableJSON(3, 3), { type: "paragraph" }]);
+      // Start typing in the first header cell, not on the line below the table.
+      let at = -1;
+      e.state.doc.nodesBetween(0, e.state.selection.from, (n, pos) => {
+        if (n.type.name === "table" && pos + n.nodeSize <= e.state.selection.from) at = pos;
+      });
+      if (at >= 0) e.commands.setTextSelection(at + 4);
+    },
+  },
   {
     group: "Media", id: "image", icon: "image", title: "Image", desc: "Upload or paste", keywords: "photo picture",
     run: (e, r) => insertBlock(e, r, [{ type: "image", attrs: { src: "", alt: "", caption: "" } }, { type: "paragraph" }]),

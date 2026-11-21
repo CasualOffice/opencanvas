@@ -487,8 +487,8 @@ button.cic:hover{transform:scale(1.06)}
 .app.ro .drag-handle{display:none!important}
 .ProseMirror a.bookmark{color:inherit;text-decoration:none;cursor:pointer}
 .ProseMirror a.ib{color:var(--fg-2);text-decoration:none}
-.av{margin-left:-5px}
-.av:first-child{margin-left:0}
+.avs .av{margin-left:-2px}
+.avs .av:first-child{margin-left:0}
 
 /* ---------- print / Save as PDF ---------- */
 
@@ -571,3 +571,6 @@ button.cic:hover{transform:scale(1.06)}
   .figure .fwrap.uploading img{opacity:1;filter:none}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+.figure .fblocked{min-height:120px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--fg-3);font-size:13.5px;padding:20px}
+/* No "Type / for blocks" hint in every empty table cell. */
+.ProseMirror :is(td,th) p.is-empty::before{content:none}

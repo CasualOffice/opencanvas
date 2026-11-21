@@ -21,7 +21,7 @@ export function contrast(a: number, b: number): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const DARK = "#18181b";
+const DARK = "#000";
 const DARK_L = luminance(DARK)!;
 
 /** `#fff` or a near-black, whichever reads better on `bg`. */

@@ -383,6 +383,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
+  // `#demo` only: expose the editor so the browser suite can drive it (never in a real session).
+  useEffect(() => {
+    if (!session.demo || !editor) return;
+    (window as unknown as { __ocEditor?: Editor }).__ocEditor = editor;
+  }, [session.demo, editor]);
+
   // ---------- undo across blocks (docs/06 §4) ----------
   // One undo stack for your own changes: text (y-prosemirror), database cells and the
   // header (title, icon, colour). Collaborators' changes are never undone.
@@ -630,6 +636,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         setMeta(doc, { title: m.title, icon: m.icon, tone: m.tone as never, template: m.template });
         editor.commands.setContent(content);
         setScreen("editor");
+        scrollRef.current?.scrollTo({ top: 0 });
         window.setTimeout(() => {
           if (!compact) editor.commands.focus("start");
         }, 50);

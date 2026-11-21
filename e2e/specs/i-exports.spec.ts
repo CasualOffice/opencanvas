@@ -7,7 +7,7 @@ import { unzip } from "../ocanvas";
 
 async function exportVia(p: Person, item: RegExp): Promise<Download> {
   await p.oc.getByRole("button", { name: "More options" }).click();
-  const [dl] = await Promise.all([p.page.waitForEvent("download"), p.oc.getByRole("button", { name: item }).click()]);
+  const [dl] = await Promise.all([p.page.waitForEvent("download"), p.oc.getByRole("menuitem", { name: item }).click()]);
   return dl;
 }
 
@@ -59,7 +59,7 @@ test("Markdown, .ocanvas and Word download; PDF falls back to print on 501", asy
   const frame = priya.page.frame({ name: "oc" })!;
   expect(await frame.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(0);
   await priya.oc.getByRole("button", { name: "More options" }).click();
-  await priya.oc.getByRole("button", { name: /^PDF/ }).click();
+  await priya.oc.getByRole("menuitem", { name: /^PDF/ }).click();
   await expect.poll(() => frame.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(1);
   expect(pdfStatus.length).toBe(1);
   expect(downloads).toBe(0);

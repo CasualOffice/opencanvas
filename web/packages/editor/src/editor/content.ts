@@ -200,11 +200,32 @@ export function toJSON(b: TB, ctx: BuildCtx): JSONContent {
 export async function buildDoc(blocks: TB[], ctx: BuildCtx): Promise<JSONContent> {
   if (!ctx.data && blocks.some((b) => b.k === "db" || b.k === "board")) ctx = { ...ctx, data: await loadBlockData() };
   const content = blocks.map((b) => toJSON(b, ctx));
+  // Image src must be a raster data URL or http(s) (lib/urls safeImageSrc, docs/18 SEC-20).
+  for (const n of content)
+    if (n.type === "image" && typeof n.attrs?.src === "string" && n.attrs.src.startsWith("data:image/svg+xml")) n.attrs.src = await rasterize(n.attrs.src);
   if (!content.length || content[content.length - 1].type !== "paragraph") content.push({ type: "paragraph" });
   return { type: "doc", content };
 }
 
-/** Illustrations used by template images, as self-contained SVG data URIs. */
+/** SVG data URI → PNG data URI (800×400). Falls back to the input where there is no canvas (tests). */
+export async function rasterize(svgUri: string): Promise<string> {
+  try {
+    const img = new Image();
+    img.src = svgUri;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = 800;
+    c.height = 400;
+    const g = c.getContext("2d");
+    if (!g) return svgUri;
+    g.drawImage(img, 0, 0, 800, 400);
+    return c.toDataURL("image/png");
+  } catch {
+    return svgUri;
+  }
+}
+
+/** Illustrations used by template images, as self-contained SVG data URIs (rasterized by buildDoc). */
 export function artDataUri(kind: "flow" | "ui"): string {
   const bg = "#eef0f4", card = "#ffffff", line = "#d5d8e0", fg = "#9aa0ad";
   let svg: string;
