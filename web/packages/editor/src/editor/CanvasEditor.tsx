@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { BlockId } from "./blockId";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -142,6 +143,7 @@ export function CanvasEditor(p: EditorProps) {
           dropcursor: { width: 3, class: "ProseMirror-dropcursor" },
         }),
         OcCodeBlock,
+        BlockId,
         Collaboration.configure({ document: p.doc, field: "content" }),
         CollaborationCaret.configure({
           provider: { awareness: p.awareness },

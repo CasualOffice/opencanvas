@@ -95,6 +95,11 @@ class Emitter<T> {
 
 /** 1008 closes that are not about access: reconnect instead of ending the session. */
 const TRANSIENT_1008 = /rate limit/i;
+/** 4429 is the server's rate-limit close (docs/15 §3): always reconnect. */
+const RATE_LIMITED = 4429;
+const isTerminalClose = (code: number, reason: string, reloading: boolean) =>
+  code !== RATE_LIMITED &&
+  (code === 1000 || (code === 1008 && !TRANSIENT_1008.test(reason)) || (code === 1012 && reloading) || (code >= 4400 && code < 4500));
 
 type AwarenessChange = { added: number[]; updated: number[]; removed: number[] };
 
@@ -184,10 +189,12 @@ export function connectCollab(s: Session): Collab {
   const provider = new WebsocketProvider(s.wsUrl, s.room, doc, {
     params: { ticket: s.ticket },
     maxBackoffTime: 10000,
-    shouldReconnect: (e: CloseEvent) => !(e.code === 1000 || (e.code === 1008 && !TRANSIENT_1008.test(e.reason)) || (e.code === 1012 && reloading) || (e.code >= 4400 && e.code < 4500)),
+    shouldReconnect: (e: CloseEvent) => !isTerminalClose(e.code, e.reason, reloading),
   });
   throttleOutgoing(provider);
-  provider.on("closed", (e: { code: number; reason: string }) => terminal.emit(e));
+  provider.on("closed", (e: { code: number; reason: string }) => {
+    if (isTerminalClose(e.code, e.reason, reloading)) terminal.emit(e);
+  });
   // The server rewrites `user` from the grant (id, name, color, avatar), so the role travels beside it.
   provider.awareness.setLocalState({ user: { id: s.user.id, name: s.user.name, color: s.user.color }, role: s.role });
 
