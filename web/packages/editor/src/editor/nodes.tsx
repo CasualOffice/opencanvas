@@ -20,6 +20,7 @@ import { Popover } from "../components/overlay";
 import { keyLabel } from "../lib/keys";
 import { safeHref, safeImageSrc } from "../lib/urls";
 import { clampWidth } from "./imagelayout";
+import { gridTemplate } from "./columns";
 import { FILE_EVENT, fileDisplay, fileKind, fmtSize, hasBytes, kindIcon, openUrl } from "./files/kind";
 import { fileActions, type FileActionId } from "./files/actions";
 import { createThread, newThreadId } from "../lib/comments";
@@ -230,6 +231,17 @@ export const Columns = Node.create({
   content: "column+",
   defining: true,
   isolating: true,
+  addAttributes: () => ({
+    // COL-01 (ADR-025): whole percents per column, "25,75"; absent = equal widths.
+    widths: {
+      default: null,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-widths"),
+      renderHTML: (a: Record<string, unknown>) => {
+        const t = gridTemplate(a.widths as string | null);
+        return t ? { "data-widths": String(a.widths), style: `grid-template-columns:${t}` } : {};
+      },
+    },
+  }),
   parseHTML: () => [{ tag: 'div[data-type="columns"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "columns", class: "cols" }), 0],
 });
@@ -238,6 +250,14 @@ export const Column = Node.create({
   name: "column",
   content: "block+",
   isolating: true,
+  addAttributes: () => ({
+    // Optional label line above the column's blocks (absent = none, "" = shown, empty).
+    title: {
+      default: null,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-title"),
+      renderHTML: (a: Record<string, unknown>) => (a.title != null ? { "data-title": String(a.title) } : {}),
+    },
+  }),
   parseHTML: () => [{ tag: 'div[data-type="column"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "column", class: "column" }), 0],
 });

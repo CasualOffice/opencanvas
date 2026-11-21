@@ -23,6 +23,7 @@ import { createStore, useStore } from "../lib/store";
 import { insertUploads } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { Popover, useShell } from "../components/overlay";
+import { ColumnTools } from "./columns";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
 import type { SlashItem } from "./slash";
 
@@ -259,6 +260,7 @@ export function CanvasEditor(p: EditorProps) {
         ToggleContent,
         Columns,
         Column,
+        ColumnTools,
         Bookmark,
         Embed,
         FileAttachment,

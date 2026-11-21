@@ -15,6 +15,7 @@ import { Popover, type Anchor } from "../components/overlay";
 import { deleteBlock, duplicateBlock, indexAt, moveBlock } from "./blockops";
 import { TURN, kindOfNode, turnInto } from "./slash";
 import { fileActions } from "./files/actions";
+import { addColumn, MAX_COLUMNS, MIN_COLUMNS, setColumnTitles } from "./columns";
 import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
 
 // ---------- comments from the editor ----------
@@ -85,6 +86,7 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
           const keep = last.content.childCount === 1 && last.content.firstChild?.content.size === 0 ? null : last.content;
           tr.delete(lastStart, lastStart + last.nodeSize);
           if (keep) tr.insert(prevEnd, keep);
+          tr.setNodeMarkup(pos, undefined, { ...cur.attrs, widths: null });
           void prev;
         }
         return true;
@@ -160,14 +162,25 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
       {isCols ? (
         <>
           <div className="mh">Columns</div>
-          <button className="mi" disabled={cols >= 3} onClick={() => run(() => setColumns(cols + 1))}>
+          <button className="mi" disabled={cols >= MAX_COLUMNS} onClick={() => run(() => addColumn(editor.view, pos, cols))}>
             <Ic name="columns-3" />
             Add a column
           </button>
-          <button className="mi" disabled={cols <= 1} onClick={() => run(() => setColumns(cols - 1))}>
+          <button className="mi" disabled={cols <= MIN_COLUMNS} onClick={() => run(() => setColumns(cols - 1))}>
             <Ic name="columns-2" />
             Remove the last column
           </button>
+          {node.firstChild?.attrs.title != null ? (
+            <button className="mi" onClick={() => run(() => setColumnTitles(editor, pos, false))}>
+              <Ic name="heading-3" />
+              Remove column titles
+            </button>
+          ) : (
+            <button className="mi" onClick={() => run(() => setColumnTitles(editor, pos, true))}>
+              <Ic name="heading-3" />
+              Add column title
+            </button>
+          )}
           <div className="msep" />
         </>
       ) : null}

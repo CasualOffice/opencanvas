@@ -662,3 +662,31 @@ button.cic:hover{transform:scale(1.06)}
   .pdfbar .pdfz,.pdfbar .vs{display:none}
 }
 @media (prefers-reduced-motion:reduce){.ocviewer,.ocviewer .vimg img{animation:none;transition:none}}
+
+/* ---------- COL-01: columns layout (add, resize, titles, active column, phones) ---------- */
+.ProseMirror .cols{position:relative}
+.ProseMirror .cols > .column{position:relative;border-radius:8px;padding:2px 8px;margin:0 -8px;transition:background .2s var(--ease),outline-color .2s}
+.ProseMirror[contenteditable="true"] .cols:is(:hover,:focus-within) > .column{outline:1px dashed color-mix(in srgb,var(--fg-3) 90%,transparent);outline-offset:2px}
+.ProseMirror[contenteditable="true"] .cols > .column.col-active{background:color-mix(in srgb,var(--accent) 5%,transparent);outline-color:color-mix(in srgb,var(--accent) 70%,var(--fg-3))}
+.ProseMirror .cols.resizing{cursor:col-resize;user-select:none}
+.coltools{position:absolute;inset:0;pointer-events:none;z-index:2}
+.coltools > *{opacity:0;pointer-events:none;transition:opacity .15s}
+.cols:is(:hover,:focus-within) > .coltools > *,.coltools > :focus-visible{opacity:1;pointer-events:auto}
+.colresize{position:absolute;top:14px;bottom:0;width:12px;transform:translateX(8px);cursor:col-resize;border-radius:6px;outline:none}
+.colresize::after{content:"";position:absolute;left:5px;top:10%;bottom:10%;width:2px;border-radius:1px;background:var(--fg-3);opacity:.55;transition:opacity .15s,background .15s}
+.colresize:hover::after,.colresize:focus-visible::after,.cols.resizing .colresize::after{background:var(--accent);opacity:1}
+.colresize:focus-visible{box-shadow:0 0 0 2px var(--accent-ring)}
+.coladd{position:absolute;z-index:1;top:-12px;width:24px;height:24px;transform:translateX(2px);display:grid;place-items:center;border:0;border-radius:50%;background:var(--pop);color:var(--fg-2);box-shadow:var(--sh-pop);cursor:pointer;padding:0}
+.coladd.end{top:50%;transform:translate(10px,-50%)}
+.coladd:hover,.coladd:focus-visible{color:var(--accent-fg);background:var(--accent);outline:none}
+.colrm{position:absolute;top:6px;transform:translateX(calc(-100% + 2px));display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:6px;background:var(--pop);color:var(--fg-2);box-shadow:var(--sh-pop);font:500 12px/1 var(--font);cursor:pointer}
+.colrm:hover,.colrm:focus-visible{color:var(--red-fg);outline:none;box-shadow:var(--sh-pop),0 0 0 2px var(--accent-ring)}
+.coltitle{font:600 12.5px/1.4 var(--font);letter-spacing:.01em;color:var(--fg-2);padding:2px 0 4px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.coltitle input{all:unset;display:block;width:100%;min-height:24px;font:inherit;color:var(--fg)}
+.coltitle input::placeholder{color:var(--fg-3)}
+.coltitle:focus-within{border-bottom-color:var(--accent)}
+.ProseMirror .cols .ProseMirror-dropcursor,.ProseMirror-dropcursor{opacity:1}
+.app.compact .ProseMirror .cols{grid-template-columns:minmax(0,1fr)!important;grid-auto-flow:row;gap:0}
+.app.compact .ProseMirror .cols > .column + .column{border-top:1px solid var(--line-2);padding-top:12px;margin-top:12px;border-radius:0}
+.app.compact .colresize,.app.compact .coladd:not(.end){display:none}
+.app.compact .coladd.end{top:auto;bottom:-11px;left:50%!important;transform:translateX(-50%)}
