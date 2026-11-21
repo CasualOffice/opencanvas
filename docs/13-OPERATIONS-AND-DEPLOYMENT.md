@@ -13,6 +13,17 @@ docker run -p 8080:8080 -v oc-data:/data \
 SQLite file at `/data/opencanvas.db` (WAL mode). Back it up only if you care
 about un-committed edits surviving a disk loss — committed content is in the host.
 
+## PDF export (optional Gotenberg sidecar, ADR-010)
+```sh
+docker run -d --name gotenberg gotenberg/gotenberg:8          # internal network only
+-e OC_PDF_RENDERER=gotenberg:http://gotenberg:3000              # on the OpenCanvas container
+```
+Compose: `OC_PDF_RENDERER=gotenberg:http://gotenberg:3000 docker compose --profile pdf up`.
+OpenCanvas sends Gotenberg self-contained HTML (images inlined, CSP `default-src 'none'`), so the
+sidecar needs no route to hosts or the internet; keep it off public networks. Without it
+`GET /v1/export/pdf` answers 501 and the editor prints from the browser. Board PNG/SVG and DOCX
+need no sidecar (rendered in-process with `resvg` and an embedded font).
+
 ## Cluster (MySQL/MariaDB + Redis)
 ```
 DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas

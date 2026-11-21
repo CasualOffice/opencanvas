@@ -19,7 +19,7 @@ tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "any", "sqlite", "mysql", "mysql-rsa", "tls-rustls-ring-webpki", "migrate", "macros"] }
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
@@ -31,3 +31,4 @@ ulid = "1"
 base64 = "0.22"
 futures = "0.3"
 aes-gcm = "0.10"
+resvg = { version = "0.47", default-features = false, features = ["text", "raster-images"] }

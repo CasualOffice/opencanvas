@@ -32,6 +32,8 @@ pub enum Error {
     Empty,
     #[error("ydoc.bin could not be applied")]
     BadUpdate,
+    #[error("render failed: {0}")]
+    Render(String),
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

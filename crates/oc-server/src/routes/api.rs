@@ -280,7 +280,7 @@ pub struct ConvertParams {
     to: String,
 }
 
-/// `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx`, stateless.
+/// `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`, stateless.
 pub async fn convert(
     State(state): State<SharedState>,
     Query(p): Query<ConvertParams>,
@@ -289,8 +289,11 @@ pub async fn convert(
 ) -> Result<Response, ApiError> {
     let host = authenticate(&state, &headers)?;
     let unsupported = |m: &str| ApiError::new(StatusCode::BAD_REQUEST, "FORMAT_UNSUPPORTED", m);
-    if !matches!(p.to.as_str(), "ocanvas" | "md" | "html" | "json" | "docx") {
-        return Err(unsupported("to: ocanvas, md, html, json or docx"));
+    if !matches!(
+        p.to.as_str(),
+        "ocanvas" | "md" | "html" | "json" | "docx" | "pdf"
+    ) {
+        return Err(unsupported("to: ocanvas, md, html, json, docx or pdf"));
     }
     let doc = match p.from.as_str() {
         "md" => {
@@ -314,7 +317,11 @@ pub async fn convert(
         _ => return Err(unsupported("from: md, html or ocanvas")),
     };
     let token = callback_token(&headers);
-    let (bytes, ctype, _) =
-        super::export::render(&state, &host, &token, &doc, &p.to, "opencanvas").await?;
+    let req = super::export::RenderReq {
+        token: &token,
+        author: "opencanvas",
+        ticket: None,
+    };
+    let (bytes, ctype, _) = super::export::render(&state, &host, &doc, &p.to, req).await?;
     Ok(([(header::CONTENT_TYPE, ctype)], bytes).into_response())
 }

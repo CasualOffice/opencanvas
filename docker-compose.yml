@@ -1,6 +1,9 @@
 # OpenCanvas + the sample host, single node, SQLite.
 #   docker compose up --build
 #   open http://localhost:4000
+# PDF export (ADR-010) through the optional Gotenberg sidecar:
+#   OC_PDF_RENDERER=gotenberg:http://gotenberg:3000 docker compose --profile pdf up --build
+# Without it, GET /v1/export/pdf answers 501 PDF_RENDERER_NOT_CONFIGURED (the editor prints instead).
 # For MySQL/MariaDB add a db service and set DATABASE_URL=mysql://… on `opencanvas`.
 services:
   opencanvas:
@@ -14,6 +17,7 @@ services:
       # Development stack: no OC_KEK, so tokens at rest are not encrypted. Production sets
       # OC_KEK (openssl rand -base64 32) and drops OC_DEV.
       OC_DEV: "1"
+      OC_PDF_RENDERER: ${OC_PDF_RENDERER:-}
     volumes:
       - oc-data:/data
       - ./opencanvas.hosts.toml:/etc/opencanvas/hosts.toml:ro
@@ -30,6 +34,12 @@ services:
     volumes:
       - ./examples/sample-host:/app
       - host-data:/app/data
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    profiles: [pdf]
+    # Only OpenCanvas talks to it; the HTML it gets is self-contained (images inlined, CSP
+    # default-src 'none'), so it needs no access to the host.
+    expose: ["3000"]
 volumes:
   oc-data: {}
   host-data: {}

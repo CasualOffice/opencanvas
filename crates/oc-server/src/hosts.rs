@@ -31,6 +31,15 @@ pub struct HostConfig {
     pub callback_base: String,
     #[serde(default)]
     pub allowed_origins: Vec<String>,
+    /// Origins exports may fetch images from (e.g. a CDN), besides the `callback_base` origin,
+    /// which is always allowed. Requests to these extra origins are not signed and carry no
+    /// callback token.
+    #[serde(default)]
+    pub asset_origins: Vec<String>,
+    /// The configured `callback_base` when `OC_CALLBACK_BASE_OVERRIDE` replaced it: images on
+    /// its origin are still accepted, and fetched through the override.
+    #[serde(skip)]
+    pub original_callback_base: Option<String>,
     #[serde(default)]
     pub flags: toml::Table,
 }
@@ -128,6 +137,7 @@ impl Hosts {
             }
             if let Some(base) = callback_override {
                 tracing::warn!(host = %h.id, "OC_CALLBACK_BASE_OVERRIDE replaces callback_base (dev/compose only)");
+                h.original_callback_base = Some(h.callback_base.trim_end_matches('/').to_string());
                 h.callback_base = base.to_string();
             }
             h.callback_base = h.callback_base.trim_end_matches('/').to_string();
@@ -189,10 +199,13 @@ mod tests {
             hosts.get("sample").unwrap().callback_base,
             "http://localhost:4000/api/opencanvas"
         );
+        assert_eq!(hosts.get("sample").unwrap().original_callback_base, None);
         let hosts = Hosts::parse(src, Some("http://sample-host:4000/api/opencanvas")).unwrap();
+        let h = hosts.get("sample").unwrap();
+        assert_eq!(h.callback_base, "http://sample-host:4000/api/opencanvas");
         assert_eq!(
-            hosts.get("sample").unwrap().callback_base,
-            "http://sample-host:4000/api/opencanvas"
+            h.original_callback_base.as_deref(),
+            Some("http://localhost:4000/api/opencanvas")
         );
     }
 }

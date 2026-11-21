@@ -2,7 +2,7 @@
 //!
 //! Input is the logical JSON from [`crate::doc_to_json`]. Images are embedded only when the
 //! caller supplies their bytes (the server fetches them from the host's own origin); others
-//! become links. Database blocks become Word tables with a caption, boards a note.
+//! become links. Database blocks become Word tables with a caption, boards a rendered PNG.
 
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
@@ -72,7 +72,7 @@ fn safe_url(u: &str) -> Option<&str> {
         .then_some(u.trim())
 }
 
-/// Every image `src` in the document, for the caller to fetch.
+/// Every image `src` in the document and on its boards, for the caller to fetch.
 pub fn image_sources(doc: &Value) -> Vec<String> {
     fn walk(n: &Value, out: &mut Vec<String>) {
         if s(n, "type") == "image" {
@@ -87,6 +87,11 @@ pub fn image_sources(doc: &Value) -> Vec<String> {
     }
     let mut out = Vec::new();
     walk(doc, &mut out);
+    for src in crate::board::image_sources(doc) {
+        if !out.contains(&src) {
+            out.push(src);
+        }
+    }
     out
 }
 
@@ -409,31 +414,7 @@ impl<'a> Writer<'a> {
             .and_then(|b| image_info(b).map(|i| (b.clone(), i)));
         match embedded {
             Some((bytes, (ext, w, h))) => {
-                self.next_pic += 1;
-                let pic = self.next_pic;
-                let name = format!("image{pic}.{ext}");
-                let rid = self.rel(REL_IMAGE, format!("media/{name}"), false);
-                self.media.push((name.clone(), bytes));
-                let (mut cx, mut cy) = (
-                    u64::from(w.max(1)) * EMU_PER_PX,
-                    u64::from(h.max(1)) * EMU_PER_PX,
-                );
-                if cx > MAX_WIDTH_EMU {
-                    cy = cy * MAX_WIDTH_EMU / cx;
-                    cx = MAX_WIDTH_EMU;
-                }
-                let descr = xml_escape(alt);
-                let run = format!(
-                    "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">\
-                     <wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:docPr id=\"{pic}\" name=\"Picture {pic}\" descr=\"{descr}\"/>\
-                     <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect=\"1\"/></wp:cNvGraphicFramePr>\
-                     <a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">\
-                     <pic:pic><pic:nvPicPr><pic:cNvPr id=\"{pic}\" name=\"{name}\"/><pic:cNvPicPr/></pic:nvPicPr>\
-                     <pic:blipFill><a:blip r:embed=\"{rid}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>\
-                     <pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm>\
-                     <a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>\
-                     </a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
-                );
+                let run = self.drawing(bytes, ext, w, h, alt);
                 self.para(ctx, None, "", &run);
             }
             None => {
@@ -448,6 +429,77 @@ impl<'a> Writer<'a> {
         }
         if !caption.is_empty() {
             self.para(ctx, Some("Caption"), "", &Self::run(caption, ""));
+        }
+    }
+
+    /// An inline picture run, `w`×`h` CSS px (scaled down to the text width).
+    fn drawing(&mut self, bytes: Vec<u8>, ext: &str, w: u32, h: u32, alt: &str) -> String {
+        self.next_pic += 1;
+        let pic = self.next_pic;
+        let name = format!("image{pic}.{ext}");
+        let rid = self.rel(REL_IMAGE, format!("media/{name}"), false);
+        self.media.push((name.clone(), bytes));
+        let (mut cx, mut cy) = (
+            u64::from(w.max(1)) * EMU_PER_PX,
+            u64::from(h.max(1)) * EMU_PER_PX,
+        );
+        if cx > MAX_WIDTH_EMU {
+            cy = cy * MAX_WIDTH_EMU / cx;
+            cx = MAX_WIDTH_EMU;
+        }
+        let descr = xml_escape(alt);
+        format!(
+            "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">\
+                     <wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:docPr id=\"{pic}\" name=\"Picture {pic}\" descr=\"{descr}\"/>\
+                     <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect=\"1\"/></wp:cNvGraphicFramePr>\
+                     <a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">\
+                     <pic:pic><pic:nvPicPr><pic:cNvPr id=\"{pic}\" name=\"{name}\"/><pic:cNvPicPr/></pic:nvPicPr>\
+                     <pic:blipFill><a:blip r:embed=\"{rid}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>\
+                     <pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm>\
+                     <a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>\
+                     </a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+        )
+    }
+
+    /// A board as a PNG (rendered at 2×, shown at 1×) with a caption; a text note if rendering
+    /// fails.
+    fn board(&mut self, id: &str, ctx: Ctx) {
+        let (shapes, texts) = crate::board::summary(self.doc, id);
+        let svg = crate::board::to_svg_with_images(self.doc, id, self.images);
+        let png = crate::board::to_png(&svg, 2.0)
+            .ok()
+            .and_then(|b| image_info(&b).map(|(_, w, h)| (b, w, h)));
+        match png {
+            Some((bytes, w, h)) => {
+                let alt = if texts.is_empty() {
+                    format!("Whiteboard with {shapes} shapes")
+                } else {
+                    format!("Whiteboard: {}", texts.join("; "))
+                };
+                let run = self.drawing(bytes, "png", w.div_ceil(2), h.div_ceil(2), &alt);
+                self.para(ctx, None, "", &run);
+                self.para(ctx, Some("Caption"), "", &Self::run("Whiteboard", ""));
+            }
+            None => {
+                let BoardInfo { shapes, texts } = board_info(self.doc, id);
+                self.notes.push("board exported as a note".into());
+                let mut note = format!(
+                    "Whiteboard with {shapes} shape{}. Open the canvas in OpenCanvas to view it.",
+                    if shapes == 1 { "" } else { "s" }
+                );
+                if !texts.is_empty() {
+                    note.push_str(&format!(" Text on the board: {}.", texts.join("; ")));
+                }
+                self.para(
+                    Ctx {
+                        fill: Some("F1F1F3"),
+                        ..ctx
+                    },
+                    None,
+                    "",
+                    &Self::run(&note, "<w:rPr><w:i/></w:rPr>"),
+                );
+            }
         }
     }
 
@@ -534,23 +586,7 @@ impl<'a> Writer<'a> {
                 table.extend(rows.iter().map(|r| r.iter().map(|c| (false, cell(c))).collect()));
                 self.table(&table, ctx);
             }
-            "board" => {
-                let BoardInfo { shapes, texts } = board_info(self.doc, attr_str(n, "boardId"));
-                self.notes.push("board exported as a note".into());
-                let mut note = format!(
-                    "Whiteboard with {shapes} shape{}. Open the canvas in OpenCanvas to view it.",
-                    if shapes == 1 { "" } else { "s" }
-                );
-                if !texts.is_empty() {
-                    note.push_str(&format!(" Text on the board: {}.", texts.join("; ")));
-                }
-                self.para(
-                    Ctx { fill: Some("F1F1F3"), ..ctx },
-                    None,
-                    "",
-                    &Self::run(&note, "<w:rPr><w:i/></w:rPr>"),
-                );
-            }
+            "board" => self.board(attr_str(n, "boardId"), ctx),
             "bookmark" => {
                 let url = attr_str(n, "url");
                 let title = attr_str(n, "title");

@@ -136,6 +136,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/sessions/{ticket}", get(launch::session_info))
         .route("/v1/collab/{room}", get(collab::upgrade))
         .route("/v1/export/{fmt}", get(export::export))
+        .route("/v1/export/board/{file}", get(export::export_board))
         .route("/v1/assets", post(proxy::upload_asset).layer(DefaultBodyLimit::max(MAX_ASSET_BYTES)))
         .route("/v1/users", get(proxy::users))
         .route("/v1/files/{file_id}/role", post(api::set_role))
