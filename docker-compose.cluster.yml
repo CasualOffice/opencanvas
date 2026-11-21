@@ -1,0 +1,90 @@
+# OpenCanvas cluster (ADR-006, docs/13): 3 nodes + MariaDB + Redis + nginx + the sample host.
+#   docker compose -f docker-compose.cluster.yml up --build
+#   open http://localhost:4580          (sample host; OpenCanvas through nginx on :8580)
+# Chaos test (kill the room owner mid-edit): scripts/chaos-cluster.sh
+#
+# Development values only: OC_KEK, OC_CLUSTER_SECRET and the DB passwords below are public.
+# Nodes reach each other directly (oc1:8080 …) for relays; nginx never routes /v1/internal/.
+
+x-opencanvas: &opencanvas
+  build: { context: ., dockerfile: deploy/Dockerfile }
+  image: opencanvas:cluster
+  restart: "no"
+  stop_grace_period: 30s
+  volumes:
+    - ./opencanvas.hosts.toml:/etc/opencanvas/hosts.toml:ro
+  depends_on:
+    mariadb: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+x-opencanvas-env: &opencanvas-env
+  OC_BIND: 0.0.0.0:8080
+  OC_PUBLIC_URL: http://localhost:8580
+  OC_HOSTS_FILE: /etc/opencanvas/hosts.toml
+  OC_CALLBACK_BASE_OVERRIDE: http://sample-host:4000/api/opencanvas
+  DATABASE_URL: mysql://opencanvas:opencanvas@mariadb:3306/opencanvas
+  REDIS_URL: redis://redis:6379
+  OC_CLUSTER_SECRET: dev-cluster-secret-change-me-0123456789
+  OC_KEK: dZ+d8wSluo/33zDYasy7VyXPMPNzHkmA9Gn+QvcaYeU=
+  OC_AUTOSAVE_DEBOUNCE_MS: "1000"
+  OC_LOG: info
+
+services:
+  oc1:
+    <<: *opencanvas
+    environment: { <<: *opencanvas-env, OC_NODE_ID: oc1, OC_CLUSTER_ADVERTISE: "http://oc1:8080" }
+  oc2:
+    <<: *opencanvas
+    environment: { <<: *opencanvas-env, OC_NODE_ID: oc2, OC_CLUSTER_ADVERTISE: "http://oc2:8080" }
+  oc3:
+    <<: *opencanvas
+    environment: { <<: *opencanvas-env, OC_NODE_ID: oc3, OC_CLUSTER_ADVERTISE: "http://oc3:8080" }
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports: ["8580:80"]
+    volumes:
+      - ./deploy/nginx/opencanvas-cluster.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [oc1, oc2, oc3]
+
+  mariadb:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: opencanvas
+      MARIADB_USER: opencanvas
+      MARIADB_PASSWORD: opencanvas
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    volumes: [db-data:/var/lib/mysql]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  sample-host:
+    image: node:24-alpine
+    working_dir: /app
+    command: node server.mjs
+    ports: ["4580:4000"]
+    environment:
+      OC_SERVER: http://localhost:8580
+      OC_SERVER_INTERNAL: http://nginx:80
+      OC_API_KEY: dev-api-key-change-me
+      PUBLIC_URL: http://localhost:4580
+      DATA_DIR: /data
+    volumes:
+      - ./examples/sample-host:/app:ro
+      - host-data:/data
+
+volumes:
+  db-data: {}
+  host-data: {}

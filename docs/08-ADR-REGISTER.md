@@ -10,7 +10,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-003 | Server in Rust (tokio + axum), single binary | Proposed |
 | ADR-004 | DB via sqlx: SQLite default, MySQL 8 / MariaDB 10.6+ when `DATABASE_URL` set; DB holds transient state only | Proposed |
 | ADR-005 | Two handshakes: signed JWT launch and WOPI-compatible; WS uses a short single-room ticket | Proposed |
-| ADR-006 | Cluster: one owner node per room via Redis lease; non-owners relay | Proposed |
+| ADR-006 | Cluster: one owner node per room via Redis lease; non-owners relay over an internal HMAC-signed WebSocket | Accepted (implemented CLU-01, chaos-tested CLU-02) |
 | ADR-007 | Editor: Tiptap/ProseMirror + y-prosemirror | Proposed |
 | ADR-008 | Board: native block, custom SVG/Canvas2D renderer on Y.Map shapes | Proposed |
 | ADR-009 | Native format `.ocanvas` zip (document.json + ydoc.bin + manifest) | Proposed |
@@ -86,6 +86,25 @@ style timestamps instead), no proof keys yet.
 Redis `SET NX PX` lease, 5 s renew, 15 s expiry; LB consistent-hash on room id
 minimises relays. **Rejected:** every node holds a Doc and syncs via pub/sub
 (N× memory, N× WAL writes).
+
+**Relay transport (CLU-01): internal WebSocket, not Redis pub/sub.** A non-owner opens one
+WebSocket per client connection to the owner's `OC_CLUSTER_ADVERTISE` URL
+(`/v1/internal/relay/:room`), authenticated by HMAC-SHA256 over time, room and the
+forwarded grant with `OC_CLUSTER_SECRET` (±30 s). Reasons: (1) per-connection ordering and
+backpressure come from TCP for free, where pub/sub would need sequence numbers and a
+reorder buffer; (2) pub/sub is fire-and-forget: a subscriber that blips loses frames silently,
+while a broken socket is visible to both sides and becomes a client reconnect + Yjs resync;
+(3) no per-connection channel bookkeeping in Redis and no frame traffic through it, so Redis
+only carries leases; (4) the owner sees a relayed connection exactly like a local one (same
+actor join, same role filter). Host-API room calls are forwarded the same way over signed HTTP.
+Cost: nodes must reach each other directly (one more port on the internal network).
+
+**Failover.** Lease value `<node>@<url>#<nonce>`; renew/release/steal are compare-and-set Lua
+scripts. A node that cannot reach the owner probes its `/healthz`; when that fails it replaces
+the dead owner's exact lease value (no 15 s wait). Under a partition (owner alive but
+unreachable) this can briefly give two owners; the old one steps down at its next renewal
+(≤ 5 s) and the WAL primary key `(room_id, seq)` rejects its colliding appends. Outbox rows
+are claimed with `claimed_by` / `claim_until` (migration 0004) so the sweeper never double-saves.
 
 ### ADR-007 — Tiptap
 **Decision.** Tiptap (MIT) for extension ergonomics; ProseMirror underneath.

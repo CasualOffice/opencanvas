@@ -1,6 +1,7 @@
 //! OpenCanvas server: launch, sessions, collaboration rooms, autosave and exports.
 
 pub mod assets;
+pub mod cluster;
 pub mod config;
 pub mod crypto;
 pub mod grant;
@@ -88,6 +89,18 @@ impl AppState {
             if resumed.contains(&row.room_id) || self.rooms.is_live(&row.room_id) {
                 continue;
             }
+            // Cluster: claim the row first so two nodes never resend the same commit; the
+            // room lease (taken by `open`) then keeps it on one node.
+            if let Some(c) = self.rooms.cluster() {
+                let now = util::now_ms();
+                let claimed = self
+                    .store
+                    .outbox_claim(&row.id, &c.cfg.node_id, now, now + OUTBOX_CLAIM_MS)
+                    .await?;
+                if !claimed {
+                    continue;
+                }
+            }
             let Some(host) = self.hosts.get(&row.host_id) else {
                 tracing::warn!(room = %row.room_id, host = %row.host_id, "pending commit for an unknown host");
                 continue;
@@ -110,8 +123,10 @@ impl AppState {
                 perms: grant::Perms::default(),
                 callback_token: row.token.clone(),
             };
+            if !self.rooms.open(&host, &grant).await {
+                continue;
+            }
             tracing::info!(room = %row.room_id, attempts = row.attempts, "resuming pending commit");
-            self.rooms.open(&host, &grant);
             resumed.insert(row.room_id);
         }
         Ok(resumed.len())
@@ -119,3 +134,17 @@ impl AppState {
 }
 
 pub use routes::router;
+
+/// How long a cluster node keeps an outbox row it resumed before another node may.
+const OUTBOX_CLAIM_MS: i64 = 60_000;
+
+/// The full HTTP app: the public router plus, in cluster mode, the internal node-to-node
+/// endpoints (never route `/v1/internal/` through the load balancer).
+pub fn app(state: SharedState) -> axum::Router {
+    let public = router(state.clone());
+    if state.rooms.cluster().is_some() {
+        public.merge(cluster::server::routes(state))
+    } else {
+        public
+    }
+}

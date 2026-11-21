@@ -4,7 +4,7 @@
 //! scratch copy of the doc so a failing op leaves the real doc untouched; the result is one
 //! Yjs update that the room applies, logs and broadcasts like any client update.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use yrs::types::xml::XmlOut;
 use yrs::{
@@ -20,7 +20,7 @@ pub const BLOCK_ID: &str = "blockId";
 /// Most ops per request.
 pub const MAX_OPS: usize = 500;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum PatchOp {
     Append {

@@ -79,15 +79,28 @@ helm install oc deploy/helm/opencanvas --set secrets.kek=$(openssl rand -base64 
 - CI (`helm` job) lints and renders single-node SQLite, cluster MariaDB + Redis and
   Gotenberg value sets, and checks SQLite + 2 replicas is refused.
 
-## Cluster (MySQL/MariaDB + Redis)
+## Cluster (MySQL/MariaDB + Redis, ADR-006)
 ```
 DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas
-REDIS_URL=redis://redis:6379
-OC_NODE_ID=node-1
+REDIS_URL=redis://redis:6379                 # enables cluster mode
+OC_NODE_ID=node-1                            # default: $HOSTNAME
+OC_CLUSTER_ADVERTISE=http://node-1:8080      # how other nodes reach this one (default http://$OC_NODE_ID:<port>)
+OC_CLUSTER_SECRET=<≥ 32 chars, same on every node>
+OC_KEK=<same on every node>                  # nodes read each other's sealed rows
 ```
-LB: HTTP round-robin; WebSocket `hash $room_id consistent` (nginx `hash`
-directive on path segment). `docker-compose.cluster.yml` ships 3 nodes +
-MariaDB + Redis + nginx.
+`REDIS_URL` with SQLite refuses to start. Rooms are owned by one node through the Redis
+lease `room:{id}:owner` (`SET NX PX 15000`, renewed every 5 s). A node that receives a socket
+for a room it does not own relays it to the owner over `/v1/internal/relay/:room`; host-API
+room calls go to `/v1/internal/rooms/:room`. **Never expose `/v1/internal/` through the load
+balancer**; nodes must reach each other directly.
+
+LB: HTTP round-robin; WebSocket `hash $room consistent` on the `/v1/collab/<room>` path
+segment, `proxy_connect_timeout 1s` and `proxy_next_upstream error timeout` so a dead node's
+rooms move along the ring (see `deploy/nginx/opencanvas-cluster.conf`).
+`docker-compose.cluster.yml` ships 3 nodes + MariaDB + Redis + nginx (`:8580`) + the sample
+host (`:4580`). `scripts/chaos-cluster.sh` brings it up, types from two clients, `docker kill`s
+the room owner, checks reconnect ≤ 5 s, convergence and that the host's file has every
+acknowledged edit, then removes everything.
 
 ## Health & metrics
 - `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining.
@@ -99,9 +112,10 @@ MariaDB + Redis + nginx.
 - Traces: OTLP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` set.
 
 ## Graceful shutdown / deploys
-SIGTERM → `/readyz` 503 → stop new WS → commit all dirty rooms (≤ 30 s) →
-send `reconnect` control frame → release leases → exit. Rolling deploys move
-rooms with a ≤ 5 s client reconnect.
+SIGTERM → refuse new rooms → commit all dirty rooms (≤ 20 s each, in parallel) →
+`{"t":"reconnect"}` + close 1012 to every client (local and relayed) → release leases → exit.
+Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a stop grace
+period of ≥ 30 s. (Not yet: `/readyz` does not turn 503 while draining.)
 
 ## Sizing
 | Load | Shape |
