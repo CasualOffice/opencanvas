@@ -29,6 +29,10 @@ pub struct Store {
     /// SQLite: one write transaction at a time, taken in order here instead of on SQLite's
     /// busy handler (which sleeps and retries; docs/22 §9.2). `None` on MySQL/MariaDB.
     write_lock: Option<Arc<tokio::sync::Mutex<()>>>,
+    /// Snapshot writes and room purges (range deletes on `room_updates`) take this exclusively,
+    /// WAL batches shared: on InnoDB their gap locks deadlocked (1213) with each other and with
+    /// concurrent inserts (docs/22 §10.1), so they never overlap in this process.
+    snapshot_gate: Arc<tokio::sync::RwLock<()>>,
 }
 
 /// One Yjs update for the WAL, at its own `seq`.
@@ -241,6 +245,7 @@ impl Store {
             group,
             redis: None,
             write_lock,
+            snapshot_gate: Arc::new(tokio::sync::RwLock::new(())),
         })
     }
 
@@ -925,6 +930,7 @@ impl Store {
                 .await
                 .unwrap_or_else(|_| Err(anyhow::anyhow!("WAL writer stopped")));
         }
+        let _g = self.snapshot_gate.read().await;
         let rows = rows.as_slice();
         retry_transient("WAL append", move || async move {
             if rows.len() <= WAL_ROWS_PER_INSERT {
@@ -1001,6 +1007,7 @@ impl Store {
         state: &[u8],
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        let _g = self.snapshot_gate.write().await;
         let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         hold_epoch(&mut tx, room, epoch).await?;
@@ -1162,6 +1169,7 @@ impl Store {
     /// another writer took the room since (its WAL is not ours to drop).
     pub async fn purge_room_fenced(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
         retry_transient("room purge", move || async move {
+            let _g = self.snapshot_gate.write().await;
             let _w = self.write_turn().await;
             let mut tx = self.pool.begin().await?;
             hold_epoch(&mut tx, room, epoch).await?;
@@ -1178,6 +1186,7 @@ impl Store {
 
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
         retry_transient("room purge", move || async move {
+            let _g = self.snapshot_gate.write().await;
             let _w = self.write_turn().await;
             let mut tx = self.pool.begin().await?;
             purge_in(&mut tx, room).await?;
