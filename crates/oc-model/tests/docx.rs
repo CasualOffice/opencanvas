@@ -186,6 +186,21 @@ fn well_formed(xml: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// UX-02: text colour becomes a run colour; a date chip becomes its date.
+#[test]
+fn text_colour_and_dates_in_word() {
+    let doc = json!({"type": "doc", "content": [p(vec![
+        json!({"type":"text","text":"late","marks":[{"type":"textColor","attrs":{"color":"red"}}]}),
+        t(" on "),
+        json!({"type":"dateMention","attrs":{"date":"2026-12-04"}}),
+    ])]});
+    let (bytes, _) = to_docx(&doc, &HashMap::new()).unwrap();
+    let xml = String::from_utf8(unzip(&bytes)["word/document.xml"].clone()).unwrap();
+    well_formed(&xml).unwrap();
+    assert!(xml.contains("<w:color w:val=\"B12424\"/>"), "{xml}");
+    assert!(xml.contains(">Dec 4, 2026<"), "{xml}");
+}
+
 #[test]
 fn checker_rejects_broken_xml() {
     assert!(well_formed("<a><b></a></b>").is_err());

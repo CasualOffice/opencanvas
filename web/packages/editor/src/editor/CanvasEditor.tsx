@@ -24,6 +24,7 @@ import { insertUploads } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { Popover, useShell } from "../components/overlay";
 import { ColumnTools } from "./columns";
+import { DateMention, TextColorMark } from "./inline";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
 import type { SlashItem } from "./slash";
 
@@ -254,6 +255,8 @@ export function CanvasEditor(p: EditorProps) {
             node.type.name === "heading" ? "Heading" : node.type.name === "toggleSummary" ? "Toggle" : "Type '/' for blocks",
         }),
         MentionNode,
+        DateMention,
+        TextColorMark,
         Callout,
         Toggle,
         ToggleSummary,
@@ -383,25 +386,40 @@ function SuggestMenu({ editor }: { editor: Editor }) {
   const hold = (e: React.MouseEvent | React.PointerEvent) => e.preventDefault();
 
   if (s.kind === "mention") {
-    const items = s.items as { id: string; label: string; color: string }[];
+    const items = s.items as { id: string; label: string; color: string; date?: string; pick?: boolean }[];
+    const people = items.filter((u) => !u.date).length;
+    let last = "";
     return (
       <Popover anchor={s.rect} onClose={close} title="Mention" minWidth={240} kind="listbox">
         <div ref={listRef} onMouseDown={hold}>
-          <div className="mh">People</div>
-          {items.length ? (
-            items.map((u, i) => (
-              <button key={u.id} className={"mi" + (i === s.sel ? " on" : "")} onClick={() => s.pick(u)}>
-                <span className="av sm" style={{ background: u.color }}>
-                  {initialsOf(u.label)}
-                </span>
-                {u.label}
-              </button>
-            ))
-          ) : (
+          {!people ? (
             <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: 13 }}>
               No one matches “{s.query}”
             </div>
-          )}
+          ) : null}
+          {items.map((u, i) => {
+            const group = u.date ? "Dates" : "People";
+            const head = group !== last ? <div className="mh">{group}</div> : null;
+            last = group;
+            return (
+              <span key={u.id} style={{ display: "contents" }}>
+                {head}
+                <button className={"mi" + (i === s.sel ? " on" : "")} onClick={() => s.pick(u)}>
+                  {u.date ? (
+                    <span className="ftile tone-blue dateic" aria-hidden="true">
+                      <Ic name={u.pick ? "calendar-plus" : "calendar"} size={14} />
+                    </span>
+                  ) : (
+                    <span className="av sm" style={{ background: u.color }}>
+                      {initialsOf(u.label)}
+                    </span>
+                  )}
+                  {u.label}
+                  {u.date && !u.pick ? <span className="mk">{new Date(u.date + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span> : null}
+                </button>
+              </span>
+            );
+          })}
         </div>
       </Popover>
     );

@@ -693,3 +693,27 @@ button.cic:hover{transform:scale(1.06)}
 .app.compact .ProseMirror .cols > .column + .column{border-top:1px solid var(--line-2);padding-top:12px;margin-top:12px;border-radius:0}
 .app.compact .colresize,.app.compact .coladd:not(.end){display:none}
 .app.compact .coladd.end{top:auto;bottom:-11px;left:50%!important;transform:translateX(-50%)}
+
+/* ---------- UX-02: text colour mark and date chips ---------- */
+.tc-gray{color:var(--gray-fg)}.tc-red{color:var(--red-fg)}.tc-amber{color:var(--amber-fg)}.tc-green{color:var(--green-fg)}
+.tc-blue{color:var(--blue-fg)}.tc-purple{color:var(--purple-fg)}.tc-pink{color:var(--pink-fg)}
+.tcpick{display:grid;grid-template-columns:repeat(8,32px);gap:4px;padding:6px}
+.tcsw{width:32px;height:32px;border-radius:8px;border:0;background:var(--hover);display:grid;place-items:center;font:600 15px/1 var(--font);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line)}
+.tcsw.none{color:var(--fg)}
+.tcsw:hover{background:var(--press)}
+.tcsw.on{box-shadow:inset 0 0 0 2px var(--accent)}
+.tcsw:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ftb .tcbtn.on{background:var(--hover)}
+.ProseMirror .datewrap{white-space:nowrap}
+.datechip{display:inline-flex;align-items:center;gap:4px;padding:0 7px 0 5px;border-radius:999px;background:var(--blue-bg);color:var(--blue-fg);font-size:.92em;font-weight:500;line-height:1.55;vertical-align:baseline;white-space:nowrap}
+.datechip.past{background:var(--gray-bg);color:var(--gray-fg)}
+.ProseMirror[contenteditable="true"] .datechip{cursor:pointer}
+.ProseMirror .datechip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ProseMirror-selectednode .datechip,.datewrap.ProseMirror-selectednode .datechip{box-shadow:0 0 0 2px var(--accent-ring)}
+.datepick{display:flex;flex-direction:column;gap:10px;padding:10px}
+.datepick .dlab{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fg-2)}
+.datepick input[type=date]{height:34px;border-radius:8px;border:1px solid var(--line-2);background:var(--app);color:var(--fg);padding:0 8px;font:inherit;font-size:14px;color-scheme:light dark}
+.datepick input[type=date]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.datepick .dquick{display:flex;gap:6px;flex-wrap:wrap}
+.datepick .dfoot{display:flex;justify-content:space-between;gap:8px}
+.mi .dateic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:none}

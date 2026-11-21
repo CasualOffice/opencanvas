@@ -4,6 +4,8 @@
 // the drop and gap cursors (StarterKit options: 3 px drop cursor).
 // The schema is complete from the start (`link.ts`), so this only adds
 // ProseMirror plugins to the live editor; the Y.Doc never sees a new type.
+import { addDays, datePickStore, isoDate } from "./inline";
+import { ensureBlockIdAt } from "./blockId";
 import { getExtensionField, pasteRulesPlugin, type Editor, type PasteRule } from "@tiptap/core";
 import { Link } from "@tiptap/extension-link";
 import { dropCursor } from "@tiptap/pm/dropcursor";
@@ -18,6 +20,21 @@ export interface MentionItem {
   id: string;
   label: string;
   color: string;
+  /** A date chip (`@today`, `@tomorrow`) instead of a person; `pick` opens the date picker. */
+  date?: string;
+  pick?: boolean;
+}
+
+const prefixOf = (q: string, word: string) => q.length > 0 && word.startsWith(q);
+
+/** Date entries for the @ menu: today, tomorrow and "Pick a date…", filtered by the query. */
+export function dateItems(query: string, now = new Date()): MentionItem[] {
+  const q = query.trim().toLowerCase();
+  const out: MentionItem[] = [];
+  if (!q || prefixOf(q, "today")) out.push({ id: "date:today", label: "Today", color: "", date: isoDate(now) });
+  if (!q || prefixOf(q, "tomorrow")) out.push({ id: "date:tomorrow", label: "Tomorrow", color: "", date: isoDate(addDays(now, 1)) });
+  if (!q || prefixOf(q, "date") || prefixOf(q, "pick")) out.push({ id: "date:pick", label: "Pick a date…", color: "", date: isoDate(now), pick: true });
+  return out;
 }
 
 function linkPlugins(editor: Editor): Plugin[] {
@@ -55,19 +72,26 @@ function mentionPlugin(editor: Editor, search: (q: string) => Promise<MentionIte
     editor,
     pluginKey: new PluginKey("mention"),
     char: "@",
-    items: ({ query }) => search(query),
+    // People first (the host's list), then dates; a date word ("tod", "tomorrow") puts dates first.
+    items: async ({ query }) => {
+      const dates = editor.schema.nodes.dateMention ? dateItems(query) : [];
+      const people = await search(query);
+      return /^(to|da|pi)/i.test(query) ? [...dates, ...people] : [...people, ...dates];
+    },
     command: ({ editor, range, props }) => {
       const after = editor.view.state.selection.$to.nodeAfter;
       if (after?.text?.startsWith(" ")) range.to += 1;
+      const at = range.from;
+      const node = props.date ? { type: "dateMention", attrs: { date: props.date } } : { type: "mention", attrs: { id: props.id, label: props.label, mentionSuggestionChar: "@" } };
       editor
         .chain()
         .focus()
-        .insertContentAt(range, [
-          { type: "mention", attrs: { ...props, mentionSuggestionChar: "@" } },
-          { type: "text", text: " " },
-        ])
+        .insertContentAt(range, [node, { type: "text", text: " " }])
         .run();
       editor.view.dom.ownerDocument.defaultView?.getSelection()?.collapseToEnd();
+      // A person mention makes the block linkable: the host's notification carries its id.
+      if (!props.date) ensureBlockIdAt(editor, Math.min(at, editor.state.doc.content.size));
+      else if (props.pick) datePickStore.set(at);
     },
     allow: ({ state, range }) => {
       const $from = state.doc.resolve(range.from);

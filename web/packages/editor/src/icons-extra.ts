@@ -12,7 +12,7 @@ import {
   MoveHorizontal, Network, NotebookPen, Palette, PanelTop, PartyPopper, Phone, Plane, Play, Plus, Printer, Repeat,
   Rocket, Route, Scale, ScrollText, Search, Shapes, Siren, Smartphone, Smile, Square, SquareCheck, SquareKanban,
   Strikethrough, Table, TextQuote, Trash2, Type, Underline, Undo2, Upload, UserPlus, UserRound, Users, Workflow,
-  Zap, Minimize2, ZoomIn, ZoomOut, ChevronLeft, MoveVertical, RefreshCw, RectangleHorizontal,
+  Zap, Baseline, CalendarPlus, Minimize2, ZoomIn, ZoomOut, ChevronLeft, MoveVertical, RefreshCw, RectangleHorizontal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +39,6 @@ export const EXTRA: Record<string, LucideIcon> = {
   "square-kanban": SquareKanban, strikethrough: Strikethrough, table: Table, "text-quote": TextQuote,
   "trash-2": Trash2, type: Type, underline: Underline, "undo-2": Undo2, upload: Upload, "user-plus": UserPlus,
   "user-round": UserRound, users: Users, workflow: Workflow, zap: Zap,
-  "minimize-2": Minimize2, "zoom-in": ZoomIn, "zoom-out": ZoomOut, "chevron-left": ChevronLeft,
+  baseline: Baseline, "calendar-plus": CalendarPlus, "minimize-2": Minimize2, "zoom-in": ZoomIn, "zoom-out": ZoomOut, "chevron-left": ChevronLeft,
   "move-vertical": MoveVertical, "refresh-cw": RefreshCw, "rectangle-horizontal": RectangleHorizontal, "fit-width": MoveHorizontal,
 };

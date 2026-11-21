@@ -1,7 +1,9 @@
 // Desktop-only editing chrome: the block gutter (+ and drag grip) and the
 // floating selection toolbar. Lazy-loaded: it brings drag-handle, bubble-menu
 // and floating-ui, which phones and viewers never need.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Popover } from "../components/overlay";
+import { ColorPicker } from "./inline";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import DragHandle from "@tiptap/extension-drag-handle-react";
@@ -89,11 +91,13 @@ export function SelectionToolbar({ editor, role, onComment }: { editor: Editor; 
       code: e.isActive("code"),
       mark: e.isActive("highlight"),
       link: e.isActive("link"),
+      color: (e.getAttributes("textColor").color as string | undefined) ?? null,
     }),
   });
+  const [colors, setColors] = useState<HTMLElement | null>(null);
   const linkOpen = !!useStore(linkStore);
   const edit = role === "edit";
-  const btn = (key: keyof typeof st, icon: string, label: string, keys: string | null, run: () => void) => {
+  const btn = (key: Exclude<keyof typeof st, "color">, icon: string, label: string, keys: string | null, run: () => void) => {
     const full = keys ? `${label} (${keyLabel(keys)})` : label;
     return (
       <button className={"ib" + (st[key] ? " on" : "")} title={full} aria-label={label} aria-keyshortcuts={keys ? keys.replace("Mod", isMac ? "Meta" : "Control").replace(/-/g, "+") : undefined} aria-pressed={st[key]} onClick={run}>
@@ -139,6 +143,16 @@ export function SelectionToolbar({ editor, role, onComment }: { editor: Editor; 
             {btn("strike", "strikethrough", "Strikethrough", "Mod-Shift-s", () => editor.chain().focus().toggleStrike().run())}
             {btn("code", "code-xml", "Inline code", "Mod-e", () => editor.chain().focus().toggleCode().run())}
             {btn("mark", "highlighter", "Highlight", "Mod-Shift-h", () => editor.chain().focus().toggleHighlight().run())}
+            <button
+              className={"ib tcbtn" + (st.color ? ` on tc-${st.color}` : "")}
+              title="Text colour"
+              aria-label={st.color ? `Text colour: ${st.color}` : "Text colour"}
+              aria-haspopup="dialog"
+              aria-expanded={!!colors}
+              onClick={(e) => setColors(colors ? null : e.currentTarget)}
+            >
+              <Ic name="baseline" />
+            </button>
             {btn("link", "link", "Link", "Mod-k", () => openLinkEditor(editor))}
             <span className="vs" />
           </>
@@ -147,6 +161,20 @@ export function SelectionToolbar({ editor, role, onComment }: { editor: Editor; 
           <Ic name="message-square-plus" />
         </button>
       </div>
+      {colors ? (
+        <Popover anchor={colors} onClose={() => setColors(null)} title="Text colour" kind="dialog" autoFocus={false} noSheet>
+          <div onMouseDown={(e) => e.preventDefault()}>
+            <ColorPicker
+              current={st.color}
+              onPick={(c) => {
+                setColors(null);
+                const ch = editor.chain().focus();
+                (c ? ch.setTextColor(c) : ch.unsetTextColor()).run();
+              }}
+            />
+          </div>
+        </Popover>
+      ) : null}
     </BubbleMenu>
   );
 }
