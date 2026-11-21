@@ -25,11 +25,53 @@ pub struct Config {
     pub rooms: RoomConfig,
 }
 
+/// How edits reach the database between host saves (ADR-029, `OC_DURABILITY`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Durability {
+    /// The default without Redis: no per-update write. The Y.Doc lives in memory and its
+    /// encoded state is dumped to the database every `OC_DB_SYNC_MS` (2 s), before each host
+    /// save and on close. A crash loses at most the edits since the last dump that no open
+    /// client resends on reconnect.
+    Memory,
+    /// Every acknowledged edit is in the WAL (`room_updates`, or the Redis stream) before it
+    /// is fanned out (ADR-028).
+    Wal,
+}
+
+impl Durability {
+    /// `OC_DURABILITY` (`memory` | `wal`); with a Redis WAL the hot WAL is always on.
+    pub fn parse(v: Option<&str>, redis_wal: bool) -> anyhow::Result<Self> {
+        if redis_wal {
+            return Ok(Self::Wal);
+        }
+        match v.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+            None | Some("") | Some("memory") => Ok(Self::Memory),
+            Some("wal") => Ok(Self::Wal),
+            Some(other) => anyhow::bail!("OC_DURABILITY must be memory or wal, got {other:?}"),
+        }
+    }
+}
+
+/// Idle eviction: `OC_ROOM_IDLE_MS` (default 60 s); the older `OC_ROOM_TTL_SECS` still works.
+pub fn room_idle(idle_ms: Option<&str>, ttl_secs: Option<&str>) -> Duration {
+    if let Some(ms) = idle_ms.and_then(|v| v.trim().parse::<u64>().ok()) {
+        return Duration::from_millis(ms);
+    }
+    if let Some(s) = ttl_secs.and_then(|v| v.trim().parse::<u64>().ok()) {
+        return Duration::from_secs(s);
+    }
+    DEFAULT_ROOM_IDLE
+}
+
+pub const DEFAULT_ROOM_IDLE: Duration = Duration::from_secs(60);
+
 #[derive(Debug, Clone)]
 pub struct RoomConfig {
     pub autosave_debounce: Duration,
     pub autosave_max: Duration,
+    /// A room with no peers (and nothing unsaved) for this long is dropped from memory.
     pub room_ttl: Duration,
+    pub durability: Durability,
     pub max_frame_bytes: usize,
     pub max_doc_bytes: usize,
     pub compact_every: u64,
@@ -45,7 +87,8 @@ impl Default for RoomConfig {
         Self {
             autosave_debounce: Duration::from_millis(2000),
             autosave_max: Duration::from_millis(10_000),
-            room_ttl: Duration::from_secs(600),
+            room_ttl: DEFAULT_ROOM_IDLE,
+            durability: Durability::Memory,
             max_frame_bytes: 1024 * 1024,
             max_doc_bytes: 20 * 1024 * 1024,
             compact_every: 500,
@@ -94,6 +137,8 @@ impl Config {
             tracing::warn!("OC_DEV=1 and no OC_KEK: callback tokens are stored unencrypted");
         }
         let wal_redis = var("OC_WAL_REDIS_URL").or_else(|| var("REDIS_URL"));
+        let durability = Durability::parse(var("OC_DURABILITY").as_deref(), wal_redis.is_some())?;
+        let memory = durability == Durability::Memory;
         Ok(Self {
             bind: var("OC_BIND").unwrap_or_else(|| "0.0.0.0:8080".into()),
             public_url: var("OC_PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string()),
@@ -113,24 +158,65 @@ impl Config {
             metrics_token: var("OC_METRICS_TOKEN"),
             wal_redis_url: wal_redis.clone(),
             rooms: RoomConfig {
-                compact_interval: if wal_redis.is_some() {
+                compact_interval: if memory {
+                    Duration::from_millis(num("OC_DB_SYNC_MS", 2_000).max(100))
+                } else if wal_redis.is_some() {
                     Duration::from_millis(num("OC_DB_SYNC_MS", 5_000).max(100))
                 } else {
                     d.compact_interval
                 },
-                compact_every: if wal_redis.is_some() {
+                // Memory mode dumps on time only: a busy room would otherwise dump its whole
+                // state every few hundred keystrokes.
+                compact_every: if memory {
+                    u64::MAX
+                } else if wal_redis.is_some() {
                     num("OC_DB_SYNC_UPDATES", 500).max(1)
                 } else {
                     d.compact_every
                 },
                 autosave_debounce: Duration::from_millis(num("OC_AUTOSAVE_DEBOUNCE_MS", 2000)),
                 autosave_max: Duration::from_millis(num("OC_AUTOSAVE_MAX_MS", 10_000)),
-                room_ttl: Duration::from_secs(num("OC_ROOM_TTL_SECS", 600)),
+                room_ttl: room_idle(
+                    var("OC_ROOM_IDLE_MS").as_deref(),
+                    var("OC_ROOM_TTL_SECS").as_deref(),
+                ),
+                durability,
                 max_frame_bytes: num("OC_MAX_FRAME_KB", 1024) as usize * 1024,
                 max_doc_bytes: num("OC_MAX_DOC_MB", 20) as usize * 1024 * 1024,
                 heartbeat: Duration::from_millis(num("OC_HEARTBEAT_MS", 10_000).max(1000)),
                 ..d
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn idle_eviction_defaults_to_a_minute_and_reads_oc_room_idle_ms() {
+        assert_eq!(RoomConfig::default().room_ttl, Duration::from_secs(60));
+        assert_eq!(room_idle(None, None), Duration::from_secs(60));
+        assert_eq!(
+            room_idle(Some("1500"), Some("600")),
+            Duration::from_millis(1500)
+        );
+        assert_eq!(room_idle(None, Some("600")), Duration::from_secs(600));
+    }
+
+    #[test]
+    fn durability_defaults_to_memory_without_redis() {
+        assert_eq!(Durability::parse(None, false).unwrap(), Durability::Memory);
+        assert_eq!(
+            Durability::parse(Some("WAL"), false).unwrap(),
+            Durability::Wal
+        );
+        assert_eq!(
+            Durability::parse(Some("memory"), true).unwrap(),
+            Durability::Wal
+        );
+        assert!(Durability::parse(Some("disk"), false).is_err());
+        assert_eq!(RoomConfig::default().durability, Durability::Memory);
     }
 }

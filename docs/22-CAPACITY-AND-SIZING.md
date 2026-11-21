@@ -575,6 +575,77 @@ the 13,285 of §9.2.
   `kill -9` at 25 s: **0 of 38,213** lost, 20 rooms closed with 1012 during the Redis outage and
   resynced, PASS. MariaDB 10.11 sync (`mR`): **0 of 38,302** lost, 200 rooms recovered in 928 ms, first save after restart p50 573 ms, 27 transient-retry lines and 0 errors after restart, PASS.
 
+### 9.4 Memory durability, idle eviction, socket buffers (PERF-05, 2026-11-22)
+
+Branch `perf/memory-and-sqlite-writer` (ADR-029). `OC_DURABILITY=memory` is now the default
+without Redis: no per-update write, the room state is dumped to the DB every 2 s (background,
+epoch-fenced), before each host save, on drain and on close. SQLite writes take an in-process
+FIFO write turn. Socket write batches are capped at 64 KiB and tungstenite's write buffer at
+16 KiB. Idle eviction: `OC_ROOM_IDLE_MS`, default 60 s (it existed as a 10-minute TTL).
+
+**Where S1's memory went** (macOS `heap`, main, `wal` mode, 1 min vs 3 min): blocks > 64 KB went
+from 92 to 170 MB, almost exactly one per connection (555–865 blocks of 80–384 KB). They are the
+per-socket write buffers: `write_frames` fed up to 64 frames (presence frames of 550 cursors
+are tens of KB each) before one flush, and a Rust `Vec` keeps the capacity of its largest batch
+for the connection's life. Small blocks (≤ 256 B, mostly 160 B yrs items) grew about
+10–19 MB/min with the document. yrs GC is on (`Doc::new()`, `skip_gc` false); this workload only
+appends text and overwrites map keys, so there is little deleted content to collapse. The
+allocator was not changed (not measured: time). The DB/Redis path held no copies (no growth
+in 16 KB–4 KB blocks).
+
+**S1 (550 in one room, all typing, 5 × 1 min, SQLite):**
+
+| | p95 ms per bucket | RSS MB per bucket | snapshot MB at end | saves / max lag |
+|---|---|---|---|---|
+| before (main, `wal`, 3 buckets) | 45.5 · 92.8 · 69.7 | 237 · 200 · 403 | 3.1 | 18 / 10.4 s |
+| §9.3 (main, `wal`) | 53.7 · 46.0 · 50.6 · 66.4 · 67.1 | 165 → 457 | 5.2 | 29 / 10.3 s |
+| **after (`memory`)** | **43.5 · 48.1 · 52.3 · 47.7 · 45.1** | **106 · 179 · 252 · 242 · 216** | 5.2 | 29 / 10.3 s |
+
+PASS latency. RSS after warm-up (bucket 2 → 5): 179 → 216 MB, **+21 %**, peaking at 252 MB
+in bucket 3 and then falling; the end is 216 MB against 457 MB before. Large blocks at minute 3:
+136 MB (one ≈ 245 KB buffer per connection: a socket write buffer is at least its largest
+single frame plus 16 KiB, and a 550-cursor presence frame is large). What is left that grows is
+the Y.Doc: ≈ 0.75 retained 160-byte items per applied update here (2,750 updates/s ≈
++19 MB/min while the encoded doc grows ≈ 1 MB/min), i.e. **about 20× the encoded size**
+for this append-only, 550-author workload. That part is irreducible while the room is open;
+idle eviction returns it when the room empties.
+
+**S2 (1,000 rooms × 5, all typing, ≈ 25,000 updates/s, SQLite):**
+
+| | p95 ms per bucket | p99 ms | RSS MB | saves / lag p95 |
+|---|---|---|---|---|
+| §9.3 `wal` (group commit) | 1,354 · 1,367 · 1,241 · 1,388 · 1,604 | – | 1,141 → 1,411 | 28,558 / 11.8 s |
+| **`memory`** | **83.5 · 74.1 · 44.0 · 946.6 · 104.5** | 323 · 380 · 188 · 8,702 · 2,923 | 636 · 786 · 947 · 1,052 · 717 | 27,156 / 13.9 s |
+
+All 25,000 updates/s applied, 0 errors, 0 drops. Four of five buckets PASS at 44–105 ms; bucket
+4 FAILS (947 ms). During bucket 4 another session's Docker chaos benchmark (MariaDB + Redis
+containers) started on the same laptop, the load generator's in-process mock host stopped
+answering (1,864 `save failed: host unreachable`, all inside that minute) and its sample count
+fell by 30 %; the server log has no other warning. This is not proven to be the machine, so the
+run is reported as **FAIL (1 bucket)**; rerun on a quiet machine. The DB held 1,000 snapshots
+(95 MB) and 0 WAL rows.
+
+**Crash recovery in memory mode (`scripts/bench.sh R`, SQLite, kill -9 at 25 s):**
+
+- Clients reconnect: **0 of 67,980** acknowledged edits missing from the server at the end, all
+  200 rooms converged, server = clients, the latest host file of every room has every edit:
+  **PASS**. Ready in 30 ms; 200 rooms reopened from their dumps in 227 ms.
+- Clients gone for good (the fresh viewer opened before any client resends): **2,013 of 38,681**
+  acknowledged edits (5.2 %) were not in the recovered state, the oldest acknowledged
+  **2,139 ms** before the kill. The bound is `OC_DB_SYNC_MS` (2 s) plus up to one 250 ms room
+  tick. The first host save after the restart (p50 188 ms) is the dump's state, so it lacks the
+  same edits until the clients' resync lands; the next saves have them.
+
+**Not run (time):** S1/S2 with MariaDB as the dump target, S1/S2 Redis + SQLite reruns (that
+path is unchanged), a mimalloc/jemalloc comparison. Tests, each seen failing first by
+mutation: `config` `idle_eviction_defaults_to_a_minute_and_reads_oc_room_idle_ms`,
+`durability_defaults_to_memory_without_redis`; `rooms.rs`
+`idle_room_is_saved_and_dropped_from_memory`; `durability.rs`
+`memory_mode_fans_out_without_wal_rows_and_a_restart_loads_the_dump`,
+`an_older_dump_never_replaces_a_newer_one`. The requested "writer prioritises WAL over
+snapshots" test was superseded by the owner's memory-mode decision (no WAL writes on the default
+path); `wal` mode keeps the group writer and now shares the FIFO write turn.
+
 ## 10. Crash recovery (`scripts/bench.sh R` / `mR`)
 
 **Method.** `oc-bench verify`: 200 rooms × 2 editors (empty doc), each client appends a paragraph
@@ -630,6 +701,18 @@ Run 1 also logged 9 `compaction failed … expected to read 4 bytes, got 0 bytes
 very end: the harness's `stop_server` cannot `wait` for the restarted server (it is not the
 script's child), so the MariaDB container was removed while the server was still shutting down.
 That is a harness artifact, not a server fault.
+
+**Fix and rerun (PERF-05, branch `perf/memory-and-sqlite-writer`).** The deadlocks were range
+deletes (`DELETE FROM room_updates WHERE room_id = ? AND seq <= ?` in compaction, and room
+purges) taking next-key locks on the `(room_id, seq)` primary key, past the room's last row
+into the neighbouring room's range, while other rooms' guarded inserts and other compactions
+locked in the opposite order. Snapshot writes and purges now take a process-wide gate
+exclusively and WAL batches take it shared, so in one process they never overlap each other or
+a WAL batch (on SQLite they also share the write turn). `OC_DURABILITY=wal scripts/bench.sh mR`
+twice (MariaDB 10.11, Docker): **0 of 38,464 and 0 of 38,468** acknowledged edits lost; 0 of
+67,370 / 67,376 missing at the end; **0 deadlock errors and 0 ERROR lines** in either run
+(before and after the kill); transient retries 4 and 28 (all succeeded). PASS. A cluster can
+still deadlock across nodes (the gate is per process); the 3 retries cover that.
 
 Notes: resync gap includes the 1 s the harness waits after the kill and the restart + viewer
 check, so it is an upper bound on what a browser would see. On MariaDB 9 % of edits were not yet

@@ -1,5 +1,6 @@
 //! Transient state in SQLite or MySQL/MariaDB through the sqlx `Any` driver (docs/04 §5).
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -25,6 +26,13 @@ pub struct Store {
     /// The hot WAL in Redis (`OC_WAL_REDIS_URL`, or `REDIS_URL`): appends go there, and the
     /// database gets snapshots (ADR-021). `None`: the WAL is the `room_updates` table.
     redis: Option<crate::redis_wal::RedisWal>,
+    /// SQLite: one write transaction at a time, taken in order here instead of on SQLite's
+    /// busy handler (which sleeps and retries; docs/22 §9.2). `None` on MySQL/MariaDB.
+    write_lock: Option<Arc<tokio::sync::Mutex<()>>>,
+    /// Snapshot writes and room purges (range deletes on `room_updates`) take this exclusively,
+    /// WAL batches shared: on InnoDB their gap locks deadlocked (1213) with each other and with
+    /// concurrent inserts (docs/22 §10.1), so they never overlap in this process.
+    snapshot_gate: Arc<tokio::sync::RwLock<()>>,
 }
 
 /// One Yjs update for the WAL, at its own `seq`.
@@ -220,9 +228,15 @@ impl Store {
             MYSQL.run(&pool).await
         }
         .context("running migrations")?;
+        let write_lock = sqlite.then(|| Arc::new(tokio::sync::Mutex::new(())));
         let group = (sqlite && group_commit_enabled()).then(|| {
             let (tx, rx) = mpsc::unbounded_channel();
-            tokio::spawn(group_writer(pool.clone(), rx, group_window()));
+            tokio::spawn(group_writer(
+                pool.clone(),
+                rx,
+                group_window(),
+                write_lock.clone(),
+            ));
             tx
         });
         Ok(Self {
@@ -230,6 +244,8 @@ impl Store {
             kek,
             group,
             redis: None,
+            write_lock,
+            snapshot_gate: Arc::new(tokio::sync::RwLock::new(())),
         })
     }
 
@@ -242,6 +258,14 @@ impl Store {
     /// The Redis WAL, when the hot WAL lives there.
     pub fn redis_wal(&self) -> Option<&crate::redis_wal::RedisWal> {
         self.redis.as_ref()
+    }
+
+    /// Waits for this process's turn to write (SQLite only; a no-op on MySQL/MariaDB).
+    async fn write_turn(&self) -> Option<tokio::sync::OwnedMutexGuard<()>> {
+        match &self.write_lock {
+            Some(l) => Some(l.clone().lock_owned().await),
+            None => None,
+        }
     }
 
     pub async fn ping(&self) -> bool {
@@ -411,6 +435,7 @@ impl Store {
         epoch: i64,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         hold_epoch(&mut tx, &row.room_id, epoch).await?;
         sqlx::query(
@@ -514,6 +539,7 @@ impl Store {
     }
 
     async fn outbox_finish_once(&self, id: &str, status: &str) -> anyhow::Result<()> {
+        let _w = self.write_turn().await;
         sqlx::query(
             "UPDATE commit_outbox SET status = ?, payload = ?, last_error = NULL WHERE id = ?",
         )
@@ -717,6 +743,7 @@ impl Store {
     }
 
     async fn claim_epoch_once(&self, room: &str, now_ms: i64) -> anyhow::Result<i64> {
+        let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         let bumped = sqlx::query(
             "UPDATE room_epochs SET epoch = epoch + 1, updated_at = ? WHERE room_id = ?",
@@ -796,6 +823,7 @@ impl Store {
         dirty: bool,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM rooms WHERE id = ?")
             .bind(id)
@@ -824,6 +852,7 @@ impl Store {
         now_ms: i64,
         committed: bool,
     ) -> anyhow::Result<()> {
+        let _w = self.write_turn().await;
         sqlx::query(
             "UPDATE rooms SET host_version = ?, dirty = ?, last_active_at = ?, \
              last_commit_at = CASE WHEN ? = 1 THEN ? ELSE last_commit_at END WHERE id = ?",
@@ -901,6 +930,7 @@ impl Store {
                 .await
                 .unwrap_or_else(|_| Err(anyhow::anyhow!("WAL writer stopped")));
         }
+        let _g = self.snapshot_gate.read().await;
         let rows = rows.as_slice();
         retry_transient("WAL append", move || async move {
             if rows.len() <= WAL_ROWS_PER_INSERT {
@@ -977,8 +1007,22 @@ impl Store {
         state: &[u8],
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        let _g = self.snapshot_gate.write().await;
+        let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         hold_epoch(&mut tx, room, epoch).await?;
+        // A dump that finishes late never replaces a newer one (memory durability runs
+        // dumps in the background, ADR-029).
+        let newer: Option<i64> = sqlx::query("SELECT seq FROM room_snapshots WHERE room_id = ?")
+            .bind(room)
+            .fetch_optional(&mut *tx)
+            .await?
+            .map(|r| r.try_get::<i64, _>(0))
+            .transpose()?;
+        if newer.is_some_and(|s| s > seq) {
+            tx.commit().await?;
+            return Ok(());
+        }
         sqlx::query("DELETE FROM room_snapshots WHERE room_id = ?")
             .bind(room)
             .execute(&mut *tx)
@@ -1008,6 +1052,7 @@ impl Store {
         asset: &oc_model::ocanvas::Asset,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM room_assets WHERE room_id = ? AND asset_id = ?")
             .bind(room)
@@ -1124,6 +1169,8 @@ impl Store {
     /// another writer took the room since (its WAL is not ours to drop).
     pub async fn purge_room_fenced(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
         retry_transient("room purge", move || async move {
+            let _g = self.snapshot_gate.write().await;
+            let _w = self.write_turn().await;
             let mut tx = self.pool.begin().await?;
             hold_epoch(&mut tx, room, epoch).await?;
             purge_in(&mut tx, room).await?;
@@ -1139,6 +1186,8 @@ impl Store {
 
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
         retry_transient("room purge", move || async move {
+            let _g = self.snapshot_gate.write().await;
+            let _w = self.write_turn().await;
             let mut tx = self.pool.begin().await?;
             purge_in(&mut tx, room).await?;
             tx.commit().await?;
@@ -1252,7 +1301,12 @@ fn group_window() -> Duration {
 /// The SQLite WAL writer: takes every room batch queued (up to [`GROUP_MAX_ROWS`] rows, or
 /// what arrives within `window`) and commits them in one transaction, so pooled connections
 /// no longer queue on SQLite's single writer lock for one row each.
-async fn group_writer(pool: AnyPool, mut rx: mpsc::UnboundedReceiver<GroupJob>, window: Duration) {
+async fn group_writer(
+    pool: AnyPool,
+    mut rx: mpsc::UnboundedReceiver<GroupJob>,
+    window: Duration,
+    write_lock: Option<Arc<tokio::sync::Mutex<()>>>,
+) {
     while let Some(first) = rx.recv().await {
         let deadline = tokio::time::Instant::now() + window;
         let mut rows = first.rows.len();
@@ -1272,6 +1326,10 @@ async fn group_writer(pool: AnyPool, mut rx: mpsc::UnboundedReceiver<GroupJob>, 
             rows += j.rows.len();
             jobs.push(j);
         }
+        let _w = match &write_lock {
+            Some(l) => Some(l.clone().lock_owned().await),
+            None => None,
+        };
         commit_group(&pool, jobs).await;
     }
 }

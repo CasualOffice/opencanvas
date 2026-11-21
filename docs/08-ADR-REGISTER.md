@@ -31,6 +31,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-025 | Blocks open items (docs/15 §4, docs/20): board arrow `via` (manual waypoints, drawn identically by the web and Rust exporters; `pts` keeps the resolved path); database field `description` (shared field map, in `document.json`, footnote line under the table in web and server Markdown, not in CSV); view prefs `fields` (per-view order) and `hidden`, typed `filters` rules `{f, op, v, v2}` (legacy `filter` mirrors the first value-list rule only); `BlockEnv.undoManager` (optional; blocks join the editor's Y.UndoManager instead of a private one). All optional and additive | Accepted (2026-11-21) |
 | ADR-026 | Users and identity (docs/21 revision 2, 2026-11-22): the mention list is the canvas's members (token `members[]` ≤ 500, optional signed `GET /files/{fileId}/members` cached 60 s per room, else the saved `people` map; callback > token > saved); the same list and real names for every viewer; one user object `id, name, detail?, avatar?, color?`, never e-mail; chips show the member's current name or the snapshot + "No longer has access"; revocation via the role API or `POST /v1/files/:id/members/invalidate` takes effect at once; `GET /v1/members`. Revision 1 (per-viewer relations, hidden/external, nicknames, `coviewers`, `participants`, `showEmail`, `/users`, `/users/resolve`) removed | Accepted (revision 2, 2026-11-22) |
 | ADR-027 | Editor/server open items (docs/19 UX-02, FILE-01, LAY-01): host callback `POST /mentions` + `notify_outbox` table; control `ping` heartbeat; `textColor` mark and `dateMention` node; `fileAttachment.display/height`, `columns.widths`, `column.title`; `GET /v1/assets/fetch` preview route; `UI_BlockLink` and launch `block`; `BlockEnv.undoManager` used; new dependency `pdfjs-dist` (lazy) | Accepted (2026-11-21) |
+| ADR-029 | Memory durability (`OC_DURABILITY=memory`, the default without Redis): rooms live in memory and their state is dumped to the DB every `OC_DB_SYNC_MS` (2 s) and before saves, drain and close; `wal` keeps ADR-028; SQLite write turn; idle eviction `OC_ROOM_IDLE_MS` (60 s) | Accepted (2026-11-22) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -264,3 +265,40 @@ update frames/s; + DB write load drops to one snapshot per room per 5 s with Red
 becomes part of the durability path (and its persistence settings matter); − edit latency has a
 floor of the tick (≤ 40 ms) plus one append; − a snapshot every 5 s re-encodes the whole doc
 (cost grows with the doc).
+
+### ADR-029 — Memory durability: a single server in memory, periodic dump to the database
+
+**Context.** docs/22 §9.3: with the batched WAL a single SQLite server still missed the 700 ms
+p95 at 1,000 rooms × 5 (p95 1.2–1.6 s): every acknowledged keystroke became a database row, and
+WAL batches, snapshots, outbox writes and room marks all queued on SQLite's single writer. The
+owner's direction (2026-11-22): a single server keeps rooms in memory and dumps them to the
+database for restart safety; the strict WAL stays available as an option.
+**Decision.** `OC_DURABILITY = memory | wal`.
+(1) **`memory`** (the default when no Redis WAL is configured): no per-update write. An update
+is applied to the in-memory Y.Doc and fanned out on the next outbound tick (≤ 40 ms) without
+waiting for the database. While the room has changes, its encoded state is dumped
+(epoch-fenced, into `room_snapshots`) every `OC_DB_SYNC_MS` (default 2,000 ms) in the
+background: the actor encodes, a task writes, and a late dump never replaces a newer one. The
+state is also dumped synchronously before each host save, on drain/SIGTERM and on close. The
+room row is marked dirty before the first edit after a save, so a restart loads the dump.
+Outbox, mention outbox and `jti` writes are unchanged.
+(2) **`wal`**: ADR-028 unchanged. An edit is fanned out only after its WAL batch commits.
+(3) **With a Redis WAL** (`OC_WAL_REDIS_URL`/`REDIS_URL`): unchanged (hot WAL in Redis plus a
+periodic DB sync). `OC_DURABILITY` is ignored.
+(4) On SQLite every write transaction waits for an in-process write turn (FIFO) instead of
+SQLite's busy handler, which sleeps and retries.
+(5) **Idle eviction**: a room with no peers and nothing unsaved for `OC_ROOM_IDLE_MS` (default
+60 s; the older `OC_ROOM_TTL_SECS` is still read) is saved, its rows are purged and its actor
+and Y.Doc are dropped. (This existed with a 10-minute default; the default is now 60 s.)
+**Durability contract (memory mode).** An acknowledged edit is in server memory and in the
+editors' browsers. If the server process dies (kill -9, OOM, power loss), it restarts from the
+last dump, at most `OC_DB_SYNC_MS` old. Every client that is still open resends what the server
+lacks through Yjs sync step 1/2 when it reconnects, so nothing is lost while some client that
+holds the edit comes back. Edits made in the last `OC_DB_SYNC_MS` before the crash by clients
+that never come back are **lost**. A clean shutdown (SIGTERM) loses nothing: rooms dump and
+save before exit. Operators who need every acknowledged edit on disk set `OC_DURABILITY=wal`
+or configure a Redis WAL.
+**Consequences.** + no database write on the edit path (docs/22 §9.4); + database load is one
+state dump per busy room per 2 s; − a crash can lose up to `OC_DB_SYNC_MS` of edits from
+clients that do not return; − each dump re-encodes the whole doc, so its cost grows with the
+document.

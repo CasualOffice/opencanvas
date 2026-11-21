@@ -351,6 +351,49 @@ async fn last_leave_saves_and_reopen_loads_from_host() {
     assert_eq!(host.lock().unwrap().gets, 2);
 }
 
+/// Idle eviction (`OC_ROOM_IDLE_MS`): a memory-mode room nobody is in is saved, then dropped
+/// from memory, and its database rows go with it.
+#[tokio::test]
+async fn idle_room_is_saved_and_dropped_from_memory() {
+    let (base, host) = mock_host().await;
+    let idle = oc_server::config::room_idle(Some("300"), Some("600"));
+    let state = app(
+        &base,
+        oc_server::config::RoomConfig {
+            room_ttl: idle,
+            durability: oc_server::config::Durability::Memory,
+            ..room_cfg()
+        },
+    )
+    .await;
+    let room = grant("u_a", Role::Edit).room;
+    let mut a = Peer::join(&state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    a.edit(|d| type_text(d, "evict me"));
+    a.settle().await;
+    a.leave();
+    let left = std::time::Instant::now();
+    wait_until(|| state.rooms.live_rooms() == 0).await;
+    assert!(
+        left.elapsed() < Duration::from_secs(3),
+        "room kept for {:?} after the last peer left",
+        left.elapsed()
+    );
+    assert_eq!(
+        host.lock().unwrap().puts.len(),
+        1,
+        "saved before it was dropped"
+    );
+    assert!(
+        state.store.room(&room).await.unwrap().is_none(),
+        "room row kept"
+    );
+    assert!(
+        state.store.load_wal(&room).await.unwrap().is_empty(),
+        "dump kept"
+    );
+}
+
 /// docs/22 §7: the room's fan-out shares one buffer between peers instead of copying every
 /// frame once per peer. Two viewers receive the same update in the same allocation.
 #[tokio::test]

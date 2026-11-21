@@ -318,6 +318,8 @@ pub fn room_cfg() -> RoomConfig {
         autosave_debounce: Duration::from_secs(3600),
         autosave_max: Duration::from_secs(3600),
         tick: Duration::from_millis(20),
+        // Most tests check the strict WAL path; memory durability has its own (durability.rs).
+        durability: oc_server::config::Durability::Wal,
         ..RoomConfig::default()
     }
 }

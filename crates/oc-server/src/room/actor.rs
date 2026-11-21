@@ -147,6 +147,10 @@ struct Room {
     flush_at: Option<tokio::time::Instant>,
     /// Every update queued since the last flush integrated in order (none left pending).
     batch_in_order: bool,
+    /// Memory durability (ADR-029): no per-update WAL write; the state is dumped instead.
+    memory: bool,
+    /// A background dump is running (memory durability).
+    dump_in_flight: bool,
 }
 
 /// An update applied to the doc, waiting for its WAL batch.
@@ -443,6 +447,9 @@ impl Room {
             wal_queue: Vec::new(),
             flush_at: None,
             batch_in_order: true,
+            memory: ctx.cfg.durability == crate::config::Durability::Memory
+                && ctx.store.redis_wal().is_none(),
+            dump_in_flight: false,
             ctx,
         })
     }
@@ -479,6 +486,7 @@ impl Room {
             }
             Cmd::SaveDone { id, result } => self.save_done(&id, result).await,
             Cmd::ConflictDone { result } => self.conflict_done(result).await,
+            Cmd::Dumped { seq, result } => self.dumped(seq, result),
             Cmd::SetRole {
                 user_id,
                 role,
@@ -884,32 +892,40 @@ impl Room {
         }
         let batch = std::mem::take(&mut self.wal_queue);
         let at = now_ms();
-        let rows = batch
-            .iter()
-            .map(|q| WalRow {
-                seq: q.seq,
-                data: q.bytes.clone(),
-                origin: q.user_id.clone(),
-                at,
-            })
-            .collect::<Vec<_>>();
+        let rows = if self.memory {
+            Vec::new()
+        } else {
+            batch
+                .iter()
+                .map(|q| WalRow {
+                    seq: q.seq,
+                    data: q.bytes.clone(),
+                    origin: q.user_id.clone(),
+                    at,
+                })
+                .collect::<Vec<_>>()
+        };
         if self.dirty_since.is_none() && batch.iter().any(|q| q.edit) && !self.mark_dirty().await {
             return false;
         }
-        let started = Instant::now();
-        let res = self
-            .ctx
-            .store
-            .append_updates(&self.id, self.epoch, rows)
-            .await;
-        let m = &self.ctx.metrics;
-        m.wal_append_seconds.observe(started.elapsed());
-        Metrics::inc(&m.wal_batches_total);
-        m.wal_rows_total
-            .fetch_add(batch.len() as i64, std::sync::atomic::Ordering::Relaxed);
-        if let Err(e) = res {
-            self.fail(&e, "WAL append failed");
-            return false;
+        // Memory durability (ADR-029): acknowledged after the in-memory apply; the periodic
+        // dump makes it durable.
+        if !self.memory {
+            let started = Instant::now();
+            let res = self
+                .ctx
+                .store
+                .append_updates(&self.id, self.epoch, rows)
+                .await;
+            let m = &self.ctx.metrics;
+            m.wal_append_seconds.observe(started.elapsed());
+            Metrics::inc(&m.wal_batches_total);
+            m.wal_rows_total
+                .fetch_add(batch.len() as i64, std::sync::atomic::Ordering::Relaxed);
+            if let Err(e) = res {
+                self.fail(&e, "WAL append failed");
+                return false;
+            }
         }
         let mut edited = false;
         // The sender does not get its own update back; with several senders in one batch the
@@ -1149,10 +1165,14 @@ impl Room {
             self.flush_mentions().await;
         }
         if self.seq > self.compacted_seq
-            && (self.seq - self.compacted_seq >= cfg.compact_every as i64
+            && (self.seq - self.compacted_seq >= cfg.compact_every.min(i64::MAX as u64) as i64
                 || self.last_compact.elapsed() >= cfg.compact_interval)
         {
-            self.compact().await;
+            if self.memory {
+                self.start_dump();
+            } else {
+                self.compact().await;
+            }
         }
         if !self.peers.is_empty() || self.save.in_flight {
             return false;
@@ -1206,6 +1226,55 @@ impl Room {
             tokio::spawn(async move {
                 crate::notify::attempt(&ctx.store, &ctx.host, &host, &row, now_ms()).await;
             });
+        }
+    }
+
+    /// Memory durability: encodes the state here and writes it (epoch-fenced) in the
+    /// background, so the room keeps serving while the database works.
+    fn start_dump(&mut self) {
+        if self.dump_in_flight {
+            return;
+        }
+        self.dump_in_flight = true;
+        self.last_compact = Instant::now();
+        let state = self
+            .doc
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default());
+        self.doc_bytes = state.len();
+        let (ctx, id, epoch, seq, tx) = (
+            self.ctx.clone(),
+            self.id.clone(),
+            self.epoch,
+            self.seq,
+            self.self_tx.clone(),
+        );
+        tokio::spawn(async move {
+            let started = Instant::now();
+            let result = ctx
+                .store
+                .compact(&id, epoch, seq, &state, now_ms())
+                .await
+                .map_err(|e| {
+                    if crate::store::is_fenced(&e) {
+                        super::DumpError::Fenced(e)
+                    } else {
+                        super::DumpError::Other(e.to_string())
+                    }
+                });
+            ctx.metrics.wal_append_seconds.observe(started.elapsed());
+            let _ = tx.send(Cmd::Dumped { seq, result });
+        });
+    }
+
+    fn dumped(&mut self, seq: i64, result: Result<(), super::DumpError>) {
+        self.dump_in_flight = false;
+        match result {
+            Ok(()) => self.compacted_seq = self.compacted_seq.max(seq),
+            Err(super::DumpError::Fenced(e)) => self.fail(&e, "state dump failed"),
+            Err(super::DumpError::Other(e)) => {
+                tracing::error!(room = %self.id, error = %e, "state dump failed")
+            }
         }
     }
 
@@ -1276,6 +1345,13 @@ impl Room {
     }
 
     async fn start_save(&mut self) {
+        // Memory durability: the database holds this state before the host is asked to.
+        if self.memory && self.seq > self.compacted_seq {
+            self.compact().await;
+            if self.lost.is_some() {
+                return;
+            }
+        }
         let pending = match self.prepare_save().await {
             Ok(p) => p,
             Err(e) => {

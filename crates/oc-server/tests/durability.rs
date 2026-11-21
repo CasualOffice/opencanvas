@@ -397,3 +397,84 @@ async fn batched_wal_replays_in_order() {
     );
     assert_eq!(json_of(&a.doc), server);
 }
+
+// ---------- memory durability (ADR-029) ----------
+
+fn memory_cfg(sync: std::time::Duration) -> oc_server::config::RoomConfig {
+    oc_server::config::RoomConfig {
+        durability: oc_server::config::Durability::Memory,
+        compact_interval: sync,
+        compact_every: u64::MAX,
+        ..room_cfg()
+    }
+}
+
+/// Memory durability: an edit is fanned out without a WAL row; the periodic dump puts the
+/// state in `room_snapshots`, and a restart after a crash loads it.
+#[tokio::test]
+async fn memory_mode_fans_out_without_wal_rows_and_a_restart_loads_the_dump() {
+    let (base, _host) = mock_host().await;
+    let db = temp_db();
+    let cfg = memory_cfg(std::time::Duration::from_millis(100));
+    let state = app_custom(&base, cfg.clone(), &db, |_| {}).await;
+    let room = grant("u_a", Role::Edit).room;
+    let mut a = Peer::join(&state, grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    a.edit(|d| para(d, "kept in memory"));
+    a.settle().await;
+    b.settle().await;
+    assert!(json_of(&b.doc).to_string().contains("kept in memory"));
+    assert_eq!(
+        metric(&state, "oc_wal_rows_total"),
+        0,
+        "memory mode wrote WAL rows"
+    );
+
+    let mut dumped = false;
+    for _ in 0..100 {
+        let wal = state.store.load_wal(&room).await.unwrap();
+        assert!(wal.updates.is_empty(), "memory mode wrote a WAL row");
+        if wal
+            .snapshot
+            .as_ref()
+            .is_some_and(|(_, s)| contains(s, b"kept in memory"))
+        {
+            dumped = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert!(dumped, "the state was not dumped within the sync interval");
+
+    // kill -9: the actor goes away without saving; a new process opens the same database.
+    state.rooms.crash(&room);
+    a.leave();
+    b.leave();
+    drop(state);
+    let restarted = app_custom(&base, cfg, &db, |_| {}).await;
+    let mut v = Peer::join(&restarted, grant("u_v", Role::View)).await;
+    v.settle().await;
+    assert!(
+        json_of(&v.doc).to_string().contains("kept in memory"),
+        "the dump was not loaded after the restart"
+    );
+}
+
+/// A dump that finishes after a newer one never replaces it (dumps run in the background).
+#[tokio::test]
+async fn an_older_dump_never_replaces_a_newer_one() {
+    for (name, store) in stores().await {
+        let room = new_room();
+        let epoch = store.claim_epoch(&room, 1).await.unwrap();
+        store.compact(&room, epoch, 20, b"newer", 1).await.unwrap();
+        store.compact(&room, epoch, 10, b"older", 2).await.unwrap();
+        let wal = store.load_wal(&room).await.unwrap();
+        assert_eq!(
+            wal.snapshot,
+            Some((20, b"newer".to_vec())),
+            "{name}: a late dump went back in time"
+        );
+    }
+}
