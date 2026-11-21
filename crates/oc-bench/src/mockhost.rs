@@ -26,9 +26,28 @@ pub struct HostStats {
     /// Per save: ms from the oldest unsaved edit to the PUT arriving (autosave lag).
     pub save_lag_ms: Mutex<Vec<u32>>,
     version: AtomicU64,
+    /// Added delay per callback, ms range (0,0 = answer at once): a host with realistic latency.
+    pub latency_ms: Mutex<(u64, u64)>,
+    /// Keep every file's latest save and serve it on load (crash/cluster verification).
+    pub store: std::sync::atomic::AtomicBool,
+    pub stored: Mutex<HashMap<String, Vec<u8>>>,
+    /// Saves received after `mark` was set: fileId -> (when, bytes) of the first one.
+    pub mark: Mutex<Option<Instant>>,
+    pub first_after_mark: Mutex<HashMap<String, (Instant, Vec<u8>)>>,
 }
 
 impl HostStats {
+    async fn delay(&self) {
+        let (lo, hi) = *self.latency_ms.lock().expect("lock");
+        if hi > 0 {
+            let span = hi.saturating_sub(lo) + 1;
+            let r = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.subsec_nanos() as u64);
+            tokio::time::sleep(std::time::Duration::from_millis(lo + r % span)).await;
+        }
+    }
+
     /// Called by editors when they send an update for `file`.
     pub fn edited(&self, file: &str) {
         let mut m = self.unsaved_since.lock().expect("lock");
@@ -56,6 +75,18 @@ pub fn kind_of(file: &str) -> DocKind {
 
 async fn load(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>) -> Response {
     ctx.stats.loads.fetch_add(1, Ordering::Relaxed);
+    ctx.stats.delay().await;
+    let kept = ctx.stats.stored.lock().expect("lock").get(&file).cloned();
+    if let Some(b) = kept {
+        return (
+            [
+                (header::CONTENT_TYPE, "application/vnd.opencanvas+zip"),
+                (header::ETAG, "\"1\""),
+            ],
+            b,
+        )
+            .into_response();
+    }
     let bytes = match kind_of(&file) {
         DocKind::Empty => None,
         DocKind::Demo => ctx.demo.clone(),
@@ -76,7 +107,21 @@ async fn load(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>) -> Response
 
 async fn save(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>, body: Bytes) -> Response {
     let s = &ctx.stats;
+    s.delay().await;
     s.saves.fetch_add(1, Ordering::Relaxed);
+    if s.store.load(Ordering::Relaxed) {
+        if s.mark.lock().expect("lock").is_some() {
+            s.first_after_mark
+                .lock()
+                .expect("lock")
+                .entry(file.clone())
+                .or_insert_with(|| (Instant::now(), body.to_vec()));
+        }
+        s.stored
+            .lock()
+            .expect("lock")
+            .insert(file.clone(), body.to_vec());
+    }
     s.save_bytes.fetch_add(body.len() as u64, Ordering::Relaxed);
     if let Some(t) = s.unsaved_since.lock().expect("lock").remove(&file) {
         s.save_lag_ms

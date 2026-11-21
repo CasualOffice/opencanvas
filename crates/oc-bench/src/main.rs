@@ -13,6 +13,7 @@
 mod client;
 mod docs;
 mod mockhost;
+mod verify;
 
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
@@ -24,7 +25,18 @@ use serde_json::{Value, json};
 use client::{Counters, RunCfg, Shared, Spec, run_user};
 use docs::DocKind;
 
-struct Args(HashMap<String, String>);
+pub struct Args(HashMap<String, String>);
+
+/// `--host-latency-ms 20,50`: the mock host waits 20-50 ms before answering each callback.
+pub fn host_latency(a: &Args) -> (u64, u64) {
+    let v: Vec<u64> = a
+        .s("host-latency-ms", "0")
+        .split(',')
+        .filter_map(|s| s.parse().ok())
+        .collect();
+    let lo = v.first().copied().unwrap_or(0);
+    (lo, v.get(1).copied().unwrap_or(lo))
+}
 
 impl Args {
     fn parse(v: &[String]) -> anyhow::Result<Self> {
@@ -34,17 +46,19 @@ impl Args {
             let Some(k) = k.strip_prefix("--") else {
                 anyhow::bail!("unexpected argument {k}");
             };
-            let val = it
-                .next()
-                .ok_or_else(|| anyhow::anyhow!("--{k} needs a value"))?;
-            m.insert(k.to_string(), val.clone());
+            // A flag with no value (`--no-pauses`) reads as "1".
+            let val = match it.clone().next() {
+                Some(v) if !v.starts_with("--") => it.next().cloned().unwrap_or_default(),
+                _ => "1".to_string(),
+            };
+            m.insert(k.to_string(), val);
         }
         Ok(Self(m))
     }
-    fn s(&self, k: &str, d: &str) -> String {
+    pub fn s(&self, k: &str, d: &str) -> String {
         self.0.get(k).cloned().unwrap_or_else(|| d.to_string())
     }
-    fn n<T: std::str::FromStr>(&self, k: &str, d: T) -> T {
+    pub fn n<T: std::str::FromStr>(&self, k: &str, d: T) -> T {
         self.0.get(k).and_then(|v| v.parse().ok()).unwrap_or(d)
     }
 }
@@ -117,7 +131,7 @@ async fn metrics(http: &reqwest::Client, bases: &[String]) -> HashMap<String, f6
     m
 }
 
-fn pct(sorted: &[u32], q: f64) -> f64 {
+pub fn pct(sorted: &[u32], q: f64) -> f64 {
     if sorted.is_empty() {
         return f64::NAN;
     }
@@ -183,6 +197,7 @@ async fn main() -> anyhow::Result<()> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     match argv.first().map(String::as_str) {
         Some("run") => run(Args::parse(&argv[1..])?).await,
+        Some("verify") => verify::run(Args::parse(&argv[1..])?).await,
         Some("sizes") => {
             for k in [DocKind::Empty, DocKind::Demo, DocKind::Big] {
                 let ocanvas = docs::ocanvas(k)?.map_or(0, |b| b.len());
@@ -236,7 +251,12 @@ async fn run(a: Args) -> anyhow::Result<()> {
     let step_secs: u64 = a.n("step-secs", 20);
     let settle_secs: u64 = a.n("settle-secs", 5);
     let rate: f64 = a.n("connect-rate", 200.0);
-    let active: f64 = a.n("active", 0.6);
+    // --no-pauses: editors type continuously (no burst pauses), the worst case.
+    let active: f64 = if a.s("no-pauses", "0") == "1" {
+        1.0
+    } else {
+        a.n("active", 0.6)
+    };
     let cps: Vec<f64> = a
         .s("cps", "3,6")
         .split(',')
@@ -246,6 +266,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
     let label = a.s("label", "run");
     let host_stats = Arc::new(mockhost::HostStats::default());
     let host_port: u16 = a.n("host-port", 8702);
+    *host_stats.latency_ms.lock().expect("lock") = host_latency(&a);
     if host_port != 0 {
         mockhost::serve(host_port, host_stats.clone()).await?;
     }
@@ -367,9 +388,15 @@ async fn run(a: Args) -> anyhow::Result<()> {
             spawned += 1;
             tokio::time::sleep(gap).await;
         }
-        // Wait for every client to be ready or failed (≤ 120 s).
+        // Wait for every client to be ready or failed (≤ 120 s). A repeated step (same
+        // target: one more time bucket) does not wait again for clients that never connected.
         let t = Instant::now();
-        while t.elapsed() < Duration::from_secs(120) {
+        let wait = if rows.last().is_some_and(|r: &Value| r["target"] == target) {
+            Duration::ZERO
+        } else {
+            Duration::from_secs(120)
+        };
+        while t.elapsed() < wait {
             let done = sh.c.ready.load(Ordering::Relaxed)
                 + sh.c.launch_err.load(Ordering::Relaxed)
                 + sh.c.ws_err.load(Ordering::Relaxed);

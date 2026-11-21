@@ -131,7 +131,7 @@ fn now_secs() -> i64 {
         .map_or(0, |d| d.as_secs() as i64)
 }
 
-fn mint(cfg: &RunCfg, idx: usize, room: usize, editor: bool) -> anyhow::Result<String> {
+pub fn mint(cfg: &RunCfg, idx: usize, room: usize, editor: bool) -> anyhow::Result<String> {
     let now = now_secs();
     let claims = Claims {
         iss: &cfg.host_id,
@@ -152,7 +152,7 @@ fn mint(cfg: &RunCfg, idx: usize, room: usize, editor: bool) -> anyhow::Result<S
 }
 
 /// Launch + session lookup, as the SPA does. Returns (ticket, room id).
-async fn launch(
+pub async fn launch(
     sh: &Shared,
     base: &str,
     idx: usize,
@@ -406,7 +406,7 @@ impl Editor {
     }
 }
 
-fn awareness_frame(cid: ClientID, clock: u32, state: &Value) -> Vec<u8> {
+pub fn awareness_frame(cid: ClientID, clock: u32, state: &Value) -> Vec<u8> {
     let mut clients = HashMap::new();
     clients.insert(
         cid,
@@ -418,7 +418,7 @@ fn awareness_frame(cid: ClientID, clock: u32, state: &Value) -> Vec<u8> {
     Message::Awareness(AwarenessUpdate { clients }).encode_v1()
 }
 
-fn sync_frame(m: SyncMessage) -> Vec<u8> {
+pub fn sync_frame(m: SyncMessage) -> Vec<u8> {
     Message::Sync(m).encode_v1()
 }
 
