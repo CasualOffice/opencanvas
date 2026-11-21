@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { createPortal } from "react-dom";
 import { Ic } from "../icons";
 import { toastStore, useStore } from "../lib/store";
+import { readableOn } from "../lib/color";
 
 export interface Shell {
   root: HTMLElement | null;
@@ -44,6 +45,56 @@ function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => voi
   }, [ref, ignore]);
 }
 
+/**
+ * Where a popover goes: below the anchor, or above it when there is more room
+ * there, clamped inside the shell. `maxHeight` keeps long menus scrollable
+ * inside the visible area instead of running off the bottom.
+ */
+export function placePopover(
+  anchor: { left: number; right: number; top: number; bottom: number },
+  shell: { width: number; height: number },
+  size: { width: number; height: number },
+  alignRight = false,
+): { left: number; top: number; maxHeight: number } {
+  const gap = 6;
+  const edge = 8;
+  const below = shell.height - anchor.bottom - gap - edge;
+  const above = anchor.top - gap - edge;
+  const fitsBelow = size.height <= below;
+  const useAbove = !fitsBelow && above > below;
+  const maxHeight = Math.max(120, Math.floor(useAbove ? above : below));
+  const h = Math.min(size.height, maxHeight);
+  const top = useAbove ? Math.max(edge, anchor.top - gap - h) : Math.max(edge, Math.min(anchor.bottom + gap, shell.height - edge - h));
+  let left = alignRight ? anchor.right - size.width : anchor.left;
+  left = Math.max(edge, Math.min(left, shell.width - size.width - edge));
+  return { left, top, maxHeight };
+}
+
+const ITEM = "button:not(:disabled),[href],input,select,textarea,[tabindex]:not([tabindex='-1'])";
+
+/**
+ * Menu keyboard model (WAI-ARIA menu pattern): arrows move between items,
+ * Home/End jump, Tab closes. Items are the menu's buttons.
+ */
+function menuKeys(e: React.KeyboardEvent<HTMLElement>, onClose: () => void) {
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>(ITEM)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+  if (!items.length) return;
+  const i = items.indexOf(document.activeElement as HTMLElement);
+  const typing = (document.activeElement as HTMLElement | null)?.matches?.("input,textarea,select");
+  const go = (n: number) => {
+    e.preventDefault();
+    items[(n + items.length) % items.length]?.focus();
+  };
+  if (e.key === "ArrowDown" && !typing) go(i + 1);
+  else if (e.key === "ArrowUp" && !typing) go(i < 0 ? items.length - 1 : i - 1);
+  else if (e.key === "Home" && !typing) go(0);
+  else if (e.key === "End" && !typing) go(items.length - 1);
+  else if (e.key === "Tab" && !typing && e.currentTarget.getAttribute("role") === "menu") {
+    e.preventDefault();
+    onClose();
+  }
+}
+
 export function Popover(props: {
   anchor: Anchor;
   onClose(): void;
@@ -54,32 +105,77 @@ export function Popover(props: {
   className?: string;
   /** Keep as a popover even in compact mode. */
   noSheet?: boolean;
+  /**
+   * `menu` (default): focus moves into the menu, arrows move between items, and
+   * focus returns to the opener on close. `listbox`: a suggestion list driven
+   * from the editor (slash, mentions); focus stays where the person types.
+   * `dialog`: a small form (link editor, pickers).
+   */
+  kind?: "menu" | "listbox" | "dialog";
+  /** Override whether focus moves into the popover on open (default: not for listboxes). */
+  autoFocus?: boolean;
 }) {
   const { root, compact } = useShell();
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
   const sheet = compact && !props.noSheet;
+  const kind = props.kind ?? "menu";
+  const ownsFocus = props.autoFocus ?? kind !== "listbox";
+  const opener = useRef<HTMLElement | null>(null);
   useDismiss(ref, props.onClose, props.anchor instanceof Element ? props.anchor : null);
+
+  // Move focus in on open and give it back to whoever opened us on close.
+  useEffect(() => {
+    if (!ownsFocus) return;
+    opener.current = (props.anchor instanceof HTMLElement ? props.anchor : null) ?? (document.activeElement as HTMLElement | null);
+    const t = window.requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el || el.contains(document.activeElement)) return;
+      const first = el.querySelector<HTMLElement>("[data-autofocus]") ?? el.querySelector<HTMLElement>(kind === "menu" ? ".mi:not(:disabled), button:not(:disabled)" : ITEM);
+      first?.focus({ preventScroll: true });
+    });
+    return () => {
+      window.cancelAnimationFrame(t);
+      const o = opener.current;
+      // Only when focus would otherwise be lost (inside the closed popover or on <body>).
+      window.requestAnimationFrame(() => {
+        const a = document.activeElement;
+        if (o && o.isConnected && (!a || a === document.body || !a.isConnected)) o.focus({ preventScroll: true });
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ARIA roles for the items (buttons inside a menu are menu items).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || sheet) return;
+    if (kind === "menu") el.querySelectorAll(".mi").forEach((b) => b.setAttribute("role", "menuitem"));
+    if (kind === "listbox")
+      el.querySelectorAll(".mi, .sgrid > button").forEach((b) => {
+        b.setAttribute("role", "option");
+        b.setAttribute("aria-selected", String(b.classList.contains("on")));
+        b.setAttribute("tabindex", "-1");
+      });
+  });
 
   useLayoutEffect(() => {
     if (sheet || !root || !ref.current) return;
     const ar = root.getBoundingClientRect();
     const r = rectOf(props.anchor);
-    const pw = ref.current.offsetWidth;
-    const ph = ref.current.offsetHeight;
-    let left = (props.alignRight ? r.right - pw : r.left) - ar.left;
-    let top = r.bottom - ar.top + 6;
-    if (top + ph > ar.height - 8) top = Math.max(8, r.top - ar.top - ph - 6);
-    left = Math.max(8, Math.min(left, ar.width - pw - 8));
-    setPos({ left, top });
+    const el = ref.current;
+    const local = { left: r.left - ar.left, right: r.right - ar.left, top: r.top - ar.top, bottom: r.bottom - ar.top };
+    const next = placePopover(local, { width: ar.width, height: ar.height }, { width: el.offsetWidth, height: el.scrollHeight }, props.alignRight);
+    setPos((p) => (p && p.left === next.left && p.top === next.top && p.maxHeight === next.maxHeight ? p : next));
   }, [root, sheet, props.anchor, props.alignRight, props.children]);
 
   if (!root) return null;
+  const role = kind === "listbox" ? "listbox" : kind === "dialog" ? "dialog" : "menu";
   if (sheet) {
     return createPortal(
       <>
         <div className="scrim" onPointerDown={(e) => e.preventDefault()} />
-        <div className={"sheet " + (props.className ?? "")} ref={ref} role="dialog" aria-label={props.title}>
+        <div className={"sheet " + (props.className ?? "")} ref={ref} role="dialog" aria-label={props.title} onKeyDown={(e) => menuKeys(e, props.onClose)}>
           <div className="grab" />
           {props.title ? <div className="sh-t">{props.title}</div> : null}
           {props.children}
@@ -92,8 +188,10 @@ export function Popover(props: {
     <div
       className={"pop " + (props.className ?? "")}
       ref={ref}
-      role="menu"
-      style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, minWidth: props.minWidth }}
+      role={role}
+      aria-label={props.title}
+      onKeyDown={kind === "listbox" ? undefined : (e) => menuKeys(e, props.onClose)}
+      style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, minWidth: props.minWidth, maxHeight: pos?.maxHeight }}
     >
       {props.children}
     </div>,
@@ -104,14 +202,39 @@ export function Popover(props: {
 export function Modal(props: { onClose(): void; children: ReactNode; wide?: boolean; label?: string; dismissable?: boolean }) {
   const { root } = useShell();
   const ref = useRef<HTMLDivElement>(null);
+  const close = useRef(props.onClose);
+  close.current = props.onClose;
   useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && props.dismissable !== false) props.onClose();
+      if (e.key === "Escape" && props.dismissable !== false) {
+        e.stopPropagation();
+        close.current();
+      }
+      // Keep Tab inside the dialog (WCAG 2.4.3 focus order for modals).
+      if (e.key === "Tab" && ref.current) {
+        const els = [...ref.current.querySelectorAll<HTMLElement>(ITEM)].filter((x) => x.offsetParent !== null);
+        if (!els.length) return;
+        const first = els[0];
+        const last = els[els.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !ref.current.contains(document.activeElement))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !ref.current.contains(document.activeElement))) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
-    document.addEventListener("keydown", key);
-    const f = ref.current?.querySelector<HTMLElement>("[data-autofocus],button.primary,input,button");
+    document.addEventListener("keydown", key, true);
+    // In priority order (a selector list would pick whichever comes first in the DOM, i.e. the close button).
+    const el = ref.current;
+    const f = el ? (["[data-autofocus]", "input,textarea", "button.primary", "button"].map((q) => [...el.querySelectorAll<HTMLElement>(q)].find((x) => x.offsetParent !== null)).find(Boolean) ?? null) : null;
     f?.focus();
-    return () => document.removeEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("keydown", key, true);
+      if (opener?.isConnected) window.requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!root) return null;
@@ -151,7 +274,7 @@ export function Avatar({ name, color, avatar, cls = "sm" }: { name: string; colo
   const p = name.trim().split(/\s+/);
   const ini = ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
   return (
-    <span className={"av " + cls} style={{ background: color }} aria-hidden>
+    <span className={"av " + cls} style={{ background: color, color: readableOn(color) }} aria-hidden>
       {avatar ? <img src={avatar} alt="" /> : ini}
     </span>
   );

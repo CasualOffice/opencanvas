@@ -6,13 +6,15 @@ import { Ic, loadExtraIcons } from "./icons";
 import { CanvasEditor } from "./editor/CanvasEditor";
 import { loadDatabase } from "./editor/blockdata";
 import type { TB } from "./editor/content";
+import type { EmptyAction } from "./editor/CanvasEditor";
 import { resolveAsset, setAssetTicket } from "./lib/assets";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
 import { deleteThread, useThreads } from "./lib/comments";
 import type { Demo } from "./lib/demo";
 import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
-import { setMeta, useLastEdit, useMeta } from "./lib/meta";
+import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
+import { isMac } from "./lib/keys";
 import { usePeers, type Peer } from "./lib/presence";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
 import { toast } from "./lib/store";
@@ -29,6 +31,7 @@ const CommentsPanel = lazy(() => import("./components/CommentsPanel").then((m) =
 const ImportDialog = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.ImportDialog })));
 const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.UrlPrompt })));
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
+const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 
 const EXPORTS = new Set(["md", "html", "ocanvas", "json", "docx", "pdf"]);
 
@@ -49,7 +52,7 @@ function Splash() {
 
 type Boot =
   | { phase: "loading" }
-  | { phase: "error"; title: string; message: string }
+  | { phase: "error"; title: string; message: string; retry?: boolean }
   | { phase: "ready"; session: Session; collab: Collab; demo: Demo | null };
 
 export default function App() {
@@ -91,7 +94,8 @@ export default function App() {
       } catch (e) {
         const msg = e instanceof SessionError ? e.message : "We couldn't reach the canvas server. Check your connection and try again.";
         postToHost("Error", { code: e instanceof SessionError ? e.code : "NETWORK", message: msg });
-        setBoot({ phase: "error", title: "Can't open this canvas", message: msg });
+        // An expired link can't be retried from here; a network or server error can.
+        setBoot({ phase: "error", title: "Can't open this canvas", message: msg, retry: !(e instanceof SessionError && e.code === "TICKET_INVALID") });
       }
     })();
     return () => {
@@ -104,16 +108,23 @@ export default function App() {
   if (boot.phase === "loading") return <Splash />;
   if (boot.phase === "error")
     return (
-      <div className="splash">
+      <div className="splash" role="alert">
         <div className="card">
           <span className="cic tone-gray" style={{ width: 44, height: 44, borderRadius: 12 }}>
             <Ic name="lock" size={20} />
           </span>
           <h1>{boot.title}</h1>
           <p>{boot.message}</p>
-          <a className="btn sm" href="#demo" onClick={() => setTimeout(() => window.location.reload(), 0)}>
-            Try the demo canvas
-          </a>
+          {boot.retry ? (
+            <button className="btn sm" onClick={() => window.location.reload()} data-autofocus>
+              <Ic name="rotate-ccw" size={14} />
+              Try again
+            </button>
+          ) : (
+            <a className="btn sm" href="#demo" onClick={() => setTimeout(() => window.location.reload(), 0)}>
+              Try the demo canvas
+            </a>
+          )}
         </div>
       </div>
     );
@@ -153,6 +164,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [urlAsk, setUrlAsk] = useState<{ kind: "bookmark" | "embed"; cb: (u: string) => void } | null>(null);
   const [importing, setImporting] = useState(false);
   const [confirmTpl, setConfirmTpl] = useState<(() => void) | null>(null);
+  const [help, setHelp] = useState(false);
   const pendingThread = useRef<string | null>(null);
   const modified = useRef(false);
 
@@ -366,10 +378,64 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         });
       return;
     }
-    if (role === "edit" && !meta.title && session.file.name) setMeta(doc, { title: session.file.name });
+    if (role === "edit" && !meta.title && session.file.name) setMeta(doc, { title: session.file.name }, null);
     if (session.isNew && role === "edit" && editor.isEmpty) setScreen("gallery");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
+
+  // ---------- undo across blocks (docs/06 §4) ----------
+  // One undo stack for your own changes: text (y-prosemirror), database cells and the
+  // header (title, icon, colour). Collaborators' changes are never undone.
+  useEffect(() => {
+    if (!editor) return;
+    const um = yUndoPluginKey.getState(editor.state)?.undoManager;
+    if (!um) return;
+    um.addToScope([doc.getMap("meta"), doc.getMap("databases")]);
+    um.trackedOrigins.add(META_ORIGIN);
+    let off = false;
+    loadDatabase()
+      .then((m) => !off && um.trackedOrigins.add(m.DB_ORIGIN))
+      .catch(() => undefined);
+    return () => {
+      off = true;
+    };
+  }, [editor, doc]);
+
+  // ---------- deep links to a block: `#...&block=b_...` or the host's Action_ScrollToBlock ----------
+  const scrollToBlock = useCallback((id: string) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
+    if (!el) return toast("That block isn't in this canvas any more", { icon: "link" });
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("flash");
+    void el.offsetWidth;
+    el.classList.add("flash");
+    window.setTimeout(() => el.classList.remove("flash"), 1800);
+  }, []);
+  useEffect(() => {
+    if (!editor) return;
+    const id = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("block");
+    const t = id ? window.setTimeout(() => scrollToBlock(id), 600) : undefined;
+    const off = onHost("Action_ScrollToBlock", (v) => typeof v.blockId === "string" && scrollToBlock(v.blockId));
+    return () => {
+      window.clearTimeout(t);
+      off();
+    };
+  }, [editor, scrollToBlock]);
+
+  // ---------- keyboard shortcuts help: `?` outside text, Mod-Shift-/ anywhere ----------
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const inText = !!t?.closest?.("input,textarea,select,[contenteditable=true]");
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if ((mod && e.shiftKey && (e.code === "Slash" || e.key === "?")) || (!inText && !mod && !e.altKey && e.key === "?")) {
+        e.preventDefault();
+        setHelp(true);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   // ---------- bridge for node views & editor plugins ----------
 
@@ -607,9 +673,21 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     else setConfirmTpl(() => () => void run());
   };
 
+  // ---------- empty canvas invitations ----------
+  const emptyActions: EmptyAction[] = useMemo(
+    () => [
+      { id: "tpl", icon: "layout-template", label: "Templates", run: () => setScreen("gallery") },
+      { id: "db", icon: "database", label: "Database", run: () => start("dbblank") },
+      { id: "board", icon: "shapes", label: "Whiteboard", run: () => start("boardblank") },
+      { id: "import", icon: "upload", label: "Import", run: () => start("import") },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor, meta.title, compact],
+  );
+
   // ---------- derived ----------
   const shownSave: SaveState =
-    conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
+    conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
   const parent = session.demo ? "Engineering" : hostName;
 
   const banners: React.ReactNode[] = [];
@@ -723,6 +801,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                 toast(`Version history lives in ${hostName}`, { icon: "history" });
               }}
               onRetry={() => collab.sendControl({ t: "save" })}
+              onShortcuts={() => setHelp(true)}
             />
             {banners}
             <div className="body">
@@ -738,12 +817,22 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     peopleHere={peers.length}
                     onEnter={() => editor?.commands.focus("start")}
                   />
-                  <CanvasEditor doc={doc} awareness={awareness} role={effectiveRole} me={me} users={allUsers} searchUsers={searchUsers} onReady={setEditor} onComment={onComment} />
+                  <CanvasEditor
+                    doc={doc}
+                    awareness={awareness}
+                    role={effectiveRole}
+                    me={me}
+                    users={allUsers}
+                    searchUsers={searchUsers}
+                    onReady={setEditor}
+                    onComment={onComment}
+                    emptyState={emptyActions}
+                  />
                 </div>
               </div>
               {side === "comments" ? (
                 <Suspense fallback={<aside className="side" aria-label="Comments" aria-busy="true" />}>
-                  <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} onActivate={setActive} onJump={jump} onClose={closeSide} />
+                  <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} users={allUsers} onActivate={setActive} onJump={jump} onClose={closeSide} />
                 </Suspense>
               ) : null}
             </div>
@@ -763,6 +852,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               }}
             />
           ) : null}
+          {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
           {urlAsk ? <UrlPrompt kind={urlAsk.kind} onClose={() => setUrlAsk(null)} onUrl={urlAsk.cb} /> : null}
           {importing ? (
             <ImportDialog
@@ -776,9 +866,14 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           </Suspense>
           {confirmTpl ? (
             <Modal onClose={() => setConfirmTpl(null)} label="Replace canvas">
-              <ModalHead title="Replace this canvas?" sub="Everyone here sees the change right away. You can undo it with ⌘Z." icon="layout-template" tone="amber" />
+              <ModalHead
+                title="Replace this canvas?"
+                sub={`Everyone here sees the change right away. You can undo it with ${isMac ? "⌘Z" : "Ctrl+Z"}.`}
+                icon="layout-template"
+                tone="amber"
+              />
               <div className="mft" style={{ paddingTop: 18 }}>
-                <button className="btn ghost" onClick={() => setConfirmTpl(null)}>
+                <button className="btn ghost" data-autofocus onClick={() => setConfirmTpl(null)}>
                   Cancel
                 </button>
                 <button

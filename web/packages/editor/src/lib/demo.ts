@@ -49,7 +49,7 @@ function demoBlocks(): TB[] {
     H2("Notes"),
     COLS({ h: "Host app owns", items: ["Users and sign-in", "Who can view, comment or edit", "The file and its versions"] }, { h: "OpenCanvas owns", items: ["Editing and live merge", "Cursors and presence", "Preview, export and autosave"] }),
     TOG("Open questions", ["Should commenters see the board pointers of editors?", "Do we need per-channel autosave, or is per-tenant enough?"]),
-    LINK("https://sdk.collaboraonline.com/docs/How_to_integrate.html", "How to integrate · Collabora Online SDK", "The WOPI host model with CheckFileInfo, GetFile and PutFile. The integration contract OpenCanvas follows.", "sdk.collaboraonline.com"),
+    LINK("https://docs.acme.example/opencanvas/integration", "Integration guide · Acme developer docs", "The WOPI host model with CheckFileInfo, GetFile and PutFile. The integration contract OpenCanvas follows.", "docs.acme.example"),
     IMG("Session pipeline, pasted from the design review. Stored in the host app."),
     FILE("opencanvas-hld-v0.1.pdf", 1468006, "application/pdf"),
     EMBED("youtube", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "Demo: two cursors, one board"),
@@ -100,8 +100,8 @@ export function createDemo(role: Role): Demo {
   // Autosave simulation: every change saves ~1 s later.
   let saveT: number | undefined;
   let sim = "ok";
-  doc.on("update", () => {
-    if (sim !== "ok") return;
+  doc.on("update", (_u: Uint8Array, origin: unknown) => {
+    if (sim !== "ok" || origin === "lin" || origin === "demo") return;
     ext._emitControl({ t: "saving" });
     window.clearTimeout(saveT);
     saveT = window.setTimeout(() => ext._emitControl({ t: "saved", at: Date.now(), version: String(18 + Math.floor(Date.now() / 60000) % 40) }), 1100);

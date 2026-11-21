@@ -107,23 +107,35 @@ export const SLASH: SlashItem[] = [
     group: "Layout", id: "board", icon: "shapes", title: "Whiteboard", desc: "Sketch inside the canvas", keywords: "draw diagram",
     run: (e, r) => insertLater(e, r, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(bridge.doc, "blank") } }, { type: "paragraph" }]),
   },
-  {
-    group: "Layout", id: "cols", icon: "columns-2", title: "Two columns", desc: "Side by side",
-    run: (e, r) =>
-      insertBlock(e, r, {
-        type: "columns",
-        content: [
-          { type: "column", content: [{ type: "paragraph" }] },
-          { type: "column", content: [{ type: "paragraph" }] },
-        ],
-      }),
-  },
+  { group: "Layout", id: "cols", icon: "columns-2", title: "Two columns", desc: "Side by side", keywords: "layout split", run: (e, r) => insertBlock(e, r, columnsJSON(2)) },
+  { group: "Layout", id: "cols3", icon: "columns-3", title: "Three columns", desc: "Three across", keywords: "layout split", run: (e, r) => insertBlock(e, r, columnsJSON(3)) },
 ];
 
+/** `n` empty columns, caret in the first. */
+export function columnsJSON(n: number): JSONContent {
+  return { type: "columns", content: Array.from({ length: n }, () => ({ type: "column", content: [{ type: "paragraph" }] })) };
+}
+
+/**
+ * Matches, best first: title starts with the query, a title word starts with it,
+ * the title contains it, then description / keywords / markdown hint.
+ * ("/table" must offer "Simple table" before "Database".)
+ */
 export function filterSlash(q: string): SlashItem[] {
   const s = q.toLowerCase().trim();
   if (!s) return SLASH;
-  return SLASH.filter((x) => (x.title + " " + x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "")).toLowerCase().includes(s));
+  const rank = (x: SlashItem) => {
+    const t = x.title.toLowerCase();
+    if (t.startsWith(s)) return 0;
+    if (t.split(/\s+/).some((w) => w.startsWith(s))) return 1;
+    if (t.includes(s)) return 2;
+    if ((x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "")).toLowerCase().includes(s)) return 3;
+    return -1;
+  };
+  return SLASH.map((x, i) => ({ x, r: rank(x), i }))
+    .filter((e) => e.r >= 0)
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((e) => e.x);
 }
 
 // ---------- turn into ----------
@@ -139,6 +151,26 @@ export const TURN: [id: string, icon: string, label: string][] = [
   ["quote", "text-quote", "Quote"],
   ["callout", "info", "Callout"],
 ];
+
+/** Which TURN id describes a top-level block node. */
+export function kindOfNode(node: { type: { name: string }; attrs: Record<string, unknown> }): string {
+  switch (node.type.name) {
+    case "taskList":
+      return "todo";
+    case "bulletList":
+      return "bul";
+    case "orderedList":
+      return "num";
+    case "blockquote":
+      return "quote";
+    case "callout":
+      return "callout";
+    case "heading":
+      return "h" + String(node.attrs.level ?? 1);
+    default:
+      return "p";
+  }
+}
 
 /** Which TURN id describes the block at the selection. */
 export function currentKind(editor: Editor): string {

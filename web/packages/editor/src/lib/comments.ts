@@ -11,6 +11,8 @@ export interface Message {
   color: string;
   text: string;
   at: number;
+  /** Ids of people @mentioned in `text`, so the server can call the host's onMention (docs/06 §7). */
+  mentions?: string[];
 }
 export interface Thread {
   id: string;
@@ -48,6 +50,7 @@ export function addMessage(doc: Y.Doc, id: string, msg: Omit<Message, "at">): vo
     m.set("color", msg.color);
     m.set("text", msg.text);
     m.set("at", Date.now());
+    if (msg.mentions?.length) m.set("mentions", [...new Set(msg.mentions)]);
     // A reply re-opens a resolved thread (docs/06 §1).
     if (t.get("resolved")) t.set("resolved", false);
   });
@@ -76,6 +79,7 @@ function snapshot(doc: Y.Doc): Thread[] {
         color: String(x.get("color") ?? "#6b7280"),
         text: String(x.get("text") ?? ""),
         at: Number(x.get("at") ?? 0),
+        mentions: Array.isArray(x.get("mentions")) ? (x.get("mentions") as unknown[]).map(String) : undefined,
       })),
     });
   });
@@ -92,4 +96,54 @@ export function useThreads(doc: Y.Doc): Thread[] {
     return () => root.unobserveDeep(fn);
   }, [doc]);
   return threads;
+}
+
+// ---------- @mentions in comment text ----------
+
+/** The `@query` being typed right before the caret, if any (`start` = index of the "@"). */
+export function mentionQuery(text: string, caret: number): { start: number; query: string } | null {
+  const before = text.slice(0, caret);
+  const m = /(^|[\s(])@([^\s@]{0,30}(?: [^\s@]{0,30})?)$/.exec(before);
+  if (!m) return null;
+  return { start: caret - m[2].length - 1, query: m[2] };
+}
+
+/** Replaces `@query` (from `start` to `caret`) with `@Name ` and returns the new text and caret. */
+export function insertMention(text: string, start: number, caret: number, name: string): { text: string; caret: number } {
+  const ins = "@" + name + " ";
+  const after = text.slice(caret).replace(/^ /, "");
+  return { text: text.slice(0, start) + ins + after, caret: start + ins.length };
+}
+
+/** Ids of the people whose `@Name` appears in the text (longest names first, so "Sam Ortiz" wins over "Sam"). */
+export function mentionsIn(text: string, people: { id: string; name: string }[]): string[] {
+  const out: string[] = [];
+  let rest = text;
+  for (const p of [...people].sort((a, b) => b.name.length - a.name.length)) {
+    const tag = "@" + p.name;
+    if (p.name && rest.includes(tag)) {
+      out.push(p.id);
+      rest = rest.split(tag).join(" ");
+    }
+  }
+  return out;
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Splits comment text into plain runs and `@Name` mentions of the given people, for display. */
+export function splitMentions(text: string, names: string[]): { text: string; mention: boolean }[] {
+  const sorted = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!sorted.length) return [{ text, mention: false }];
+  const re = new RegExp("@(?:" + sorted.map(escapeRe).join("|") + ")", "g");
+  const out: { text: string; mention: boolean }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    const i = m.index ?? 0;
+    if (i > last) out.push({ text: text.slice(last, i), mention: false });
+    out.push({ text: m[0], mention: true });
+    last = i + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last), mention: false });
+  return out;
 }

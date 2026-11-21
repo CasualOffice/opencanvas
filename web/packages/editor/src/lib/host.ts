@@ -1,5 +1,5 @@
 // postMessage API between the canvas iframe and the host page (docs/05 §4),
-// using the Collabora-compatible envelope { MessageId, SendTime, Values }.
+// using the WOPI-style envelope { MessageId, SendTime, Values }.
 //
 // The server sends `Referrer-Policy: no-referrer` and restricts who may frame
 // us with `frame-ancestors` (docs/15 §6), so the parent is always an allowed

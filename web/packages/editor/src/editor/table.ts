@@ -13,7 +13,7 @@ import { TableHeader } from "@tiptap/extension-table/header";
 type TablesModule = typeof import("@tiptap/pm/tables");
 let mod: Promise<TablesModule> | null = null;
 let loaded: TablesModule | null = null;
-const loadTables = () => (mod ??= import("@tiptap/pm/tables").then((m) => (loaded = m)));
+export const loadTables = () => (mod ??= import("@tiptap/pm/tables").then((m) => (loaded = m)));
 
 const CELL_MIN = 80;
 

@@ -12,6 +12,15 @@ export interface EmbedInfo {
 
 const LABEL: Record<Provider, string> = { youtube: "YouTube", vimeo: "Vimeo", loom: "Loom", figma: "Figma", maps: "Google Maps" };
 
+/** The allow-listed providers, in picker order, with a URL shape to show as the example. */
+export const PROVIDERS: { id: Provider; label: string; icon: string; example: string }[] = [
+  { id: "youtube", label: LABEL.youtube, icon: "circle-play", example: "https://www.youtube.com/watch?v=…" },
+  { id: "vimeo", label: LABEL.vimeo, icon: "circle-play", example: "https://vimeo.com/123456789" },
+  { id: "loom", label: LABEL.loom, icon: "circle-play", example: "https://www.loom.com/share/…" },
+  { id: "figma", label: LABEL.figma, icon: "pen-tool", example: "https://www.figma.com/design/…" },
+  { id: "maps", label: LABEL.maps, icon: "map-pin", example: "https://www.google.com/maps/place/…" },
+];
+
 export function providerLabel(p: string): string {
   return LABEL[p as Provider] ?? "Embed";
 }

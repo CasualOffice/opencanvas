@@ -9,6 +9,7 @@
 // live editor right after first paint. `schema.test.ts` guards the equality.
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import { Node as PMNode } from "@tiptap/pm/model";
+import { readableOn } from "../lib/color";
 
 export const LINK_OPTIONS = {
   openOnClick: false,
@@ -121,7 +122,7 @@ export function mentionNode(colorFor: (id: string) => string) {
       return [
         "span",
         { class: "mention", "data-type": "mention", "data-id": id, "data-label": label },
-        ["span", { class: "av", style: `background:${colorFor(id)}` }, initialsOf(label)],
+        ["span", { class: "av", style: `background:${colorFor(id)};color:${readableOn(colorFor(id))}`, "aria-hidden": "true" }, initialsOf(label)],
         label,
       ];
     },

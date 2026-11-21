@@ -15,6 +15,8 @@ import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type Upl
 import { loadBoard, loadDatabase } from "./blockdata";
 import { resolveAsset } from "../lib/assets";
 import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
+import { Popover } from "../components/overlay";
+import { keyLabel } from "../lib/keys";
 
 const TONES = ["blue", "green", "amber", "red", "purple", "pink", "gray"] as const;
 const CALLOUT_ICONS = ["lightbulb", "info", "target", "triangle-alert", "sparkles", "clock", "calendar", "flag", "star", "map-pin"];
@@ -30,33 +32,50 @@ const ownEvents = {
 function CalloutView({ node, updateAttributes, editor }: ReactNodeViewProps) {
   const tone = String(node.attrs.tone ?? "blue");
   const icon = String(node.attrs.icon ?? "lightbulb");
-  const cycle = () => {
-    if (!editor.isEditable) return;
-    const i = CALLOUT_ICONS.indexOf(icon);
-    const t = TONES.indexOf(tone as (typeof TONES)[number]);
-    // Click cycles the tone; shift-click cycles the icon.
-    updateAttributes({ tone: TONES[(t + 1) % TONES.length] });
-    void i;
-  };
+  const [pick, setPick] = useState<HTMLElement | null>(null);
   return (
     <NodeViewWrapper className="callout" data-tone={tone}>
       <button
         className={`cic tone-${tone}`}
         contentEditable={false}
-        onClick={(e) => {
-          if (!editor.isEditable) return;
-          if (e.shiftKey || e.altKey) {
-            const i = CALLOUT_ICONS.indexOf(icon);
-            updateAttributes({ icon: CALLOUT_ICONS[(i + 1) % CALLOUT_ICONS.length] });
-          } else cycle();
-        }}
-        title={editor.isEditable ? "Change colour (Shift-click: change icon)" : undefined}
-        aria-label="Callout style"
-        tabIndex={-1}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => editor.isEditable && setPick(pick ? null : e.currentTarget)}
+        title={editor.isEditable ? "Change colour and icon" : undefined}
+        aria-label={editor.isEditable ? "Callout colour and icon" : "Callout"}
+        aria-haspopup={editor.isEditable ? "dialog" : undefined}
+        aria-expanded={editor.isEditable ? !!pick : undefined}
+        disabled={!editor.isEditable}
       >
         <Ic name={icon} />
       </button>
       <NodeViewContent className="callout-body" />
+      {pick ? (
+        <Popover anchor={pick} onClose={() => setPick(null)} title="Callout" kind="dialog" minWidth={260}>
+          <div className="mh">Colour</div>
+          <div className="tones" role="group" aria-label="Colour">
+            {TONES.map((t) => (
+              <button key={t} className={`tone-${t}` + (tone === t ? " on" : "")} aria-label={t[0].toUpperCase() + t.slice(1)} aria-pressed={tone === t} onClick={() => updateAttributes({ tone: t })} />
+            ))}
+          </div>
+          <div className="mh">Icon</div>
+          <div className="icongrid" role="group" aria-label="Icon">
+            {CALLOUT_ICONS.map((n) => (
+              <button
+                key={n}
+                className={icon === n ? "on" : ""}
+                aria-label={n.replace(/-/g, " ")}
+                aria-pressed={icon === n}
+                onClick={() => {
+                  updateAttributes({ icon: n });
+                  setPick(null);
+                }}
+              >
+                <Ic name={n} size={18} />
+              </button>
+            ))}
+          </div>
+        </Popover>
+      ) : null}
     </NodeViewWrapper>
   );
 }
@@ -92,6 +111,8 @@ function ToggleView({ node, updateAttributes, editor }: ReactNodeViewProps) {
         contentEditable={false}
         aria-expanded={open}
         aria-label={open ? "Collapse" : "Expand"}
+        aria-keyshortcuts="Control+Enter Meta+Enter"
+        title={`${open ? "Collapse" : "Expand"} (${keyLabel("Mod-Enter")})`}
         tabIndex={-1}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
@@ -122,6 +143,26 @@ export const Toggle = Node.create({
   },
   addKeyboardShortcuts() {
     return {
+      // ⌘/Ctrl+Enter anywhere inside a toggle opens or closes it: the chevron is not in the tab order.
+      "Mod-Enter": ({ editor }) => {
+        const { $from } = editor.state.selection;
+        for (let d = $from.depth; d > 0; d--) {
+          const n = $from.node(d);
+          if (n.type.name !== "toggle") continue;
+          const at = $from.before(d);
+          const open = !n.attrs.open;
+          return editor
+            .chain()
+            .command(({ tr }) => {
+              tr.setNodeMarkup(at, undefined, { ...n.attrs, open });
+              // Closing with the caret in the hidden body: move it to the summary.
+              if (!open && $from.parent.type.name !== "toggleSummary") tr.setSelection(TextSelection.near(tr.doc.resolve(at + 2)));
+              return true;
+            })
+            .run();
+        }
+        return false;
+      },
       Enter: ({ editor }) => {
         const { $from, empty } = editor.state.selection;
         if (!empty || $from.parent.type.name !== "toggleSummary") return false;
@@ -435,6 +476,38 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
     }
   };
   const shown = up?.preview ?? src;
+  const width = clampWidth(node.attrs.width);
+  const align = (["left", "center", "right"].includes(String(node.attrs.align)) ? node.attrs.align : "center") as ImageAlign;
+  const figRef = useRef<HTMLElement>(null);
+  const [live, setLive] = useState<number | null>(null);
+  // Drag the corner handle to resize (percent of the text column); arrows on the focused handle step 5 %.
+  const startResize = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const fig = figRef.current;
+    const col = fig?.parentElement;
+    if (!fig || !col) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const left = fig.getBoundingClientRect().left;
+    const total = col.getBoundingClientRect().width;
+    let last = width ?? 100;
+    const move = (ev: PointerEvent) => {
+      const px = align === "center" ? (ev.clientX - (left + fig.getBoundingClientRect().width / 2)) * 2 : align === "right" ? fig.getBoundingClientRect().right - ev.clientX : ev.clientX - left;
+      last = clampWidth(Math.round((px / total) * 100)) ?? 100;
+      setLive(last);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      setLive(null);
+      updateAttributes({ width: last >= 100 ? null : last });
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  };
+  const shownWidth = live ?? width;
   if (!shown) {
     return (
       <NodeViewWrapper>
@@ -463,7 +536,12 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
   }
   return (
     <NodeViewWrapper>
-      <figure className="figure" style={{ outline: selected ? "2px solid var(--accent-ring)" : undefined, borderRadius: 10 }}>
+      <figure
+        ref={figRef}
+        className={"figure" + (selected ? " sel" : "")}
+        data-align={align}
+        style={{ width: shownWidth ? `${shownWidth}%` : undefined }}
+      >
         <div className={"fwrap" + (up ? " uploading" : "")} contentEditable={false}>
           <img src={resolveAsset(shown)} alt={alt || caption || ""} draggable={false} />
           {up && upId ? (
@@ -472,17 +550,58 @@ function ImageView({ node, updateAttributes, editor, selected }: ReactNodeViewPr
               {up.state === "uploading" ? <span className="upbar" style={{ transform: `scaleX(${Math.max(0.04, up.progress)})` }} /> : null}
             </div>
           ) : editor.isEditable ? (
-            <div className="fbar">
-              <button className="ib" title="Replace" aria-label="Replace image" disabled={busy} onClick={() => b.pickFile("image/*", replace)}>
-                <Ic name={busy ? "loader-circle" : "image-plus"} size={14} className={busy ? "spin" : ""} />
-              </button>
-            </div>
+            <>
+              <div className="fbar" role="toolbar" aria-label="Image">
+                {(["left", "center", "right"] as const).map((a) => (
+                  <button key={a} className={"ib" + (align === a ? " on" : "")} title={`Align ${a}`} aria-label={`Align ${a}`} aria-pressed={align === a} onClick={() => updateAttributes({ align: a === "center" ? null : a })}>
+                    <Ic name={`align-${a}`} size={14} />
+                  </button>
+                ))}
+                <span className="vs" />
+                {IMAGE_SIZES.map(([label, w]) => (
+                  <button key={label} className={"ib txt" + ((width ?? 100) === w ? " on" : "")} title={`${label} (${w} %)`} aria-label={`${label} size`} aria-pressed={(width ?? 100) === w} onClick={() => updateAttributes({ width: w >= 100 ? null : w })}>
+                    {label[0]}
+                  </button>
+                ))}
+                <span className="vs" />
+                <button className="ib" title="Replace" aria-label="Replace image" disabled={busy} onClick={() => b.pickFile("image/*", replace)}>
+                  <Ic name={busy ? "loader-circle" : "image-plus"} size={14} className={busy ? "spin" : ""} />
+                </button>
+              </div>
+              <button
+                className="fresize"
+                aria-label={`Image width, ${shownWidth ?? 100} percent`}
+                title="Drag to resize"
+                onPointerDown={startResize}
+                onKeyDown={(e) => {
+                  const step = e.key === "ArrowLeft" || e.key === "ArrowDown" ? -5 : e.key === "ArrowRight" || e.key === "ArrowUp" ? 5 : 0;
+                  if (!step) return;
+                  e.preventDefault();
+                  const next = clampWidth((width ?? 100) + step) ?? 100;
+                  updateAttributes({ width: next >= 100 ? null : next });
+                }}
+              />
+            </>
           ) : null}
         </div>
         <CaptionInput value={caption} editable={editor.isEditable} onChange={(v) => updateAttributes({ caption: v })} />
       </figure>
     </NodeViewWrapper>
   );
+}
+
+export type ImageAlign = "left" | "center" | "right";
+const IMAGE_SIZES: [string, number][] = [
+  ["Small", 33],
+  ["Medium", 60],
+  ["Large", 100],
+];
+
+/** Image width as a whole percent of the text column (20–100), or null for full width. */
+export function clampWidth(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return null;
+  return Math.max(20, Math.min(100, Math.round(n)));
 }
 
 function CaptionInput({ value, editable, onChange }: { value: string; editable: boolean; onChange(v: string): void }) {
@@ -515,7 +634,22 @@ function CaptionInput({ value, editable, onChange }: { value: string; editable: 
 export const OcImage = Image.extend({
   draggable: true,
   addAttributes() {
-    return { ...this.parent?.(), caption: { default: "", parseHTML: (el: HTMLElement) => el.getAttribute("data-caption") ?? "", renderHTML: (a: Record<string, unknown>) => ({ "data-caption": a.caption }) }, ...uploadAttr };
+    return {
+      ...this.parent?.(),
+      caption: { default: "", parseHTML: (el: HTMLElement) => el.getAttribute("data-caption") ?? "", renderHTML: (a: Record<string, unknown>) => ({ "data-caption": a.caption }) },
+      // Optional layout (ADR-025): width in % of the text column, alignment. Default = full width, centred.
+      width: {
+        default: null,
+        parseHTML: (el: HTMLElement) => clampWidth(el.getAttribute("data-width")),
+        renderHTML: (a: Record<string, unknown>) => (a.width ? { "data-width": String(a.width) } : {}),
+      },
+      align: {
+        default: null,
+        parseHTML: (el: HTMLElement) => (["left", "right"].includes(el.getAttribute("data-align") ?? "") ? el.getAttribute("data-align") : null),
+        renderHTML: (a: Record<string, unknown>) => (a.align ? { "data-align": String(a.align) } : {}),
+      },
+      ...uploadAttr,
+    };
   },
   addNodeView() {
     return ReactNodeViewRenderer(ImageView, ownEvents);

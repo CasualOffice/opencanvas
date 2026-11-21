@@ -4,6 +4,7 @@ import { Ic } from "../icons";
 import type { Peer } from "../lib/presence";
 import { rel, useTick, type Meta } from "../lib/meta";
 import { Avatar, Popover, useShell, type Anchor } from "./overlay";
+import { readableOn } from "../lib/color";
 import type { ExportFormat } from "../lib/exports";
 
 export type SaveState =
@@ -14,7 +15,9 @@ export type SaveState =
   | { kind: "error"; message?: string; retryInMs?: number }
   | { kind: "offline" }
   | { kind: "reconnecting" }
-  | { kind: "readonly" };
+  | { kind: "readonly" }
+  /** Conflict or session closed: nothing is being saved from this tab any more. */
+  | { kind: "paused" };
 
 export function TopBar(props: {
   meta: Meta;
@@ -36,6 +39,7 @@ export function TopBar(props: {
   onExport(fmt: ExportFormat): void;
   onHistory(): void;
   onRetry(): void;
+  onShortcuts(): void;
 }) {
   const { compact } = useShell();
   const [pop, setPop] = useState<{ kind: "status" | "more" | "people"; anchor: Anchor } | null>(null);
@@ -67,12 +71,13 @@ export function TopBar(props: {
           <button
             key={p.id}
             className={"av" + (props.following === p.id ? " following" : "")}
-            style={{ background: p.color }}
+            style={{ background: p.color, color: readableOn(p.color) }}
             title={p.me ? `${p.name} (you)` : p.role === "view" ? `${p.name} · viewing` : props.following === p.id ? `Following ${p.name} · click to stop` : `${p.name} · click to follow`}
-            aria-label={p.me ? `${p.name} (you)` : `Follow ${p.name}`}
+            aria-label={peerLabel(p, props.following === p.id)}
+            aria-pressed={p.me ? undefined : props.following === p.id}
             onClick={() => !p.me && props.onFollow(p)}
           >
-            {p.avatar ? <img src={p.avatar} alt="" /> : initials(p.name)}
+            {p.avatar ? <img src={p.avatar} alt="" /> : <span aria-hidden="true">{initials(p.name)}</span>}
             {p.typing && !p.me ? <span className="dot" /> : null}
             {p.role === "view" ? (
               <span className="eye">
@@ -82,14 +87,24 @@ export function TopBar(props: {
           </button>
         ))}
         {extra > 0 ? (
-          <button className="av more" onClick={open("people")} aria-label="Everyone here">
-            +{extra}
+          <button className="av more" onClick={open("people")} aria-label={`${extra} more people here`} title="Everyone here">
+            <span aria-hidden="true">+{extra}</span>
           </button>
         ) : null}
       </div>
-      <button className="ib rel" onClick={props.onComments} title="Comments" aria-label="Comments" aria-pressed={props.commentsOpen}>
+      <button
+        className="ib rel"
+        onClick={props.onComments}
+        title="Comments"
+        aria-label={props.openThreads ? `Comments, ${props.openThreads} open` : "Comments"}
+        aria-pressed={props.commentsOpen}
+      >
         <Ic name="message-square" />
-        {props.openThreads ? <span className="badge">{props.openThreads}</span> : null}
+        {props.openThreads ? (
+          <span className="badge" aria-hidden="true">
+            {props.openThreads}
+          </span>
+        ) : null}
       </button>
       <button className="ib" onClick={open("more")} title="More" aria-label="More options">
         <Ic name="ellipsis" />
@@ -163,14 +178,30 @@ export function TopBar(props: {
               ) : null}
             </button>
           ) : null}
+          {!compact ? (
+            <button className="mi" onClick={() => (close(), props.onShortcuts())}>
+              <Ic name="keyboard" />
+              Keyboard shortcuts
+              <span className="mk">?</span>
+            </button>
+          ) : null}
           <button className="mi" onClick={() => (close(), props.onHistory())}>
             <Ic name="history" />
             Version history in {props.hostName}
+            <span className="chk" style={{ color: "var(--fg-3)" }}>
+              <Ic name="external-link" size={12} />
+            </span>
           </button>
         </Popover>
       ) : null}
     </div>
   );
+}
+
+/** Accessible name for an avatar: who, what they are doing, and what a click does. */
+export function peerLabel(p: Peer, following: boolean): string {
+  if (p.me) return `${p.name} (you)`;
+  return following ? `Stop following ${p.name}` : `Follow ${p.name}`;
 }
 
 function initials(name: string) {
@@ -194,6 +225,8 @@ function statusLook(save: SaveState): { cls: string; icon: string; label: string
       return { cls: "warn", icon: "loader-circle", label: "Reconnecting" };
     case "readonly":
       return { cls: "", icon: "eye", label: "View only" };
+    case "paused":
+      return { cls: "warn", icon: "circle-pause", label: "Autosave paused" };
     case "saved":
       return { cls: "ok", icon: "circle-check", label: "Saved" };
   }
@@ -203,16 +236,25 @@ function StatusButton({ save, hostName, onClick }: { save: SaveState; hostName: 
   const l = statusLook(save);
   const title = l.label + (save.kind === "saved" ? ` to ${hostName}` : "");
   return (
-    <button className={"status " + l.cls} onClick={onClick} title={title} aria-label={title}>
-      <Ic name={l.icon} size={16} className={l.icon === "loader-circle" ? "spin" : ""} />
-      <span className="lbl">{l.label}</span>
-    </button>
+    <>
+      <button className={"status " + l.cls} onClick={onClick} title={title} aria-label={title} aria-haspopup="dialog">
+        <Ic name={l.icon} size={16} className={l.icon === "loader-circle" ? "spin" : ""} />
+        <span className="lbl" aria-hidden="true">
+          {l.label}
+        </span>
+      </button>
+      {/* Announce only states that need attention; "Saving / Saved" every few seconds would be noise. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {l.cls === "bad" || l.cls === "warn" ? l.label : ""}
+      </span>
+    </>
   );
 }
 
 function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: { anchor: Anchor; save: SaveState; hostName: string; onClose(): void; onHistory(): void; onRetry(): void }) {
   useTick(10000);
   const ok = save.kind === "saved" || save.kind === "saving" || save.kind === "unsaved" || save.kind === "connecting";
+  const paused = save.kind === "paused";
   const bad = save.kind === "error";
   const msg =
     save.kind === "offline"
@@ -223,6 +265,8 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
           ? `${hostName} didn't accept the last save. We retry every ${Math.round((save.retryInMs ?? 10000) / 1000)} seconds. Nothing is lost.`
           : save.kind === "readonly"
             ? `You can view this canvas. ${hostName} saves the changes others make.`
+            : paused
+              ? `This tab no longer saves to ${hostName}. Everything saved before is safe there.`
             : save.kind === "saved" && save.at
               ? `All changes saved to ${hostName} ${rel(save.at)}. There's nothing to save by hand.`
               : `Every change saves to ${hostName} on its own. There's nothing to save by hand.`;
@@ -234,7 +278,7 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
             <Ic name={ok ? "circle-check" : bad ? "triangle-alert" : save.kind === "readonly" ? "eye" : "cloud-off"} />
           </span>
           <div>
-            <b style={{ fontWeight: 600, fontSize: 13.5 }}>{ok ? "Autosave is on" : save.kind === "readonly" ? "View only" : "Saving paused"}</b>
+            <b style={{ fontWeight: 600, fontSize: 13.5 }}>{ok ? "Autosave is on" : save.kind === "readonly" ? "View only" : paused ? "Autosave paused" : "Saving paused"}</b>
             <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5 }}>{msg}</p>
             {save.kind === "saved" && save.version ? (
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--fg-3)", fontFamily: "var(--mono)" }}>Version {save.version}</p>

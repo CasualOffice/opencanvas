@@ -10,6 +10,7 @@ import Mention from "@tiptap/extension-mention";
 import type { Schema } from "@tiptap/pm/model";
 import { BASE_EXTENSIONS } from "./base";
 import { mentionNode } from "./link";
+import { readableOn } from "../lib/color";
 
 const colorFor = () => "#2a5ad7";
 
@@ -29,7 +30,7 @@ const reference: Extensions = [
       const label = String(node.attrs.label ?? id);
       const p = label.trim().split(/\s+/);
       const ini = ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
-      return ["span", mergeAttributes({ class: "mention", "data-type": "mention", "data-id": id, "data-label": label }), ["span", { class: "av", style: `background:${colorFor()}` }, ini], label];
+      return ["span", mergeAttributes({ class: "mention", "data-type": "mention", "data-id": id, "data-label": label }), ["span", { class: "av", style: `background:${colorFor()};color:${readableOn(colorFor())}`, "aria-hidden": "true" }, ini], label];
     },
     renderText: ({ node }) => "@" + (node.attrs.label ?? node.attrs.id),
   }),
