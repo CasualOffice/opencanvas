@@ -64,6 +64,7 @@ fn encode_patch(r: Result<Patched, PatchFailure>) -> Value {
         Err(PatchFailure::Invalid(e)) => json!({"err": "invalid", "message": e.to_string()}),
         Err(PatchFailure::TooLarge) => json!({"err": "too_large"}),
         Err(PatchFailure::Conflict) => json!({"err": "conflict"}),
+        Err(PatchFailure::Unavailable) => json!({"err": "unavailable"}),
     }
 }
 
@@ -79,6 +80,7 @@ pub(super) fn decode_patch(v: Value) -> anyhow::Result<Result<Patched, PatchFail
     Ok(Err(match v["err"].as_str() {
         Some("too_large") => PatchFailure::TooLarge,
         Some("conflict") => PatchFailure::Conflict,
+        Some("unavailable") => PatchFailure::Unavailable,
         _ => PatchFailure::Invalid(oc_model::patch::PatchError::Request(
             v["message"].as_str().unwrap_or("invalid patch").to_string(),
         )),

@@ -33,6 +33,10 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd); cd "$ROOT"
 WHAT=${1:-quick}
 OUT=${OUT:-$ROOT/target/bench}
 OC_PORT=${OC_PORT:-8701}; HOST_PORT=${HOST_PORT:-8702}; MARIA_PORT=${MARIA_PORT:-8733}; REDIS_PORT=${REDIS_PORT:-8734}
+# Cluster nodes listen on NODE_BASE+1..3; the second and third mock hosts on HOST2_PORT, HOST3_PORT.
+NODE_BASE=${NODE_BASE:-8710}; HOST2_PORT=${HOST2_PORT:-8742}; HOST3_PORT=${HOST3_PORT:-8752}
+# Docker container name prefix (set it to run next to another bench without clashing).
+CPFX=${CPFX:-ocbench}
 SECRET=bench-secret-0123456789abcdef0123456789
 BIN=target/release/opencanvas; LG=target/release/oc-bench
 mkdir -p "$OUT"
@@ -72,7 +76,7 @@ mode          = "jwt"
 jwt_alg       = "HS256"
 jwt_secret    = "$SECRET"
 api_key       = "bench-api-key-2"
-callback_base = "http://127.0.0.1:8742/api"
+callback_base = "http://127.0.0.1:$HOST2_PORT/api"
 
 [[host]]
 id            = "bench3"
@@ -81,7 +85,7 @@ mode          = "jwt"
 jwt_alg       = "HS256"
 jwt_secret    = "$SECRET"
 api_key       = "bench-api-key-3"
-callback_base = "http://127.0.0.1:8752/api"
+callback_base = "http://127.0.0.1:$HOST3_PORT/api"
 EOF
 
 machine() {
@@ -114,7 +118,7 @@ wal_watch() {
   local db=$1 out=$2
   ( while :; do
       if [ "$db" = maria ]; then
-        r=$(docker exec ocbench-mariadb mariadb -uroot -proot -N -e "SELECT (SELECT count(*) FROM room_updates),(SELECT coalesce(sum(length(data)),0) FROM room_updates),(SELECT count(*) FROM room_snapshots),(SELECT coalesce(sum(length(state)),0) FROM room_snapshots)" opencanvas 2>/dev/null | tr '\t' ' ')
+        r=$(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e "SELECT (SELECT count(*) FROM room_updates),(SELECT coalesce(sum(length(data)),0) FROM room_updates),(SELECT count(*) FROM room_snapshots),(SELECT coalesce(sum(length(state)),0) FROM room_snapshots)" opencanvas 2>/dev/null | tr '\t' ' ')
       else
         r=$(sqlite3 "$db" "SELECT (SELECT count(*) FROM room_updates),(SELECT coalesce(sum(length(data)),0) FROM room_updates),(SELECT count(*) FROM room_snapshots),(SELECT coalesce(sum(length(state)),0) FROM room_snapshots)" 2>/dev/null | tr '|' ' ')
         r="$r $(stat -f %z "$db" 2>/dev/null || echo 0) $(stat -f %z "$db-wal" 2>/dev/null || echo 0)"
@@ -127,21 +131,21 @@ wal_watch() {
 sqlite_url() { echo "sqlite://$WORK/$1.db?mode=rwc"; }
 
 mariadb_up() {
-  docker rm -f ocbench-mariadb >/dev/null 2>&1
-  docker run -d --name ocbench-mariadb -p 127.0.0.1:$MARIA_PORT:3306 -e MARIADB_ROOT_PASSWORD=root \
+  docker rm -f $CPFX-mariadb >/dev/null 2>&1
+  docker run -d --name $CPFX-mariadb -p 127.0.0.1:$MARIA_PORT:3306 -e MARIADB_ROOT_PASSWORD=root \
     -e MARIADB_DATABASE=opencanvas mariadb:10.11 --max-connections=500 >/dev/null || exit 1
-  CONTAINERS+=(ocbench-mariadb)
+  CONTAINERS+=($CPFX-mariadb)
   for _ in $(seq 1 90); do
-    docker exec ocbench-mariadb mariadb -uroot -proot -e 'SELECT 1' opencanvas >/dev/null 2>&1 && return 0; sleep 1
+    docker exec $CPFX-mariadb mariadb -uroot -proot -e 'SELECT 1' opencanvas >/dev/null 2>&1 && return 0; sleep 1
   done
   echo "MariaDB did not start"; exit 1
 }
 mariadb_reset() {
-  docker exec ocbench-mariadb mariadb -uroot -proot -e 'DROP DATABASE IF EXISTS opencanvas; CREATE DATABASE opencanvas' >/dev/null
+  docker exec $CPFX-mariadb mariadb -uroot -proot -e 'DROP DATABASE IF EXISTS opencanvas; CREATE DATABASE opencanvas' >/dev/null
 }
 MARIA_URL="mysql://root:root@127.0.0.1:$MARIA_PORT/opencanvas"
 mariadb_bytes() {
-  docker exec ocbench-mariadb mariadb -uroot -proot -N -e \
+  docker exec $CPFX-mariadb mariadb -uroot -proot -N -e \
     "SELECT table_name, table_rows, data_length + index_length FROM information_schema.tables WHERE table_schema='opencanvas' ORDER BY 3 DESC" 2>/dev/null
 }
 
@@ -153,24 +157,24 @@ D_ARGS=(--per-room 2 --editors 1 --probes 2 --doc demo --steps 400 --step-secs 1
 CL_SECRET="bench-cluster-secret-0123456789abcdef"
 declare -a NODE_PID
 start_node() { # n
-  local port=$((8710 + $1))
+  local port=$((NODE_BASE + $1))
   start_server "$MARIA_URL" "$port" REDIS_URL="redis://127.0.0.1:$REDIS_PORT" OC_NODE_ID="bench-$1" \
     OC_CLUSTER_ADVERTISE="http://127.0.0.1:$port" OC_CLUSTER_SECRET="$CL_SECRET" OC_KEK="$CL_KEK"
   NODE_PID[$1]=$SERVER_PID
 }
 cluster_up() {
-  [ -n "$(docker ps -q -f name=ocbench-mariadb)" ] || mariadb_up
+  [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
   mariadb_reset
-  docker rm -f ocbench-redis >/dev/null 2>&1
-  docker run -d --name ocbench-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine >/dev/null || exit 1
-  CONTAINERS+=(ocbench-redis); sleep 2
+  docker rm -f $CPFX-redis >/dev/null 2>&1
+  docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine >/dev/null || exit 1
+  CONTAINERS+=($CPFX-redis); sleep 2
   CL_KEK=$(openssl rand -base64 32)
   for n in 1 2 3; do start_node "$n"; done
-  CL_URLS="http://127.0.0.1:8711,http://127.0.0.1:8712,http://127.0.0.1:8713"
+  CL_URLS="http://127.0.0.1:$((NODE_BASE + 1)),http://127.0.0.1:$((NODE_BASE + 2)),http://127.0.0.1:$((NODE_BASE + 3))"
   CL_PIDS="${NODE_PID[1]},${NODE_PID[2]},${NODE_PID[3]}"
 }
 cluster_down() { for n in 1 2 3; do stop_server "${NODE_PID[$n]}"; done; }
-redis() { docker exec ocbench-redis redis-cli "$@"; }
+redis() { docker exec $CPFX-redis redis-cli "$@"; }
 # Owner of each room key every second: "<unix> <room> <node>" (to see moves and leaseless gaps).
 lease_watch() {
   ( while :; do
@@ -182,7 +186,7 @@ lease_watch() {
 }
 k_event() { local what=$1; shift; echo "$(date +%s) EVENT $what" | tee -a "$OUT/K-events.txt"; "$@" > >(tee -a "$OUT/K-events.txt") 2>&1; }
 kill_owner() {
-  local n; n=$(redis --scan --pattern 'room:*:owner' | xargs -n1 docker exec ocbench-redis redis-cli GET | cut -d@ -f1 | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
+  local n; n=$(redis --scan --pattern 'room:*:owner' | xargs -n1 docker exec $CPFX-redis redis-cli GET | cut -d@ -f1 | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
   n=${n#bench-}; echo "owner with most rooms: bench-$n (pid ${NODE_PID[$n]})"
   kill -9 "${NODE_PID[$n]}"; sleep 5; start_node "$n"; echo "bench-$n restarted (pid ${NODE_PID[$n]})"
 }
@@ -194,8 +198,8 @@ rolling_restart() {
   done
 }
 redis_crash() {
-  echo "docker kill + start ocbench-redis (no RDB save on SIGKILL: lease keys are lost)"
-  docker kill ocbench-redis >/dev/null; sleep 2; docker start ocbench-redis >/dev/null; sleep 1
+  echo "docker kill + start $CPFX-redis (no RDB save on SIGKILL: lease keys are lost)"
+  docker kill $CPFX-redis >/dev/null; sleep 2; docker start $CPFX-redis >/dev/null; sleep 1
   echo "keys after restart: $(redis DBSIZE)"
 }
 pause_node() {
@@ -238,7 +242,7 @@ scenario() {
       stop_server "$SERVER_PID"
       ls -l "$WORK"/D.db* | sed 's/^/after stop: /' | tee -a "$OUT/D-sqlite.md" ;;
     mA|mB|mD)
-      [ -n "$(docker ps -q -f name=ocbench-mariadb)" ] || mariadb_up
+      [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
       mariadb_reset
       start_server "$MARIA_URL"
       case $1 in
@@ -249,20 +253,20 @@ scenario() {
       esac
       stop_server "$SERVER_PID" ;;
     E)
-      [ -n "$(docker ps -q -f name=ocbench-mariadb)" ] || mariadb_up
+      [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
       mariadb_reset
-      docker rm -f ocbench-redis >/dev/null 2>&1
-      docker run -d --name ocbench-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine >/dev/null || exit 1
-      CONTAINERS+=(ocbench-redis); sleep 2
+      docker rm -f $CPFX-redis >/dev/null 2>&1
+      docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine >/dev/null || exit 1
+      CONTAINERS+=($CPFX-redis); sleep 2
       local pids="" urls=""
       for n in 1 2 3; do
-        port=$((8710 + n))
+        port=$((NODE_BASE + n))
         start_server "$MARIA_URL" "$port" REDIS_URL="redis://127.0.0.1:$REDIS_PORT" OC_NODE_ID="bench-$n" \
           OC_CLUSTER_ADVERTISE="http://127.0.0.1:$port" OC_CLUSTER_SECRET="bench-cluster-secret-0123456789abcdef"
         pids="$pids${pids:+,}$SERVER_PID"; urls="$urls${urls:+,}http://127.0.0.1:$port"
       done
       lg E-cluster3 "$pids" "$urls" "${B_ARGS[@]}" --affinity hash
-      grep -c 'relaying connection' "$WORK"/server-871*.log | tee -a "$OUT/E-cluster3.md"
+      grep -c 'relaying connection' "$WORK"/server-$((NODE_BASE / 10))*.log | tee -a "$OUT/E-cluster3.md"
       for p in ${pids//,/ }; do stop_server "$p"; done ;;
     S1)
       start_server "$(sqlite_url S1)"
@@ -287,7 +291,7 @@ scenario() {
       # (same database) and records its pid for cleanup.
       local db
       if [ "$1" = mR ]; then
-        [ -n "$(docker ps -q -f name=ocbench-mariadb)" ] || mariadb_up
+        [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
         mariadb_reset; db=$MARIA_URL
       else db=$(sqlite_url R); fi
       local kek; kek=$(openssl rand -base64 32)
@@ -300,6 +304,8 @@ scenario() {
       local np; np=$(cat "$WORK/restarted.pid" 2>/dev/null); [ -n "$np" ] && PIDS+=("$np")
       { echo "recovery log lines: $(grep -c 'recovered unsaved room state' "$WORK/server-$OC_PORT.restart.log")";
         echo "restart log errors: $(grep -ciE '"level":"ERROR"' "$WORK/server-$OC_PORT.restart.log")";
+        echo "restart log deadlock errors (not retried away): $(grep "\"level\":\"ERROR\"" "$WORK/server-$OC_PORT.restart.log" | grep -ciE "deadlock|lock wait")";
+        echo "restart log transient retries: $(grep -c "transient database error" "$WORK/server-$OC_PORT.restart.log")";
         grep -m1 -E 'listening|ready' "$WORK/server-$OC_PORT.restart.log"; } | tee -a "$OUT/$1-crash.md"
       [ -n "$np" ] && stop_server "$np" ;;
     K)
@@ -309,13 +315,13 @@ scenario() {
         --per-room 5 --editors 0.2 --probes 5 --doc demo --steps 1500 --step-secs 170 --connect-rate 250 --affinity rr \
         --out "$OUT/K-load-small.json" > "$OUT/K-load-small.md" 2>&1 &
       PIDS+=($!)
-      "$LG" run --label K-load-550 --server "$CL_URLS" --server-pid "$CL_PIDS" --host-port 8742 --host-id bench2 --secret "$SECRET" \
+      "$LG" run --label K-load-550 --server "$CL_URLS" --server-pid "$CL_PIDS" --host-port "$HOST2_PORT" --host-id bench2 --secret "$SECRET" \
         --per-room 550 --editors 0.2 --probes 10 --doc demo --steps 550 --step-secs 170 --connect-rate 100 --affinity rr \
         --out "$OUT/K-load-550.json" > "$OUT/K-load-550.md" 2>&1 &
       PIDS+=($!)
       sleep 15
       # Verified rooms: 60 rooms x 3 typing clients, one per node (relay path).
-      "$LG" verify --label K-chaos --server "$CL_URLS" --host-port 8752 --host-id bench3 --secret "$SECRET" \
+      "$LG" verify --label K-chaos --server "$CL_URLS" --host-port "$HOST3_PORT" --host-id bench3 --secret "$SECRET" \
         --rooms 60 --per-room 3 --spread 1 --secs 150 --save-wait-secs 20 --out "$OUT/K-chaos.json" > "$OUT/K-chaos.md" 2>&1 &
       local vpid=$!; PIDS+=("$vpid")
       lease_watch "$OUT/K-leases.txt"
@@ -325,7 +331,7 @@ scenario() {
       sleep 20; k_event "pause one node 20 s (SIGSTOP)" pause_node 20
       wait "$vpid"; cat "$OUT/K-chaos.md"
       for n in 1 2 3; do
-        f="$WORK/server-871$n.log"
+        f="$WORK/server-$((NODE_BASE + n)).log"
         echo "node $n: takeovers $(grep -c 'took the room over' "$f"), lease lost $(grep -ciE 'lost the room|lease lost|belongs to' "$f"), duplicate WAL seq $(grep -ciE 'duplicate' "$f"), errors $(grep -c '"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
       done | tee -a "$OUT/K-chaos.md"
       cluster_down ;;
@@ -337,7 +343,7 @@ scenario() {
         --out "$OUT/K2-load-small.json" > "$OUT/K2-load-small.md" 2>&1 &
       PIDS+=($!)
       sleep 10
-      "$LG" verify --label K2-chaos --server "$CL_URLS" --host-port 8752 --host-id bench3 --secret "$SECRET" \
+      "$LG" verify --label K2-chaos --server "$CL_URLS" --host-port "$HOST3_PORT" --host-id bench3 --secret "$SECRET" \
         --rooms 60 --per-room 3 --spread 1 --secs 100 --save-wait-secs 20 --out "$OUT/K2-chaos.json" > "$OUT/K2-chaos.md" 2>&1 &
       local vpid=$!; PIDS+=("$vpid")
       lease_watch "$OUT/K2-leases.txt"
@@ -345,13 +351,13 @@ scenario() {
       sleep 20; k_event "pause one node 20 s (SIGSTOP)" pause_node 20
       wait "$vpid"; cat "$OUT/K2-chaos.md"
       for n in 1 2 3; do
-        f="$WORK/server-871$n.log"
-        echo "node $n: takeovers $(grep -c 'took the room over' "$f"), stepped down $(grep -c 'stepping down' "$f"), duplicate WAL seq $(grep -ci 'duplicate entry' "$f"), errors $(grep -c '"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
+        f="$WORK/server-$((NODE_BASE + n)).log"
+        echo "node $n: takeovers $(grep -c 'took the room over' "$f"), stepped down $(grep -c 'stepping down' "$f"), fenced $(grep -c 'a newer owner holds the room' "$f"), WAL append failed $(grep -c 'WAL append failed' "$f"), duplicate WAL seq $(grep -ci 'duplicate entry' "$f"), errors $(grep -c '"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
       done | tee -a "$OUT/K2-chaos.md"
       cluster_down ;;
     S2m)
       # S2's worst case for 3 minutes on MariaDB: is the WAL ceiling SQLite's?
-      [ -n "$(docker ps -q -f name=ocbench-mariadb)" ] || mariadb_up
+      [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
       mariadb_reset
       start_server "$MARIA_URL"
       lg S2m-sustained-1000x5 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 5 --editors 1.0 --no-pauses \
@@ -370,19 +376,19 @@ scenario() {
       cluster_up
       lg T3-3nodes-fresh "$CL_PIDS" "$CL_URLS" --per-room 5 --editors 0.2 --probes 5 --doc demo \
         --steps ${T_STEPS:-1000,2500,5000} --step-secs 40 --connect-rate 250 --host-latency-ms 20,50 --affinity rr
-      echo "relayed connections: $(cat "$WORK"/server-871*.log | grep -c 'relaying connection')" | tee -a "$OUT/T3-3nodes-fresh.md"
+      echo "relayed connections: $(cat "$WORK"/server-$((NODE_BASE / 10))*.log | grep -c 'relaying connection')" | tee -a "$OUT/T3-3nodes-fresh.md"
       cluster_down ;;
     T)
       # Same load on 1 node, then on 3 (clients of a room on different nodes). Host 20-50 ms.
       local T_ARGS=(--per-room 5 --editors 0.2 --probes 5 --doc demo --steps ${T_STEPS:-1000,2500,5000} --step-secs 40 --connect-rate 250 --host-latency-ms 20,50)
-      [ -n "$(docker ps -q -f name=ocbench-mariadb)" ] || mariadb_up
+      [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
       mariadb_reset
       start_server "$MARIA_URL"
       lg T-1node "$SERVER_PID" "http://127.0.0.1:$OC_PORT" "${T_ARGS[@]}"
       stop_server "$SERVER_PID"
       cluster_up
       lg T-3nodes "$CL_PIDS" "$CL_URLS" "${T_ARGS[@]}" --affinity rr
-      echo "relayed connections: $(cat "$WORK"/server-871*.log | grep -c 'relaying connection')" | tee -a "$OUT/T-3nodes.md"
+      echo "relayed connections: $(cat "$WORK"/server-$((NODE_BASE / 10))*.log | grep -c 'relaying connection')" | tee -a "$OUT/T-3nodes.md"
       cluster_down ;;
     *) echo "unknown scenario $1"; exit 2 ;;
   esac

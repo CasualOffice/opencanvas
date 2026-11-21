@@ -51,6 +51,83 @@ pub struct NotifyRow {
     pub next_try_at: i64,
 }
 
+/// A write refused because another writer took the room since (docs/22 §8 weakness 3): the
+/// writer's epoch is no longer the room's latest. The writer must stop at once.
+#[derive(Debug, thiserror::Error)]
+#[error("room {0}: a newer owner holds the room (stale epoch); write refused")]
+pub struct Fenced(pub String);
+
+/// True when `e` is a [`Fenced`] refusal.
+pub fn is_fenced(e: &anyhow::Error) -> bool {
+    e.is::<Fenced>()
+}
+
+/// MariaDB/MySQL deadlock (1213, SQLSTATE 40001) or lock wait timeout (1205), or SQLite busy:
+/// the transaction was rolled back and may simply be run again.
+pub fn is_transient(e: &anyhow::Error) -> bool {
+    let Some(sqlx::Error::Database(d)) = e.downcast_ref::<sqlx::Error>() else {
+        return false;
+    };
+    if let Some(m) = d.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>() {
+        return matches!(m.number(), 1213 | 1205);
+    }
+    transient_message(d.code().as_deref(), d.message())
+}
+
+fn transient_message(code: Option<&str>, message: &str) -> bool {
+    code == Some("40001")
+        || message.contains("Deadlock found")
+        || message.contains("Lock wait timeout")
+        || message.contains("database is locked")
+}
+
+/// Attempts made by [`retry_transient`].
+pub const RETRY_ATTEMPTS: u32 = 3;
+
+/// Runs `op` up to [`RETRY_ATTEMPTS`] times while it fails with an error `transient` accepts,
+/// sleeping a jittered, growing delay (25-50 ms, then 50-100 ms) in between. Other errors,
+/// and the last transient one, are returned as they are.
+pub async fn retry_with<T, F, Fut>(
+    what: &str,
+    transient: impl Fn(&anyhow::Error) -> bool,
+    mut op: F,
+) -> anyhow::Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
+{
+    let mut attempt = 1;
+    loop {
+        match op().await {
+            Err(e) if attempt < RETRY_ATTEMPTS && transient(&e) => {
+                let base = 25u64 << (attempt - 1);
+                let delay = base + jitter(base);
+                tracing::warn!(op = what, attempt, delay_ms = delay, error = %e, "transient database error; retrying");
+                tokio::time::sleep(Duration::from_millis(delay)).await;
+                attempt += 1;
+            }
+            other => return other,
+        }
+    }
+}
+
+/// 0..=max, from the clock's nanoseconds (spreads retries of transactions that deadlocked
+/// with each other; no RNG dependency needed).
+fn jitter(max: u64) -> u64 {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::from(d.subsec_nanos()));
+    nanos.wrapping_mul(0x9E37_79B9_7F4A_7C15) % (max + 1)
+}
+
+pub(crate) async fn retry_transient<T, F, Fut>(what: &str, op: F) -> anyhow::Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
+{
+    retry_with(what, is_transient, op).await
+}
+
 pub struct RoomRow {
     pub host_version: Option<String>,
     pub dirty: bool,
@@ -261,8 +338,29 @@ impl Store {
 
     /// Records a commit as `pending` before it is sent; older pending rows of the room are
     /// superseded (the new payload contains everything they had).
-    pub async fn outbox_insert(&self, row: &OutboxRow, now_ms: i64) -> anyhow::Result<()> {
+    ///
+    /// Refused with [`Fenced`] when `epoch` is no longer the room's latest; deadlocks are
+    /// retried ([`retry_transient`]); any other failure is returned, never skipped.
+    pub async fn outbox_insert(
+        &self,
+        row: &OutboxRow,
+        epoch: i64,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        retry_transient("outbox write", move || {
+            self.outbox_insert_once(row, epoch, now_ms)
+        })
+        .await
+    }
+
+    async fn outbox_insert_once(
+        &self,
+        row: &OutboxRow,
+        epoch: i64,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
+        hold_epoch(&mut tx, &row.room_id, epoch).await?;
         sqlx::query(
             "UPDATE commit_outbox SET status = 'superseded', payload = ? WHERE room_id = ? AND status = 'pending'",
         )
@@ -314,6 +412,10 @@ impl Store {
 
     /// All outbox rows of a room, oldest first.
     pub async fn outbox_rows(&self, room: &str) -> anyhow::Result<Vec<OutboxRow>> {
+        retry_transient("room load", move || self.outbox_rows_once(room)).await
+    }
+
+    async fn outbox_rows_once(&self, room: &str) -> anyhow::Result<Vec<OutboxRow>> {
         let rows = sqlx::query(
             "SELECT id, room_id, host_id, file_id, seq, base_version, token, payload, authors, attempts, status \
              FROM commit_outbox WHERE room_id = ? ORDER BY created_at, id",
@@ -353,6 +455,13 @@ impl Store {
 
     /// Final state of a commit: `done` (payload dropped), `conflict` or `superseded`.
     pub async fn outbox_finish(&self, id: &str, status: &str) -> anyhow::Result<()> {
+        retry_transient("outbox mark done", move || {
+            self.outbox_finish_once(id, status)
+        })
+        .await
+    }
+
+    async fn outbox_finish_once(&self, id: &str, status: &str) -> anyhow::Result<()> {
         sqlx::query(
             "UPDATE commit_outbox SET status = ?, payload = ?, last_error = NULL WHERE id = ?",
         )
@@ -524,6 +633,13 @@ impl Store {
             .bind((now - 86_400) * 1000)
             .execute(&self.pool)
             .await?;
+        // Epoch rows of rooms closed for a week (a fresh claim restarts at the clock).
+        sqlx::query(
+            "DELETE FROM room_epochs WHERE updated_at < ? AND room_id NOT IN (SELECT id FROM rooms)",
+        )
+        .bind((now - 7 * 86_400) * 1000)
+        .execute(&self.pool)
+        .await?;
         sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
             .bind(now)
             .execute(&self.pool)
@@ -535,7 +651,57 @@ impl Store {
         Ok(())
     }
 
+    /// Takes the room's next fencing epoch (docs/22 §8 weakness 3). Called by a new room actor,
+    /// with the lease held, before it reads the WAL: from then on, writes made with an older
+    /// epoch are refused with [`Fenced`]. A room seen for the first time (or swept) starts at
+    /// `now_ms`, so an epoch never goes back.
+    pub async fn claim_epoch(&self, room: &str, now_ms: i64) -> anyhow::Result<i64> {
+        retry_transient("epoch claim", move || self.claim_epoch_once(room, now_ms)).await
+    }
+
+    async fn claim_epoch_once(&self, room: &str, now_ms: i64) -> anyhow::Result<i64> {
+        let mut tx = self.pool.begin().await?;
+        let bumped = sqlx::query(
+            "UPDATE room_epochs SET epoch = epoch + 1, updated_at = ? WHERE room_id = ?",
+        )
+        .bind(now_ms)
+        .bind(room)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        if bumped == 0 {
+            sqlx::query(
+                "INSERT INTO room_epochs (room_id, epoch, checks, updated_at) VALUES (?, ?, 0, ?)",
+            )
+            .bind(room)
+            .bind(now_ms)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await?;
+        }
+        let epoch: i64 = sqlx::query("SELECT epoch FROM room_epochs WHERE room_id = ?")
+            .bind(room)
+            .fetch_one(&mut *tx)
+            .await?
+            .try_get(0)?;
+        tx.commit().await?;
+        Ok(epoch)
+    }
+
+    /// The room's latest epoch (tests and diagnostics).
+    pub async fn room_epoch(&self, room: &str) -> anyhow::Result<Option<i64>> {
+        let row = sqlx::query("SELECT epoch FROM room_epochs WHERE room_id = ?")
+            .bind(room)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.map(|r| r.try_get::<i64, _>(0)).transpose()?)
+    }
+
     pub async fn room(&self, id: &str) -> anyhow::Result<Option<RoomRow>> {
+        retry_transient("room load", move || self.room_once(id)).await
+    }
+
+    async fn room_once(&self, id: &str) -> anyhow::Result<Option<RoomRow>> {
         let row = sqlx::query("SELECT host_version, dirty FROM rooms WHERE id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
@@ -550,6 +716,21 @@ impl Store {
     }
 
     pub async fn put_room(
+        &self,
+        id: &str,
+        host: &str,
+        file: &str,
+        version: Option<&str>,
+        dirty: bool,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        retry_transient("room load", move || {
+            self.put_room_once(id, host, file, version, dirty, now_ms)
+        })
+        .await
+    }
+
+    async fn put_room_once(
         &self,
         id: &str,
         host: &str,
@@ -601,26 +782,59 @@ impl Store {
         Ok(())
     }
 
+    /// Appends one update to the room's WAL. Refused with [`Fenced`] when `epoch` is no longer
+    /// the room's latest.
     pub async fn append_update(
         &self,
         room: &str,
+        epoch: i64,
         seq: i64,
         data: &[u8],
         origin: &str,
         now_ms: i64,
     ) -> anyhow::Result<()> {
-        sqlx::query("INSERT INTO room_updates (room_id, seq, data, origin, created_at) VALUES (?, ?, ?, ?, ?)")
-            .bind(room)
-            .bind(seq)
-            .bind(data.to_vec())
-            .bind(origin)
-            .bind(now_ms)
-            .execute(&self.pool)
-            .await?;
+        retry_transient("WAL append", move || {
+            self.append_update_once(room, epoch, seq, data, origin, now_ms)
+        })
+        .await
+    }
+
+    /// One statement: the row is inserted only while `epoch` is the room's latest (the
+    /// `room_epochs` row is read in the same statement, under a shared lock on InnoDB).
+    async fn append_update_once(
+        &self,
+        room: &str,
+        epoch: i64,
+        seq: i64,
+        data: &[u8],
+        origin: &str,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        let n = sqlx::query(
+            "INSERT INTO room_updates (room_id, seq, data, origin, created_at) \
+             SELECT ?, ?, ?, ?, ? FROM room_epochs WHERE room_id = ? AND epoch = ?",
+        )
+        .bind(room)
+        .bind(seq)
+        .bind(data.to_vec())
+        .bind(origin)
+        .bind(now_ms)
+        .bind(room)
+        .bind(epoch)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if n == 0 {
+            return Err(Fenced(room.into()).into());
+        }
         Ok(())
     }
 
     pub async fn load_wal(&self, room: &str) -> anyhow::Result<Wal> {
+        retry_transient("room load", move || self.load_wal_once(room)).await
+    }
+
+    async fn load_wal_once(&self, room: &str) -> anyhow::Result<Wal> {
         let snapshot = sqlx::query("SELECT seq, state FROM room_snapshots WHERE room_id = ?")
             .bind(room)
             .fetch_optional(&self.pool)
@@ -642,15 +856,32 @@ impl Store {
         Ok(Wal { snapshot, updates })
     }
 
-    /// Replaces the snapshot and drops WAL entries it covers.
+    /// Replaces the snapshot and drops WAL entries it covers. Refused with [`Fenced`] when
+    /// `epoch` is no longer the room's latest; deadlocks are retried.
     pub async fn compact(
         &self,
         room: &str,
+        epoch: i64,
+        seq: i64,
+        state: &[u8],
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        retry_transient("compaction", move || {
+            self.compact_once(room, epoch, seq, state, now_ms)
+        })
+        .await
+    }
+
+    async fn compact_once(
+        &self,
+        room: &str,
+        epoch: i64,
         seq: i64,
         state: &[u8],
         now_ms: i64,
     ) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
+        hold_epoch(&mut tx, room, epoch).await?;
         sqlx::query("DELETE FROM room_snapshots WHERE room_id = ?")
             .bind(room)
             .execute(&mut *tx)
@@ -792,17 +1023,126 @@ impl Store {
         Ok(out)
     }
 
+    /// [`Self::purge_room`] by the room's actor when it closes: refused with [`Fenced`] when
+    /// another writer took the room since (its WAL is not ours to drop).
+    pub async fn purge_room_fenced(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
+        retry_transient("room purge", move || async move {
+            let mut tx = self.pool.begin().await?;
+            hold_epoch(&mut tx, room, epoch).await?;
+            purge_in(&mut tx, room).await?;
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
-        let mut tx = self.pool.begin().await?;
-        for sql in [
-            "DELETE FROM room_updates WHERE room_id = ?",
-            "DELETE FROM room_snapshots WHERE room_id = ?",
-            "DELETE FROM rooms WHERE id = ?",
-            "DELETE FROM commit_outbox WHERE room_id = ? AND status <> 'pending'",
-        ] {
-            sqlx::query(sql).bind(room).execute(&mut *tx).await?;
-        }
-        tx.commit().await?;
-        Ok(())
+        retry_transient("room purge", move || async move {
+            let mut tx = self.pool.begin().await?;
+            purge_in(&mut tx, room).await?;
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+}
+
+type Tx<'c> = sqlx::Transaction<'c, sqlx::Any>;
+
+/// First statement of a guarded transaction: takes the write lock on the room's epoch row,
+/// and fails with [`Fenced`] unless `epoch` is still the room's latest. A newer claim
+/// ([`Store::claim_epoch`]) waits for this transaction, so it then sees everything it wrote.
+async fn hold_epoch(tx: &mut Tx<'_>, room: &str, epoch: i64) -> anyhow::Result<()> {
+    let n =
+        sqlx::query("UPDATE room_epochs SET checks = checks + 1 WHERE room_id = ? AND epoch = ?")
+            .bind(room)
+            .bind(epoch)
+            .execute(&mut **tx)
+            .await?
+            .rows_affected();
+    if n == 0 {
+        return Err(Fenced(room.into()).into());
+    }
+    Ok(())
+}
+
+async fn purge_in(tx: &mut Tx<'_>, room: &str) -> anyhow::Result<()> {
+    for sql in [
+        "DELETE FROM room_updates WHERE room_id = ?",
+        "DELETE FROM room_snapshots WHERE room_id = ?",
+        "DELETE FROM rooms WHERE id = ?",
+        "DELETE FROM commit_outbox WHERE room_id = ? AND status <> 'pending'",
+    ] {
+        sqlx::query(sql).bind(room).execute(&mut **tx).await?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    #[derive(Debug, thiserror::Error)]
+    #[error("{0}")]
+    struct Flaky(&'static str);
+
+    fn flaky(e: &anyhow::Error) -> bool {
+        e.downcast_ref::<Flaky>().is_some_and(|f| f.0 == "deadlock")
+    }
+
+    #[tokio::test]
+    async fn transient_errors_are_retried_up_to_three_attempts() {
+        // Two deadlocks, then success: the caller sees the success.
+        let calls = AtomicU32::new(0);
+        let out = retry_with("test", flaky, || async {
+            if calls.fetch_add(1, Ordering::SeqCst) < 2 {
+                Err(Flaky("deadlock").into())
+            } else {
+                Ok(7)
+            }
+        })
+        .await;
+        assert_eq!(out.unwrap(), 7);
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+
+        // Always deadlocking: three attempts, then the error is returned (loudly, not dropped).
+        let calls = AtomicU32::new(0);
+        let started = std::time::Instant::now();
+        let out: anyhow::Result<()> = retry_with("test", flaky, || async {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err(Flaky("deadlock").into())
+        })
+        .await;
+        assert_eq!(out.unwrap_err().to_string(), "deadlock");
+        assert_eq!(calls.load(Ordering::SeqCst), RETRY_ATTEMPTS);
+        assert!(started.elapsed() >= std::time::Duration::from_millis(25 + 50));
+
+        // Anything else fails at once.
+        let calls = AtomicU32::new(0);
+        let out: anyhow::Result<()> = retry_with("test", flaky, || async {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err(Flaky("syntax error").into())
+        })
+        .await;
+        assert!(out.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn deadlocks_and_lock_waits_are_transient() {
+        assert!(transient_message(
+            Some("40001"),
+            "Deadlock found when trying to get lock; try restarting transaction"
+        ));
+        assert!(transient_message(
+            Some("HY000"),
+            "Lock wait timeout exceeded; try restarting transaction"
+        ));
+        assert!(transient_message(None, "database is locked"));
+        assert!(!transient_message(
+            Some("23000"),
+            "Duplicate entry 'r-1' for key 'PRIMARY'"
+        ));
     }
 }

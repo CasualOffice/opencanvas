@@ -195,9 +195,24 @@ dependencies.
   resync in well under 5 s. Unacked client updates are resent by the Yjs client on
   reconnect (Yjs sync is idempotent). A node whose renewal finds another owner steps
   the room down (clients reconnect, no save).
+- **Fencing** (docs/22 §8 weakness 3). A lease alone cannot stop a node that was paused past
+  its TTL from writing before its next renewal. Every room actor takes the room's next
+  **epoch** from the database (`room_epochs`, bumped in one transaction) as it loads, with the
+  lease held and before it reads the WAL. WAL appends are a single guarded
+  `INSERT … SELECT … FROM room_epochs WHERE room_id = ? AND epoch = ?`; snapshots, outbox rows
+  and the closing purge start their transaction with `UPDATE room_epochs … WHERE epoch = ?`
+  (row lock). A write with an older epoch changes nothing and the actor stops at once: no
+  fan-out, no save, clients get 1012 and reconnect to the new owner. The same holds on SQLite
+  and MySQL/MariaDB, and with Redis lost (the epoch lives in the database).
+- An update is fanned out only after its WAL append succeeded. A failed append (after
+  deadlock retries) closes the room with 1012 and no save: the next actor rebuilds from the
+  WAL and clients resend what it lacks. Deadlocks (1213) and lock waits (1205) are retried
+  3 times with jittered backoff (25-50 ms, 50-100 ms); a save never goes to the host without
+  its outbox row.
 - The outbox sweeper claims a row (`claimed_by`, `claim_until`) and the room lease
   before resuming it, so two nodes never resend the same commit.
-- SIGTERM drain: refuse new rooms, commit dirty rooms, `{"t":"reconnect"}` + close
+- SIGTERM drain: `/readyz` turns 503, WebSocket upgrades are refused with 503 +
+  `Retry-After: 5` (before the upgrade), refuse new rooms, commit dirty rooms, `{"t":"reconnect"}` + close
   1012 to every client (local and relayed), release leases, exit.
 - `REDIS_URL` with SQLite refuses to start (SQLite is single-node only).
 - Stateless HTTP (launch/preview/export) scales horizontally with no

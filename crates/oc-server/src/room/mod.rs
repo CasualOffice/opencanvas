@@ -110,6 +110,9 @@ pub enum PatchFailure {
     TooLarge,
     /// The room is handling a save conflict and is read-only.
     Conflict,
+    /// The update could not be made durable (WAL write failed, or the room moved to another
+    /// node); nothing was applied for clients. Retry.
+    Unavailable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

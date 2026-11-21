@@ -105,6 +105,9 @@ struct Room {
     last_update: Instant,
     contributors: BTreeSet<String>,
     callback_token: String,
+    /// Fencing epoch taken at load (docs/22 §8 weakness 3): every WAL, snapshot and outbox
+    /// write is refused once another actor (on any node) has taken a newer one.
+    epoch: i64,
     seq: i64,
     compacted_seq: i64,
     last_compact: Instant,
@@ -119,6 +122,10 @@ struct Room {
     commit_waiters: Vec<(i64, tokio::sync::oneshot::Sender<CommitResult>)>,
     /// New @mentions to tell the host about (`None`: WOPI or no callbacks, UX-02).
     mentions: Option<super::mentions::Tracker>,
+    /// Set when the in-memory doc can no longer be trusted to match the WAL (a write was
+    /// fenced, or a WAL append failed): the run loop closes the room without saving and every
+    /// client reconnects (1012) to a room rebuilt from the WAL, resending what it missed.
+    lost: Option<&'static str>,
 }
 
 pub(super) async fn run(
@@ -153,8 +160,20 @@ pub(super) async fn run(
             },
             _ = tick.tick() => if room.tick().await { break End::Idle },
         }
+        if let Some(why) = room.lost {
+            break End::Lost(why);
+        }
     };
     match shutdown {
+        End::Lost(why) => {
+            // No save, no purge: the WAL (ours up to the failure, or the new owner's) is the
+            // truth; clients reconnect and resend what it lacks.
+            tracing::warn!(room = %id, reason = why, seq = room.seq, "room closed; clients told to reconnect");
+            room.tell_reconnect(why);
+            if let Some(r) = rooms.upgrade() {
+                r.remove(&id, generation);
+            }
+        }
         End::StepDown => {
             // Another node owns the room now and continues from the WAL: no save, no purge.
             room.step_down();
@@ -170,8 +189,12 @@ pub(super) async fn run(
             let _ = reply.send(());
         }
         End::Idle => {
-            if let Err(e) = ctx.store.purge_room(&id).await {
-                tracing::warn!(room = %id, error = %e, "purge failed");
+            match ctx.store.purge_room_fenced(&id, room.epoch).await {
+                Ok(()) => {}
+                Err(e) if crate::store::is_fenced(&e) => {
+                    tracing::warn!(room = %id, "room taken by a newer owner; its WAL is kept")
+                }
+                Err(e) => tracing::warn!(room = %id, error = %e, "purge failed"),
             }
             if let Some(r) = rooms.upgrade() {
                 r.remove(&id, generation);
@@ -187,6 +210,7 @@ pub(super) async fn run(
 
 enum End {
     Idle,
+    Lost(&'static str),
     StepDown,
     Shutdown(bool, tokio::sync::oneshot::Sender<()>),
 }
@@ -229,6 +253,9 @@ impl Room {
         self_tx: mpsc::UnboundedSender<Cmd>,
     ) -> anyhow::Result<Self> {
         let id = seed.room.clone();
+        // The epoch comes first: a writer that lost the room can append nothing after this, so
+        // the WAL read below is complete.
+        let epoch = ctx.store.claim_epoch(&id, now_ms()).await?;
         let row = ctx.store.room(&id).await?;
         let outbox = ctx.store.outbox_pending(&id).await?;
         let mut doc = oc_model::new_doc();
@@ -321,6 +348,7 @@ impl Room {
             last_update: Instant::now(),
             contributors,
             callback_token: seed.callback_token.clone(),
+            epoch,
             seq,
             compacted_seq: seq,
             last_compact: Instant::now(),
@@ -333,6 +361,7 @@ impl Room {
             idle_since: Some(Instant::now()),
             self_tx,
             commit_waiters: Vec::new(),
+            lost: None,
             ctx,
         })
     }
@@ -467,14 +496,8 @@ impl Room {
             txn.encode_update_v1()
         };
         self.doc_bytes += update.len();
-        self.seq += 1;
-        if let Err(e) = self
-            .ctx
-            .store
-            .append_update(&self.id, self.seq, &update, &grant.user.id, now)
-            .await
-        {
-            tracing::error!(room = %self.id, error = %e, "WAL append failed");
+        if !self.wal_append(&update, &grant.user.id).await {
+            return;
         }
         self.broadcast(protocol::update(update), None);
     }
@@ -579,6 +602,9 @@ impl Room {
             }
         };
         for msg in messages {
+            if self.lost.is_some() {
+                return;
+            }
             match msg {
                 Message::Sync(SyncMessage::SyncStep1(sv)) => {
                     let diff = self.doc.transact().encode_state_as_update_v1(&sv);
@@ -692,17 +718,50 @@ impl Room {
         self.accepted(bytes, &grant.user.id, Some(conn)).await;
     }
 
-    /// An update now in the doc: WAL first, then fan-out, then mark the room dirty.
-    async fn accepted(&mut self, bytes: Vec<u8>, user_id: &str, from: Option<ConnId>) {
-        self.doc_bytes += bytes.len();
+    /// Appends `update` to the WAL as the next `seq`. False when it is not durable: the room
+    /// is then marked lost (closed with 1012 by the run loop) and nothing may be fanned out.
+    async fn wal_append(&mut self, update: &[u8], user_id: &str) -> bool {
+        if self.lost.is_some() {
+            return false;
+        }
         self.seq += 1;
-        if let Err(e) = self
+        let started = Instant::now();
+        let res = self
             .ctx
             .store
-            .append_update(&self.id, self.seq, &bytes, user_id, now_ms())
-            .await
-        {
-            tracing::error!(room = %self.id, error = %e, "WAL append failed");
+            .append_update(&self.id, self.epoch, self.seq, update, user_id, now_ms())
+            .await;
+        self.ctx
+            .metrics
+            .wal_append_seconds
+            .observe(started.elapsed());
+        match res {
+            Ok(()) => true,
+            Err(e) => {
+                self.fail(&e, "WAL append failed");
+                false
+            }
+        }
+    }
+
+    /// A persistence write failed for good: a fenced write means another node owns the room
+    /// now; any other failure leaves the doc ahead of the WAL. Either way the room must close.
+    fn fail(&mut self, e: &anyhow::Error, what: &str) {
+        if crate::store::is_fenced(e) {
+            tracing::warn!(room = %self.id, epoch = self.epoch, "a newer owner holds the room; this node stops writing");
+            self.lost = Some("room moved");
+        } else {
+            tracing::error!(room = %self.id, error = %e, "{what}; closing the room so clients resync");
+            self.lost = Some("storage error");
+        }
+    }
+
+    /// An update now in the doc: WAL first, then fan-out, then mark the room dirty. False when
+    /// the WAL append failed: nothing was fanned out or acknowledged, and the room closes.
+    async fn accepted(&mut self, bytes: Vec<u8>, user_id: &str, from: Option<ConnId>) -> bool {
+        self.doc_bytes += bytes.len();
+        if !self.wal_append(&bytes, user_id).await {
+            return false;
         }
         if let Some(m) = self.mentions.as_mut() {
             m.note(&bytes, user_id);
@@ -728,6 +787,7 @@ impl Room {
                 tracing::error!(room = %self.id, error = %e, "marking room dirty failed");
             }
         }
+        true
     }
 
     /// Host patch API: ops run on a scratch copy; the resulting update is applied with origin
@@ -766,8 +826,8 @@ impl Room {
             txn.commit();
             txn.has_changes()
         };
-        if changed {
-            self.accepted(out.update, author, None).await;
+        if changed && !self.accepted(out.update, author, None).await {
+            return Err(PatchFailure::Unavailable);
         }
         tracing::info!(room = %self.id, ops = ops.len(), changed, "patch applied by host API");
         Ok(Patched {
@@ -952,10 +1012,11 @@ impl Room {
         match self
             .ctx
             .store
-            .compact(&self.id, self.seq, &state, now_ms())
+            .compact(&self.id, self.epoch, self.seq, &state, now_ms())
             .await
         {
             Ok(()) => self.compacted_seq = self.seq,
+            Err(e) if crate::store::is_fenced(&e) => self.fail(&e, "compaction failed"),
             Err(e) => tracing::error!(room = %self.id, error = %e, "compaction failed"),
         }
         self.last_compact = Instant::now();
@@ -990,8 +1051,18 @@ impl Room {
             attempts: 0,
             status: "pending".into(),
         };
-        if let Err(e) = self.ctx.store.outbox_insert(&row, now_ms()).await {
-            tracing::error!(room = %self.id, error = %e, "writing the commit outbox failed");
+        // No outbox row, no save: a commit the host may have but the outbox does not know
+        // about would break the crash guarantee (docs/22 §8 weakness 5).
+        if let Err(e) = self
+            .ctx
+            .store
+            .outbox_insert(&row, self.epoch, now_ms())
+            .await
+        {
+            if crate::store::is_fenced(&e) {
+                self.fail(&e, "writing the commit outbox failed");
+            }
+            return Err(format!("writing the commit outbox failed: {e}"));
         }
         let pending = Pending::from(row);
         self.save.pending = Some(pending.clone());
@@ -1002,7 +1073,17 @@ impl Room {
         let pending = match self.prepare_save().await {
             Ok(p) => p,
             Err(e) => {
-                tracing::error!(room = %self.id, error = %e, "building .ocanvas failed");
+                // Loud, and retried with the save backoff (not on every tick).
+                tracing::error!(room = %self.id, error = %e, "save not started");
+                Metrics::inc(&self.ctx.metrics.save_errors_total);
+                let delay = backoff(self.save.attempt);
+                self.save.attempt += 1;
+                self.save.retry_at = Some(Instant::now() + Duration::from_secs(delay));
+                if self.lost.is_none() {
+                    self.set_status(
+                        json!({"t": "save_error", "retryInMs": delay * 1000, "message": e}),
+                    );
+                }
                 return;
             }
         };
@@ -1323,7 +1404,7 @@ impl Room {
             self.tell_reconnect("server shutting down");
         }
         if self.dirty_since.is_none() {
-            let _ = self.ctx.store.purge_room(&self.id).await;
+            let _ = self.ctx.store.purge_room_fenced(&self.id, self.epoch).await;
         }
     }
 }

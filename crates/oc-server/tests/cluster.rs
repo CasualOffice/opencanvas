@@ -226,7 +226,8 @@ async fn outbox_rows_are_claimed_by_one_node_at_a_time() {
         status: "pending".into(),
     };
     let s = &state.store;
-    s.outbox_insert(&row, 1_000).await.unwrap();
+    let epoch = s.claim_epoch(&row.room_id, 1_000).await.unwrap();
+    s.outbox_insert(&row, epoch, 1_000).await.unwrap();
     assert!(s.outbox_claim(&row.id, "n1", 1_000, 61_000).await.unwrap());
     assert!(!s.outbox_claim(&row.id, "n2", 2_000, 62_000).await.unwrap());
     assert!(s.outbox_claim(&row.id, "n1", 3_000, 63_000).await.unwrap());

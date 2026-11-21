@@ -1,6 +1,46 @@
-//! A handful of Prometheus counters and gauges, rendered as text.
+//! A handful of Prometheus counters, gauges and histograms, rendered as text.
 
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use std::time::Duration;
+
+/// Upper bounds (seconds) of the latency histogram buckets.
+const BUCKETS: [f64; 12] = [
+    0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+];
+
+/// A fixed-bucket Prometheus histogram of durations.
+#[derive(Default)]
+pub struct Histogram {
+    /// Observations per bucket (not cumulative); the last slot is `+Inf`.
+    counts: [AtomicU64; BUCKETS.len() + 1],
+    sum_micros: AtomicU64,
+}
+
+impl Histogram {
+    pub fn observe(&self, d: Duration) {
+        let secs = d.as_secs_f64();
+        let slot = BUCKETS
+            .iter()
+            .position(|b| secs <= *b)
+            .unwrap_or(BUCKETS.len());
+        self.counts[slot].fetch_add(1, Ordering::Relaxed);
+        self.sum_micros
+            .fetch_add(d.as_micros() as u64, Ordering::Relaxed);
+    }
+
+    fn render(&self, name: &str, help: &str) -> String {
+        let mut out = format!("# HELP {name} {help}\n# TYPE {name} histogram\n");
+        let mut total = 0;
+        for (i, c) in self.counts.iter().enumerate() {
+            total += c.load(Ordering::Relaxed);
+            let le = BUCKETS.get(i).map_or("+Inf".to_string(), |b| b.to_string());
+            out.push_str(&format!("{name}_bucket{{le=\"{le}\"}} {total}\n"));
+        }
+        let sum = self.sum_micros.load(Ordering::Relaxed) as f64 / 1e6;
+        out.push_str(&format!("{name}_sum {sum}\n{name}_count {total}\n"));
+        out
+    }
+}
 
 #[derive(Default)]
 pub struct Metrics {
@@ -13,6 +53,8 @@ pub struct Metrics {
     pub saves_total: AtomicI64,
     pub save_errors_total: AtomicI64,
     pub save_conflicts_total: AtomicI64,
+    /// Time of one WAL append (including retries after a deadlock), success or not.
+    pub wal_append_seconds: Histogram,
 }
 
 impl Metrics {
@@ -48,13 +90,38 @@ impl Metrics {
                 &self.save_conflicts_total,
             ),
         ];
-        rows.iter()
+        let mut out: String = rows
+            .iter()
             .map(|(name, kind, v)| {
                 format!(
                     "# TYPE {name} {kind}\n{name} {}\n",
                     v.load(Ordering::Relaxed)
                 )
             })
-            .collect()
+            .collect();
+        out.push_str(&self.wal_append_seconds.render(
+            "oc_wal_append_seconds",
+            "Time to append one update to the room WAL.",
+        ));
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn histogram_buckets_are_cumulative() {
+        let h = Histogram::default();
+        h.observe(Duration::from_micros(500));
+        h.observe(Duration::from_millis(20));
+        h.observe(Duration::from_secs(9));
+        let t = h.render("x", "help");
+        assert!(t.contains("x_bucket{le=\"0.001\"} 1\n"), "{t}");
+        assert!(t.contains("x_bucket{le=\"0.025\"} 2\n"), "{t}");
+        assert!(t.contains("x_bucket{le=\"5\"} 2\n"), "{t}");
+        assert!(t.contains("x_bucket{le=\"+Inf\"} 3\n"), "{t}");
+        assert!(t.contains("x_count 3\n"), "{t}");
     }
 }
