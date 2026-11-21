@@ -62,6 +62,7 @@
   "devDependencies": {
     "@tiptap/extension-mention": "^3.10.0",
     "@tiptap/starter-kit": "^3.10.0",
+    "@types/node": "24.19.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
