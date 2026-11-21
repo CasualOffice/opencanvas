@@ -102,6 +102,28 @@ host (`:4580`). `scripts/chaos-cluster.sh` brings it up, types from two clients,
 the room owner, checks reconnect ≤ 5 s, convergence and that the host's file has every
 acknowledged edit, then removes everything.
 
+### Durability mode (ADR-029)
+```
+OC_DURABILITY=memory     # default without Redis: rooms in memory, state dumped to the DB
+OC_DB_SYNC_MS=2000       # memory mode: dump each changed room at most this often (5000 with Redis)
+OC_ROOM_IDLE_MS=60000    # a room with no peers and nothing unsaved is saved and dropped after this
+```
+**What you can lose.** In `memory` mode an acknowledged edit is in server memory and in the
+editors' browsers, not yet on disk. If the server process dies (kill -9, OOM, power loss) it
+restarts from the last dump, at most `OC_DB_SYNC_MS` old; clients that reconnect resend what
+it lacks, so nothing is lost while some client holding the edit comes back. Edits from the last
+`OC_DB_SYNC_MS` before the crash by clients that never return (tab closed, laptop gone) are
+lost. A SIGTERM drain loses nothing. Set `OC_DURABILITY=wal` (or configure a Redis WAL) when
+every acknowledged edit must be on disk; on SQLite this costs capacity (docs/22 §9.3–§9.4).
+
+**SQLite settings** (set by the server on every connection): `journal_mode=WAL`,
+`synchronous=NORMAL`, `busy_timeout=5000`, default `wal_autocheckpoint` (1,000 pages), and
+writes are taken one at a time in process order. With `synchronous=NORMAL` in WAL mode a commit
+survives an application crash; a power loss or OS crash can roll back the last commits since the
+last checkpoint sync (the database stays consistent). In `wal` mode that means acknowledged edits
+can be lost on power loss; use `OC_DURABILITY=wal` with MySQL/MariaDB, or a Redis WAL with
+`appendfsync always`, if that matters.
+
 ### Hot WAL in Redis (ADR-028)
 ```
 OC_WAL_REDIS_URL=redis://redis:6379   # default: REDIS_URL; also allowed with SQLite (single node)

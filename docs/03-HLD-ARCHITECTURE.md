@@ -225,6 +225,19 @@ dependencies.
 - Large rooms: viewers can be fanned out by non-owner nodes from a Redis
   channel, so a 500-viewer room does not saturate one node.
 
+### 5.2.0 Durability modes (ADR-029)
+- **`OC_DURABILITY=memory`** (default without Redis): the room's Y.Doc lives in memory; an
+  update is acknowledged (fanned out on the next 40 ms tick) right after the in-memory apply,
+  with no database write. The encoded state is dumped (epoch-fenced) to `room_snapshots` every
+  `OC_DB_SYNC_MS` (2 s) while it changes, before each host save, on drain and on close. After a
+  crash the room loads the last dump; clients that reconnect resend newer edits (Yjs sync
+  step 1/2). **Edits from the last ≤ `OC_DB_SYNC_MS` before a crash are lost only if no client
+  that holds them comes back.**
+- **`OC_DURABILITY=wal`**: the strict path below (§5.2.1): acknowledged means in the WAL.
+- **With a Redis WAL** configured: §5.2.1's hot WAL in Redis, whatever `OC_DURABILITY` says.
+- Idle eviction: a room with no peers and nothing unsaved for `OC_ROOM_IDLE_MS` (60 s) is
+  saved, purged and dropped from memory.
+
 ### 5.2.1 Write path: batches, outbound tick, hot WAL in Redis (ADR-028)
 - A room applies updates as they arrive and queues them. At most every 40 ms (armed by the
   first queued item) it appends the queue as one batch, then sends **one** merged update frame

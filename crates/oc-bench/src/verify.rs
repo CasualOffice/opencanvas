@@ -517,6 +517,22 @@ pub async fn run(a: Args) -> anyhow::Result<()> {
             }
         }
         opens.sort_unstable();
+        // Memory durability (ADR-029): what the recovered state lacks is what no client
+        // resends; it must be no older than the last dump. Oldest lost ack, relative to the kill.
+        let kill_t = crash_at;
+        let lost_window_ms = lost
+            .iter()
+            .filter_map(|t| acked_before.get(t))
+            .map(|at| ((kill_t - at) * 1000.0).max(0.0) as u64)
+            .max()
+            .unwrap_or(0);
+        let memory = a.s("durability", "wal") == "memory";
+        if memory {
+            println!(
+                "memory durability: {} acked edits not in the recovered state before any client resent (oldest {lost_window_ms} ms before the kill); they must come back on resync",
+                lost.len()
+            );
+        }
         println!(
             "recovered state: {} rooms read in {open_all_ms} ms (room open p50 {} p95 {} max {} ms); acked-before-kill lost: {}; sent-but-unacked also recovered: {recovered_unacked}; viewer errors {viewer_err}",
             opens.len(),
@@ -525,13 +541,13 @@ pub async fn run(a: Args) -> anyhow::Result<()> {
             opens.last().copied().unwrap_or(0),
             lost.len()
         );
-        ok &= lost.is_empty() && viewer_err == 0 && ready_ms.is_some();
+        ok &= (memory || lost.is_empty()) && viewer_err == 0 && ready_ms.is_some();
         report["crash"] = json!({"atSecs": crash_at, "sentBeforeKill": sent_before,
             "ackedBeforeKill": acked_before.len(), "readyMs": ready_ms,
             "killToReadyMs": killed_at.elapsed().as_millis() as u64 - open_all_ms,
             "roomsRead": opens.len(), "readAllMs": open_all_ms,
             "roomOpenMs": {"p50": pct(&opens, 0.5), "p95": pct(&opens, 0.95), "max": opens.last()},
-            "lostAcked": lost.len(), "lostSample": lost.iter().take(20).collect::<Vec<_>>(),
+            "lostAcked": lost.len(), "lostWindowMs": lost_window_ms, "durability": if memory { "memory" } else { "wal" }, "lostSample": lost.iter().take(20).collect::<Vec<_>>(),
             "recoveredUnacked": recovered_unacked, "viewerErrors": viewer_err});
         // Clients come back and type again.
         ctl.typing.store(true, Ordering::SeqCst);

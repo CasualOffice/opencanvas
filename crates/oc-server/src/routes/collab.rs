@@ -36,10 +36,14 @@ pub const MAX_BACKLOG: usize = 4096;
 /// §7). Client frames are small (keystroke updates, awareness); a larger frame grows the
 /// buffer as needed, up to the frame limit.
 pub const WS_READ_BUFFER: usize = 8 * 1024;
+/// Bytes tungstenite gathers before it writes to the socket (its default is 128 KiB, which
+/// every busy connection then keeps). Batches are flushed at [`WRITE_BATCH_BYTES`] anyway.
+pub const WS_WRITE_BUFFER: usize = 16 * 1024;
 
 /// The WebSocket settings shared by client sockets and the cluster relay.
 pub fn ws_config(ws: WebSocketUpgrade, max_message: usize) -> WebSocketUpgrade {
     ws.read_buffer_size(WS_READ_BUFFER)
+        .write_buffer_size(WS_WRITE_BUFFER)
         .max_message_size(max_message)
         .max_frame_size(max_message)
 }
@@ -47,6 +51,10 @@ pub fn ws_config(ws: WebSocketUpgrade, max_message: usize) -> WebSocketUpgrade {
 /// Frames written to the socket before one flush: a busy room's backlog goes out in one
 /// write instead of one syscall per frame (docs/22 §9.1).
 const WRITE_BATCH: usize = 64;
+/// Bytes written before one flush. The socket's write buffer keeps the capacity of the
+/// largest batch it ever held, for the life of the connection: without a byte cap a 550-peer
+/// room's presence frames grew every connection's buffer to 200-400 KB (docs/22 §9.4).
+pub const WRITE_BATCH_BYTES: usize = 64 * 1024;
 
 /// Sends the actor's frames to `sink` until a close, a send error, a send that takes longer
 /// than [`SEND_TIMEOUT`] or a backlog over [`MAX_BACKLOG`] (a peer that stopped reading).
@@ -71,16 +79,20 @@ where
         }
         let mut close = None;
         let mut batch = Vec::new();
+        let mut bytes = 0;
         let mut item = Some(out);
         while let Some(o) = item.take() {
             match o {
-                Outbound::Frame(b) => batch.push(Message::Binary(b)),
+                Outbound::Frame(b) => {
+                    bytes += b.len();
+                    batch.push(Message::Binary(b));
+                }
                 Outbound::Close(code, reason) => {
                     close = Some((code, reason));
                     break;
                 }
             }
-            if batch.len() < WRITE_BATCH {
+            if batch.len() < WRITE_BATCH && bytes < WRITE_BATCH_BYTES {
                 item = rx.try_recv().ok();
             }
         }

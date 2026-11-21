@@ -44,6 +44,13 @@ pub struct RoomInfo {
     pub is_new: bool,
 }
 
+/// Why a background dump failed: fenced (another owner) or anything else.
+#[derive(Debug)]
+pub(crate) enum DumpError {
+    Fenced(anyhow::Error),
+    Other(String),
+}
+
 pub(crate) enum Cmd {
     Join {
         conn: ConnId,
@@ -72,6 +79,11 @@ pub(crate) enum Cmd {
     },
     ConflictDone {
         result: Result<ConflictOutcome, String>,
+    },
+    /// A background state dump (memory durability, ADR-029) finished.
+    Dumped {
+        seq: i64,
+        result: Result<(), DumpError>,
     },
     /// Live role change from the host; `None` revokes access. Replies with the number of
     /// connections affected.

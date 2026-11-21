@@ -312,7 +312,7 @@ scenario() {
       local restart="env -u OC_DEV DATABASE_URL='$db' OC_KEK='$kek' OC_HOSTS_FILE='$WORK/hosts.toml' OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=http://127.0.0.1:$OC_PORT OC_LOG=info nohup $BIN >> '$WORK/server-$OC_PORT.restart.log' 2>&1 & echo \$! > '$WORK/restarted.pid'"
       echo; echo "== $1-crash"
       "$LG" verify --label "$1-crash" --server "http://127.0.0.1:$OC_PORT" --host-port "$HOST_PORT" --secret "$SECRET" \
-        --rooms 200 --per-room 2 --secs 45 --crash-at 25 --kill-pid "$SERVER_PID" --restart "$restart" \
+        --rooms 200 --per-room 2 --secs 45 --crash-at 25 --kill-pid "$SERVER_PID" --restart "$restart" --durability "${OC_DURABILITY:-memory}" \
         --out "$OUT/$1-crash.json" | tee "$OUT/$1-crash.md"
       local np; np=$(cat "$WORK/restarted.pid" 2>/dev/null); [ -n "$np" ] && PIDS+=("$np")
       { echo "recovery log lines: $(grep -c 'recovered unsaved room state' "$WORK/server-$OC_PORT.restart.log")";
