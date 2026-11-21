@@ -1,6 +1,7 @@
 # 07 — Security, privacy and limits
 
-**Status:** draft v0.1, 2026-11-21. Target: OWASP ASVS Level 2.
+**Status:** v0.2, 2026-11-21 (after the security audit, [docs/18](18-SECURITY-AUDIT.md)). Target: OWASP ASVS Level 2.
+Reporting a vulnerability: [SECURITY.md](../SECURITY.md).
 
 ## 1. Trust boundaries
 
@@ -19,15 +20,20 @@
 | Token leakage via URL | JWT posted in form body, not query; WS uses short (≤ 60 s to connect) single-room ticket; tickets never logged. |
 | Privilege escalation (viewer edits) | Server filters every `sync update` by role; commenters restricted to `comments` subtree via scratch-doc diff. Client read-only is cosmetic. |
 | Presence spoofing | Server overwrites `awareness.user` from grant. |
-| XSS via paste/import/markdown | ProseMirror schema whitelist; HTML import through sanitizer (ammonia on server, DOMPurify on client); no raw HTML block; links restricted to `http(s):`, `mailto:`, host-allowed schemes. |
-| Malicious embeds | Provider allow-list per host; `<iframe sandbox="allow-scripts allow-same-origin allow-popups allow-presentation">` only for listed providers, `referrerpolicy=no-referrer`; generic iframe disabled by default. |
-| SSRF via unfurl / image URL | Resolve DNS once, pin IP, block private/link-local/loopback/metadata ranges (v4+v6), HTTPS-only by default, 3 redirects max (re-checked), 2 MB / 5 s caps, content-type check. |
+| XSS via paste/import/markdown | ProseMirror schema whitelist (paste is parsed by the schema, unknown tags dropped); server HTML import (`oc_model::html`) is a whitelist tree walk, not raw HTML; no raw HTML block; links restricted to `http(s):`, `mailto:`, `/`, `#` (import and export); the link mark re-checks `isAllowedUri` when rendering. |
+| Malicious embeds | Provider allow-list per host; `<iframe sandbox="allow-scripts allow-same-origin allow-popups allow-presentation allow-popups-to-escape-sandbox">` only for listed providers, rebuilt from the provider id (`resolveEmbed`), never the stored URL; `referrerpolicy=strict-origin-when-cross-origin` (YouTube refuses to play without a referrer); generic iframe not supported. CSP `frame-src https:`. |
+| SSRF via image URL / WOPISrc / JWKS | No arbitrary fetches: export images only from the host's `callback_base` origin and `asset_origins` (exact origin match, no userinfo, no redirects, 10 MB, `image/*`); `WOPISrc` only when it matches a `wopi_allowlist` entry exactly (scheme, host, port, path prefix; userinfo, queries and encoded separators refused; no redirects); JWKS and Gotenberg URLs come from operator config. There is no server-side link unfurl; if one is added it must resolve DNS once, pin the IP, block private/link-local/loopback/metadata ranges (v4+v6) and re-check every redirect. |
 | Clickjacking / embedding by strangers | CSP `frame-ancestors` = host `allowed_origins`; postMessage origin checks both ways. |
+| Script injection into the SPA | Every response: `Content-Security-Policy` with `script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'` (+ `frame-ancestors`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`. Handler CSPs are kept: exports and room assets are served `sandbox; default-src 'none'`. Node views pass doc URLs through `safeHref` / `safeImageSrc` (`web/packages/editor/src/lib/urls.ts`). |
+| Injection into exports | HTML/SVG/DOCX escape every text and attribute; link targets limited to `http(s):`, `mailto:`, `/`, `#`; Markdown escapes `<` and drops script/data link targets; CSV cells starting with `= + - @ TAB CR` get a leading `'`. |
+| SQL injection | Every statement is a literal with `?` binds (guard test `sec05_every_sql_statement_is_a_literal`); no dynamic identifiers, no `LIKE`. |
+| Callback replay | `X-OpenCanvas-Signature` `v2` binds method + path + query + body; the signed client never follows redirects. |
 | Callback spoofing (someone pretends to be us) | HMAC `X-OpenCanvas-Signature` with timestamp (5 min skew). |
-| DoS | Per-IP and per-connection rate limits; frame ≤ 1 MB; doc ≤ 20 MB; ≤ 10 000 blocks; ≤ 5 000 shapes/board; room peers ≤ 550; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal). |
+| DoS | Per-connection frame rate limits (per-IP limits belong in the reverse proxy); readers that stop reading are dropped (30 s send timeout, 4096-frame backlog); multipart boundaries ≤ 70 chars; frame ≤ 1 MB; doc ≤ 20 MB (block and shape counts are bounded by the doc cap only); room peers ≤ 550 (then close 1013), ≤ 8 awareness client ids per connection; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal), enforced on the bytes actually inflated, never on the sizes the archive declares. |
 | Secrets at rest | Host secrets AES-256-GCM encrypted with `OC_KEK`; host callback tokens in `sessions.grant_json` encrypted. |
 | Data retention | Room state deleted after commit + TTL; no content in logs (only ids, sizes, timings); crash dumps disabled in prod. |
-| Supply chain | `cargo deny`, `pnpm audit`, lockfiles, pinned CDN-free bundle (self-hosted assets). |
+| Supply chain | `scripts/audit.sh` (`cargo audit`, `cargo deny` with `scripts/deny.toml`, `pnpm audit --prod`), lockfiles, pinned CDN-free bundle (self-hosted assets). |
+| Ops endpoints | `/metrics` needs `Authorization: Bearer $OC_METRICS_TOKEN` when set; keep `/metrics`, `/readyz` and `/v1/internal/*` off the public listener. |
 
 ## 3. Limits (defaults, per host overridable)
 
@@ -39,12 +45,13 @@
 | Frames/s per connection | 60 (burst 120) |
 | Awareness size / rate | 2 KB / 20 Hz |
 | CRDT doc soft / hard | 5 MB / 20 MB |
-| Blocks per doc | 10 000 |
-| Shapes per board | 5 000 |
+| Blocks per doc / shapes per board | bounded by the 20 MB doc cap (no separate count limit) |
 | Image upload | 25 MB |
 | Attachment upload | host-defined (default 100 MB) |
-| Editors per room / viewers | 50 / 500 |
-| Unfurl fetch | 2 MB, 5 s, 3 redirects |
+| Connections per room | 550 (`MAX_PEERS`, not split by role) |
+| Unfurl fetch | 2 MB, 5 s, 3 redirects (no server-side unfurl yet: bookmarks store the URL only) |
+| Awareness client ids / connection | 8 |
+| `GET /v1/users` `q` | 200 bytes |
 
 ## 4. Privacy
 

@@ -17,6 +17,8 @@ pub struct Config {
     pub pdf_renderer: Option<PdfRenderer>,
     /// Key-encryption key for secrets at rest; `None` only with `OC_DEV=1`.
     pub kek: Option<Kek>,
+    /// `OC_METRICS_TOKEN`: when set, `/metrics` needs `Authorization: Bearer <token>`.
+    pub metrics_token: Option<String>,
     pub rooms: RoomConfig,
 }
 
@@ -100,6 +102,7 @@ impl Config {
                 .map(|v| PdfRenderer::parse(&v))
                 .transpose()?,
             kek,
+            metrics_token: var("OC_METRICS_TOKEN"),
             rooms: RoomConfig {
                 autosave_debounce: Duration::from_millis(num("OC_AUTOSAVE_DEBOUNCE_MS", 2000)),
                 autosave_max: Duration::from_millis(num("OC_AUTOSAVE_MAX_MS", 10_000)),

@@ -7,6 +7,8 @@ mod launch;
 mod ops;
 mod proxy;
 
+pub use collab::write_frames;
+
 use std::sync::Arc;
 
 use axum::Router;
@@ -17,7 +19,6 @@ use axum::routing::{delete, get, post};
 use serde_json::json;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
-use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::SharedState;
@@ -107,17 +108,68 @@ fn redacted_path(path: &str) -> &str {
     }
 }
 
-fn csp(origins: &[String]) -> HeaderValue {
+/// `frame-ancestors 'self' <every host's allowed_origins>` (docs/07 §2, clickjacking).
+fn frame_ancestors(origins: &[String]) -> String {
     let mut v = String::from("frame-ancestors 'self'");
     for o in origins {
-        v.push(' ');
-        v.push_str(o);
+        // A stray quote, semicolon or space would end the directive or add another one.
+        if o.bytes()
+            .all(|b| b.is_ascii_graphic() && !matches!(b, b';' | b',' | b'\'' | b'"'))
+        {
+            v.push(' ');
+            v.push_str(o);
+        }
     }
-    HeaderValue::from_str(&v).unwrap_or_else(|_| HeaderValue::from_static("frame-ancestors 'self'"))
+    v
+}
+
+/// Policy for the SPA and every response without its own: scripts only from this origin,
+/// no plugins, no `<base>` hijack, forms post only here. Images and embeds stay open
+/// (documents show images from the host and provider iframes, docs/07 §2).
+fn default_csp(frame_ancestors: &str) -> String {
+    format!(
+        "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; \
+         form-action 'self'; img-src 'self' https: http: data: blob:; \
+         media-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline'; \
+         font-src 'self' data:; connect-src 'self' ws: wss:; frame-src https:; \
+         worker-src 'self' blob:; {frame_ancestors}"
+    )
+}
+
+/// Baseline headers (SEC-01). A handler's own CSP (sandboxed assets and exports) is kept and
+/// only gets `frame-ancestors` appended; everything else gets [`default_csp`].
+async fn security_headers(
+    frame_ancestors: Arc<str>,
+    default: HeaderValue,
+    mut res: Response,
+) -> Response {
+    let h = res.headers_mut();
+    let own = h
+        .get(header::CONTENT_SECURITY_POLICY)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let csp = match own {
+        Some(own) if own.contains("frame-ancestors") => None,
+        Some(own) => HeaderValue::from_str(&format!("{own}; {frame_ancestors}")).ok(),
+        None => Some(default),
+    };
+    if let Some(csp) = csp {
+        h.insert(header::CONTENT_SECURITY_POLICY, csp);
+    }
+    h.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    h.entry(header::X_CONTENT_TYPE_OPTIONS)
+        .or_insert(HeaderValue::from_static("nosniff"));
+    res
 }
 
 pub fn router(state: SharedState) -> Router {
     let origins = state.hosts.allowed_origins();
+    let fa: Arc<str> = frame_ancestors(&origins).into();
+    let default = HeaderValue::from_str(&default_csp(&fa))
+        .unwrap_or_else(|_| HeaderValue::from_static("frame-ancestors 'self'"));
     // Patch / convert bodies: up to the document cap (at least 1 MB).
     let body_limit = state.cfg.rooms.max_doc_bytes.max(1024 * 1024);
     let web = &state.cfg.web_dir;
@@ -156,8 +208,9 @@ pub fn router(state: SharedState) -> Router {
         // Host pages load the embed SDK from here (docs/05 §4).
         .route_service("/sdk/embed.js", ServeFile::new(web.join("sdk/embed.js")))
         .layer(cors)
-        .layer(SetResponseHeaderLayer::overriding(header::CONTENT_SECURITY_POLICY, csp(&origins)))
-        .layer(SetResponseHeaderLayer::overriding(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer")))
+        .layer(axum::middleware::map_response(move |res: Response| {
+            security_headers(fa.clone(), default.clone(), res)
+        }))
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<_>| {
             tracing::info_span!("http", method = %req.method(), path = %redacted_path(req.uri().path()))
         }))

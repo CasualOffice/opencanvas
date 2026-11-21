@@ -62,8 +62,12 @@ function checkCallback(req, fileId, body) {
   const t = /t=(\d+)/.exec(sigHdr)?.[1], v1 = /v1=([0-9a-f]+)/.exec(sigHdr)?.[1];
   if (!t || !v1) return { ok: false, why: "missing signature" };
   if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return { ok: false, why: "stale signature" };
-  const want = crypto.createHmac("sha256", SECRET).update(Buffer.concat([Buffer.from(`${t}.`), body || Buffer.alloc(0)])).digest("hex");
-  if (want.length !== v1.length || !crypto.timingSafeEqual(Buffer.from(want), Buffer.from(v1))) return { ok: false, why: "bad signature" };
+  // v2 also binds the method and path (docs/05 §5); prefer it, fall back to v1 for old servers.
+  const v2 = /v2=([0-9a-f]+)/.exec(sigHdr)?.[1];
+  const signed = v2 ? `${t}.${req.method}.${req.url}.` : `${t}.`;
+  const want = crypto.createHmac("sha256", SECRET).update(Buffer.concat([Buffer.from(signed), body || Buffer.alloc(0)])).digest("hex");
+  const got = v2 || v1;
+  if (want.length !== got.length || !crypto.timingSafeEqual(Buffer.from(want), Buffer.from(got))) return { ok: false, why: "bad signature" };
   return { ok: true, userId };
 }
 

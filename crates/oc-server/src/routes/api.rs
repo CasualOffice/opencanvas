@@ -11,7 +11,6 @@ use axum::response::{IntoResponse, Response};
 use oc_model::patch::{PatchError, PatchOp};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 
 use super::ApiError;
 use crate::SharedState;
@@ -27,15 +26,6 @@ fn unauthorized() -> ApiError {
     )
 }
 
-/// Compares digests so the check takes the same time whatever the key.
-fn same_key(a: &str, b: &str) -> bool {
-    let (x, y) = (Sha256::digest(a.as_bytes()), Sha256::digest(b.as_bytes()));
-    x.iter()
-        .zip(y.iter())
-        .fold(0u8, |acc, (p, q)| acc | (p ^ q))
-        == 0
-}
-
 fn authenticate(state: &SharedState, headers: &HeaderMap) -> Result<Arc<HostConfig>, ApiError> {
     let header = |k: &str| headers.get(k).and_then(|v| v.to_str().ok());
     let host = header("x-opencanvas-host")
@@ -43,7 +33,7 @@ fn authenticate(state: &SharedState, headers: &HeaderMap) -> Result<Arc<HostConf
         .ok_or_else(unauthorized)?;
     let expected = host.api_key.as_deref().filter(|k| !k.is_empty());
     match (expected, header("x-opencanvas-key")) {
-        (Some(want), Some(got)) if same_key(want, got) => Ok(host),
+        (Some(want), Some(got)) if crate::util::same_secret(want, got) => Ok(host),
         _ => Err(unauthorized()),
     }
 }
@@ -323,5 +313,12 @@ pub async fn convert(
         wopi_room: None,
     };
     let (bytes, ctype, _) = super::export::render(&state, &host, &doc, &p.to, req).await?;
-    Ok(([(header::CONTENT_TYPE, ctype)], bytes).into_response())
+    Ok((
+        [
+            (header::CONTENT_TYPE, ctype),
+            (header::CONTENT_SECURITY_POLICY, super::export::EXPORT_CSP),
+        ],
+        bytes,
+    )
+        .into_response())
 }

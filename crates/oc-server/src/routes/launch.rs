@@ -162,10 +162,17 @@ async fn launch_wopi(
 /// `GET /hosting/discovery` (WOPI discovery XML).
 pub async fn discovery(State(state): State<SharedState>, headers: HeaderMap) -> Response {
     let public = public_base(&state, &headers);
+    // Derived from the request's Host header unless OC_PUBLIC_URL is set: never let a shared
+    // cache keep a copy someone built with a forged Host (SEC-06).
+    let cache = if state.cfg.public_url.is_some() {
+        "public, max-age=3600"
+    } else {
+        "private, no-store"
+    };
     (
         [
             (header::CONTENT_TYPE, "text/xml; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=3600"),
+            (header::CACHE_CONTROL, cache),
         ],
         wopi::discovery_xml(&public),
     )

@@ -1,0 +1,25 @@
+# Used by scripts/audit.sh: cargo deny --config scripts/deny.toml check advisories bans sources
+# Every ignore says why it does not apply (docs/18, "Dependencies"); re-check on each audit.
+
+[advisories]
+ignore = [
+  # rsa 0.9 (Marvin: timing on private-key operations), pulled in by jsonwebtoken's
+  # rust_crypto backend. OpenCanvas only verifies RS256 signatures with public keys.
+  { id = "RUSTSEC-2023-0071", reason = "public-key verification only; no RSA private key is ever used" },
+  # crypto-bigint 0.5 timing variability, through p256/p384 in jsonwebtoken. Launch tokens are
+  # pinned to HS256 / RS256 / EdDSA per host, so no ECDSA code runs, and never on a secret.
+  { id = "RUSTSEC-2026-0387", reason = "ECDSA is never accepted; no secret operand" },
+  # Unmaintained font crates under resvg/usvg (board PNG export). No known vulnerability; they
+  # only parse the fonts compiled into the binary.
+  { id = "RUSTSEC-2026-0206", reason = "unmaintained, no vulnerability; parses bundled fonts only" },
+  { id = "RUSTSEC-2026-0215", reason = "unmaintained, no vulnerability" },
+  { id = "RUSTSEC-2026-0192", reason = "unmaintained, no vulnerability; parses bundled fonts only" },
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

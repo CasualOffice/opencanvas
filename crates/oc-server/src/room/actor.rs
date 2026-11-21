@@ -26,6 +26,11 @@ use crate::util::{now_ms, rfc3339};
 
 const BACKOFF_SECS: [u64; 4] = [1, 2, 5, 10];
 const MAX_AWARENESS_BYTES: usize = 2048;
+/// Connections per room (docs/07 §3: 50 editors + 500 viewers). Later joins are closed
+/// with 1013 "room full".
+pub const MAX_PEERS: usize = 550;
+/// Awareness client ids one connection may own (one per Y.Doc; a few for tabs/reconnects).
+const MAX_CLIENTS_PER_CONN: usize = 8;
 
 fn backoff(attempt: u32) -> u64 {
     BACKOFF_SECS[(attempt as usize).min(BACKOFF_SECS.len() - 1)]
@@ -389,6 +394,12 @@ impl Room {
         tx: mpsc::UnboundedSender<Outbound>,
         reply: tokio::sync::oneshot::Sender<()>,
     ) {
+        if self.peers.len() >= MAX_PEERS {
+            tracing::warn!(room = %self.id, peers = self.peers.len(), "room full; connection refused");
+            let _ = tx.send(Outbound::Close(1013, "room full".into()));
+            let _ = reply.send(());
+            return;
+        }
         if grant.can_write() && !grant.callback_token.is_empty() {
             self.callback_token = grant.callback_token.clone();
         }
@@ -729,9 +740,16 @@ impl Room {
             .flat_map(|(_, p)| p.clients.iter().copied())
             .collect();
         let mut owned = Vec::new();
+        let mut room_left = MAX_CLIENTS_PER_CONN.saturating_sub(peer.clients.len());
         update.clients.retain(|client, entry| {
             if foreign.contains(client) || entry.json.len() > MAX_AWARENESS_BYTES {
                 return false;
+            }
+            if !peer.clients.contains(client) {
+                if room_left == 0 {
+                    return false;
+                }
+                room_left -= 1;
             }
             if let Ok(Value::Object(mut state)) = serde_json::from_str::<Value>(&entry.json) {
                 state.insert("user".into(), user.clone());

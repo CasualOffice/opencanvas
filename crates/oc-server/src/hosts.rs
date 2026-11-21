@@ -132,6 +132,17 @@ impl Hosts {
         let file: HostsFile = toml::from_str(src).context("invalid hosts file")?;
         let mut list = Vec::new();
         for mut h in file.host {
+            // Room ids hash `<hostId>:<fileId>`; a `:` (or anything odd) in a host id could
+            // make two tenants share a room (SEC-10).
+            if h.id.is_empty()
+                || h.id.len() > 64
+                || !h
+                    .id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+            {
+                bail!("host id {:?} must be 1-64 chars of [A-Za-z0-9._-]", h.id);
+            }
             h.jwt_secret = resolve(h.jwt_secret)?;
             h.jwt_public_key = resolve(h.jwt_public_key)?;
             h.callback_secret = resolve(h.callback_secret)?;
@@ -162,6 +173,15 @@ impl Hosts {
                     h.id,
                     h.mode
                 );
+            }
+            for (what, secret) in [
+                ("jwt_secret", &h.jwt_secret),
+                ("callback_secret", &h.callback_secret),
+                ("api_key", &h.api_key),
+            ] {
+                if secret.as_deref().is_some_and(|s| s.len() < 32) {
+                    tracing::warn!(host = %h.id, "{what} is shorter than 32 characters; use a long random value");
+                }
             }
             match h.jwt_alg.as_str() {
                 "HS256" if h.jwt_secret.is_none() => {
@@ -235,6 +255,21 @@ impl Hosts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SEC-10: room ids hash `<hostId>:<fileId>`, so host `a:b` + file `c` and host `a` +
+    /// file `b:c` shared a room. Host ids are restricted to `[A-Za-z0-9._-]`.
+    #[test]
+    fn host_ids_cannot_contain_separators() {
+        let src = |id: &str| {
+            format!(
+                "[[host]]\nid = \"{id}\"\nname = \"N\"\njwt_secret = \"0123456789abcdef0123456789abcdef\"\ncallback_base = \"http://h/api\"\n"
+            )
+        };
+        assert!(Hosts::parse(&src("acme-prod_1.eu"), None).is_ok());
+        for bad in ["a:b", "a b", "", "a/b", "ä"] {
+            assert!(Hosts::parse(&src(bad), None).is_err(), "{bad:?}");
+        }
+    }
 
     #[test]
     fn parses_and_overrides_callback_base() {
