@@ -90,7 +90,10 @@ async fn launch_session_websocket_and_export() {
         .expect("ticket in fragment")
         .to_string();
     let csp = res.headers()["content-security-policy"].to_str().unwrap();
-    assert_eq!(csp, "frame-ancestors 'self' http://localhost:4000");
+    assert!(
+        csp.ends_with("; frame-ancestors 'self' http://localhost:4000"),
+        "{csp}"
+    );
 
     let reused = launch(&addr, &tok).await;
     assert_eq!(reused.status(), 401);

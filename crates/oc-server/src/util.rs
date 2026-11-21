@@ -33,8 +33,27 @@ pub fn rfc3339(ms: i64) -> String {
     )
 }
 
+/// Compares two secrets (API keys, bearer tokens) in time independent of where they differ:
+/// both are hashed first, so neither length nor content leaks through timing.
+pub fn same_secret(a: &str, b: &str) -> bool {
+    use sha2::{Digest, Sha256};
+    let (x, y) = (Sha256::digest(a.as_bytes()), Sha256::digest(b.as_bytes()));
+    x.iter()
+        .zip(y.iter())
+        .fold(0u8, |acc, (p, q)| acc | (p ^ q))
+        == 0
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn same_secret_compares_whole_values() {
+        assert!(super::same_secret("k-1", "k-1"));
+        assert!(!super::same_secret("k-1", "k-2"));
+        assert!(!super::same_secret("k-1", "k-1 "));
+        assert!(!super::same_secret("k", ""));
+    }
+
     #[test]
     fn formats_rfc3339() {
         assert_eq!(super::rfc3339(0), "1970-01-01T00:00:00Z");

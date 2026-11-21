@@ -20,6 +20,11 @@ use crate::grant::Grant;
 use crate::hosts::HostConfig;
 use crate::util::{now_ms, rfc3339};
 
+/// Exported files are user content: if a browser ever renders one from this origin (opened
+/// directly, `nosniff` aside), it runs sandboxed, with no scripts and no network.
+pub(super) const EXPORT_CSP: &str =
+    "sandbox; default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'";
+
 #[derive(Deserialize)]
 pub struct ExportParams {
     #[serde(default)]
@@ -84,6 +89,7 @@ pub async fn export(
             (header::CONTENT_TYPE, ctype.to_string()),
             (header::CONTENT_DISPOSITION, disposition),
             (header::CACHE_CONTROL, "no-store".into()),
+            (header::CONTENT_SECURITY_POLICY, EXPORT_CSP.into()),
         ],
         body,
     )
@@ -149,6 +155,7 @@ pub async fn export_board(
             ),
             (header::CACHE_CONTROL, "no-store".into()),
             (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
+            (header::CONTENT_SECURITY_POLICY, EXPORT_CSP.into()),
         ],
         body,
     )

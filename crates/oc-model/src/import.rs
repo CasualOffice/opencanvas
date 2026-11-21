@@ -249,8 +249,13 @@ fn inline_into(src: &str, marks: &[Value], out: &mut Vec<Value>) {
             let label = &rest[1..mid];
             let href = rest[mid + 2..mid + 2 + close].trim();
             flush(&mut buf, out);
-            let link = json!({"type": "link", "attrs": {"href": href}});
-            inline_into(label, &with_mark(marks, link), out);
+            if crate::export::safe_target(href) {
+                let link = json!({"type": "link", "attrs": {"href": href}});
+                inline_into(label, &with_mark(marks, link), out);
+            } else {
+                // `javascript:` and friends never become links (SEC-16).
+                inline_into(label, marks, out);
+            }
             i += mid + 3 + close;
             continue;
         }
@@ -424,7 +429,11 @@ pub fn markdown_to_json(src: &str) -> Value {
             push_item(&mut out, "orderedList", list_item("listItem", rest, None));
         } else if let Some((alt, src)) = image_line(t) {
             flush(&mut para, &mut out);
-            out.push(json!({"type": "image", "attrs": {"src": src, "alt": alt}}));
+            if crate::export::safe_target(src) {
+                out.push(json!({"type": "image", "attrs": {"src": src, "alt": alt}}));
+            } else if !alt.is_empty() {
+                para.push(alt);
+            }
         } else {
             para.push(t);
         }
@@ -469,6 +478,20 @@ pub fn apply_markdown(doc: &Doc, src: &str) {
 
 #[cfg(test)]
 mod tests {
+
+    /// SEC-16: imported Markdown keeps only web, mail and relative link targets.
+    #[test]
+    fn markdown_import_drops_script_links_and_images() {
+        let d = crate::new_doc();
+        apply_markdown(
+            &d,
+            "[a](javascript:alert(1)) [b](https://ok.dev)\n\n![x](javascript:alert(2))\n",
+        );
+        let v = crate::doc_to_json(&d);
+        let s = v.to_string().to_ascii_lowercase();
+        assert!(!s.contains("javascript:"), "{s}");
+        assert!(s.contains("https://ok.dev"), "{s}");
+    }
     use super::*;
 
     #[test]

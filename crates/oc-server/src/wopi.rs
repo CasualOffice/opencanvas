@@ -90,6 +90,15 @@ pub fn check_src(allowlist: &[String], src: &str) -> Option<Url> {
     if src.is_empty() || src.len() > MAX_SRC_LEN {
         return None;
     }
+    // Encoded separators survive URL normalization and can climb out of an allowed path
+    // prefix on hosts that decode before routing (SEC-11).
+    let lower = src.to_ascii_lowercase();
+    if ["%2f", "%5c", "%2e", "\\"]
+        .iter()
+        .any(|p| lower.contains(p))
+    {
+        return None;
+    }
     let u = Url::parse(src.trim()).ok()?;
     if !matches!(u.scheme(), "http" | "https")
         || !u.username().is_empty()
@@ -514,6 +523,29 @@ pub fn copy_name(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// SEC-11: encoded `/`, `\\` or `.` in the path can climb out of an allowed prefix on
+    /// hosts that decode before routing (`/wopi/files/..%2F..%2Fadmin`).
+    #[test]
+    fn wopisrc_with_encoded_separators_is_refused() {
+        let allow = vec!["https://cloud.example/wopi/files".to_string()];
+        assert!(super::check_src(&allow, "https://cloud.example/wopi/files/123").is_some());
+        for bad in [
+            "https://cloud.example/wopi/files/..%2F..%2Fadmin",
+            "https://cloud.example/wopi/files/..%2f..%2fadmin",
+            "https://cloud.example/wopi/files/%2e%2e/%2e%2e/admin",
+            "https://cloud.example/wopi/files/a%5C..%5Cadmin",
+            "https://cloud.example/wopi/files/a\\..\\..\\admin",
+            "https://cloud.example@evil.example/wopi/files/1",
+            "https://cloud.example.evil.example/wopi/files/1",
+            "https://cloud.example:444/wopi/files/1",
+            "https://[::1]/wopi/files/1",
+            "https://2130706433/wopi/files/1",
+            "https://cloud.example/wopi/filesX/1",
+        ] {
+            assert!(super::check_src(&allow, bad).is_none(), "{bad}");
+        }
+    }
     use super::*;
     use serde_json::json;
 

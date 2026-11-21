@@ -67,9 +67,14 @@ function detectDelimiter(text: string): string {
   return tabs > 0 && commas === 0 ? "\t" : tabs > commas ? "\t" : ",";
 }
 
-/** Quote one CSV cell when needed. */
+/**
+ * Quote one CSV cell when needed. A cell starting with `=`, `+`, `-`, `@`, tab or CR (and not
+ * a plain number) gets a leading `'` so spreadsheets open it as text, never as a formula
+ * (CSV injection, OWASP; docs/18 SEC-19).
+ */
 export function csvCell(v: unknown): string {
-  const s = String(v ?? "");
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r]/.test(s) && !NUM.test(s)) s = "'" + s;
   return /[",\r\n\t]/.test(s) || /^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 

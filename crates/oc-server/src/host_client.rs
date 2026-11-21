@@ -16,13 +16,21 @@ use crate::wopi;
 #[derive(Debug, thiserror::Error)]
 pub enum HostError {
     #[error("host unreachable: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(reqwest::Error),
     #[error("host answered {0}")]
     Status(StatusCode),
     #[error("bad callback url")]
     Url,
     #[error("unexpected host answer: {0}")]
     Body(String),
+}
+
+/// Errors never carry the URL: it names internal callback hosts and, in WOPI mode, holds the
+/// access token; `HostError` messages reach browsers and logs (SEC-08).
+impl From<reqwest::Error> for HostError {
+    fn from(e: reqwest::Error) -> Self {
+        Self::Http(e.without_url())
+    }
 }
 
 pub enum Fetched {
@@ -94,6 +102,26 @@ pub fn signature(secret: &[u8], t: i64, body: &[u8]) -> String {
     format!("t={t},v1={}", hex::encode(mac.finalize().into_bytes()))
 }
 
+/// The full `X-OpenCanvas-Signature` value: `t=…,v1=…,v2=…`. `v1` covers only the timestamp
+/// and body, so an empty-body GET signature was valid for every GET path for 5 minutes;
+/// `v2` = HMAC(secret, `<t>.<METHOD>.<path?query>.<body>`) binds the request too (SEC-18).
+pub fn signature_header(
+    secret: &[u8],
+    t: i64,
+    method: &str,
+    path_query: &str,
+    body: &[u8],
+) -> String {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret).expect("hmac accepts any key length");
+    mac.update(format!("{t}.{method}.{path_query}.").as_bytes());
+    mac.update(body);
+    format!(
+        "{},v2={}",
+        signature(secret, t, body),
+        hex::encode(mac.finalize().into_bytes())
+    )
+}
+
 fn unquote(etag: &str) -> String {
     etag.trim()
         .trim_start_matches("W/")
@@ -109,8 +137,11 @@ impl Default for HostClient {
 
 impl HostClient {
     pub fn new() -> Self {
+        // Signed callbacks never follow redirects: the request (with its signature and bearer)
+        // must not be replayed to wherever a `Location` points (SEC-07).
         let http = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::none())
             .user_agent(concat!("opencanvas/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("http client");
@@ -311,14 +342,22 @@ impl HostClient {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
+        let path_query = match url.query() {
+            Some(q) => format!("{}?{q}", url.path()),
+            None => url.path().to_string(),
+        };
+        let sig = signature_header(
+            host.signing_secret(),
+            t,
+            method.as_str(),
+            &path_query,
+            &body,
+        );
         client
             .request(method, url)
             .timeout(Duration::from_secs(timeout))
             .bearer_auth(token)
-            .header(
-                "X-OpenCanvas-Signature",
-                signature(host.signing_secret(), t, &body),
-            )
+            .header("X-OpenCanvas-Signature", sig)
             .body(body)
     }
 
@@ -535,6 +574,24 @@ impl HostClient {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn signature_v2_binds_method_and_path() {
+        // printf '%s' '1700000000.PUT./api/files/f1?x=1.{}' | openssl dgst -sha256 -hmac secret
+        let h =
+            super::signature_header(b"secret", 1_700_000_000, "PUT", "/api/files/f1?x=1", b"{}");
+        assert!(h.starts_with(&super::signature(b"secret", 1_700_000_000, b"{}")));
+        assert!(
+            h.ends_with(",v2=d421c3606ac13be99a16e3c716001ec87107a3ce89c81946403e02371e9c52a7"),
+            "{h}"
+        );
+        let other =
+            super::signature_header(b"secret", 1_700_000_000, "GET", "/api/files/f2", b"{}");
+        assert_ne!(
+            h.rsplit_once("v2=").unwrap().1,
+            other.rsplit_once("v2=").unwrap().1
+        );
+    }
+
     #[test]
     fn signature_matches_reference() {
         // echo -n '1700000000.{}' | openssl dgst -sha256 -hmac secret

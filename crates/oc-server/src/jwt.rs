@@ -94,7 +94,7 @@ impl LaunchClaims {
                 color: self
                     .user
                     .color
-                    .filter(|c| c.starts_with('#') && c.len() <= 9)
+                    .filter(|c| is_hex_color(c))
                     .unwrap_or_else(|| derive_color(&self.user.id)),
                 name: self.user.name.unwrap_or_else(|| self.user.id.clone()),
                 avatar: self.user.avatar,
@@ -109,6 +109,12 @@ impl LaunchClaims {
             callback_token: self.callback_token.unwrap_or_default(),
         }
     }
+}
+
+/// `#rgb`, `#rrggbb` or `#rrggbbaa` (SEC-12): the colour ends up in other people's CSS.
+fn is_hex_color(c: &str) -> bool {
+    c.strip_prefix('#')
+        .is_some_and(|h| matches!(h.len(), 3 | 6 | 8) && h.bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
 fn peek_issuer(token: &str) -> Result<String, JwtError> {
@@ -313,6 +319,29 @@ pub mod tests {
     use super::*;
     use jsonwebtoken::{EncodingKey, Header, encode};
     use serde_json::json;
+
+    /// SEC-12: the colour is copied into other people's cursors and CSS; only `#rgb`,
+    /// `#rrggbb` or `#rrggbbaa` hex is accepted, anything else falls back to a derived one.
+    #[test]
+    fn user_color_must_be_plain_hex() {
+        let claims = |color: &str| -> LaunchClaims {
+            serde_json::from_value(json!({
+                "iss": "sample", "exp": 1, "jti": "j",
+                "file": {"id": "f"}, "user": {"id": "u", "color": color}, "role": "edit"
+            }))
+            .unwrap()
+        };
+        assert_eq!(claims("#7a45f0").into_grant().user.color, "#7a45f0");
+        assert_eq!(claims("#abc").into_grant().user.color, "#abc");
+        for bad in ["#;}*{x", "#fff;x:y", "#12345g", "red", "#1234567"] {
+            let c = claims(bad).into_grant().user.color;
+            assert_ne!(c, bad, "{bad}");
+            assert!(
+                c.starts_with('#') && c[1..].bytes().all(|b| b.is_ascii_hexdigit()),
+                "{c}"
+            );
+        }
+    }
 
     pub const SECRET: &str = "dev-secret-change-me";
 

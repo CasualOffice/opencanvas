@@ -95,6 +95,27 @@ pub fn apply_update_bytes(doc: &Doc, bytes: &[u8]) -> Result<(), Error> {
         .map_err(|_| Error::BadUpdate)
 }
 
+/// Inflates one entry, trusting none of the sizes the archive declares (SEC-14): at most its
+/// declared size (a longer stream is a lie), at most [`MAX_RATIO`] times its compressed size,
+/// and `total` (the declared sizes counted so far) is re-checked against [`MAX_TOTAL`].
+fn read_capped<R: Read>(
+    entry: R,
+    (declared, compressed): (u64, u64),
+    total: &mut u64,
+) -> Result<Vec<u8>, Error> {
+    let cap = declared.min(compressed.max(1).saturating_mul(MAX_RATIO));
+    let mut buf = Vec::with_capacity(cap.min(1 << 20) as usize);
+    entry.take(cap + 1).read_to_end(&mut buf)?;
+    if buf.len() as u64 > cap {
+        return Err(Error::Limit("entry inflates past its declared size"));
+    }
+    *total = total.saturating_sub(declared) + buf.len() as u64;
+    if *total > MAX_TOTAL {
+        return Err(Error::Limit("too large"));
+    }
+    Ok(buf)
+}
+
 /// Reads a `.ocanvas` with zip-bomb and path-traversal limits (docs/07 §2).
 pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
     let mut zip = ZipArchive::new(Cursor::new(bytes))?;
@@ -108,7 +129,7 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
         if entry.enclosed_name().is_none() {
             return Err(Error::Limit("unsafe path"));
         }
-        let name = entry.name().to_string();
+        let name = entry.name()?.to_string();
         total += entry.size();
         if total > MAX_TOTAL {
             return Err(Error::Limit("too large"));
@@ -121,8 +142,8 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
             name.as_str(),
             "manifest.json" | "document.json" | "ydoc.bin"
         ) {
-            let mut buf = Vec::with_capacity(entry.size() as usize);
-            entry.take(MAX_TOTAL).read_to_end(&mut buf)?;
+            let sizes = (entry.size(), entry.compressed_size());
+            let buf = read_capped(entry, sizes, &mut total)?;
             files.insert(name, buf);
         }
     }
@@ -180,12 +201,12 @@ pub fn read_assets(bytes: &[u8]) -> Result<Vec<Asset>, Error> {
         if total > MAX_TOTAL {
             return Err(Error::Limit("too large"));
         }
-        let name = entry.name().to_string();
+        let name = entry.name()?.to_string();
         let Some(id) = name.strip_prefix("assets/") else {
             continue;
         };
-        let mut buf = Vec::with_capacity(entry.size() as usize);
-        entry.take(MAX_TOTAL).read_to_end(&mut buf)?;
+        let sizes = (entry.size(), entry.compressed_size());
+        let buf = read_capped(entry, sizes, &mut total)?;
         if id == "index.json" {
             if let Ok(Value::Object(m)) = serde_json::from_slice(&buf) {
                 index = m;
@@ -215,7 +236,7 @@ pub fn with_assets(bytes: &[u8], assets: &[Asset]) -> Result<Vec<u8>, Error> {
     let mut out = ZipWriter::new(Cursor::new(Vec::new()));
     for i in 0..src.len() {
         let entry = src.by_index_raw(i)?;
-        if entry.name().starts_with("assets/") {
+        if entry.name()?.starts_with("assets/") {
             continue;
         }
         out.raw_copy_file(entry)?;
@@ -239,6 +260,55 @@ pub fn with_assets(bytes: &[u8], assets: &[Asset]) -> Result<Vec<u8>, Error> {
 
 #[cfg(test)]
 mod asset_tests {
+
+    /// Rewrites every declared uncompressed size of `name` (local header and central
+    /// directory) to `size`, the way a zip bomb lies about its entries.
+    fn lie_about_size(zip: &mut [u8], name: &str, size: u32) {
+        let n = name.as_bytes();
+        let mut i = 0;
+        while i + 4 <= zip.len() {
+            let sig = &zip[i..i + 4];
+            let (size_at, name_len_at, name_at) = match sig {
+                b"PK\x03\x04" => (i + 22, i + 26, i + 30),
+                b"PK\x01\x02" => (i + 24, i + 28, i + 46),
+                _ => {
+                    i += 1;
+                    continue;
+                }
+            };
+            let len = u16::from_le_bytes([zip[name_len_at], zip[name_len_at + 1]]) as usize;
+            if zip.get(name_at..name_at + len) == Some(n) {
+                zip[size_at..size_at + 4].copy_from_slice(&size.to_le_bytes());
+            }
+            i += 4;
+        }
+    }
+
+    /// SEC-14: the limits trusted the sizes the archive declares. An entry that claims to be
+    /// 1 KB but inflates to 50 MB passed the ratio and total checks.
+    #[test]
+    fn entries_that_inflate_past_their_declared_size_are_refused() {
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        let deflate = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        zip.start_file("document.json", deflate).unwrap();
+        zip.write_all(b"{\"type\":\"doc\",\"content\":[],\"pad\":\"")
+            .unwrap();
+        zip.write_all(&vec![b'a'; 50 * 1024 * 1024]).unwrap();
+        zip.write_all(b"\"}").unwrap();
+        let mut bytes = zip.finish().unwrap().into_inner();
+        assert!(
+            matches!(read_ocanvas(&bytes), Err(Error::Limit(_))),
+            "honest sizes"
+        );
+        lie_about_size(&mut bytes, "document.json", 1024);
+        assert!(
+            matches!(
+                read_ocanvas(&bytes),
+                Err(Error::Limit(_) | Error::Zip(_) | Error::Io(_))
+            ),
+            "a lying entry must not be inflated"
+        );
+    }
     use super::*;
 
     #[test]

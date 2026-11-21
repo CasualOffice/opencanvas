@@ -2,8 +2,8 @@
 
 use axum::Json;
 use axum::extract::State;
-use axum::http::{StatusCode, header};
-use axum::response::IntoResponse;
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
 use crate::SharedState;
@@ -31,9 +31,22 @@ pub async fn readyz(State(state): State<SharedState>) -> impl IntoResponse {
     )
 }
 
-pub async fn metrics(State(state): State<SharedState>) -> impl IntoResponse {
+/// Prometheus text. With `OC_METRICS_TOKEN` set it needs `Authorization: Bearer <token>`
+/// (compared in constant time); without it, keep `/metrics` off the public listener.
+pub async fn metrics(State(state): State<SharedState>, headers: HeaderMap) -> Response {
+    if let Some(want) = state.cfg.metrics_token.as_deref() {
+        let got = headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .unwrap_or_default();
+        if !crate::util::same_secret(want, got) {
+            return (StatusCode::UNAUTHORIZED, "metrics need the bearer token").into_response();
+        }
+    }
     (
         [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],
         state.metrics.render(),
     )
+        .into_response()
 }
