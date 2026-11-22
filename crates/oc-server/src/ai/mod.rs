@@ -33,6 +33,17 @@ impl HostAi<'_> {
             .unwrap_or(false)
     }
 
+    /// `mcp_all_files = true`: when the host has no `/access` callback, an MCP token without
+    /// a `files` claim covers every file of the host with its `role` claim. Broad; off by
+    /// default, so such a token is refused (SEC-34, docs/24 §7.1).
+    pub fn mcp_all_files(&self) -> bool {
+        self.0
+            .ai
+            .get("mcp_all_files")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
+
     /// `default_mode = "direct" | "suggest"`: how changes to existing content land. New
     /// content is always direct unless a call asks for a suggestion. Default `suggest`.
     pub fn default_mode(&self) -> WriteMode {

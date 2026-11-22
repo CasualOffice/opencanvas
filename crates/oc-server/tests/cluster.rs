@@ -400,7 +400,8 @@ fn mcp_token(addr: &str) -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     let c = json!({"iss": "sample", "aud": format!("http://{addr}/mcp/sample"), "sub": "u_mcp",
         "name": "Asha", "exp": oc_server::util::now_secs() + 600,
-        "scope": "canvas:read canvas:write", "role": "edit", "client_id": "claude"});
+        "scope": "canvas:read canvas:write", "role": "edit", "client_id": "claude",
+        "files": [FILE]});
     encode(
         &Header::new(Algorithm::HS256),
         &c,

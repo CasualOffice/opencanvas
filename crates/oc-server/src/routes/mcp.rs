@@ -123,6 +123,9 @@ fn rate_ok(key: &str, rate: u32) -> bool {
 
 /// The caller's role on `file_id`: the host's `POST /access` answer when the host implements
 /// it (cached 30 s), else the token's `role` claim. `None`: no access.
+///
+/// SEC-34: without `/access`, the claim only applies to files the token names (`files`), unless
+/// the host opts into `[host.ai] mcp_all_files = true` (broad: every file of the host).
 async fn host_role(
     state: &SharedState,
     caller: &Caller,
@@ -136,10 +139,17 @@ async fn host_role(
             tracing::warn!(host = %caller.host.id, error = %e, "host access check failed");
             ToolError::Internal("the host access check failed".into())
         })?;
-    Ok(match answer {
-        Some(role) => role,
-        None => Some(caller.claimed_role()),
-    })
+    match answer {
+        Some(role) => Ok(role),
+        None if caller.claims.files.is_none() && !HostAi(&caller.host).mcp_all_files() => {
+            Err(ToolError::Forbidden(
+                "FILES_REQUIRED: the host has no /access callback, so the token must list the \
+                 files it covers in a `files` claim (or the host sets [host.ai] mcp_all_files)"
+                    .into(),
+            ))
+        }
+        None => Ok(Some(caller.claimed_role())),
+    }
 }
 
 fn rpc_result(id: &Value, result: Value) -> Response {

@@ -73,7 +73,9 @@ async fn handshake_tools_list_and_call_over_http() {
     let (addr, state) = serve(mcp_on).await;
     let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
     peer.settle().await;
-    let t = token(&addr, "canvas:read canvas:write", "edit", |_| {});
+    let t = token(&addr, "canvas:read canvas:write", "edit", |c| {
+        c["files"] = json!([FILE])
+    });
 
     let init = ok(
         &addr,
@@ -260,7 +262,7 @@ async fn a_scope_narrower_than_the_role_wins() {
     assert_eq!(r["isError"], true);
     assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN");
     // And the role still caps a wide scope: view role with canvas:write cannot write.
-    let t = token(&addr, "canvas:write", "view", |_| {});
+    let t = token(&addr, "canvas:write", "view", |c| c["files"] = json!([FILE]));
     let r = ok(
         &addr,
         &t,
@@ -350,11 +352,65 @@ async fn without_the_access_callback_the_token_role_claim_is_used() {
     let (addr, state, host) = serve_with_host(mcp_on).await;
     let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
     peer.settle().await;
-    // The mock host answers 404 on /access: fall back to the claim (`edit`).
-    let t = token(&addr, "canvas:write", "edit", |_| {});
+    // The mock host answers 404 on /access: fall back to the claim (`edit`) for the files the
+    // token names.
+    let t = token(&addr, "canvas:write", "edit", |c| c["files"] = json!([FILE]));
     let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
     assert_eq!(r["isError"], false, "{r}");
     assert_eq!(host.lock().unwrap().access_calls.len(), 1, "asked once");
+    peer.settle().await;
+    assert!(!json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+}
+
+/// SEC-34: without the host's `/access` callback, a token must name the files it covers; the
+/// `files` claim then limits it.
+#[tokio::test]
+async fn without_the_access_callback_a_token_without_files_is_refused() {
+    let (addr, state, _host) = serve_with_host(mcp_on).await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    let t = token(&addr, "canvas:write", "edit", |_| {});
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], true, "{r}");
+    assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN", "{r}");
+    assert!(
+        r["structuredContent"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("FILES_REQUIRED"),
+        "{r}"
+    );
+    peer.settle().await;
+    assert!(json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+
+    // With a `files` claim, the token covers those files and no others.
+    let t = token(&addr, "canvas:write", "edit", |c| c["files"] = json!([FILE]));
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], false, "{r}");
+    let r = ok(
+        &addr,
+        &t,
+        "tools/call",
+        json!({"name": "canvas_read", "arguments": {"fileId": "other_file"}}),
+    )
+    .await;
+    assert_eq!(r["isError"], true, "{r}");
+}
+
+/// SEC-34: `[host.ai] mcp_all_files = true` is the explicit, broad opt-in: a token without
+/// `files` covers every file of the host with its role claim.
+#[tokio::test]
+async fn mcp_all_files_lets_a_token_without_files_cover_every_file() {
+    let (addr, state, _host) = serve_with_host(|h| {
+        mcp_on(h);
+        h.ai.insert("mcp_all_files".into(), toml::Value::Boolean(true));
+    })
+    .await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    let t = token(&addr, "canvas:write", "edit", |_| {});
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], false, "{r}");
     peer.settle().await;
     assert!(!json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
 }
