@@ -27,5 +27,11 @@ export default defineConfig({
       testMatch: /phone\.spec/,
       use: { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } },
     },
+    {
+      // docs/23 Mobile: the acceptance spec again on a small Android-like Chromium phone.
+      name: "android-chromium",
+      testMatch: /s-mobile\.phone\.spec/,
+      use: { ...devices["Pixel 5"], viewport: { width: 360, height: 760 } },
+    },
   ],
 });

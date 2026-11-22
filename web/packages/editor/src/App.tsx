@@ -36,6 +36,9 @@ const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ defau
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 
+/** A downgrade whose unsynced edits the server refused: the next Workspace keeps the banner. */
+let downgradedOnReboot = false;
+
 const EXPORTS = new Set(["md", "html", "ocanvas", "json", "docx", "pdf"]);
 
 function Splash() {
@@ -143,7 +146,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [compact, setCompact] = useState(false);
   const [role, setRole] = useState<Role>(session.role);
   const [forcedReadOnly, setForcedReadOnly] = useState(false);
-  const [roleChanged, setRoleChanged] = useState(false);
+  const [roleChanged, setRoleChanged] = useState(() => downgradedOnReboot && session.role !== "edit");
+  useEffect(() => {
+    downgradedOnReboot = false;
+  }, []);
+  // Had more than view access at some point in this Workspace (or the one before a reboot).
+  const everEdited = useRef(session.role !== "view" || roleChanged);
+  if (role !== "view") everEdited.current = true;
   const [save, setSave] = useState<SaveState>({ kind: "saved", at: null });
   const [conn, setConn] = useState<"connected" | "reconnecting" | "offline">("connected");
   const [conflict, setConflict] = useState<{ policy: "copy" | "reload" | null; fileId?: string; url?: string; open: boolean } | null>(null);
@@ -299,6 +308,14 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         else setConn("reconnecting");
       }),
       collab.onDenied(() => {
+        // The server refused local changes (a downgrade raced unsynced edits, or a forced
+        // write): they never sync, so start over from the room's state rather than keep
+        // showing text nobody else has (docs/06 §4, docs/23 PERM-03).
+        if (!demo) {
+          downgradedOnReboot = everEdited.current;
+          onReboot();
+          return;
+        }
         setRole((prev) => {
           if (prev === "edit") setRoleChanged(true);
           return prev === "edit" ? "view" : prev;

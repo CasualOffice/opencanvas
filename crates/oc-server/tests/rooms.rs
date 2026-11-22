@@ -437,3 +437,49 @@ async fn fan_out_shares_one_buffer_between_peers() {
         "each peer got its own copy of the frame"
     );
 }
+
+/// docs/23 PERM-07: a forged frame from a commenter or viewer that touches database cells,
+/// a board, or a brand-new root is refused, even when it is bundled with a comment.
+#[tokio::test]
+async fn commenter_and_viewer_cannot_touch_cells_boards_or_new_roots() {
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let mut editor = Peer::join(&state, grant("u_e", Role::Edit)).await;
+    let mut commenter = Peer::join(&state, grant("u_c", Role::Comment)).await;
+    let mut viewer = Peer::join(&state, grant("u_v", Role::View)).await;
+    editor.settle().await;
+    commenter.settle().await;
+    viewer.settle().await;
+
+    commenter.edit(|d| {
+        d.get_or_insert_map("databases")
+            .insert(&mut d.transact_mut(), "db1", "cell edit");
+    });
+    commenter.edit(|d| {
+        let boards = d.get_or_insert_map("boards");
+        let comments = d.get_or_insert_map("comments");
+        let mut txn = d.transact_mut();
+        comments.insert(&mut txn, "t1", "cover");
+        boards.insert(&mut txn, "b1", "shape");
+    });
+    commenter.edit(|d| {
+        d.get_or_insert_map("smuggled")
+            .insert(&mut d.transact_mut(), "k", "v");
+    });
+    viewer.edit(|d| {
+        d.get_or_insert_map("boards")
+            .insert(&mut d.transact_mut(), "b2", "shape");
+    });
+    commenter.settle().await;
+    viewer.settle().await;
+    editor.settle().await;
+
+    assert!(commenter.denied >= 1);
+    assert!(viewer.denied >= 1);
+    let server = server_json(&state).await;
+    assert_eq!(server["databases"], json!({}), "{server}");
+    assert_eq!(server["boards"], json!({}), "{server}");
+    assert_eq!(server["comments"], json!({}), "bundled comment refused too");
+    assert!(server.get("smuggled").is_none(), "{server}");
+    assert_eq!(json_of(&editor.doc)["boards"], json!({}));
+}
