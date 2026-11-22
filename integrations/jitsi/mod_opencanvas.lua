@@ -138,6 +138,9 @@ local uuid = require "util.uuid".generate
 local http = require "net.http"
 
 local base_url = module:get_option_string("opencanvas_url", ""):gsub("/+$", "")
+-- Where Prosody itself reaches OpenCanvas (the room-end DELETE). Defaults to opencanvas_url;
+-- set it when Prosody sees OpenCanvas at a different, internal address (e.g. inside Docker).
+local api_url = module:get_option_string("opencanvas_api_url", base_url):gsub("/+$", "")
 local secret = module:get_option_string("opencanvas_secret", "")
 local host_id = module:get_option_string("opencanvas_host_id", "jitsi")
 local api_key = module:get_option_string("opencanvas_api_key", "")
@@ -275,7 +278,7 @@ local function end_session(room)
     cache[room.jid] = nil
     local file_id = room._data.opencanvas_file_id
     if not file_id or api_key == "" then return end
-    local url = base_url .. "/v1/files/" .. file_id .. "/session"
+    local url = api_url .. "/v1/files/" .. file_id .. "/session"
     http.request(url, {
         method = "DELETE",
         headers = { ["X-OpenCanvas-Host"] = host_id, ["X-OpenCanvas-Key"] = api_key },
