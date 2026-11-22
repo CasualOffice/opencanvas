@@ -18,6 +18,7 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | DOC-07 | Security & limits | Review | [07](07-SECURITY-AND-LIMITS.md) |
 | DOC-08 | ADR register | Review | [08](08-ADR-REGISTER.md) — all Proposed |
 | DOC-09 | README, AGENTS, CLAUDE, SKILLS | Done | repo root |
+| AI-01 | Research and design: AI, agentic assistant and MCP (server-side provider, agent runtime, MCP endpoint with host-issued tokens, threat model, roadmap AI-P1..P3) | Review | [24](24-AI-AND-MCP.md), 2026-11-22; ADR-031..035 Proposed. Owner directive 2026-11-22 applied (server-side AI, no BYO or host AI callback). Open questions §12. No code. |
 | UI-01 | Clickable UI prototype (editor, slash menu, table, image, link card, embed, board, presence/cursors, save/commit, preview mode, narrow panel) on Artifact | Done (rejected) | [Artifact](https://claude.ai/artifact/74HWMXbcLhqRzBCFmcqSqY) published 2026-11-21. Feedback: no save button, not premium, emojis instead of icons, needs templates + databases + mobile polish.
 | UI-02 | Rebuilt prototype: autosave only, Lucide icons, Geist type, 40-template gallery, database block (table/board/calendar/gallery, CSV), board, presence, comments, phone + side-panel layouts | Done | [Artifact v2](https://claude.ai/artifact/74HWMXbcLhqRzBCFmcqSqY), 2026-11-21; 33 scripted interaction checks pass in headless Chrome. **Approved by user 2026-11-21** |
 | SCAF-01 | Cargo + pnpm workspaces, CI matrix (SQLite/MySQL/MariaDB) | In progress | build contract: [15](15-BUILD-CONTRACT.md) |
