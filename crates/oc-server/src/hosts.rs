@@ -48,6 +48,9 @@ pub struct HostConfig {
     pub original_callback_base: Option<String>,
     #[serde(default)]
     pub flags: toml::Table,
+    /// `[host.ai]` (docs/24 §7.3): AI and MCP settings (agent and MCP); read through `crate::ai::HostAi`.
+    #[serde(default)]
+    pub ai: toml::Table,
 }
 
 fn default_mode() -> String {

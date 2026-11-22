@@ -57,7 +57,17 @@ pub async fn attempt(
     now_ms: i64,
 ) -> Outcome {
     let sent = client
-        .post_mentions(host, &row.token, row.payload.clone().into_bytes(), &row.id)
+        .post_notification(
+            host,
+            if row.kind == "ai" {
+                &["ai", "events"]
+            } else {
+                &["mentions"]
+            },
+            &row.token,
+            row.payload.clone().into_bytes(),
+            &row.id,
+        )
         .await;
     let outcome = match sent {
         Ok(s) if s.is_success() => Outcome::Done,
