@@ -34,7 +34,7 @@ asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports
                                            # your callback_base origin is always allowed
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
-export_formats  = ["md", "html", "pdf", "ocanvas"]
+export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images); omit for all
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
 ```

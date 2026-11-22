@@ -69,7 +69,7 @@ pub async fn export(
     } else {
         grant.perms.export
     };
-    if !allowed || (fmt == "pdf" && !grant.perms.print) {
+    if !allowed || (fmt == "pdf" && !grant.perms.print) || !host.export_allowed(&fmt) {
         return Err(ApiError::forbidden("export not permitted for this session"));
     }
     let doc = load(&state, &host, &grant).await?;
@@ -124,6 +124,9 @@ pub async fn export_board(
     let (board_id, ext) = file.rsplit_once('.').ok_or_else(unsupported)?;
     if !matches!(ext, "svg" | "png") {
         return Err(unsupported());
+    }
+    if !host.export_allowed(ext) {
+        return Err(ApiError::forbidden("export not permitted for this session"));
     }
     let doc = load(&state, &host, &grant).await?;
     let json = oc_model::doc_to_json(&doc);

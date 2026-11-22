@@ -62,7 +62,7 @@ unknown attr and unknown meta/database keys, and CJK, RTL and emoji text.
 | EX-06 | `.ocanvas` export reads back to the same document with CRDT state | `acceptance::ex_ocanvas` | PASS |
 | EX-07 | Non-ASCII (CJK, Hebrew/Arabic RTL, emoji) survives in MD, HTML, DOCX, SVG and PDF text | `acceptance::ex_*`; `pdftotext` shows `日本語のテキストと中文`, `שלום עולם مرحبا`, `🚀✅` | PASS |
 | EX-08 | Permissions: export needs `perms.export` (`.ocanvas` needs `download`, PDF needs `print`); WOPI `DisableExport`/`HideExportOption`/`DisablePrint` map to them | `security::sec_guard_export_needs_the_permission_for_every_format`, `exports::board_export_needs_the_export_permission`, `wopi::check_file_info…` (PDF 403) | PASS. Gap: the host flag `export_formats` (docs/05 §2) is not enforced anywhere — any format is allowed when `perms.export` is true. Recorded as FAIL-lite below |
-| EX-09 | Host flag `export_formats` limits the formats | grep: only in `opencanvas.hosts.toml` / e2e config | FAIL: not implemented (documented but unused) |
+| EX-09 | Host flag `export_formats` limits the formats | `security::sec_host_export_formats_limits_what_can_be_exported` (seen failing first: `html` was 200) | PASS (fixed 2026-11-22: enforced for documents and board images; absent means every format) |
 
 ## Fixes
 

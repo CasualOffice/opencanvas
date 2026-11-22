@@ -301,6 +301,38 @@ async fn sec08_host_errors_do_not_reveal_callback_urls() {
     assert!(!body.contains("127.0.0.1:9"), "{body}");
 }
 
+/// EX-09: the host's `export_formats` flag limits the formats, whatever the session's perms.
+#[tokio::test]
+async fn sec_host_export_formats_limits_what_can_be_exported() {
+    // docs/05 §2: `[host.flags] export_formats` lists the formats the host allows. A format
+    // outside it is refused even when the session has `perms.export` (docs/23 EX-09).
+    let (base, _host) = mock_host().await;
+    let state = app_custom(&base, room_cfg(), &temp_db(), |h| {
+        h.flags.insert(
+            "export_formats".into(),
+            toml::Value::Array(vec!["md".into(), "svg".into()]),
+        );
+    })
+    .await;
+    let g = grant("u_e", Role::Edit);
+    let t = ticket_for(&state, &g).await;
+    let addr = serve_state(state).await;
+    for (path, want) in [
+        ("export/md", 200),
+        ("export/html", 403),
+        ("export/docx", 403),
+        ("export/ocanvas", 403),
+        ("export/board/b1.png", 403),
+    ] {
+        let res = http()
+            .get(format!("http://{addr}/v1/{path}?ticket={t}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), want, "{path}");
+    }
+}
+
 /// SEC-02/04 (guard): a viewer whose perms forbid export cannot export any format or board.
 #[tokio::test]
 async fn sec_guard_export_needs_the_permission_for_every_format() {

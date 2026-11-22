@@ -77,6 +77,16 @@ impl HostConfig {
         matches!(self.mode.as_str(), "wopi" | "both")
     }
 
+    /// `[host.flags] export_formats = ["md", "html", …]`: the formats this host allows (`md`,
+    /// `html`, `json`, `docx`, `pdf`, `ocanvas`, and `svg` / `png` for board images). Absent
+    /// means every format; the session's perms still apply on top (docs/05 §2).
+    pub fn export_allowed(&self, format: &str) -> bool {
+        match self.flags.get("export_formats").and_then(|v| v.as_array()) {
+            Some(list) => list.iter().any(|v| v.as_str() == Some(format)),
+            None => true,
+        }
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
