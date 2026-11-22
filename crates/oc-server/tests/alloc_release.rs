@@ -16,6 +16,19 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
+/// Live heap bytes per jemalloc (`stats.allocated`), in MB.
+fn allocated_mb() -> f64 {
+    #[cfg(feature = "jemalloc")]
+    {
+        let _ = tikv_jemalloc_ctl::epoch::advance();
+        tikv_jemalloc_ctl::stats::allocated::read().unwrap_or(0) as f64 / 1048576.0
+    }
+    #[cfg(not(feature = "jemalloc"))]
+    {
+        0.0
+    }
+}
+
 fn rss_mb() -> f64 {
     let out = std::process::Command::new("ps")
         .args(["-o", "rss=", "-p", &std::process::id().to_string()])
@@ -42,10 +55,9 @@ fn overwrites(n: usize) -> Vec<u8> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "PERF-07 open: about 110 MB stays live after 24 rooms close and an explicit purge frees nothing (docs/22 §9.6)"]
 async fn rss_falls_after_rooms_are_evicted() {
     const ROOMS: usize = 24;
-    let (base, _host) = mock_host().await;
+    let (base, host) = mock_host().await;
     let idle = oc_server::config::room_idle(Some("200"), None);
     let state = app(
         &base,
@@ -58,6 +70,7 @@ async fn rss_falls_after_rooms_are_evicted() {
     .await;
     let update = overwrites(20_000);
     let before = rss_mb();
+    let a0 = allocated_mb();
     let mut peers = vec![];
     for r in 0..ROOMS {
         let mut g = grant(&format!("u_{r}"), Role::Edit);
@@ -72,6 +85,7 @@ async fn rss_falls_after_rooms_are_evicted() {
         p.settle().await;
     }
     let peak = rss_mb();
+    let a1 = allocated_mb();
     for mut p in peers {
         p.leave();
     }
@@ -80,6 +94,31 @@ async fn rss_falls_after_rooms_are_evicted() {
     let after = rss_mb();
     oc_server::alloc::release();
     let forced = rss_mb();
+    let a2 = allocated_mb();
+    let held: usize = {
+        let h = host.lock().unwrap();
+        h.puts.iter().map(|p| p.body.len()).sum::<usize>()
+            + h.files.values().map(|f| f.0.len()).sum::<usize>()
+    };
+    eprintln!(
+        "jemalloc allocated: before {a0:.1} MB, open {a1:.1} MB, evicted {a2:.1} MB; mock host holds {:.1} MB; update {} B",
+        held as f64 / 1048576.0,
+        update.len()
+    );
+    #[cfg(feature = "jemalloc")]
+    {
+        use tikv_jemalloc_ctl::stats;
+        let _ = tikv_jemalloc_ctl::epoch::advance();
+        let m = |v: usize| v as f64 / 1048576.0;
+        eprintln!(
+            "jemalloc active {:.1} resident {:.1} mapped {:.1} retained {:.1} metadata {:.1} MB",
+            m(stats::active::read().unwrap()),
+            m(stats::resident::read().unwrap()),
+            m(stats::mapped::read().unwrap()),
+            m(stats::retained::read().unwrap()),
+            m(stats::metadata::read().unwrap())
+        );
+    }
     eprintln!(
         "RSS before {before:.0} MB, {ROOMS} rooms open {peak:.0} MB, evicted {after:.0} MB, \
          after an explicit release {forced:.0} MB"

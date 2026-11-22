@@ -39,7 +39,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!(node = %node, advertise = %advertise, "cluster mode: room leases in Redis");
     }
 
-    oc_server::alloc::spawn_sweeper();
     let sweeper = state.clone();
     tokio::spawn(async move {
         // Startup sweep of commits that never reached the host, then a slow safety net.

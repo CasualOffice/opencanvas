@@ -1784,6 +1784,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
  "tikv-jemallocator",
  "tokio",
  "tokio-tungstenite 0.28.0",
