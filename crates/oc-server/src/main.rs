@@ -19,6 +19,18 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // `opencanvas seal-proof-key < key.pem`: prints the WOPI proof key sealed with OC_KEK, for
+    // a file OC_WOPI_PROOF_KEY / OC_WOPI_PROOF_KEY_OLD can point at (docs/05 §6.4).
+    if std::env::args().nth(1).as_deref() == Some("seal-proof-key") {
+        let mut pem = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut pem)?;
+        oc_server::proof::ProofKeys::from_pem(&pem, None)?;
+        let kek = oc_server::crypto::Kek::from_b64(
+            &std::env::var("OC_KEK").map_err(|_| anyhow::anyhow!("OC_KEK is required"))?,
+        )?;
+        println!("{}", kek.seal(pem.trim(), oc_server::proof::SEAL_AAD));
+        return Ok(());
+    }
     let level = std::env::var("OC_LOG").unwrap_or_else(|_| "info".into());
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_new(&level).unwrap_or_else(|_| EnvFilter::new("info")))
