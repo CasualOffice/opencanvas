@@ -7,7 +7,23 @@ import { expect, test, type Page } from "@playwright/test";
 import { openDemoWithNotesSelected } from "../assistant-helpers";
 import { OC } from "../env";
 
-const axe = (page: Page, include: string) => new AxeBuilder({ page }).include(include).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+// Axe reads colours as painted: wait for entrance animations (fade-ins) to finish first.
+const axe = async (page: Page, include: string) => {
+  await page.evaluate(
+    (sel) =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => {
+            const fx = a.effect as KeyframeEffect | null;
+            return !!sel && fx?.getComputedTiming().iterations !== Infinity;
+          })
+          .map((a) => a.finished.catch(() => undefined)),
+      ),
+    include,
+  );
+  return new AxeBuilder({ page }).include(include).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+};
 
 test("assistant: select → ask → plan → run → database → review → accept all → undo run", async ({ page }) => {
   await openDemoWithNotesSelected(page);
@@ -97,4 +113,20 @@ test("assistant: hidden for viewers; commenters get answer mode only", async ({ 
   const bar = page.getByRole("dialog", { name: "Ask the assistant about the selection" });
   await expect(bar).toContainText("Acts as you (can comment)");
   await expect(bar.getByRole("option").first()).toContainText("Summarise");
+});
+
+test("assistant in dark mode: bar, plan and review pass contrast", async ({ page }) => {
+  // The dark assistant colour (#b49aff) is light, so text on it must be dark (--ai-on).
+  await page.emulateMedia({ colorScheme: "dark" });
+  await openDemoWithNotesSelected(page);
+  await page.getByRole("button", { name: "Ask Assistant" }).click();
+  expect((await axe(page, ".ai-slot")).violations).toEqual([]);
+  await page.keyboard.press("Enter");
+  const plan = page.getByRole("dialog", { name: "The assistant's plan" });
+  await expect(plan.getByRole("button", { name: /^Run/ })).toBeFocused();
+  expect((await axe(page, ".ai-slot")).violations).toEqual([]);
+  await page.keyboard.press("Enter");
+  const review = page.getByRole("region", { name: "Review the assistant's changes" });
+  await expect(review).toBeVisible({ timeout: 20_000 });
+  expect((await axe(page, ".ai-review")).violations).toEqual([]);
 });
