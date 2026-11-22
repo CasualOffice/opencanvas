@@ -1,5 +1,11 @@
 # OpenCanvas
 
+> **Alpha: v0.1.0-alpha.1.** For evaluation, with no production SLA. Read the
+> [release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) and its
+> [known limitations](docs/25-RELEASE-v0.1.0-alpha.1.md#known-limitations) (memory, durability
+> modes, WOPI without proof keys, single node first) before you deploy it. The AI assistant
+> and MCP endpoint are **experimental and off by default**.
+
 **A real-time collaborative canvas built for integration.** It has rich text, checklists,
 tables, databases, images, files, link cards, embeds and whiteboards, with live
 cursors. It works like Collabora Online: your application keeps the users, the
@@ -35,7 +41,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
-| Assistant and MCP | Phase 1, in review: plan → approve → act → review → undo run, suggestions for existing text, limits and audit; MCP endpoint with host-issued tokens; Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp) |
+| Assistant and MCP | **Experimental, off by default.** Phase 1, in review: plan → approve → act → review → undo run, suggestions for existing text, limits and audit; MCP endpoint with host-issued tokens; Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp) |
 
 ## Run it
 
@@ -69,9 +75,11 @@ The host contract (token claims, callbacks, postMessage events and REST) is in
 [docs/05](docs/05-INTEGRATION-GUIDE.md). [docs/15](docs/15-BUILD-CONTRACT.md) has
 the exact wire formats.
 
-## Assistant and MCP
+## Assistant and MCP (experimental)
 
-AI runs only in the OpenCanvas server and is off until the operator turns it on. Select
+**Experimental and off by default.** AI runs only in the OpenCanvas server and stays off until
+the operator turns it on (`OC_AI_CONFIG` with `[ai] enabled = true`, then `[host.ai]` per host).
+Its interfaces may change in any release. Select
 text, press ⌘J (Ctrl+J) and ask: the assistant shows a plan, waits for you to run it,
 builds in place with its own cursor, turns changes to existing text into suggestions you
 accept or reject, and can undo the whole run. It acts only within your role. External
