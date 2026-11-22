@@ -100,6 +100,7 @@ def screens(raw: pathlib.Path) -> None:
 
 DOC_DESCRIPTIONS = {
     "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
+    "release": "OpenCanvas 0.1.0-alpha.1, the first alpha: what is included with its acceptance evidence, known limitations (memory, durability modes, WOPI, single node), backup and recovery, and the verification checklist.",
     "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
@@ -253,9 +254,12 @@ def changelog() -> str:
         parts.append(f"<h2>{date}</h2>\n<ul>{items}</ul>")
     body = f"""<section class="page-head"><div class="wrap narrow">
   <h1>Changelog</h1>
-  <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked. There is no tagged release yet.</p>
+  <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.1.0-alpha.1</h2>
+<p><strong>Embeddable collaborative workspace canvas.</strong> The first alpha, for evaluation, with no production SLA: rich text, databases, whiteboards, templates and collaboration; a standalone SQLite deployment and the host SDK; import and export for the tested formats. The AI assistant and MCP endpoint are experimental and off by default. Read the <a href="docs/release.html">release notes</a> for the acceptance evidence, the known limitations, and backup and recovery; the summary is in <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
+<h2>Integration log</h2>
 {chr(10).join(parts)}
 </div></section>"""
     return sitelib.page(title="Changelog", description="What changed in OpenCanvas and how each change was verified, from the project's integration log.",

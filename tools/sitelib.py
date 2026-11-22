@@ -135,6 +135,7 @@ NAV = [
 DOCS = [
     ("index", "Documentation", "Start", None),
     ("getting-started", "Getting started", "Start", "README.md"),
+    ("release", "Release notes 0.1.0-alpha.1", "Start", "docs/25-RELEASE-v0.1.0-alpha.1.md"),
     ("faq", "FAQ", "Start", None),
     ("integration", "Integration guide", "Integrate", "docs/05-INTEGRATION-GUIDE.md"),
     ("wopi", "WOPI mode", "Integrate", "docs/05-INTEGRATION-GUIDE.md#6"),
@@ -153,6 +154,7 @@ DOCS = [
 # the page, everything else to GitHub.
 DOC_PAGES = {
     "README.md": "getting-started",
+    "docs/25-RELEASE-v0.1.0-alpha.1.md": "release",
     "docs/05-INTEGRATION-GUIDE.md": "integration",
     "docs/15-BUILD-CONTRACT.md": "protocol",
     "docs/13-OPERATIONS-AND-DEPLOYMENT.md": "operations",

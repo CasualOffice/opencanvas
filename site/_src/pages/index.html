@@ -5,14 +5,14 @@
 <section class="hero" aria-labelledby="hero-h">
   <div class="wrap">
     <div class="hero-copy">
-      <a class="release-pill" href="changelog.html"><b>P1 alpha</b><span>Pre-release, for evaluation</span>{{icon:arrow-right:14}}</a>
+      <a class="release-pill" href="changelog.html"><b>0.1.0-alpha.1</b><span>Alpha, for evaluation</span>{{icon:arrow-right:14}}</a>
       <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
       <p class="lede">OpenCanvas is a collaborative canvas you embed, the way apps embed Collabora: rich text, databases and whiteboards, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
       <div class="cta-row">
         <a class="btn btn-primary" href="app/#demo" data-testid="cta-demo">Try the demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
         <a class="btn btn-secondary" href="docs/getting-started.html#run-it">Run it with Docker</a>
       </div>
-      <p class="hero-note">The demo is the real editor running in your browser on a sample canvas, with simulated collaborators: no server, no account, nothing sent. <a href="#limits">Pre-release: read the limits first.</a></p>
+      <p class="hero-note">The demo is the real editor running in your browser on a sample canvas, with simulated collaborators: no server, no account, nothing sent. <a href="#limits">Alpha: read the limits first.</a></p>
       <ul class="hero-meta" aria-label="In short">
         <li>{{icon:circle-check:16}}Source-available (BUSL-1.1), free to self-host and embed</li>
         <li>{{icon:circle-check:16}}One Rust server</li>
@@ -79,16 +79,17 @@
 <section class="section-tight" id="limits" aria-labelledby="limits-h">
   <div class="wrap">
     <div class="limits reveal" data-testid="limits">
-      <h2 id="limits-h">{{icon:triangle-alert:18}}Pre-release: what it is not yet</h2>
+      <h2 id="limits-h">{{icon:triangle-alert:18}}Alpha: what it is not yet</h2>
       <ul>
-        <li><strong>Not for production yet.</strong> OpenCanvas is a P1 alpha for evaluation; there is no tagged release.</li>
+        <li><strong>Alpha, with no SLA.</strong> Release 0.1.0-alpha.1 is for evaluation, with no production SLA and no maintained release branches. The <a href="docs/release.html">release notes</a> list every limit, with backup and recovery.</li>
         <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
-        <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet.</li>
-        <li>The Helm chart is linted and rendered in CI but has not been installed in a real cluster yet, and there are no dashboards.</li>
-        <li>WOPI mode has no proof keys yet.</li>
-        <li><strong>Nonstop typing on one SQLite server has a limit.</strong> A full canvas with everyone typing nonstop now keeps up, but a single SQLite server with a thousand busy rooms still falls behind by over a second. For that load, run with Redis and MySQL or MariaDB; see the <a href="docs/capacity.html">sizing guide</a>.</li>
-        <li>Cluster ownership fencing is built and tested; the frozen-server chaos rerun against it is still to do.</li>
-        <li><strong>The assistant is phase 1.</strong> It awaits the owner's review. The notice about instructions hidden in canvas text shows only in the demo for now; with a real model server the server does not flag them yet. In a cluster, an MCP call must reach the server that holds the canvas (calls are not forwarded yet), and usage quotas and run undo are kept in memory, so a restart loses them.</li>
+        <li><strong>Memory is not all given back.</strong> A room's document takes several times its saved size in memory, more under nonstop editing, and after rooms close the server keeps part of that memory. Size from the <a href="docs/capacity.html">sizing guide</a>.</li>
+        <li><strong>Durability depends on the mode.</strong> Without Redis the default keeps rooms in memory and dumps them every two seconds: after a crash, the latest edits come back only from clients that reconnect. Use <code>wal</code> mode, or a Redis WAL with append-only persistence, when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>
+        <li>WOPI mode has no proof keys yet, so it is not for WOPI hosts that require proof-key validation.</li>
+        <li><strong>Single node first.</strong> Cluster mode passes the crash and chaos runs, but scale-out across machines has not been demonstrated. A single SQLite server with a thousand busy rooms of nonstop typing in <code>wal</code> mode still falls behind by over a second.</li>
+        <li>The block schema is not validated on the server yet: unknown blocks are kept, not checked. Only the import and export formats in the release notes are tested.</li>
+        <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet. The Helm chart is linted and rendered in CI but not yet installed in a real cluster.</li>
+        <li><strong>The assistant and MCP are experimental and off by default.</strong> They are phase 1 and await the owner's review. When an operator turns them on, canvas content is sent to the configured model server.</li>
       </ul>
       <p>Every item is a row in the project's tracker, and the <a href="roadmap.html">roadmap</a> is generated from it.</p>
     </div>
