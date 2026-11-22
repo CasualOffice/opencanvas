@@ -461,3 +461,30 @@ fn patch_refuses_invalid_blocks_with_the_path() {
         "blocks/0/attrs/level: heading.level must be an integer 1-3"
     );
 }
+
+/// Deeply nested content is refused with an error, not a stack overflow (the same class as
+/// SEC-29): a document built in memory has no JSON parser depth cap in front of it.
+#[test]
+fn deeply_nested_content_is_an_error_not_a_crash() {
+    // Built by hand: `json!` would serialise the inner value recursively and overflow first.
+    fn wrap(ty: &str, inner: Value) -> Value {
+        let mut m = serde_json::Map::new();
+        m.insert("type".into(), Value::String(ty.into()));
+        m.insert("content".into(), Value::Array(vec![inner]));
+        Value::Object(m)
+    }
+    let mut node = json!({"type": "paragraph", "content": [{"type": "text", "text": "x"}]});
+    for _ in 0..200_000 {
+        node = wrap("blockquote", node);
+    }
+    let doc = wrap("doc", node);
+    let report = validate_json(&doc);
+    assert!(
+        report.errors.iter().any(|e| e.message.contains("nested")),
+        "{:?}",
+        report.errors.first()
+    );
+    // Dropping a 200 000-deep serde_json::Value recurses too; leak it so the test checks only
+    // the validator (the server never builds such a value from a request: serde caps parse depth).
+    std::mem::forget(doc);
+}

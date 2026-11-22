@@ -355,9 +355,14 @@ fn mark_attrs(ty: &str) -> Option<&'static [(&'static str, A)]> {
 
 // ------------------------------------------------------------------ content walk
 
+/// Deepest node nesting the validator walks (as `html::MAX_DEPTH`): deeper content is an
+/// error, not a stack overflow (SEC-29 class).
+const MAX_NEST: usize = 64;
+
 #[derive(Default)]
 struct Cx {
     r: Report,
+    depth: usize,
     block_ids: HashMap<String, String>,
     db_refs: Vec<(String, String)>,
     board_refs: Vec<(String, String)>,
@@ -428,6 +433,19 @@ impl Cx {
     }
 
     fn node(&mut self, path: &str, v: &Value) {
+        if self.depth >= MAX_NEST {
+            self.r.err(
+                path,
+                format!("content is nested more than {MAX_NEST} levels"),
+            );
+            return;
+        }
+        self.depth += 1;
+        self.node_inner(path, v);
+        self.depth -= 1;
+    }
+
+    fn node_inner(&mut self, path: &str, v: &Value) {
         let Some(obj) = v.as_object() else {
             self.r.err(path, "a node must be an object");
             return;

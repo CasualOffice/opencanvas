@@ -5,7 +5,7 @@
 <section class="hero" aria-labelledby="hero-h">
   <div class="wrap">
     <div class="hero-copy">
-      <a class="release-pill" href="changelog.html"><b>0.1.0-alpha.1</b><span>Alpha, for evaluation</span>{{icon:arrow-right:14}}</a>
+      <a class="release-pill" href="changelog.html"><b>0.1.0</b><span>First release, best-effort support</span>{{icon:arrow-right:14}}</a>
       <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
       <p class="lede">OpenCanvas is a collaborative canvas you embed, the way apps embed Collabora: rich text, databases and whiteboards, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
       <div class="cta-row">
@@ -81,7 +81,7 @@
     <div class="limits reveal" data-testid="limits">
       <h2 id="limits-h">{{icon:triangle-alert:18}}Alpha: what it is not yet</h2>
       <ul>
-        <li><strong>Alpha, with no SLA.</strong> Release 0.1.0-alpha.1 is for evaluation, with no production SLA and no maintained release branches. The <a href="docs/release.html">release notes</a> list every limit, with backup and recovery.</li>
+        <li><strong>Early release, with no SLA.</strong> Release 0.1.0 has best-effort support, no production SLA, and fixes only on the 0.1.x line. The <a href="docs/release.html">release notes</a> list every limit, with backup and recovery.</li>
         <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
         <li><strong>Memory grows with the documents you keep open.</strong> While people type, a room's document takes many times its saved size in memory; memory is given back after rooms close. Size from the <a href="docs/capacity.html">sizing guide</a>.</li>
         <li><strong>Durability depends on the mode.</strong> Without Redis the default keeps rooms in memory and dumps them every two seconds: after a crash, the latest edits come back only from clients that reconnect. Use <code>wal</code> mode, or a Redis WAL with append-only persistence, when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>

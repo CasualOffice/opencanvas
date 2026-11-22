@@ -185,7 +185,7 @@ def jsonld() -> dict:
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Collaborative editor",
         "operatingSystem": "Linux (Docker image); the editor runs in a web browser",
-        "softwareVersion": "0.1.0-alpha.1",
+        "softwareVersion": "0.1.0",
         "license": sitelib.BLOB + "LICENSE",
         "isAccessibleForFree": True,
         "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"},
