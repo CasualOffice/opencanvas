@@ -513,7 +513,7 @@ MOD-01 (v0.1.0) ─┬─► HAPI-01 ─► HAPI-02 ─► HAPI-03 ─► HAPI-0
                  ├─► BSDK-01 ─► BSDK-02 ─► BSDK-03* ─► BSDK-04 ─► BSDK-05
                  └─► LIVE-01 ─► LIVE-02 ─► LIVE-03* ─► LIVE-04, LIVE-05, LIVE-06
 V2UI-01 (prototypes, starts now) ─► gates every * row's UI
-ACC-V2 (docs/23 rows) runs alongside; REL-03 (v0.2 release) last
+ACC-V2 (docs/23 rows) runs alongside; REL-04 (v0.2 release) last
 ```
 
 | Row | Item | Size | Depends on |
@@ -539,7 +539,7 @@ ACC-V2 (docs/23 rows) runs alongside; REL-03 (v0.2 release) last
 | LIVE-05 | Exports and `.ocanvas` snapshots under `[host.live] snapshot` | M | LIVE-02 |
 | LIVE-06 | `view="block"` compact embed and `GET …/render` | M | LIVE-02 |
 | ACC-V2 | docs/23 acceptance rows for §2.6, §3.5, §4.3 | S | — |
-| REL-03 | v0.2.0 scope lock, audit, release notes | M | all |
+| REL-04 | v0.2.0 scope lock, audit, release notes | M | all |
 
 Rough total: 3 L + 15 M + 2 S ≈ 25–30 engineer-weeks; three tracks (API, SDK, live) can run in
 parallel after MOD-01 and HAPI-01.

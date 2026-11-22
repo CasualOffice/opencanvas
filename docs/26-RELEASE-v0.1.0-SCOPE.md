@@ -6,8 +6,8 @@ no dependency on a specific CasualOffice product (ADR-038).
 
 This document freezes what the final **v0.1.0** contains, what must be true before it is tagged,
 and what may still change after the lock. The release notes for the first pre-release are
-[docs/25](25-RELEASE-v0.1.0-alpha.1.md); the v0.1.0 notes will be written from it once the exit
-criteria below are met. What comes next is [docs/27](27-ROADMAP-v0.2.md).
+[docs/25](25-RELEASE-v0.1.0-alpha.1.md); the v0.1.0 notes are [docs/28](28-RELEASE-v0.1.0.md)
+(prepared, not yet tagged; tracker REL-03). What comes next is [docs/27](27-ROADMAP-v0.2.md).
 
 ## 1. What v0.1.0 contains (frozen)
 
@@ -49,6 +49,15 @@ recorded in the v0.1.0 release notes the way docs/25 records it.
    and the GitHub release with the notes. The image is pulled and started once on each
    architecture and `/readyz` answers 200.
 
+### Exit criteria status (2026-11-23, main at `8746f84`)
+
+| # | Criterion | Status | Evidence / what is left |
+|---|---|---|---|
+| 1 | Checklist green on the release commit | **Pending** | Not run on a release commit yet; docs/28 §Verification checklist has every result `PENDING` |
+| 2 | docs/23 has no FAIL in scope | **Met** (as recorded) | Every docs/23 row is PASS: WOPI-13 PASS (proof keys), FC-07 PASS (template load test), MOB-11 PASS (`test.fail()` removed). Re-running the suites on the release commit is criterion 1 |
+| 3 | No Critical/High, no open Medium | **Pending** | SEC-33/34/35 and SEC-44 fixed; no Critical, High or Medium finding is open in docs/18. Left: the §5 re-audit against the release commit of the MOD-01 load path (SEC-44 covers the proof-key code); Low findings SEC-36 to SEC-42 have recorded decisions, SEC-43 (Info, fails closed) is open |
+| 4 | Artefacts built and published from the tag | **Pending** | `.github/workflows/release.yml` exists; nothing tagged, so no image, binaries or GitHub release yet, and no `/readyz` check per architecture |
+
 ## 3. Change control after the lock
 
 From the lock until v0.1.0 is tagged, and for every later **0.1.x**:
@@ -73,12 +82,13 @@ Status as recorded in [docs/10](10-EXECUTION-TRACKER.md) on 2026-11-23.
 |---|---|---|---|
 | REL-01 | v0.1.0-alpha.1 documents, version, tag | Done | §1 alpha.1 |
 | SEC-MED-A2 | SEC-33/34/35 | Done | §1 alpha.2 |
-| WOPI-01 (P2 row) | WOPI proof keys (docs/23 WOPI-13) | Review (proof keys not built; being finished on a branch) | Blocker 1 |
-| MOD-01 | Block schema and validation | Todo (being finished on a branch) | Blocker 2 |
-| ACC-FWE | File compatibility, WOPI, exports acceptance, incl. FC-07 | Review (FC-07 Not run) | Blocker 3 |
+| WOPI-01 (P2 row) | WOPI proof keys (docs/23 WOPI-13) | Done (merged `f67c79c`; WOPI-13 PASS) | Blocker 1 |
+| MOD-01 | Block schema and validation | Review (merged `8746f84`; built and tested, owner review) | Blocker 2 |
+| ACC-FWE | File compatibility, WOPI, exports acceptance, incl. FC-07 | Review (FC-07 PASS, merged `8746f84`) | Blocker 3 |
 | ACC-01 | Permissions and mobile acceptance | Review | Exit criterion 2 |
 | SCAF-01 | CI matrix | Done | Exit criterion 1 |
-| REL-02 | This scope lock, the v0.1.0 notes and tag | In progress | All |
+| REL-02 | This scope lock | In progress (owner approval pending) | All |
+| REL-03 | v0.1.0 release documents ([docs/28](28-RELEASE-v0.1.0.md)), version and tag | In progress | All |
 
 Rows that are `Review` only for the owner's approval (most DOC-xx, SRV-01, WEB-04, BRD-01, CMN-01,
 OPS-01, PERF-0x) do not block the tag: their features are built and tested. The owner's approval

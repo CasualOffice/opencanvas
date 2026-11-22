@@ -103,7 +103,7 @@ def screens(raw: pathlib.Path) -> None:
 
 DOC_DESCRIPTIONS = {
     "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
-    "release": "OpenCanvas 0.1.0-alpha.1, the first alpha: what is included with its acceptance evidence, known limitations (memory, durability modes, WOPI, single node), backup and recovery, and the verification checklist.",
+    "release": "OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.",
     "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
@@ -266,8 +266,10 @@ def changelog() -> str:
   <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.1.0</h2>
+<p>Prepared from main; not yet tagged. The first release: 0.1.0-alpha.1 plus the SEC-33, SEC-34 and SEC-35 security fixes, WOPI proof keys, block schema validation and the template load test, with best-effort support and no SLA. WOPI hosts now need proof keys and MCP needs a public URL: read the <a href="docs/release.html#upgrade-notes">upgrade notes</a> before upgrading.</p>
 <h2>Release 0.1.0-alpha.1</h2>
-<p><strong>Embeddable collaborative workspace canvas.</strong> The first alpha, for evaluation, with no production SLA: rich text, databases, whiteboards, templates and collaboration; a standalone SQLite deployment and the host SDK; import and export for the tested formats. The AI assistant and MCP endpoint are experimental and off by default. Read the <a href="docs/release.html">release notes</a> for the acceptance evidence, the known limitations, and backup and recovery; the summary is in <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
+<p><strong>Embeddable collaborative workspace canvas.</strong> The first alpha, for evaluation, with no production SLA: rich text, databases, whiteboards, templates and collaboration; a standalone SQLite deployment and the host SDK; import and export for the tested formats. The AI assistant and MCP endpoint are experimental and off by default. Read the <a href="{sitelib.BLOB}docs/25-RELEASE-v0.1.0-alpha.1.md">alpha release notes</a> for the acceptance evidence, the known limitations, and backup and recovery; the summary is in <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Integration log</h2>
 {chr(10).join(parts)}
 </div></section>"""

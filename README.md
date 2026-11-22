@@ -1,7 +1,7 @@
 # OpenCanvas
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0--alpha.1-7a45f0)](docs/25-RELEASE-v0.1.0-alpha.1.md)
+[![Release](https://img.shields.io/badge/release-v0.1.0-7a45f0)](docs/28-RELEASE-v0.1.0.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 
 **An embeddable, real-time collaborative canvas for your app.** Rich text, databases and
@@ -11,7 +11,7 @@ office documents.
 
 [Website](https://canvas.casualoffice.org) ·
 [Try the demo](https://canvas.casualoffice.org/app/#demo) ·
-[Release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) ·
+[Release notes](docs/28-RELEASE-v0.1.0.md) ·
 [Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
 [Documentation](docs/00-README.md)
 
@@ -20,11 +20,12 @@ office documents.
   <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
 </picture>
 
-> **Alpha: v0.1.0-alpha.1.** For evaluation, with no production SLA. Read the
-> [release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) and its
-> [known limitations](docs/25-RELEASE-v0.1.0-alpha.1.md#known-limitations) (memory, durability
-> modes, WOPI without proof keys, single node first) before you deploy it. The AI assistant
-> and MCP endpoint are **experimental and off by default**.
+> **v0.1.0.** The first release; best-effort support with no SLA. Read the
+> [release notes](docs/28-RELEASE-v0.1.0.md), its
+> [upgrade notes](docs/28-RELEASE-v0.1.0.md#upgrade-notes) (WOPI proof keys are now required) and
+> [known limitations](docs/28-RELEASE-v0.1.0.md#known-limitations) (memory, durability modes,
+> single node first) before you deploy it. The AI assistant and MCP endpoint are
+> **experimental and off by default**.
 
 ## Goal
 

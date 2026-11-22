@@ -75,11 +75,12 @@ The terms these pages use.
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
-> **Alpha: v0.1.0-alpha.1.** For evaluation, with no production SLA. Read the
-> [release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) and its
-> [known limitations](docs/25-RELEASE-v0.1.0-alpha.1.md#known-limitations) (memory, durability
-> modes, WOPI without proof keys, single node first) before you deploy it. The AI assistant
-> and MCP endpoint are **experimental and off by default**.
+> **v0.1.0.** The first release; best-effort support with no SLA. Read the
+> [release notes](docs/28-RELEASE-v0.1.0.md), its
+> [upgrade notes](docs/28-RELEASE-v0.1.0.md#upgrade-notes) (WOPI proof keys are now required) and
+> [known limitations](docs/28-RELEASE-v0.1.0.md#known-limitations) (memory, durability modes,
+> single node first) before you deploy it. The AI assistant and MCP endpoint are
+> **experimental and off by default**.
 
 ## Goal
 
@@ -253,385 +254,265 @@ specific CasualOffice product. Priorities and detail: [docs/09](docs/09-ROADMAP.
 [roadmap page](https://canvas.casualoffice.org/roadmap.html).
 
 
-# Release notes 0.1.0-alpha.1
+# Release notes 0.1.0
 
 URL: https://canvas.casualoffice.org/docs/release.html
-Source file: docs/25-RELEASE-v0.1.0-alpha.1.md
+Source file: docs/28-RELEASE-v0.1.0.md
 
 **Embeddable collaborative workspace canvas.**
 
-**Status:** released 2026-11-23. Tagged `v0.1.0-alpha.1` on commit `e122c26` and published as a GitHub pre-release (https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1). Licence: Apache-2.0 (ADR-037).
-This is an **alpha** for evaluation. There is **no production SLA**: no uptime, support,
-response-time or data-retention commitment of any kind. Read [Known limitations](#known-limitations)
-before you run it with real users.
+**Status:** prepared from main; not yet tagged. Scope: [docs/26](26-RELEASE-v0.1.0-SCOPE.md)
+(tracker REL-02, REL-03). Licence: Apache-2.0 (ADR-037).
 
-OpenCanvas is open source under the [Apache License 2.0](../LICENSE); keep [NOTICE](../NOTICE) when you redistribute it. Your
+v0.1.0 is the first final release of OpenCanvas. It is open source under the
+[Apache License 2.0](../LICENSE); keep [NOTICE](../NOTICE) when you redistribute it. Your
 application keeps the users, the permissions and the files; OpenCanvas does the editing,
 real-time merge (Yjs CRDT), presence, export and autosave back to your storage (ADR-001).
 
+Support is **best effort, with no SLA** (see [Known limitations](#known-limitations) and
+[SECURITY.md](../SECURITY.md)).
+
+> **Upgrading from v0.1.0-alpha.1? Read [Upgrade notes](#upgrade-notes) first.** WOPI hosts now
+> need proof keys or the server refuses to start; MCP needs `OC_PUBLIC_URL` (or `mcp_audience`);
+> MCP tokens must name their files unless the host has `/access` or `mcp_all_files`; WOPI
+> sessions are capped at 10 h; invalid `.ocanvas` files and invalid writes are refused.
+
 ## What's included
 
-Each item lists its evidence: an acceptance ID from [docs/23](23-ACCEPTANCE.md), a tracker row
-from [docs/10](10-EXECUTION-TRACKER.md), and the tests that check it. Rust tests are in
-`crates/oc-server/tests/` and `crates/oc-model/tests/`; browser tests are in `e2e/specs/`;
-unit tests are vitest files under `web/packages/*/src/`.
+v0.1.0 is **v0.1.0-alpha.1 + the alpha.2 security fixes + the three release blockers**, and
+nothing else (docs/26 §1). Everything that alpha.1 shipped is unchanged and its evidence is in
+[docs/25 §What's included](25-RELEASE-v0.1.0-alpha.1.md#whats-included): rich text, databases,
+whiteboards, 40 templates, collaboration and roles, autosave through the outbox, the standalone
+SQLite deployment (MySQL/MariaDB and Redis optional), the host SDK and REST API, JWT and WOPI
+launch, the tested import and export formats, and the experimental AI assistant and MCP endpoint
+(off by default). The durability modes and backup and recovery are also as described in
+[docs/25](25-RELEASE-v0.1.0-alpha.1.md#durability-modes).
 
-### Rich text
+## What changed since v0.1.0-alpha.1
 
-Text, headings, lists, checklists, toggles, quotes, callouts, code with syntax highlighting,
-simple tables, images, files, link cards, sandboxed embeds and columns.
+Rust tests are in `crates/oc-server/tests/` and `crates/oc-model/tests/`; acceptance IDs are
+in [docs/23](23-ACCEPTANCE.md); security IDs in [docs/18](18-SECURITY-AUDIT.md).
 
-- WEB-01, WEB-02, WEB-03, WEB-07, LAY-01 (Done): e2e `a-template-presence`, `b-live-autosave`,
-  `k-ux` (tables), `e-upload`, `g-code-highlight`, `o-columns`.
-- Round trip of every block type through `.ocanvas`: docs/23 **FC-01**, **FC-02** PASS
-  (`acceptance::fc_round_trip_every_block_and_unknowns`).
-- Mobile typing, IME input, formatting and tables on phones: docs/23 **MOB-01** to **MOB-04**,
-  **MOB-08** to **MOB-12** PASS (`s-mobile`, `f-phone`, `l-ux-phone`, `t-mobile-blocks.phone`).
+### Security: the three Medium findings of the alpha.1 audit (SEC-33, SEC-34, SEC-35)
 
-### Databases
+- **SEC-33, MCP audience.** The MCP token audience comes from `[host.ai] mcp_audience` or
+  `OC_PUBLIC_URL`, never from the request's `Host` header. With neither, `/mcp/{hostId}` answers
+  404 and start-up logs one warning. Test: `mcp::without_a_public_url_a_token_matching_the_host_header_is_refused`
+  (seen failing: 200 instead of 404).
+- **SEC-34, MCP file scope.** Without the host `/access` callback, an MCP token without a
+  `files` claim is refused (`FILES_REQUIRED`) unless the host sets
+  `[host.ai] mcp_all_files = true`. Tests: `mcp::without_the_access_callback_a_token_without_files_is_refused`
+  (seen failing), `mcp::mcp_all_files_lets_a_token_without_files_cover_every_file`,
+  `mcp::the_host_access_callback_decides_the_role_over_the_token_claim`.
+- **SEC-35, WOPI session cap.** A WOPI session ends at `access_token_ttl` or 10 h after the
+  launch, whichever is first. Test: `wopi::a_far_future_access_token_ttl_is_clamped_to_the_session_cap`
+  (seen failing: expiry 10 years out).
 
-Typed fields; table, board (kanban), calendar and gallery views; filter, sort and search; row
-detail; CSV import and export.
+### WOPI proof keys (WOPI-13 PASS, SEC-44)
 
-- DB-01 to DB-05 (Done): vitest `database.test.ts`, `render.test.tsx`, `views.test.tsx`,
-  `kanban.test.tsx`, `addfield.test.tsx`, `csv.test.ts`, `ux.test.tsx`; live cell edits between
-  two people in e2e `b-live-autosave`.
-- Database cells and views on a phone: docs/23 **MOB-04** PASS.
-- Every database field type and view survives `.ocanvas`: docs/23 **FC-01** PASS.
+Every WOPI call to the host carries `X-WOPI-TimeStamp`, `X-WOPI-Proof` and `X-WOPI-ProofOld`
+(SHA256withRSA over the spec bytes), and `/hosting/discovery` publishes the current and old
+`<proof-key>`. Keys come from `OC_WOPI_PROOF_KEY` and `OC_WOPI_PROOF_KEY_OLD` (PEM, or sealed
+with `OC_KEK` by `opencanvas seal-proof-key`); `OC_DEV=1` generates one. The Helm chart mounts
+them from a Secret, `wopi.proofKeySecret` (keys `current` and, during rotation, `old` with
+`wopi.oldKey: true`). The reference WOPI host verifies every call and refuses missing, tampered
+and stale (> 20 min) proofs.
 
-### Whiteboards
+- docs/23 **WOPI-13** PASS (was FAIL in alpha.1): `proof::tests::*`,
+  `wopi::every_wopi_call_carries_a_valid_proof`, `wopi::discovery_route_serves_xml`,
+  `scripts/e2e-wopi.sh` (seen failing with `WOPI_PROOF=off`).
+- docs/18 **SEC-44** (Medium) fixed. Rotation: [docs/05 §6](05-INTEGRATION-GUIDE.md); variables:
+  [docs/13](13-OPERATIONS-AND-DEPLOYMENT.md).
 
-Pen, sticky notes, shapes, text, arrows that stay attached to shapes, frames, images, zoom and
-full screen, live pointers, SVG and PNG export.
+### Block schema validation (MOD-01) and the template load test (FC-07)
 
-- BRD-02 to BRD-04 (Done), BRD-01 (Review): vitest `board.test.tsx`, `connectors.test.tsx`,
-  `export.test.ts`, `open.test.tsx`, `ux.test.tsx`; e2e `p-inline-drag`, `f-phone`.
-- Board touch (tap, pan, pinch, draw, move): docs/23 **MOB-05** PASS.
-- SVG and PNG export: docs/23 **EX-05** PASS (`acceptance::ex_board_svg_png`).
-- Two people editing one board: `e2e/specs/w-two-user-board.spec.ts` (live shape edits converge; a viewer cannot move shapes) passed in the release run (86/86). It was not seen failing first.
+- **MOD-01.** `oc-model` validates the block schema (docs/15 §4.1): `oc_model::validate`,
+  `validate_json` and `validate_blocks` return errors and warnings with a JSON-pointer path.
+  Errors refuse the input: `read_ocanvas` fails with `Error::Invalid` naming the bad node
+  (`POST /v1/convert` answers 400 `INPUT_INVALID`; a host file that breaks the schema does not
+  open), and REST patch, server-side import and MCP writes answer 400 `PATCH_INVALID`. Unknown
+  blocks, marks and attributes are warnings only, kept verbatim and counted in
+  `oc_schema_warnings_total`. Tests (seen failing first): `tests/validate.rs`,
+  `acceptance::mod01_rich_document_validates`,
+  `host_api::patch_applies_to_the_live_room_and_reaches_clients` (REST 400),
+  `metrics::tests::schema_warnings_are_exported`. docs/23 **FC-01**, **FC-02**, **FC-04** still
+  PASS (unknowns kept).
+- **FC-07** PASS (was Not run): all 40 built-in templates are built as the gallery builds them,
+  checked against `crates/oc-model/tests/fixtures/templates.json`, validated with no errors or
+  warnings and round-tripped through `.ocanvas`
+  (`web/packages/editor/src/templates.fixture.test.ts`,
+  `templates::fc07_every_builtin_template_validates_and_round_trips`; seen failing with a
+  corrupted heading level).
+- The web editor still relies on ProseMirror's own schema; MOD-01 is the server's view.
 
-### Templates
+### Memory returned after eviction
 
-40 templates in 9 categories, plus blank canvas, database, whiteboard and import.
+The jemalloc purge had never run (`arena.4096.purge` was called with a non-null input and the
+error was ignored). It now uses null pointers, logs failures, and its sweeper starts in
+`AppState::new`. In the 1,000 rooms × 5 nonstop-typing run, RSS 60 s after typing stopped, with
+0 rooms open, fell from **856 MB to 174 MB** ([docs/22 §9.7](22-CAPACITY-AND-SIZING.md)). Tests:
+`alloc::tests::jemalloc_purge_is_accepted`, `tests/alloc_release.rs`. (This fix is also recorded
+in the alpha.1 notes and CHANGELOG.)
 
-- TPL-02 (Done): e2e `a-template-presence` (gallery, search, use a template, a viewer sees it).
-- Gap: docs/23 **FC-07** (every built-in template loads on the server side) is **Not run**.
+### Release artefacts
 
-### Collaboration
+`.github/workflows/release.yml` builds from the tag:
 
-Live co-editing, cursors with names, avatars, follow mode, comments, and view, comment and edit
-roles enforced on the server.
+- a multi-architecture container image, `ghcr.io/casualoffice/opencanvas` (linux/amd64 and
+  linux/arm64, native builds), pinned to the tag;
+- standalone Linux binaries (x86_64, aarch64) with the editor bundle;
+- SHA-256 checksums and build provenance for both.
 
-- COL-01 to COL-04 (Done): `rooms::two_clients_converge_through_a_room`,
-  `rooms::awareness_user_is_stamped_from_the_grant`, `tests/fuzz.rs` (convergence fuzz; 10,000
-  iterations pass in release).
-- Roles: docs/23 **PERM-01** to **PERM-06**, **PERM-08**, **PERM-09** PASS (`r-permissions`,
-  `c-roles`, `p-people`, `d-conflict`; `rooms.rs`, `hardening.rs`, `cluster.rs`, `conflict_live.rs`).
-- Access expiry and renewal (**PERM-07**, ADR-036): built 2026-11-23 and checked by e2e
-  `u-access-expiry` (tracker integration log). docs/23 now records it as PASS.
-- Comments: CMN-01. The commenter role is browser-tested (PERM-02), and
-  `e2e/specs/x-two-user-comments.spec.ts` (thread, reply and resolve live across two people; a
-  commenter can only comment) passed in the release run (86/86). It was not seen failing first.
+Running them: [docs/13](13-OPERATIONS-AND-DEPLOYMENT.md).
 
-### Saving
+### Licence and planning
 
-Autosave only, through a durable outbox; host conflicts (409) save a copy or reload.
-
-- CMT-01 (Done): `hardening.rs` (outbox written before every PUT, pending saves resumed after a
-  restart); docs/23 **PERM-05**, **PERM-08** PASS.
-
-### Standalone SQLite deployment
-
-One binary and one SQLite file. SQLite is the default (ADR-004); MySQL 8.4 and MariaDB 11.4 work
-when `DATABASE_URL=mysql://…` is set.
-
-- STO-01 (Done): `tests/storage_conformance.rs`; `scripts/e2e-db.sh` on SQLite, MariaDB 11.4
-  and MySQL 8.4 (launch, edit over WebSocket, autosave reaches the host, export).
-- Crash recovery on SQLite: docs/22 §9.4 and §10 (`scripts/bench.sh R`).
-- Image and Helm chart: [docs/13](13-OPERATIONS-AND-DEPLOYMENT.md). The chart (OPS-01, Review)
-  is linted and rendered in CI; it has not been installed in a real cluster.
-
-### Host SDK and integration
-
-HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; the
-`<open-canvas>` web component; the postMessage API; the WOPI client mode.
-
-- HOST-01 to HOST-03, SDK-01, API-01 (Done): `jwt.rs` unit tests, `host_client.rs` signature
-  tests, `tests/host_api.rs`; e2e `q-sdk-embed` (the SDK loaded from a separate host origin).
-- WOPI: docs/23 **WOPI-01** to **WOPI-12** and **WOPI-14** PASS (`tests/wopi.rs`,
-  `scripts/e2e-wopi.sh`). **WOPI-13** (proof keys) FAIL: see limitations.
-- The contract: [docs/05](05-INTEGRATION-GUIDE.md) and [docs/15](15-BUILD-CONTRACT.md).
-
-### Import and export (tested formats only)
-
-| Format | Export | Import | Evidence |
-|---|---|---|---|
-| `.ocanvas` | yes | yes | **FC-01** to **FC-06**, **EX-06** PASS |
-| Markdown | yes | yes (server, off by default) | **FC-08**, **EX-01**, **FC-10** PASS |
-| HTML | yes (sanitised) | yes (server, off by default) | **EX-02** PASS; **FC-09** PASS for export, import covered by `tests/import.rs` |
-| CSV (databases) | yes | yes (editor; server off by default) | **FC-10** PASS, vitest `csv.test.ts` |
-| DOCX | yes | no | **EX-03** PASS |
-| PDF | yes, with the optional Gotenberg sidecar; otherwise the browser prints | no | **EX-04** PASS |
-| Board SVG / PNG | yes | no | **EX-05** PASS |
-
-Non-ASCII text (CJK, RTL, emoji) survives every export: **EX-07** PASS. Export permissions and the
-host's `export_formats` flag: **EX-08**, **EX-09** PASS. Server-side import is off unless a host
-lists formats in `[host.flags] import_formats`; `OC_IMPORT=off` turns it off for every host.
-
-### AI assistant and MCP: experimental, disabled by default
-
-An in-editor assistant (plan, approve, act, review, undo) and an MCP endpoint
-(`POST /mcp/{hostId}`) for external agents with host-issued tokens. ADR-031 to ADR-035;
-[docs/24](24-AI-AND-MCP.md).
-
-- **Experimental.** AI-01, AI-02 and AI-UI are in Review, not Done. Interfaces and behaviour may
-  change in any later release.
-- **Disabled by default.** AI is on only when `OC_AI_CONFIG` names a file with `[ai] enabled =
-  true` and `OC_AI` is not `off`; each host must also set `[host.ai] enabled = true`, and MCP
-  needs `[host.ai] mcp = true` (default false; the endpoint answers 404). See docs/13
-  "AI server switch".
-- **Canvas content is sent to the model server you configure.**
-- Evidence: `tests/ai.rs`, `ai_tools.rs`, `ai_e2e.rs`, `mcp.rs`; e2e `t-assistant`,
-  `t-assistant.real` (against a mock model).
-
-## Security
-
-The release security gate (docs/18, "Release audit, v0.1.0-alpha.1") re-audited everything added
-since the first audit: the assistant and MCP, import, Redis storage and fencing, access renewal, the
-SDK's CORS and export enforcement.
-
-- **Fixed, High (SEC-29):** deeply nested HTML or Markdown overflowed the stack and stopped the
-  whole server. It was reachable through import and through any host Markdown file opened in a
-  room. Nesting is now capped in `oc-model`; tests aborted before the fix and pass after it.
-- **Fixed, Medium (SEC-30):** a quadratic scan in the HTML importer.
-- **Open, Medium (fix before beta):** the MCP token audience falls back to the `Host` header when
-  `OC_PUBLIC_URL` is unset (set `OC_PUBLIC_URL` in production); an MCP token without a `files`
-  list applies its role to every file of the host; WOPI session lifetime has no upper cap. AI and
-  MCP are off by default.
-- **Dependencies:** `cargo audit` reports 0 vulnerabilities (405 crates); `cargo deny` advisories,
-  bans, licences and sources pass; `npm audit` reports 0 for `web/` and `e2e/`.
-- No Critical or High finding is open.
-
-## Known limitations
-
-### Alpha, with no SLA
-
-This is a pre-release. There are no maintained release branches, no support commitment and no
-production SLA. Formats, configuration and APIs can change before 1.0. Most design documents
-(docs/02 to docs/08) and several features are still awaiting the owner's review (tracker status
-`Review`).
-
-### Memory
-
-All figures are from one Apple M4 laptop ([docs/22](22-CAPACITY-AND-SIZING.md)), with the load
-generator on the same machine. They are indicative, not a guarantee.
-
-- **Idle cost:** about 0.20 MB per idle connection; per open room about 5× the encoded document
-  for text-heavy canvases and about 14× for database- or board-heavy ones (docs/22 §2 C).
-- **Sizing rule:** memory ≈ 50 MB + 0.25 MB per concurrent user + 5–14× the document per open
-  room; keep under 60 % of what was measured (docs/22 §4).
-- **Under nonstop editing**, a room's in-memory document is about 20× its encoded size, and it
-  grows while the room is open (docs/22 §9.4). In the 1,000 rooms × 5, everyone-typing run, RSS
-  grew from 843 MB to 1,451 MB over 5 minutes (docs/22 §9.4.1). Every map overwrite (a database
-  cell, a shape's position) leaves a deleted yrs item in memory: the live heap grows about 14.7×
-  the encoded growth, and the server cannot reduce that without changes in yrs (docs/22 §9.5).
-- **Retention after eviction (fixed in this release, docs/22 §9.7):** idle rooms are saved and
-  dropped after `OC_ROOM_IDLE_MS` (60 s), and jemalloc (the default allocator) now returns their
-  memory. The purge had never run (`arena.4096.purge` was called with a non-null input and the
-  error was ignored); it now uses null pointers, logs failures, and its sweeper starts in
-  `AppState::new`. In the 1,000 rooms × 5 nonstop-typing run, RSS was about 1,077 MB at minute 3;
-  60 s after typing stopped, with 0 rooms open, it was **174 MB** (856 MB before the fix), with p95
-  43 ms. About 160 MB stays resident with no rooms (SQLite page cache, allocator metadata and
-  thread caches, tokio). Tests: `alloc::tests::jemalloc_purge_is_accepted`,
-  `tests/alloc_release.rs`.
-- **Remaining limit:** live memory grows with the document while people type, because yrs keeps
-  dead items: about 15–20× the encoded size (docs/22 §9.4, §9.5). Size for the documents you keep
-  open, not for the idle baseline.
-- **Sizing guidance:** [docs/22 §4](22-CAPACITY-AND-SIZING.md#4-sizing-for-self-hosters) and the
-  Sizing section of [docs/13](13-OPERATIONS-AND-DEPLOYMENT.md#sizing). Restart a node that keeps
-  RSS high after its load has gone, and watch it with `/metrics` and your own RSS monitoring.
-
-### Durability modes
-
-What "acknowledged" means depends on the mode ([docs/13](13-OPERATIONS-AND-DEPLOYMENT.md),
-ADR-028, ADR-029, ADR-030):
-
-| Mode | When | An acknowledged edit is | A server crash loses |
-|---|---|---|---|
-| `memory` | default without Redis | in server memory and in the editors' browsers; dumped to the DB every `OC_DB_SYNC_MS` (2 s), before each host save, on drain and on close | nothing while a client holding the edit reconnects; otherwise edits from the last `OC_DB_SYNC_MS` plus up to one 250 ms tick. Measured: 0 of 67,980 lost with clients reconnecting; 2,013 of 38,681 (5.2 %), the oldest 2,139 ms before the kill, with clients gone for good (docs/22 §9.4) |
-| `wal` | `OC_DURABILITY=wal` | in the database WAL before anyone sees it | nothing acknowledged on a process crash (docs/22 §8 summary, R: 0 of 38,756). On SQLite (`synchronous=NORMAL`) a power loss or OS crash can roll back the last commits |
-| Redis WAL | `OC_WAL_REDIS_URL` or `REDIS_URL` | in the Redis stream `oc:wal:{room}` | depends on Redis persistence: `appendonly yes` + `appendfsync always` loses nothing acknowledged (recommended); `appendfsync everysec` about the last second (only with a replica you fail over to); `appendonly no` everything since the room's last DB sync |
-
-A SIGTERM drain loses nothing in any mode. The server logs a warning at start-up when Redis has
-`appendonly no` or `appendfsync` other than `always`.
-
-### WOPI compatibility
-
-WOPI mode has **no proof keys** (`X-WOPI-Proof`; docs/23 **WOPI-13** FAIL, docs/05 §6). Callers
-are trusted only through the WOPISrc allow-list and the access token. **Do not use WOPI mode with
-a host that requires proof-key validation.** There is no `LOCK`/`UNLOCK`/`X-WOPI-Lock` by design:
-conflicts use timestamps, like Collabora (WOPI-05).
-
-### Single node first
-
-The supported shape for this release is one node with SQLite. Cluster mode (Redis, optionally
-MySQL/MariaDB) passes the crash and chaos runs in docs/22 §8 and §11.1, and the Redis-only
-cluster reruns pass (docs/22 §9.7: K, 107,035 acknowledged edits and 0 lost, 124 stale writes
-fenced; K2, 71,715 acknowledged and 0 lost; S1, 550 typing in one room at p95 49–69 ms), but **scale-out across
-machines is not demonstrated**: on one laptop three nodes held less load than one (docs/22 §8
-weakness 8, §12), and the multi-machine recipe in §12.1 has not been run. On SQLite, a server
-with 1,000 rooms of nonstop typing in `wal` mode stays above the 700 ms p95 target
-(1.2–1.6 s, docs/22 §9.3). The 550-user room cap (`MAX_PEERS`) is fixed.
-
-### Block schema validation and format compatibility
-
-`oc-model` has **no block schema validation** (tracker MOD-01, Todo): the schema is only mirrored
-by the `doc.rs` walk and the web `schema.test.ts`. Unknown blocks and attributes are kept, not
-checked. Format caveats:
-
-- Only `.ocanvas` format version 1 exists; files from other writers are read as tested in
-  **FC-03b** (`document.json` only, `ydoc.bin` only as a v2 update, no manifest).
-- The reader prefers `ydoc.bin`: a tool that edits only `document.json` must drop `ydoc.bin` or
-  bump `schemaVersion` (**FC-06**, docs/04 §2.3).
-- HTML import is a forgiving parser and is tested by `tests/import.rs`, not a full round trip.
-- The built-in templates are not loaded by a server-side test (**FC-07** Not run).
-
-### AI and MCP
-
-Experimental and off by default (see above). Canvas content goes to the configured model server.
-
-### Other open items
-
-- Link cards show the site's name until the SSRF-safe unfurl fetcher is built (UNF-01, Todo);
-  server-rendered preview for viewers is not built (RND-01, Todo).
-- Host-supplied team templates are not built (TPL-01, Todo).
-- The Helm chart has not been installed in a real cluster and there are no dashboards (OPS-01).
-
-## Backup and recovery
-
-The host owns the documents: every saved canvas is a file in your storage, and OpenCanvas never
-persists documents of its own (ADR-001). **Back up your host's files as you already do; there is
-nothing in OpenCanvas to back up for them.** OpenCanvas keeps only transient state: sessions,
-room dumps or the WAL tail, snapshots, the save and notification outboxes, fencing epochs and AI
-usage counters.
-
-### What to back up
-
-| Deployment | Back up | Why |
-|---|---|---|
-| Single node, SQLite (default) | the SQLite file (`/data/opencanvas.db` in the image) | unsaved edits since the last host save, pending saves in the outbox, open sessions |
-| SQL cluster (MySQL/MariaDB + Redis) | the MySQL/MariaDB database; Redis AOF/RDB if you use the Redis WAL | as above; the Redis stream holds the WAL tail since each room's last DB snapshot |
-| Redis-only cluster | Redis persistence (AOF, and RDB if you keep it) | Redis holds every piece of state (ADR-030) |
-| Every deployment | `OC_KEK`, the hosts file and the secrets it references | sealed rows (session callback tokens, outbox tokens) can only be read with the same `OC_KEK` |
-
-docs/13: back the SQLite file up "only if you care about un-committed edits surviving a disk loss
-— committed content is in the host". Copy the SQLite file while the server is stopped after a
-SIGTERM drain, so the copy is consistent.
-
-### What a crash loses
-
-- **`memory` mode (default without Redis):** edits since the last dump (≤ `OC_DB_SYNC_MS`, 2 s)
-  that no reconnecting client resends. The first host save after the restart is the dump's state
-  until the clients' resync lands (docs/22 §9.4).
-- **`wal` mode:** nothing acknowledged on a process crash; on SQLite a power loss or OS crash can
-  roll back the last commits.
-- **Redis WAL:** as set by Redis persistence (table above).
-- **Redis-only cluster, Redis wiped:** rooms close with 1012 and rebuild from the host's last
-  saved file plus what reconnecting clients resend; edits of clients that never return, commits
-  the host had not acknowledged and open sessions are lost (users relaunch). With
-  `DATABASE_URL` set the same wipe only costs the WAL tail since each room's last DB snapshot.
-- **Disk lost with no backup:** unsaved edits, pending saves and sessions. Everything the host
-  saved is safe in the host.
-
-### Restore
-
-1. Stop the server (SIGTERM; a drain commits dirty rooms and loses nothing).
-2. Put the SQLite file back at its path (or restore the MySQL/MariaDB database, or Redis's AOF/RDB
-   for a Redis-only cluster).
-3. Start the server with the **same `OC_KEK`** and hosts file. Migrations run at start-up.
-4. On start the outbox sweeper resumes pending saves (`hardening::pending_save_is_resumed_after_a_restart`),
-   rooms reopen from their dumps or snapshot plus WAL, and clients reconnect and resend what the
-   server lacks.
-5. If there is no backup, start with an empty database: rooms load from the host's saved files
-   when users open them again, and users relaunch from the host.
+- Relicensed to the **Apache License 2.0** (ADR-037), with NOTICE and an SPDX header in every
+  source file.
+- The v0.2 plan is [docs/27](27-ROADMAP-v0.2.md) (portable live blocks, block SDK, stable
+  headless API under `/api/v1`; ADR-039 to ADR-042).
 
 ## Upgrade notes
 
-- This is the first tagged version. There is no earlier release to upgrade from.
-- From a pre-release build of `main`: the database migrations (`migrations/sqlite`,
-  `migrations/mysql`, 0001 to 0007) run automatically at start-up. Back up the database first.
-- Defaults to check when coming from an older `main`: `OC_DURABILITY=memory` is the default
-  without Redis (set `OC_DURABILITY=wal` to keep every acknowledged edit on disk); idle eviction
-  is `OC_ROOM_IDLE_MS=60000`; jemalloc is the default allocator; AI is off unless `OC_AI_CONFIG`
-  enables it; server-side import is off unless a host lists `import_formats`.
-- Helm: the chart version and `appVersion` are `0.1.0-alpha.1`; the image tag defaults to the
-  chart `appVersion`.
-- Alpha releases make no compatibility promise. Read the next release's notes before upgrading.
+From v0.1.0-alpha.1 (or a build of `main` before it). **Each item can stop a working
+deployment; check them before you upgrade.**
+
+1. **WOPI hosts now require proof keys.** If the hosts file has any WOPI host, the server
+   **refuses to start** without a proof key. Generate a 2048-bit (or larger) RSA key
+   (`openssl genrsa -out proof.pem 2048`), set `OC_WOPI_PROOF_KEY` to its path (or a file sealed
+   with `opencanvas seal-proof-key < proof.pem`), and give every node the same key. On Helm, set
+   `wopi.proofKeySecret` to a Secret with the key `current`. To rotate later, set
+   `OC_WOPI_PROOF_KEY_OLD` (Helm: key `old` and `wopi.oldKey: true`). Hosts that do not check
+   proofs keep working. See [docs/05 §6](05-INTEGRATION-GUIDE.md) and
+   [docs/13](13-OPERATIONS-AND-DEPLOYMENT.md).
+2. **MCP needs a public URL.** Set `OC_PUBLIC_URL`, or `[host.ai] mcp_audience`, on any host that
+   uses MCP. Without either, MCP is off (404) and start-up logs a warning. Tokens whose `aud` was
+   built from a `Host` header no longer work.
+3. **MCP tokens must name their files** (`files` claim) unless the host implements the `/access`
+   callback or sets `[host.ai] mcp_all_files = true` (broad: one token's role on every file).
+   Otherwise the call is refused with `FILES_REQUIRED`.
+4. **WOPI sessions are capped at 10 h.** An `access_token_ttl` further out is clamped; past the cap
+   the host launches again.
+5. **Invalid documents and writes are refused.** An `.ocanvas` that breaks the block schema is
+   refused when read (`/v1/convert` answers 400 `INPUT_INVALID`; a host file of that kind does
+   not open), and a REST patch, import or MCP write that breaks it answers 400 `PATCH_INVALID`
+   with the path of the bad node. Unknown blocks and attributes are still accepted and kept.
+   Check any tool that writes `.ocanvas` or calls `/v1/files/{id}/patch`.
+
+Unchanged from alpha.1: the database migrations run at start-up (back up first); `.ocanvas`
+stays format version 1 and `schemaVersion` 1 for all of 0.1.x (docs/26 §3); the defaults listed
+in [docs/25 §Upgrade notes](25-RELEASE-v0.1.0-alpha.1.md#upgrade-notes) still apply. The host
+REST API (`/v1/…`) is usable but not yet versioned as stable; v0.2 adds `/api/v1` and keeps the
+0.1 routes as aliases until v0.3 (docs/27).
+
+## Known limitations
+
+- **No SLA.** Support is best effort, as stated in [SECURITY.md](../SECURITY.md): 0.1.x gets
+  security fixes and P0/P1 bug fixes only (docs/26 §3); there is no maintained release branch
+  beyond that and no uptime, response-time or data-retention commitment.
+- **Memory grows with document size under nonstop typing.** yrs keeps dead items, so a room's
+  live document is about 15–20× its encoded size while people type
+  ([docs/22 §9.4, §9.5](22-CAPACITY-AND-SIZING.md)). Memory is now returned after rooms close
+  (above), but size for the documents you keep open. Sizing: docs/22 §4 and docs/13.
+- **Single node first.** Cluster mode passes the crash and chaos runs, but scale-out across
+  machines is not demonstrated (docs/22 §12); the room cap is 550.
+- **Durability depends on the mode** (`memory`, `wal`, Redis WAL):
+  [docs/25](25-RELEASE-v0.1.0-alpha.1.md#durability-modes).
+- **AI and MCP are experimental and off by default**; canvas content goes to the model server
+  you configure. AI-01, AI-02 and AI-UI are in Review.
+- **WOPI:** no `LOCK`/`UNLOCK` by design; conflicts use timestamps (WOPI-05).
+- **Not built:** SSRF-safe link unfurl (UNF-01), server-rendered preview for viewers (RND-01),
+  host team templates (TPL-01), an editor import menu (docs/23 FC-10: server import only).
+- **Helm** is linted and rendered in CI but has not been installed in a real cluster, and there
+  are no dashboards (OPS-01).
+- **No portable live blocks, block SDK or stable headless API**: these are v0.2
+  ([docs/27](27-ROADMAP-v0.2.md)). Third-party block types are kept as unknown blocks, not
+  rendered. Only `.ocanvas` version 1 exists.
+- **MOD-01 is server-side only**; the web editor uses ProseMirror's schema, and link and embed
+  URLs are sanitised on export rather than checked.
+- **Open Low security findings**, each with a recorded decision (docs/18 §5): SEC-36 (redirects
+  in operator-configured clients), SEC-37 (`canvas:write:direct` not checked), SEC-38 to SEC-42
+  accepted; SEC-43 (MCP `comment_add` always refused, fails closed) is an open functional bug.
+- **Owner review.** Most design documents (docs/02 to docs/08) and several built features are
+  still `Review` in the tracker, awaiting the owner's approval; the owner's approval of the
+  docs/26 scope lock is pending.
 
 ## Verification checklist
 
-Run on the release commit, from the repository root. The results below are the evidence for the
-tag; where a check ran on an earlier commit, it says which.
+Run on the release commit, from the repository root. A check that ran only on an earlier commit
+does not count (docs/26 §2).
 
 ```sh
 OC_DEV=1 cargo test --workspace
 ```
-Result: 322 passed, 0 failed (run after the relicensing, same code as `e122c26`); CI `rust` job on `e122c26`: success.
+Result: PENDING
 
 ```sh
 cargo clippy --workspace --all-targets -- -D warnings
 ```
-Result: Clean (no warnings).
+Result: PENDING
 
 ```sh
 cargo fmt --all -- --check
 ```
-Result: Clean.
+Result: PENDING
 
 ```sh
 cd web && pnpm install --frozen-lockfile && pnpm -r typecheck
 ```
-Result: 0 errors.
+Result: PENDING
 
 ```sh
 cd web && pnpm -r test          # vitest
 ```
-Result: 321 passed (board 83, database 184, editor 54).
+Result: PENDING
 
 ```sh
 cd e2e && npm ci && npx playwright install chromium webkit && npm run e2e
 ```
-Result: 86 passed (desktop Chromium, WebKit iPhone, Android Chromium), including the two-person board and comment specs; CI `browser-e2e` on `e122c26`: success.
+Result: PENDING
 
 ```sh
 scripts/e2e-db.sh sqlite
 ```
-Result: PASS, with a real PDF through Gotenberg (local run on `f908495`); CI `e2e (sqlite)` on `e122c26`: success.
+Result: PENDING
 
 ```sh
 scripts/e2e-db.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
 ```
-Result: PASS on MariaDB 11.4 (local run on `f908495`); CI `e2e (mariadb)` on `e122c26`: success.
+Result: PENDING
 
 ```sh
 scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 ```
-Result: PASS on MySQL 8.4 (local run on `f908495`); CI `e2e (mysql)` on `e122c26`: success.
+Result: PENDING
+
+```sh
+scripts/e2e-wopi.sh             # proof keys verified; tampered and stale proofs refused
+```
+Result: PENDING
 
 ```sh
 scripts/audit.sh
 ```
-Result: ok: cargo-audit 0 vulnerabilities (405 crates); cargo-deny advisories, bans, licences, sources ok; npm 0 vulnerabilities for `web/` and `e2e/`; SPDX check 0 missing.
+Result: PENDING
 
 ```sh
-docker build -f deploy/Dockerfile -t opencanvas:0.1.0-alpha.1 .
+docker build -f deploy/Dockerfile -t opencanvas:0.1.0 .
 ```
-Result: Built successfully on `f908495` (before the relicensing, which changed only comments, licence text and metadata). Not rebuilt on `e122c26`.
+Result: PENDING
 
 ```sh
-curl -s http://localhost:8080/healthz    # on the built server: "version":"0.1.0-alpha.1"
+curl -s http://localhost:8080/healthz    # on the built server: "version":"0.1.0"
 ```
-Result: `/healthz`, `/readyz` and `/app/` returned 200 on the built image; `/readyz` reported `"ai":"off (OC_AI_CONFIG unset)"`. The `version` field was not checked.
+Result: PENDING
+
+```sh
+# Release workflow on the tag: pull ghcr.io/casualoffice/opencanvas:0.1.0 on linux/amd64 and
+# linux/arm64, start it, and check /readyz; verify the binaries' SHA-256 checksums and provenance
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/readyz
+```
+Result: PENDING
 
 
 # FAQ
@@ -1098,7 +979,41 @@ the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
   `HostEditUrl` and `Url` without its token. Hosts that set `UserCanNotWriteRelative` should use
   `on_conflict = "reload"`.
 
-No `LOCK`/`UNLOCK` (we use timestamps, like Collabora) and no proof keys yet.
+No `LOCK`/`UNLOCK` (we use timestamps, like Collabora).
+
+**Proof keys (§6.4, WOPI-13).** Every call OpenCanvas makes to your WOPI host (CheckFileInfo,
+GetFile, PutFile, PUT_RELATIVE, and any later override) carries the Microsoft proof headers:
+
+- `X-WOPI-TimeStamp`: .NET ticks (100 ns since 0001-01-01 UTC) of the call.
+- `X-WOPI-Proof`: base64 RSASSA-PKCS1-v1_5 / SHA-256 signature with the current key.
+- `X-WOPI-ProofOld`: the same bytes signed with the old key.
+
+The signed bytes are `be32(len token) ‖ access_token (UTF-8) ‖ be32(len URL) ‖ UPPERCASE(full
+request URL, query and access_token included) ‖ be32(8) ‖ be64(timestamp)`. Discovery publishes
+both public keys in the spec format, a CryptoAPI `PUBLICKEYBLOB` (base64) plus modulus and
+exponent (base64, big-endian):
+
+```xml
+<proof-key oldvalue="BgIAAACkAABSU0Ex…" oldmodulus="…" oldexponent="AQAB"
+           value="BgIAAACkAABSU0Ex…" modulus="…" exponent="AQAB"/>
+```
+
+A host accepts the call when `X-WOPI-Proof` verifies with the current key, or
+`X-WOPI-ProofOld` with the current key, or `X-WOPI-Proof` with the old key; refuses a
+timestamp older than 20 minutes; and answers `500` otherwise (after re-reading discovery once,
+in case the keys rotated). `examples/wopi-host/server.mjs` does exactly this (`checkProof`);
+`WOPI_PROOF=off` opts it out for servers without keys. Nextcloud, ownCloud and Seafile verify
+these headers the same way they do for Collabora.
+
+**Key configuration and rotation.** `OC_WOPI_PROOF_KEY` is the path of a 2048-bit (or larger)
+RSA private key, PEM (PKCS#8 or PKCS#1), or the same PEM sealed with `OC_KEK`
+(`opencanvas seal-proof-key < key.pem > key.sealed`). `OC_WOPI_PROOF_KEY_OLD` is the previous
+key in the same forms; without it the current key is published and used as the old one.
+With `OC_DEV=1` and no key, a pair is generated at start-up (it changes on every restart).
+Start-up refuses a hosts file with a WOPI host when there is no key. Rotation: generate a new
+key (`openssl genrsa -out new.pem 2048`), set `OC_WOPI_PROOF_KEY_OLD` to the current key and
+`OC_WOPI_PROOF_KEY` to the new one, roll every node (they must share the keys); hosts accept
+both while their cached discovery catches up. Drop the old key at the next rotation.
 
 **Assets.** WOPI has no asset API, so uploads (`POST /v1/assets?ticket=`) are kept with the room
 and answered `201 {"assetId":"a_…","url":"/v1/assets/a_…","mime","size"}`. They are served by
@@ -1404,6 +1319,29 @@ when non-empty) where `content`
 nodes are `{type, attrs?, content?}` and text is `{type:"text", text, marks?:[{type, attrs?}]}`
 (y-prosemirror `mark--hash` keys are reduced to `mark`). If `ydoc.bin` is missing the doc is built
 from `document.json` (content and meta exactly; nested maps best-effort).
+
+### 4.1 Validation (MOD-01)
+
+`oc_model::validate(&Doc)` / `validate_json(&document.json)` / `validate_blocks(prefix, &[node])`
+return `Report {errors, warnings}`; each issue has a JSON-pointer path (`/content/3/content/0`,
+`blocks/1/attrs/level` for patch input) and a message. **Errors** refuse the input: `read_ocanvas`
+fails with `Error::Invalid("<path>: <message>")`, and `apply_patch` (REST patch, md/html import,
+MCP writes) answers 400 `PATCH_INVALID` naming the op and node. **Warnings** never refuse; the
+content is kept as is and counted in `oc_schema_warnings_total`.
+
+| rule | error | warning |
+|---|---|---|
+| node shape | not an object, no string `type`, `attrs` not an object, `content` not an array | unknown node type (its children are still checked) |
+| attributes | wrong value type or range: `heading.level` 1-3, `orderedList.start` integer, `checked`/`open` booleans, `image.align` `left right`, `image.width` number, `fileAttachment.size` ≥ 0, `height` 240-1600, `display` `card preview`, `columns.widths` whole percents, cell `colspan`/`rowspan` ≥ 1, `colwidth` array, `dateMention.date` `YYYY-MM-DD`, ids (`dbId boardId mention.id threadId`) non-empty strings, other attributes strings. `null` always means the default | unknown attribute; `callout.tone` / `textColor.color` outside the tones |
+| content | `paragraph heading toggleSummary`: inline only; `codeBlock`: unmarked text; `bulletList orderedList`: `listItem+`; `taskList`: `taskItem+`; `listItem taskItem blockquote toggleContent column tableCell tableHeader`: one or more blocks; `callout`: `paragraph+`; `toggle`: `toggleSummary toggleContent`; `columns`: `column+`; `table`: `tableRow+`; `tableRow`: cells+; atoms (`horizontalRule image database board bookmark embed fileAttachment mention dateMention hardBreak`) no content; parts (`listItem column tableRow …`) and inline nodes inside a block-only parent | `columns` with other than 2-4 columns or a `widths` count that doesn't match; inline content (bare text) at the document's top level, which server tools have always written |
+| text and marks | empty `text`, `content` on text, `marks` not an array, mark without `type`, wrong mark attr type (`link.href` string, `commentMark.threadId` id) | unknown mark |
+| ids | `blockId` not a non-empty string | duplicate `blockId`; `database`/`board` block whose id is not in `databases`/`boards` |
+| databases | entry/fields/rows not the right JSON type, field without an id, duplicate field id, option without string `v`, `order` not strings, `notes`/`views` not objects | unknown field type; `order` entry missing from `rows` |
+| boards | `shapes` not an object, shape without string `type`, `x y w h size` not numbers, `pts` not `[x, y]` pairs, `start`/`end` without `shapeId`, string keys not strings | unknown shape type, bad `via` entries, `order` entry missing from `shapes` |
+| document | not an object, `type` other than `doc`, `meta databases boards comments people` not objects, `meta.title icon tone template` not strings, thread `messages` not an array | — |
+
+A patch's blocks are checked on their own (each root may be any known node, so a `listItem`
+can replace a `listItem`); they are not checked against where they are inserted.
 
 ## 5. Host callbacks (JWT mode). The server calls the host.
 
@@ -1781,6 +1719,18 @@ are false, `POST /mcp/{hostId}` and its protected-resource metadata answer `404`
 further. The effective state is logged once at start-up (`AI: on`, `AI: off (OC_AI=off)`,
 `AI: off (OC_AI_CONFIG unset)`, `AI: off ([ai] enabled = false)`) and shown as `"ai"` in `/readyz`.
 To stop all AI in an incident: set `OC_AI=off` and restart (rolling).
+
+## WOPI proof keys (required with a WOPI host)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OC_WOPI_PROOF_KEY` | none; generated with `OC_DEV=1` | Path of the current RSA proof key (≥ 2048-bit): PEM (PKCS#8 / PKCS#1) or sealed with `OC_KEK` by `opencanvas seal-proof-key < key.pem` |
+| `OC_WOPI_PROOF_KEY_OLD` | the current key | Path of the previous key, same forms; published as `old*` in discovery and signs `X-WOPI-ProofOld` |
+
+On Kubernetes, the Helm chart mounts the keys from a Secret: `wopi.proofKeySecret` (keys `current` and, during rotation, `old` with `wopi.oldKey: true`). See `deploy/helm/opencanvas/values.yaml`.
+
+Every node of a cluster needs the same keys. Without a key, a hosts file with a `mode = "wopi"`
+or `"both"` host stops start-up. Rotation and the signed bytes: docs/05 §6 "Proof keys".
 
 ## Import switch
 
@@ -3736,6 +3686,18 @@ are false, `POST /mcp/{hostId}` and its protected-resource metadata answer `404`
 further. The effective state is logged once at start-up (`AI: on`, `AI: off (OC_AI=off)`,
 `AI: off (OC_AI_CONFIG unset)`, `AI: off ([ai] enabled = false)`) and shown as `"ai"` in `/readyz`.
 To stop all AI in an incident: set `OC_AI=off` and restart (rolling).
+
+### WOPI proof keys (required with a WOPI host)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OC_WOPI_PROOF_KEY` | none; generated with `OC_DEV=1` | Path of the current RSA proof key (≥ 2048-bit): PEM (PKCS#8 / PKCS#1) or sealed with `OC_KEK` by `opencanvas seal-proof-key < key.pem` |
+| `OC_WOPI_PROOF_KEY_OLD` | the current key | Path of the previous key, same forms; published as `old*` in discovery and signs `X-WOPI-ProofOld` |
+
+On Kubernetes, the Helm chart mounts the keys from a Secret: `wopi.proofKeySecret` (keys `current` and, during rotation, `old` with `wopi.oldKey: true`). See `deploy/helm/opencanvas/values.yaml`.
+
+Every node of a cluster needs the same keys. Without a key, a hosts file with a `mode = "wopi"`
+or `"both"` host stops start-up. Rotation and the signed bytes: docs/05 §6 "Proof keys".
 
 ### Import switch
 

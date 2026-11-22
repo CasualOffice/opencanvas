@@ -7,19 +7,63 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
-Targeted for v0.1.0-alpha.2.
+## [0.1.0] - Unreleased
+
+Prepared from `main`; not yet tagged. The first final release: v0.1.0-alpha.1 plus the alpha.2
+security fixes and the three release blockers (scope: [docs/26](docs/26-RELEASE-v0.1.0-SCOPE.md)).
+Support is best effort with no SLA. Release notes, upgrade notes and known limitations:
+[docs/28](docs/28-RELEASE-v0.1.0.md).
+
+### Upgrade notes
+
+- **WOPI hosts require proof keys.** With any WOPI host configured, the server refuses to start
+  without `OC_WOPI_PROOF_KEY` (PEM, or sealed with `opencanvas seal-proof-key`); on Helm set
+  `wopi.proofKeySecret`. Rotate with `OC_WOPI_PROOF_KEY_OLD` (Helm `wopi.oldKey: true`).
+- **MCP needs `OC_PUBLIC_URL`** or `[host.ai] mcp_audience`; without either, MCP answers `404`.
+- **MCP tokens must name their files** (`files` claim) unless the host has the `/access`
+  callback or sets `[host.ai] mcp_all_files = true`.
+- **WOPI sessions are capped at 10 h** after the launch.
+- **Invalid documents and writes are refused:** an `.ocanvas` that breaks the block schema is
+  refused when read (`/v1/convert`: 400 `INPUT_INVALID`), and a REST patch, import or MCP write
+  that breaks it answers 400 `PATCH_INVALID`. Unknown blocks and attributes are still kept.
+
+### Added
+
+- **WOPI proof keys (WOPI-13):** every WOPI call is signed (`X-WOPI-TimeStamp`, `X-WOPI-Proof`,
+  `X-WOPI-ProofOld`, SHA256withRSA); `/hosting/discovery` publishes the current and old keys;
+  `opencanvas seal-proof-key`; the reference WOPI host verifies proofs; Helm
+  `wopi.proofKeySecret`.
+- **Block schema validation (MOD-01)** in `oc-model` on `.ocanvas` read, REST patch, import and
+  MCP writes, with JSON-pointer paths; unknown nodes are warnings, kept and counted in
+  `oc_schema_warnings_total`.
+- **Template load test (FC-07):** all 40 built-in templates validate and round-trip through
+  `.ocanvas`.
+- **Release artefacts:** `.github/workflows/release.yml` builds a multi-architecture image
+  `ghcr.io/casualoffice/opencanvas` (linux/amd64, linux/arm64) pinned to the tag, standalone
+  Linux binaries (x86_64, aarch64) with the editor bundle, checksums and build provenance.
+- The v0.2 plan ([docs/27](docs/27-ROADMAP-v0.2.md)) and the release roadmap (ADR-038).
+
+### Changed
+
+- Licence: the Apache License 2.0 (ADR-037), with NOTICE and SPDX headers.
+
+### Fixed
+
+- Memory was not returned after idle rooms closed (jemalloc purge refused and the error
+  ignored): RSS with 0 rooms after eviction fell from 856 MB to 174 MB (docs/22 §9.7).
 
 ### Security
 
 - **MCP audience (SEC-33):** the MCP token audience comes from `[host.ai] mcp_audience` or
   `OC_PUBLIC_URL`, never from the request's `Host` header. Without either, MCP is off (`404`) and
-  the server logs one start-up warning. **Upgrade:** set `OC_PUBLIC_URL` (or `mcp_audience`) on
-  any host that uses MCP.
+  the server logs one start-up warning.
 - **MCP file scope (SEC-34):** when the host has no `/access` callback, an MCP token must name
   its files in a `files` claim; a token without one is refused (`FILES_REQUIRED`). The broad
   behaviour (one token's role on every file) needs `[host.ai] mcp_all_files = true`.
 - **WOPI session cap (SEC-35):** a WOPI session ends at `access_token_ttl` or 10 h after the
   launch, whichever is first, like a JWT session.
+- **WOPI caller authenticity (SEC-44):** WOPI hosts can verify that calls come from OpenCanvas
+  (proof keys, above). Signing uses `rsa` 0.10.
 
 ## [0.1.0-alpha.1] - 2026-11-23
 
@@ -90,5 +134,6 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1

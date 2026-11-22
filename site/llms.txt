@@ -11,7 +11,7 @@
 ## Documentation
 - [Documentation](https://canvas.casualoffice.org/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
 - [Getting started](https://canvas.casualoffice.org/docs/getting-started.html): Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.
-- [Release notes 0.1.0-alpha.1](https://canvas.casualoffice.org/docs/release.html): OpenCanvas 0.1.0-alpha.1, the first alpha: what is included with its acceptance evidence, known limitations (memory, durability modes, WOPI, single node), backup and recovery, and the verification checklist.
+- [Release notes 0.1.0](https://canvas.casualoffice.org/docs/release.html): OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.
 - [FAQ](https://canvas.casualoffice.org/docs/faq.html): Answers about OpenCanvas: its status, what the Apache 2.0 licence allows, what data it keeps, how users sign in, WOPI, exports and scaling.
 - [Integration guide](https://canvas.casualoffice.org/docs/integration.html): The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.
 - [WOPI mode](https://canvas.casualoffice.org/docs/wopi.html): Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.
