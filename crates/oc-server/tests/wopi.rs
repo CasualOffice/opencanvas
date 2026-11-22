@@ -435,6 +435,24 @@ async fn launch_refuses_wopisrc_outside_the_allowlist() {
     assert_eq!(status, 401);
 }
 
+/// SEC-35: `access_token_ttl` cannot stretch a session past the JWT cap (10 h); after that the
+/// host has to launch again.
+#[tokio::test]
+async fn a_far_future_access_token_ttl_is_clamped_to_the_session_cap() {
+    let (origin, w) = wopi_host().await;
+    let state = wopi_app(&origin, &temp_db()).await;
+    let addr = serve_state(state.clone()).await;
+    let src = format!("{origin}/wopi/files/doc_1");
+    let ten_years = (oc_server::util::now_secs() + 10 * 365 * 24 * 3600) * 1000;
+    let (status, ticket) = launch(&addr, &src, "tok-asha", Some(ten_years)).await;
+    assert_eq!(status, 303, "{ticket}");
+    let (_, exp) = state.store.session(&ticket).await.unwrap().unwrap();
+    let cap = oc_server::util::now_secs() + oc_server::jwt::MAX_TTL_SECS;
+    assert!(exp <= cap, "session expiry {exp} past the cap {cap}");
+    assert!(exp >= cap - 60, "clamped to the cap, not shortened further");
+    drop(w);
+}
+
 #[tokio::test]
 async fn check_file_info_sets_role_user_perms_and_expiry() {
     let (origin, w) = wopi_host().await;

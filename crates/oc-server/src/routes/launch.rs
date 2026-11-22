@@ -181,11 +181,14 @@ async fn launch_wopi(
             )
         })?
         .unwrap_or(0);
+    // SEC-35: the host's `access_token_ttl` never stretches a session past the JWT cap (10 h);
+    // after that the host launches again (docs/05 §6).
     let exp = if ttl_ms > 0 {
         ttl_ms / 1000
     } else {
         now + wopi::DEFAULT_TTL_SECS
-    };
+    }
+    .min(now + crate::jwt::MAX_TTL_SECS);
     if exp <= now {
         return Err(rejected(
             state,
