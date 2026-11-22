@@ -862,7 +862,10 @@ impl Room {
             .ok()
             .and_then(|s| serde_json::from_str::<Value>(s).ok())
             .unwrap_or(Value::Null);
-        if matches!(msg["t"].as_str(), Some("ai-run" | "ai-cancel" | "ai-undo")) {
+        if matches!(
+            msg["t"].as_str(),
+            Some("ai-run" | "ai-cancel" | "ai-approve" | "ai-undo")
+        ) {
             self.on_ai_control(conn, &msg);
             return;
         }
@@ -874,7 +877,7 @@ impl Room {
         }
     }
 
-    /// `ai-run`, `ai-cancel`, `ai-undo` (docs/15, docs/24 §10.5). Replies go to `conn` only.
+    /// `ai-run`, `ai-cancel`, `ai-approve`, `ai-undo` (docs/15, docs/24 §10.5). Replies go to `conn` only.
     fn on_ai_control(&mut self, conn: ConnId, msg: &Value) {
         let Some(peer) = self.peers.get(&conn) else {
             return;
@@ -934,6 +937,9 @@ impl Room {
             Some("ai-cancel") => {
                 rt.cancel(&self.id, &run_id, &env.grant.user.id);
             }
+            Some("ai-approve") => {
+                rt.approve(&self.id, &run_id, &env.grant.user.id);
+            }
             _ => {
                 tokio::spawn(async move {
                     if let Err(e) = rt.undo(&env, &run_id).await {
@@ -968,10 +974,15 @@ impl Room {
             return Err("nothing to undo".into());
         };
         let before = self.doc.transact().state_vector();
-        while mgr.undo_blocking() {}
+        // An undo of inserts only deletes, which leaves the state vector as it was: track
+        // whether anything was undone instead of comparing state vectors.
+        let mut undone = false;
+        while mgr.undo_blocking() {
+            undone = true;
+        }
         drop(mgr);
         let update = self.doc.transact().encode_state_as_update_v1(&before);
-        if self.doc.transact().state_vector() != before {
+        if undone {
             self.queue(update, origin, None, true);
             if !self.flush_wal().await {
                 return Err("storage unavailable".into());

@@ -91,6 +91,8 @@ pub struct RunRequest {
     pub prompt: String,
     pub selection: Option<String>,
     pub mode: Option<String>,
+    /// `confirm`: stop after `ai-plan` until `ai-approve` (default `true` in edit mode).
+    pub confirm: Option<bool>,
 }
 
 impl RunRequest {
@@ -112,6 +114,7 @@ impl RunRequest {
                 .as_str()
                 .map(|s| s.chars().take(64 * 1024).collect()),
             mode: v["mode"].as_str().map(str::to_string),
+            confirm: v["confirm"].as_bool(),
         })
     }
 }
@@ -188,6 +191,7 @@ struct Active {
     room: String,
     user: String,
     cancel: watch::Sender<bool>,
+    approve: watch::Sender<bool>,
 }
 
 struct Finished {
@@ -210,6 +214,8 @@ pub struct AiRuntime {
     tools_ok: Mutex<HashMap<String, bool>>,
     /// The canvas tool layer; set once at start-up (it needs the app state, which owns this).
     tools: std::sync::OnceLock<Arc<dyn CanvasTools>>,
+    /// How long a run waits for `ai-approve` ([`PLAN_TIMEOUT`]; shorter in tests).
+    pub plan_timeout: Duration,
     pub quota: Quota,
     reg: Mutex<Registry>,
     metrics: Arc<Metrics>,
@@ -244,6 +250,7 @@ impl AiRuntime {
             providers,
             tools_ok: Mutex::default(),
             tools: slot,
+            plan_timeout: PLAN_TIMEOUT,
             quota: Quota::default(),
             reg: Mutex::default(),
             metrics,
@@ -327,6 +334,8 @@ impl AiRuntime {
             return self.refuse(&env, &req.run_id, "the monthly AI quota is used up");
         }
         let (cancel_tx, cancel_rx) = watch::channel(false);
+        let (approve_tx, approve_rx) = watch::channel(false);
+        let confirm = mode == RunMode::Edit && req.confirm.unwrap_or(true);
         {
             let mut reg = self.reg.lock().map_err(|_| "poisoned".to_string())?;
             let user = env.grant.user.id.clone();
@@ -369,12 +378,19 @@ impl AiRuntime {
                     room: env.room_id.clone(),
                     user,
                     cancel: cancel_tx,
+                    approve: approve_tx,
                 },
             );
         }
         let rt = self.clone();
         Ok(tokio::spawn(async move {
-            rt.run(env, req, mode, provider, tools_ok, cancel_rx).await;
+            let gate = Gate {
+                confirm,
+                approve: approve_rx,
+                timeout: rt.plan_timeout,
+            };
+            rt.run(env, req, mode, provider, tools_ok, cancel_rx, gate)
+                .await;
         }))
     }
 
@@ -386,6 +402,18 @@ impl AiRuntime {
         };
         match reg.active.get(run_id) {
             Some(a) if a.room == room && a.user == user_id => a.cancel.send(true).is_ok(),
+            _ => false,
+        }
+    }
+
+    /// `ai-approve`: lets a run waiting on its plan act (same user, same room).
+    pub fn approve(&self, room: &str, run_id: &str, user_id: &str) -> bool {
+        let reg = match self.reg.lock() {
+            Ok(r) => r,
+            Err(_) => return false,
+        };
+        match reg.active.get(run_id) {
+            Some(a) if a.room == room && a.user == user_id => a.approve.send(true).is_ok(),
             _ => false,
         }
     }
@@ -433,6 +461,7 @@ impl AiRuntime {
         provider: Arc<dyn ModelProvider>,
         tools_ok: bool,
         cancel: watch::Receiver<bool>,
+        gate: Gate,
     ) {
         let started = Instant::now();
         let origin = format!("ai:{}", req.run_id);
@@ -460,6 +489,7 @@ impl AiRuntime {
             model,
             origin: origin.clone(),
             cancel,
+            gate,
             deadline: started + Duration::from_secs(host.limits.max_run_secs),
             usage: Usage::default(),
             steps: 0,
@@ -470,6 +500,7 @@ impl AiRuntime {
         let (outcome, summary, reason) = match result {
             Ok(summary) => ("done", Some(summary), None),
             Err(Stop::Cancelled) => ("cancelled", None, None),
+            Err(Stop::CancelledWhy(why)) => ("cancelled", None, Some(why.to_string())),
             Err(Stop::Limit(what)) => ("limit", None, Some(what.to_string())),
             Err(Stop::Error(e)) => ("error", None, Some(e)),
         };
@@ -519,6 +550,54 @@ impl AiRuntime {
     }
 }
 
+/// The plan-approval gate of one run.
+struct Gate {
+    confirm: bool,
+    approve: watch::Receiver<bool>,
+    timeout: Duration,
+}
+
+/// How long a run waits for `ai-approve` before it is cancelled (`plan_timeout`).
+pub const PLAN_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// The model's plan text as `[{n, text, kind}]`, `kind` one of `create`, `update`, `suggest`,
+/// `read` (a keyword guess per line; the UI marks suggest steps).
+pub fn structured_plan(text: &str) -> Value {
+    let steps: Vec<Value> = text
+        .lines()
+        .map(|l| {
+            l.trim()
+                .trim_start_matches(|c: char| c.is_ascii_digit())
+                .trim_start_matches(['.', ')', '-', '*', ':'])
+                .trim()
+        })
+        .filter(|l| !l.is_empty())
+        .enumerate()
+        .map(|(i, line)| {
+            let lower = line.to_lowercase();
+            let has = |ws: &[&str]| {
+                lower
+                    .split(|c: char| !c.is_alphanumeric())
+                    .any(|w| ws.contains(&w))
+            };
+            let kind = if has(&["suggest", "suggestion", "suggestions", "propose"]) {
+                "suggest"
+            } else if has(&["create", "add", "insert", "new", "make", "build", "write"]) {
+                "create"
+            } else if has(&[
+                "update", "change", "edit", "rename", "fix", "set", "replace", "delete", "remove",
+                "move", "rewrite", "mark",
+            ]) {
+                "update"
+            } else {
+                "read"
+            };
+            json!({"n": i + 1, "text": line, "kind": kind})
+        })
+        .collect();
+    Value::Array(steps)
+}
+
 fn audit(grant: &Grant, run_id: &str, event: &str, counts: Value) -> Value {
     json!({
         "runId": run_id,
@@ -534,6 +613,8 @@ fn audit(grant: &Grant, run_id: &str, event: &str, counts: Value) -> Value {
 #[derive(Debug)]
 enum Stop {
     Cancelled,
+    /// Cancelled by the server, with a reason (`plan_timeout`).
+    CancelledWhy(&'static str),
     Limit(&'static str),
     Error(String),
 }
@@ -547,6 +628,7 @@ struct RunState<'a> {
     model: String,
     origin: String,
     cancel: watch::Receiver<bool>,
+    gate: Gate,
     deadline: Instant,
     usage: Usage,
     steps: u32,
@@ -573,6 +655,25 @@ impl RunState<'_> {
         {
             return Err(Stop::Limit("quota"));
         }
+        Ok(())
+    }
+
+    /// The plan-approval gate: nothing runs (no reads, no writes) until `ai-approve`.
+    /// `ai-cancel` ends the run; so does the timeout, as `cancelled` / `plan_timeout`. The run's
+    /// time limit starts again on approval.
+    async fn wait_for_approval(&mut self) -> Result<(), Stop> {
+        let mut cancel = self.cancel.clone();
+        let mut approve = self.gate.approve.clone();
+        tokio::select! {
+            r = approve.wait_for(|a| *a) => {
+                if r.is_err() {
+                    return Err(Stop::Cancelled);
+                }
+            }
+            _ = cancel.wait_for(|c| *c) => return Err(Stop::Cancelled),
+            _ = tokio::time::sleep(self.gate.timeout) => return Err(Stop::CancelledWhy("plan_timeout")),
+        }
+        self.deadline = Instant::now() + Duration::from_secs(self.env.host_ai.limits.max_run_secs);
         Ok(())
     }
 
@@ -675,10 +776,14 @@ impl RunState<'_> {
                 "First write a short plan: at most 5 numbered lines. Do not carry it out yet.",
             ));
             let plan = self.call(&system, &plan_msgs, &[]).await?.text();
-            let _ = self
-                .env
-                .emit
-                .send(json!({"t":"ai-plan","runId":self.req.run_id,"plan":plan}));
+            let _ = self.env.emit.send(json!({
+                "t": "ai-plan", "runId": self.req.run_id,
+                "plan": structured_plan(&plan),
+                "awaitingApproval": self.gate.confirm,
+            }));
+            if self.gate.confirm {
+                self.wait_for_approval().await?;
+            }
             messages.push(Msg {
                 role: MsgRole::Assistant,
                 parts: vec![Part::Text(plan)],

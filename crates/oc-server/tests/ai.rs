@@ -541,7 +541,7 @@ impl Harness {
 }
 
 fn run_req(id: &str, mode: Option<&str>) -> RunRequest {
-    RunRequest::from_control(&json!({"t":"ai-run","runId":id,"prompt":"Turn my notes into tasks","selection":"buy milk","mode":mode})).unwrap()
+    RunRequest::from_control(&json!({"t":"ai-run","runId":id,"prompt":"Turn my notes into tasks","selection":"buy milk","mode":mode,"confirm":false})).unwrap()
 }
 
 async fn drain(rx: &mut mpsc::UnboundedReceiver<Value>) -> Vec<Value> {
@@ -575,7 +575,11 @@ async fn runs_a_multi_step_plan_and_reports_it() {
     let ev = drain(&mut rx).await;
     let kinds: Vec<&str> = ev.iter().map(|v| v["t"].as_str().unwrap()).collect();
     assert_eq!(kinds, ["ai-plan", "ai-step", "ai-step", "ai-done"]);
-    assert_eq!(ev[0]["plan"], "1. Read the notes\n2. Add tasks");
+    assert_eq!(
+        ev[0]["plan"],
+        json!([{"n":1,"text":"Read the notes","kind":"read"},{"n":2,"text":"Add tasks","kind":"create"}])
+    );
+    assert_eq!(ev[0]["awaitingApproval"], false);
     let done = &ev[3];
     assert_eq!(done["outcome"], "done");
     assert_eq!(done["summary"], "Added 1 task.");
@@ -932,4 +936,27 @@ async fn no_key_appears_in_logs_or_responses() {
     assert!(!logs.contains(KEY), "key in logs");
     assert!(!seen_text.contains(KEY), "key in a response: {seen_text}");
     assert!(!logs.contains("Turn my notes"), "prompt in logs");
+}
+
+#[tokio::test]
+async fn a_confirmed_run_waits_for_approval_and_times_out_as_plan_timeout() {
+    let mut h = harness(
+        vec![text("1. Add a task"), calls(&[("canvas_patch", json!({}))])],
+        Role::Edit,
+    );
+    Arc::get_mut(&mut h.rt).unwrap().plan_timeout = Duration::from_millis(100);
+    let (env, mut rx) = h.env(Role::Edit, Limits::default());
+    // No `confirm`: edit mode defaults to true.
+    let req = RunRequest::from_control(&json!({"t":"ai-run","runId":"r1","prompt":"go"})).unwrap();
+    h.rt.start(env, req).unwrap().await.unwrap();
+    let ev = drain(&mut rx).await;
+    assert_eq!(ev[0]["t"], "ai-plan");
+    assert_eq!(ev[0]["awaitingApproval"], true);
+    assert_eq!(ev[0]["plan"][0]["kind"], "create");
+    let done = ev.last().unwrap();
+    assert_eq!(
+        (&done["outcome"], &done["reason"], &done["writes"]),
+        (&json!("cancelled"), &json!("plan_timeout"), &json!(0))
+    );
+    assert!(h.tools.calls.lock().unwrap().is_empty(), "no tool ran");
 }
