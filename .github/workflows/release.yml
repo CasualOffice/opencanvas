@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+#
+# Release artefacts for a tag v*: a multi-architecture container image (linux/amd64 and
+# linux/arm64, built natively on each architecture, no emulation) at
+# ghcr.io/casualoffice/opencanvas:<version>, and standalone Linux binaries (with the editor
+# bundle, LICENSE and NOTICE) attached to the GitHub release with SHA-256 checksums. Both carry
+# build-provenance attestations. Pre-releases never get the `latest` tag.
+#
+# Runs on a pushed tag, or by hand for an existing tag (workflow_dispatch, input `tag`).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, e.g. v0.1.0-alpha.1"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+env:
+  IMAGE: ghcr.io/casualoffice/opencanvas
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    strategy:
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/CasualOffice/opencanvas
+            org.opencontainers.image.version=${{ env.TAG }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.title=OpenCanvas
+            org.opencontainers.image.description=Embeddable real-time collaborative canvas
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+      - name: Keep the digest
+        run: |
+          mkdir -p /tmp/digests
+          d='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${d#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  manifest:
+    needs: image
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: "digest-*", path: /tmp/digests, merge-multiple: true }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create the multi-architecture tag
+        id: push
+        run: |
+          version="${TAG#v}"
+          tags=(-t "$IMAGE:$version" -t "$IMAGE:$TAG")
+          # Only a final release (no "-" pre-release part) moves `latest`.
+          case "$version" in *-*) ;; *) tags+=(-t "$IMAGE:latest") ;; esac
+          cd /tmp/digests
+          sources=()
+          for d in *; do sources+=("$IMAGE@sha256:$d"); done
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$version"
+          digest=$(docker buildx imagetools inspect "$IMAGE:$version" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: cd web && pnpm install --frozen-lockfile && pnpm --filter @opencanvas/editor build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: editor-dist
+          path: web/packages/editor/dist
+          retention-days: 1
+
+  binary:
+    needs: web
+    strategy:
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04 }
+          - { arch: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    # Debian bookworm's glibc (2.36), so the binary runs on most current Linux distributions.
+    container: rust:1.98-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
+      - name: Build the server
+        run: cargo build --release --locked -p oc-server --bin opencanvas
+      - uses: actions/download-artifact@v4
+        with: { name: editor-dist, path: web-dist }
+      - name: Package
+        id: pkg
+        run: |
+          name="opencanvas-${TAG}-linux-${{ matrix.arch }}"
+          mkdir -p "dist/$name"
+          cp target/release/opencanvas "dist/$name/"
+          cp -r web-dist "dist/$name/web"
+          cp LICENSE NOTICE README.md "dist/$name/"
+          cat > "dist/$name/RUN.txt" <<EOF
+          Run the server with the bundled editor:
+            OC_WEB_DIR=./web OC_HOSTS_FILE=./opencanvas.hosts.toml OC_KEK=<32 bytes, base64> ./opencanvas
+          Settings: docs/13-OPERATIONS-AND-DEPLOYMENT.md in the repository.
+          EOF
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+          echo "file=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.pkg.outputs.file }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.arch }}
+          path: dist/*.tar.gz*
+          retention-days: 1
+
+  publish:
+    needs: [manifest, binary]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: "binary-*", path: assets, merge-multiple: true }
+      - name: Attach the binaries and the image reference to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ needs.manifest.outputs.digest }}
+        run: |
+          gh release upload "$TAG" assets/* --clobber -R "$GITHUB_REPOSITORY"
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body > body.md
+          if ! grep -q "## Container image" body.md; then
+            {
+              echo
+              echo "## Container image"
+              echo
+              echo "Multi-architecture (linux/amd64, linux/arm64):"
+              echo
+              echo '```sh'
+              echo "docker pull $IMAGE:${TAG#v}"
+              echo "docker pull $IMAGE@$DIGEST   # pinned by digest"
+              echo '```'
+              echo
+              echo "## Binaries"
+              echo
+              echo "Standalone Linux builds (x86_64, aarch64) with the editor bundle, LICENSE and NOTICE are attached below, each with a SHA-256 checksum. Images and archives carry build-provenance attestations (\`gh attestation verify\`)."
+            } >> body.md
+            gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file body.md
+          fi
