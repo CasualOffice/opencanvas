@@ -86,10 +86,16 @@ pub struct Loaded {
     pub manifest: Value,
 }
 
+/// Applies a Yjs update, v1 or v2. A v2 update starts with a 0 feature byte, which a v1
+/// decoder reads as "no structs" and so silently yields an empty update: those bytes are
+/// tried as v2 first (a v1 update holding only deletions falls back to v1).
 pub fn apply_update_bytes(doc: &Doc, bytes: &[u8]) -> Result<(), Error> {
-    let update = Update::decode_v1(bytes)
-        .or_else(|_| Update::decode_v2(bytes))
-        .map_err(|_| Error::BadUpdate)?;
+    let update = if bytes.first() == Some(&0) && bytes.len() > 2 {
+        Update::decode_v2(bytes).or_else(|_| Update::decode_v1(bytes))
+    } else {
+        Update::decode_v1(bytes).or_else(|_| Update::decode_v2(bytes))
+    }
+    .map_err(|_| Error::BadUpdate)?;
     doc.transact_mut()
         .apply_update(update)
         .map_err(|_| Error::BadUpdate)

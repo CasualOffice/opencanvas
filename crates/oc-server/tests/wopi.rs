@@ -718,3 +718,48 @@ async fn assets_are_inlined_and_round_trip() {
     assert_eq!(res.status(), 200);
     assert_eq!(res.bytes().await.unwrap().as_ref(), PNG_1X1);
 }
+
+/// Acceptance (docs/23 WOPI-07/08): a session ends at `access_token_ttl`, an unknown access
+/// token is refused, and a non-http(s) `UserExtraInfo.avatar` is dropped.
+#[tokio::test]
+async fn acceptance_token_expiry_and_avatar_scheme() {
+    let (origin, w) = wopi_host().await;
+    w.lock().unwrap().tokens.insert(
+        "tok-js".into(),
+        json!({"UserId": "u_js", "UserFriendlyName": "Js", "UserCanWrite": true,
+               "UserExtraInfo": {"avatar": "javascript:alert(1)", "detail": "Ops"}}),
+    );
+    let state = wopi_app(&origin, &temp_db()).await;
+    let addr = serve_state(state.clone()).await;
+    let src = format!("{origin}/wopi/files/doc_1");
+
+    let (status, _) = launch(&addr, &src, "tok-unknown", None).await;
+    assert_eq!(status, 401, "CheckFileInfo 401 → TOKEN_INVALID");
+
+    let (status, ticket) = launch(&addr, &src, "tok-js", None).await;
+    assert_eq!(status, 303, "{ticket}");
+    let s = session_json(&addr, &ticket).await;
+    assert_eq!(s["user"]["detail"], "Ops");
+    assert!(
+        s["user"]["avatar"].is_null(),
+        "javascript: avatar kept: {s}"
+    );
+
+    let ttl = (oc_server::util::now_secs() + 2) * 1000;
+    let (status, ticket) = launch(&addr, &src, "tok-asha", Some(ttl)).await;
+    assert_eq!(status, 303);
+    let ok = http()
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200);
+    tokio::time::sleep(Duration::from_millis(3200)).await;
+    for url in [
+        format!("http://{addr}/v1/sessions/{ticket}"),
+        format!("http://{addr}/v1/export/md?ticket={ticket}"),
+    ] {
+        let res = http().get(&url).send().await.unwrap();
+        assert_eq!(res.status(), 401, "{url} after access_token_ttl");
+    }
+}

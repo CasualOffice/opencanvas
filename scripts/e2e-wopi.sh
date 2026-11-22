@@ -8,14 +8,16 @@
 #   scripts/e2e-wopi.sh                              # OpenCanvas :8380, WOPI host :4300
 #   scripts/e2e-wopi.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
 #
-# The WOPI host port must match wopi_allowlist in opencanvas.hosts.toml (localhost:4300).
+# Ports: OC_PORT / HOST_PORT; any HOST_PORT other than 4300 gets a temporary hosts file whose
+# wopi-sample allow-list points at it. Honours CARGO_TARGET_DIR.
 # Only the processes this script starts are stopped (by PID); nothing else is killed.
 set -u
 LABEL=${1:-sqlite}; DB=${2:-}
 OC_PORT=${OC_PORT:-8380}; HOST_PORT=${HOST_PORT:-4300}
 OC=http://localhost:$OC_PORT; HOST=http://localhost:$HOST_PORT
 ROOT=$(cd "$(dirname "$0")/.." && pwd); cd "$ROOT"
-BIN=target/release/opencanvas; SMOKE=target/release/examples/smoke
+TARGET=${CARGO_TARGET_DIR:-target}
+BIN=$TARGET/release/opencanvas; SMOKE=$TARGET/release/examples/smoke
 cargo build -q --release -p oc-server --bins --examples || exit 1
 WORK=$(mktemp -d)
 PIDS=()
@@ -29,11 +31,16 @@ for port in "$OC_PORT" "$HOST_PORT"; do
 done
 
 DBURL="${DB:-sqlite://$WORK/oc.db?mode=rwc}"
+# Another HOST_PORT: the same registry with the wopi-sample allow-list moved to that port.
+HOSTS_FILE=opencanvas.hosts.toml
+if [ "$HOST_PORT" != 4300 ]; then
+  HOSTS_FILE=$WORK/hosts.toml; sed "s#localhost:4300#localhost:$HOST_PORT#g" opencanvas.hosts.toml > "$HOSTS_FILE"
+fi
 PORT=$HOST_PORT OC_SERVER=$OC DATA_DIR=$WORK/host WOPI_HOST_TEST=1 \
   node examples/wopi-host/server.mjs > "$WORK/host.log" 2>&1 &
 PIDS+=("$!")
 env -u OC_DEV -u OC_CALLBACK_BASE_OVERRIDE DATABASE_URL="$DBURL" OC_KEK="$(openssl rand -base64 32)" \
-  OC_HOSTS_FILE=opencanvas.hosts.toml OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=$OC \
+  OC_HOSTS_FILE="$HOSTS_FILE" OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=$OC \
   OC_AUTOSAVE_DEBOUNCE_MS=1500 OC_LOG=debug "$BIN" > "$WORK/oc.log" 2>&1 &
 PIDS+=("$!")
 for _ in $(seq 1 60); do curl -sf "$OC/readyz" >/dev/null && curl -sf "$HOST/healthz" >/dev/null && break; sleep 0.5; done
@@ -119,3 +126,4 @@ grep -q "u_asha\.[0-9]*\." "$WORK/oc.log" && fail "an access token appears in th
 grep -q "access_token" "$WORK/oc.log" && fail "access_token appears in the server log"
 grep -qiE 'panic' "$WORK/oc.log" && fail "server panicked"
 echo "PASS [wopi/$LABEL]: $(grep -c '^saved ' "$WORK/host.log") PutFiles, roles edit/comment/view, asset inlined, md kept as md, 1010 → PutRelativeFile copy, allowlist refuses, no token in logs"
+rm -rf "$WORK"
