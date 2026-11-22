@@ -325,6 +325,78 @@ impl Jwks {
     }
 }
 
+/// docs/24 §7.1: an MCP access token minted by the host (or its authorization server).
+#[derive(Debug, Clone, Deserialize)]
+pub struct McpClaims {
+    /// The user the call acts for (`svc:<name>` for a backend job).
+    pub sub: String,
+    /// Space-separated `canvas:read canvas:comment canvas:write canvas:write:direct`.
+    #[serde(default)]
+    pub scope: String,
+    pub exp: i64,
+    /// The user's role on the files this token covers, as the host decides it (Flow B).
+    /// Absent means `view`. The `POST /access` callback comes with phase 2.
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Optional allow-list of file ids.
+    #[serde(default)]
+    pub files: Option<Vec<String>>,
+    #[serde(default)]
+    pub client_id: Option<String>,
+}
+
+/// Longest MCP token lifetime we accept (docs/24 §7.1: ≤ 15 min).
+pub const MCP_MAX_TTL_SECS: i64 = 15 * 60;
+
+impl Jwks {
+    /// Verifies an MCP access token for `host`: the host's pinned algorithm and keys (PEM,
+    /// secret or JWKS, as for launch tokens), `iss` = `issuer`, `aud` = `audience` (this host's
+    /// MCP resource URI), `exp`/`nbf`, and a lifetime of at most 15 minutes.
+    pub async fn verify_mcp(
+        &self,
+        token: &str,
+        host: &HostConfig,
+        issuer: &str,
+        audience: &str,
+        now: i64,
+    ) -> Result<McpClaims, JwtError> {
+        let alg = pinned_alg(host)?;
+        let url = host
+            .jwt_jwks_url
+            .clone()
+            .filter(|_| alg != Algorithm::HS256 && host.jwt_public_key.is_none());
+        let key = match url {
+            None => key_for(host)?.1,
+            Some(url) => {
+                let header = decode_header(token).map_err(|_| JwtError::Malformed)?;
+                if header.alg != alg {
+                    return Err(JwtError::Invalid(
+                        "algorithm not allowed for this host".into(),
+                    ));
+                }
+                let kid = header
+                    .kid
+                    .ok_or_else(|| JwtError::Invalid("token has no kid".into()))?;
+                self.key(&url, alg, &kid).await?
+            }
+        };
+        let mut v = Validation::new(alg);
+        v.set_audience(&[audience]);
+        v.set_issuer(&[issuer]);
+        v.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
+        v.validate_nbf = true;
+        v.leeway = 30;
+        let data =
+            decode::<McpClaims>(token, &key, &v).map_err(|e| JwtError::Invalid(e.to_string()))?;
+        if data.claims.exp - now > MCP_MAX_TTL_SECS + 30 {
+            return Err(JwtError::TooLong);
+        }
+        Ok(data.claims)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
