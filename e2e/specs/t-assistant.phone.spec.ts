@@ -13,6 +13,15 @@ test("assistant on a phone: ask → sheet → plan → run → review → accept
   const input = sheet.getByLabel("Ask the assistant");
   expect(await input.evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
   for (const b of await sheet.getByRole("button").all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // Axe reads colours as painted: let the sheet's entrance animation finish first (as in t-assistant).
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => (a.effect as KeyframeEffect | null)?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
   expect((await new AxeBuilder({ page }).include(".ai-sheet").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   await sheet.getByRole("button", { name: "Make a task database" }).click();
 
