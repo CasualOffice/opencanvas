@@ -50,7 +50,14 @@ pub struct ImportParams {
     author: Option<String>,
     #[serde(default, rename = "authorName")]
     author_name: Option<String>,
+    /// CSV only: the field type per column, as chosen in the import dialog (JSON array;
+    /// the first column is always `title`). Absent means detected types.
+    #[serde(default)]
+    types: Option<String>,
 }
+
+/// Field types a CSV column may be imported as.
+const CSV_TYPES: &[&str] = &["text", "number", "date", "checkbox", "select"];
 
 fn too_large(msg: impl Into<String>) -> ApiError {
     ApiError::new(StatusCode::PAYLOAD_TOO_LARGE, "IMPORT_TOO_LARGE", msg)
@@ -178,7 +185,14 @@ async fn run(
             json!({"format": p.format, "blocks": n, "blockIds": patched.block_ids})
         }
         _ => {
-            let mut input = csv_to_database(text)?;
+            let chosen: Option<Vec<String>> = match p.types.as_deref() {
+                None | Some("") => None,
+                Some(t) => Some(
+                    serde_json::from_str(t)
+                        .map_err(|_| invalid("types must be a JSON array of strings"))?,
+                ),
+            };
+            let mut input = csv_to_database(text, chosen.as_deref())?;
             input["name"] = json!(p.name.as_deref().unwrap_or("Imported table"));
             if let Some(id) = &p.block_id {
                 input["afterBlockId"] = json!(id);
@@ -298,8 +312,9 @@ fn detect(values: &[&str]) -> &'static str {
     "text"
 }
 
-/// CSV text → the `db_create` input `{fields, rows}` (names deduplicated, types detected).
-fn csv_to_database(text: &str) -> Result<Value, ApiError> {
+/// CSV text → the `db_create` input `{fields, rows}` (names deduplicated, types detected, or
+/// `chosen` per column when the import dialog sent them).
+fn csv_to_database(text: &str, chosen: Option<&[String]>) -> Result<Value, ApiError> {
     let records = parse_csv(text);
     let Some((header, data)) = records.split_first() else {
         return Err(invalid("the CSV is empty"));
@@ -331,11 +346,33 @@ fn csv_to_database(text: &str) -> Result<Value, ApiError> {
     fn cell(r: &[String], c: usize) -> &str {
         r.get(c).map_or("", |v| v.trim())
     }
+    if let Some(ch) = chosen {
+        if ch.len() != names.len() {
+            return Err(invalid(format!(
+                "types has {} entries for {} columns",
+                ch.len(),
+                names.len()
+            )));
+        }
+        if ch[0] != "title" || ch[1..].iter().any(|t| !CSV_TYPES.contains(&t.as_str())) {
+            return Err(invalid(format!(
+                "types: the first column is title, the others one of {CSV_TYPES:?}"
+            )));
+        }
+    }
     let mut fields = Vec::new();
     let mut types = Vec::new();
     for (c, name) in names.iter().enumerate() {
         let col: Vec<&str> = data.iter().map(|r| cell(r, c)).collect();
-        let ty = if c == 0 { "title" } else { detect(&col) };
+        let ty = match chosen {
+            Some(ch) => CSV_TYPES
+                .iter()
+                .copied()
+                .find(|t| *t == ch[c])
+                .unwrap_or("title"),
+            None if c == 0 => "title",
+            None => detect(&col),
+        };
         let mut f = json!({"name": name, "type": ty});
         if ty == "select" {
             let mut opts: Vec<&str> = Vec::new();
@@ -393,8 +430,38 @@ mod tests {
     }
 
     #[test]
+    fn chosen_types_override_detection_and_bad_ones_are_refused() {
+        // The import dialog lets people change a detected type; the server must honour it.
+        let csv = "Task,Count,Due\nA,1,2026-01-01\nB,2,2026-02-01\n";
+        let ty = |v: &Value| -> Vec<String> {
+            v["fields"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|f| f["type"].as_str().unwrap().to_string())
+                .collect()
+        };
+        assert_eq!(
+            ty(&csv_to_database(csv, None).unwrap()),
+            ["title", "number", "date"]
+        );
+        let chosen = vec!["title".to_string(), "text".to_string(), "text".to_string()];
+        let v = csv_to_database(csv, Some(&chosen)).unwrap();
+        assert_eq!(ty(&v), ["title", "text", "text"]);
+        assert_eq!(v["rows"][0]["values"]["Count"], json!("1"));
+        // The first column stays the title; unknown types and the wrong count are refused.
+        assert!(
+            csv_to_database(csv, Some(&["text".into(), "text".into(), "text".into()])).is_err()
+        );
+        assert!(
+            csv_to_database(csv, Some(&["title".into(), "script".into(), "text".into()])).is_err()
+        );
+        assert!(csv_to_database(csv, Some(&["title".into()])).is_err());
+    }
+
+    #[test]
     fn duplicate_headers_are_renamed() {
-        let v = csv_to_database("Name,name,\nx,y,z\n").unwrap();
+        let v = csv_to_database("Name,name,\nx,y,z\n", None).unwrap();
         let names: Vec<&str> = v["fields"]
             .as_array()
             .unwrap()

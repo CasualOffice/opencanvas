@@ -83,6 +83,13 @@ test("FC-10 real server: '…' menu → Markdown lands after the caret block", a
   await expect(dlg.getByRole("status")).toContainText(/Imported \d+ blocks?/);
   await expect(editor(priya).locator("h1, h2").filter({ hasText: "Imported heading" })).toBeVisible({ timeout: 5_000 });
   await expect(editor(priya)).toContainText("Imported paragraph text.");
+  // A server import isn't in this browser's undo history, so the dialog offers "Undo import"
+  // (it removes exactly the imported blocks) instead of promising ⌘Z.
+  await expect(dlg).not.toContainText(/⌘Z|Ctrl\+Z/);
+  await dlg.getByRole("button", { name: "Undo import" }).click();
+  await expect(editor(priya)).not.toContainText("Imported paragraph text.");
+  await expect(editor(priya).locator("h1, h2").filter({ hasText: "Imported heading" })).toHaveCount(0);
+  await expect(editor(priya).locator("h2").filter({ hasText: "Agenda" })).toBeVisible();
   await priya.ctx.close();
 });
 

@@ -790,6 +790,7 @@ button.cic:hover{transform:scale(1.06)}
 .imp-done{padding:28px 18px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
 .imp-done strong{font-size:14px}
 .imp-done span{font-size:13px;color:var(--fg-2)}
+.imp-done-acts{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;justify-content:center}
 .imp-done .btn{margin-top:6px}
 .imp-ok{color:var(--green-fg)}
 @media (max-width:560px){.imp-notes{grid-template-columns:1fr}}

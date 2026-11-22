@@ -19,7 +19,21 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const TYPE_LABEL: Partial<Record<FieldType, string>> = { text: "Text", title: "Text", number: "Number", date: "Date", checkbox: "Checkbox", url: "URL", person: "Person", tags: "Tags", status: "Status", progress: "Progress" };
 
 type Csv = { name: string; text: string; rows: string[][]; fields: DbField[]; types: FieldType[] };
-type Step = { s: "pick" } | { s: "csv"; csv: Csv } | { s: "busy" } | { s: "done"; text: string };
+type Step = { s: "pick" } | { s: "csv"; csv: Csv } | { s: "busy" } | { s: "done"; text: string; undo?: string[] } | { s: "undone" };
+
+/** Removes the top-level blocks with these `blockId`s in one transaction (an undoable local edit). */
+function removeBlocks(editor: Editor, ids: string[]): number {
+  const want = new Set(ids);
+  const ranges: [number, number][] = [];
+  editor.state.doc.forEach((node, offset) => {
+    if (want.has(node.attrs.blockId as string)) ranges.push([offset, offset + node.nodeSize]);
+  });
+  if (!ranges.length) return 0;
+  const tr = editor.state.tr;
+  for (const [from, to] of ranges.reverse()) tr.delete(from, to);
+  editor.view.dispatch(tr);
+  return ranges.length;
+}
 
 const formatOf = (f: File): ImportFormat | null =>
   /\.csv$/i.test(f.name) || f.type === "text/csv" ? "csv" : /\.html?$/i.test(f.name) || f.type === "text/html" ? "html" : /\.(md|markdown)$/i.test(f.name) || f.type === "text/markdown" ? "md" : null;
@@ -69,9 +83,10 @@ export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { ed
       // The block id set just now reaches the room with the next update (≤ 50 ms).
       if (t.blockId) await new Promise((r) => setTimeout(r, 120));
       const r = await fetch(`/v1/import?${q}`, { method: "POST", body: file, headers: { "Content-Type": format === "csv" ? "text/csv" : format === "html" ? "text/html" : "text/markdown" } });
-      const j = (await r.json().catch(() => ({}))) as { rows?: number; blocks?: number; error?: { message?: string } };
+      const j = (await r.json().catch(() => ({}))) as { rows?: number; blocks?: number; blockIds?: string[]; error?: { message?: string } };
       if (!r.ok) throw new Error(j.error?.message || "The import didn't work.");
-      setStep({ s: "done", text: format === "csv" ? `Imported a database with ${j.rows ?? count(text)} rows` : blocksText(j.blocks ?? 1) });
+      // The server made this edit, so it isn't in this browser's undo history: offer "Undo import".
+      setStep({ s: "done", text: format === "csv" ? `Imported a database with ${j.rows ?? count(text)} rows` : blocksText(j.blocks ?? 1), undo: j.blockIds ?? [] });
     } catch (e) {
       setErr(e instanceof Error && e.message ? e.message : "The import didn't work. Try again.");
       setStep({ s: "pick" });
@@ -238,7 +253,27 @@ export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { ed
           <div className="imp-done" role="status">
             <Ic name="check" size={24} className="imp-ok" />
             <strong>{step.text}</strong>
-            <span>Undo with {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘Z" : "Ctrl+Z"}, like any edit.</span>
+            {step.undo ? (
+              <span>Not what you wanted? Undo removes everything this import added.</span>
+            ) : (
+              <span>Undo with {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘Z" : "Ctrl+Z"}, like any edit.</span>
+            )}
+            <div className="imp-done-acts">
+              {step.undo?.length ? (
+                <button className="btn sm" onClick={() => (removeBlocks(editor, step.undo ?? []), setStep({ s: "undone" }))}>
+                  Undo import
+                </button>
+              ) : null}
+              <button className="btn sm" onClick={() => setStep({ s: "pick" })}>
+                Import another
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step.s === "undone" ? (
+          <div className="imp-done" role="status">
+            <strong>Import removed</strong>
             <button className="btn sm" onClick={() => setStep({ s: "pick" })}>
               Import another
             </button>
