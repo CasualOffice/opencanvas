@@ -78,14 +78,37 @@ fn with_block(mut res: Response, block: Option<&str>) -> Response {
 pub async fn launch_post(
     State(state): State<SharedState>,
     Query(q): Query<LaunchQuery>,
+    headers: HeaderMap,
     Form(p): Form<LaunchForm>,
 ) -> Response {
     let res = match q.wopi_src {
         Some(src) => launch_wopi(&state, &src, &p).await,
         None => launch(&state, &p.token).await,
     };
+    // docs/23 PERM-07: the editor renews access with the host's fresh token (`Action_RefreshToken`)
+    // and asks for JSON, `{"ticket"}`, instead of the redirect that loads the app.
+    let wants_json = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("application/json"));
+    let res = res.unwrap_or_else(IntoResponse::into_response);
+    if wants_json && res.status() == StatusCode::SEE_OTHER {
+        let ticket = res
+            .headers()
+            .get(header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|l| l.split_once("#t="))
+            .map(|(_, t)| t.to_owned());
+        if let Some(ticket) = ticket {
+            return (
+                [(header::CACHE_CONTROL, "no-store")],
+                Json(json!({ "ticket": ticket })),
+            )
+                .into_response();
+        }
+    }
     let block = p.block.as_deref().or(q.block.as_deref());
-    with_block(res.unwrap_or_else(IntoResponse::into_response), block)
+    with_block(res, block)
 }
 
 pub async fn launch_get(
@@ -293,6 +316,13 @@ pub async fn session_info(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let (host, grant) = session(&state, &ticket).await?;
+    // docs/23 PERM-07: the editor warns before this (seconds since the epoch).
+    let exp = state
+        .store
+        .session(&ticket)
+        .await
+        .map_err(ApiError::internal)?
+        .map(|(_, exp)| exp);
     let info = state
         .rooms
         .info(&host, &grant)
@@ -333,6 +363,7 @@ pub async fn session_info(
         "perms": grant.perms,
         "isNew": info.is_new,
         "wsUrl": ws_url(&state, &headers),
+        "exp": exp,
     });
     Ok(([(header::CACHE_CONTROL, "no-store")], Json(body)).into_response())
 }

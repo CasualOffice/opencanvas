@@ -21,7 +21,9 @@ import { usePeers, type Peer } from "./lib/presence";
 import { People, setPeople } from "./lib/people";
 import { PersonCards } from "./components/PersonCard";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
-import { toast } from "./lib/store";
+import { importFormats, importOpenStore, importStore, openImport } from "./lib/importflag";
+import { renewSession, savedAtLabel, schedule, WARN_S, type AccessState } from "./lib/access";
+import { toast, useStore } from "./lib/store";
 import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
@@ -34,6 +36,7 @@ const Gallery = lazy(() => import("./components/Gallery").then((m) => ({ default
 const CommentsPanel = lazy(() => import("./components/CommentsPanel").then((m) => ({ default: m.CommentsPanel })));
 const ImportDialog = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.ImportDialog })));
 const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.UrlPrompt })));
+const ImportInto = lazy(() => import("./components/ImportInto").then((m) => ({ default: m.ImportInto })));
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
 const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
@@ -204,10 +207,58 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const pendingThread = useRef<string | null>(null);
   const modified = useRef(false);
 
-  const effectiveRole: Role = forcedReadOnly || conflict || closed ? "view" : role;
+  // docs/23 PERM-07 (prototype Main.dc.html): access running out.
+  const [access, setAccess] = useState<AccessState>("ok");
+  const [exp, setExp] = useState<number | null>(session.demo ? null : session.exp ?? null);
+  const accessRef = useRef(access);
+  accessRef.current = access;
+  const askRenew = useCallback(() => postToHost("Token_Expiring", { inSeconds: Math.max(0, Math.round((exp ?? 0) - Date.now() / 1000)) }), [exp]);
+  useEffect(() => {
+    const t = schedule(exp);
+    if (!t) return;
+    const ids = [
+      window.setTimeout(() => postToHost("Token_Expiring", { inSeconds: WARN_S }), t.ask),
+      window.setTimeout(() => setAccess((a) => (a === "ok" ? "warn" : a)), t.warn),
+      window.setTimeout(() => setAccess("expired"), t.end),
+    ];
+    return () => ids.forEach((i) => window.clearTimeout(i));
+  }, [exp]);
+  useEffect(
+    () =>
+      onHost("Action_RefreshToken", (v) => {
+        if (typeof v.token !== "string" || !v.token) return;
+        void renewSession(v.token).then(
+          (r) => {
+            session.ticket = r.ticket;
+            collab.retarget(r.ticket);
+            const shown = accessRef.current !== "ok";
+            setAccess("ok");
+            setClosed((c) => (c && /expired/i.test(c.reason) ? null : c));
+            setExp(r.exp);
+            if (shown) toast("Access renewed. You can keep editing.", { icon: "check" });
+          },
+          () => postToHost("Error", { code: "TOKEN_REFRESH_FAILED", message: "The renewed token was refused" }),
+        );
+      }),
+    [session, collab],
+  );
+
+  const effectiveRole: Role = forcedReadOnly || conflict || closed || access === "expired" ? "view" : role;
   // docs/24 §10.2: the assistant shows only when the session's AI flag is on (or `?ai=1`, `#demo`).
   const ai = useMemo(() => aiAvailability(session, effectiveRole), [session, effectiveRole]);
   useEffect(() => aiStore.set(ai), [ai]);
+  // FC-10: "Import…" in the slash and "…" menus, behind the host's import flag.
+  const impFormats = useMemo(() => importFormats(session, effectiveRole), [session, effectiveRole]);
+  useEffect(() => importStore.set({ formats: impFormats }), [impFormats]);
+  const impOpen = useStore(importOpenStore);
+  const [importInto, setImportInto] = useState(false);
+  const impSeen = useRef(impOpen);
+  useEffect(() => {
+    if (impOpen !== impSeen.current) {
+      impSeen.current = impOpen;
+      if (impFormats.length) setImportInto(true);
+    }
+  }, [impOpen, impFormats]);
   useEffect(() => () => aiStore.set({ on: false, modes: [] }), []);
   const meta = useMeta(doc);
   const lastEdit = useLastEdit(doc);
@@ -329,6 +380,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           onReboot();
           return;
         }
+        // PERM-07: the server ends the session at its `exp`; that is the read-only bar, not "closed".
+        if (/session expired/i.test(e.reason)) return setAccess("expired");
         setClosed((prev) => prev ?? { kind: e.code === 1008 ? "revoked" : "host", reason: e.reason });
       }),
       collab.onConn((s) => {
@@ -752,10 +805,39 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
 
   // ---------- derived ----------
   const shownSave: SaveState =
-    conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
+    access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
   const parent = session.demo ? "Engineering" : hostName;
 
   const banners: React.ReactNode[] = [];
+  if (access === "warn")
+    banners.push(
+      <div key="access-warn" role="status" className="banner warn access">
+        <Ic name="clock" />
+        <span>
+          <strong>Your access to this canvas ends in 1 minute.</strong> We asked {hostName} to renew it. Nothing you type is lost either way.
+        </span>
+        <button className="btn sm line" onClick={askRenew}>
+          Renew now
+        </button>
+        <button className="btn sm link" onClick={() => setAccess("expired")}>
+          Let it end
+        </button>
+      </div>,
+    );
+  if (access === "expired") {
+    const at = savedAtLabel(save.kind === "saved" ? save.at : null);
+    banners.push(
+      <div key="access-ended" role="alert" className="banner bad access">
+        <Ic name="lock" />
+        <span>
+          <strong>Your access ended, so the canvas is read only.</strong> {at ? `Your last changes were saved at ${at}.` : "Your changes are kept on this page."} Reconnect to keep editing.
+        </span>
+        <button className="btn sm pri" onClick={askRenew}>
+          Reconnect
+        </button>
+      </div>,
+    );
+  }
   const copyName = `${meta.title || session.file.name || "Untitled"} (copy)`;
   const openCopy = () => conflict?.url && postToHost("UI_Link_Click", { url: conflict.url, fileId: conflict.fileId ?? null });
   if (conflict)
@@ -772,7 +854,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         ) : null}
       </div>,
     );
-  if (effectiveRole === "view" && !roleChanged && !conflict && !closed)
+  if (effectiveRole === "view" && !roleChanged && !conflict && !closed && access !== "expired")
     banners.push(
       <div key="view" className="banner info">
         <Ic name="eye" />
@@ -850,6 +932,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onGallery={() => setScreen("gallery")}
               onFollow={follow}
               onComments={() => (side ? closeSide() : setSide("comments"))}
+              onImportInto={impFormats.length ? openImport : undefined}
               onWide={() =>
                 setWide((w) => {
                   try {
@@ -926,6 +1009,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           ) : null}
           {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
           {urlAsk ? <UrlPrompt kind={urlAsk.kind} onClose={() => setUrlAsk(null)} onUrl={urlAsk.cb} /> : null}
+          {importInto && editor ? (
+            <ImportInto editor={editor} doc={doc} ticket={session.demo ? null : session.ticket} formats={impFormats} demo={!!session.demo} onClose={() => setImportInto(false)} />
+          ) : null}
           {importing ? (
             <ImportDialog
               onClose={() => setImporting(false)}

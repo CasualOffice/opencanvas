@@ -20,6 +20,10 @@ export interface Session {
   demo?: boolean;
   /** docs/24 §10: the host's AI flag for this session, when the server sends it. */
   ai?: { enabled?: boolean; modes?: string[] } | null;
+  /** docs/23 PERM-07: when the session ends (seconds since the epoch). */
+  exp?: number | null;
+  /** docs/23 FC-10: what the host lets this person import (empty or absent: no import). */
+  import?: { formats?: string[] } | null;
 }
 
 export class SessionError extends Error {
@@ -92,6 +96,8 @@ export interface Collab {
   /** The server ended the session for good (close 1000 host closed, 1008 access revoked, or
    *  1012 after a `reload` conflict). The provider does not reconnect. */
   onTerminal(fn: (e: { code: number; reason: string }) => void): () => void;
+  /** docs/23 PERM-07: carry on with a renewed ticket (reconnects; local edits stay in the doc). */
+  retarget(ticket: string): void;
   destroy(): void;
 }
 
@@ -302,6 +308,11 @@ export function connectCollab(s: Session): Collab {
     onConn: (f) => conn.on(f),
     onDenied: (f) => denied.on(f),
     onTerminal: (f) => terminal.on(f),
+    retarget(ticket) {
+      provider.params.ticket = ticket;
+      provider.disconnect();
+      provider.connect();
+    },
     destroy() {
       window.clearTimeout(offlineTimer);
       window.clearInterval(watchdog);
@@ -334,6 +345,7 @@ export function localCollab(user: Session["user"], role: Role): Collab {
     onConn: (f) => conn.on(f),
     onDenied: (f) => denied.on(f),
     onTerminal: () => () => undefined,
+    retarget: () => undefined,
     destroy() {
       awareness.destroy();
       doc.destroy();

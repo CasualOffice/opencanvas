@@ -92,6 +92,40 @@ test("MOB-04: database cells and views on a phone: edit a cell, switch views, sc
   }
 });
 
+// docs/23 MOB-04b, prototype PhoneDb: the sticky title column is at most 132 px, truncates with an
+// ellipsis, casts a soft edge once the grid scrolls, and a tap on a title opens the row.
+test("MOB-04b: phone database: narrow sticky title, cells tappable once scrolled into view, title opens the row", async ({ page }) => {
+  await demo(page);
+  const db = page.locator(".ocdb").first();
+  await db.scrollIntoViewIfNeeded();
+  const first = db.locator(".ocdb-gw th").first();
+  expect((await first.boundingBox())!.width).toBeLessThanOrEqual(132.5);
+  const title = db.locator(".ocdb-ttl").first();
+  await expect(title).toHaveCSS("text-overflow", "ellipsis");
+  await expect(title).toHaveCSS("white-space", "nowrap");
+  const sticky = db.locator(".ocdb-gw tbody td").first();
+  await expect(sticky).toHaveCSS("box-shadow", "none");
+  // A plain tap after the cell is scrolled into view reaches the cell, not the title column.
+  const pts = db.getByRole("textbox", { name: "Points" }).first();
+  await pts.scrollIntoViewIfNeeded();
+  await pts.tap();
+  await expect(pts).toBeFocused();
+  await pts.fill("7");
+  await pts.press("Enter");
+  await expect(pts).toHaveValue("7");
+  await db.locator(".ocdb-gw").evaluate((el) => {
+    el.scrollLeft = 0;
+    el.scrollLeft = 120;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  await expect(sticky).not.toHaveCSS("box-shadow", "none");
+  await page.screenshot({ path: path.join(ROOT, `target/fix-shots/mob04b-${test.info().project.name}.png`) });
+  expect(await noSideScroll(page)).toBe(true);
+  const name = (await title.textContent())!.trim();
+  await title.tap();
+  await expect(page.getByRole("dialog", { name: `${name}: row details` })).toBeVisible();
+});
+
 test("MOB-05: board touch: tap to activate, one-finger pan, pinch, draw and move a shape", async ({ page }) => {
   await demo(page);
   const cover = page.locator(".ocbd-cover").first();

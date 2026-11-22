@@ -15,13 +15,19 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
     editor,
     selector: ({ editor: e }) => ({ focused: e.isFocused, sel: !e.state.selection.empty && !(e.state.selection instanceof NodeSelection) }),
   });
-  const [bottom, setBottom] = useState(8);
+  // docs/prototypes/fixes-approved ToolbarClosed/ToolbarOpen (MOB-11): full width at the bottom,
+  // clear of the home indicator (safe-area padding in CSS) with the keyboard closed; sitting on
+  // the keyboard, without that padding, when it is open.
+  const [kb, setKb] = useState(0);
   const turn = !!useStore(blockMenuStore);
   const ai = useStore(aiStore).on;
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const f = () => setBottom(Math.max(8, window.innerHeight - (vv.height + vv.offsetTop) + 8));
+    const f = () => {
+      const covered = Math.round(window.innerHeight - (vv.height + vv.offsetTop));
+      setKb(covered > 60 ? covered : 0);
+    };
     vv.addEventListener("resize", f);
     vv.addEventListener("scroll", f);
     f();
@@ -51,7 +57,7 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
   };
   return (
     <>
-      <div className="mbar" role="toolbar" aria-label="Editing tools" style={{ bottom }} onMouseDown={(e) => e.preventDefault()}>
+      <div className={"mbar" + (kb ? " kb" : "")} role="toolbar" aria-label="Editing tools" style={{ bottom: kb }} onMouseDown={(e) => e.preventDefault()}>
         {st.sel ? (
           <>
             {edit ? (
@@ -81,7 +87,7 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
             {b("list", "Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
             {b("image", "Image", () => editor.chain().focus().insertContent([{ type: "image", attrs: { src: "" } }, { type: "paragraph" }]).run())}
             {b("at-sign", "Mention someone", () => editor.chain().focus().insertContent("@").run())}
-            <span className="vs" />
+            <span className="sp" />
             {b("keyboard", "Done editing", () => editor.commands.blur())}
           </>
         ) : null}

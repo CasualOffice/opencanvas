@@ -2,7 +2,8 @@
 //    formatting from the mobile toolbar, comments, tap targets, no sideways page scroll,
 //    the safe area and an orientation change. Runs on WebKit (iPhone) and Chromium (Pixel).
 import { expect, test, type Page } from "@playwright/test";
-import { OC } from "../env";
+import path from "node:path";
+import { OC, ROOT } from "../env";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
@@ -62,10 +63,9 @@ test("MOB-09: tap targets in the top bar and mobile toolbar are at least 24 px (
   expect(small).toEqual([]);
 });
 
-// Known FAIL (docs/23 MOB-11b): the mobile toolbar ignores safe-area-inset-bottom, so with the
-// keyboard closed it can sit under the iPhone home indicator. Placement needs design.
-test("MOB-11b: the mobile toolbar keeps clear of the home indicator", async ({ page }) => {
-  test.fail();
+// docs/23 MOB-11b, prototypes ToolbarClosed/ToolbarOpen: full width at the bottom, clear of the
+// home indicator (safe-area padding) with the keyboard closed; on the keyboard when it is open.
+test("MOB-11b: the mobile toolbar keeps clear of the home indicator and sits on the keyboard", async ({ page }) => {
   await demo(page);
   const css = await page.evaluate(() =>
     [...document.styleSheets].flatMap((s) => {
@@ -76,7 +76,29 @@ test("MOB-11b: the mobile toolbar keeps clear of the home indicator", async ({ p
       }
     }).join("\n"),
   );
-  expect(css).toMatch(/\.mbar[^{]*\{[^}]*safe-area-inset/);
+  expect(css).toMatch(/\.mbar[^{]*\{[^}]*safe-area-inset-bottom/);
+  await para(page).tap();
+  const bar = page.getByRole("toolbar", { name: "Editing tools" });
+  await expect(bar).toBeVisible();
+  const { width, height } = page.viewportSize()!;
+  const closed = (await bar.boundingBox())!;
+  expect(Math.round(closed.x)).toBe(0);
+  expect(Math.round(closed.width)).toBe(width);
+  expect(Math.round(closed.y + closed.height)).toBe(height);
+  await page.screenshot({ path: path.join(ROOT, `target/fix-shots/mob11b-${test.info().project.name}.png`) });
+  for (const b of await bar.getByRole("button").all()) {
+    const r = (await b.boundingBox())!;
+    expect(r.height).toBeGreaterThanOrEqual(44);
+  }
+  // An on-screen keyboard of 336 px: the visual viewport shrinks and the bar sits on top of it.
+  await page.evaluate(() => {
+    const vv = window.visualViewport!;
+    const h = window.innerHeight - 336;
+    Object.defineProperty(vv, "height", { configurable: true, get: () => h });
+    vv.dispatchEvent(new Event("resize"));
+  });
+  await expect.poll(async () => Math.round(((await bar.boundingBox())?.y ?? 0) + ((await bar.boundingBox())?.height ?? 0))).toBe(height - 336);
+  await expect(bar).toHaveCSS("padding-bottom", "6px");
 });
 
 test("MOB-10/11/12: no sideways page scroll, safe area on the bottom sheet, rotation", async ({ page }) => {

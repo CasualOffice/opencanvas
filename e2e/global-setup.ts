@@ -92,6 +92,7 @@ allowed_origins = ["${origin}"${extra.map((o) => `, "${o}"`).join("")}]
 [host.flags]
 export_formats = ["md", "html", "json", "docx", "pdf", "ocanvas", "svg", "png"]
 on_conflict    = "${policy}"
+${id === "sample" ? 'import_formats = ["md", "html", "csv"]' : "# no import_formats: import stays off (FC-10)"}
 ${ai}`;
   fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
 
