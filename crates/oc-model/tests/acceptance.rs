@@ -195,7 +195,11 @@ fn out(name: &str, bytes: &[u8]) {
 fn fc_round_trip_every_block_and_unknowns() {
     let doc = loaded_rich();
     let before = doc_to_json(&doc);
-    assert_eq!(before["content"], rich()["content"], "content mirrors input");
+    assert_eq!(
+        before["content"],
+        rich()["content"],
+        "content mirrors input"
+    );
     let bytes = write_ocanvas(&doc, &commit()).unwrap();
     out("rich.ocanvas", &bytes);
     let back = doc_to_json(&read_ocanvas(&bytes).unwrap().doc);
@@ -204,7 +208,11 @@ fn fc_round_trip_every_block_and_unknowns() {
     for root in ["meta", "databases", "boards", "comments"] {
         let a = serde_json::to_string(&rich()[root]).unwrap();
         let b = serde_json::to_string(&back[root]).unwrap();
-        let norm = |s: &str| s.replace(".0,", ",").replace(".0]", "]").replace(".0}", "}");
+        let norm = |s: &str| {
+            s.replace(".0,", ",")
+                .replace(".0]", "]")
+                .replace(".0}", "}")
+        };
         let (av, bv): (Value, Value) = (
             serde_json::from_str(&norm(&a)).unwrap(),
             serde_json::from_str(&norm(&b)).unwrap(),
@@ -219,7 +227,10 @@ fn fc_round_trip_every_block_and_unknowns() {
 /// FC-03: the committed v1 file (format 1, schema 1) still reads to the same document.
 #[test]
 fn fc_reads_committed_v1_fixture() {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/v1-rich.ocanvas");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/v1-rich.ocanvas"
+    );
     if std::env::var("OC_ACC_REGEN").is_ok() {
         std::fs::write(path, write_ocanvas(&loaded_rich(), &commit()).unwrap()).unwrap();
     }
@@ -250,7 +261,10 @@ fn fc_reads_variant_archives() {
     let other = new_doc();
     apply_document_json(&other, &json!({"content":[p("stale ydoc")]}));
     let schema2 = zipped(&[
-        ("manifest.json", br#"{"format":"ocanvas","version":1,"schemaVersion":2}"#.to_vec()),
+        (
+            "manifest.json",
+            br#"{"format":"ocanvas","version":1,"schemaVersion":2}"#.to_vec(),
+        ),
         ("document.json", rich().to_string().into_bytes()),
         ("ydoc.bin", oc_model::ocanvas::encode_state(&other)),
     ]);
@@ -298,7 +312,10 @@ fn fc_zip_limits() {
         z.write_all(&chunk).unwrap();
     }
     let bomb = z.finish().unwrap().into_inner();
-    assert!(matches!(read_ocanvas(&bomb), Err(oc_model::Error::Limit(_))));
+    assert!(matches!(
+        read_ocanvas(&bomb),
+        Err(oc_model::Error::Limit(_))
+    ));
     // Path traversal and absolute paths.
     for name in ["../evil", "a/../../b", "assets/../../x"] {
         let bytes = zipped(&[(name, b"x".to_vec())]);
@@ -373,7 +390,10 @@ fn ex_markdown() {
         assert!(md.contains(want), "markdown lacks {want:?}:\n{md}");
     }
     assert!(!md.contains("javascript:"), "{md}");
-    assert!(md.contains("| Name |"), "database exported as a table:\n{md}");
+    assert!(
+        md.contains("| Name |"),
+        "database exported as a table:\n{md}"
+    );
 }
 
 /// EX-HTML: sanitised (no script, no javascript: or iframe of an unknown provider).
@@ -383,7 +403,10 @@ fn ex_html() {
     out("rich.html", html.as_bytes());
     let lower = html.to_lowercase();
     assert!(!lower.contains("<script"), "script element in HTML export");
-    assert!(!lower.contains("javascript:"), "javascript: URL in HTML export");
+    assert!(
+        !lower.contains("javascript:"),
+        "javascript: URL in HTML export"
+    );
     assert!(!lower.contains("<iframe"), "exports never embed iframes");
     assert!(lower.contains("&lt;script&gt;"), "script text escaped");
     for want in [CJK, RTL, EMOJI, "<table", "<svg", "Latency", "Write tests"] {
@@ -413,8 +436,14 @@ fn docx_xml() -> String {
 fn ex_docx() {
     let xml = docx_xml();
     assert!(xml.contains("Heading1"), "heading style");
-    assert!(xml.contains("<w:tbl>") || xml.contains("<w:tbl "), "a table");
-    assert!(xml.contains("<w:drawing>") || xml.contains("<w:drawing"), "an image");
+    assert!(
+        xml.contains("<w:tbl>") || xml.contains("<w:tbl "),
+        "a table"
+    );
+    assert!(
+        xml.contains("<w:drawing>") || xml.contains("<w:drawing"),
+        "an image"
+    );
     for want in [CJK, RTL, EMOJI, "Latency", "Write tests"] {
         assert!(xml.contains(want), "docx lacks {want:?}");
     }
@@ -427,8 +456,8 @@ fn ex_board_svg_png() {
     let json = rich_json();
     let svg = oc_model::board::to_svg(&json, "bd_1");
     out("board.svg", svg.as_bytes());
-    let tree = resvg::usvg::Tree::from_str(&svg, &resvg::usvg::Options::default())
-        .expect("valid SVG");
+    let tree =
+        resvg::usvg::Tree::from_str(&svg, &resvg::usvg::Options::default()).expect("valid SVG");
     let png = oc_model::board::to_png(&svg, 1.0).unwrap();
     out("board.png", &png);
     let pm = resvg::tiny_skia::Pixmap::decode_png(&png).unwrap();
