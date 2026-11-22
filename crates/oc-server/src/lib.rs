@@ -23,6 +23,7 @@ pub mod room;
 pub mod routes;
 pub mod store;
 pub mod util;
+pub mod proof;
 pub mod wopi;
 
 use std::collections::HashMap;
