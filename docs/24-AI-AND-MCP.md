@@ -434,6 +434,19 @@ fresh block), `BLOCK_NOT_FOUND`, `ROLE_FORBIDDEN`, `SCOPE_REQUIRED`, `DOC_TOO_LA
 `CONFLICT` (room in a save conflict), `RATE_LIMITED` (with `retryAfterMs`), `BUDGET_EXHAUSTED`.
 Protocol-level auth failures are HTTP 401 or 403 as §7 describes.
 
+### 5.4 Cluster forwarding (implemented 2026-11-23)
+
+A `tools/call` (or an agent step) for a room owned by another node is forwarded to the owner over
+the signed internal API: `POST /v1/internal/tools/:room` with an `OC_CLUSTER_SECRET` HMAC over
+room, body and time (30 s skew). The body is `{requestId, hostId, fileId, grant, origin, mode,
+name, args}`: the verified identity only (the grant's role is already `min(scope, host role)`;
+its callback token is blanked), never the bearer token. The owner rebuilds the `ToolCtx` and runs
+the call through the same checks (role, scope, revocation re-check). The request id makes it
+idempotent: the owner keeps each answer for 10 minutes per sending node and id, and concurrent
+duplicates wait for the first run. A `409` (owner moved) is followed for up to 10 s; a forward
+that got no answer is retried once with the same id; an unreachable owner gives the MCP client
+HTTP `503` with `Retry-After: 2` (`UNAVAILABLE`). A forged forward (bad signature) is `401`.
+
 ## 6. AI edits as a visible collaborator
 
 ### 6.1 Identity and presence
@@ -558,6 +571,13 @@ New optional callbacks, signed like the existing ones:
 
 Launch token: `perms.ai` (`true` by default when the host enables AI) lets the host turn AI off
 for a user or a file, and `ai.budget` (optional) caps that user's spend for the session.
+
+**Server-wide switch.** Every AI feature (agent and MCP) is on only when `OC_AI_CONFIG` is set,
+its `[ai] enabled = true` and `OC_AI` is not `off`; default off. Off overrides every
+`[host.ai]`: session `ai.enabled`/`ai.mcp` false, `/mcp/{hostId}` and its metadata `404`,
+`ai-*` controls refused with reason `ai_disabled`, no provider probe. `[host.ai] enabled` and
+`mcp` only narrow it further. The effective state is logged once at start-up and shown in
+`/readyz` (docs/13).
 
 Per-host settings in `hosts.toml` (§8.2 has the provider side):
 

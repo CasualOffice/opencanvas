@@ -37,6 +37,7 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "perms": {"export":true,"download":true,"comment":true,"print":true},
      "isNew": true,
      "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
+     "import": {"formats":["md","html","csv"]},
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
    `ai` (AI-02): `enabled` when `[host.ai] enabled = true` and the role is not `view`; `modes` are
@@ -320,7 +321,12 @@ the same list for every viewer; merged by id, members callback > token `members`
 map, which counts only when the host gave neither; the viewer is always in; people revoked by the
 role API are left out; never e-mail) · `GET /v1/export/:fmt?ticket=` with `fmt` = `md|html|ocanvas|json|docx|pdf` (all but `ocanvas`
 render mention labels and person cells with members' current names; non-members keep the stored label, docs/21) ·
-`GET /v1/export/board/:boardId.svg|png?ticket=` · `GET /healthz` · `GET /readyz` · `GET /metrics`.
+`GET /v1/export/board/:boardId.svg|png?ticket=` ·
+`POST /v1/import?format=md|html|csv&ticket=[&blockId=][&name=]` (raw body ≤ 5 MiB; edit role; format
+must be in `[host.flags] import_formats` and `OC_IMPORT` not `off`, else `403 IMPORT_OFF`; CSV ≤ 10,000
+rows and ≤ 200 columns, else `413 IMPORT_TOO_LARGE`) → `{"format","blockIds",…}`, one transaction
+through the room; the session response's `import.formats` lists what the editor may offer (empty for
+non-editors or when off) · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
@@ -328,6 +334,7 @@ Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas
 `DELETE /v1/files/:fileId/session` → final save, close all, drop tickets → `{"closed","sessions"}`;
 `POST /v1/files/:fileId/patch` → `{"applied","blockIds","live"}` (+ `version` when no room was live);
 `POST /v1/files/:fileId/commit` → `200 {"live","saved","version"}` / `202 {"queued":true}` / `409 CONFLICT`;
+`POST /v1/files/:fileId/import?format=&author=` → like the session import, plus `live` (+ `version` when no room was live);
 `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf` (raw body in, file out).
 Optional `X-OpenCanvas-Callback-Token`: the bearer used for callbacks made for that request (loading /
 saving a file with no live room, fetching images); without it the bearer is empty and the host

@@ -35,6 +35,8 @@ asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
 export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images); omit for all
+import_formats  = ["md", "html", "csv"]    # formats editors may import (POST /v1/import); absent or empty = import OFF;
+                                           # any other value is refused at start-up
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
 ```
@@ -316,6 +318,18 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 - Close everything (file deleted/moved): `DELETE /v1/files/{fileId}/session` — a final
   save, then every connection is closed and every ticket for the file is dropped.
   `200 {"closed":true,"sessions":3}`.
+- Import into a canvas (docs/23 FC-10): `POST /v1/files/{fileId}/import?format=md|html|csv&author=<userId>[&authorName=][&blockId=][&name=]`
+  with the file as the raw body (UTF-8, ≤ 5 MiB). Markdown and HTML become blocks; HTML keeps
+  only `http(s)`, `mailto:`, relative and `#` links and `http(s)`/relative/`data:image/` image
+  sources, and drops scripts, styles and event attributes. CSV becomes one database block
+  (first column the title; other columns typed number, date `YYYY-MM-DD`, checkbox
+  `true|false|yes|no`, select for ≤ 20 repeated values, else text), ≤ 10,000 rows and ≤ 200
+  columns (`413 IMPORT_TOO_LARGE`). It lands after `blockId`, or at the end, as one change. Needs
+  the format in `[host.flags] import_formats` (else `403 IMPORT_OFF`); the operator's
+  `OC_IMPORT=off` refuses every import. Answers `{"format","blockIds",…,"live"}`, plus `version`
+  when nobody had the file open (saved straight away, like `patch`). Editors use the same with a
+  session: `POST /v1/import?format=&ticket=` (edit role only); the session response carries
+  `import.formats` so the editor shows the entry only when allowed.
 - Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`
   with the file as the raw body. DOCX and PDF embed images only from your `callback_base` origin
   (fetched signed) or an `asset_origins` entry (plain GET) — no redirects, ≤ 10 MB, `image/*`
