@@ -33,6 +33,9 @@ pub struct Config {
     pub ai: Option<crate::ai::config::AiConfig>,
     /// `OC_IMPORT=off`: import is off for every host, whatever `[host.flags]` says.
     pub import_off: bool,
+    /// WOPI proof keys (`OC_WOPI_PROOF_KEY`, `OC_WOPI_PROOF_KEY_OLD`; generated with
+    /// `OC_DEV=1`). Required when a host speaks WOPI.
+    pub wopi_proof: Option<crate::proof::ProofKeys>,
 }
 
 /// How edits reach the database between host saves (ADR-029, `OC_DURABILITY`).
@@ -146,6 +149,12 @@ impl Config {
         if kek.is_none() {
             tracing::warn!("OC_DEV=1 and no OC_KEK: callback tokens are stored unencrypted");
         }
+        let wopi_proof = crate::proof::ProofKeys::load(
+            var("OC_WOPI_PROOF_KEY").as_deref(),
+            var("OC_WOPI_PROOF_KEY_OLD").as_deref(),
+            kek.as_ref(),
+            dev,
+        )?;
         let wal_redis = var("OC_WAL_REDIS_URL").or_else(|| var("REDIS_URL"));
         let database_url = var("DATABASE_URL");
         let storage_redis_url = storage_redis(
@@ -178,6 +187,7 @@ impl Config {
             metrics_token: var("OC_METRICS_TOKEN"),
             wal_redis_url: wal_redis.clone(),
             ai: None,
+            wopi_proof,
             import_off: var("OC_IMPORT").is_some_and(|v| v.trim().eq_ignore_ascii_case("off")),
             rooms: RoomConfig {
                 compact_interval: if memory {

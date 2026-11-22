@@ -405,11 +405,22 @@ pub async fn app_full(
         rooms,
         ai: None,
         import_off: false,
+        wopi_proof: Some(test_proof_keys()),
     };
     tweak_cfg(&mut cfg);
     AppState::new(cfg, Hosts::from_list(vec![host]))
         .await
         .unwrap()
+}
+
+/// The WOPI proof keys of every test server (current `keys/rsa.pem`, old
+/// `keys/wopi-proof-old.pem`).
+pub fn test_proof_keys() -> oc_server::proof::ProofKeys {
+    oc_server::proof::ProofKeys::from_pem(
+        include_str!("../keys/rsa.pem"),
+        Some(include_str!("../keys/wopi-proof-old.pem")),
+    )
+    .unwrap()
 }
 
 /// Turns the server-wide AI switch on (as `OC_AI_CONFIG` with `[ai] enabled = true` would).
