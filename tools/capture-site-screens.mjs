@@ -20,6 +20,11 @@
 //   templates   the template gallery
 //   comments    the canvas with the comments panel open
 //   phone       the demo canvas at 390 x 844
+//   assistant-plan          the assistant's plan card for the selected meeting notes (the
+//                           demo's scripted run: "Demo: a scripted run, no AI server")
+//   assistant-review        after Run: the new Tasks database, inline suggestions, review bar
+//   assistant-phone-plan    the same plan in the phone sheet, 390 x 844
+//   assistant-phone-review  the same review on a phone
 // A scene that fails is named and the run exits non-zero; the others are still written.
 // Uses the e2e harness's Playwright (`cd e2e && npm ci`). Headless only.
 
@@ -44,7 +49,8 @@ if (!fs.existsSync(PW)) {
 }
 const { chromium } = await import(pathToFileURL(PW).href);
 
-const SCENES = ["canvas", "database", "whiteboard", "templates", "comments", "phone"];
+const SCENES = ["canvas", "database", "whiteboard", "templates", "comments", "phone",
+  "assistant-plan", "assistant-review", "assistant-phone-plan", "assistant-phone-review"];
 if (only) {
   const unknown = [...only].filter((s) => !SCENES.includes(s));
   if (unknown.length) { console.error(`capture-site-screens: unknown scene(s) ${unknown.join(", ")}; known: ${SCENES.join(", ")}`); process.exit(2); }
@@ -68,6 +74,25 @@ async function openDemo(page, scheme) {
   await page.getByRole("tab", { name: "Board" }).first().waitFor({ timeout: 30_000 });
   await page.waitForTimeout(6500);
   await page.getByText(/is typing in/).first().waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+}
+
+/// The assistant scenes: the demo with its meeting-notes list selected, as the browser
+/// suite does (e2e/assistant-helpers.ts); `#demo` exposes the editor as __ocEditor.
+async function selectNotes(page) {
+  await page.locator(".ProseMirror li", { hasText: "Ravi to finish the embed SDK docs" }).first().waitFor({ timeout: 30_000 });
+  await page.evaluate(() => {
+    const ed = window.__ocEditor;
+    let r = { from: 0, to: 0 };
+    ed.state.doc.descendants((n, pos) => {
+      if (n.type.name === "bulletList" && n.textContent.includes("Ravi to finish")) {
+        r = { from: pos + 1, to: pos + n.nodeSize - 1 };
+        return false;
+      }
+      return true;
+    });
+    ed.chain().focus().setTextSelection(r).run();
+  });
+  await page.waitForTimeout(500);
 }
 
 const failures = [];
@@ -142,6 +167,61 @@ async function run(scheme) {
 
   await scene("phone", PHONE, async (page) => {
     await shot(page, "phone");
+  });
+
+  /// Desktop: Ask Assistant on the selection, the first action, then the plan card.
+  const desktopPlan = async (page) => {
+    await selectNotes(page);
+    await page.getByRole("button", { name: "Ask Assistant" }).first().click();
+    const bar = page.getByRole("dialog", { name: "Ask the assistant about the selection" });
+    await bar.getByRole("option").first().click();
+    const plan = page.getByRole("dialog", { name: "The assistant's plan" });
+    await plan.getByText("Here's the plan").waitFor({ timeout: 15_000 });
+    await scrollTo(page, page.locator(".ProseMirror li", { hasText: "Ravi to finish the embed SDK docs" }).first(), 260);
+    await page.waitForTimeout(600);
+    return plan;
+  };
+  /// Phone: the bottom toolbar's Ask Assistant, the sheet, "Make a task database", the plan.
+  const phonePlan = async (page) => {
+    await selectNotes(page);
+    await page.getByRole("toolbar", { name: "Editing tools" }).getByRole("button", { name: "Ask Assistant" }).click();
+    const sheet = page.getByRole("dialog", { name: "Assistant" });
+    await sheet.getByRole("button", { name: "Make a task database" }).click();
+    await sheet.getByText("Here's the plan").waitFor({ timeout: 15_000 });
+    await page.waitForTimeout(600);
+    return sheet;
+  };
+  const review = async (page) => {
+    const r = page.getByRole("region", { name: "Review the assistant's changes" });
+    await r.getByText(/suggestions to review/).waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(800);
+    return r;
+  };
+
+  await scene("assistant-plan", DESK, async (page) => {
+    await desktopPlan(page);
+    await shot(page, "assistant-plan");
+  });
+
+  await scene("assistant-review", DESK, async (page) => {
+    const plan = await desktopPlan(page);
+    await plan.getByRole("button", { name: /^Run/ }).click();
+    await review(page);
+    await scrollTo(page, page.getByRole("heading", { name: "Notes from Monday" }).first(), 100);
+    await shot(page, "assistant-review");
+  });
+
+  await scene("assistant-phone-plan", PHONE, async (page) => {
+    await phonePlan(page);
+    await shot(page, "assistant-phone-plan");
+  });
+
+  await scene("assistant-phone-review", PHONE, async (page) => {
+    const sheet = await phonePlan(page);
+    await sheet.getByRole("button", { name: "Run", exact: true }).click();
+    await review(page);
+    await scrollTo(page, page.getByRole("heading", { name: "Notes from Monday" }).first(), 70);
+    await shot(page, "assistant-phone-review");
   });
 
   await browser.close();

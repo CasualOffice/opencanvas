@@ -9,7 +9,8 @@ MCP tokens are host-issued (verified like launch tokens), OpenCanvas runs no OAu
 publishes RFC 9728 metadata per host; writes default to `direct` for new content and `suggest` for
 changes to existing content, overridable per host (`default_mode`); commenters run answer and
 comment modes only; quotas in tokens per month; no BYO model. Pending: persistent quota counters,
-cluster forwarding of tool calls, the panel UI (prototype first, ADR-011).
+cluster forwarding of tool calls. The editor assistant UI is built to the approved prototype
+(AI-UI, `docs/prototypes/assistant-approved/`); the website demo (`#demo`) plays a scripted run.
 Decisions are ADR-031 to ADR-035 in [08](08-ADR-REGISTER.md). Tracker row
 AI-01 in [10](10-EXECUTION-TRACKER.md). Owner directive of 2026-11-22: AI is a server-side
 plug-in capability of the OpenCanvas server (§4).

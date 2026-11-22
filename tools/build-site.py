@@ -60,6 +60,8 @@ def _load(name: str):
 SHOTS = {
     "canvas": 2000, "database": 2000, "whiteboard": 2000, "templates": 2000, "comments": 2000,
     "phone": 780,
+    "assistant-plan": 2000, "assistant-review": 2000,
+    "assistant-phone-plan": 780, "assistant-phone-review": 780,
 }
 PNG_MAX = 1280
 
@@ -103,6 +105,7 @@ DOC_DESCRIPTIONS = {
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
+    "ai": "The OpenCanvas assistant and MCP endpoint: how they work, what they may do, what is sent to the model server, the threat model and limits, and how an operator configures Claude Platform or a self-hosted model.",
     "capacity": "Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.",
     "architecture": "How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.",
     "collaboration": "How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.",
@@ -127,6 +130,18 @@ def _md_body(source: str) -> tuple[str, str]:
             raise SystemExit(f"build-site: {file} has no section {section}")
         return file, m.group(1)
     text = re.sub(r"^# .*\n", "", text, count=1)
+    if file == "docs/24-AI-AND-MCP.md":
+        # The design without the market research (§2) and the owner's open questions (§12),
+        # which stay in the repository; then the operator configuration from docs/13.
+        text = re.sub(r"^## 2\. .*?(?=^## 3\. )", "", text, flags=re.S | re.M)
+        text = re.sub(r"^## 12\. .*?(?=^## |\Z)", "", text, flags=re.S | re.M)
+        ops = (ROOT / "docs/13-OPERATIONS-AND-DEPLOYMENT.md").read_text(encoding="utf8")
+        m = re.search(r"^## AI and MCP .*?(?=^## Health)", ops, flags=re.S | re.M)
+        if not m:
+            raise SystemExit("build-site: docs/13 has no AI and MCP section")
+        conf = re.sub(r"^## ", "### ", m.group(0), flags=re.M)
+        text = (text.rstrip() + "\n\n## Operator configuration\n\nFrom the [operations guide](13-OPERATIONS-AND-DEPLOYMENT.md).\n\n"
+                + conf)
     if file == "docs/05-INTEGRATION-GUIDE.md":
         text = re.sub(r"^(## 6\. .*?\n).*?(?=^## )",
                       r"\1\nWOPI mode has its own page: [WOPI mode](wopi.html).\n\n", text, flags=re.S | re.M)
@@ -271,6 +286,10 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; "
         "OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. "
         "Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. "
+        "Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, "
+        "edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP "
+        "endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible "
+        "server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. "
         "Source-available under the Business Source License 1.1 (free to self-host and embed; offering it as a hosted "
         "collaborative-editing service needs a commercial licence; each version becomes MPL-2.0 four years after release). "
         "Status: P1 alpha, pre-release.",
@@ -279,7 +298,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         line("index.html"),
         line("roadmap.html"),
         line("changelog.html"),
-        f"- [Interactive demo]({base}{sitelib.DEMO}): the real editor with a sample canvas, no server",
+        f"- [Interactive demo]({base}{sitelib.DEMO}): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server",
         "",
         "## Documentation",
         *[line(d) for d in docs],

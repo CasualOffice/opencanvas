@@ -35,6 +35,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
+| Assistant and MCP | Phase 1, in review: plan → approve → act → review → undo run, suggestions for existing text, limits and audit; MCP endpoint with host-issued tokens; Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp) |
 
 ## Run it
 
@@ -67,6 +68,45 @@ in [docs/13](docs/13-OPERATIONS-AND-DEPLOYMENT.md).
 The host contract (token claims, callbacks, postMessage events and REST) is in
 [docs/05](docs/05-INTEGRATION-GUIDE.md). [docs/15](docs/15-BUILD-CONTRACT.md) has
 the exact wire formats.
+
+## Assistant and MCP
+
+AI runs only in the OpenCanvas server and is off until the operator turns it on. Select
+text, press ⌘J (Ctrl+J) and ask: the assistant shows a plan, waits for you to run it,
+builds in place with its own cursor, turns changes to existing text into suggestions you
+accept or reject, and can undo the whole run. It acts only within your role. External
+agents use the MCP endpoint, `POST /mcp/{hostId}`, with tokens your app issues.
+
+**Canvas content is sent to the model server you configure.** Agent mode needs a model
+with tool calling; others get answer mode only. Try a scripted run in the demo (`#demo`,
+no AI server). Details: [docs/24](docs/24-AI-AND-MCP.md); configuration:
+[docs/13](docs/13-OPERATIONS-AND-DEPLOYMENT.md#ai-optional-ai-02-adr-031).
+
+```toml
+# OC_AI_CONFIG=/etc/opencanvas/ai.toml
+[ai]
+enabled = true
+
+[ai.providers.claude]                 # Claude Platform
+kind        = "anthropic"
+api_key_env = "OC_AI_ANTHROPIC_KEY"
+model_agent = "claude-opus-5-5"
+model_fast  = "claude-sonnet-5-5"
+
+[ai.providers.ollama]                 # or vLLM, llama.cpp: any OpenAI-compatible server
+kind        = "openai-compatible"
+base_url    = "http://ollama:11434"
+model_agent = "qwen3:14b"
+```
+
+```toml
+# hosts.toml, per host
+[host.ai]
+enabled      = true
+provider     = "claude"
+default_mode = "suggest"              # changes to existing text arrive as suggestions
+mcp          = true                   # POST /mcp/{hostId}; off by default
+```
 
 ## Test
 

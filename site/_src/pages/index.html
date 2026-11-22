@@ -88,6 +88,7 @@
         <li>WOPI mode has no proof keys yet.</li>
         <li><strong>Nonstop typing on one SQLite server has a limit.</strong> A full canvas with everyone typing nonstop now keeps up, but a single SQLite server with a thousand busy rooms still falls behind by over a second. For that load, run with Redis and MySQL or MariaDB; see the <a href="docs/capacity.html">sizing guide</a>.</li>
         <li>Cluster ownership fencing is built and tested; the frozen-server chaos rerun against it is still to do.</li>
+        <li><strong>The assistant is phase 1.</strong> It awaits the owner's review. The notice about instructions hidden in canvas text shows only in the demo for now; with a real model server the server does not flag them yet. In a cluster, an MCP call must reach the server that holds the canvas (calls are not forwarded yet), and usage quotas and run undo are kept in memory, so a restart loses them.</li>
       </ul>
       <p>Every item is a row in the project's tracker, and the <a href="roadmap.html">roadmap</a> is generated from it.</p>
     </div>
@@ -152,6 +153,73 @@
         {{shot:whiteboard|The "How a session flows" whiteboard: a dashed frame labelled Host app with a sticky note "Signs launch token (JWT)", arrows to "Room on owner node + WAL" and "Autosave → PUT /files/:id", an arrow back to the host, and the board toolbar.}}
       </div>
     </figure>
+  </div>
+</section>
+
+<section class="section section-alt" id="assistant" aria-labelledby="assistant-h">
+  <div class="wrap feature">
+    <div class="feature__copy reveal">
+      <span class="eyebrow eyebrow--dot">Assistant</span>
+      <h2 id="assistant-h">Ask, check the plan, then let it build.</h2>
+      <p>Select some text and press <kbd>⌘J</kbd> or <kbd>Ctrl+J</kbd>, or choose Ask Assistant. Say what you want. The assistant shows its plan first, and nothing changes until you run it. Then it builds in place while everyone watches: its own cursor, a label on what it made, and suggestions where it would change text that was already there.</p>
+      <ul class="points">
+        <li><span class="pt-ic">{{icon:list-checks}}</span><strong>Plan, then approve</strong><span>Steps that would change existing text are marked as suggestions before you run anything.</span></li>
+        <li><span class="pt-ic">{{icon:check}}</span><strong>Review what it did</strong><span>Accept or reject each suggestion inline, or all at once from the review bar.</span></li>
+        <li><span class="pt-ic">{{icon:undo-2}}</span><strong>Undo the whole run</strong><span>One button removes everything the run added. Changes you accepted stay yours.</span></li>
+      </ul>
+      <p class="cta-row"><a class="btn btn-primary" href="app/#demo" data-testid="cta-assistant-demo">Try the assistant in the demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/ai.html">AI and MCP docs</a></p>
+      <p class="muted">The demo plays a scripted run in your browser, labelled "Demo: a scripted run, no AI server". No model is called and nothing is sent. In the demo, select the "Notes from Monday" list and choose Ask Assistant.</p>
+    </div>
+    <figure class="feature__media reveal reveal-d1">
+      <div class="media-pair">
+        <div class="window">
+          <div class="window__bar" aria-hidden="true"><span class="window__dots"><i></i><i></i><i></i></span><span class="window__url">{{icon:lock:12}}app.example.com/channels/engineering</span><span></span></div>
+          {{shot:assistant-plan|The assistant's plan under the selected "Notes from Monday" list: add a Tasks database, add rows matching owners to people on the canvas, and suggest a link from each note to its task. A notice says the last note asks the assistant to send the canvas to everyone, and that it is treated as text and skipped. Run, Change the plan and Cancel buttons, and the label "Demo: a scripted run, no AI server".}}
+        </div>
+        <div class="device">{{shot:assistant-phone-plan|The same plan on a phone, in a bottom sheet with Run and Cancel buttons.}}</div>
+      </div>
+    </figure>
+  </div>
+  <div class="wrap">
+    <div class="bento stack-after">
+      <article class="cell c-7 reveal">
+        <h3>It builds in place, and you review</h3>
+        <p>The new Tasks database carries a "New · by Assistant" label. Each proposed link waits beside its note with accept and reject buttons, and the review bar counts what is left.</p>
+        <div class="cell-media cell-media--inset">{{shot:assistant-review|After the run: each meeting note has a suggested "link to Tasks" with accept and reject buttons, a new Tasks database labelled "New · by Assistant" lists each task with its owner, due date and status, and a review bar at the bottom offers Accept all, Undo run and Done.}}</div>
+      </article>
+      <article class="cell c-5 reveal reveal-d1">
+        <h3>On a phone too</h3>
+        <p>The same flow from the toolbar above the keyboard: a sheet for the request and the plan, and a review bar with large targets.</p>
+        <div class="device cell-device">{{shot:assistant-phone-review|On a phone after the run: the notes with suggested links and accept and reject buttons, the new Tasks database below, and a review bar with Accept all and Undo.}}</div>
+      </article>
+    </div>
+    <h3 class="sub-head stack-after reveal">What it may do, in plain words</h3>
+    <ul class="facts facts--light">
+      <li class="reveal"><span class="cell-icon">{{icon:lock}}</span><strong>It acts as you, and only as you</strong><span>Every change it makes passes the same server-side role check as your own typing. If you can only view, it cannot run; if you can only comment, it can answer and comment, not edit.</span>{{claim:tested|viewer refused, commenter answer and comment only|crates/oc-server/tests/ai.rs}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:pencil}}</span><strong>Existing text gets suggestions</strong><span>By default, changes to what people wrote arrive as suggestions you accept or reject; new content is added directly. Your operator can change the default per app.</span>{{claim:tested|suggest mode writes only to suggestions|crates/oc-server/tests/ai_tools.rs}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:circle-check}}</span><strong>Nothing before you approve</strong><span>The run waits at the plan. Cancel it there and the canvas is unchanged.</span>{{claim:tested|nothing before approval; cancel leaves nothing, over real sockets|crates/oc-server/tests/ai_e2e.rs}}</li>
+      <li class="reveal"><span class="cell-icon">{{icon:undo-2}}</span><strong>Attributed and undoable</strong><span>Its edits carry the assistant's own identity, separate from yours, and Undo run removes them as one step.</span>{{claim:tested|undo reverts the run's origin|crates/oc-server/tests/ai.rs}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:server}}</span><strong>Content goes only where your operator says</strong><span>The canvas text the assistant works on is sent to the model server your operator configures, and nowhere else: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. Browsers never call a model or see a key.</span>{{claim:deployment|[ai.providers] in the server's OC_AI_CONFIG file, chosen per app in hosts.toml}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:shield-check}}</span><strong>Self-hosted models need tool calling</strong><span>The server checks each model at start-up. A model that cannot call tools gets answer mode only; agent mode stays off for it.</span>{{claim:tested|agent mode needs a tool-calling model|crates/oc-server/tests/ai.rs}}</li>
+    </ul>
+    <div class="duo stack-after">
+      <div class="duo-cell reveal">
+        <h3>{{icon:plug:18}} MCP for external agents</h3>
+        <p>Agents outside the editor, such as your own backend or a desktop assistant, can read and edit a canvas through the Model Context Protocol endpoint, <code>POST /mcp/{hostId}</code>. Every change shows live to the people in the canvas.</p>
+        <p data-claim>Your app issues the tokens and OpenCanvas only checks them, with the same keys as launch tokens. A token's scopes can narrow what the user's role allows, never widen it. The endpoint is off until you turn it on. {{claim:tested|off by default; bad tokens refused; a scope narrower than the role wins|crates/oc-server/tests/mcp.rs}}</p>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>hosts.toml</div>
+<pre><code>[host.ai]
+enabled      = true
+provider     = "claude"     <span class="c-cmt"># a profile in [ai.providers]</span>
+default_mode = "suggest"    <span class="c-cmt"># for changes to existing text</span>
+mcp          = true         <span class="c-cmt"># POST /mcp/{hostId}; off by default</span>
+mcp_issuer   = "https://id.acme.example"</code></pre>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
