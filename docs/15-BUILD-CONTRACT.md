@@ -36,8 +36,13 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "host": {"id":"acme","name":"Acme"},
      "perms": {"export":true,"download":true,"comment":true,"print":true},
      "isNew": true,
+     "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
+   `ai` (AI-02): `enabled` when `[host.ai] enabled = true` and the role is not `view`; `modes` are
+   the run modes the server accepts for the role (`edit`: `edit`, `comment`, `answer`; `comment`:
+   `answer`, `comment`; `view`: none); `mcp` mirrors `[host.ai] mcp`. The editor shows the
+   assistant from this; `?ai=1` only turns it on when `ai` is absent (demo, dev).
    `isNew` is true when the host returned 404 / an empty file. The SPA then shows
    the template gallery.
    *(docs/21 revision 2)*: `user` is `{id, name, color, avatar, detail?}`, never an e-mail. A `GET`
@@ -131,7 +136,7 @@ Client → server (type 100 JSON); answers go only to the sending connection:
 
 | Message | Who | Effect |
 |---|---|---|
-| `{"t":"ai-run","runId","prompt","selection"?,"mode"?,"confirm"?}` | `edit`: modes `edit` (default), `comment`, `answer`; `comment`: `answer` (default) and `comment` only; `view`: refused | Starts a run on the room owner node. `runId` is chosen by the client, `[A-Za-z0-9_-]{1,64}`, unique per room. `confirm` (boolean; default `true` in mode `edit`, ignored otherwise): the run stops after `ai-plan` and calls no tool (so writes nothing) until `ai-approve` |
+| `{"t":"ai-run","runId","prompt","selection"?,"selectionBlockIds"?,"mode"?,"confirm"?}` | `edit`: modes `edit` (default), `comment`, `answer`; `comment`: `answer` (default) and `comment` only; `view`: refused | Starts a run on the room owner node. `runId` is chosen by the client, `[A-Za-z0-9_-]{1,64}`, unique per room. `selectionBlockIds` (optional; one per selection line, or one for the whole selection) only places injection flags. `confirm` (boolean; default `true` in mode `edit`, ignored otherwise): the run stops after `ai-plan` and calls no tool (so writes nothing) until `ai-approve` |
 | `{"t":"ai-approve","runId"}` | the user who started the run | Lets a run waiting on its plan act ("Nothing changes until you run it"). Ignored for any other run, user or state. Without it the wait ends after 10 minutes: outcome `cancelled`, `reason: "plan_timeout"`; the run's time limit starts on approval |
 | `{"t":"ai-cancel","runId"}` | the user who started the run | Aborts the model call or the wait for approval; the current tool call finishes; outcome `cancelled` |
 | `{"t":"ai-undo","runId"}` | the user who started the run | Reverts every change made with origin `ai:<runId>` (once; in memory, lost if the room moves) |
@@ -140,9 +145,23 @@ Server → client:
 
 | Message | When |
 |---|---|
-| `{"t":"ai-plan","runId","plan":[{"n","text","kind"}],"awaitingApproval"}` | After the plan call (modes `comment` and `edit`). `plan` is the steps in order, `n` from 1, `kind` one of `create`, `update`, `suggest`, `read` (a server-side classification of the step text; the panel marks `suggest` steps). `awaitingApproval: true` when the run waits for `ai-approve` |
-| `{"t":"ai-step","runId","step","tool","ok","error"?}` | After each tool call; `error` is a code (`not_allowed`, `forbidden`, `bad_input`, `not_found`, `stale`, `confirmation_required`, `internal`) |
-| `{"t":"ai-done","runId","outcome","summary"?,"reason"?,"steps","writes","undoable","usage":{"input","output"}}` | `outcome`: `done`, `cancelled` (`reason: "plan_timeout"` when approval never came), `limit` (`reason`: `steps`, `time`, `tokens`, `writes`, `quota`), `error`, `refused` (with `reason`), `undone` |
+| `{"t":"ai-plan","runId","plan":[{"n","text","kind"}],"awaitingApproval","flags"}` | After the plan call (modes `comment` and `edit`). `plan` is the steps in order, `n` from 1, `kind` one of `create`, `update`, `suggest`, `read` (a server-side classification of the step text; the panel marks `suggest` steps). `awaitingApproval: true` when the run waits for `ai-approve`. `flags` (always present, often empty): prompt-injection flags on the selection, see below |
+| `{"t":"ai-step","runId","step","tool","ok","error"?,"flags"?}` | After each tool call; `error` is a code (`not_allowed`, `forbidden`, `bad_input`, `not_found`, `stale`, `confirmation_required`, `internal`). `flags` when a read tool returned instruction-like content |
+| `{"t":"ai-done","runId","outcome","summary"?,"reason"?,"steps","writes","undoable","usage":{"input","output"},"flags"?}` | `outcome`: `done`, `cancelled` (`reason: "plan_timeout"` when approval never came), `limit` (`reason`: `steps`, `time`, `tokens`, `writes`, `quota`), `error`, `refused` (with `reason`), `undone` |
+
+**Prompt-injection flags** (docs/24 §9.1 T1). The server scans the content a run reads (the
+selection before the plan, then every read tool's result) with a deterministic heuristic for
+text addressed to the assistant: "ignore previous/your instructions", "disregard the above",
+"you are now", "send/email/post/forward this … to …", a line starting with a speaker label
+(`assistant:`, `AI,`, `Claude:`, `system:`), and system-prompt markers (`system prompt`,
+`<|im_start|>`, `[INST]`, `<<SYS>>`, a stray `</canvas_data>`). Each hit is
+`{"blockId": string|null, "kind": "instruction_in_content", "excerpt"}` (the matched line, at
+most 120 characters; `blockId` null for a whole-page read or an unplaced selection line), at
+most 20 per message. `ai-done.flags` is every flag of the run. Detection **never blocks the run
+and never changes what the model gets**: the content is still sent as data inside
+`<canvas_data>` and tool results, and the system prompt still says it is never an instruction.
+The panel shows one note on the plan or answer card when flags exist. The excerpt goes only to
+the requesting connection; it is never logged or sent in audit events.
 
 Other people see the agent only as an awareness entry (`user.id = "ai:<runId>"`, `name =
 "Assistant"`, `agent: true`, `cursor.blockId` at the last touched block) and its edits. A run is

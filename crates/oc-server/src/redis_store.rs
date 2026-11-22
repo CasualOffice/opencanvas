@@ -15,6 +15,7 @@
 //! | `notify_outbox` | `oc:nt:{id}` hash; zset `oc:ntdue` (pending rows by `next_try_at`) |
 //! | `sessions` | `oc:sess:{ticket}` hash (expires with the ticket); zset `oc:roomsess:{room}` |
 //! | `launch_jti` | `oc:jti:{host}:{jti}`, `SET NX EX` |
+//! | `ai_usage` | `oc:aiuse:{month}` hash host → tokens, `HINCRBY` (62-day TTL) |
 //! | `room_assets` | `oc:asset:{room}` (data) and `oc:assetm:{room}` (JSON meta) hashes; set `oc:assetrooms` |
 //!
 //! Every guarded write (outbox insert, snapshot, closing purge, WAL append) is one Lua script
@@ -33,6 +34,8 @@ use crate::store::{Fenced, NotifyRow, OutboxRow, RoomRow, Wal};
 const EPOCH_TTL_SECS: i64 = 691_200;
 /// Sessions are kept an hour past their expiry (the SQL purge runs hourly), like SQL.
 const SESSION_GRACE_SECS: i64 = 3_600;
+/// Monthly AI usage counters outlive their month by a few weeks (for the operator to read).
+const AI_USAGE_TTL_SECS: i64 = 86_400 * 62;
 /// Finished notification rows are kept a day (their id still deduplicates).
 const NOTIFY_KEEP_SECS: i64 = 86_400;
 
@@ -267,6 +270,35 @@ impl RedisStore {
             .query_async::<String>(&mut self.c())
             .await
             .is_ok()
+    }
+
+    // ---------- AI usage ----------
+
+    pub async fn ai_usage_add(&self, host: &str, month: &str, tokens: u64) -> anyhow::Result<u64> {
+        let key = format!("oc:aiuse:{month}");
+        let n = i64::try_from(tokens).unwrap_or(i64::MAX);
+        let (total, _): (i64, i64) = redis::pipe()
+            .atomic()
+            .cmd("HINCRBY")
+            .arg(&key)
+            .arg(host)
+            .arg(n)
+            .cmd("EXPIRE")
+            .arg(&key)
+            .arg(AI_USAGE_TTL_SECS)
+            .query_async(&mut self.c())
+            .await
+            .context("adding AI usage")?;
+        Ok(total.max(0) as u64)
+    }
+
+    pub async fn ai_usage_month(&self, month: &str) -> anyhow::Result<HashMap<String, u64>> {
+        let m: HashMap<String, i64> = redis::cmd("HGETALL")
+            .arg(format!("oc:aiuse:{month}"))
+            .query_async(&mut self.c())
+            .await
+            .context("reading AI usage")?;
+        Ok(m.into_iter().map(|(k, v)| (k, v.max(0) as u64)).collect())
     }
 
     // ---------- launch jti ----------

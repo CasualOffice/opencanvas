@@ -114,6 +114,27 @@ fn rate_ok(key: &str, rate: u32) -> bool {
     }
 }
 
+/// The caller's role on `file_id`: the host's `POST /access` answer when the host implements
+/// it (cached 30 s), else the token's `role` claim. `None`: no access.
+async fn host_role(
+    state: &SharedState,
+    caller: &Caller,
+    file_id: &str,
+) -> Result<Option<Role>, ToolError> {
+    let answer = state
+        .host
+        .access(&caller.host, file_id, &caller.claims.sub)
+        .await
+        .map_err(|e| {
+            tracing::warn!(host = %caller.host.id, error = %e, "host access check failed");
+            ToolError::Internal("the host access check failed".into())
+        })?;
+    Ok(match answer {
+        Some(role) => role,
+        None => Some(caller.claimed_role()),
+    })
+}
+
 fn rpc_result(id: &Value, result: Value) -> Response {
     Json(json!({"jsonrpc": "2.0", "id": id, "result": result})).into_response()
 }
@@ -159,14 +180,17 @@ struct Caller {
 }
 
 impl Caller {
-    /// docs/24 §7.1 rule 4: `min(token scope, host role)`.
-    fn grant(&self, file_id: &str) -> Grant {
-        let role = self
-            .claims
+    /// The token's `role` claim (used when the host has no `/access` callback).
+    fn claimed_role(&self) -> Role {
+        self.claims
             .role
             .as_deref()
             .and_then(Role::parse)
-            .unwrap_or(Role::View);
+            .unwrap_or(Role::View)
+    }
+
+    /// docs/24 §7.1 rule 4: `min(token scope, host role)`.
+    fn grant(&self, file_id: &str, role: Role) -> Grant {
         let role = if rank(role) <= rank(self.ceiling) {
             role
         } else {
@@ -454,10 +478,15 @@ async fn call(
             }
         )));
     }
+    let Some(role) = host_role(state, caller, file_id).await? else {
+        return Err(ToolError::Forbidden(
+            "ROLE_FORBIDDEN: no access to this file".into(),
+        ));
+    };
     let ctx = ToolCtx {
         host_id: caller.host.id.clone(),
         file_id: file_id.to_string(),
-        user: caller.grant(file_id),
+        user: caller.grant(file_id, role),
         origin: caller.origin(),
         mode_default: HostAi(&caller.host).default_mode(),
     };

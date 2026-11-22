@@ -82,6 +82,8 @@ impl SaveTarget {
 
 #[derive(Clone)]
 pub struct HostClient {
+    /// `/access` answers per (host, file, user), reused for [`ACCESS_TTL`].
+    access_cache: Arc<Mutex<AccessCache>>,
     http: reqwest::Client,
     /// For asset downloads and every WOPI call: never follows redirects (an allowed URL must
     /// not bounce elsewhere, and a WOPI redirect would carry the access token away).
@@ -129,6 +131,14 @@ fn unquote(etag: &str) -> String {
         .to_string()
 }
 
+/// How long a host's `/access` answer is reused (docs/05).
+pub const ACCESS_TTL: Duration = Duration::from_secs(30);
+
+/// A `/access` answer: `None` = the host does not implement the callback, `Some(None)` = no
+/// access, `Some(Some(role))`.
+pub type AccessAnswer = Option<Option<crate::grant::Role>>;
+type AccessCache = HashMap<(String, String, String), (std::time::Instant, AccessAnswer)>;
+
 impl Default for HostClient {
     fn default() -> Self {
         Self::new()
@@ -156,6 +166,7 @@ impl HostClient {
             assets,
             store: None,
             wopi_names: Arc::default(),
+            access_cache: Arc::default(),
         }
     }
 
@@ -591,6 +602,92 @@ impl HostClient {
             .send()
             .await?;
         Ok(res.status())
+    }
+
+    /// `POST {callback_base}/access {fileId, userId}` (docs/05, docs/24 §7.3): the user's role
+    /// on the file, for MCP calls that have no launch session. Signed like every callback; no
+    /// bearer token (the client's MCP token is never passed through). `Ok(None)` when the host
+    /// does not implement it (404, 405, 501); `Ok(Some(None))` for `role: "none"`.
+    pub async fn access(
+        &self,
+        host: &HostConfig,
+        file_id: &str,
+        user_id: &str,
+    ) -> Result<AccessAnswer, HostError> {
+        let key = (host.id.clone(), file_id.to_string(), user_id.to_string());
+        let cached = self.access_cache.lock().ok().and_then(|m| {
+            m.get(&key)
+                .filter(|(at, _)| at.elapsed() < ACCESS_TTL)
+                .map(|(_, a)| *a)
+        });
+        if let Some(a) = cached {
+            return Ok(a);
+        }
+        let a = self.access_uncached(host, file_id, user_id).await?;
+        if let Ok(mut m) = self.access_cache.lock() {
+            if m.len() > 50_000 {
+                m.retain(|_, (at, _)| at.elapsed() < ACCESS_TTL);
+            }
+            m.insert(key, (std::time::Instant::now(), a));
+        }
+        Ok(a)
+    }
+
+    /// Drops cached `/access` answers for a file (one user, or everyone).
+    pub fn forget_access(&self, host_id: &str, file_id: &str, user_id: Option<&str>) {
+        if let Ok(mut m) = self.access_cache.lock() {
+            m.retain(|(h, f, u), _| {
+                !(h == host_id && f == file_id && user_id.is_none_or(|x| x == u))
+            });
+        }
+    }
+
+    async fn access_uncached(
+        &self,
+        host: &HostConfig,
+        file_id: &str,
+        user_id: &str,
+    ) -> Result<AccessAnswer, HostError> {
+        let url = Self::url(host, &["access"])?;
+        let body = serde_json::to_vec(&serde_json::json!({"fileId": file_id, "userId": user_id}))
+            .map_err(|e| HostError::Body(e.to_string()))?;
+        let t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let sig = signature_header(host.signing_secret(), t, "POST", url.path(), &body);
+        let res = self
+            .http
+            .post(url)
+            .timeout(Duration::from_secs(5))
+            .header("X-OpenCanvas-Signature", sig)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .send()
+            .await?;
+        let status = res.status();
+        if matches!(
+            status,
+            StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED | StatusCode::NOT_IMPLEMENTED
+        ) {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            return Err(HostError::Status(status));
+        }
+        let bytes = res.bytes().await?;
+        if bytes.len() > 64 * 1024 {
+            return Err(HostError::Body("access answer too large".into()));
+        }
+        let v: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|e| HostError::Body(e.to_string()))?;
+        match v["role"].as_str() {
+            Some("none") => Ok(Some(None)),
+            Some(r) => crate::grant::Role::parse(r)
+                .map(|r| Some(Some(r)))
+                .ok_or_else(|| HostError::Body(format!("unknown role {r:?}"))),
+            None => Err(HostError::Body("no role in the access answer".into())),
+        }
     }
 
     /// `GET {callback_base}/files/{fileId}/members?q=&limit=` (docs/21 revision 2): the people

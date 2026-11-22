@@ -4,6 +4,7 @@
 pub mod agent;
 pub mod agent_room;
 pub mod config;
+pub mod inject;
 pub mod provider;
 pub mod provider_anthropic;
 pub mod provider_openai;

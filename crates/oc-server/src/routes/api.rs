@@ -66,6 +66,10 @@ pub async fn set_role(
         })?),
     };
     let room = room_id(&host.id, &file_id);
+    // Cached MCP `/access` answers for this user are dropped too (docs/24 §7.1 rule 5).
+    state
+        .host
+        .forget_access(&host.id, &file_id, Some(&body.user_id));
     let sessions = state
         .store
         .set_session_role(&room, &body.user_id, role)
@@ -97,6 +101,7 @@ pub async fn invalidate_members(
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
     let room = room_id(&host.id, &file_id);
+    state.host.forget_access(&host.id, &file_id, None);
     state
         .members_event(MembersEvent::Invalidate { room: room.clone() })
         .await;

@@ -522,3 +522,53 @@ async fn idle_connections_get_a_heartbeat() {
     }
     assert!((3..=7).contains(&pings), "{pings} pings in 1.1 s at 200 ms");
 }
+
+async fn session_ai(addr: &str, role: &str) -> Value {
+    let res = launch(addr, &token(role)).await;
+    let loc = res.headers()["location"].to_str().unwrap().to_string();
+    let ticket = loc.strip_prefix("/app/#t=").unwrap().to_string();
+    let s: Value = http()
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    s["ai"].clone()
+}
+
+async fn serve_with(base: &str, tweak: fn(&mut oc_server::hosts::HostConfig)) -> String {
+    serve_state(app_custom(base, room_cfg(), &temp_db(), tweak).await).await
+}
+
+/// The session says whether the assistant shows (docs/15 §2): from `[host.ai]` and the role.
+#[tokio::test]
+async fn session_carries_the_ai_flag_from_host_ai_and_the_role() {
+    let (base, _h) = mock_host().await;
+    let addr = serve_with(&base, |h| {
+        h.ai.insert("enabled".into(), toml::Value::Boolean(true));
+        h.ai.insert("provider".into(), toml::Value::String("claude".into()));
+        h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+    })
+    .await;
+    assert_eq!(
+        session_ai(&addr, "edit").await,
+        json!({"enabled": true, "modes": ["edit", "comment", "answer"], "mcp": true})
+    );
+    assert_eq!(
+        session_ai(&addr, "comment").await,
+        json!({"enabled": true, "modes": ["answer", "comment"], "mcp": true})
+    );
+    assert_eq!(
+        session_ai(&addr, "view").await,
+        json!({"enabled": false, "modes": [], "mcp": true})
+    );
+    // No `[host.ai]`: off for everyone.
+    let (base, _h) = mock_host().await;
+    let addr = serve(&base).await;
+    assert_eq!(
+        session_ai(&addr, "edit").await,
+        json!({"enabled": false, "modes": [], "mcp": false})
+    );
+}

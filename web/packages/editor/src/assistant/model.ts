@@ -13,8 +13,8 @@ export interface PlanStep {
 
 /** Server → client (docs/15 §3.1). Extra optional fields are tolerated. */
 export type AiMsg =
-  | { t: "ai-plan"; runId: string; plan: unknown; injected?: unknown }
-  | { t: "ai-step"; runId: string; step: number; tool: string; ok: boolean; error?: string; label?: string; n?: number }
+  | { t: "ai-plan"; runId: string; plan: unknown; injected?: unknown; flags?: unknown }
+  | { t: "ai-step"; runId: string; step: number; tool: string; ok: boolean; error?: string; label?: string; n?: number; flags?: unknown }
   | {
       t: "ai-done";
       runId: string;
@@ -24,6 +24,7 @@ export type AiMsg =
       steps?: number;
       writes?: number;
       undoable?: boolean;
+      flags?: unknown;
     };
 
 export const isAiMsg = (m: unknown): m is AiMsg =>
@@ -146,6 +147,17 @@ const doneText: Record<string, string> = {
   refused: "The assistant can't do that here.",
 };
 
+/**
+ * The plan note for server prompt-injection flags (`flags: [{blockId, kind, excerpt}]`,
+ * docs/15 §3.1): content that reads like instructions to the assistant. Text only; the run is
+ * never blocked by it.
+ */
+export function flagNote(flags: unknown): string | null {
+  const n = Array.isArray(flags) ? flags.filter((f) => f && typeof f === "object" && (f as { kind?: unknown }).kind === "instruction_in_content").length : 0;
+  if (!n) return null;
+  return `${n === 1 ? "One part of this canvas reads" : `${n} parts of this canvas read`} like instructions to the assistant. It's treated as text, not followed: the assistant can't send anything outside this canvas.`;
+}
+
 /** The run state machine: closed → bar → waiting → plan → acting → review (or answer). */
 export function reduce(s: RunState, ev: RunEvent): RunState {
   switch (ev.e) {
@@ -163,7 +175,7 @@ export function reduce(s: RunState, ev: RunEvent): RunState {
       const m = ev.m;
       if (m.runId !== s.runId) return s;
       if (m.t === "ai-plan") {
-        const injected = typeof m.injected === "string" && m.injected.trim() ? m.injected : null;
+        const injected = typeof m.injected === "string" && m.injected.trim() ? m.injected : flagNote(m.flags);
         return { ...s, phase: "plan", plan: parsePlan(m.plan), injected };
       }
       if (m.t === "ai-step") {
@@ -176,6 +188,7 @@ export function reduce(s: RunState, ev: RunEvent): RunState {
       if (m.outcome === "undone") return { ...initialRun };
       if (m.outcome === "cancelled" && m.reason === "plan_timeout") return { ...s, phase: "answer", summary: "The plan waited 10 minutes without a Run, so nothing was changed." };
       const summary = typeof m.summary === "string" ? m.summary : "";
+      s = { ...s, injected: flagNote(m.flags) ?? s.injected };
       if (s.mode === "answer" || (m.outcome === "done" && !m.writes && summary))
         return { ...s, phase: "answer", summary: summary || doneText[m.outcome] || "" };
       if (m.outcome !== "done" && !m.writes) return { ...s, phase: "answer", summary: (summary ? summary + " " : "") + (doneText[m.outcome] ?? "") };
