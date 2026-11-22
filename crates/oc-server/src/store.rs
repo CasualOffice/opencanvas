@@ -1519,6 +1519,91 @@ impl Store {
         Ok(())
     }
 
+    /// Ephemeral storage (ADR-043): deletes everything the server keeps for `room` (WAL,
+    /// snapshot, room row, every outbox and notification row, sessions, assets, epoch).
+    /// With `epoch`, refused with [`Fenced`] when another actor took the room since.
+    pub async fn destroy_room(&self, room: &str, epoch: Option<i64>) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.destroy_room(room, epoch).await;
+        }
+        retry_transient("room destroy", move || async move {
+            let _g = self.snapshot_gate.write().await;
+            let _w = self.write_turn().await;
+            let mut tx = self.pool.begin().await?;
+            if let Some(e) = epoch {
+                hold_epoch(&mut tx, room, e).await?;
+            }
+            purge_in(&mut tx, room).await?;
+            for sql in [
+                "DELETE FROM commit_outbox WHERE room_id = ?",
+                "DELETE FROM notify_outbox WHERE room_id = ?",
+                "DELETE FROM sessions WHERE room_id = ?",
+                "DELETE FROM room_assets WHERE room_id = ?",
+                "DELETE FROM room_epochs WHERE room_id = ?",
+            ] {
+                sqlx::query(sql).bind(room).execute(&mut *tx).await?;
+            }
+            tx.commit().await?;
+            Ok(())
+        })
+        .await?;
+        if let Some(r) = &self.redis {
+            r.destroy(room).await?;
+        }
+        Ok(())
+    }
+
+    /// Rows and keys left for `room`, per table (tests: an ephemeral room leaves nothing).
+    pub async fn room_footprint(&self, room: &str) -> anyhow::Result<Vec<(&'static str, i64)>> {
+        let mut out = Vec::new();
+        if let Some(kv) = &self.kv {
+            out.push(("redis", kv.room_keys(room).await?));
+            return Ok(out);
+        }
+        for (table, sql) in [
+            (
+                "room_updates",
+                "SELECT COUNT(*) FROM room_updates WHERE room_id = ?",
+            ),
+            (
+                "room_snapshots",
+                "SELECT COUNT(*) FROM room_snapshots WHERE room_id = ?",
+            ),
+            ("rooms", "SELECT COUNT(*) FROM rooms WHERE id = ?"),
+            (
+                "commit_outbox",
+                "SELECT COUNT(*) FROM commit_outbox WHERE room_id = ?",
+            ),
+            (
+                "notify_outbox",
+                "SELECT COUNT(*) FROM notify_outbox WHERE room_id = ?",
+            ),
+            (
+                "sessions",
+                "SELECT COUNT(*) FROM sessions WHERE room_id = ?",
+            ),
+            (
+                "room_assets",
+                "SELECT COUNT(*) FROM room_assets WHERE room_id = ?",
+            ),
+            (
+                "room_epochs",
+                "SELECT COUNT(*) FROM room_epochs WHERE room_id = ?",
+            ),
+        ] {
+            let n: i64 = sqlx::query(sql)
+                .bind(room)
+                .fetch_one(&self.pool)
+                .await?
+                .try_get(0)?;
+            out.push((table, n));
+        }
+        if let Some(r) = &self.redis {
+            out.push(("redis", r.room_keys(room).await?));
+        }
+        Ok(out)
+    }
+
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
         if let Some(kv) = &self.kv {
             return kv.purge_room(room, None).await;

@@ -374,6 +374,8 @@ pub async fn session_info(
         "file": {"id": grant.file.id, "name": grant.file.name},
         "host": {"id": host.id, "name": host.name},
         "perms": grant.perms,
+        // ADR-043: "ephemeral" = nothing is saved; users export to keep anything.
+        "storage": if host.ephemeral() { "ephemeral" } else { "host" },
         "isNew": info.is_new,
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,

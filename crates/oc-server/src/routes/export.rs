@@ -76,7 +76,7 @@ pub async fn export(
         return Err(ApiError::forbidden("export not permitted for this session"));
     }
     let doc = load(&state, &host, &grant).await?;
-    let wopi = super::proxy::is_wopi(&host, &grant);
+    let wopi = super::proxy::room_assets(&host, &grant);
     // The `.ocanvas` download is the file itself; every rendered format uses members' current
     // names (docs/21 revision 2).
     let names = if fmt == "ocanvas" {

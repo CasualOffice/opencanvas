@@ -209,6 +209,25 @@ end
 return 1
 ";
 
+/// KEYS: epoch, snap, stream, room, obroom, rooms, roomsess, asset, assetm, assetrooms,
+/// obpending. ARGV: room, epoch ('' = unfenced). Deletes everything of the room (ADR-043).
+const DESTROY: &str = r"
+if ARGV[2] ~= '' and redis.call('GET', KEYS[1]) ~= ARGV[2] then
+  return redis.error_reply('FENCED stale epoch')
+end
+for _, id in ipairs(redis.call('ZRANGE', KEYS[5], 0, -1)) do
+  redis.call('DEL', 'oc:ob:' .. id)
+  redis.call('ZREM', KEYS[11], id)
+end
+for _, t in ipairs(redis.call('ZRANGE', KEYS[7], 0, -1)) do
+  redis.call('DEL', 'oc:sess:' .. t)
+end
+redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4], KEYS[5], KEYS[7], KEYS[8], KEYS[9])
+redis.call('SREM', KEYS[6], ARGV[1])
+redis.call('SREM', KEYS[10], ARGV[1])
+return 1
+";
+
 /// KEYS: room. ARGV: version ('' = none), has version, dirty, now, committed.
 const MARK_ROOM: &str = r"
 if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
@@ -845,6 +864,44 @@ impl RedisStore {
             .await
             .map_err(|e| fenced_or(room, e, "writing the room snapshot"))?;
         Ok(())
+    }
+
+    /// Ephemeral storage (ADR-043): every key of the room (state, WAL, room row, every outbox
+    /// row, sessions, assets, epoch); with `epoch`, only while it is the room's latest.
+    pub async fn destroy_room(&self, room: &str, epoch: Option<i64>) -> anyhow::Result<()> {
+        redis::Script::new(DESTROY)
+            .key(epoch_key(room))
+            .key(snap_key(room))
+            .key(stream_key(room))
+            .key(room_key(room))
+            .key(ob_room_key(room))
+            .key(ROOMS)
+            .key(room_sess_key(room))
+            .key(asset_key(room))
+            .key(asset_meta_key(room))
+            .key(ASSET_ROOMS)
+            .key(OB_PENDING)
+            .arg(room)
+            .arg(epoch.map(|e| e.to_string()).unwrap_or_default())
+            .invoke_async::<i64>(&mut self.c())
+            .await
+            .map_err(|e| fenced_or(room, e, "destroying the room"))?;
+        Ok(())
+    }
+
+    /// How many of the room's keys exist (tests).
+    pub async fn room_keys(&self, room: &str) -> anyhow::Result<i64> {
+        Ok(redis::cmd("EXISTS")
+            .arg(epoch_key(room))
+            .arg(snap_key(room))
+            .arg(stream_key(room))
+            .arg(room_key(room))
+            .arg(ob_room_key(room))
+            .arg(room_sess_key(room))
+            .arg(asset_key(room))
+            .arg(asset_meta_key(room))
+            .query_async(&mut self.c())
+            .await?)
     }
 
     /// Drops a room's state; with `epoch`, only while it is the room's latest ([`Fenced`]).
