@@ -345,6 +345,65 @@ async fn role_api_downgrades_a_live_session() {
 }
 
 #[tokio::test]
+async fn saves_use_a_connected_editor_after_the_last_editor_is_revoked() {
+    // PERM-05: u_b joins last, so the room's save token is u_b's. A commit is pending (the
+    // host is down) when u_b is revoked; u_a is still editing.
+    let (base, host) = mock_host().await;
+    let state = app_custom(&base, fast(), &temp_db(), with_key).await;
+    let addr = serve_state(state.clone()).await;
+    let mut a = Peer::join(&state, grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    host.lock().unwrap().fail = true;
+    b.edit(|d| type_text(d, "pending"));
+    wait_until(|| !host.lock().unwrap().puts.is_empty()).await;
+    assert_eq!(
+        state.store.outbox_rows(&room()).await.unwrap()[0].token,
+        "cb-u_b"
+    );
+
+    assert_eq!(set_role(&addr, API_KEY, "u_b", "none").await.status(), 200);
+    b.settle().await;
+    {
+        let mut h = host.lock().unwrap();
+        h.denied_tokens.insert("cb-u_b".into());
+        h.fail = false;
+        h.puts.clear();
+    }
+    a.edit(|d| type_text(d, " more"));
+    wait_until(|| host.lock().unwrap().files.contains_key(FILE)).await;
+    let h = host.lock().unwrap();
+    assert!(
+        h.puts
+            .iter()
+            .all(|p| header(p, "authorization") == "Bearer cb-u_a"),
+        "a revoked grant is never used for a save"
+    );
+    assert!(ocanvas_text(&h.files[FILE].0).contains("pending"));
+}
+
+#[tokio::test]
+async fn a_save_refused_with_403_falls_back_to_another_editor() {
+    let (base, host) = mock_host().await;
+    let state = app(&base, fast()).await;
+    let mut a = Peer::join(&state, grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    // The host revoked u_b on its side without telling OpenCanvas.
+    host.lock().unwrap().denied_tokens.insert("cb-u_b".into());
+    a.edit(|d| type_text(d, "kept"));
+    wait_until(|| host.lock().unwrap().files.contains_key(FILE)).await;
+    let h = host.lock().unwrap();
+    assert_eq!(
+        header(h.puts.last().unwrap(), "authorization"),
+        "Bearer cb-u_a"
+    );
+    assert_eq!(ocanvas_text(&h.files[FILE].0), "kept");
+}
+
+#[tokio::test]
 async fn delete_session_saves_then_closes_everyone() {
     let (base, host) = mock_host().await;
     let state = app_custom(&base, room_cfg(), &temp_db(), with_key).await;
