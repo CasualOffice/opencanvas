@@ -1,5 +1,7 @@
 //! A handful of Prometheus counters, gauges and histograms, rendered as text.
 
+use std::collections::BTreeMap;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -64,6 +66,13 @@ pub struct Metrics {
     pub awareness_broadcasts_total: AtomicI64,
     /// Awareness frames parked because a room's inbox was full (latest per connection kept).
     pub awareness_coalesced_total: AtomicI64,
+    /// AI (docs/24 §8.2): model calls by `(host, provider, model, outcome)`; no content.
+    pub ai_requests: Mutex<BTreeMap<(String, String, String, String), i64>>,
+    pub ai_tokens_input_total: AtomicI64,
+    pub ai_tokens_output_total: AtomicI64,
+    /// Agent runs by outcome (`done`, `cancelled`, `limit`, `error`, `refused`).
+    pub ai_runs: Mutex<BTreeMap<String, i64>>,
+    pub ai_run_seconds: Histogram,
 }
 
 impl Metrics {
@@ -120,6 +129,30 @@ impl Metrics {
                 )
             })
             .collect();
+        out.push_str("# TYPE oc_ai_requests_total counter\n");
+        if let Ok(m) = self.ai_requests.lock() {
+            for ((host, provider, model, outcome), n) in m.iter() {
+                out.push_str(&format!(
+                    "oc_ai_requests_total{{host=\"{host}\",provider=\"{provider}\",model=\"{model}\",outcome=\"{outcome}\"}} {n}\n"
+                ));
+            }
+        }
+        out.push_str(&format!(
+            "# TYPE oc_ai_tokens_total counter\noc_ai_tokens_total{{direction=\"input\"}} {}\noc_ai_tokens_total{{direction=\"output\"}} {}\n",
+            self.ai_tokens_input_total.load(Ordering::Relaxed),
+            self.ai_tokens_output_total.load(Ordering::Relaxed)
+        ));
+        out.push_str("# TYPE oc_ai_runs_total counter\n");
+        if let Ok(m) = self.ai_runs.lock() {
+            for (outcome, n) in m.iter() {
+                out.push_str(&format!("oc_ai_runs_total{{outcome=\"{outcome}\"}} {n}\n"));
+            }
+        }
+        out.push_str(
+            &self
+                .ai_run_seconds
+                .render("oc_ai_run_seconds", "Wall-clock time of one agent run."),
+        );
         out.push_str(&self.wal_append_seconds.render(
             "oc_wal_append_seconds",
             "Time to append one batch of updates to the room WAL.",
