@@ -73,6 +73,9 @@ export async function createFile(p: Person, name: string, host = HOST): Promise<
  */
 export async function setAccess(owner: Person, fileId: string, user: UserId, role: "edit" | "comment" | "view" | "none", host = HOST) {
   const page = await owner.ctx.newPage();
+  // The sample host's admin table is not under test and is not laid out for phones: on a
+  // 360 px viewport its cells can cover the "Save access" button. Use a desktop width here.
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${host}/?as=${owner.user}`);
   const row = page.locator("tr").filter({ has: page.locator(`a[href="/files/${fileId}"]`) });
   await row.locator(`select[name="${user}"]`).selectOption(role);

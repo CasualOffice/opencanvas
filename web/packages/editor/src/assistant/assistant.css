@@ -28,7 +28,7 @@
 .ai-card{border-radius:14px;background:var(--app);box-shadow:var(--ai-pop);overflow:hidden;animation:ai-in .22s var(--ease)}
 @keyframes ai-in{from{opacity:0;transform:translateY(-4px)}}
 .ai-bar-in{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
-.ai-bar-in input{flex-grow:1;min-width:0;border:0;outline:none;background:transparent;font:inherit;font-size:14px;color:var(--fg)}
+.ai-bar-in input{flex-grow:1;min-width:0;min-height:32px;border:0;outline:none;background:transparent;font:inherit;font-size:14px;color:var(--fg)}
 .ai-bar-in input::placeholder{color:var(--ai-fg-3)}
 .ai-acts{padding:6px}
 .ai-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--fg);background:transparent;border:0;border-radius:8px;padding:8px 10px;cursor:pointer}
@@ -37,7 +37,7 @@
 .ai-note-r{font-size:12px;color:var(--ai-fg-3)}
 .ai-foot{display:flex;align-items:center;gap:6px;padding:8px 14px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--ai-fg-3)}
 .ai-foot .grow{flex-grow:1}
-.ai-link{font:inherit;font-size:12px;border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
+.ai-link{font:inherit;font-size:12px;border:0;background:none;padding:0 4px;min-height:24px;min-width:24px;display:inline-flex;align-items:center;color:var(--accent);text-decoration:underline;cursor:pointer}
 .ai-link:hover{color:var(--fg)}
 .ai-sent{margin:0;padding:0 14px 10px;background:var(--panel);font-size:12px;line-height:1.45;color:var(--ai-fg-3)}
 
