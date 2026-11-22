@@ -174,6 +174,7 @@ export function reduce(s: RunState, ev: RunEvent): RunState {
       }
       // ai-done
       if (m.outcome === "undone") return { ...initialRun };
+      if (m.outcome === "cancelled" && m.reason === "plan_timeout") return { ...s, phase: "answer", summary: "The plan waited 10 minutes without a Run, so nothing was changed." };
       const summary = typeof m.summary === "string" ? m.summary : "";
       if (s.mode === "answer" || (m.outcome === "done" && !m.writes && summary))
         return { ...s, phase: "answer", summary: summary || doneText[m.outcome] || "" };
