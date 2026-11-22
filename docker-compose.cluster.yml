@@ -16,6 +16,9 @@ x-opencanvas: &opencanvas
   stop_grace_period: 30s
   volumes:
     - ./opencanvas.hosts.toml:/etc/opencanvas/hosts.toml:ro
+    # WOPI proof key shared by every node (the hosts file has a WOPI host). Public test key:
+    # development only; production uses its own (docs/05 §6 "Proof keys").
+    - ./crates/oc-server/tests/keys/rsa.pem:/etc/opencanvas/wopi-proof.pem:ro
   depends_on:
     mariadb: { condition: service_healthy }
     redis: { condition: service_healthy }
@@ -29,6 +32,7 @@ x-opencanvas-env: &opencanvas-env
   REDIS_URL: redis://redis:6379
   OC_CLUSTER_SECRET: dev-cluster-secret-change-me-0123456789
   OC_KEK: dZ+d8wSluo/33zDYasy7VyXPMPNzHkmA9Gn+QvcaYeU=
+  OC_WOPI_PROOF_KEY: /etc/opencanvas/wopi-proof.pem
   OC_AUTOSAVE_DEBOUNCE_MS: "1000"
   OC_LOG: info
 

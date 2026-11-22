@@ -42,7 +42,8 @@ grep -q "OC_KEK is required" "$WORK/nokek.log" || { echo "FAIL [$LABEL]: no OC_K
 
 PORT=$HOST_PORT OC_SERVER=$OC DATA_DIR=$WORK/host node examples/sample-host/server.mjs > "$WORK/host.log" 2>&1 &
 PIDS+=("$!")
-env -u OC_DEV DATABASE_URL="$DBURL" OC_KEK="$(openssl rand -base64 32)" \
+openssl genrsa -out "$WORK/proof.pem" 2048 2>/dev/null # the hosts file has a WOPI host
+env -u OC_DEV DATABASE_URL="$DBURL" OC_KEK="$(openssl rand -base64 32)" OC_WOPI_PROOF_KEY="$WORK/proof.pem" \
   OC_HOSTS_FILE=opencanvas.hosts.toml OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=$OC \
   OC_CALLBACK_BASE_OVERRIDE=$HOST/api/opencanvas \
   OC_AUTOSAVE_DEBOUNCE_MS=500 "$BIN" > "$WORK/oc.log" 2>&1 &
