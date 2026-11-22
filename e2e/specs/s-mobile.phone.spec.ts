@@ -2,7 +2,8 @@
 //    formatting from the mobile toolbar, comments, tap targets, no sideways page scroll,
 //    the safe area and an orientation change. Runs on WebKit (iPhone) and Chromium (Pixel).
 import { expect, test, type Page } from "@playwright/test";
-import { OC } from "../env";
+import path from "node:path";
+import { OC, ROOT } from "../env";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
@@ -84,6 +85,7 @@ test("MOB-11b: the mobile toolbar keeps clear of the home indicator and sits on 
   expect(Math.round(closed.x)).toBe(0);
   expect(Math.round(closed.width)).toBe(width);
   expect(Math.round(closed.y + closed.height)).toBe(height);
+  await page.screenshot({ path: path.join(ROOT, `target/fix-shots/mob11b-${test.info().project.name}.png`) });
   for (const b of await bar.getByRole("button").all()) {
     const r = (await b.boundingBox())!;
     expect(r.height).toBeGreaterThanOrEqual(44);

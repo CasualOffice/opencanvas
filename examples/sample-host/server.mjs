@@ -310,12 +310,19 @@ function openFile(res, me, id) {
   document.getElementById('oc').submit();
   const post = (MessageId, Values = {}) => frame.contentWindow.postMessage({ MessageId, SendTime: Date.now(), Values }, OC);
   const toast = document.getElementById('toast'); let tt;
+  window.ocRenew = () => fetch('/files/' + FILE + '/token', { method: 'POST' }).then(r => r.json()).then(j => post('Action_RefreshToken', { token: j.token }));
   const say = t => { toast.textContent = t; toast.hidden = false; clearTimeout(tt); tt = setTimeout(() => toast.hidden = true, 4000); };
   addEventListener('message', e => {
     if (e.origin !== OC || e.source !== frame.contentWindow) return;
     const { MessageId, Values = {} } = e.data || {};
     console.log('[opencanvas]', MessageId, Values);
     if (MessageId === 'App_LoadingStatus' && Values.Status === 'Frame_Ready') post('Host_PostmessageReady');
+    // Access running out: renew it quietly with a fresh token (docs/05 §4, PERM-07).
+    // window.ocHoldRefresh (tests) holds the answer back, like a slow or unwilling host.
+    if (MessageId === 'Token_Expiring') {
+      document.body.dataset.tokenExpiring = String((Number(document.body.dataset.tokenExpiring) || 0) + 1);
+      if (!window.ocHoldRefresh) window.ocRenew();
+    }
     // "Copy link to block": we own the URLs, so we build the link (docs/05 §4).
     if (MessageId === 'UI_BlockLink' && Values.fileId === FILE && /^[A-Za-z0-9_-]{1,64}$/.test(Values.blockId || '')) {
       const url = location.origin + '/files/' + FILE + '#block=' + Values.blockId;
@@ -407,6 +414,9 @@ http.createServer(async (req, res) => {
     }
     const ml = url.pathname.match(/^\/files\/([\w-]+)\/mentions\.json$/);
     if (ml && meta.files[ml[1]]?.acl[me]) return send(res, 200, mentionsFor(ml[1]), { "cache-control": "no-store" });
+    // docs/05 §4 Token_Expiring: a fresh launch token for the same person and file (PERM-07).
+    const tk = req.method === "POST" && url.pathname.match(/^\/files\/([\w-]+)\/token$/);
+    if (tk && meta.files[tk[1]]?.acl[me]) return send(res, 200, { token: launchToken(tk[1], me) }, { "cache-control": "no-store" });
     const fm = url.pathname.match(/^\/files\/([\w-]+)$/);
     if (fm) return openFile(res, me, fm[1]);
     if (url.pathname === "/") return home(res, me);

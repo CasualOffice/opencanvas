@@ -119,6 +119,7 @@ test("MOB-04b: phone database: narrow sticky title, cells tappable once scrolled
     el.dispatchEvent(new Event("scroll"));
   });
   await expect(sticky).not.toHaveCSS("box-shadow", "none");
+  await page.screenshot({ path: path.join(ROOT, `target/fix-shots/mob04b-${test.info().project.name}.png`) });
   expect(await noSideScroll(page)).toBe(true);
   const name = (await title.textContent())!.trim();
   await title.tap();
