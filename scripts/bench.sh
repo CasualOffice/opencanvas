@@ -16,6 +16,8 @@
 # Resilience and worst case (docs/22 §8-§11):
 # S1 sustained: one room of 550, 100 % editors typing with no pauses, 10 one-minute buckets
 # S2 sustained: 1,000 rooms x 5, 100 % editors, no pauses, 10 one-minute buckets
+#    (then typing stops and the server's RSS is sampled while rooms are evicted: S_IDLE_SECS,
+#    default OC_ROOM_IDLE_MS + 60 s; S_IDLE_SECS=0 skips)
 #    (S1/S2: S_DB=maria syncs to MariaDB in Docker; OC_WAL_REDIS_URL puts the hot WAL in Redis;
 #    S_DB=redis: Redis-only storage, a one-node cluster on REDIS_PORT with no DATABASE_URL)
 # R  crash recovery on SQLite: 200 rooms x 2 typing, kill -9 the server, restart, verify
@@ -51,6 +53,7 @@ if [ -n "${OC_BIN:-}" ]; then BIN=$OC_BIN; LG=${OC_LG:-$LG}; SKIP_BUILD=1; fi
 mkdir -p "$OUT"
 WORK=${WORK:-$(mktemp -d)}; mkdir -p "$WORK"; echo "work dir (node logs): $WORK"
 PIDS=(); CONTAINERS=()
+S_IDLE_SECS=${S_IDLE_SECS:-$(( ${OC_ROOM_IDLE_MS:-60000} / 1000 + 60 ))}
 
 # Sockets: the server and the load generator each hold one fd per connection.
 ulimit -n "$(( $(sysctl -n kern.maxfilesperproc 2>/dev/null || echo 65536) ))" 2>/dev/null || ulimit -n 65536 2>/dev/null || true
@@ -369,7 +372,7 @@ scenario() {
       wal_watch "$WALDB" "$OUT/S1-wal.raw"
       lg S1-sustained-550 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room ${S1_PER_ROOM:-550} --editors 1.0 --no-pauses \
         --probes 10 --doc demo --steps ${S1_STEPS:-550,550,550,550,550,550,550,550,550,550} --step-secs 55 --settle-secs 5 \
-        --connect-rate 100 "${SQLARG[@]}"
+        --connect-rate 100 --idle-secs "$S_IDLE_SECS" "${SQLARG[@]}"
       cat "$OUT/S1-wal.raw" >> "$OUT/S1-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S1-sustained-550.md"
       stop_server "$SERVER_PID" ;;
     S2)
@@ -378,7 +381,7 @@ scenario() {
       wal_watch "$WALDB" "$OUT/S2-wal.raw"
       lg S2-sustained-1000x5 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 5 --editors 1.0 --no-pauses \
         --probes 5 --doc demo --steps ${S2_STEPS:-5000,5000,5000,5000,5000,5000,5000,5000,5000,5000} --step-secs 55 --settle-secs 5 \
-        --connect-rate 250 "${SQLARG[@]}"
+        --connect-rate 250 --idle-secs "$S_IDLE_SECS" "${SQLARG[@]}"
       cat "$OUT/S2-wal.raw" >> "$OUT/S2-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S2-sustained-1000x5.md"
       stop_server "$SERVER_PID" ;;
     R|mR)
