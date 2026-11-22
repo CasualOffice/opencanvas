@@ -51,7 +51,7 @@ SLA. Release notes, known limitations, backup and recovery:
 
 ### Changed
 
-- jemalloc is the default allocator; memory is purged when a room closes (docs/22 §9.6).
+- jemalloc is the default allocator; memory is purged when a room closes (docs/22 §9.6, §9.7).
 - Idle rooms are saved and dropped after `OC_ROOM_IDLE_MS` (60 s).
 - Outbound updates are merged into one frame per room every 40 ms; socket write batches are capped.
 
@@ -63,6 +63,8 @@ SLA. Release notes, known limitations, backup and recovery:
   fanned out; MariaDB deadlocks were not retried; a draining node accepted and then closed
   WebSocket upgrades (docs/22 §8 weaknesses 3, 4, 5, 7).
 - The host's `export_formats` flag was not enforced (docs/23 EX-09).
+- Memory was not returned after idle rooms closed: the jemalloc purge call was refused and the
+  error ignored; RSS with 0 rooms fell from 856 MB to 174 MB in the S2 run (docs/22 §9.7).
 
 ### Security
 

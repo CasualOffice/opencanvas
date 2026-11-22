@@ -2,7 +2,7 @@
 
 **Embeddable collaborative workspace canvas.**
 
-**Status:** prepared 2026-11-23 from `main` at `c6eca7a`. Not tagged and not published.
+**Status:** prepared 2026-11-23 from `main` at `1156d58`. Not tagged and not published.
 This is an **alpha** for evaluation. There is **no production SLA**: no uptime, support,
 response-time or data-retention commitment of any kind. Read [Known limitations](#known-limitations)
 before you run it with real users.
@@ -159,14 +159,18 @@ generator on the same machine. They are indicative, not a guarantee.
   grew from 843 MB to 1,451 MB over 5 minutes (docs/22 §9.4.1). Every map overwrite (a database
   cell, a shape's position) leaves a deleted yrs item in memory: the live heap grows about 14.7×
   the encoded growth, and the server cannot reduce that without changes in yrs (docs/22 §9.5).
-- **Retention after eviction:** idle rooms are saved and dropped after `OC_ROOM_IDLE_MS` (60 s),
-  but RSS does not return to the baseline. With jemalloc (the default allocator) RSS fell from a
-  977 MB peak to **628 MB with 0 rooms and 0 connections open**; with the system allocator it
-  stayed at 1,069 MB (docs/22 §9.6). The guard test `tests/alloc_release.rs` shows part of the
-  closed rooms is still reachable (134 MB after all rooms closed and an explicit purge), so this
-  is a retention bug, not only the allocator.
-- **TODO (owner): update this line once the retention fix lands, with the new RSS after
-  eviction and the docs/22 section that measures it.**
+- **Retention after eviction (fixed in this release, docs/22 §9.7):** idle rooms are saved and
+  dropped after `OC_ROOM_IDLE_MS` (60 s), and jemalloc (the default allocator) now returns their
+  memory. The purge had never run (`arena.4096.purge` was called with a non-null input and the
+  error was ignored); it now uses null pointers, logs failures, and its sweeper starts in
+  `AppState::new`. In the 1,000 rooms × 5 nonstop-typing run, RSS was about 1,077 MB at minute 3;
+  60 s after typing stopped, with 0 rooms open, it was **174 MB** (856 MB before the fix), with p95
+  43 ms. About 160 MB stays resident with no rooms (SQLite page cache, allocator metadata and
+  thread caches, tokio). Tests: `alloc::tests::jemalloc_purge_is_accepted`,
+  `tests/alloc_release.rs`.
+- **Remaining limit:** live memory grows with the document while people type, because yrs keeps
+  dead items: about 15–20× the encoded size (docs/22 §9.4, §9.5). Size for the documents you keep
+  open, not for the idle baseline.
 - **Sizing guidance:** [docs/22 §4](22-CAPACITY-AND-SIZING.md#4-sizing-for-self-hosters) and the
   Sizing section of [docs/13](13-OPERATIONS-AND-DEPLOYMENT.md#sizing). Restart a node that keeps
   RSS high after its load has gone, and watch it with `/metrics` and your own RSS monitoring.
@@ -195,7 +199,9 @@ conflicts use timestamps, like Collabora (WOPI-05).
 ### Single node first
 
 The supported shape for this release is one node with SQLite. Cluster mode (Redis, optionally
-MySQL/MariaDB) passes the crash and chaos runs in docs/22 §8 and §11.1, but **scale-out across
+MySQL/MariaDB) passes the crash and chaos runs in docs/22 §8 and §11.1, and the Redis-only
+cluster reruns pass (docs/22 §9.7: K, 107,035 acknowledged edits and 0 lost, 124 stale writes
+fenced; K2, 71,715 acknowledged and 0 lost; S1, 550 typing in one room at p95 49–69 ms), but **scale-out across
 machines is not demonstrated**: on one laptop three nodes held less load than one (docs/22 §8
 weakness 8, §12), and the multi-machine recipe in §12.1 has not been run. On SQLite, a server
 with 1,000 rooms of nonstop typing in `wal` mode stays above the 700 ms p95 target
