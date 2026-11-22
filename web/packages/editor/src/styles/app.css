@@ -396,9 +396,11 @@ button.cic:hover{transform:scale(1.06)}
 .linkbtn:hover{color:var(--fg)}
 
 /* ---------- mobile editing bar ---------- */
-.mbar{position:fixed;left:8px;right:8px;z-index:25;display:flex;gap:2px;padding:5px;border-radius:14px;background:var(--pop);box-shadow:var(--sh-pop);overflow-x:auto;scrollbar-width:none;animation:popIn .3s var(--ease)}
+.mbar{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;gap:2px;align-items:center;padding:6px 8px max(6px,env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.mbar.kb{padding-bottom:6px}
 .mbar::-webkit-scrollbar{display:none}
-.mbar .ib{width:42px;height:40px;border-radius:9px}
+.mbar .ib{width:44px;height:44px;border-radius:10px;flex:none}
+.mbar .sp{flex:1 0 8px}
 .mbar .vs{width:1px;margin:8px 3px;background:var(--line-2);flex:none}
 
 /* ---------- toast ---------- */

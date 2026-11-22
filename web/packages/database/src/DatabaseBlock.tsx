@@ -690,6 +690,7 @@ const OVERSCAN = 16;
 /** How long a new column stays highlighted. */
 const FLASH_MS = 1200;
 const MIN_W = 70, MAX_W = 900;
+const TITLE_W_PHONE = 132;
 const clampW = (w: number) => Math.round(Math.max(MIN_W, Math.min(MAX_W, w)));
 
 /** What a memoised table row needs. Kept referentially stable between ordinary edits. */
@@ -703,6 +704,8 @@ interface RowCtx {
   focusRow: string | null;
   setFocusRow: Ctx["setFocusRow"];
   q: string;
+  /** Phone layout (prototype PhoneDb, MOB-04b): the title is a button that opens the row. */
+  compact: boolean;
   /** Row drag handles are shown (editor, no sort active). */
   grip: boolean;
   act: React.RefObject<{ grip: (e: React.PointerEvent, rid: string) => void; gripKey: (e: React.KeyboardEvent, rid: string) => void }>;
@@ -754,7 +757,9 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
     setRange(g);
   };
 
-  const widthOf = (f: DbField) => (colW?.fid === f.id ? colW.w : clampW(prefs.widths?.[f.id] ?? W[f.type] ?? 160));
+  const widthOf0 = (f: DbField) => (colW?.fid === f.id ? colW.w : clampW(prefs.widths?.[f.id] ?? W[f.type] ?? 160));
+  // MOB-04b (prototype PhoneDb): on a phone the sticky title column is at most 132 px.
+  const widthOf = (f: DbField) => (ctx.compact && f.type === "title" ? Math.min(TITLE_W_PHONE, widthOf0(f)) : widthOf0(f));
   const total = fields.reduce((t, f) => t + widthOf(f), 0) + (edit ? 44 : 0);
 
   /* ---- virtual window: only rows near the viewport are in the DOM ---- */
@@ -1162,10 +1167,10 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
   };
 
   const q = (prefs.q ?? "").trim();
-  const grip = edit && !sorts.length;
+  const grip = edit && !sorts.length && !ctx.compact;
   const rc = useMemo<RowCtx>(
-    () => ({ doc, dbId: db.id, edit, people, open, setPeek: ctx.setPeek, focusRow: ctx.focusRow, setFocusRow: ctx.setFocusRow, q, grip, act }),
-    [doc, db.id, edit, people, open, ctx.setPeek, ctx.focusRow, ctx.setFocusRow, q, grip],
+    () => ({ doc, dbId: db.id, edit, people, open, setPeek: ctx.setPeek, focusRow: ctx.focusRow, setFocusRow: ctx.setFocusRow, q, compact: ctx.compact, grip, act }),
+    [doc, db.id, edit, people, open, ctx.setPeek, ctx.focusRow, ctx.setFocusRow, q, ctx.compact, grip],
   );
   const multi = isMulti(range) ? rangeBounds(range!) : null;
   const sortOf = (fid: string) => sorts.find((s) => s.f === fid);
@@ -1187,7 +1192,7 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
   }
 
   return (
-    <div className="ocdb-gw" ref={gwRef}>
+    <div className="ocdb-gw" ref={gwRef} onScroll={ctx.compact ? (e) => e.currentTarget.classList.toggle("scrolled", e.currentTarget.scrollLeft > 0) : undefined}>
       <table className="ocdb-grid" style={{ width: total }} aria-label={db.name || "Database"} aria-rowcount={rows.length + 1} aria-multiselectable={edit || undefined}>
         <colgroup>
           {fields.map((f) => <col key={f.id} style={{ width: widthOf(f) }} />)}
@@ -1352,6 +1357,16 @@ function Cell({ rc, f, r, ri, ci, inSel }: { rc: RowCtx; f: DbField; r: DbRow; r
   const v = r.v[f.id];
   const hit = !!q && (f.type === "title" || f.type === "text" || f.type === "number") && String(v ?? "").toLowerCase().includes(q.toLowerCase());
   const tdProps = { "data-r": ri, "data-c": ci, tabIndex: -1, className: (inSel ? "sel" : "") + (hit ? " hit" : "") || undefined };
+  if (f.type === "title" && rc.compact) {
+    const t = typeof v === "string" ? v : v == null ? "" : String(v);
+    return (
+      <td {...tdProps}>
+        <button className={"ocdb-ttl" + (t ? "" : " empty")} onClick={() => setPeek(r.id)} aria-label={`Open ${t || "Untitled"}`} title={t || undefined}>
+          {t || "Untitled"}
+        </button>
+      </td>
+    );
+  }
   if (f.type === "title") {
     return (
       <td {...tdProps}>
