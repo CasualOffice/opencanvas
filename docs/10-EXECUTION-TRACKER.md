@@ -25,6 +25,7 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | UI-02 | Rebuilt prototype: autosave only, Lucide icons, Geist type, 40-template gallery, database block (table/board/calendar/gallery, CSV), board, presence, comments, phone + side-panel layouts | Done | [Artifact v2](https://claude.ai/artifact/74HWMXbcLhqRzBCFmcqSqY), 2026-11-21; 33 scripted interaction checks pass in headless Chrome. **Approved by user 2026-11-21** |
 | SITE-02 | Website, README and docs for the assistant and MCP: home "Assistant" section (select → ask → plan → approve → build → review → undo; security in plain words; MCP), assistant screenshots from `#demo` (plan and review, light and dark, desktop and phone; `capture-site-screens.mjs` scenes `assistant-*`), docs page `docs/ai.html` from docs/24 (without §2 research and §12 open questions) plus the AI sections of docs/13, FAQ, docs index card, llms.txt/llms-full.txt, sitemap, README "Assistant and MCP", docs/00 index, roadmap note in docs/09, pre-release limits line | Done | Done 2026-11-23: `tools/check-site-links.py` (19 pages, 1,328 internal links) and `tools/check-site-claims.py` (23 claims traced) pass; the dark-mode "Accept all" contrast was fixed (`--ai-on`) and is covered by e2e `t-assistant` "assistant in dark mode: bar, plan and review pass contrast"; CI `pages` green on 63e9e01. |
 | REL-01 | Release v0.1.0-alpha.1 documents and version: [docs/25](25-RELEASE-v0.1.0-alpha.1.md) release notes (evidence, limitations, backup and recovery, upgrade, verification checklist), `CHANGELOG.md`, SECURITY supported versions, README alpha notice, version bump, site changelog and limits | Done | Branch `release/v0.1.0-alpha.1` off main `1156d58`. Not tagged or published. Verification checklist in docs/25 still to be run on the release commit. Open: LICENSE names "version 0.1.0 and later", and `0.1.0-alpha.1` sorts before `0.1.0` in SemVer (owner decision). Tagged `v0.1.0-alpha.1` on `e122c26` and published as a GitHub pre-release, 2026-11-23; release notes synced with the final evidence. |
+| REL-02 | Release v0.1.0 scope lock: [docs/26](26-RELEASE-v0.1.0-SCOPE.md) (frozen content = alpha.1 + SEC-33/34/35 + WOPI-13, MOD-01, FC-07; exit criteria; change control; out-of-scope limitations), then the v0.1.0 notes and tag | In progress | 2026-11-23: scope lock written; owner approval of the lock pending. Open: WOPI-13 (WOPI-01 P2 row), MOD-01 and FC-07 being finished on branches; checklist to run on the release commit; release audit of the new code (docs/18) |
 | SEC-MED-A2 | The three Medium findings of the alpha.1 release audit, for v0.1.0-alpha.2 (docs/18 §5) | Done | SEC-33: MCP audience from `[host.ai] mcp_audience` or `OC_PUBLIC_URL` only, else MCP off (404) with one start-up warning. SEC-34: without `/access`, MCP tokens need a `files` claim unless `[host.ai] mcp_all_files = true`. SEC-35: WOPI session capped at the 10 h JWT cap. Tests in `tests/mcp.rs` and `tests/wopi.rs`, each seen failing first; docs/05, 13, 18, 24 §7, CHANGELOG |
 | SCAF-01 | Cargo + pnpm workspaces, CI matrix (SQLite/MySQL/MariaDB) | Done | Done 2026-11-23: build contract [15](15-BUILD-CONTRACT.md); CI run 45055260424 on main 63e9e01 is green on every job: rust, web, helm, e2e matrix sqlite (+ Gotenberg) / mariadb / mysql, browser-e2e. |
 
@@ -106,6 +107,36 @@ Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` �
 | PERF-06 | S2 memory under nonstop typing; Redis-only cluster chaos (ADR-030); multi-machine throughput recipe | Review | Branch `perf-memory-reliability` (docs/22 §9.5, §12.1). S2 3 min before: RSS 757 → 1,088 MB (≈ 165 MB/min) vs encoded docs ≈ 9.4 MB/min (17×): **FAIL** ≤ 3× target. Cause measured (`tests/ydoc_memory.rs`): text squashes; each map overwrite keeps a ≈ 210 B dead yrs item, live heap 14.7× encoded. After idle eviction (0 rooms) RSS stays 1,004 MB: **FAIL**. WIP allocator branch reviewed: `malloc_zone_pressure_relief` returned nothing (405 → 405 MB), dropped; mimalloc/jemalloc untested, dropped. Kept `oc-bench --idle-secs` / `S_IDLE_SECS`, `OC_BENCH_HOST_BIND`. Not run: K, K2, S1 Redis-only (disk below 8 GB). |
 | PERF-07 | Allocator choice, RSS after eviction, dead-item compaction, Redis-only reruns | Review | Branch `perf-allocator-compaction` (docs/22 §9.6). S2 3 min + idle eviction, system / mimalloc / jemalloc: RSS at bucket 3 1,074 / 1,101 / **972 MB**, with 0 rooms 1,069 / 1,063 / **628 MB**; p95 within 700 ms for all. jemalloc is the default (`arena.<all>.purge` on room close, 1 s decay, background thread on Linux; Dockerfile installs make). Still **FAIL**: 628 MB stays; `tests/alloc_release.rs` shows ≈ 110 MB live after 24 rooms close even after a purge (a holder, not the allocator), test `#[ignore]` until found. Dead-item compaction skipped: rebuilding the S2 doc from its encoding keeps 1,574 blocks, heap 333 → 332 KB (−0.3 %). Not run: K, K2, S1 Redis-only (disk under 6 GB); `bench.sh REDIS_LOCAL=1` added for them. |
 | PERF-08 | Retained memory after eviction; Redis-only reruns K, K2, S1 | Review | docs/22 §9.7. Cause: `alloc::release` sent `arena.4096.purge` with a non-null input pointer, jemalloc refused it (EPERM, error ignored), so no purge ever ran; nothing in room code held memory (guard test before: allocated 21 MB, resident 132 MB). Fix: `mallctl` with null pointers, failure logged, sweeper started in `AppState::new`. `tests/alloc_release.rs` un-ignored (134 -> 47 MB after eviction), `alloc::tests::jemalloc_purge_is_accepted` seen failing first. S2 3 min + idle: RSS at min 3 1,076 / 1,077 MB, with 0 rooms **856 -> 174 MB**; p95 43 ms. Redis-only: K PASS (107,035 acked, 0 lost, 124 fenced, p95 53/49 ms), K2 (20 s freeze) PASS (71,715 acked, 0 lost; load p95 not recorded), S1 550 x 3 min PASS (p95 49/56/69 ms, 0 err/drop; RSS 176 -> 361 MB). |
+
+## P3 — Platform: v0.2 ([docs/27](27-ROADMAP-v0.2.md))
+
+Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Order and dependencies: docs/27 §8. ADR-039 to
+ADR-042 (Proposed).
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| V2UI-01 | Prototypes for v0.2 UI (docs/27 §6: make live, live block chrome, block reference card, compact block view, SDK block chrome, insert entries) on Artifact, owner approval | Todo | M; gates LIVE-03 and BSDK-03 UI (ADR-011) |
+| HAPI-01 | Headless API: `/api/v1` router, OpenAPI 3.1 document, RFC 9457 errors, 0.1 routes as aliases | Todo | L; after MOD-01; ADR-041 |
+| HAPI-02 | User-scoped API tokens and scopes, one auth check with MCP | Todo | M; after HAPI-01 |
+| HAPI-03 | `Idempotency-Key` store (SQLite, MySQL/MariaDB, Redis), cluster-safe | Todo | M; after HAPI-01 |
+| HAPI-04 | Signed cursors (Yjs relative positions), `RateLimit` headers, shared limiter | Todo | M; after HAPI-01 |
+| HAPI-05 | Events stream (WebSocket and SSE); headless CRDT sync token | Todo | M; after HAPI-02 |
+| HAPI-06 | TypeScript client `@opencanvas/client` + conformance suite | Todo | M; after HAPI-04 |
+| HAPI-07 | Rust client `opencanvas-client` + conformance suite | Todo | M; after HAPI-04 |
+| HAPI-08 | MCP tools as adapters over API operations; parity contract test | Todo | S; after HAPI-01 |
+| BSDK-01 | Block manifest + JSON Schema registry in MOD-01; `[host.blocks]`; integrity check | Todo | M; after MOD-01; ADR-040 |
+| BSDK-02 | `extBlock` node, `ext` root, declarative export templates, fallbacks | Todo | M; after BSDK-01 |
+| BSDK-03 | Sandboxed iframe runtime: block origin, CSP, bridge RPC | Todo | L; after BSDK-02 and V2UI-01 |
+| BSDK-04 | `@opencanvas/block-sdk` package, sample blocks, author guide | Todo | M; after BSDK-03 |
+| BSDK-05 | Block versioning and migrations; 0.1.x forward-compatibility round trip | Todo | M; after BSDK-02; ADR-042 |
+| LIVE-01 | Live blocks host contract: `POST /files`, `/access` required, `perms.live`, derived grants | Todo | M; after MOD-01; ADR-039 |
+| LIVE-02 | `liveBlock` node, per-block room sessions (lazy, ≤ 8), depth rule | Todo | L; after LIVE-01 |
+| LIVE-03 | Editor live block chrome and "Make live" to the approved prototype | Todo | L; after LIVE-02 and V2UI-01 |
+| LIVE-04 | `blockRef` read-only projection and refresh | Todo | M; after LIVE-02 |
+| LIVE-05 | Exports and `.ocanvas` snapshots under `[host.live] snapshot` | Todo | M; after LIVE-02 |
+| LIVE-06 | Compact `view="block"` embed and `GET /api/v1/files/{id}/render` | Todo | M; after LIVE-02 |
+| ACC-V2 | docs/23 acceptance rows for docs/27 §2.6, §3.5, §4.3 | Todo | S |
+| REL-03 | v0.2.0 scope lock, security audit, release notes | Todo | M; last |
 
 ## Block packages status (database / board session, 2026-11-21)
 

@@ -10,7 +10,7 @@ the tracker (docs/10), so the page cannot drift from them.
 
 Ported from OpenSeal's tools/build-roadmap.py. What it reads:
   docs/09  the phase table: each phase's goal and exit gate.
-  docs/10  every work row (ID | Item | Status | Notes) under the P0, P1 and P2 sections
+  docs/10  every work row (ID | Item | Status | Notes) under the P0, P1, P2 and P3 sections
            and the block packages section. A row listed twice (an early plan row and a
            later, dated one) is shown once, with the furthest status of the two.
 
@@ -107,13 +107,13 @@ def tracker() -> dict[str, list[dict]]:
             continue
         by_id[row["id"]] = row
         order.append(row["id"])
-    out: dict[str, list[dict]] = {"P0": [], "P1": [], "P2": []}
+    out: dict[str, list[dict]] = {"P0": [], "P1": [], "P2": [], "P3": []}
     for rid in order:
         r = by_id[rid]
         # The block packages section re-lists P1/P2 rows; a row only there belongs to P2.
         out["P2" if r["phase"] == "blocks" else r["phase"]].append(r)
     for k, v in out.items():
-        if not v:
+        if not v and k != "P3":
             fail(f"docs/10 has no rows for {k}")
     return out
 
@@ -182,9 +182,18 @@ def render() -> str:
 <p class="muted">{summary} Exit gate: {esc(gate)}.</p>
 <ul class="tl-items">{items}</ul></div></li>""")
     key, name, goal, gate = ph[3]
+    p3 = rows["P3"]
+    p3_items = "".join(
+        f'<li>{sitelib.icon(ICON[r["status"]][0], 16, ICON[r["status"]][1])}<span><b>{esc(r["id"])}</b> '
+        f'{esc(r["item"])} <span class="muted">({esc(LABEL[r["status"]][1].lower())})</span></span></li>'
+        for r in p3)
+    p3_list = f'<ul class="tl-items">{p3_items}</ul>' if p3 else ""
+    detail = section_text("v0.2 detail") if "## v0.2 detail" in ROADMAP.read_text(encoding="utf8") else ""
+    detail_p = (f'<p>{esc(detail)} <a href="{sitelib.BLOB}docs/27-ROADMAP-v0.2.md">Read the v0.2 design plan</a>.</p>'
+                if detail else "")
     tl.append(f"""<li><span class="tl-dot">{sitelib.icon("rocket", 20)}</span>
 <div class="tl-body"><div class="tl-title"><h3>{esc(key)} {esc(name)}</h3>{pill("later", "Later")}</div>
-<p>{esc(goal)}.</p><p class="muted">Exit gate: {esc(gate)}.</p></div></li>""")
+<p>{esc(goal)}.</p>{detail_p}<p class="muted">Exit gate: {esc(gate)}.</p>{p3_list}</div></li>""")
 
     gates = "".join(f'<li>{sitelib.icon("milestone", 16, "todo")}<span><b>{esc(k)} {esc(nm)}</b> {esc(g)}</span></li>'
                     for k, nm, _goal, g in ph)

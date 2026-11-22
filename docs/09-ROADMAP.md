@@ -49,6 +49,17 @@ open to a broad developer ecosystem (ADR-038).
 Priority here is the order of work across the releases above, not the delivery phases P0–P3 in
 the first table.
 
+## v0.1.0 scope lock
+
+The final v0.1.0 is frozen as v0.1.0-alpha.1 plus the alpha.2 security fixes and three blockers
+(WOPI proof keys, block schema validation, the template load test); after the lock only P0/P1 bug
+and security fixes go into 0.1.x and features go to 0.2.0. Exit criteria and limitations:
+[docs/26](26-RELEASE-v0.1.0-SCOPE.md) (tracker REL-02).
+
+## v0.2 detail
+
+The detailed design plan for v0.2 is [docs/27](27-ROADMAP-v0.2.md): portable live blocks as host files embedded by reference and opened as their own rooms (ADR-039), a block SDK with one generic sandboxed block node and server-side schema validation (ADR-040), and a stable, versioned headless API shared with the MCP tools (ADR-041), keeping `.ocanvas` at format version 1 (ADR-042). Its delivery rows are the P3 section of the tracker.
+
 ## Milestone sequence (P0 → P1)
 
 1. P0-a Docs set approved (this PR).

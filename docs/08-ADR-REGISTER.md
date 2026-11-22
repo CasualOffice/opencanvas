@@ -41,6 +41,10 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-036 | Session renewal (docs/23 PERM-07): `GET /v1/sessions/:ticket` returns `exp` (seconds); `POST /v1/launch` with `Accept: application/json` answers `{"ticket"}` instead of the 303, so the editor moves to the ticket for the host's `Action_RefreshToken` token and reconnects without a reload | Accepted (owner prototype Main.dc.html, 2026-11-23) |
 | ADR-037 | Relicense to Apache-2.0: canonical LICENSE, attribution through NOTICE (Apache §4(d)), SPDX identifier and copyright in every source file (checked in CI by `scripts/check-spdx.sh`); supersedes the earlier BUSL-1.1 licensing (owner decision 2026-11-23) | Accepted |
 | ADR-038 | Integration through standardized APIs and SDKs only: OpenCanvas must not depend on specific CasualOffice products; hosts use launch tokens, callbacks, WOPI, REST, postMessage, the SDK and MCP (owner, 2026-11-23; docs/09) | Accepted |
+| ADR-039 | Portable live blocks are host files embedded by reference (Loop model) and opened as their own rooms; read-only `blockRef` projections; derived grants from the host `POST /access`; snapshot policy; depth 1 (docs/27 §2) | Proposed |
+| ADR-040 | Block SDK: one generic `extBlock` node and an `ext` root; JSON Schema manifests validated server-side by MOD-01; declarative export templates; no third-party code on the server; sandboxed iframe renderers on a separate origin (docs/27 §3) | Proposed |
+| ADR-041 | Headless API v1: `/api/v1`, OpenAPI 3.1, RFC 9457 errors, `Idempotency-Key`, signed cursors, `RateLimit` headers, host key or host-minted user tokens, one operation layer shared with MCP (docs/27 §4) | Proposed |
+| ADR-042 | `.ocanvas` stays format version 1 through v0.2: additive nodes, roots and manifest fields only; a 0.1.x round trip is a release gate (docs/27 §3.3, §5) | Proposed |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -437,3 +441,45 @@ logged; audit events (`run.started`, `tool.called`, `run.finished`, `suggestion.
 **Consequences.** + limits what a successful injection can do rather than relying on detection;
 + the host keeps the audit trail; − hosts must implement a callback to see AI activity.
 
+### ADR-039 — Portable live blocks as referenced host files (Proposed, 2026-11-23)
+**Context.** v0.2 P0 (docs/09). Notion synced blocks reference one original; Loop components are
+files in the user's storage embedded live everywhere (docs/27 §1.1). OpenCanvas never persists
+documents (ADR-001).
+**Decision.** A `liveBlock` node references a separate host file (`meta.kind = "live"`), opened
+as its own room; the host creates it (optional `POST /files`) and its ACL decides access through
+a derived grant from `POST /access` (never wider than the parent grant). `blockRef` is a
+read-only server projection of a block in another canvas. Snapshots in the embedding file follow
+`[host.live] snapshot` (default `title`). Live files cannot contain references (depth 1).
+**Consequences.** + full CRDT co-editing and presence with no new storage; + host ACL stays the
+only authority; − one room connection per visible live block (≤ 8); − hosts must implement
+`/access`; − snapshots trade export quality against leakage (owner question, docs/27 §9).
+
+### ADR-040 — Block SDK contract and sandbox (Proposed, 2026-11-23)
+**Context.** Hosts need their own blocks without forking. A per-block ProseMirror node would
+break clients without the extension (docs/27 §1.2).
+**Decision.** Every third-party block is an `extBlock {type, v, attrs, dataId, fallback}` node,
+with collaborative state in a new `ext` root. A manifest declares JSON Schema for `attrs` and
+`data`, export templates, requested permissions and migrations; MOD-01 validates writes on every
+path. Renderers run in `sandbox="allow-scripts"` iframes on a separate block origin with a
+hash-pinned CSP and a typed postMessage bridge. Packages are installed by the operator
+(integrity-checked) and enabled per host. No third-party code runs on the server.
+**Consequences.** + every reader keeps working (fallbacks); + validation is the same for editor,
+API and MCP; − iframe cost per instance; − no server-side integrations in v0.2.
+
+### ADR-041 — Stable headless API v1 (Proposed, 2026-11-23)
+**Context.** Programs need a supported API; today there is a host-key patch API and MCP.
+**Decision.** `/api/v1` described by OpenAPI 3.1; host key or host-minted user tokens (as
+ADR-032) with effective permission = min(scope, role); atomic `blocks:batch` with `ifMatch` and
+`If-Match`; `Idempotency-Key` (24 h, all store backends); signed cursors built on Yjs relative
+positions; `RateLimit` headers and one limiter shared with MCP; RFC 9457 errors; events over
+WebSocket/SSE; TypeScript and Rust clients. MCP tools become adapters over the same operations.
+The 0.1 host routes stay as aliases.
+**Consequences.** + one contract for programs and agents; − a new store table and more surface
+to audit and keep compatible.
+
+### ADR-042 — `.ocanvas` forward compatibility in v0.2 (Proposed, 2026-11-23)
+**Decision.** Format version 1 and `schemaVersion` unchanged; v0.2 adds only nodes (`liveBlock`,
+`blockRef`, `extBlock`), the `ext` root, `meta.kind` and `manifest.requires.blocks`, all of
+which 0.1.x preserves as unknown content. A test that opens and saves a v0.2 file with 0.1.x and
+finds no loss is a v0.2 release gate.
+**Consequences.** + no migration for hosts; − 0.1.x shows placeholders for the new blocks.
