@@ -5,7 +5,7 @@ members = ["crates/oc-model", "crates/oc-server", "crates/oc-bench"]
 [workspace.package]
 version = "0.1.0-alpha.1"
 edition = "2024"
-license = "BUSL-1.1"
+license = "Apache-2.0"
 
 [workspace.dependencies]
 oc-model = { path = "crates/oc-model" }

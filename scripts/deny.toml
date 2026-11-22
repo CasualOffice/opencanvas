@@ -28,7 +28,8 @@ unknown-registry = "deny"
 unknown-git = "deny"
 
 # Licences of every dependency: permissive only (no copyleft in the shipped binary). Our own
-# crates are BUSL-1.1 (LICENSE). `LGPL-2.1-or-later` appears only as an OR alternative.
+# crates are Apache-2.0 (LICENSE, NOTICE), already on the allow-list. `LGPL-2.1-or-later`
+# appears only as an OR alternative.
 [licenses]
 confidence-threshold = 0.9
 allow = [
@@ -37,7 +38,3 @@ allow = [
   "CDLA-Permissive-2.0",
 ]
 private = { ignore = true }
-exceptions = [
-  { name = "oc-model", allow = ["BUSL-1.1"] },
-  { name = "oc-server", allow = ["BUSL-1.1"] },
-]
