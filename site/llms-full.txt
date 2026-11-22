@@ -5,7 +5,7 @@ Source: https://github.com/CasualOffice/opencanvas. Generated from the repositor
 
 # Documentation
 
-URL: https://casualoffice.github.io/opencanvas/docs/index.html
+URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
@@ -72,7 +72,7 @@ The terms these pages use.
 
 # Getting started
 
-URL: https://casualoffice.github.io/opencanvas/docs/getting-started.html
+URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
 > **Status: P1 alpha.** The server, editor, database and whiteboard blocks, and
@@ -190,7 +190,7 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 
 # FAQ
 
-URL: https://casualoffice.github.io/opencanvas/docs/faq.html
+URL: https://canvas.casualoffice.org/docs/faq.html
 
 ## FAQ
 
@@ -239,7 +239,7 @@ Only to the model server the operator configures: the Claude Platform, or a self
 
 # Integration guide
 
-URL: https://casualoffice.github.io/opencanvas/docs/integration.html
+URL: https://canvas.casualoffice.org/docs/integration.html
 Source file: docs/05-INTEGRATION-GUIDE.md
 
 **Status:** draft v0.1, 2026-11-21. This is the contract an integrating
@@ -560,7 +560,7 @@ e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 
 # WOPI mode
 
-URL: https://casualoffice.github.io/opencanvas/docs/wopi.html
+URL: https://canvas.casualoffice.org/docs/wopi.html
 Source file: docs/05-INTEGRATION-GUIDE.md
 
 For hosts that already open Collabora / Office Online through WOPI (Nextcloud, ownCloud,
@@ -643,7 +643,7 @@ their `detail`) and the saved `people` map: the no-source case of §5 "People". 
 
 # Protocol and build contract
 
-URL: https://casualoffice.github.io/opencanvas/docs/protocol.html
+URL: https://canvas.casualoffice.org/docs/protocol.html
 Source file: docs/15-BUILD-CONTRACT.md
 
 **Status:** binding for the P1 build, 2026-11-21. If a builder needs to change
@@ -1069,7 +1069,7 @@ Server `:8080`, sample host `:4000`, Vite dev `:5173` (proxying `/v1` to `:8080`
 
 # Operations and deployment
 
-URL: https://casualoffice.github.io/opencanvas/docs/operations.html
+URL: https://canvas.casualoffice.org/docs/operations.html
 Source file: docs/13-OPERATIONS-AND-DEPLOYMENT.md
 
 **Status:** draft v0.1, 2026-11-21. Implemented in SCAF-01 / OPS-01.
@@ -1368,7 +1368,7 @@ connection count. Rerun on your hardware: `scripts/bench.sh`.
 
 # Security and limits
 
-URL: https://casualoffice.github.io/opencanvas/docs/security.html
+URL: https://canvas.casualoffice.org/docs/security.html
 Source file: docs/07-SECURITY-AND-LIMITS.md
 
 **Status:** v0.2, 2026-11-21 (after the security audit, [docs/18](18-SECURITY-AUDIT.md)). Target: OWASP ASVS Level 2.
@@ -1434,7 +1434,7 @@ Reporting a vulnerability: [SECURITY.md](../SECURITY.md).
 
 # Capacity and sizing
 
-URL: https://casualoffice.github.io/opencanvas/docs/capacity.html
+URL: https://canvas.casualoffice.org/docs/capacity.html
 Source file: docs/22-CAPACITY-AND-SIZING.md
 
 **Status:** first measurement, 2026-11-22 (PERF-01); worst case, crash recovery and cluster
@@ -2393,7 +2393,7 @@ Not run, or run short:
 
 # AI and MCP
 
-URL: https://casualoffice.github.io/opencanvas/docs/ai.html
+URL: https://canvas.casualoffice.org/docs/ai.html
 Source file: docs/24-AI-AND-MCP.md
 
 **Status:** Draft v0.3, 2026-11-22. ADR-031 to ADR-035 **Accepted** by the owner. Phase 1 is built
@@ -3051,7 +3051,7 @@ Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_tota
 
 # Architecture
 
-URL: https://casualoffice.github.io/opencanvas/docs/architecture.html
+URL: https://canvas.casualoffice.org/docs/architecture.html
 Source file: docs/03-HLD-ARCHITECTURE.md
 
 **Status:** draft v0.1, 2026-11-21. Decisions referenced as ADR-xxx live in
@@ -3379,7 +3379,7 @@ primary (standalone or Sentinel), not Redis Cluster.
 
 # Collaboration and presence
 
-URL: https://casualoffice.github.io/opencanvas/docs/collaboration.html
+URL: https://canvas.casualoffice.org/docs/collaboration.html
 Source file: docs/06-COLLABORATION-AND-PRESENCE.md
 
 **Status:** draft v0.1, 2026-11-21.
@@ -3494,7 +3494,7 @@ is invisible to users beyond a ≤ 5 s reconnect.
 
 # Product requirements
 
-URL: https://casualoffice.github.io/opencanvas/docs/product.html
+URL: https://canvas.casualoffice.org/docs/product.html
 Source file: docs/02-PRD.md
 
 **Product:** OpenCanvas — an embeddable, real-time collaborative canvas
@@ -3692,7 +3692,7 @@ See [09-ROADMAP.md](09-ROADMAP.md). Summary:
 
 # Glossary
 
-URL: https://casualoffice.github.io/opencanvas/docs/glossary.html
+URL: https://canvas.casualoffice.org/docs/glossary.html
 Source file: docs/12-GLOSSARY.md
 
 | Term | Meaning |

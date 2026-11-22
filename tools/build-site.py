@@ -22,7 +22,7 @@ generates:
 
 The published tree is site/ plus web/packages/editor/dist at app/: the real editor, which
 opens its demo canvas at app/#demo with no server. The copy is made at publish time, not
-committed. Build the editor with OC_EDITOR_BASE=/opencanvas/app/ for GitHub Pages.
+committed. Build the editor with OC_EDITOR_BASE=./ (relative paths) for GitHub Pages.
 Standard library, except Pillow for --screens.
 """
 
@@ -274,7 +274,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
     listed = [rel for rel in sorted(pages) if rel != "404.html"]
     urls = "".join(f"  <url><loc>{base}{'' if rel == 'index.html' else rel}</loc></url>\n" for rel in listed)
     sitemap = f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n'
-    robots = f"User-agent: *\nAllow: /\nDisallow: /opencanvas/app/\n\nSitemap: {base}sitemap.xml\n"
+    robots = f"User-agent: *\nAllow: /\nDisallow: /app/\n\nSitemap: {base}sitemap.xml\n"
 
     def line(rel: str) -> str:
         return f"- [{sitelib.page_title(pages[rel], rel)}]({base}{'' if rel == 'index.html' else rel}): {_desc(pages[rel])}"
@@ -339,10 +339,10 @@ def publish(out: pathlib.Path) -> None:
         raise SystemExit("build-site: site/app/ exists; the demo copy is published there")
     if not (EDITOR_DIST / "index.html").exists():
         raise SystemExit("build-site: web/packages/editor/dist is not built; run "
-                         "OC_EDITOR_BASE=/opencanvas/app/ pnpm --filter @opencanvas/editor build in web/")
+                         "OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build in web/")
     index = (EDITOR_DIST / "index.html").read_text(encoding="utf8")
-    if 'src="/opencanvas/app/' not in index:
-        raise SystemExit("build-site: the editor was not built with OC_EDITOR_BASE=/opencanvas/app/")
+    if 'src="./assets/' not in index:
+        raise SystemExit("build-site: the editor was not built with OC_EDITOR_BASE=./ (relative paths)")
     shutil.copytree(EDITOR_DIST, app, ignore=lambda d, names: [n for n in names if n.endswith(".map") or n == ".vite"])
     (out / ".nojekyll").write_bytes(b"")
     (out / ".opencanvas-published").write_bytes(b"")

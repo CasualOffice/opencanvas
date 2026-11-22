@@ -1,13 +1,14 @@
 name: pages
 
-# Publish the website to GitHub Pages at https://casualoffice.github.io/opencanvas/.
+# Publish the website to GitHub Pages at https://canvas.casualoffice.org/ (custom domain; the
+# github.io address redirects there).
 # Shaped after OpenSeal's .github/workflows/pages.yml: the site is static and committed
 # (site/), this job regenerates its generated pages from the repository's documents,
 # checks it (links, claims, accessibility), adds the real editor as the demo at app/,
 # and deploys. GitHub Pages must be enabled in the repository settings with
 # "Source: GitHub Actions" for the deploy job to succeed.
 #
-# The demo is web/packages/editor built with OC_EDITOR_BASE=/opencanvas/app/ (the project
+# The demo is web/packages/editor built with OC_EDITOR_BASE=./ (relative asset paths, so it works at any path; formerly the project
 # path); "Try the demo" opens app/#demo, which needs no server. The server's own build
 # keeps the default base /app/.
 
@@ -40,7 +41,7 @@ jobs:
         working-directory: web
         run: |
           pnpm install --frozen-lockfile
-          OC_EDITOR_BASE=/opencanvas/app/ pnpm --filter @opencanvas/editor build
+          OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build
       # Regenerated here, so the docs, roadmap and changelog follow README.md and docs/
       # even when site/ was not rebuilt in the commit.
       - name: Build the generated pages
@@ -62,7 +63,7 @@ jobs:
                    assets/screens/canvas-light.png assets/screens/canvas-light.webp app/index.html; do
             [ -s "_site/$f" ] || { echo "::error::_site/$f is missing or empty"; exit 1; }
           done
-          grep -q 'src="/opencanvas/app/' _site/app/index.html || { echo "::error::app/ was not built for /opencanvas/app/"; exit 1; }
+          grep -q 'src="./assets/' _site/app/index.html || { echo "::error::app/ was not built with relative asset paths (OC_EDITOR_BASE=./)"; exit 1; }
           ! find _site/app -name '*.map' | grep -q . || { echo "::error::source maps were published"; exit 1; }
           echo "site: $(find _site -type f | wc -l) files"
       # WCAG 2.2 AA with axe on every page, light and dark, 1440 and 390 px: zero findings.

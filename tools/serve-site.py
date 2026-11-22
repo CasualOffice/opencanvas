@@ -6,11 +6,11 @@
 Ported from OpenSeal's tools/serve-site.py. It serves the published tree:
 tools/build-site.py --publish assembles site/ (without _src/) and the editor's demo copy
 at app/ into target/site-published/ at start, and serves it under /opencanvas/, the
-project path GitHub Pages uses, so the editor built with OC_EDITOR_BASE=/opencanvas/app/
+project path GitHub Pages uses, so the editor built with OC_EDITOR_BASE=./
 works exactly as published. / redirects there.
 
 Build the editor for it first:
-    cd web && OC_EDITOR_BASE=/opencanvas/app/ pnpm --filter @opencanvas/editor build
+    cd web && OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build
 
 Standard library only: `Cache-Control: no-store`, the pages' CSP sent as a header too,
 never a public interface. site/_src/ is not served. Rebuild with tools/build-site.py.

@@ -7,7 +7,7 @@
 //
 // Ported from OpenSeal's tools/capture-site-screens.mjs (same flow and options).
 //
-//   cd web && OC_EDITOR_BASE=/opencanvas/app/ pnpm --filter @opencanvas/editor build && cd ..
+//   cd web && OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build && cd ..
 //   python3 -I tools/serve-site.py 8700 &               # the published tree, editor at /opencanvas/app/
 //   node tools/capture-site-screens.mjs [--only a,b] [OUT] [BASE]
 //   python3 tools/build-site.py --screens OUT && python3 tools/build-site.py
