@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! docs/21 revision 2 (ADR-026): the mention list is the canvas's members. The members
 //! callback beats the token's `members` beats the saved `people` map; the callback is signed
 //! and cached 60 s per room; presence shows real names to everyone; no e-mail anywhere.

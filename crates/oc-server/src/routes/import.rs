@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Server-side import (docs/23 FC-10): `POST /v1/import?format=md|html|csv&ticket=` from the
 //! editor session and `POST /v1/files/:fileId/import?format=&author=` from the host. The body
 //! is the file. Markdown and HTML become blocks (`oc-model` converters; HTML through the same

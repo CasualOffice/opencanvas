@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Markdown and HTML export from the logical JSON produced by [`crate::doc_to_json`].
 
 use std::collections::HashMap;

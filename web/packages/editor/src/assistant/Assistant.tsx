@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The assistant UI (docs/24 §10.2), built to the approved prototype
 // (docs/prototypes/assistant-approved: Main.dc.html desktop, Phone.dc.html phone).
 // Lazy chunk: loads only when the assistant is on for this person.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Save conflicts over a real WebSocket: an in-process mock host answers 409 to PUT, and the
 //! host's `on_conflict` policy plays out on the wire (docs/15 §3, §7).
 mod common;

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 [workspace]
 resolver = "3"
 members = ["crates/oc-model", "crates/oc-server", "crates/oc-bench"]

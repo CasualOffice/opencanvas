@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # Used by scripts/audit.sh: cargo deny --config scripts/deny.toml check advisories bans licenses sources
 # Every ignore says why it does not apply (docs/18, "Dependencies"); re-check on each audit.
 

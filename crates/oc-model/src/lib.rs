@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! OpenCanvas document model: Y.Doc layout helpers, `.ocanvas` files and exports.
 
 pub mod board;

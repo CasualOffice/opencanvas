@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Building a Y.Doc from `document.json` or from plain markdown.
 
 use std::collections::HashMap;

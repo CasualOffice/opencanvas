@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The editor runs exactly one canvas per page, so editor plugins (slash menu,
 // node views, click handlers) reach app-level services through this singleton
 // instead of threading props through ProseMirror.

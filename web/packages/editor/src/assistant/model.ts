@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The assistant's run state (docs/24 §10.2, approved prototype docs/prototypes/assistant-approved).
 // Pure: no DOM, no Yjs. The UI renders it; the transports (server or the `#demo` script) feed it
 // the same `ai-plan` / `ai-step` / `ai-done` messages (docs/15 §3.1).

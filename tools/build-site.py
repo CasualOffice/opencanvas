@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Build the website in site/ from site/_src/ and the repository's documents. The output
 is committed; GitHub Pages publishes site/ without _src/, plus the editor's demo copy.
 

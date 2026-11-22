@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Shared pieces of the website build: page layout, icons, screenshots, a Markdown
 renderer for the repository's documents, SEO metadata, and the search index. Used by
 tools/build-site.py and tools/build-roadmap.py; standard library only.

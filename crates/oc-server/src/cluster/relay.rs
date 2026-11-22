@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Edge side of the relay: a client connected to a node that does not own its room gets one
 //! internal WebSocket to the owner. One socket per client connection keeps per-connection
 //! order (TCP), and the owner sees the relayed connection exactly like a local one.

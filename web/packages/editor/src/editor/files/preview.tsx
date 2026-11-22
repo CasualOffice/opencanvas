@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // File previews (FILE-01), loaded on first use: the card thumbnail, text / media previews, the
 // inline PDF viewer (display "preview") and the full viewer / image lightbox. pdf.js loads
 // from ./pdf on top of this, only when a PDF is shown.

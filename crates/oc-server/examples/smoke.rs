@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Smoke client: joins a room like y-websocket, types a paragraph, waits for autosave.
 //!
 //!   cargo run -p oc-server --example smoke -- ws://localhost:8080/v1/collab <room> <ticket> "text"

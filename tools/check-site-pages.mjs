@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Look at every page of the website: full-page screenshots at 1440 and 390 px, in light
 // and dark; axe (WCAG 2.0, 2.1 and 2.2, levels A and AA) with zero violations of any
 // impact; no horizontal overflow; no console errors; and the bytes each page transfers

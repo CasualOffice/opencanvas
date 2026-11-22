@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Image layout attributes (ADR-023): width in % of the text column, alignment.
 
 /** Image width as a whole percent of the text column (20–100), or null for full width. */

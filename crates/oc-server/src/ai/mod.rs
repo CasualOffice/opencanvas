@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! AI and MCP (docs/24, ADR-031, ADR-034, ADR-035): the canvas tool layer shared by the
 //! in-server agent and the MCP endpoint ([`tools`]), the model providers and the agent runtime.
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Text colour for labels drawn on a person's colour (avatars, caret labels,
 // mention chips). User colours come from the host, so they can be anything:
 // pick white or near-black, whichever reaches the higher WCAG contrast.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Table tools (WEB-02): a small "Table" handle above the table that holds the
 // caret, opening rows / columns / header / delete actions. Lazy.
 import { useEffect, useLayoutEffect, useState } from "react";

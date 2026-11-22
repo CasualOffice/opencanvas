@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `GET /v1/export/:fmt?ticket=` for md, html, json, ocanvas, docx and pdf, and
 //! `GET /v1/export/board/:boardId.{svg,png}?ticket=`. The renderer is shared with
 //! `POST /v1/convert`.

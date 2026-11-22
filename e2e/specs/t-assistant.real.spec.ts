@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // t. Assistant against the real server (AI-01, AI-02, AI-UI; docs/24 §10.5). The "sample" host
 // has `[host.ai]` on, with a provider profile pointing at the mock Anthropic SSE model that
 // global-setup.ts starts (mock-model.ts): it plans, then calls canvas_read → db_create →

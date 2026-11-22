@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Awareness (presence) on the room's hot path (docs/22 §8 weakness 1).
 //!
 //! Every viewer gets the same presence (docs/21 revision 2), so an incoming update is stamped

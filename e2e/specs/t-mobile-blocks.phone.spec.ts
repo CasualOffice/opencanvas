@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // t. Acceptance (docs/23 Mobile, rows left BLOCKED before): tables and database cells and
 //    views, board touch (tap to activate, one-finger pan, pinch, draw, move), the PDF viewer
 //    in full screen, mentions and the people list. Runs on WebKit (iPhone) and Chromium (Pixel).

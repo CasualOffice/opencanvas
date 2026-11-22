@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Host notifications other than saves (UX-02, ADR-025): `POST {callback_base}/mentions`.
 //!
 //! Fire-and-forget for the room: a notification is written to `notify_outbox` first, then sent

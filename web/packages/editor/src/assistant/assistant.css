@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright 2026 CasualOffice */
+
 /* Assistant (docs/prototypes/assistant-approved). Values are the prototype's. */
 .oc-root{--ai-sel:#d9e4fc;--ai-fg-3:#6e6e78;--ai-pop:0 0 0 1px rgba(24,24,32,.07),0 16px 40px -12px rgba(20,20,30,.22),0 4px 10px -4px rgba(20,20,30,.08)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .oc-root{--ai-sel:#24315a;--ai-fg-3:#9a9aa6;--ai-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7)}}

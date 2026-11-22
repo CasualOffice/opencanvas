@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Cluster mode (ADR-006, docs/03 §5.2): `REDIS_URL` set → one owner node per room through a
 //! Redis lease; other nodes relay WebSocket frames to the owner over an internal, HMAC-signed
 //! WebSocket and forward host-API room calls over signed internal HTTP.

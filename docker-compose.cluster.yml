@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # OpenCanvas cluster (ADR-006, docs/13): 3 nodes + MariaDB + Redis + nginx + the sample host.
 #   docker compose -f docker-compose.cluster.yml up --build
 #   open http://localhost:4580          (sample host; OpenCanvas through nginx on :8580)

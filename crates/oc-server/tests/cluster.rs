@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Cluster mode in-process (ADR-006): two nodes on one database share a fake lease store;
 //! the relay, forwarded room calls, failover and drain run over real sockets.
 

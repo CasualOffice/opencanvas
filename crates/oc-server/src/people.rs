@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! People (docs/21 revision 2, ADR-026): the user object as hosts send it, and the canvas's
 //! member list.
 //!

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // How the assistant UI talks to a run. The server transport sends the docs/15 §3.1 control
 // messages over the collaboration socket; the `#demo` transport (demo.ts) plays a scripted run
 // on the local doc. The UI is the same for both: only this object differs. No keys, no model

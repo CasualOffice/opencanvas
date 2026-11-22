@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // docs/23 PERM-07, prototype Main.dc.html (docs/prototypes/fixes-approved): access running out.
 // WARN_S before the session's `exp` we post `Token_Expiring` to the host. A host that renews
 // (`Action_RefreshToken`) does so quietly; if it hasn't within GRACE_MS the amber bar shows. At

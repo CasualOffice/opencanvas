@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Room ownership leases (ADR-006): `room:{id}:owner` = `<node>@<url>#<nonce>`, taken with
 //! `SET NX PX`, renewed every 5 s, released with a compare-and-delete.
 //!

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { useRef, useState } from "react";
 import { Ic } from "../icons";
 import { PROVIDERS, resolveEmbed, type Provider } from "../lib/embeds";

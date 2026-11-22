@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // What an attachment is and where its bytes can be read from (FILE-01). Tiny and eager:
 // the file card uses it at first paint; everything that renders previews is lazy.
 import { getAssetTicket, resolveAsset } from "../../lib/assets";

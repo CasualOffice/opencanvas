@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // OpenCanvas sample host: a stand-in for your app (or any app embedding OpenCanvas).
 // It owns users, per-file roles and the file store, signs launch tokens and
 // implements the callbacks from docs/05-INTEGRATION-GUIDE.md §5 (load, save, copies, assets,

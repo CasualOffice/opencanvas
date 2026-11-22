@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! What a session may do: built from the launch token, stored with the session row.
 
 use serde::{Deserialize, Serialize};

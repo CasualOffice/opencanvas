@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # Capacity benchmark (docs/22-CAPACITY-AND-SIZING.md). One command on your own hardware:
 #
 #   scripts/bench.sh                    # quick check: small A + B on SQLite (~3 min)

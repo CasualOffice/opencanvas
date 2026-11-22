@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Serve the website on localhost to preview it, as GitHub Pages will.
 
     python3 -I tools/serve-site.py [PORT]        # default 8700, binds 127.0.0.1 only

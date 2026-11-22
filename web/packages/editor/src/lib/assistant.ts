@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The assistant's entry points (docs/24 §10.2): tiny and in the initial bundle. The assistant
 // itself (command bar, plan, review, the demo script) is a lazy chunk (src/assistant/).
 import type { Role } from "@opencanvas/ui";

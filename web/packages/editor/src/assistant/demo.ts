@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // `#demo` only: a scripted assistant (no AI server, no model). It plays the approved prototype's
 // run on the local doc and speaks the same protocol as the server (docs/15 §3.1): `ai-plan`, then
 // after `ai-approve` `ai-step`s and `ai-done`. Like the server it writes with origin

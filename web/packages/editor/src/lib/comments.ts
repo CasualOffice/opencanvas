@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Comment threads live in the `comments` root (docs/15 §4) so commenters can
 // write them without touching content. Thread anchors in the text are the
 // `commentMark(threadId)` mark, added by editors only (commenters can't change

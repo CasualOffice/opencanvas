@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Editor behaviour that is not needed to show a document, loaded right after
 // first paint (docs/02 §7 budget): autolink + link-on-paste (linkifyjs), the
 // slash / @mention suggestion plugins (@tiptap/suggestion, @floating-ui), and

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // o. Columns layout (LAY-01) on the `#demo` canvas: add a column from the hover affordance,
 //    type in it, resize from the keyboard (quarter steps), label columns, remove an empty
 //    column (Undo brings it back), and the layout stacks at 390 px.

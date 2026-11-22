@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @opencanvas/database: collaborative database block (table, board, calendar, gallery) backed by Yjs.
 // Y.Doc layout: docs/15-BUILD-CONTRACT.md §4 (`databases` root).
 export { DatabaseBlock } from "./DatabaseBlock";

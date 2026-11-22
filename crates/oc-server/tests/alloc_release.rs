@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Memory goes back to the OS when rooms are evicted (docs/22 §9.6, PERF-07). With the system
 //! allocator the freed Y.Docs stayed resident (RSS ≈ 1 GB with no room open after S2).
 mod common;

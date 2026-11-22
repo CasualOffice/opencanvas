@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Server-side import (docs/23 FC-10): `POST /v1/import?format=md|html|csv&ticket=` and
 //! `POST /v1/files/:id/import`, gated by `[host.flags] import_formats` and `OC_IMPORT=off`.
 mod common;

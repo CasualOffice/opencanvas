@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Acceptance (docs/23): `.ocanvas` compatibility and export outputs from one rich document
 //! that has every block type, every database field type and view, every board shape and
 //! comments, with CJK, RTL and emoji text.

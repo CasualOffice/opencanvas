@@ -1,3 +1,8 @@
+{{- /*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 CasualOffice
+*/ -}}
+
 {{- if and .Values.gotenberg.enabled (eq .Values.gotenberg.mode "deployment") (not .Values.gotenberg.externalUrl) }}
 {{- $name := printf "%s-gotenberg" (include "opencanvas.fullname" .) }}
 apiVersion: apps/v1

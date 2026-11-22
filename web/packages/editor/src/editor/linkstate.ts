@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Link popover state (kept tiny: it is in the initial bundle; the popover UI
 // itself, linkpop.tsx, loads the first time someone opens it).
 //

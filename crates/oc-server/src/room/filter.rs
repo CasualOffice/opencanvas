@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Role filter for `comment` sessions: an update may only touch the `comments` root.
 
 use std::collections::HashSet;

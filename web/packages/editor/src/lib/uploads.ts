@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Image and file uploads (WEB-03). A pasted, dropped or picked file is
 // inserted at once as an `image` / `fileAttachment` node carrying a transient
 // `upload` id; the bytes go to `POST /v1/assets?ticket=` (proxied to the host)

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Check that every claim on the website traces to the repository.
 
     python3 -I tools/check-site-claims.py            # the built site, site/

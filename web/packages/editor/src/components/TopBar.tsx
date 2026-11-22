@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { useRef, useState } from "react";
 
 const LONG_PRESS_MS = 450;

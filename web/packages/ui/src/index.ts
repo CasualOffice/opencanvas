@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Shared contracts between the editor shell and the block packages.
 // Keep this file small and stable: @opencanvas/editor, @opencanvas/database
 // and @opencanvas/board all import from it.

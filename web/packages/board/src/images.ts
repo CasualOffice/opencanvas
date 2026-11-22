@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Images on the board: where the bytes go, and how big the shape starts.
 
 /** Largest image stored inline as a data: URL when the host gives no `env.upload`. */

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 name: pages
 
 # Publish the website to GitHub Pages at https://canvas.casualoffice.org/ (custom domain; the

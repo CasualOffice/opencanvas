@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // A tiny mock model server in the Anthropic Messages SSE format (as in
 // crates/oc-server/tests/ai_e2e.rs), for t-assistant.real.spec.ts. It is stateless: each answer
 // is chosen from the request body, so one instance serves every run of the suite.

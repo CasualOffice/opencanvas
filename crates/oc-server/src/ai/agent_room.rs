@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The agent runtime's room side: [`RoomPort`] over the room actor's mailbox, and audit
 //! events to the host through the notification outbox (`POST /ai/events`, ADR-035).
 

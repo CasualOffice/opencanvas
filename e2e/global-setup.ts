@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Starts the real stack for the suite and returns its teardown:
 //   oc-server (release build, OC_DEV=1, temp SQLite)  on :8280
 //   sample host (copy conflict policy)                 on :4200

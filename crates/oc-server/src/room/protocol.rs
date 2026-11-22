@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! y-protocols frames (stock y-websocket) plus the OpenCanvas control message, type 100.
 
 use serde_json::Value;

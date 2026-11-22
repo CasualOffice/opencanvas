@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Lazy entry: picks the transport (the server, or the `#demo` script) and mounts the assistant UI.
 import { useMemo } from "react";
 import type { Editor } from "@tiptap/react";

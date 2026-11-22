@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Prompt-injection flagging (docs/24 §9.1 T1, docs/15 §3.1): a deterministic heuristic over
 //! the canvas content a run reads. It looks for instruction-like text addressed to the
 //! assistant ("ignore previous instructions", "you are now", "send this to", "assistant:",

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! AI configuration (docs/24 §7.3, §8.2; ADR-031).
 //!
 //! Server side: `[ai]` and `[ai.providers.<name>]` in the file named by `OC_AI_CONFIG`. Keys come

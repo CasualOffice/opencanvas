@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import type { Tone } from "@opencanvas/ui";
 
 /** Field types, as fixed by docs/15-BUILD-CONTRACT.md §4. */

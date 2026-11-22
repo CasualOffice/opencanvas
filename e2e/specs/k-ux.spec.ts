@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // k. UX pass (docs/19-UX-AUDIT.md), on the `#demo` canvas served by the real server:
 //    link popover and ⌘K, keyboard block menu, shortcuts help, slash ranking and table
 //    tools, image width/alignment, callout picker, comment @mentions, undo across the

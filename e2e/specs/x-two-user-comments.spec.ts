@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // x — docs/23 two-user acceptance, comments: a thread, a reply and resolve travel live between
 //     two people; a commenter can comment but not change the document.
 import { expect, test } from "@playwright/test";

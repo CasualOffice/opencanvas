@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! OpenCanvas server: launch, sessions, collaboration rooms, autosave and exports.
 
 pub mod ai;

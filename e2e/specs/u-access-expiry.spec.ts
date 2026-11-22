@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // u. docs/23 PERM-07, prototype docs/prototypes/fixes-approved/Main.dc.html: access running out.
 //    A minute before the session's `exp` the canvas posts Token_Expiring; a host that renews does
 //    so quietly. If it doesn't, an amber bar ("Renew now", "Let it end"); at expiry a red

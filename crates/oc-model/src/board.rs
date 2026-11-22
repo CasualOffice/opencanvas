@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Board rendering: a standalone SVG fitted to the content in the light palette (a port of the
 //! web `exportBoardSvg`, `web/packages/board/src/export.ts`, incl. bound and elbow arrows from
 //! `connectors.ts`), and a PNG rendered from it with `resvg` and an embedded font.

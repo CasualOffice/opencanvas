@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Convergence fuzz: N clients × random ops × random delivery order through a real room.
 //!
 //! Each iteration opens a fresh room with 2–5 editors. Every client buffers what it would

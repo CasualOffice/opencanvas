@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @vitest-environment jsdom
 // Open items from docs/20-BLOCKS-UX-AUDIT.md: minimap (B19), manual connector waypoints (B20),
 // and the editor's shared undo manager (docs/19 #42).

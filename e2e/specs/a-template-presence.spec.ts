@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // a. New file → template gallery → "Meeting notes" → a viewer sees the content,
 //    both avatars on both sides, and the editor's live caret label.
 import { expect, test } from "@playwright/test";

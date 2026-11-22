@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";

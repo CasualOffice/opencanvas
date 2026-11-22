@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Spreadsheet-style helpers for the table view: cell ranges, clipboard text, keyboard moves.
 import type { OcUser } from "@opencanvas/ui";
 import { cellToText } from "./model";

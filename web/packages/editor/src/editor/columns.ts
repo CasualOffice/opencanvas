@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Columns layout (LAY-01): 2–4 columns, widths snapped to quarters, optional column titles,
 // the active column tinted, add / resize / remove affordances. Everything that is not the
 // schema is a ProseMirror plugin with DOM widgets (no React, no extra chunk).

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! MCP endpoint (docs/24 §5, ADR-032): `POST /mcp/{hostId}`, streamable HTTP, stateless,
 //! JSON responses. OpenCanvas is an OAuth resource server only: host-issued bearer tokens,
 //! RFC 9728 protected-resource metadata per host, `canvas:*` scopes intersected with the

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // c. The owner changes Sam's role on the host's files page ("Save access" → role API):
 //    view → edit makes Sam's editor editable without a reload; edit → none closes his session.
 import { expect, test } from "@playwright/test";

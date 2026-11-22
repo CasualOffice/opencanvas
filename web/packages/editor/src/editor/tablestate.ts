@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Which table the caret is in (for the table tools, tablemenu.tsx, which load
 // the first time someone works in a table).
 import type { Editor } from "@tiptap/core";

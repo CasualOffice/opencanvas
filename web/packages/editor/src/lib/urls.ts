@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // URL guards for attributes that come from the shared Y.Doc (docs/07 §2, docs/18 SEC-20).
 // Any editor (or a crafted update, import or host patch) can put any string into a node's
 // `url` / `src`, so node views must never hand one straight to `href` or `src`.

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Initial-JS budget (docs/02 §7): the entry chunk plus every chunk it imports
 // statically (what index.html loads and modulepreloads) must stay ≤ 300 KB gzip.
 // Reads the Vite manifest written by `vite build`; exits 1 when over budget.

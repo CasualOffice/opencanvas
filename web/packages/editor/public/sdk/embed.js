@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 /*! @opencanvas/embed — <open-canvas server="…" token="…"> (docs/05 §4). No dependencies. */
 (() => {
   if (typeof customElements === "undefined" || customElements.get("open-canvas")) return;

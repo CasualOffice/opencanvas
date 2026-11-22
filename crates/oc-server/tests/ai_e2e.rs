@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The assistant end to end over real WebSockets (AI-01 + AI-02, docs/24 §10.5): a local mock
 //! model server speaking the Anthropic or the OpenAI-compatible SSE format is scripted to call
 //! `canvas_read`, `db_create` and `db_upsert_rows` through the real canvas tool layer. A second

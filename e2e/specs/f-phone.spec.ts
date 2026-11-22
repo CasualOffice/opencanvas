@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // f. Phone (390×844, WebKit): slash menu as a bottom sheet, the mobile toolbar while
 //    typing, and a board that needs a tap before it takes touches.
 import { expect, test } from "@playwright/test";

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Canvas tool layer (docs/24 §5, AI-01): every tool against a live room, with a second
 //! client seeing the edit; roles, stale `ifMatch`, suggest mode, confirmation.
 mod common;

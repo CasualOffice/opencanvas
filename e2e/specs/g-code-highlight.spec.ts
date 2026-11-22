@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Code blocks: grammars load lazily (only once a code block exists), syntax colours come
 // from the theme tokens in light and dark, the language picker syncs, copy works.
 import { expect, test } from "@playwright/test";

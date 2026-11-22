@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Simple tables (WEB-02) with the editing machinery loaded on demand.
 //
 // The schema (node names `table/tableRow/tableHeader/tableCell` and their

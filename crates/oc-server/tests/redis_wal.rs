@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The hot WAL in Redis (ADR-021): fencing, no fan-out without the append, replay of DB
 //! snapshot + stream, trim only after a DB sync. Needs a Redis: set `OC_TEST_REDIS_URL`
 //! (for example `redis://127.0.0.1:8779/`); skipped otherwise.

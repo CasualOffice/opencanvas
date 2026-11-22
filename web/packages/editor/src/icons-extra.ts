@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Icons that never show at first paint: menus, toolbars, the slash menu, the
 // gutter, templates, the gallery and the icon picker. Loaded on demand by
 // icons.tsx (App fetches them right after first paint) so they stay out of the

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Phone editing toolbar that sits above the keyboard. Lazy: desktop never needs it.
 import { useEffect, useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";

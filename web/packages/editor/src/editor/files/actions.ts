@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The file block's actions (FILE-01), shared by the card's ⋯ menu and the block menu. The
 // card implements them; the block menu sends a FILE_EVENT to the card.
 import type { FileDisplay, FileKind } from "./kind";

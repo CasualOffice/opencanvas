@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Custom Tiptap nodes per docs/15 §4. Node and attribute names are part of the
 // file format: never rename them.
 import { InputRule, Mark, Node, mergeAttributes, type Editor } from "@tiptap/core";

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { useSyncExternalStore } from "react";
 
 /** A tiny observable value, for state that lives outside React (editor plugins, Yjs). */

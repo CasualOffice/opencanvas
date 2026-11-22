@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Transient state in SQLite or MySQL/MariaDB through the sqlx `Any` driver (docs/04 §5), or,
 //! in a cluster without `DATABASE_URL`, in Redis only ([`crate::redis_store`], ADR-030): every
 //! public method dispatches there first, so the SQL paths below are unchanged.

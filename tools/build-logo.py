@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Write the website's logo files from the editor's mark and the Geist font.
 
     python3 tools/build-logo.py      # writes site/assets/{mark,logo,logo-dark}.svg

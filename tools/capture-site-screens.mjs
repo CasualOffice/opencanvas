@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Product screenshots for the website: the real OpenCanvas editor in its demo mode
 // (`#demo`: a local Yjs document seeded with the "Sprint 42 planning" canvas and
 // simulated collaborators, no server), driven by Playwright, in light and dark, at device

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Exports (docs/15 §6): Markdown, HTML, JSON, Word and .ocanvas come from
 // `GET /v1/export/:fmt?ticket=`. PDF asks the server first
 // (`GET /v1/export/pdf`, rendered by its PDF sidecar); when the server has no

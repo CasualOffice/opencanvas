@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // d. Someone saves the file outside OpenCanvas while two people are editing.
 //    Host "sample" (:4200) uses on_conflict = "copy", host "sample-reload" (:4201) uses "reload"
 //    (both from the suite's temp hosts.toml).

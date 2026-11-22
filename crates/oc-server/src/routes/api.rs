@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Server-to-server REST for hosts (docs/05 §7), authenticated with the host `api_key`:
 //! `X-OpenCanvas-Host: <host id>` + `X-OpenCanvas-Key: <api_key>`.
 

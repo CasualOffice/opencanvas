@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // q. The web-component SDK, embedded the way a host would: a host page on its own origin loads
 //    `${OC}/sdk/embed.js`, renders <open-canvas>, listens to oc:* events and drives the canvas
 //    with commit() and setReadOnly(). An origin the host didn't register can't frame the canvas.

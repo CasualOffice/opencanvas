@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Multi-shape operations for the board: align, distribute, snapping, copy / paste with
 // remapped ids and bindings, z-order, groups and text wrapping. Pure helpers plus a few
 // Yjs writers; every writer takes the caller's transaction origin (so per-view undo works).

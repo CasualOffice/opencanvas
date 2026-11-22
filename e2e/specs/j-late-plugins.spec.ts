@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // j. Editing behaviour that loads after first paint (late.ts: initial-JS budget): the slash
 //    menu, @mentions, autolink while typing and link-on-paste over a selection. The schema
 //    is there from the start, so the viewer sees every result live.

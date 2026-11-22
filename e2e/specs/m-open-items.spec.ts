@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // m. Open items from docs/19 (UX-02): offline detection by heartbeat, @mention notifications
 //    to the host, follow mode on click and long-press, text colour and date mentions, block
 //    links inside a host.

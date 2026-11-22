@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // postMessage API between the canvas iframe and the host page (docs/05 §4),
 // using the WOPI-style envelope { MessageId, SendTime, Values }.
 //

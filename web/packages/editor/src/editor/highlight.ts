@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Code-block syntax highlighting, loaded after first paint (docs/02 §7 budget).
 //
 // lowlight + the highlight.js "common" grammars are ~40 KB gzip, so they are

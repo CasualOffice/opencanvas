@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Hover cards for people (docs/21 "Telling people apart"): mention chips, database assignee
 // cells, comment authors and anything else marked `data-person-id`. WCAG 2.2 (1.4.13): the
 // card opens on hover *and* on keyboard focus (or with the caret right after a mention while

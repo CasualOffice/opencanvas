@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Chaos client for `scripts/chaos-cluster.sh` (CLU-02).
 //!
 //!   chaos run <wsBase> <room> <typeSecs> <out.json> <label>:<ticket>...

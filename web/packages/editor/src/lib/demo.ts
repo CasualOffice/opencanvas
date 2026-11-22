@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // `#demo`: a local Y.Doc seeded with the prototype's "Sprint 42 planning"
 // canvas and simulated collaborators, so the UI can be reviewed without a
 // server. Nothing here runs in a real session.

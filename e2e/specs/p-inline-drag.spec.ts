@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // p. Dragging inside an inline whiteboard moves the shape. It used to start a native drag of
 //    the whole block, so drags only worked in full screen.
 import { expect, test } from "@playwright/test";

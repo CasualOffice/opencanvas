@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Block operations shared by the block menu, the gutter, the phone bar and the
 // keyboard (⌘D duplicate, ⌘⇧↑/↓ move, ⌘/ block menu). No React here: this sits
 // in the initial bundle; the menu UI (blockmenu.tsx) loads on first use.

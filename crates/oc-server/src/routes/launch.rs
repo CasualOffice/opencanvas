@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `POST|GET /v1/launch` (JWT, or WOPI with `?WOPISrc=`), `GET /v1/sessions/:ticket` (docs/15 §2)
 //! and the WOPI discovery endpoints (docs/05 §6).
 

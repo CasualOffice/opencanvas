@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `.ocanvas` zip: `manifest.json`, `document.json`, `ydoc.bin` (docs/04 §2.3).
 
 use std::io::{Cursor, Read, Write};

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! DOCX export: minimal WordprocessingML written straight into a zip (no extra crates).
 //!
 //! Input is the logical JSON from [`crate::doc_to_json`]. Images are embedded only when the

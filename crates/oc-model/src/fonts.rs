@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Fonts for in-process rendering (board PNG, and through it DOCX board images).
 //!
 //! The database holds, in this order:

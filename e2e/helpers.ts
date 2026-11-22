@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type FrameLocator, type Page } from "@playwright/test";

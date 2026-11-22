@@ -1,4 +1,7 @@
 #![allow(dead_code)]
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Test harness: an in-process mock host, a temp SQLite store and simulated y-websocket peers.
 
 use std::collections::HashMap;

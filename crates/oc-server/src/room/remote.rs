@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Room calls forwarded to the owning node in cluster mode (`POST /v1/internal/rooms/:room`).
 
 use std::sync::Arc;

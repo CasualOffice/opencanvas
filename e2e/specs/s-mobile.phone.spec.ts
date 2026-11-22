@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // s. Acceptance (docs/23 Mobile) on the demo canvas: typing and IME commits, selecting and
 //    formatting from the mobile toolbar, comments, tap targets, no sideways page scroll,
 //    the safe area and an orientation change. Runs on WebKit (iPhone) and Chromium (Pixel).

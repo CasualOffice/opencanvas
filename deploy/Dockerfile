@@ -1,4 +1,7 @@
 # syntax=docker/dockerfile:1.7
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # OpenCanvas server image. Build from the repo root:
 #   docker build -f deploy/Dockerfile -t opencanvas .
 # One binary + the built editor (/app/) + Noto fonts for board PNG / DOCX exports.

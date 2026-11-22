@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 name: CI
 
 on:
@@ -20,6 +23,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "clippy, rustfmt" }
       - uses: Swatinem/rust-cache@v2
+      - run: bash scripts/check-spdx.sh   # every source file carries the Apache-2.0 SPDX header
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

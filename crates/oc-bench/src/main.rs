@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `oc-bench`: load generator for OpenCanvas capacity runs (docs/22-CAPACITY-AND-SIZING.md).
 //!
 //!   oc-bench run --server http://127.0.0.1:8701 --server-pid <pid> --host-port 8702 \
