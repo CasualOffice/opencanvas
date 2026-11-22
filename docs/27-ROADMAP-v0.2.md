@@ -546,25 +546,26 @@ parallel after MOD-01 and HAPI-01.
 
 ---
 
-## 9. Open questions for the owner
+## 9. Decisions and remaining questions
 
-1. **Snapshot policy default.** `"title"` (safe, poorer exports and no-access views) or
-   `"content"` (better exports, but B's file then carries L's content)?
-2. **Who creates live files.** Is an optional `POST /files` callback acceptable to hosts, or
-   should "Make live" require the host to create the file through its own UI?
-3. **One socket or many.** Per-block room sockets (simple, ≤ 8) for v0.2, with multiplexing in
-   v0.4 alongside partial sync, or multiplex now?
-4. **Third-party server code.** Keep v0.2 strictly client-sandboxed and declarative on the
-   server, or plan Coda-style server-side Pack execution (network-bound sync of external data)
-   for v0.5?
-5. **Who may install blocks.** Operator only (proposed), or also hosts uploading signed packages
-   through an admin API?
-6. **API versioning.** Path major only, or path major plus a pinned date header?
-7. **Default limits.** Are 10 requests/s per subject and 5 write batches/s per file right for
-   expected bots?
-8. **0.1 routes.** Keep `/v1/files/{id}/patch` and friends through 1.0, or sunset them at 0.3?
-9. **Native surfaces.** Do any target hosts need live blocks in a native (non-web) client in
-   v0.2, which the web component cannot serve?
+Decided by the owner on 2026-11-23:
+
+1. **Snapshot policy default: `"title"`.** Someone who cannot open the live file sees only its
+   title, never its content; exports carry the title and a link.
+2. **Who creates live files: the host, through an optional `POST /files` callback.** The host owns
+   files, so "Make live" asks the host to create the file; without the callback the action is hidden.
+5. **Who may install blocks: the server operator only,** per host in the hosts file. No upload API.
+6. **API versioning: the path major (`/api/v1`).** No date header.
+8. **0.1 routes: kept working through v0.2, retired in v0.3** with a deprecation notice in v0.2.
+
+Proceeding with the proposal unless the owner says otherwise:
+
+3. **One socket or many:** per-block room sockets (≤ 8 per page) in v0.2; multiplexing with
+   partial sync in v0.4.
+4. **Third-party server code:** none in v0.2 (client sandbox and declarative server checks only);
+   server-side execution is reconsidered for v0.5.
+7. **Default limits:** 10 requests/s per subject and 5 write batches/s per file, configurable per host.
+9. **Native surfaces:** web only in v0.2; native clients use the headless API.
 
 ---
 
