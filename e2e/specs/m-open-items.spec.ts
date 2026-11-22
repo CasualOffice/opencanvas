@@ -155,11 +155,17 @@ for (const width of [1440, 1100]) {
     await page.goto(`${OC}/app/#demo&sim=quiet`);
     for (const sel of [".ocdb", '[aria-roledescription="whiteboard"]']) {
       const block = page.locator(".ProseMirror > .react-renderer > .wideblock").filter({ has: page.locator(sel) }).first();
+      // Database and board blocks load lazily: hover only once the block's content is drawn,
+      // and hover again if the handle missed the first move (slower CI machines).
+      await expect(block.locator(sel).first()).toBeVisible();
       await block.scrollIntoViewIfNeeded();
       const b = (await block.boundingBox())!;
-      await page.mouse.move(b.x + 40, b.y + 12);
       const grip = page.getByRole("button", { name: "Block options" });
-      await expect(grip).toBeVisible();
+      await expect(async () => {
+        await page.mouse.move(b.x + 40, b.y + 30);
+        await page.mouse.move(b.x + 40, b.y + 12);
+        await expect(grip).toBeVisible({ timeout: 1_000 });
+      }).toPass({ timeout: 10_000 });
       await expect.poll(async () => {
         const g = (await grip.boundingBox())!;
         return Math.round(g.x + g.width) <= Math.round(b.x) && g.x >= 0 && Math.abs(g.y - b.y) < 40;
