@@ -1,6 +1,6 @@
 # 09 — Roadmap and delivery
 
-**Status:** draft v0.1, 2026-11-21. Rows in
+**Status:** v0.2 of this plan, 2026-11-23 (release roadmap and feature priorities added; owner). Rows in
 [10-EXECUTION-TRACKER.md](10-EXECUTION-TRACKER.md) carry the detail.
 
 | Phase | Goal | Exit gate |
@@ -8,11 +8,46 @@
 | **P0 Foundation** | Research, PRD, HLD, technical design, ADRs, tracker; **UI prototype approved on Artifact**; repo scaffold + CI | User approval of PRD/HLD and UI-01 prototype |
 | **P1 MVP** | Rust server (JWT launch, rooms, WAL, commits, SQLite); editor with text/lists/tables/images/files/links/embeds; presence + cursors; preview; MD/HTML/.ocanvas export; embed SDK; sample host | Two browsers co-edit via sample host; commit round-trip; convergence fuzz green; p95 < 150 ms @ 20 editors |
 | **P2 Board & scale** | Board block; columns; comments; WOPI mode; MySQL/MariaDB + Redis cluster; PDF/DOCX/PNG export; templates; role API; Helm | 3-node chaos test (kill owner, no acked edit lost); MySQL+MariaDB CI; board fuzz green |
-| **P3 Platform** | Portable live blocks (embed one block in another host surface), AI assist (pluggable), DOCX import, offline-first option, Loro re-evaluation | Feature-flagged GA |
+| **P3 Platform** | The release roadmap below: portable live blocks, an extensible block SDK and stable headless APIs (v0.2), then offline-first editing, version history, search and automation (v0.3) | Each release ships behind feature flags with its acceptance rows in docs/23 |
 
 AI was brought forward (owner directive, 2026-11-22): phase 1 of the assistant, the MCP
 endpoint and the model providers is built and in review (tracker rows AI-01, AI-02, AI-UI;
 design [24](24-AI-AND-MCP.md) §11).
+
+## Architectural principle
+
+**OpenCanvas integrates with any third-party application through standardized APIs and SDKs,
+without depending on specific CasualOffice products.** Hosts connect through the documented
+launch tokens, callbacks, WOPI, REST, postMessage, the `<open-canvas>` SDK and MCP; nothing in the
+server or editor assumes a particular host. This keeps the project independent and modular, and
+open to a broad developer ecosystem (ADR-038).
+
+## Release roadmap
+
+| Version | Focus |
+|---|---|
+| v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
+| v0.2 | Portable live blocks, an extensible block SDK and stable headless APIs |
+| v0.3 | Offline-first editing, version history, search and automation |
+| v0.4 | Advanced databases, partial synchronization and performance improvements |
+| v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
+
+## Feature priorities
+
+| Feature | Value | Complexity | Priority |
+|---|---|---|---|
+| Portable live blocks | Very high | High | P0 |
+| Extensible block SDK | Very high | High | P0 |
+| Stable headless API | Very high | Medium | P0 |
+| Offline-first collaboration | High | Very high | P1 |
+| Version history and visual diffs | High | High | P1 |
+| Database formulas and relations | High | Medium–high | P1 |
+| Full-text search API | High | Medium | P1 |
+| Webhooks and automation | High | Medium | P1 |
+| Developer plugin marketplace | Medium initially | Very high | P3 |
+
+Priority here is the order of work across the releases above, not the delivery phases P0–P3 in
+the first table.
 
 ## Milestone sequence (P0 → P1)
 

@@ -192,6 +192,20 @@ scripts/e2e-db.sh sqlite                         # launch → edit → autosave 
 scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 ```
 
+## Roadmap
+
+| Version | Focus |
+|---|---|
+| **v0.1** (this alpha) | The collaborative editor, databases, whiteboards and embedding |
+| v0.2 | Portable live blocks, an extensible block SDK and stable headless APIs |
+| v0.3 | Offline-first editing, version history, search and automation |
+| v0.4 | Advanced databases, partial synchronization and performance improvements |
+| v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
+
+OpenCanvas integrates with any application through standardized APIs and SDKs and depends on no
+specific CasualOffice product. Priorities and detail: [docs/09](docs/09-ROADMAP.md) and the
+[roadmap page](https://canvas.casualoffice.org/roadmap.html).
+
 ## Documentation
 
 Start at [docs/00-README.md](docs/00-README.md). The main documents are the

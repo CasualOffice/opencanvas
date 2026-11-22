@@ -135,8 +135,34 @@ def first_sentence(s: str, limit: int = 170) -> str:
     return s if len(s) <= limit else s[: limit - 1].rsplit(" ", 1)[0] + "…"
 
 
+def section_table(title: str) -> list[list[str]]:
+    """Rows (cells, plain text) of the first table under `## <title>` in docs/09."""
+    out, inside = [], False
+    for line in ROADMAP.read_text(encoding="utf8").splitlines():
+        if line.startswith("## "):
+            inside = line[3:].strip() == title
+            continue
+        if inside and line.startswith("|") and not re.match(r"^\|[\s|:-]+\|$", line):
+            out.append([plain(c) for c in cells(line)])
+    if len(out) < 2:
+        fail(f"docs/09: no table under '## {title}'")
+    return out[1:]
+
+
+def section_text(title: str) -> str:
+    """The first paragraph under `## <title>` in docs/09, plain text."""
+    text = ROADMAP.read_text(encoding="utf8")
+    m = re.search(rf"^## {re.escape(title)}\n\n(.*?)(?:\n\n|\Z)", text, flags=re.S | re.M)
+    if not m:
+        fail(f"docs/09: no section '## {title}'")
+    return plain(m.group(1).replace("\n", " "))
+
+
 def render() -> str:
     ph = phases()
+    releases = section_table("Release roadmap")
+    prios = section_table("Feature priorities")
+    principle = section_text("Architectural principle")
     rows = tracker()
     tl = []
     for key, name, goal, gate in ph[:3]:
@@ -167,6 +193,13 @@ def render() -> str:
   <h1>Roadmap</h1>
   <p class="lede">Where OpenCanvas stands and what comes next, generated from the project's roadmap and its execution tracker. Every unit of work has a row there; this page shows each row's status as the tracker records it.</p>
   <p class="callout">{sitelib.icon("info")}<span>This is the project's plan, not a commitment. No dates are promised. "Built, in review" means the work is merged and verified and waits for the owner's approval. Ideas and requests are welcome as <a href="{ISSUES}">GitHub issues</a>.</span></p>
+</div></section>
+
+<section class="section-tight" aria-labelledby="rel-h"><div class="wrap">
+  <div class="sec-head"><h2 id="rel-h">Release roadmap</h2><p>{esc(principle)}</p></div>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Release roadmap"><table><thead><tr><th scope="col">Version</th><th scope="col">Focus</th></tr></thead><tbody>{"".join(f"<tr><th scope='row'>{esc(v)}</th><td>{esc(f)}</td></tr>" for v, f, *_ in releases)}</tbody></table></div>
+  <div class="sec-head"><h3 id="prio-h">Feature priorities</h3></div>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Feature priorities"><table><thead><tr><th scope="col">Feature</th><th scope="col">Value</th><th scope="col">Complexity</th><th scope="col">Priority</th></tr></thead><tbody>{"".join(f"<tr><th scope='row'>{esc(a)}</th><td>{esc(b)}</td><td>{esc(c)}</td><td>{esc(d)}</td></tr>" for a, b, c, d, *_ in prios)}</tbody></table></div>
 </div></section>
 
 <section class="section-tight" aria-labelledby="now-h"><div class="wrap">

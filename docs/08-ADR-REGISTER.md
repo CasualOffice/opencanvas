@@ -40,6 +40,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-035 | AI safety and audit: canvas content treated as untrusted data; no outbound channel for the agent; agent-inserted links and images inert until a person acts; confirmation for bulk deletes; no prompts, outputs or tool arguments in logs; audit events to the host through `POST /ai/events` via the notification outbox (docs/24 §9) | Accepted (owner, 2026-11-22) |
 | ADR-036 | Session renewal (docs/23 PERM-07): `GET /v1/sessions/:ticket` returns `exp` (seconds); `POST /v1/launch` with `Accept: application/json` answers `{"ticket"}` instead of the 303, so the editor moves to the ticket for the host's `Action_RefreshToken` token and reconnects without a reload | Accepted (owner prototype Main.dc.html, 2026-11-23) |
 | ADR-037 | Relicense to Apache-2.0: canonical LICENSE, attribution through NOTICE (Apache §4(d)), SPDX identifier and copyright in every source file (checked in CI by `scripts/check-spdx.sh`); supersedes the earlier BUSL-1.1 licensing (owner decision 2026-11-23) | Accepted |
+| ADR-038 | Integration through standardized APIs and SDKs only: OpenCanvas must not depend on specific CasualOffice products; hosts use launch tokens, callbacks, WOPI, REST, postMessage, the SDK and MCP (owner, 2026-11-23; docs/09) | Accepted |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
