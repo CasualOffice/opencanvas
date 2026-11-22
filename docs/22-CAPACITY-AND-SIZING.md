@@ -754,6 +754,51 @@ restart for the Redis-restart event), so the reruns are:
 `REDIS_LOCAL=1 REDIS_ARGS="--appendonly yes" CLUSTER_DB=none NODE_BASE=8810 REDIS_PORT=8834 HOST_PORT=8802 HOST2_PORT=8842 HOST3_PORT=8852 scripts/bench.sh K`
 (then `K2_REDIS_KILL=0 … K2`, and `S_DB=redis REDIS_LOCAL=1 OC_PORT=8801 … S1`).
 
+### 9.7 The purge that never ran; Redis-only reruns (PERF-08, 2026-11-23)
+
+Branch off main `c6eca7a`. **Cause of §9.6's retained memory: our purge call was refused.**
+`alloc::release` called `tikv_jemalloc_ctl::raw::write(b"arena.4096.purge\0", ())`, which
+passes a non-null (zero-sized) input pointer; jemalloc answers `EPERM` for `arena.<i>.purge`
+with any input, and the error was discarded, so no purge ever happened. With no background
+thread on macOS, idle arenas never decayed either. jemalloc stats in the guard test (now
+built with the `stats` feature) after 24 rooms closed, before the fix: **allocated 21 MB,
+active 31 MB, resident 132 MB** — the memory was free, just never returned; nothing in the
+room code held it (the "110 MB live" of §9.6 was RSS, not live heap). Fix: `alloc::purge` calls
+`mallctl` with null pointers and logs a failure; the 2 s purge sweeper now starts in
+`AppState::new` (it was only in `main`, so tests and embedders had none). The ~18 MB still
+allocated after eviction in the test is the mock host's saved files (11.2 MB) and the
+SQLite dumps, not room state.
+
+Tests: `alloc::tests::jemalloc_purge_is_accepted` (failed first: `Err("Attempt to read or
+write void value…")`), and `tests/alloc_release.rs` un-ignored: RSS 22 → 118 MB with 24
+rooms → **47 MB** after eviction (was 133–134 MB; failed before the fix).
+
+**S2 before / after** (`S2_STEPS=5000,5000,5000 OC_ROOM_IDLE_MS=20000 S_IDLE_SECS=60`, memory
+mode, SQLite, same machine, one run each, ≈ 25,300 updates/s in, 0 errors, 0 drops):
+
+| build | p95 ms per bucket | RSS MB per bucket | RSS at minute 3 | RSS 60 s after typing stopped, 0 rooms |
+|---|---|---|---|---|
+| main `c6eca7a` | 43.2 · 43.0 · 43.1 | 805 · 946 · 1,076 | 1,076 | **856** |
+| **fixed purge** | 43.4 · 43.5 · 43.4 | 806 · 945 · 1,077 | 1,077 | **174** |
+
+**PASS** for memory returning after eviction (−84 % from the peak; the start was 15 MB, so
+≈ 160 MB stays: SQLite page cache, the allocator's metadata and thread caches, tokio). RSS
+while rooms are open is unchanged (the Y.Doc cost of §9.5 is not touched by this).
+
+**Redis-only cluster reruns** (`CLUSTER_DB=none`, no `DATABASE_URL`, `REDIS_LOCAL=1` with
+`--appendonly yes`, 3 nodes on 8811–8813, the fixed build). PASS = 0 acknowledged edits lost,
+no two writers (fenced stale writes, 0 duplicate entries, server = clients), p95 ≤ 700 ms.
+
+| run | events | edits sent / acked / acked lost | converged, server ≠ clients | two writers | p95 ms | result |
+|---|---|---|---|---|---|---|
+| K | kill -9 owner, rolling restart, Redis kill -9 + AOF restart, 20 s SIGSTOP | 107,035 / 107,035 / **0** | 60 / 0 | no: 124 stale writes fenced on the paused node, 0 duplicate entries | load 52.7 (1,500 clients) · 48.7 (550 room); resync p95 519, max 2,521 | **PASS** |
+| K2 (`K2_REDIS_KILL=0`) | 20 s SIGSTOP of one node | 71,715 / 71,715 / **0** | 60 / 0 | no: 69 fenced, 9 stepped down, 0 duplicates | resync p95 104 (the background load was stopped before its 120 s bucket closed, so no load row) | **PASS** (data); load p95 not recorded |
+| S1 (`S_DB=redis`, one node) | 550 in one room, all typing, 3 min, ≈ 2,750 updates/s | load run, no ack ledger: 0 errors, 0 drops | – | one node | 49.3 · 56.4 · 69.1 (p99 ≤ 93) | **PASS** (latency); RSS 176 · 235 · 361 MB |
+
+K's load clients do not reconnect after their node restarts (they end with 0 live; `drop`
+counts them), so its load p95 covers the time before the first kill. Redis after K: 361 epoch
+keys, 160 snapshots, 160 WAL streams, 0 pending commits, 0 wipes.
+
 ## 10. Crash recovery (`scripts/bench.sh R` / `mR`)
 
 **Method.** `oc-bench verify`: 200 rooms × 2 editors (empty doc), each client appends a paragraph

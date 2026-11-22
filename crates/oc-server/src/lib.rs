@@ -135,6 +135,9 @@ impl AppState {
             // state -> rooms -> runtime -> tools chain is not a cycle.
             rt.set_tools(Arc::new(crate::ai::StateTools(Arc::downgrade(&state))));
         }
+        // Purges what closed rooms freed on other threads (docs/22 §9.7); here rather than in
+        // main so every embedder and test server gets it.
+        crate::alloc::spawn_sweeper();
         Ok(state)
     }
 }

@@ -44,10 +44,40 @@ pub fn release() {
         libmimalloc_sys::mi_collect(true);
     }
     #[cfg(feature = "jemalloc")]
-    {
-        // MALLCTL_ARENAS_ALL = 4096: purge the dirty pages of every arena.
-        // SAFETY: "arena.<i>.purge" takes no input and returns nothing.
-        let _ = unsafe { tikv_jemalloc_ctl::raw::write(b"arena.4096.purge\0", ()) };
+    if let Err(e) = purge() {
+        tracing::warn!(error = %e, "jemalloc purge failed");
+    }
+}
+
+/// Purges the dirty pages of every jemalloc arena (`MALLCTL_ARENAS_ALL` = 4096).
+#[cfg(feature = "jemalloc")]
+pub fn purge() -> Result<(), String> {
+    // jemalloc refuses (EPERM) any input pointer, even a zero-sized one, for this command,
+    // so `tikv_jemalloc_ctl::raw::write(name, ())` never purged anything.
+    // SAFETY: "arena.<i>.purge" takes no input and returns nothing; all pointers are null.
+    let rc = unsafe {
+        tikv_jemalloc_sys::mallctl(
+            c"arena.4096.purge".as_ptr(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(format!("mallctl arena.4096.purge: errno {rc}"))
+    }
+}
+
+#[cfg(all(test, feature = "jemalloc"))]
+mod tests {
+    #[test]
+    fn jemalloc_purge_is_accepted() {
+        // A purge jemalloc refuses frees nothing: evicted rooms stayed resident as dirty
+        // pages (docs/22 §9.7).
+        assert_eq!(super::purge(), Ok(()));
     }
 }
 
