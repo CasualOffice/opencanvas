@@ -260,7 +260,7 @@ Source file: docs/25-RELEASE-v0.1.0-alpha.1.md
 
 **Embeddable collaborative workspace canvas.**
 
-**Status:** prepared 2026-11-23 from `main` at `1156d58`. Not tagged and not published.
+**Status:** released 2026-11-23. Tagged `v0.1.0-alpha.1` on commit `e122c26` and published as a GitHub pre-release (https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1). Licence: Apache-2.0 (ADR-037).
 This is an **alpha** for evaluation. There is **no production SLA**: no uptime, support,
 response-time or data-retention commitment of any kind. Read [Known limitations](#known-limitations)
 before you run it with real users.
@@ -308,7 +308,7 @@ full screen, live pointers, SVG and PNG export.
   `export.test.ts`, `open.test.tsx`, `ux.test.tsx`; e2e `p-inline-drag`, `f-phone`.
 - Board touch (tap, pan, pinch, draw, move): docs/23 **MOB-05** PASS.
 - SVG and PNG export: docs/23 **EX-05** PASS (`acceptance::ex_board_svg_png`).
-- Gap: there is no two-person board convergence browser test yet (BRD-01).
+- Two people editing one board: `e2e/specs/w-two-user-board.spec.ts` (live shape edits converge; a viewer cannot move shapes) passed in the release run (86/86). It was not seen failing first.
 
 ### Templates
 
@@ -328,10 +328,10 @@ roles enforced on the server.
 - Roles: docs/23 **PERM-01** to **PERM-06**, **PERM-08**, **PERM-09** PASS (`r-permissions`,
   `c-roles`, `p-people`, `d-conflict`; `rooms.rs`, `hardening.rs`, `cluster.rs`, `conflict_live.rs`).
 - Access expiry and renewal (**PERM-07**, ADR-036): built 2026-11-23 and checked by e2e
-  `u-access-expiry` (tracker integration log). The docs/23 row still reads FAIL from the
-  2026-11-22 run; it has not been re-run in the matrix.
-- Comments: CMN-01 (Review). The commenter role is browser-tested (PERM-02); a two-person thread
-  browser test is still missing.
+  `u-access-expiry` (tracker integration log). docs/23 now records it as PASS.
+- Comments: CMN-01. The commenter role is browser-tested (PERM-02), and
+  `e2e/specs/x-two-user-comments.spec.ts` (thread, reply and resolve live across two people; a
+  commenter can only comment) passed in the release run (86/86). It was not seen failing first.
 
 ### Saving
 
@@ -570,68 +570,68 @@ SIGTERM drain, so the copy is consistent.
 
 ## Verification checklist
 
-Run on the release commit, from the repository root, and fill in each result. Do not tag until
-every line has a result.
+Run on the release commit, from the repository root. The results below are the evidence for the
+tag; where a check ran on an earlier commit, it says which.
 
 ```sh
 OC_DEV=1 cargo test --workspace
 ```
-Result:
+Result: 322 passed, 0 failed (run after the relicensing, same code as `e122c26`); CI `rust` job on `e122c26`: success.
 
 ```sh
 cargo clippy --workspace --all-targets -- -D warnings
 ```
-Result:
+Result: Clean (no warnings).
 
 ```sh
 cargo fmt --all -- --check
 ```
-Result:
+Result: Clean.
 
 ```sh
 cd web && pnpm install --frozen-lockfile && pnpm -r typecheck
 ```
-Result:
+Result: 0 errors.
 
 ```sh
 cd web && pnpm -r test          # vitest
 ```
-Result:
+Result: 321 passed (board 83, database 184, editor 54).
 
 ```sh
 cd e2e && npm ci && npx playwright install chromium webkit && npm run e2e
 ```
-Result:
+Result: 86 passed (desktop Chromium, WebKit iPhone, Android Chromium), including the two-person board and comment specs; CI `browser-e2e` on `e122c26`: success.
 
 ```sh
 scripts/e2e-db.sh sqlite
 ```
-Result:
+Result: PASS, with a real PDF through Gotenberg (local run on `f908495`); CI `e2e (sqlite)` on `e122c26`: success.
 
 ```sh
 scripts/e2e-db.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
 ```
-Result:
+Result: PASS on MariaDB 11.4 (local run on `f908495`); CI `e2e (mariadb)` on `e122c26`: success.
 
 ```sh
 scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 ```
-Result:
+Result: PASS on MySQL 8.4 (local run on `f908495`); CI `e2e (mysql)` on `e122c26`: success.
 
 ```sh
 scripts/audit.sh
 ```
-Result:
+Result: ok: cargo-audit 0 vulnerabilities (405 crates); cargo-deny advisories, bans, licences, sources ok; npm 0 vulnerabilities for `web/` and `e2e/`; SPDX check 0 missing.
 
 ```sh
 docker build -f deploy/Dockerfile -t opencanvas:0.1.0-alpha.1 .
 ```
-Result:
+Result: Built successfully on `f908495` (before the relicensing, which changed only comments, licence text and metadata). Not rebuilt on `e122c26`.
 
 ```sh
 curl -s http://localhost:8080/healthz    # on the built server: "version":"0.1.0-alpha.1"
 ```
-Result:
+Result: `/healthz`, `/readyz` and `/app/` returned 200 on the built image; `/readyz` reported `"ai":"off (OC_AI_CONFIG unset)"`. The `version` field was not checked.
 
 
 # FAQ

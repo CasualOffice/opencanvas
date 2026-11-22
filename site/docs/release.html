@@ -55,7 +55,7 @@
 <h1>Release notes 0.1.0-alpha.1</h1>
 
 <p><strong>Embeddable collaborative workspace canvas.</strong></p>
-<p><strong>Status:</strong> prepared 2026-11-23 from <code>main</code> at <code>1156d58</code>. Not tagged and not published. This is an <strong>alpha</strong> for evaluation. There is <strong>no production SLA</strong>: no uptime, support, response-time or data-retention commitment of any kind. Read <a href="#known-limitations">Known limitations</a> before you run it with real users.</p>
+<p><strong>Status:</strong> released 2026-11-23. Tagged <code>v0.1.0-alpha.1</code> on commit <code>e122c26</code> and published as a GitHub pre-release (https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1). Licence: Apache-2.0 (ADR-037). This is an <strong>alpha</strong> for evaluation. There is <strong>no production SLA</strong>: no uptime, support, response-time or data-retention commitment of any kind. Read <a href="#known-limitations">Known limitations</a> before you run it with real users.</p>
 <p>OpenCanvas is open source under the <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Apache License 2.0</a>; keep <a href="https://github.com/CasualOffice/opencanvas/blob/main/NOTICE">NOTICE</a> when you redistribute it. Your application keeps the users, the permissions and the files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to your storage (ADR-001).</p>
 <h2 id="whats-included">What's included</h2>
 <p>Each item lists its evidence: an acceptance ID from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/23-ACCEPTANCE.md">docs/23</a>, a tracker row from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md">docs/10</a>, and the tests that check it. Rust tests are in <code>crates/oc-server/tests/</code> and <code>crates/oc-model/tests/</code>; browser tests are in <code>e2e/specs/</code>; unit tests are vitest files under <code>web/packages/*/src/</code>.</p>
@@ -67,13 +67,13 @@
 <ul><li>DB-01 to DB-05 (Done): vitest <code>database.test.ts</code>, <code>render.test.tsx</code>, <code>views.test.tsx</code>, <code>kanban.test.tsx</code>, <code>addfield.test.tsx</code>, <code>csv.test.ts</code>, <code>ux.test.tsx</code>; live cell edits between two people in e2e <code>b-live-autosave</code>.</li><li>Database cells and views on a phone: docs/23 <strong>MOB-04</strong> PASS.</li><li>Every database field type and view survives <code>.ocanvas</code>: docs/23 <strong>FC-01</strong> PASS.</li></ul>
 <h3 id="whiteboards">Whiteboards</h3>
 <p>Pen, sticky notes, shapes, text, arrows that stay attached to shapes, frames, images, zoom and full screen, live pointers, SVG and PNG export.</p>
-<ul><li>BRD-02 to BRD-04 (Done), BRD-01 (Review): vitest <code>board.test.tsx</code>, <code>connectors.test.tsx</code>, <code>export.test.ts</code>, <code>open.test.tsx</code>, <code>ux.test.tsx</code>; e2e <code>p-inline-drag</code>, <code>f-phone</code>.</li><li>Board touch (tap, pan, pinch, draw, move): docs/23 <strong>MOB-05</strong> PASS.</li><li>SVG and PNG export: docs/23 <strong>EX-05</strong> PASS (<code>acceptance::ex_board_svg_png</code>).</li><li>Gap: there is no two-person board convergence browser test yet (BRD-01).</li></ul>
+<ul><li>BRD-02 to BRD-04 (Done), BRD-01 (Review): vitest <code>board.test.tsx</code>, <code>connectors.test.tsx</code>, <code>export.test.ts</code>, <code>open.test.tsx</code>, <code>ux.test.tsx</code>; e2e <code>p-inline-drag</code>, <code>f-phone</code>.</li><li>Board touch (tap, pan, pinch, draw, move): docs/23 <strong>MOB-05</strong> PASS.</li><li>SVG and PNG export: docs/23 <strong>EX-05</strong> PASS (<code>acceptance::ex_board_svg_png</code>).</li><li>Two people editing one board: <code>e2e/specs/w-two-user-board.spec.ts</code> (live shape edits converge; a viewer cannot move shapes) passed in the release run (86/86). It was not seen failing first.</li></ul>
 <h3 id="templates">Templates</h3>
 <p>40 templates in 9 categories, plus blank canvas, database, whiteboard and import.</p>
 <ul><li>TPL-02 (Done): e2e <code>a-template-presence</code> (gallery, search, use a template, a viewer sees it).</li><li>Gap: docs/23 <strong>FC-07</strong> (every built-in template loads on the server side) is <strong>Not run</strong>.</li></ul>
 <h3 id="collaboration">Collaboration</h3>
 <p>Live co-editing, cursors with names, avatars, follow mode, comments, and view, comment and edit roles enforced on the server.</p>
-<ul><li>COL-01 to COL-04 (Done): <code>rooms::two_clients_converge_through_a_room</code>, <code>rooms::awareness_user_is_stamped_from_the_grant</code>, <code>tests/fuzz.rs</code> (convergence fuzz; 10,000 iterations pass in release).</li><li>Roles: docs/23 <strong>PERM-01</strong> to <strong>PERM-06</strong>, <strong>PERM-08</strong>, <strong>PERM-09</strong> PASS (<code>r-permissions</code>, <code>c-roles</code>, <code>p-people</code>, <code>d-conflict</code>; <code>rooms.rs</code>, <code>hardening.rs</code>, <code>cluster.rs</code>, <code>conflict_live.rs</code>).</li><li>Access expiry and renewal (<strong>PERM-07</strong>, ADR-036): built 2026-11-23 and checked by e2e <code>u-access-expiry</code> (tracker integration log). The docs/23 row still reads FAIL from the 2026-11-22 run; it has not been re-run in the matrix.</li><li>Comments: CMN-01 (Review). The commenter role is browser-tested (PERM-02); a two-person thread browser test is still missing.</li></ul>
+<ul><li>COL-01 to COL-04 (Done): <code>rooms::two_clients_converge_through_a_room</code>, <code>rooms::awareness_user_is_stamped_from_the_grant</code>, <code>tests/fuzz.rs</code> (convergence fuzz; 10,000 iterations pass in release).</li><li>Roles: docs/23 <strong>PERM-01</strong> to <strong>PERM-06</strong>, <strong>PERM-08</strong>, <strong>PERM-09</strong> PASS (<code>r-permissions</code>, <code>c-roles</code>, <code>p-people</code>, <code>d-conflict</code>; <code>rooms.rs</code>, <code>hardening.rs</code>, <code>cluster.rs</code>, <code>conflict_live.rs</code>).</li><li>Access expiry and renewal (<strong>PERM-07</strong>, ADR-036): built 2026-11-23 and checked by e2e <code>u-access-expiry</code> (tracker integration log). docs/23 now records it as PASS.</li><li>Comments: CMN-01. The commenter role is browser-tested (PERM-02), and <code>e2e/specs/x-two-user-comments.spec.ts</code> (thread, reply and resolve live across two people; a commenter can only comment) passed in the release run (86/86). It was not seen failing first.</li></ul>
 <h3 id="saving">Saving</h3>
 <p>Autosave only, through a durable outbox; host conflicts (409) save a copy or reload.</p>
 <ul><li>CMT-01 (Done): <code>hardening.rs</code> (outbox written before every PUT, pending saves resumed after a restart); docs/23 <strong>PERM-05</strong>, <strong>PERM-08</strong> PASS.</li></ul>
@@ -125,31 +125,31 @@
 <h2 id="upgrade-notes">Upgrade notes</h2>
 <ul><li>This is the first tagged version. There is no earlier release to upgrade from.</li><li>From a pre-release build of <code>main</code>: the database migrations (<code>migrations/sqlite</code>, <code>migrations/mysql</code>, 0001 to 0007) run automatically at start-up. Back up the database first.</li><li>Defaults to check when coming from an older <code>main</code>: <code>OC_DURABILITY=memory</code> is the default without Redis (set <code>OC_DURABILITY=wal</code> to keep every acknowledged edit on disk); idle eviction is <code>OC_ROOM_IDLE_MS=60000</code>; jemalloc is the default allocator; AI is off unless <code>OC_AI_CONFIG</code> enables it; server-side import is off unless a host lists <code>import_formats</code>.</li><li>Helm: the chart version and <code>appVersion</code> are <code>0.1.0-alpha.1</code>; the image tag defaults to the chart <code>appVersion</code>.</li><li>Alpha releases make no compatibility promise. Read the next release's notes before upgrading.</li></ul>
 <h2 id="verification-checklist">Verification checklist</h2>
-<p>Run on the release commit, from the repository root, and fill in each result. Do not tag until every line has a result.</p>
+<p>Run on the release commit, from the repository root. The results below are the evidence for the tag; where a check ran on an earlier commit, it says which.</p>
 <pre><code class="language-sh">OC_DEV=1 cargo test --workspace</code></pre>
-<p>Result:</p>
+<p>Result: 322 passed, 0 failed (run after the relicensing, same code as <code>e122c26</code>); CI <code>rust</code> job on <code>e122c26</code>: success.</p>
 <pre><code class="language-sh">cargo clippy --workspace --all-targets -- -D warnings</code></pre>
-<p>Result:</p>
+<p>Result: Clean (no warnings).</p>
 <pre><code class="language-sh">cargo fmt --all -- --check</code></pre>
-<p>Result:</p>
+<p>Result: Clean.</p>
 <pre><code class="language-sh">cd web &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm -r typecheck</code></pre>
-<p>Result:</p>
+<p>Result: 0 errors.</p>
 <pre><code class="language-sh">cd web &amp;&amp; pnpm -r test          # vitest</code></pre>
-<p>Result:</p>
+<p>Result: 321 passed (board 83, database 184, editor 54).</p>
 <pre><code class="language-sh">cd e2e &amp;&amp; npm ci &amp;&amp; npx playwright install chromium webkit &amp;&amp; npm run e2e</code></pre>
-<p>Result:</p>
+<p>Result: 86 passed (desktop Chromium, WebKit iPhone, Android Chromium), including the two-person board and comment specs; CI <code>browser-e2e</code> on <code>e122c26</code>: success.</p>
 <pre><code class="language-sh">scripts/e2e-db.sh sqlite</code></pre>
-<p>Result:</p>
+<p>Result: PASS, with a real PDF through Gotenberg (local run on <code>f908495</code>); CI <code>e2e (sqlite)</code> on <code>e122c26</code>: success.</p>
 <pre><code class="language-sh">scripts/e2e-db.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas</code></pre>
-<p>Result:</p>
+<p>Result: PASS on MariaDB 11.4 (local run on <code>f908495</code>); CI <code>e2e (mariadb)</code> on <code>e122c26</code>: success.</p>
 <pre><code class="language-sh">scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas</code></pre>
-<p>Result:</p>
+<p>Result: PASS on MySQL 8.4 (local run on <code>f908495</code>); CI <code>e2e (mysql)</code> on <code>e122c26</code>: success.</p>
 <pre><code class="language-sh">scripts/audit.sh</code></pre>
-<p>Result:</p>
+<p>Result: ok: cargo-audit 0 vulnerabilities (405 crates); cargo-deny advisories, bans, licences, sources ok; npm 0 vulnerabilities for <code>web/</code> and <code>e2e/</code>; SPDX check 0 missing.</p>
 <pre><code class="language-sh">docker build -f deploy/Dockerfile -t opencanvas:0.1.0-alpha.1 .</code></pre>
-<p>Result:</p>
+<p>Result: Built successfully on <code>f908495</code> (before the relicensing, which changed only comments, licence text and metadata). Not rebuilt on <code>e122c26</code>.</p>
 <pre><code class="language-sh">curl -s http://localhost:8080/healthz    # on the built server: &quot;version&quot;:&quot;0.1.0-alpha.1&quot;</code></pre>
-<p>Result:</p>
+<p>Result: <code>/healthz</code>, <code>/readyz</code> and <code>/app/</code> returned 200 on the built image; <code>/readyz</code> reported <code>&quot;ai&quot;:&quot;off (OC_AI_CONFIG unset)&quot;</code>. The <code>version</code> field was not checked.</p>
 <p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/25-RELEASE-v0.1.0-alpha.1.md">docs/25-RELEASE-v0.1.0-alpha.1.md</a> in the repository; edit it there.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="getting-started.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Getting started</span></a><a class="pn pn-next" href="faq.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">FAQ</span></a></nav>
   </article>
