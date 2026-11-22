@@ -287,6 +287,29 @@ nodes are `{type, attrs?, content?}` and text is `{type:"text", text, marks?:[{t
 (y-prosemirror `mark--hash` keys are reduced to `mark`). If `ydoc.bin` is missing the doc is built
 from `document.json` (content and meta exactly; nested maps best-effort).
 
+### 4.1 Validation (MOD-01)
+
+`oc_model::validate(&Doc)` / `validate_json(&document.json)` / `validate_blocks(prefix, &[node])`
+return `Report {errors, warnings}`; each issue has a JSON-pointer path (`/content/3/content/0`,
+`blocks/1/attrs/level` for patch input) and a message. **Errors** refuse the input: `read_ocanvas`
+fails with `Error::Invalid("<path>: <message>")`, and `apply_patch` (REST patch, md/html import,
+MCP writes) answers 400 `PATCH_INVALID` naming the op and node. **Warnings** never refuse; the
+content is kept as is and counted in `oc_schema_warnings_total`.
+
+| rule | error | warning |
+|---|---|---|
+| node shape | not an object, no string `type`, `attrs` not an object, `content` not an array | unknown node type (its children are still checked) |
+| attributes | wrong value type or range: `heading.level` 1-3, `orderedList.start` integer, `checked`/`open` booleans, `image.align` `left right`, `image.width` number, `fileAttachment.size` ≥ 0, `height` 240-1600, `display` `card preview`, `columns.widths` whole percents, cell `colspan`/`rowspan` ≥ 1, `colwidth` array, `dateMention.date` `YYYY-MM-DD`, ids (`dbId boardId mention.id threadId`) non-empty strings, other attributes strings. `null` always means the default | unknown attribute; `callout.tone` / `textColor.color` outside the tones |
+| content | `paragraph heading toggleSummary`: inline only; `codeBlock`: unmarked text; `bulletList orderedList`: `listItem+`; `taskList`: `taskItem+`; `listItem taskItem blockquote toggleContent column tableCell tableHeader`: one or more blocks; `callout`: `paragraph+`; `toggle`: `toggleSummary toggleContent`; `columns`: `column+`; `table`: `tableRow+`; `tableRow`: cells+; atoms (`horizontalRule image database board bookmark embed fileAttachment mention dateMention hardBreak`) no content; parts (`listItem column tableRow …`) and inline nodes inside a block-only parent | `columns` with other than 2-4 columns or a `widths` count that doesn't match; inline content (bare text) at the document's top level, which server tools have always written |
+| text and marks | empty `text`, `content` on text, `marks` not an array, mark without `type`, wrong mark attr type (`link.href` string, `commentMark.threadId` id) | unknown mark |
+| ids | `blockId` not a non-empty string | duplicate `blockId`; `database`/`board` block whose id is not in `databases`/`boards` |
+| databases | entry/fields/rows not the right JSON type, field without an id, duplicate field id, option without string `v`, `order` not strings, `notes`/`views` not objects | unknown field type; `order` entry missing from `rows` |
+| boards | `shapes` not an object, shape without string `type`, `x y w h size` not numbers, `pts` not `[x, y]` pairs, `start`/`end` without `shapeId`, string keys not strings | unknown shape type, bad `via` entries, `order` entry missing from `shapes` |
+| document | not an object, `type` other than `doc`, `meta databases boards comments people` not objects, `meta.title icon tone template` not strings, thread `messages` not an array | — |
+
+A patch's blocks are checked on their own (each root may be any known node, so a `listItem`
+can replace a `listItem`); they are not checked against where they are inserted.
+
 ## 5. Host callbacks (JWT mode). The server calls the host.
 
 Base `callback_base` from the host registry. Headers on every call:

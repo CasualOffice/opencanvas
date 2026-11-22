@@ -481,3 +481,17 @@ fn ex_ocanvas() {
     assert_eq!(doc_to_json(&l.doc), rich_json());
     assert_ne!(l.doc.transact().state_vector(), yrs::StateVector::default());
 }
+
+/// MOD-01: the rich document (every block, field type, view and shape) validates with no
+/// errors; its deliberate unknowns and loose board data are the only warnings.
+#[test]
+fn mod01_rich_document_validates() {
+    let r = oc_model::validate(&loaded_rich());
+    assert!(r.is_ok(), "{:#?}", r.errors);
+    let w: Vec<String> = r.warnings.iter().map(|i| i.to_string()).collect();
+    assert!(w.iter().any(|x| x.contains("futureBlock")), "{w:#?}");
+    assert!(w.iter().any(|x| x.contains("futureAttr")), "{w:#?}");
+    assert!(w.iter().any(|x| x.contains("\"stars\"")), "{w:#?}");
+    // The board fixture's deliberately loose `via` and a dangling `order` entry.
+    assert_eq!(w.len(), 5, "{w:#?}");
+}

@@ -146,6 +146,21 @@ async fn patch_applies_to_the_live_room_and_reaches_clients() {
     let (status, body) = patch(&addr, json!({"ops": [{"op": "explode"}], "author": bot()})).await;
     assert_eq!(status, 400, "{body}");
     assert_eq!(body["error"]["code"], "PATCH_INVALID");
+    // MOD-01: a block that breaks the schema is refused with the path of the bad node.
+    let (status, body) = patch(
+        &addr,
+        json!({"ops": [{"op": "append", "blocks": [{"type": "bulletList", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "not an item"}]}]}]}],
+               "author": bot()}),
+    )
+    .await;
+    assert_eq!(status, 400, "{body}");
+    assert_eq!(body["error"]["code"], "PATCH_INVALID");
+    let msg = body["error"]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("blocks/0/content/0") && msg.contains("not allowed inside bulletList"),
+        "{msg}"
+    );
     let (status, _) = patch(&addr, json!({"ops": [{"op": "append", "markdown": "x"}]})).await;
     assert_eq!(status, 400, "author is required");
     a.settle().await;
