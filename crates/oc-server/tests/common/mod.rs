@@ -57,6 +57,8 @@ pub struct HostState {
     pub members: Option<Value>,
     /// (file id, query, signature ok) of every members call.
     pub members_calls: Vec<(String, String, bool)>,
+    /// Bearer tokens the host refuses on `PUT /files/{id}` with 403 (a revoked grant).
+    pub denied_tokens: std::collections::HashSet<String>,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -171,6 +173,12 @@ async fn put_file(
         .get("if-match")
         .and_then(|v| v.to_str().ok())
         .map(|v| v.trim_matches('"').to_string());
+    if st.denied_tokens.contains(&bearer(&headers)) {
+        return (
+            StatusCode::FORBIDDEN,
+            axum::Json(json!({"error": "forbidden"})),
+        );
+    }
     if st.fail {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

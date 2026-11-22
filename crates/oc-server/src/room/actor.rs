@@ -20,12 +20,13 @@ use super::{
     Rooms, filter, presence, protocol,
 };
 use crate::grant::{Grant, Role};
-use crate::host_client::{Fetched, PutOutcome, PutRequest};
+use crate::host_client::{Fetched, HostError, PutOutcome, PutRequest};
 use crate::hosts::{ConflictPolicy, HostConfig};
 use crate::metrics::Metrics;
 use crate::people;
 use crate::store::{NotifyRow, OutboxRow, WalRow};
 use crate::util::{now_ms, rfc3339};
+use reqwest::StatusCode;
 
 const BACKOFF_SECS: [u64; 4] = [1, 2, 5, 10];
 const MAX_AWARENESS_BYTES: usize = 2048;
@@ -119,6 +120,9 @@ struct Room {
     last_update: Instant,
     contributors: BTreeSet<String>,
     callback_token: String,
+    /// Callback tokens of grants the host revoked (or downgraded to view) in this room: never
+    /// used for a save again (PERM-05), even when a pending outbox row still carries one.
+    revoked_tokens: HashSet<String>,
     /// Fencing epoch taken at load (docs/22 §8 weakness 3): every WAL, snapshot and outbox
     /// write is refused once another actor (on any node) has taken a newer one.
     epoch: i64,
@@ -430,6 +434,7 @@ impl Room {
             last_update: Instant::now(),
             contributors,
             callback_token: seed.callback_token.clone(),
+            revoked_tokens: HashSet::new(),
             epoch,
             seq,
             compacted_seq: seq,
@@ -493,6 +498,18 @@ impl Room {
                 reply,
             } => {
                 let _ = reply.send(self.set_role(&user_id, role));
+                // A pending row that carries a revoked grant is rewritten now, so a restart's
+                // outbox resume never sends it (PERM-05).
+                if !self.save.in_flight
+                    && self
+                        .save
+                        .pending
+                        .as_ref()
+                        .is_some_and(|p| self.revoked_tokens.contains(&p.token))
+                    && let Err(e) = self.prepare_save().await
+                {
+                    tracing::warn!(room = %self.id, error = %e, "rewriting the pending commit failed");
+                }
             }
             Cmd::Patch { ops, author, reply } => {
                 let _ = reply.send(self.patch(&ops, &author).await);
@@ -540,6 +557,7 @@ impl Room {
             return;
         }
         if grant.can_write() && !grant.callback_token.is_empty() {
+            self.revoked_tokens.remove(&grant.callback_token);
             self.callback_token = grant.callback_token.clone();
         }
         let sv = self.doc.transact().state_vector();
@@ -685,6 +703,7 @@ impl Room {
             match role {
                 None => {
                     if let Some(p) = self.peers.get(conn) {
+                        self.revoked_tokens.insert(p.grant.callback_token.clone());
                         let closed = json!({"t": "closed", "reason": "access revoked"});
                         let _ =
                             p.tx.send(Outbound::Frame(protocol::control(&closed).into()));
@@ -698,8 +717,13 @@ impl Room {
                     };
                     let mut grant = (*p.grant).clone();
                     grant.set_role(role);
-                    if grant.can_write() && !grant.callback_token.is_empty() {
-                        self.callback_token = grant.callback_token.clone();
+                    if grant.can_write() {
+                        self.revoked_tokens.remove(&grant.callback_token);
+                        if !grant.callback_token.is_empty() {
+                            self.callback_token = grant.callback_token.clone();
+                        }
+                    } else {
+                        self.revoked_tokens.insert(grant.callback_token.clone());
                     }
                     p.grant = Arc::new(grant);
                     p.denied = false;
@@ -711,7 +735,49 @@ impl Room {
         if !conns.is_empty() {
             tracing::info!(room = %self.id, connections = conns.len(), role = role.map_or("none", Role::as_str), "role changed by host");
         }
+        self.revoked_tokens.remove("");
+        if self.revoked_tokens.contains(&self.callback_token) {
+            self.callback_token = self
+                .save_tokens(None)
+                .into_iter()
+                .next()
+                .unwrap_or_default();
+        }
         conns.len()
+    }
+
+    /// Callback tokens a save may use, best first (PERM-05): connected editors (the room's
+    /// token first among them), then connected commenters, then the room's token and the
+    /// pending row's own. Revoked grants never appear; the host's 401/403 on one moves the
+    /// save to the next.
+    fn save_tokens(&self, pending: Option<&Pending>) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut push = |t: &str| {
+            if !t.is_empty() && !self.revoked_tokens.contains(t) && !out.iter().any(|o| o == t) {
+                out.push(t.to_string());
+            }
+        };
+        let connected = |role: Role| {
+            self.peers
+                .values()
+                .filter(move |p| p.grant.role == role)
+                .map(|p| p.grant.callback_token.as_str())
+        };
+        if connected(Role::Edit).any(|t| t == self.callback_token) {
+            push(&self.callback_token);
+        }
+        let mut editors: Vec<&str> = connected(Role::Edit).collect();
+        editors.sort_unstable();
+        let mut commenters: Vec<&str> = connected(Role::Comment).collect();
+        commenters.sort_unstable();
+        for t in editors.into_iter().chain(commenters) {
+            push(t);
+        }
+        push(&self.callback_token);
+        if let Some(p) = pending {
+            push(&p.token);
+        }
+        out
     }
 
     async fn frame(&mut self, conn: ConnId, data: &[u8]) {
@@ -1303,7 +1369,15 @@ impl Room {
         if let Some(p) = &self.save.pending
             && p.seq == self.seq
         {
-            return Ok(p.clone());
+            if !self.revoked_tokens.contains(&p.token) {
+                return Ok(p.clone());
+            }
+            // The row was written with a grant that has since been revoked: replace it with
+            // one carrying a current editor's token (so a restart's resume cannot use it).
+            if let Err(e) = self.ctx.store.outbox_finish(&p.id, "superseded").await {
+                return Err(format!("replacing the commit outbox row failed: {e}"));
+            }
+            self.save.pending = None;
         }
         let id = ulid::Ulid::new().to_string();
         let authors: Vec<String> = self.contributors.iter().cloned().collect();
@@ -1320,7 +1394,11 @@ impl Room {
             file_id: self.file_id.clone(),
             seq: self.seq,
             base_version: self.host_version.clone(),
-            token: self.callback_token.clone(),
+            token: self
+                .save_tokens(None)
+                .into_iter()
+                .next()
+                .unwrap_or_default(),
             payload: body,
             authors,
             attempts: 0,
@@ -1384,14 +1462,9 @@ impl Room {
     }
 
     fn put_payload(&self, p: &Pending) -> PutPayload {
-        let token = if self.callback_token.is_empty() {
-            p.token.clone()
-        } else {
-            self.callback_token.clone()
-        };
         PutPayload {
             host: self.host.clone(),
-            token,
+            tokens: self.save_tokens(Some(p)),
             file_id: self.file_id.clone(),
             if_match: p.if_match.clone(),
             key: p.id.clone(),
@@ -1693,7 +1766,8 @@ impl Room {
 
 struct PutPayload {
     host: Arc<HostConfig>,
-    token: String,
+    /// Tried in order: a 401/403 on one moves to the next (PERM-05).
+    tokens: Vec<String>,
     file_id: String,
     if_match: Option<String>,
     key: String,
@@ -1703,16 +1777,25 @@ struct PutPayload {
 
 impl PutPayload {
     async fn send(self, ctx: &Ctx) -> Result<PutOutcome, String> {
-        let req = PutRequest {
-            file_id: &self.file_id,
-            body: self.body.as_ref().clone(),
-            if_match: self.if_match.as_deref(),
-            idempotency_key: &self.key,
-            authors: &self.authors,
-        };
-        ctx.host
-            .put_file(&self.host, &self.token, req)
-            .await
-            .map_err(|e| e.to_string())
+        let mut last = String::from("no editor with a valid grant is connected");
+        for token in &self.tokens {
+            let req = PutRequest {
+                file_id: &self.file_id,
+                body: self.body.as_ref().clone(),
+                if_match: self.if_match.as_deref(),
+                idempotency_key: &self.key,
+                authors: &self.authors,
+            };
+            match ctx.host.put_file(&self.host, token, req).await {
+                Err(HostError::Status(s))
+                    if s == StatusCode::UNAUTHORIZED || s == StatusCode::FORBIDDEN =>
+                {
+                    tracing::warn!(status = %s, "host refused a save token; trying the next editor");
+                    last = HostError::Status(s).to_string();
+                }
+                other => return other.map_err(|e| e.to_string()),
+            }
+        }
+        Err(last)
     }
 }

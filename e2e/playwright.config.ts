@@ -30,7 +30,7 @@ export default defineConfig({
     {
       // docs/23 Mobile: the acceptance spec again on a small Android-like Chromium phone.
       name: "android-chromium",
-      testMatch: /s-mobile\.phone\.spec/,
+      testMatch: /(s-mobile|t-mobile-blocks)\.phone\.spec/,
       use: { ...devices["Pixel 5"], viewport: { width: 360, height: 760 } },
     },
   ],
