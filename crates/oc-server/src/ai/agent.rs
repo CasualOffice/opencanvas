@@ -385,12 +385,12 @@ impl AiRuntime {
         let rt = self.clone();
         Ok(tokio::spawn(async move {
             let gate = Gate {
+                cancel: cancel_rx,
                 confirm,
                 approve: approve_rx,
                 timeout: rt.plan_timeout,
             };
-            rt.run(env, req, mode, provider, tools_ok, cancel_rx, gate)
-                .await;
+            rt.run(env, req, mode, provider, tools_ok, gate).await;
         }))
     }
 
@@ -460,7 +460,6 @@ impl AiRuntime {
         mode: RunMode,
         provider: Arc<dyn ModelProvider>,
         tools_ok: bool,
-        cancel: watch::Receiver<bool>,
         gate: Gate,
     ) {
         let started = Instant::now();
@@ -488,7 +487,7 @@ impl AiRuntime {
             provider: provider.as_ref(),
             model,
             origin: origin.clone(),
-            cancel,
+            cancel: gate.cancel.clone(),
             gate,
             deadline: started + Duration::from_secs(host.limits.max_run_secs),
             usage: Usage::default(),
@@ -550,8 +549,9 @@ impl AiRuntime {
     }
 }
 
-/// The plan-approval gate of one run.
+/// The cancel signal and plan-approval gate of one run.
 struct Gate {
+    cancel: watch::Receiver<bool>,
     confirm: bool,
     approve: watch::Receiver<bool>,
     timeout: Duration,
