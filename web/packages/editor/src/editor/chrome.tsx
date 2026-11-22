@@ -17,6 +17,7 @@ import { useStore } from "../lib/store";
 import { startComment } from "./blockmenu";
 import { blockMenuStore, insertBelow } from "./blockops";
 import { linkStore, openLinkEditor } from "./linkstate";
+import { aiStore, aiUiStore, openAssistant } from "../lib/assistant";
 
 // ---------- block gutter: + and grip, with the block menu ----------
 
@@ -96,6 +97,7 @@ export function SelectionToolbar({ editor, role, onComment }: { editor: Editor; 
   });
   const [colors, setColors] = useState<HTMLElement | null>(null);
   const linkOpen = !!useStore(linkStore);
+  const ai = useStore(aiStore).on;
   const edit = role === "edit";
   const btn = (key: Exclude<keyof typeof st, "color">, icon: string, label: string, keys: string | null, run: () => void) => {
     const full = keys ? `${label} (${keyLabel(keys)})` : label;
@@ -113,7 +115,7 @@ export function SelectionToolbar({ editor, role, onComment }: { editor: Editor; 
       options={{ placement: "top", offset: 8, flip: true }}
       shouldShow={({ editor: e, state, from, to }) => {
         if (from === to || state.selection instanceof NodeSelection) return false;
-        if (!e.isFocused || linkOpen) return false;
+        if (!e.isFocused || linkOpen || aiUiStore.get()) return false;
         const $f = state.selection.$from;
         if ($f.parent.type.spec.code) return false;
         return true;
@@ -160,6 +162,16 @@ export function SelectionToolbar({ editor, role, onComment }: { editor: Editor; 
         <button className="ib" title="Comment" aria-label="Comment" onClick={() => startComment(editor, role, onComment)}>
           <Ic name="message-square-plus" />
         </button>
+        {ai ? (
+          <>
+            <span className="vs" />
+            <button className="ai-ask" onClick={openAssistant} aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
+              <Ic name="sparkles" />
+              Ask Assistant
+              <span className="ai-kbd" aria-hidden="true">{isMac ? "⌘J" : "Ctrl+J"}</span>
+            </button>
+          </>
+        ) : null}
       </div>
       {colors ? (
         <Popover anchor={colors} onClose={() => setColors(null)} title="Text colour" kind="dialog" autoFocus={false} noSheet>

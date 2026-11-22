@@ -8,6 +8,7 @@ import { useStore } from "../lib/store";
 import { startComment } from "./blockmenu";
 import { blockMenuStore, insertBelowCaret, topBlockAt } from "./blockops";
 import { openLinkEditor } from "./linkstate";
+import { aiStore, openAssistant } from "../lib/assistant";
 
 export function MobileBar({ editor, role, onComment }: { editor: Editor; role: Role; onComment(id: string): void }) {
   const st = useEditorState({
@@ -16,6 +17,7 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
   });
   const [bottom, setBottom] = useState(8);
   const turn = !!useStore(blockMenuStore);
+  const ai = useStore(aiStore).on;
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -64,6 +66,12 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
               </>
             ) : null}
             {b("message-square-plus", "Comment", () => startComment(editor, role, onComment))}
+            {ai ? (
+              <button className="ai-ask" onClick={openAssistant}>
+                <Ic name="sparkles" size={18} />
+                Ask Assistant
+              </button>
+            ) : null}
           </>
         ) : edit ? (
           <>

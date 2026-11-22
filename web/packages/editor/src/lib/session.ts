@@ -18,6 +18,8 @@ export interface Session {
   wsUrl: string;
   /** Local-only review mode (`#demo`). No server, no host. */
   demo?: boolean;
+  /** docs/24 §10: the host's AI flag for this session, when the server sends it. */
+  ai?: { enabled?: boolean; modes?: string[] } | null;
 }
 
 export class SessionError extends Error {

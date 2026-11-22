@@ -4,7 +4,9 @@ import { BASE_EXTENSIONS } from "./base";
 import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
-import CollaborationCaret from "@tiptap/extension-collaboration-caret";
+import CollaborationCaretBase from "@tiptap/extension-collaboration-caret";
+import { yCursorPlugin } from "@tiptap/y-tiptap";
+import { caretFilter } from "../lib/assistant";
 import { TaskItem } from "@tiptap/extension-list/task-item";
 import { TaskList } from "@tiptap/extension-list/task-list";
 import { TableNodes } from "./table";
@@ -27,6 +29,22 @@ import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
 import type { SlashItem } from "./slash";
+
+/** Carets with the agent-safe awareness filter (lib/assistant.ts caretFilter). */
+const CollaborationCaret = CollaborationCaretBase.extend({
+  addProseMirrorPlugins() {
+    const [listener] = this.parent?.() ?? [];
+    const o = this.options;
+    return [
+      ...(listener ? [listener] : []),
+      yCursorPlugin(o.provider.awareness, {
+        awarenessStateFilter: caretFilter,
+        cursorBuilder: (u) => o.render(u as Record<string, string>),
+        selectionBuilder: (u) => o.selectionRender(u as Record<string, string>),
+      }),
+    ];
+  },
+});
 
 const Gutter = lazy(() => import("./chrome").then((m) => ({ default: m.Gutter })));
 const BlockMenu = lazy(() => import("./blockmenu").then((m) => ({ default: m.BlockMenu })));

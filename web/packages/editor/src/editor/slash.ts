@@ -6,6 +6,7 @@ import { tableJSON } from "./table";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { bridge } from "../lib/bridge";
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
+import { aiStore, openAssistant } from "../lib/assistant";
 
 export interface SlashItem {
   group: "Basic" | "Data" | "Media" | "Layout";
@@ -136,6 +137,15 @@ export function columnsJSON(n: number): JSONContent {
   return { type: "columns", content: Array.from({ length: n }, () => ({ type: "column", content: [{ type: "paragraph" }] })) };
 }
 
+// Last, so it never displaces the block types people use most.
+SLASH.push({
+  group: "Basic", id: "assistant", icon: "sparkles", title: "Assistant", desc: "Ask the assistant to write or organise", keywords: "ai ask",
+  run: (e, r) => {
+    if (r) e.chain().focus().deleteRange(r).run();
+    openAssistant();
+  },
+});
+
 /**
  * Matches, best first: title starts with the query, a title word starts with it,
  * the title contains it, then description / keywords / markdown hint.
@@ -143,7 +153,9 @@ export function columnsJSON(n: number): JSONContent {
  */
 export function filterSlash(q: string): SlashItem[] {
   const s = q.toLowerCase().trim();
-  if (!s) return SLASH;
+  // `/assistant` only when the assistant is on for this person (docs/24 §10.2).
+  const all = aiStore.get().on ? SLASH : SLASH.filter((x) => x.id !== "assistant");
+  if (!s) return all;
   const rank = (x: SlashItem) => {
     const t = x.title.toLowerCase();
     if (t.startsWith(s)) return 0;
@@ -152,7 +164,7 @@ export function filterSlash(q: string): SlashItem[] {
     if ((x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "")).toLowerCase().includes(s)) return 3;
     return -1;
   };
-  return SLASH.map((x, i) => ({ x, r: rank(x), i }))
+  return all.map((x, i) => ({ x, r: rank(x), i }))
     .filter((e) => e.r >= 0)
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .map((e) => e.x);
