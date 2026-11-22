@@ -1,19 +1,55 @@
 # OpenCanvas
 
+[![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/badge/release-v0.1.0--alpha.1-7a45f0)](docs/25-RELEASE-v0.1.0-alpha.1.md)
+[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-2a5ad7)](LICENSE)
+
+**An embeddable, real-time collaborative canvas for your app.** Rich text, databases and
+whiteboards in one document, with live cursors and comments. Your application keeps the users,
+the permissions and the file; OpenCanvas does the editing, the way Collabora Online does for
+office documents.
+
+[Website](https://canvas.casualoffice.org) ·
+[Try the demo](https://canvas.casualoffice.org/app/#demo) ·
+[Release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) ·
+[Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
+[Documentation](docs/00-README.md)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/screens/canvas-dark.png">
+  <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
+</picture>
+
 > **Alpha: v0.1.0-alpha.1.** For evaluation, with no production SLA. Read the
 > [release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) and its
 > [known limitations](docs/25-RELEASE-v0.1.0-alpha.1.md#known-limitations) (memory, durability
 > modes, WOPI without proof keys, single node first) before you deploy it. The AI assistant
 > and MCP endpoint are **experimental and off by default**.
 
-**A real-time collaborative canvas built for integration.** It has rich text, checklists,
-tables, databases, images, files, link cards, embeds and whiteboards, with live
-cursors. It works like Collabora Online: your application keeps the users, the
-permissions and the file. OpenCanvas handles the editing.
+## Goal
 
-> **Status: P1 alpha.** The server, editor, database and whiteboard blocks, and
-> the sample host all run end to end. See [the tracker](docs/10-EXECUTION-TRACKER.md)
-> for what is done and what is open.
+Give any product a shared workspace page (notes, plans, task databases, whiteboards) without
+handing over its users or its data. OpenCanvas is built for **integration**: a host application
+embeds it in an iframe, signs a short launch token saying who opens which file with which role,
+and receives the saved file back through its own storage. It aims to be:
+
+- **Yours to control.** The host owns authentication, ACL, users and files. OpenCanvas never
+  becomes the system of record; it keeps only a transient room log and a save outbox.
+- **Live.** Edits merge in real time with a CRDT (Yjs), with cursors, presence, comments and
+  follow mode, and the roles are enforced on the server.
+- **Light to run.** One container with SQLite to start; MySQL, MariaDB and Redis when you need a
+  cluster. See the measured [capacity and sizing](docs/22-CAPACITY-AND-SIZING.md).
+- **Usable.** A considered editor on desktop and phone, accessible to WCAG 2.2 AA, with autosave
+  only.
+
+## A quick tour
+
+| | |
+|---|---|
+| <img alt="A task database in table view with typed fields, owners and statuses." src="site/assets/screens/database-light.png"> | <img alt="A whiteboard with sticky notes, shapes and connected arrows inside the canvas." src="site/assets/screens/whiteboard-light.png"> |
+| **Databases**: typed fields with table, board, calendar and gallery views, inside the page. | **Whiteboards**: shapes, sticky notes, pen, arrows that stay attached, in the same document. |
+| <img alt="The assistant's review bar after a run: suggested links on each note with accept and reject, and the new Tasks database tagged New by Assistant." src="site/assets/screens/assistant-review-light.png"> | <img alt="OpenCanvas on a phone, with the editing toolbar above the keyboard." src="site/assets/screens/phone-light.png" width="300"> |
+| **Assistant (experimental, off by default)**: plan, approve, it builds in place, you review. | **Phone**: bottom sheets, a toolbar above the keyboard, touch-friendly boards. |
 
 ## How it fits
 
@@ -118,6 +154,34 @@ provider     = "claude"
 default_mode = "suggest"              # changes to existing text arrive as suggestions
 mcp          = true                   # POST /mcp/{hostId}; off by default
 ```
+
+## Configure
+
+The essentials; the full list is in [docs/13](docs/13-OPERATIONS-AND-DEPLOYMENT.md).
+
+| Variable | What it does |
+|---|---|
+| `OC_PUBLIC_URL` | The server's public URL (also the MCP token audience; set it in production) |
+| `OC_KEK` | 32-byte base64 key that seals secrets at rest (required unless `OC_DEV=1`) |
+| `OC_HOSTS_FILE` | The hosts you trust: JWT keys, callback URL, allowed origins and per-host flags |
+| `DATABASE_URL` | Unset: SQLite. `mysql://…` for MySQL or MariaDB |
+| `REDIS_URL` | Enables cluster mode (room leases, relay, hot edit log) |
+| `OC_DURABILITY` | `memory` (default without Redis) or `wal` (every edit written) |
+| `OC_AI_CONFIG` / `OC_AI` | AI is off unless configured; `OC_AI=off` turns it off for every host |
+| `OC_IMPORT` | `off` disables Markdown, HTML and CSV import for every host |
+
+Per host, in the hosts file: `export_formats`, `import_formats` (off by default), `on_conflict`
+(`copy` or `reload`) and `[host.ai]`.
+
+## Security and privacy
+
+- Launch tokens are verified (HS256, RS256, EdDSA, JWKS) and single use; callbacks to the host are
+  signed. Roles (view, comment, edit) are enforced on the server for every edit.
+- Exported and imported HTML is sanitised; embeds come from an allow-list and run sandboxed.
+- The release audit for v0.1.0-alpha.1 is in [docs/18](docs/18-SECURITY-AUDIT.md); report issues
+  as described in [SECURITY.md](SECURITY.md).
+- With AI turned on, the parts of a canvas the assistant needs are sent to the model server the
+  operator configures. Nothing is sent when AI is off.
 
 ## Test
 
