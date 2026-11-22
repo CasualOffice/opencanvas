@@ -25,6 +25,9 @@ export function aiAvailability(session: { ai?: { enabled?: boolean; modes?: unkn
 export const aiStore = createStore<AiFlag>({ on: false, modes: [] });
 /** Bumped to ask the assistant to open (toolbar, ⌘J, /assistant, header, phone bar). */
 export const aiOpenStore = createStore(0);
+/** The last open request the assistant handled. Module state, so a request made before the lazy
+ *  chunk mounted (the first click) is still handled when it mounts. */
+export const aiOpenHandled = { n: 0 };
 /** True while the assistant shows its bar, plan, progress or review (the selection toolbar hides). */
 export const aiUiStore = createStore(false);
 

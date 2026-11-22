@@ -11,7 +11,7 @@ import {
   AlignLeft, ArrowUp, ChevronLeft, ChevronRight, CircleHelp, Database, LayoutDashboard, ListChecks, ListTodo, LoaderCircle, MessageSquare,
   PenLine, ShieldCheck, Sparkles, Square, TriangleAlert, Undo2, type LucideIcon,
 } from "lucide-react";
-import { aiOpenStore, aiStore, aiUiStore, type AiMode } from "../lib/assistant";
+import { aiOpenHandled, aiOpenStore, aiStore, aiUiStore, type AiMode } from "../lib/assistant";
 import { useStore } from "../lib/store";
 import { isMac } from "../lib/keys";
 import { actionsFor, barKey, initialRun, newRunId, placeholderFor, reduce, type Action, type Mode, type PlanStep, type Selection } from "./model";
@@ -209,10 +209,9 @@ export default function Assistant({ editor, doc, awareness, transport, role, com
 
   // ---------- open (toolbar, ⌘J, /assistant, header, phone bar) ----------
   const opens = useStore(aiOpenStore);
-  const seen = useRef(opens);
   useEffect(() => {
-    if (opens === seen.current) return;
-    seen.current = opens;
+    if (opens === aiOpenHandled.n) return;
+    aiOpenHandled.n = opens;
     if (runRef.current.phase === "acting" || runRef.current.phase === "review") return;
     setCap(captureSelection(editor));
     setActive(0);
@@ -224,7 +223,10 @@ export default function Assistant({ editor, doc, awareness, transport, role, com
   // Focus follows the step (WCAG 2.4.3): input → Run → review → answer.
   useEffect(() => {
     const t = window.setTimeout(() => {
-      if (run.phase === "bar") inputRef.current?.focus();
+      if (run.phase === "bar") {
+        if (!compact) slot.scrollIntoView({ block: "nearest" });
+        inputRef.current?.focus();
+      }
       else if (run.phase === "plan") runBtn.current?.focus();
       else if (run.phase === "review") reviewFirst.current?.focus();
       else if (run.phase === "answer") answerBtn.current?.focus();
