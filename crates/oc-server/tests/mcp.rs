@@ -9,8 +9,12 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use oc_server::grant::Role;
 use serde_json::{Value, json};
 
+/// The public base URL MCP tokens are minted for (`[host.ai] mcp_audience`).
+const PUBLIC: &str = "https://oc.example";
+
 fn mcp_on(h: &mut oc_server::hosts::HostConfig) {
     h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+    h.ai.insert("mcp_audience".into(), toml::Value::String(PUBLIC.into()));
     h.ai.insert("default_mode".into(), toml::Value::String("direct".into()));
 }
 
@@ -22,7 +26,8 @@ fn now() -> i64 {
 }
 
 fn token(addr: &str, scope: &str, role: &str, f: impl FnOnce(&mut Value)) -> String {
-    let mut c = json!({"iss": "sample", "aud": format!("http://{addr}/mcp/sample"), "sub": "u_mcp",
+    let _ = addr;
+    let mut c = json!({"iss": "sample", "aud": format!("{PUBLIC}/mcp/sample"), "sub": "u_mcp",
         "name": "Asha", "exp": now() + 600, "scope": scope, "role": role, "client_id": "claude"});
     f(&mut c);
     encode(
@@ -31,6 +36,15 @@ fn token(addr: &str, scope: &str, role: &str, f: impl FnOnce(&mut Value)) -> Str
         &EncodingKey::from_secret(SECRET.as_bytes()),
     )
     .unwrap()
+}
+
+/// A token whose audience is built from the address the test server listens on, i.e. what the
+/// request's `Host` header says.
+fn host_header_token(addr: &str) -> String {
+    token(addr, "canvas:read", "edit", |c| {
+        c["aud"] = json!(format!("http://{addr}/mcp/sample"));
+        c["files"] = json!([FILE]);
+    })
 }
 
 async fn rpc(addr: &str, tok: Option<&str>, method: &str, params: Value) -> reqwest::Response {
@@ -73,7 +87,9 @@ async fn handshake_tools_list_and_call_over_http() {
     let (addr, state) = serve(mcp_on).await;
     let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
     peer.settle().await;
-    let t = token(&addr, "canvas:read canvas:write", "edit", |_| {});
+    let t = token(&addr, "canvas:read canvas:write", "edit", |c| {
+        c["files"] = json!([FILE])
+    });
 
     let init = ok(
         &addr,
@@ -178,13 +194,32 @@ async fn unauthorized_carries_resource_metadata_and_bad_tokens_are_refused() {
         .to_str()
         .unwrap()
         .to_string();
-    let meta = format!("http://{addr}/.well-known/oauth-protected-resource/mcp/sample");
+    let meta = format!("{PUBLIC}/.well-known/oauth-protected-resource/mcp/sample");
     assert!(
         www.contains(&format!("resource_metadata=\"{meta}\"")),
         "{www}"
     );
-    let prm: Value = reqwest::get(&meta).await.unwrap().json().await.unwrap();
-    assert_eq!(prm["resource"], format!("http://{addr}/mcp/sample"));
+    let prm: Value = reqwest::get(format!(
+        "http://{addr}/.well-known/oauth-protected-resource/mcp/sample"
+    ))
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(prm["resource"], format!("{PUBLIC}/mcp/sample"));
+    // The audience never follows the Host header (SEC-33).
+    assert_eq!(
+        rpc(
+            &addr,
+            Some(&host_header_token(&addr)),
+            "tools/list",
+            json!({})
+        )
+        .await
+        .status(),
+        401
+    );
     assert_eq!(prm["authorization_servers"][0], "sample");
 
     let wrong_aud = token(&addr, "canvas:read", "edit", |c| {
@@ -260,7 +295,9 @@ async fn a_scope_narrower_than_the_role_wins() {
     assert_eq!(r["isError"], true);
     assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN");
     // And the role still caps a wide scope: view role with canvas:write cannot write.
-    let t = token(&addr, "canvas:write", "view", |_| {});
+    let t = token(&addr, "canvas:write", "view", |c| {
+        c["files"] = json!([FILE])
+    });
     let r = ok(
         &addr,
         &t,
@@ -350,11 +387,87 @@ async fn without_the_access_callback_the_token_role_claim_is_used() {
     let (addr, state, host) = serve_with_host(mcp_on).await;
     let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
     peer.settle().await;
-    // The mock host answers 404 on /access: fall back to the claim (`edit`).
-    let t = token(&addr, "canvas:write", "edit", |_| {});
+    // The mock host answers 404 on /access: fall back to the claim (`edit`) for the files the
+    // token names.
+    let t = token(&addr, "canvas:write", "edit", |c| {
+        c["files"] = json!([FILE])
+    });
     let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
     assert_eq!(r["isError"], false, "{r}");
     assert_eq!(host.lock().unwrap().access_calls.len(), 1, "asked once");
     peer.settle().await;
     assert!(!json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+}
+
+/// SEC-34: without the host's `/access` callback, a token must name the files it covers; the
+/// `files` claim then limits it.
+#[tokio::test]
+async fn without_the_access_callback_a_token_without_files_is_refused() {
+    let (addr, state, _host) = serve_with_host(mcp_on).await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    let t = token(&addr, "canvas:write", "edit", |_| {});
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], true, "{r}");
+    assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN", "{r}");
+    assert!(
+        r["structuredContent"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("FILES_REQUIRED"),
+        "{r}"
+    );
+    peer.settle().await;
+    assert!(json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+
+    // With a `files` claim, the token covers those files and no others.
+    let t = token(&addr, "canvas:write", "edit", |c| {
+        c["files"] = json!([FILE])
+    });
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], false, "{r}");
+    let r = ok(
+        &addr,
+        &t,
+        "tools/call",
+        json!({"name": "canvas_read", "arguments": {"fileId": "other_file"}}),
+    )
+    .await;
+    assert_eq!(r["isError"], true, "{r}");
+}
+
+/// SEC-34: `[host.ai] mcp_all_files = true` is the explicit, broad opt-in: a token without
+/// `files` covers every file of the host with its role claim.
+#[tokio::test]
+async fn mcp_all_files_lets_a_token_without_files_cover_every_file() {
+    let (addr, state, _host) = serve_with_host(|h| {
+        mcp_on(h);
+        h.ai.insert("mcp_all_files".into(), toml::Value::Boolean(true));
+    })
+    .await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    let t = token(&addr, "canvas:write", "edit", |_| {});
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], false, "{r}");
+    peer.settle().await;
+    assert!(!json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+}
+
+/// SEC-33: the audience never comes from request headers. Without `OC_PUBLIC_URL` or
+/// `[host.ai] mcp_audience`, MCP is off: a token whose `aud` matches the request's `Host` is
+/// refused, and the metadata is not served.
+#[tokio::test]
+async fn without_a_public_url_a_token_matching_the_host_header_is_refused() {
+    let (addr, _) = serve(|h| {
+        h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+    })
+    .await;
+    let t = host_header_token(&addr);
+    assert_eq!(
+        rpc(&addr, Some(&t), "tools/list", json!({})).await.status(),
+        404
+    );
+    let meta = format!("http://{addr}/.well-known/oauth-protected-resource/mcp/sample");
+    assert_eq!(reqwest::get(&meta).await.unwrap().status(), 404);
 }

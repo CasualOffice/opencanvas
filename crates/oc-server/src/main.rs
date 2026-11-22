@@ -33,6 +33,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!(dir = %cfg.web_dir.display(), "web app not built; /app/ will 404");
     }
     let state = AppState::new(cfg.clone(), hosts).await?;
+    oc_server::routes::mcp::warn_if_unreachable(&state);
     if let Some(cc) = cluster_cfg {
         let node = cc.node_id.clone();
         let advertise = cc.advertise.clone();

@@ -270,6 +270,10 @@ impl Hosts {
         self.0.get(id).cloned()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &Arc<HostConfig>> {
+        self.0.values()
+    }
+
     /// The WOPI-capable host whose `wopi_allowlist` admits `src`, with the normalized URL.
     /// Hosts are tried in id order so the choice is stable.
     pub fn wopi_host_for(&self, src: &str) -> Option<(Arc<HostConfig>, reqwest::Url)> {

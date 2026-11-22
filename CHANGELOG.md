@@ -7,6 +7,20 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+Targeted for v0.1.0-alpha.2.
+
+### Security
+
+- **MCP audience (SEC-33):** the MCP token audience comes from `[host.ai] mcp_audience` or
+  `OC_PUBLIC_URL`, never from the request's `Host` header. Without either, MCP is off (`404`) and
+  the server logs one start-up warning. **Upgrade:** set `OC_PUBLIC_URL` (or `mcp_audience`) on
+  any host that uses MCP.
+- **MCP file scope (SEC-34):** when the host has no `/access` callback, an MCP token must name
+  its files in a `files` claim; a token without one is refused (`FILES_REQUIRED`). The broad
+  behaviour (one token's role on every file) needs `[host.ai] mcp_all_files = true`.
+- **WOPI session cap (SEC-35):** a WOPI session ends at `access_token_ttl` or 10 h after the
+  launch, whichever is first, like a JWT session.
+
 ## [0.1.0-alpha.1] - 2026-11-23
 
 **Licence:** relicensed from BUSL-1.1 to the Apache License 2.0 before this first release, with

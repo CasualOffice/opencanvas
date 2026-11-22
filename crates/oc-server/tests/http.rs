@@ -578,6 +578,10 @@ fn host_ai_all_on(h: &mut oc_server::hosts::HostConfig) {
     h.ai.insert("enabled".into(), toml::Value::Boolean(true));
     h.ai.insert("provider".into(), toml::Value::String("claude".into()));
     h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+    h.ai.insert(
+        "mcp_audience".into(),
+        toml::Value::String("https://oc.example".into()),
+    );
 }
 
 /// The server-wide switch (docs/24 §7.3) beats `[host.ai]`: session flag, MCP and ai-run.
@@ -646,6 +650,10 @@ async fn session_carries_the_ai_flag_from_host_ai_and_the_role() {
         h.ai.insert("enabled".into(), toml::Value::Boolean(true));
         h.ai.insert("provider".into(), toml::Value::String("claude".into()));
         h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+        h.ai.insert(
+            "mcp_audience".into(),
+            toml::Value::String("https://oc.example".into()),
+        );
     })
     .await;
     assert_eq!(

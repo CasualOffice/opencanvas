@@ -181,11 +181,14 @@ async fn launch_wopi(
             )
         })?
         .unwrap_or(0);
+    // SEC-35: the host's `access_token_ttl` never stretches a session past the JWT cap (10 h);
+    // after that the host launches again (docs/05 §6).
     let exp = if ttl_ms > 0 {
         ttl_ms / 1000
     } else {
         now + wopi::DEFAULT_TTL_SECS
-    };
+    }
+    .min(now + crate::jwt::MAX_TTL_SECS);
     if exp <= now {
         return Err(rejected(
             state,
@@ -354,7 +357,7 @@ pub async fn session_info(
         (true, crate::grant::Role::Edit) => &["edit", "comment", "answer"],
     };
     let body = json!({
-        "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": server_ai && host_ai.mcp()},
+        "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": super::mcp::mcp_enabled(&state, &host)},
         // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
         "import": {"formats": super::import::formats(&state, &host, grant.role)},
         "ticket": ticket,
