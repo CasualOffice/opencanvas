@@ -119,6 +119,7 @@ limits, CSRF on POST.
 | SEC-41 | Low | Import links | `safe_href` accepts protocol-relative `//evil` links (no script). | Accepted | — |
 | SEC-42 | Low | Prompt injection | Read content can steer an edit-mode run to write external links/images inside the user's own role (CSP allows `img-src https:`). Bounded: one file, no network tools, plan approval by default, undo. | Accepted (`inject.rs` flags only) | — |
 | SEC-43 | Info | MCP | MCP `comment_add` always refused: grants use `Perms::default()` (`comment: false`). Fails closed. | Functional bug, open | — |
+| SEC-44 | Medium | WOPI caller authenticity | WOPI hosts could not tell OpenCanvas from anyone holding an access token: no proof keys (docs/23 WOPI-13). | **Fixed** (v0.1.0): every WOPI call is signed with RSA proof keys (current + old, `OC_WOPI_PROOF_KEY[_OLD]`, PEM or sealed with `OC_KEK`), published in discovery; start-up refuses a WOPI host without keys. Signing uses `rsa` 0.10 (constant-time crypto-bigint), not 0.9 (RUSTSEC-2023-0071, still only used for public-key JWT verification) | `proof::tests::*`, `wopi::every_wopi_call_carries_a_valid_proof`, `scripts/e2e-wopi.sh` (tampered and stale proofs refused) |
 
 Checked and fine: AI master switch off by default (`OC_AI_CONFIG` + `[ai] enabled`, `OC_AI=off`
 wins; MCP also needs `[host.ai] mcp = true`); MCP bearer-only auth with pinned alg, `iss`/`aud`/`exp`,

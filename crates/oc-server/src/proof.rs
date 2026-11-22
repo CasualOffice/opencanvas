@@ -156,7 +156,10 @@ impl ProofKeys {
     }
 
     pub fn from_pem(current: &str, old: Option<&str>) -> anyhow::Result<Self> {
-        Ok(Self::new(parse_pem(current)?, old.map(parse_pem).transpose()?))
+        Ok(Self::new(
+            parse_pem(current)?,
+            old.map(parse_pem).transpose()?,
+        ))
     }
 
     /// A fresh 2048-bit pair (development), generated once per process.
@@ -268,7 +271,10 @@ mod tests {
         assert_eq!(&proof_bytes("aB", "x", 1)[4..6], b"aB");
         // .NET ticks: the Unix epoch, and 2026-11-23T00:00:00Z.
         assert_eq!(ticks_from_unix_ms(0), 621_355_968_000_000_000);
-        assert_eq!(ticks_from_unix_ms(1_795_392_000_000), 639_309_888_000_000_000);
+        assert_eq!(
+            ticks_from_unix_ms(1_795_392_000_000),
+            639_309_888_000_000_000
+        );
     }
 
     /// Cross-checked with OpenSSL: `openssl dgst -sha256 -sign tests/keys/rsa.pem` over the
@@ -277,7 +283,10 @@ mod tests {
     fn signature_matches_openssl_and_verifies_with_the_public_key() {
         let keys = ProofKeys::from_pem(CUR, Some(OLD)).unwrap();
         let p = keys.sign("ab", URL, 1);
-        assert_eq!(p.proof, include_str!("../tests/keys/wopi-proof-vector.b64").trim());
+        assert_eq!(
+            p.proof,
+            include_str!("../tests/keys/wopi-proof-vector.b64").trim()
+        );
         let (cur, old) = (keys.current_public(), keys.old_public());
         assert!(verify(&cur, &old, "ab", URL, &p));
         // ProofOld is the old key's signature.

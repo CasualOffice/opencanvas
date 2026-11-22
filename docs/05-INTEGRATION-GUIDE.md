@@ -277,7 +277,41 @@ the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
   `HostEditUrl` and `Url` without its token. Hosts that set `UserCanNotWriteRelative` should use
   `on_conflict = "reload"`.
 
-No `LOCK`/`UNLOCK` (we use timestamps, like Collabora) and no proof keys yet.
+No `LOCK`/`UNLOCK` (we use timestamps, like Collabora).
+
+**Proof keys (§6.4, WOPI-13).** Every call OpenCanvas makes to your WOPI host (CheckFileInfo,
+GetFile, PutFile, PUT_RELATIVE, and any later override) carries the Microsoft proof headers:
+
+- `X-WOPI-TimeStamp`: .NET ticks (100 ns since 0001-01-01 UTC) of the call.
+- `X-WOPI-Proof`: base64 RSASSA-PKCS1-v1_5 / SHA-256 signature with the current key.
+- `X-WOPI-ProofOld`: the same bytes signed with the old key.
+
+The signed bytes are `be32(len token) ‖ access_token (UTF-8) ‖ be32(len URL) ‖ UPPERCASE(full
+request URL, query and access_token included) ‖ be32(8) ‖ be64(timestamp)`. Discovery publishes
+both public keys in the spec format, a CryptoAPI `PUBLICKEYBLOB` (base64) plus modulus and
+exponent (base64, big-endian):
+
+```xml
+<proof-key oldvalue="BgIAAACkAABSU0Ex…" oldmodulus="…" oldexponent="AQAB"
+           value="BgIAAACkAABSU0Ex…" modulus="…" exponent="AQAB"/>
+```
+
+A host accepts the call when `X-WOPI-Proof` verifies with the current key, or
+`X-WOPI-ProofOld` with the current key, or `X-WOPI-Proof` with the old key; refuses a
+timestamp older than 20 minutes; and answers `500` otherwise (after re-reading discovery once,
+in case the keys rotated). `examples/wopi-host/server.mjs` does exactly this (`checkProof`);
+`WOPI_PROOF=off` opts it out for servers without keys. Nextcloud, ownCloud and Seafile verify
+these headers the same way they do for Collabora.
+
+**Key configuration and rotation.** `OC_WOPI_PROOF_KEY` is the path of a 2048-bit (or larger)
+RSA private key, PEM (PKCS#8 or PKCS#1), or the same PEM sealed with `OC_KEK`
+(`opencanvas seal-proof-key < key.pem > key.sealed`). `OC_WOPI_PROOF_KEY_OLD` is the previous
+key in the same forms; without it the current key is published and used as the old one.
+With `OC_DEV=1` and no key, a pair is generated at start-up (it changes on every restart).
+Start-up refuses a hosts file with a WOPI host when there is no key. Rotation: generate a new
+key (`openssl genrsa -out new.pem 2048`), set `OC_WOPI_PROOF_KEY_OLD` to the current key and
+`OC_WOPI_PROOF_KEY` to the new one, roll every node (they must share the keys); hosts accept
+both while their cached discovery catches up. Drop the old key at the next rotation.
 
 **Assets.** WOPI has no asset API, so uploads (`POST /v1/assets?ticket=`) are kept with the room
 and answered `201 {"assetId":"a_…","url":"/v1/assets/a_…","mime","size"}`. They are served by

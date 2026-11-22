@@ -17,13 +17,13 @@ pub mod metrics;
 pub mod notify;
 pub mod pdf;
 pub mod people;
+pub mod proof;
 pub mod redis_store;
 pub mod redis_wal;
 pub mod room;
 pub mod routes;
 pub mod store;
 pub mod util;
-pub mod proof;
 pub mod wopi;
 
 use std::collections::HashMap;

@@ -77,7 +77,11 @@ async fn check_proof(
                 .map(|(_, v)| v.into_owned())
         })
         .unwrap_or_default();
-    let ok = match (h("x-wopi-timestamp"), h("x-wopi-proof"), h("x-wopi-proofold")) {
+    let ok = match (
+        h("x-wopi-timestamp"),
+        h("x-wopi-proof"),
+        h("x-wopi-proofold"),
+    ) {
         (Some(t), Some(proof), Some(proof_old)) => {
             let keys = test_proof_keys();
             let p = oc_server::proof::Proof {

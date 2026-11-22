@@ -202,7 +202,9 @@ async fn launch_wopi(
         state.host.wopi_proof(),
         &src,
         &form.access_token,
-    ).await {
+    )
+    .await
+    {
         Ok(info) => info,
         Err(HostError::Status(s)) if s.is_client_error() => {
             return Err(rejected(

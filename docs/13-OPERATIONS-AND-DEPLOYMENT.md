@@ -212,6 +212,16 @@ further. The effective state is logged once at start-up (`AI: on`, `AI: off (OC_
 `AI: off (OC_AI_CONFIG unset)`, `AI: off ([ai] enabled = false)`) and shown as `"ai"` in `/readyz`.
 To stop all AI in an incident: set `OC_AI=off` and restart (rolling).
 
+## WOPI proof keys (required with a WOPI host)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OC_WOPI_PROOF_KEY` | none; generated with `OC_DEV=1` | Path of the current RSA proof key (≥ 2048-bit): PEM (PKCS#8 / PKCS#1) or sealed with `OC_KEK` by `opencanvas seal-proof-key < key.pem` |
+| `OC_WOPI_PROOF_KEY_OLD` | the current key | Path of the previous key, same forms; published as `old*` in discovery and signs `X-WOPI-ProofOld` |
+
+Every node of a cluster needs the same keys. Without a key, a hosts file with a `mode = "wopi"`
+or `"both"` host stops start-up. Rotation and the signed bytes: docs/05 §6 "Proof keys".
+
 ## Import switch
 
 Editors and hosts can import Markdown, HTML and CSV into a canvas (`POST /v1/import`,

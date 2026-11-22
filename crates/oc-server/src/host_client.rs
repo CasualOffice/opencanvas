@@ -259,7 +259,8 @@ impl HostClient {
     ) -> Result<Fetched, HostError> {
         let info = wopi::check_file_info(&self.assets, self.proof.as_ref(), src, token).await?;
         self.remember_wopi_name(src, &info.base_file_name);
-        let (bytes, content_type) = wopi::get_contents(&self.assets, self.proof.as_ref(), src, token).await?;
+        let (bytes, content_type) =
+            wopi::get_contents(&self.assets, self.proof.as_ref(), src, token).await?;
         if bytes.is_empty() {
             return Ok(Fetched::Missing);
         }
@@ -307,7 +308,16 @@ impl HostClient {
             let room = crate::grant::room_id(&host.id, src.as_str());
             self.inline_assets(&room, req.body).await?
         };
-        match wopi::put_contents(&self.assets, self.proof.as_ref(), src, token, body, req.if_match).await? {
+        match wopi::put_contents(
+            &self.assets,
+            self.proof.as_ref(),
+            src,
+            token,
+            body,
+            req.if_match,
+        )
+        .await?
+        {
             wopi::PutResult::Conflict => Ok(PutOutcome::Conflict),
             wopi::PutResult::Saved(Some(stamp)) => Ok(PutOutcome::Saved {
                 version: Some(stamp),
@@ -333,7 +343,15 @@ impl HostClient {
         let name = self.wopi_name(src, token).await;
         let room = crate::grant::room_id(&host.id, src.as_str());
         let body = self.inline_assets(&room, body).await?;
-        wopi::put_relative(&self.assets, self.proof.as_ref(), src, token, body, &wopi::copy_name(&name)).await
+        wopi::put_relative(
+            &self.assets,
+            self.proof.as_ref(),
+            src,
+            token,
+            body,
+            &wopi::copy_name(&name),
+        )
+        .await
     }
 
     fn url(host: &HostConfig, segments: &[&str]) -> Result<Url, HostError> {
