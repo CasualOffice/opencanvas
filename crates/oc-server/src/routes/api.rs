@@ -27,7 +27,10 @@ fn unauthorized() -> ApiError {
     )
 }
 
-fn authenticate(state: &SharedState, headers: &HeaderMap) -> Result<Arc<HostConfig>, ApiError> {
+pub(super) fn authenticate(
+    state: &SharedState,
+    headers: &HeaderMap,
+) -> Result<Arc<HostConfig>, ApiError> {
     let header = |k: &str| headers.get(k).and_then(|v| v.to_str().ok());
     let host = header("x-opencanvas-host")
         .and_then(|id| state.hosts.get(id))
@@ -137,7 +140,7 @@ pub async fn close_session(
 /// Optional bearer for callbacks made on behalf of a host API call (loading or saving a file
 /// with no live room, fetching images). Without it the bearer is empty and the host relies on
 /// the HMAC signature.
-fn callback_token(headers: &HeaderMap) -> String {
+pub(super) fn callback_token(headers: &HeaderMap) -> String {
     headers
         .get("x-opencanvas-callback-token")
         .and_then(|v| v.to_str().ok())
@@ -147,9 +150,9 @@ fn callback_token(headers: &HeaderMap) -> String {
 
 #[derive(Deserialize)]
 pub struct Author {
-    id: String,
+    pub(super) id: String,
     #[serde(default)]
-    name: Option<String>,
+    pub(super) name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -159,7 +162,7 @@ pub struct PatchBody {
 }
 
 /// The grant a host API call acts under: an `edit` "user" named after the author.
-fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -> Grant {
+pub(super) fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -> Grant {
     Grant {
         host_id: host.id.clone(),
         room: room_id(&host.id, file_id),
@@ -185,7 +188,7 @@ fn patch_invalid(message: impl Into<String>) -> ApiError {
     ApiError::new(StatusCode::BAD_REQUEST, "PATCH_INVALID", message)
 }
 
-fn conflict() -> ApiError {
+pub(super) fn conflict() -> ApiError {
     ApiError::new(
         StatusCode::CONFLICT,
         "CONFLICT",
@@ -211,7 +214,7 @@ fn commit_response(live: bool, result: CommitResult) -> Result<Response, ApiErro
     })
 }
 
-fn patch_error(e: PatchFailure) -> ApiError {
+pub(super) fn patch_error(e: PatchFailure) -> ApiError {
     match e {
         PatchFailure::Invalid(p @ PatchError::NotFound(..)) => {
             ApiError::new(StatusCode::NOT_FOUND, "BLOCK_NOT_FOUND", p.to_string())
@@ -254,14 +257,26 @@ pub async fn patch(
         .map_err(ApiError::host)?
         .map_err(patch_error)?;
     tracing::info!(host = %host.id, room = %grant.room, ops = n, live, "patch API");
-    let mut out = json!({"applied": n, "blockIds": patched.block_ids, "live": live});
+    let out = json!({"applied": n, "blockIds": patched.block_ids, "live": live});
+    save_if_idle(&state, &host, &grant, out, live).await
+}
+
+/// After a host API change: answer at once when an editor has the file open, else save now
+/// so the host has the change (200 saved, 202 queued in the outbox, 409 conflict).
+pub(super) async fn save_if_idle(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    mut out: Value,
+    live: bool,
+) -> Result<Response, ApiError> {
     if live {
         return Ok(Json(out).into_response());
     }
     // No editor had the file open: save now so the host has the change.
     let result = state
         .rooms
-        .commit(&host, &grant)
+        .commit(host, grant)
         .await
         .map_err(ApiError::host)?;
     let (status, version) = match result {

@@ -322,6 +322,8 @@ pub async fn session_info(
     };
     let body = json!({
         "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": server_ai && host_ai.mcp()},
+        // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
+        "import": {"formats": super::import::formats(&state, &host, grant.role)},
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,

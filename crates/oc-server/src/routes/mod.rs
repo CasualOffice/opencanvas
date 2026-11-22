@@ -3,6 +3,7 @@
 mod api;
 pub(crate) mod collab;
 mod export;
+pub mod import;
 mod launch;
 pub mod mcp;
 mod ops;
@@ -201,6 +202,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/files/{file_id}/members/invalidate", post(api::invalidate_members))
         .route("/v1/files/{file_id}/patch", post(api::patch).layer(DefaultBodyLimit::max(body_limit)))
         .route("/v1/files/{file_id}/commit", post(api::commit))
+        .route("/v1/import", post(import::import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
+        .route("/v1/files/{file_id}/import", post(import::host_import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
         .route("/v1/convert", post(api::convert).layer(DefaultBodyLimit::max(body_limit)))
         .route("/mcp/{host_id}", post(mcp::mcp).layer(DefaultBodyLimit::max(body_limit)))
         .route("/.well-known/oauth-protected-resource/mcp/{host_id}", get(mcp::resource_metadata))

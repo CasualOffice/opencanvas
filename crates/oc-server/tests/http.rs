@@ -523,7 +523,36 @@ async fn idle_connections_get_a_heartbeat() {
     assert!((3..=7).contains(&pings), "{pings} pings in 1.1 s at 200 ms");
 }
 
+async fn session_import(addr: &str, role: &str) -> Value {
+    session_field(addr, role, "import").await
+}
+
 async fn session_ai(addr: &str, role: &str) -> Value {
+    session_field(addr, role, "ai").await
+}
+
+/// The session says which import formats the editor may offer (docs/23 FC-10).
+#[tokio::test]
+async fn session_carries_the_import_formats() {
+    let (base, _h) = mock_host().await;
+    let addr = serve(&base).await;
+    assert_eq!(session_import(&addr, "edit").await, json!({"formats": []}));
+    let (base, _h) = mock_host().await;
+    let addr = serve_with(&base, |h| {
+        h.flags.insert(
+            "import_formats".into(),
+            toml::Value::Array(vec!["md".into(), "csv".into()]),
+        );
+    })
+    .await;
+    assert_eq!(
+        session_import(&addr, "edit").await,
+        json!({"formats": ["md", "csv"]})
+    );
+    assert_eq!(session_import(&addr, "view").await, json!({"formats": []}));
+}
+
+async fn session_field(addr: &str, role: &str, field: &str) -> Value {
     let res = launch(addr, &token(role)).await;
     let loc = res.headers()["location"].to_str().unwrap().to_string();
     let ticket = loc.strip_prefix("/app/#t=").unwrap().to_string();
@@ -535,7 +564,7 @@ async fn session_ai(addr: &str, role: &str) -> Value {
         .json()
         .await
         .unwrap();
-    s["ai"].clone()
+    s[field].clone()
 }
 
 async fn serve_with(base: &str, tweak: fn(&mut oc_server::hosts::HostConfig)) -> String {
