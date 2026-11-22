@@ -160,6 +160,12 @@ impl Metrics {
             "oc_wal_append_seconds",
             "Time to append one batch of updates to the room WAL.",
         ));
+        // MOD-01: unknown nodes, marks, attributes, field or shape types seen when reading a
+        // .ocanvas or taking a patch/import/MCP write (kept, not refused).
+        out.push_str(&format!(
+            "# HELP oc_schema_warnings_total Block-schema warnings (unknown content kept) on file reads and writes.\n# TYPE oc_schema_warnings_total counter\noc_schema_warnings_total {}\n",
+            oc_model::validate::warnings_total()
+        ));
         out
     }
 }
@@ -167,6 +173,22 @@ impl Metrics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn schema_warnings_are_exported() {
+        let before = oc_model::validate::warnings_total();
+        oc_model::validate::record(oc_model::validate_blocks(
+            "blocks",
+            &[serde_json::json!({"type": "futureBlock"})],
+        ));
+        assert!(oc_model::validate::warnings_total() > before);
+        let text = Metrics::default().render();
+        assert!(
+            text.contains("# TYPE oc_schema_warnings_total counter"),
+            "{text}"
+        );
+        assert!(text.contains("\noc_schema_warnings_total "), "{text}");
+    }
 
     #[test]
     fn histogram_buckets_are_cumulative() {

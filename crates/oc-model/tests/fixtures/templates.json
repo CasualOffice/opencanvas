@@ -1,0 +1,7815 @@
+{
+ "meeting": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "gray",
+     "icon": "calendar"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "When:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Thu, Nov 26 · 10:00 · "
+       },
+       {
+        "type": "text",
+        "text": "Where:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Meet"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Agenda"
+     }
+    ]
+   },
+   {
+    "type": "orderedList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Updates since last week"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Decide the autosave default"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Open questions"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Notes"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Decisions"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Action items"
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Meeting notes",
+   "icon": "notebook-pen",
+   "tone": "blue",
+   "template": "meeting"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Action items",
+    "icon": "list-checks",
+    "tone": "green",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Action",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "done",
+      "name": "Done",
+      "type": "checkbox",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Send recap to the channel",
+      "owner": "priya",
+      "due": "2026-11-21",
+      "done": true
+     },
+     "rbxc0r79ise": {
+      "title": "Book a design review for the board block",
+      "owner": "lin",
+      "due": "2026-11-25",
+      "done": false
+     },
+     "rbxc0gies3l": {
+      "title": "Confirm Meet side-panel width",
+      "owner": "ravi",
+      "due": "2026-11-24",
+      "done": false
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "oneonone": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Talking points"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "How is the new on-call rotation going?"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Feedback on the design review"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Career goals for next quarter"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "columns",
+    "content": [
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Wins"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Shipped the role filter"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Blockers"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Waiting on staging access"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Follow-ups"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Share the growth framework"
+         },
+         {
+          "type": "text",
+          "text": " "
+         },
+         {
+          "type": "mention",
+          "attrs": {
+           "id": "u_me",
+           "label": "Template User"
+          }
+         },
+         {
+          "type": "text",
+          "text": " · due Nov 27"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "1:1 notes",
+   "icon": "users-round",
+   "tone": "purple",
+   "template": "oneonone"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "standup": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "amber",
+     "icon": "clock"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Time-box: 15 minutes. Take long discussions offline."
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 3
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Yesterday"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 3
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Today"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 3
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Blockers"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Daily standup",
+   "icon": "coffee",
+   "tone": "amber",
+   "template": "standup"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "retro": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "type": "text",
+      "text": "Add stickies to each column, then vote. The top three become actions."
+     }
+    ]
+   },
+   {
+    "type": "board",
+    "attrs": {
+     "boardId": "bdbxc0000d58"
+    }
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Actions"
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0dt0o84"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Sprint retrospective",
+   "icon": "repeat",
+   "tone": "green",
+   "template": "retro"
+  },
+  "databases": {
+   "dbxc0dt0o84": {
+    "name": "Action items",
+    "icon": "list-checks",
+    "tone": "green",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Action",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "done",
+      "name": "Done",
+      "type": "checkbox",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc0ip5w1r",
+     "rbxc0twxiov",
+     "rbxc018szvb"
+    ],
+    "rows": {
+     "rbxc0ip5w1r": {
+      "title": "Send recap to the channel",
+      "owner": "priya",
+      "due": "2026-11-21",
+      "done": true
+     },
+     "rbxc0twxiov": {
+      "title": "Book a design review for the board block",
+      "owner": "lin",
+      "due": "2026-11-25",
+      "done": false
+     },
+     "rbxc018szvb": {
+      "title": "Confirm Meet side-panel width",
+      "owner": "ravi",
+      "due": "2026-11-24",
+      "done": false
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {
+   "bdbxc0000d58": {
+    "shapes": {
+     "sbxc04qh0z1": {
+      "type": "text",
+      "x": 30,
+      "y": 40,
+      "text": "Went well",
+      "size": 20,
+      "id": "sbxc04qh0z1"
+     },
+     "sbxc0r79ise": {
+      "type": "text",
+      "x": 270,
+      "y": 40,
+      "text": "To improve",
+      "size": 20,
+      "id": "sbxc0r79ise"
+     },
+     "sbxc0gies3l": {
+      "type": "text",
+      "x": 510,
+      "y": 40,
+      "text": "Ideas",
+      "size": 20,
+      "id": "sbxc0gies3l"
+     },
+     "sbxc0j6gsdj": {
+      "type": "sticky",
+      "x": 30,
+      "y": 62,
+      "w": 150,
+      "h": 110,
+      "fill": "g",
+      "text": "Shipped the\nembed SDK beta",
+      "id": "sbxc0j6gsdj"
+     },
+     "sbxc07vrrcp": {
+      "type": "sticky",
+      "x": 30,
+      "y": 184,
+      "w": 150,
+      "h": 110,
+      "fill": "g",
+      "text": "Pairing on\nthe WAL",
+      "id": "sbxc07vrrcp"
+     },
+     "sbxc01oyww1": {
+      "type": "sticky",
+      "x": 270,
+      "y": 62,
+      "w": 150,
+      "h": 110,
+      "fill": "p",
+      "text": "Too many\nmeetings",
+      "id": "sbxc01oyww1"
+     },
+     "sbxc0oft41g": {
+      "type": "sticky",
+      "x": 270,
+      "y": 184,
+      "w": 150,
+      "h": 110,
+      "fill": "p",
+      "text": "Flaky e2e\non Safari",
+      "id": "sbxc0oft41g"
+     },
+     "sbxc0ogd941": {
+      "type": "sticky",
+      "x": 510,
+      "y": 62,
+      "w": 150,
+      "h": 110,
+      "fill": "b",
+      "text": "Demo day\nevery Friday",
+      "id": "sbxc0ogd941"
+     },
+     "sbxc0xnd155": {
+      "type": "sticky",
+      "x": 510,
+      "y": 184,
+      "w": 150,
+      "h": 110,
+      "fill": "y",
+      "text": "Templates for\nretros",
+      "id": "sbxc0xnd155"
+     }
+    },
+    "order": [
+     "sbxc04qh0z1",
+     "sbxc0r79ise",
+     "sbxc0gies3l",
+     "sbxc0j6gsdj",
+     "sbxc07vrrcp",
+     "sbxc01oyww1",
+     "sbxc0oft41g",
+     "sbxc0ogd941",
+     "sbxc0xnd155"
+    ]
+   }
+  },
+  "comments": {}
+ },
+ "allhands": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "orderedList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "10:00",
+          "marks": [
+           {
+            "type": "bold"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " · Welcome and wins"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "10:10",
+          "marks": [
+           {
+            "type": "bold"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " · Product update"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "10:30",
+          "marks": [
+           {
+            "type": "bold"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " · Customer story"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "10:45",
+          "marks": [
+           {
+            "type": "bold"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " · Q&A"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Questions from the team"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "When is the mobile app coming?"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "How do we pick what goes on the roadmap?"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "embed",
+    "attrs": {
+     "provider": "youtube",
+     "url": "",
+     "title": "All-hands recording"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "All-hands agenda",
+   "icon": "megaphone",
+   "tone": "pink",
+   "template": "allhands"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "brainstorm": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "blue",
+     "icon": "info"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Prompt:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " How might we make the first canvas feel effortless?"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "board",
+    "attrs": {
+     "boardId": "bdbxc0000d58"
+    }
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Shortlist"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Brainstorm session",
+   "icon": "lightbulb",
+   "tone": "amber",
+   "template": "brainstorm"
+  },
+  "databases": {},
+  "boards": {
+   "bdbxc0000d58": {
+    "shapes": {
+     "sbxc04qh0z1": {
+      "type": "text",
+      "x": 30,
+      "y": 40,
+      "text": "Went well",
+      "size": 20,
+      "id": "sbxc04qh0z1"
+     },
+     "sbxc0r79ise": {
+      "type": "text",
+      "x": 270,
+      "y": 40,
+      "text": "To improve",
+      "size": 20,
+      "id": "sbxc0r79ise"
+     },
+     "sbxc0gies3l": {
+      "type": "text",
+      "x": 510,
+      "y": 40,
+      "text": "Ideas",
+      "size": 20,
+      "id": "sbxc0gies3l"
+     },
+     "sbxc0j6gsdj": {
+      "type": "sticky",
+      "x": 30,
+      "y": 62,
+      "w": 150,
+      "h": 110,
+      "fill": "g",
+      "text": "Shipped the\nembed SDK beta",
+      "id": "sbxc0j6gsdj"
+     },
+     "sbxc07vrrcp": {
+      "type": "sticky",
+      "x": 30,
+      "y": 184,
+      "w": 150,
+      "h": 110,
+      "fill": "g",
+      "text": "Pairing on\nthe WAL",
+      "id": "sbxc07vrrcp"
+     },
+     "sbxc01oyww1": {
+      "type": "sticky",
+      "x": 270,
+      "y": 62,
+      "w": 150,
+      "h": 110,
+      "fill": "p",
+      "text": "Too many\nmeetings",
+      "id": "sbxc01oyww1"
+     },
+     "sbxc0oft41g": {
+      "type": "sticky",
+      "x": 270,
+      "y": 184,
+      "w": 150,
+      "h": 110,
+      "fill": "p",
+      "text": "Flaky e2e\non Safari",
+      "id": "sbxc0oft41g"
+     },
+     "sbxc0ogd941": {
+      "type": "sticky",
+      "x": 510,
+      "y": 62,
+      "w": 150,
+      "h": 110,
+      "fill": "b",
+      "text": "Demo day\nevery Friday",
+      "id": "sbxc0ogd941"
+     },
+     "sbxc0xnd155": {
+      "type": "sticky",
+      "x": 510,
+      "y": 184,
+      "w": 150,
+      "h": 110,
+      "fill": "y",
+      "text": "Templates for\nretros",
+      "id": "sbxc0xnd155"
+     }
+    },
+    "order": [
+     "sbxc04qh0z1",
+     "sbxc0r79ise",
+     "sbxc0gies3l",
+     "sbxc0j6gsdj",
+     "sbxc07vrrcp",
+     "sbxc01oyww1",
+     "sbxc0oft41g",
+     "sbxc0ogd941",
+     "sbxc0xnd155"
+    ]
+   }
+  },
+  "comments": {}
+ },
+ "brief": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "blue",
+     "icon": "target"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Goal:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " one sentence on the outcome."
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Problem"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "columns",
+    "content": [
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Goals"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph"
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Non-goals"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph"
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Milestones"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Kickoff"
+         },
+         {
+          "type": "text",
+          "text": " · due Dec 1"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Beta"
+         },
+         {
+          "type": "text",
+          "text": " · due Jan 15, 2027"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Launch"
+         },
+         {
+          "type": "text",
+          "text": " · due Feb 20, 2027"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Team"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Lead: "
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Design: "
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Engineering: "
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Project brief",
+   "icon": "file-text",
+   "tone": "blue",
+   "template": "brief"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "tracker": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Project tracker",
+   "icon": "list-todo",
+   "tone": "blue",
+   "template": "tracker"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Sprint 42 backlog",
+    "icon": "list-todo",
+    "tone": "blue",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Task",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "Backlog",
+        "c": "gray"
+       },
+       {
+        "v": "In progress",
+        "c": "blue"
+       },
+       {
+        "v": "In review",
+        "c": "amber"
+       },
+       {
+        "v": "Done",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "pts",
+      "name": "Points",
+      "type": "number",
+      "options": null
+     },
+     {
+      "id": "area",
+      "name": "Area",
+      "type": "tags",
+      "options": [
+       {
+        "v": "API",
+        "c": "purple"
+       },
+       {
+        "v": "Editor",
+        "c": "blue"
+       },
+       {
+        "v": "Board",
+        "c": "pink"
+       },
+       {
+        "v": "Infra",
+        "c": "gray"
+       },
+       {
+        "v": "Docs",
+        "c": "green"
+       }
+      ]
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp",
+     "rbxc01oyww1",
+     "rbxc0oft41g"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Launch-token claims agreed with the host backend",
+      "status": "Done",
+      "owner": "asha",
+      "due": "2026-11-17",
+      "pts": 2,
+      "area": [
+       "API"
+      ]
+     },
+     "rbxc0r79ise": {
+      "title": "Role filter rejects writes from viewers",
+      "status": "In review",
+      "owner": "ravi",
+      "due": "2026-11-24",
+      "pts": 3,
+      "area": [
+       "API",
+       "Infra"
+      ]
+     },
+     "rbxc0gies3l": {
+      "title": "Room WAL compaction every 500 updates",
+      "status": "In progress",
+      "owner": "ravi",
+      "due": "2026-11-26",
+      "pts": 5,
+      "area": [
+       "Infra"
+      ]
+     },
+     "rbxc0j6gsdj": {
+      "title": "Database block: table and board views",
+      "status": "In progress",
+      "owner": "lin",
+      "due": "2026-11-27",
+      "pts": 8,
+      "area": [
+       "Editor"
+      ]
+     },
+     "rbxc07vrrcp": {
+      "title": "Board pointer smoothing at 60 fps",
+      "status": "Backlog",
+      "owner": "lin",
+      "due": "2026-12-02",
+      "pts": 3,
+      "area": [
+       "Board"
+      ]
+     },
+     "rbxc01oyww1": {
+      "title": "Side-panel layout for Meet",
+      "status": "In progress",
+      "owner": "priya",
+      "due": "2026-11-25",
+      "pts": 3,
+      "area": [
+       "Editor"
+      ]
+     },
+     "rbxc0oft41g": {
+      "title": "Integration guide: callbacks section",
+      "status": "Backlog",
+      "owner": "asha",
+      "due": "2026-12-04",
+      "pts": 2,
+      "area": [
+       "Docs"
+      ]
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "roadmap": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Product roadmap",
+   "icon": "map",
+   "tone": "purple",
+   "template": "roadmap"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Roadmap",
+    "icon": "map",
+    "tone": "purple",
+    "view": "board",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Initiative",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "q",
+      "name": "Quarter",
+      "type": "status",
+      "options": [
+       {
+        "v": "Q1",
+        "c": "blue"
+       },
+       {
+        "v": "Q2",
+        "c": "purple"
+       },
+       {
+        "v": "Q3",
+        "c": "amber"
+       },
+       {
+        "v": "Q4",
+        "c": "gray"
+       }
+      ]
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "select",
+      "options": [
+       {
+        "v": "Planned",
+        "c": "gray"
+       },
+       {
+        "v": "Building",
+        "c": "blue"
+       },
+       {
+        "v": "Shipped",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "impact",
+      "name": "Impact",
+      "type": "select",
+      "options": [
+       {
+        "v": "High",
+        "c": "red"
+       },
+       {
+        "v": "Medium",
+        "c": "amber"
+       },
+       {
+        "v": "Low",
+        "c": "gray"
+       }
+      ]
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Embed SDK GA",
+      "q": "Q1",
+      "status": "Building",
+      "owner": "asha",
+      "impact": "High"
+     },
+     "rbxc0r79ise": {
+      "title": "Database block",
+      "q": "Q1",
+      "status": "Building",
+      "owner": "lin",
+      "impact": "High"
+     },
+     "rbxc0gies3l": {
+      "title": "Comments and mentions",
+      "q": "Q2",
+      "status": "Planned",
+      "owner": "ravi",
+      "impact": "Medium"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Portable live blocks",
+      "q": "Q3",
+      "status": "Planned",
+      "owner": "priya",
+      "impact": "High"
+     },
+     "rbxc07vrrcp": {
+      "title": "DOCX import",
+      "q": "Q4",
+      "status": "Planned",
+      "owner": null,
+      "impact": "Low"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "launch": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Checklist"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Pricing page updated"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Docs published"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Support briefed"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Announcement scheduled"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Timeline"
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Messaging"
+     }
+    ]
+   },
+   {
+    "type": "blockquote",
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "One line that says what changes for the customer."
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Launch plan",
+   "icon": "rocket",
+   "tone": "pink",
+   "template": "launch"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Content calendar",
+    "icon": "calendar-days",
+    "tone": "pink",
+    "view": "calendar",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Title",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "Idea",
+        "c": "gray"
+       },
+       {
+        "v": "Drafting",
+        "c": "blue"
+       },
+       {
+        "v": "Review",
+        "c": "amber"
+       },
+       {
+        "v": "Scheduled",
+        "c": "purple"
+       },
+       {
+        "v": "Published",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "ch",
+      "name": "Channel",
+      "type": "tags",
+      "options": [
+       {
+        "v": "Blog",
+        "c": "blue"
+       },
+       {
+        "v": "LinkedIn",
+        "c": "purple"
+       },
+       {
+        "v": "Newsletter",
+        "c": "green"
+       },
+       {
+        "v": "Video",
+        "c": "pink"
+       }
+      ]
+     },
+     {
+      "id": "author",
+      "name": "Author",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "date",
+      "name": "Publish date",
+      "type": "date",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp",
+     "rbxc01oyww1"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Why the file should stay in your app",
+      "status": "Published",
+      "ch": [
+       "Blog"
+      ],
+      "author": "asha",
+      "date": "2026-11-04"
+     },
+     "rbxc0r79ise": {
+      "title": "Live cursors, explained",
+      "status": "Scheduled",
+      "ch": [
+       "Blog",
+       "LinkedIn"
+      ],
+      "author": "lin",
+      "date": "2026-11-24"
+     },
+     "rbxc0gies3l": {
+      "title": "November product update",
+      "status": "Review",
+      "ch": [
+       "Newsletter"
+      ],
+      "author": "priya",
+      "date": "2026-11-27"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Embed a canvas in 5 minutes",
+      "status": "Drafting",
+      "ch": [
+       "Video"
+      ],
+      "author": "ravi",
+      "date": "2026-12-02"
+     },
+     "rbxc07vrrcp": {
+      "title": "Customer story: Acme Schools",
+      "status": "Idea",
+      "ch": [
+       "Blog"
+      ],
+      "author": "asha",
+      "date": "2026-12-09"
+     },
+     "rbxc01oyww1": {
+      "title": "Templates gallery launch",
+      "status": "Scheduled",
+      "ch": [
+       "LinkedIn"
+      ],
+      "author": "priya",
+      "date": "2026-11-18"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "sprint": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "green",
+     "icon": "target"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Sprint goal:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " "
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Person"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Days"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Focus"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Asha"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "9"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "API"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Ravi"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Infra"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Lin"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Editor"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Backlog"
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Sprint planning",
+   "icon": "gauge",
+   "tone": "green",
+   "template": "sprint"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Sprint 42 backlog",
+    "icon": "list-todo",
+    "tone": "blue",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Task",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "Backlog",
+        "c": "gray"
+       },
+       {
+        "v": "In progress",
+        "c": "blue"
+       },
+       {
+        "v": "In review",
+        "c": "amber"
+       },
+       {
+        "v": "Done",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "pts",
+      "name": "Points",
+      "type": "number",
+      "options": null
+     },
+     {
+      "id": "area",
+      "name": "Area",
+      "type": "tags",
+      "options": [
+       {
+        "v": "API",
+        "c": "purple"
+       },
+       {
+        "v": "Editor",
+        "c": "blue"
+       },
+       {
+        "v": "Board",
+        "c": "pink"
+       },
+       {
+        "v": "Infra",
+        "c": "gray"
+       },
+       {
+        "v": "Docs",
+        "c": "green"
+       }
+      ]
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp",
+     "rbxc01oyww1",
+     "rbxc0oft41g"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Launch-token claims agreed with the host backend",
+      "status": "Done",
+      "owner": "asha",
+      "due": "2026-11-17",
+      "pts": 2,
+      "area": [
+       "API"
+      ]
+     },
+     "rbxc0r79ise": {
+      "title": "Role filter rejects writes from viewers",
+      "status": "In review",
+      "owner": "ravi",
+      "due": "2026-11-24",
+      "pts": 3,
+      "area": [
+       "API",
+       "Infra"
+      ]
+     },
+     "rbxc0gies3l": {
+      "title": "Room WAL compaction every 500 updates",
+      "status": "In progress",
+      "owner": "ravi",
+      "due": "2026-11-26",
+      "pts": 5,
+      "area": [
+       "Infra"
+      ]
+     },
+     "rbxc0j6gsdj": {
+      "title": "Database block: table and board views",
+      "status": "In progress",
+      "owner": "lin",
+      "due": "2026-11-27",
+      "pts": 8,
+      "area": [
+       "Editor"
+      ]
+     },
+     "rbxc07vrrcp": {
+      "title": "Board pointer smoothing at 60 fps",
+      "status": "Backlog",
+      "owner": "lin",
+      "due": "2026-12-02",
+      "pts": 3,
+      "area": [
+       "Board"
+      ]
+     },
+     "rbxc01oyww1": {
+      "title": "Side-panel layout for Meet",
+      "status": "In progress",
+      "owner": "priya",
+      "due": "2026-11-25",
+      "pts": 3,
+      "area": [
+       "Editor"
+      ]
+     },
+     "rbxc0oft41g": {
+      "title": "Integration guide: callbacks section",
+      "status": "Backlog",
+      "owner": "asha",
+      "due": "2026-12-04",
+      "pts": 2,
+      "area": [
+       "Docs"
+      ]
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "bugs": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Bug tracker",
+   "icon": "bug",
+   "tone": "red",
+   "template": "bugs"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Bugs",
+    "icon": "bug",
+    "tone": "red",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Bug",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "sev",
+      "name": "Severity",
+      "type": "select",
+      "options": [
+       {
+        "v": "S1 · Critical",
+        "c": "red"
+       },
+       {
+        "v": "S2 · Major",
+        "c": "amber"
+       },
+       {
+        "v": "S3 · Minor",
+        "c": "gray"
+       }
+      ]
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "Triage",
+        "c": "gray"
+       },
+       {
+        "v": "Fixing",
+        "c": "blue"
+       },
+       {
+        "v": "Verifying",
+        "c": "amber"
+       },
+       {
+        "v": "Closed",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Assignee",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "rep",
+      "name": "Reported",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "comp",
+      "name": "Component",
+      "type": "tags",
+      "options": [
+       {
+        "v": "Editor",
+        "c": "blue"
+       },
+       {
+        "v": "Sync",
+        "c": "purple"
+       },
+       {
+        "v": "Export",
+        "c": "green"
+       },
+       {
+        "v": "Mobile",
+        "c": "pink"
+       }
+      ]
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Cursor label overlaps on wrapped lines",
+      "sev": "S3 · Minor",
+      "status": "Fixing",
+      "owner": "lin",
+      "rep": "2026-11-18",
+      "comp": [
+       "Editor"
+      ]
+     },
+     "rbxc0r79ise": {
+      "title": "Pasting from a word processor drops table borders",
+      "sev": "S2 · Major",
+      "status": "Triage",
+      "owner": null,
+      "rep": "2026-11-19",
+      "comp": [
+       "Editor"
+      ]
+     },
+     "rbxc0gies3l": {
+      "title": "Reconnect loop after laptop sleep",
+      "sev": "S1 · Critical",
+      "status": "Verifying",
+      "owner": "ravi",
+      "rep": "2026-11-16",
+      "comp": [
+       "Sync"
+      ]
+     },
+     "rbxc0j6gsdj": {
+      "title": "PDF export clips wide tables",
+      "sev": "S2 · Major",
+      "status": "Fixing",
+      "owner": "asha",
+      "rep": "2026-11-20",
+      "comp": [
+       "Export"
+      ]
+     },
+     "rbxc07vrrcp": {
+      "title": "Board toolbar hidden behind iOS keyboard",
+      "sev": "S3 · Minor",
+      "status": "Closed",
+      "owner": "priya",
+      "rep": "2026-11-12",
+      "comp": [
+       "Mobile"
+      ]
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "prd": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Problem"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Users"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Requirements"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Must: "
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Should: "
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Could: "
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Success metrics"
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Metric"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Today"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Target"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "toggle",
+    "attrs": {
+     "open": false
+    },
+    "content": [
+     {
+      "type": "toggleSummary",
+      "content": [
+       {
+        "type": "text",
+        "text": "Open questions"
+       }
+      ]
+     },
+     {
+      "type": "toggleContent",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Product requirements",
+   "icon": "scroll-text",
+   "tone": "blue",
+   "template": "prd"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "rfc": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "gray",
+     "icon": "info"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Status:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Draft · "
+       },
+       {
+        "type": "text",
+        "text": "Reviewers:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " "
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Context"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Proposal"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "codeBlock",
+    "attrs": {
+     "language": "ts"
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "interface Grant { host: string; role: \"view\" | \"comment\" | \"edit\" }"
+     }
+    ]
+   },
+   {
+    "type": "toggle",
+    "attrs": {
+     "open": false
+    },
+    "content": [
+     {
+      "type": "toggleSummary",
+      "content": [
+       {
+        "type": "text",
+        "text": "Alternatives considered"
+       }
+      ]
+     },
+     {
+      "type": "toggleContent",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Rollout"
+     }
+    ]
+   },
+   {
+    "type": "orderedList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Behind a flag"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "10% of hosts"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Everyone"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Technical spec (RFC)",
+   "icon": "code-xml",
+   "tone": "purple",
+   "template": "rfc"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "postmortem": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "red",
+     "icon": "triangle-alert"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Impact:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " 14 minutes of failed saves for 3% of rooms. No data lost."
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Timeline"
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Time (UTC)"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Event"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "09:02"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Deploy 0.4.1 starts"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "09:05"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Save errors alert"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "09:16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Rollback complete"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Root cause"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Follow-ups"
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Incident postmortem",
+   "icon": "siren",
+   "tone": "red",
+   "template": "postmortem"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Action items",
+    "icon": "list-checks",
+    "tone": "green",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Action",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "done",
+      "name": "Done",
+      "type": "checkbox",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Send recap to the channel",
+      "owner": "priya",
+      "due": "2026-11-21",
+      "done": true
+     },
+     "rbxc0r79ise": {
+      "title": "Book a design review for the board block",
+      "owner": "lin",
+      "due": "2026-11-25",
+      "done": false
+     },
+     "rbxc0gies3l": {
+      "title": "Confirm Meet side-panel width",
+      "owner": "ravi",
+      "due": "2026-11-24",
+      "done": false
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "release": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "New"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Database block with table, board, calendar and gallery views"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Improved"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Cursor labels no longer overlap"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Fixed"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Reconnect loop after sleep"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Release notes",
+   "icon": "badge-check",
+   "tone": "green",
+   "template": "release"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "api": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Create a session"
+     }
+    ]
+   },
+   {
+    "type": "codeBlock",
+    "attrs": {
+     "language": "http"
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "POST /v1/launch\ntoken=\"eyJhbGciOi…\""
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Errors"
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Code"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Meaning"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "401"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Token invalid or expired"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "409"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "File changed outside the session"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "API reference",
+   "icon": "file-code-2",
+   "tone": "gray",
+   "template": "api"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "critique": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "image",
+    "attrs": {
+     "src": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20800%20400%22%3E%3Crect%20width%3D%22800%22%20height%3D%22400%22%20fill%3D%22%23eef0f4%22%2F%3E%3Crect%20x%3D%22120%22%20y%3D%2250%22%20width%3D%22560%22%20height%3D%22300%22%20rx%3D%2216%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23d5d8e0%22%2F%3E%3Crect%20x%3D%22150%22%20y%3D%2284%22%20width%3D%22200%22%20height%3D%2216%22%20rx%3D%228%22%20fill%3D%22%239aa0ad%22%20opacity%3D%22.6%22%2F%3E%3Crect%20x%3D%22150%22%20y%3D%22116%22%20width%3D%22320%22%20height%3D%2210%22%20rx%3D%225%22%20fill%3D%22%23d5d8e0%22%2F%3E%3Crect%20x%3D%22150%22%20y%3D%22136%22%20width%3D%22280%22%20height%3D%2210%22%20rx%3D%225%22%20fill%3D%22%23d5d8e0%22%2F%3E%3Crect%20x%3D%22150%22%20y%3D%22180%22%20width%3D%22500%22%20height%3D%22130%22%20rx%3D%2210%22%20fill%3D%22%23e6edfd%22%2F%3E%3Ccircle%20cx%3D%22400%22%20cy%3D%22245%22%20r%3D%2226%22%20fill%3D%22%232a5ad7%22%20opacity%3D%22.7%22%2F%3E%3C%2Fsvg%3E",
+     "alt": "Paste the design here",
+     "caption": "Paste the design here"
+    }
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "What works"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "What to change"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Design critique",
+   "icon": "palette",
+   "tone": "pink",
+   "template": "critique"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "interview": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Participant"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Role"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Date"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "P4"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Ops lead"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Nov 19"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Key quotes"
+     }
+    ]
+   },
+   {
+    "type": "blockquote",
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "“I just want to paste the meeting notes and have everyone see them.”"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Insights"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Feedback log"
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "User interview notes",
+   "icon": "contact",
+   "tone": "purple",
+   "template": "interview"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Customer feedback",
+    "icon": "message-square",
+    "tone": "blue",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Feedback",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "cust",
+      "name": "Customer",
+      "type": "text",
+      "options": null
+     },
+     {
+      "id": "theme",
+      "name": "Theme",
+      "type": "tags",
+      "options": [
+       {
+        "v": "Performance",
+        "c": "amber"
+       },
+       {
+        "v": "Mobile",
+        "c": "pink"
+       },
+       {
+        "v": "Export",
+        "c": "green"
+       },
+       {
+        "v": "Permissions",
+        "c": "purple"
+       }
+      ]
+     },
+     {
+      "id": "sent",
+      "name": "Sentiment",
+      "type": "select",
+      "options": [
+       {
+        "v": "Positive",
+        "c": "green"
+       },
+       {
+        "v": "Neutral",
+        "c": "gray"
+       },
+       {
+        "v": "Negative",
+        "c": "red"
+       }
+      ]
+     },
+     {
+      "id": "date",
+      "name": "Logged",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Wants per-channel autosave settings",
+      "cust": "Acme Schools",
+      "theme": [
+       "Permissions"
+      ],
+      "sent": "Neutral",
+      "date": "2026-11-18",
+      "owner": "asha"
+     },
+     "rbxc0r79ise": {
+      "title": "Board feels instant even with 30 people",
+      "cust": "Acme Health",
+      "theme": [
+       "Performance"
+      ],
+      "sent": "Positive",
+      "date": "2026-11-19",
+      "owner": "lin"
+     },
+     "rbxc0gies3l": {
+      "title": "PDF export should keep comments",
+      "cust": "Acme Logistics",
+      "theme": [
+       "Export"
+      ],
+      "sent": "Negative",
+      "date": "2026-11-20",
+      "owner": "ravi"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Mobile checklist is great in standups",
+      "cust": "Blue Fjord Energy",
+      "theme": [
+       "Mobile"
+      ],
+      "sent": "Positive",
+      "date": "2026-11-20",
+      "owner": "priya"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "moodboard": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "board",
+    "attrs": {
+     "boardId": "bdbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Moodboard",
+   "icon": "image",
+   "tone": "amber",
+   "template": "moodboard"
+  },
+  "databases": {},
+  "boards": {
+   "bdbxc0000d58": {
+    "shapes": {
+     "sbxc04qh0z1": {
+      "type": "swatch",
+      "x": 30,
+      "y": 30,
+      "w": 200,
+      "h": 150,
+      "fill": "accent",
+      "id": "sbxc04qh0z1"
+     },
+     "sbxc0r79ise": {
+      "type": "swatch",
+      "x": 250,
+      "y": 30,
+      "w": 150,
+      "h": 150,
+      "fill": "amber",
+      "id": "sbxc0r79ise"
+     },
+     "sbxc0gies3l": {
+      "type": "swatch",
+      "x": 420,
+      "y": 30,
+      "w": 240,
+      "h": 100,
+      "fill": "green",
+      "id": "sbxc0gies3l"
+     },
+     "sbxc0j6gsdj": {
+      "type": "swatch",
+      "x": 420,
+      "y": 150,
+      "w": 110,
+      "h": 130,
+      "fill": "pink",
+      "id": "sbxc0j6gsdj"
+     },
+     "sbxc07vrrcp": {
+      "type": "swatch",
+      "x": 550,
+      "y": 150,
+      "w": 110,
+      "h": 130,
+      "fill": "purple",
+      "id": "sbxc07vrrcp"
+     },
+     "sbxc01oyww1": {
+      "type": "text",
+      "x": 30,
+      "y": 222,
+      "text": "Calm, precise, quietly confident",
+      "size": 20,
+      "id": "sbxc01oyww1"
+     },
+     "sbxc0oft41g": {
+      "type": "sticky",
+      "x": 30,
+      "y": 250,
+      "w": 190,
+      "h": 90,
+      "fill": "y",
+      "text": "Soft hairlines,\nno heavy borders",
+      "id": "sbxc0oft41g"
+     },
+     "sbxc0ogd941": {
+      "type": "sticky",
+      "x": 250,
+      "y": 200,
+      "w": 150,
+      "h": 90,
+      "fill": "b",
+      "text": "Motion: springy,\nnever bouncy",
+      "id": "sbxc0ogd941"
+     }
+    },
+    "order": [
+     "sbxc04qh0z1",
+     "sbxc0r79ise",
+     "sbxc0gies3l",
+     "sbxc0j6gsdj",
+     "sbxc07vrrcp",
+     "sbxc01oyww1",
+     "sbxc0oft41g",
+     "sbxc0ogd941"
+    ]
+   }
+  },
+  "comments": {}
+ },
+ "journey": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "board",
+    "attrs": {
+     "boardId": "bdbxc0000d58"
+    }
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Opportunities"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "User journey map",
+   "icon": "route",
+   "tone": "green",
+   "template": "journey"
+  },
+  "databases": {},
+  "boards": {
+   "bdbxc0000d58": {
+    "shapes": {
+     "sbxc04qh0z1": {
+      "type": "rect",
+      "x": 20,
+      "y": 30,
+      "w": 136,
+      "h": 44,
+      "label": "",
+      "dashed": false,
+      "text": "Discover",
+      "id": "sbxc04qh0z1"
+     },
+     "sbxc0r79ise": {
+      "type": "sticky",
+      "x": 20,
+      "y": 92,
+      "w": 136,
+      "h": 96,
+      "fill": "b",
+      "text": "Sees a shared\nlink in chat",
+      "id": "sbxc0r79ise"
+     },
+     "sbxc0gies3l": {
+      "type": "sticky",
+      "x": 20,
+      "y": 200,
+      "w": 136,
+      "h": 90,
+      "fill": "p",
+      "text": "Unclear what\nit is",
+      "id": "sbxc0gies3l"
+     },
+     "sbxc0j6gsdj": {
+      "type": "rect",
+      "x": 170,
+      "y": 30,
+      "w": 136,
+      "h": 44,
+      "label": "",
+      "dashed": false,
+      "text": "Sign up",
+      "id": "sbxc0j6gsdj"
+     },
+     "sbxc07vrrcp": {
+      "type": "sticky",
+      "x": 170,
+      "y": 92,
+      "w": 136,
+      "h": 96,
+      "fill": "y",
+      "text": "Lands in the\nhost app",
+      "id": "sbxc07vrrcp"
+     },
+     "sbxc01oyww1": {
+      "type": "sticky",
+      "x": 170,
+      "y": 200,
+      "w": 136,
+      "h": 90,
+      "fill": "p",
+      "text": "No account\nneeded",
+      "id": "sbxc01oyww1"
+     },
+     "sbxc0oft41g": {
+      "type": "rect",
+      "x": 320,
+      "y": 30,
+      "w": 136,
+      "h": 44,
+      "label": "",
+      "dashed": false,
+      "text": "First canvas",
+      "id": "sbxc0oft41g"
+     },
+     "sbxc0ogd941": {
+      "type": "sticky",
+      "x": 320,
+      "y": 92,
+      "w": 136,
+      "h": 96,
+      "fill": "g",
+      "text": "Picks a\ntemplate",
+      "id": "sbxc0ogd941"
+     },
+     "sbxc0xnd155": {
+      "type": "sticky",
+      "x": 320,
+      "y": 200,
+      "w": 136,
+      "h": 90,
+      "fill": "p",
+      "text": "Too many\nchoices?",
+      "id": "sbxc0xnd155"
+     },
+     "sbxc0dt0o84": {
+      "type": "rect",
+      "x": 470,
+      "y": 30,
+      "w": 136,
+      "h": 44,
+      "label": "",
+      "dashed": false,
+      "text": "Invite team",
+      "id": "sbxc0dt0o84"
+     },
+     "sbxc0ip5w1r": {
+      "type": "sticky",
+      "x": 470,
+      "y": 92,
+      "w": 136,
+      "h": 96,
+      "fill": "p",
+      "text": "Mentions a\nteammate",
+      "id": "sbxc0ip5w1r"
+     },
+     "sbxc0twxiov": {
+      "type": "sticky",
+      "x": 470,
+      "y": 200,
+      "w": 136,
+      "h": 90,
+      "fill": "p",
+      "text": "Needs mobile",
+      "id": "sbxc0twxiov"
+     },
+     "sbxc018szvb": {
+      "type": "rect",
+      "x": 620,
+      "y": 30,
+      "w": 136,
+      "h": 44,
+      "label": "",
+      "dashed": false,
+      "text": "Habit",
+      "id": "sbxc018szvb"
+     },
+     "sbxc01xab0m": {
+      "type": "sticky",
+      "x": 620,
+      "y": 92,
+      "w": 136,
+      "h": 96,
+      "fill": "g",
+      "text": "Opens it in\nevery standup",
+      "id": "sbxc01xab0m"
+     },
+     "sbxc0j2hox4": {
+      "type": "sticky",
+      "x": 620,
+      "y": 200,
+      "w": 136,
+      "h": 90,
+      "fill": "p",
+      "text": "Wants\nreminders",
+      "id": "sbxc0j2hox4"
+     }
+    },
+    "order": [
+     "sbxc04qh0z1",
+     "sbxc0r79ise",
+     "sbxc0gies3l",
+     "sbxc0j6gsdj",
+     "sbxc07vrrcp",
+     "sbxc01oyww1",
+     "sbxc0oft41g",
+     "sbxc0ogd941",
+     "sbxc0xnd155",
+     "sbxc0dt0o84",
+     "sbxc0ip5w1r",
+     "sbxc0twxiov",
+     "sbxc018szvb",
+     "sbxc01xab0m",
+     "sbxc0j2hox4"
+    ]
+   }
+  },
+  "comments": {}
+ },
+ "onboarding": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "green",
+     "icon": "sparkles"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Welcome to the team. This page is yours. Tick things off as you go."
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Onboarding checklist",
+   "icon": "clipboard-list",
+   "tone": "blue",
+   "template": "onboarding"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Onboarding plan",
+    "icon": "clipboard-list",
+    "tone": "blue",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Task",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "week",
+      "name": "Week",
+      "type": "select",
+      "options": [
+       {
+        "v": "Week 1",
+        "c": "blue"
+       },
+       {
+        "v": "Week 2",
+        "c": "purple"
+       },
+       {
+        "v": "Week 3",
+        "c": "amber"
+       },
+       {
+        "v": "Week 4",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Buddy",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "done",
+      "name": "Done",
+      "type": "checkbox",
+      "options": null
+     },
+     {
+      "id": "link",
+      "name": "Link",
+      "type": "url",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Set up laptop and accounts",
+      "week": "Week 1",
+      "owner": "ravi",
+      "done": true,
+      "link": "https://wiki.example.com/setup"
+     },
+     "rbxc0r79ise": {
+      "title": "Read the architecture docs",
+      "week": "Week 1",
+      "owner": "asha",
+      "done": false,
+      "link": "https://wiki.example.com/hld"
+     },
+     "rbxc0gies3l": {
+      "title": "Ship a small fix",
+      "week": "Week 2",
+      "owner": "lin",
+      "done": false,
+      "link": null
+     },
+     "rbxc0j6gsdj": {
+      "title": "Shadow an on-call shift",
+      "week": "Week 3",
+      "owner": "ravi",
+      "done": false,
+      "link": null
+     },
+     "rbxc07vrrcp": {
+      "title": "30-day check-in",
+      "week": "Week 4",
+      "owner": "priya",
+      "done": false,
+      "link": null
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "wiki": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "About the team"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Rituals"
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Ritual"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "When"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Owner"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Standup"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Daily 10:00"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Rotating"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Demo"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Friday 16:00"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Lin"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Tools"
+     }
+    ]
+   },
+   {
+    "type": "bookmark",
+    "attrs": {
+     "url": "https://docs.example.com",
+     "title": "Engineering handbook",
+     "description": "How we build, review and ship.",
+     "site": "docs.example.com"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Team wiki",
+   "icon": "book-marked",
+   "tone": "gray",
+   "template": "wiki"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "hiring": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Hiring pipeline",
+   "icon": "user-plus",
+   "tone": "purple",
+   "template": "hiring"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Hiring pipeline",
+    "icon": "user-plus",
+    "tone": "purple",
+    "view": "board",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Candidate",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "stage",
+      "name": "Stage",
+      "type": "status",
+      "options": [
+       {
+        "v": "Applied",
+        "c": "gray"
+       },
+       {
+        "v": "Screen",
+        "c": "blue"
+       },
+       {
+        "v": "Onsite",
+        "c": "amber"
+       },
+       {
+        "v": "Offer",
+        "c": "purple"
+       },
+       {
+        "v": "Hired",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "role",
+      "name": "Role",
+      "type": "select",
+      "options": [
+       {
+        "v": "Senior Engineer",
+        "c": "blue"
+       },
+       {
+        "v": "Product Designer",
+        "c": "pink"
+       },
+       {
+        "v": "PM",
+        "c": "amber"
+       }
+      ]
+     },
+     {
+      "id": "rec",
+      "name": "Recruiter",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "next",
+      "name": "Next step",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "score",
+      "name": "Score",
+      "type": "number",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Maya Okafor",
+      "stage": "Onsite",
+      "role": "Senior Engineer",
+      "rec": "asha",
+      "next": "2026-11-25",
+      "score": 4.5
+     },
+     "rbxc0r79ise": {
+      "title": "Daniel Kim",
+      "stage": "Screen",
+      "role": "Product Designer",
+      "rec": "lin",
+      "next": "2026-11-24",
+      "score": null
+     },
+     "rbxc0gies3l": {
+      "title": "Sofia Marques",
+      "stage": "Offer",
+      "role": "PM",
+      "rec": "asha",
+      "next": "2026-11-23",
+      "score": 4.8
+     },
+     "rbxc0j6gsdj": {
+      "title": "Arjun Patel",
+      "stage": "Applied",
+      "role": "Senior Engineer",
+      "rec": "ravi",
+      "next": null,
+      "score": null
+     },
+     "rbxc07vrrcp": {
+      "title": "Hannah Weber",
+      "stage": "Screen",
+      "role": "Senior Engineer",
+      "rec": "ravi",
+      "next": "2026-11-26",
+      "score": 3.9
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "scorecard": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Competency"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Score (1–5)"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Evidence"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Problem solving"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Communication"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Ownership"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Recommendation"
+     }
+    ]
+   },
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "gray",
+     "icon": "scale"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Strong yes · Yes · No · Strong no"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Notes"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Interview scorecard",
+   "icon": "list-checks",
+   "tone": "amber",
+   "template": "scorecard"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "okrs": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "OKRs",
+   "icon": "target",
+   "tone": "amber",
+   "template": "okrs"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Q1 OKRs",
+    "icon": "target",
+    "tone": "amber",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Key result",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "obj",
+      "name": "Objective",
+      "type": "select",
+      "options": [
+       {
+        "v": "Win integrators",
+        "c": "blue"
+       },
+       {
+        "v": "Delight editors",
+        "c": "pink"
+       },
+       {
+        "v": "Run lean",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "prog",
+      "name": "Progress",
+      "type": "progress",
+      "options": null
+     },
+     {
+      "id": "conf",
+      "name": "Confidence",
+      "type": "status",
+      "options": [
+       {
+        "v": "On track",
+        "c": "green"
+       },
+       {
+        "v": "At risk",
+        "c": "amber"
+       },
+       {
+        "v": "Off track",
+        "c": "red"
+       }
+      ]
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "3 hosts live in production",
+      "obj": "Win integrators",
+      "owner": "asha",
+      "prog": 33,
+      "conf": "On track",
+      "due": "2027-03-31"
+     },
+     "rbxc0r79ise": {
+      "title": "Time-to-first-embed under 1 day",
+      "obj": "Win integrators",
+      "owner": "ravi",
+      "prog": 60,
+      "conf": "On track",
+      "due": "2027-02-28"
+     },
+     "rbxc0gies3l": {
+      "title": "p95 remote latency under 150 ms",
+      "obj": "Delight editors",
+      "owner": "lin",
+      "prog": 45,
+      "conf": "At risk",
+      "due": "2027-03-15"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Idle node RSS under 40 MB",
+      "obj": "Run lean",
+      "owner": "ravi",
+      "prog": 80,
+      "conf": "On track",
+      "due": "2027-01-31"
+     },
+     "rbxc07vrrcp": {
+      "title": "Zero divergence incidents",
+      "obj": "Delight editors",
+      "owner": "priya",
+      "prog": 100,
+      "conf": "On track",
+      "due": "2027-03-31"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "pipeline": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Deal pipeline",
+   "icon": "handshake",
+   "tone": "green",
+   "template": "pipeline"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Deal pipeline",
+    "icon": "handshake",
+    "tone": "green",
+    "view": "board",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Account",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "stage",
+      "name": "Stage",
+      "type": "status",
+      "options": [
+       {
+        "v": "Lead",
+        "c": "gray"
+       },
+       {
+        "v": "Qualified",
+        "c": "blue"
+       },
+       {
+        "v": "Proposal",
+        "c": "amber"
+       },
+       {
+        "v": "Negotiation",
+        "c": "purple"
+       },
+       {
+        "v": "Won",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "val",
+      "name": "Value ($)",
+      "type": "number",
+      "options": null
+     },
+     {
+      "id": "close",
+      "name": "Close date",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "reg",
+      "name": "Region",
+      "type": "tags",
+      "options": [
+       {
+        "v": "NA",
+        "c": "blue"
+       },
+       {
+        "v": "EMEA",
+        "c": "purple"
+       },
+       {
+        "v": "APAC",
+        "c": "pink"
+       }
+      ]
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp",
+     "rbxc01oyww1"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Acme Health",
+      "stage": "Proposal",
+      "owner": "asha",
+      "val": 48000,
+      "close": "2026-12-12",
+      "reg": [
+       "NA"
+      ]
+     },
+     "rbxc0r79ise": {
+      "title": "Acme Logistics",
+      "stage": "Qualified",
+      "owner": "ravi",
+      "val": 22000,
+      "close": "2027-01-08",
+      "reg": [
+       "EMEA"
+      ]
+     },
+     "rbxc0gies3l": {
+      "title": "Acme Schools",
+      "stage": "Negotiation",
+      "owner": "asha",
+      "val": 96000,
+      "close": "2026-12-03",
+      "reg": [
+       "NA"
+      ]
+     },
+     "rbxc0j6gsdj": {
+      "title": "Tamarind Foods",
+      "stage": "Lead",
+      "owner": "lin",
+      "val": 12000,
+      "close": "2027-01-20",
+      "reg": [
+       "APAC"
+      ]
+     },
+     "rbxc07vrrcp": {
+      "title": "Blue Fjord Energy",
+      "stage": "Won",
+      "owner": "priya",
+      "val": 64000,
+      "close": "2026-11-14",
+      "reg": [
+       "EMEA"
+      ]
+     },
+     "rbxc01oyww1": {
+      "title": "Orbit Studios",
+      "stage": "Lead",
+      "owner": "ravi",
+      "val": 8000,
+      "close": "2027-02-02",
+      "reg": [
+       "NA"
+      ]
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "account": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "columns",
+    "content": [
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Goals"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Expand to 3 teams"
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Renew in March"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Risks"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "New CIO"
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Budget freeze"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Stakeholders"
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Name"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Role"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Stance"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Champion"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Economic buyer"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Next steps"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Account plan",
+   "icon": "briefcase",
+   "tone": "blue",
+   "template": "account"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "feedback": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Customer feedback log",
+   "icon": "message-square",
+   "tone": "blue",
+   "template": "feedback"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Customer feedback",
+    "icon": "message-square",
+    "tone": "blue",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Feedback",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "cust",
+      "name": "Customer",
+      "type": "text",
+      "options": null
+     },
+     {
+      "id": "theme",
+      "name": "Theme",
+      "type": "tags",
+      "options": [
+       {
+        "v": "Performance",
+        "c": "amber"
+       },
+       {
+        "v": "Mobile",
+        "c": "pink"
+       },
+       {
+        "v": "Export",
+        "c": "green"
+       },
+       {
+        "v": "Permissions",
+        "c": "purple"
+       }
+      ]
+     },
+     {
+      "id": "sent",
+      "name": "Sentiment",
+      "type": "select",
+      "options": [
+       {
+        "v": "Positive",
+        "c": "green"
+       },
+       {
+        "v": "Neutral",
+        "c": "gray"
+       },
+       {
+        "v": "Negative",
+        "c": "red"
+       }
+      ]
+     },
+     {
+      "id": "date",
+      "name": "Logged",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Wants per-channel autosave settings",
+      "cust": "Acme Schools",
+      "theme": [
+       "Permissions"
+      ],
+      "sent": "Neutral",
+      "date": "2026-11-18",
+      "owner": "asha"
+     },
+     "rbxc0r79ise": {
+      "title": "Board feels instant even with 30 people",
+      "cust": "Acme Health",
+      "theme": [
+       "Performance"
+      ],
+      "sent": "Positive",
+      "date": "2026-11-19",
+      "owner": "lin"
+     },
+     "rbxc0gies3l": {
+      "title": "PDF export should keep comments",
+      "cust": "Acme Logistics",
+      "theme": [
+       "Export"
+      ],
+      "sent": "Negative",
+      "date": "2026-11-20",
+      "owner": "ravi"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Mobile checklist is great in standups",
+      "cust": "Blue Fjord Energy",
+      "theme": [
+       "Mobile"
+      ],
+      "sent": "Positive",
+      "date": "2026-11-20",
+      "owner": "priya"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "callrecap": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "gray",
+     "icon": "phone"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Call with",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Northwind Health · Nov 20"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Summary"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Pains"
+     }
+    ]
+   },
+   {
+    "type": "bulletList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Next steps"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Customer call recap",
+   "icon": "phone",
+   "tone": "pink",
+   "template": "callrecap"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "weekly": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Top 3"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Mon"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Tue"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Wed"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Thu"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Fri"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Notes"
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Weekly plan",
+   "icon": "calendar",
+   "tone": "blue",
+   "template": "weekly"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ },
+ "quarterly": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "columns",
+    "content": [
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Themes"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Integrators"
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Editors"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "column",
+      "content": [
+       {
+        "type": "heading",
+        "attrs": {
+         "level": 3
+        },
+        "content": [
+         {
+          "type": "text",
+          "text": "Constraints"
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Hiring freeze"
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Two releases"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "toggle",
+    "attrs": {
+     "open": false
+    },
+    "content": [
+     {
+      "type": "toggleSummary",
+      "content": [
+       {
+        "type": "text",
+        "text": "Risks"
+       }
+      ]
+     },
+     {
+      "type": "toggleContent",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Quarterly planning",
+   "icon": "calendar-range",
+   "tone": "purple",
+   "template": "quarterly"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Q1 OKRs",
+    "icon": "target",
+    "tone": "amber",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Key result",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "obj",
+      "name": "Objective",
+      "type": "select",
+      "options": [
+       {
+        "v": "Win integrators",
+        "c": "blue"
+       },
+       {
+        "v": "Delight editors",
+        "c": "pink"
+       },
+       {
+        "v": "Run lean",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "prog",
+      "name": "Progress",
+      "type": "progress",
+      "options": null
+     },
+     {
+      "id": "conf",
+      "name": "Confidence",
+      "type": "status",
+      "options": [
+       {
+        "v": "On track",
+        "c": "green"
+       },
+       {
+        "v": "At risk",
+        "c": "amber"
+       },
+       {
+        "v": "Off track",
+        "c": "red"
+       }
+      ]
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "3 hosts live in production",
+      "obj": "Win integrators",
+      "owner": "asha",
+      "prog": 33,
+      "conf": "On track",
+      "due": "2027-03-31"
+     },
+     "rbxc0r79ise": {
+      "title": "Time-to-first-embed under 1 day",
+      "obj": "Win integrators",
+      "owner": "ravi",
+      "prog": 60,
+      "conf": "On track",
+      "due": "2027-02-28"
+     },
+     "rbxc0gies3l": {
+      "title": "p95 remote latency under 150 ms",
+      "obj": "Delight editors",
+      "owner": "lin",
+      "prog": 45,
+      "conf": "At risk",
+      "due": "2027-03-15"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Idle node RSS under 40 MB",
+      "obj": "Run lean",
+      "owner": "ravi",
+      "prog": 80,
+      "conf": "On track",
+      "due": "2027-01-31"
+     },
+     "rbxc07vrrcp": {
+      "title": "Zero divergence incidents",
+      "obj": "Delight editors",
+      "owner": "priya",
+      "prog": 100,
+      "conf": "On track",
+      "due": "2027-03-31"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "contentcal": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Content calendar",
+   "icon": "calendar-days",
+   "tone": "pink",
+   "template": "contentcal"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Content calendar",
+    "icon": "calendar-days",
+    "tone": "pink",
+    "view": "calendar",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Title",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "Idea",
+        "c": "gray"
+       },
+       {
+        "v": "Drafting",
+        "c": "blue"
+       },
+       {
+        "v": "Review",
+        "c": "amber"
+       },
+       {
+        "v": "Scheduled",
+        "c": "purple"
+       },
+       {
+        "v": "Published",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "ch",
+      "name": "Channel",
+      "type": "tags",
+      "options": [
+       {
+        "v": "Blog",
+        "c": "blue"
+       },
+       {
+        "v": "LinkedIn",
+        "c": "purple"
+       },
+       {
+        "v": "Newsletter",
+        "c": "green"
+       },
+       {
+        "v": "Video",
+        "c": "pink"
+       }
+      ]
+     },
+     {
+      "id": "author",
+      "name": "Author",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "date",
+      "name": "Publish date",
+      "type": "date",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp",
+     "rbxc01oyww1"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Why the file should stay in your app",
+      "status": "Published",
+      "ch": [
+       "Blog"
+      ],
+      "author": "asha",
+      "date": "2026-11-04"
+     },
+     "rbxc0r79ise": {
+      "title": "Live cursors, explained",
+      "status": "Scheduled",
+      "ch": [
+       "Blog",
+       "LinkedIn"
+      ],
+      "author": "lin",
+      "date": "2026-11-24"
+     },
+     "rbxc0gies3l": {
+      "title": "November product update",
+      "status": "Review",
+      "ch": [
+       "Newsletter"
+      ],
+      "author": "priya",
+      "date": "2026-11-27"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Embed a canvas in 5 minutes",
+      "status": "Drafting",
+      "ch": [
+       "Video"
+      ],
+      "author": "ravi",
+      "date": "2026-12-02"
+     },
+     "rbxc07vrrcp": {
+      "title": "Customer story: Acme Schools",
+      "status": "Idea",
+      "ch": [
+       "Blog"
+      ],
+      "author": "asha",
+      "date": "2026-12-09"
+     },
+     "rbxc01oyww1": {
+      "title": "Templates gallery launch",
+      "status": "Scheduled",
+      "ch": [
+       "LinkedIn"
+      ],
+      "author": "priya",
+      "date": "2026-11-18"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "event": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "callout",
+    "attrs": {
+     "tone": "amber",
+     "icon": "map-pin"
+    },
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Where:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " · "
+       },
+       {
+        "type": "text",
+        "text": "When:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " · "
+       },
+       {
+        "type": "text",
+        "text": "Guests:",
+        "marks": [
+         {
+          "type": "bold"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Run of show"
+     }
+    ]
+   },
+   {
+    "type": "orderedList",
+    "content": [
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     },
+     {
+      "type": "listItem",
+      "content": [
+       {
+        "type": "paragraph"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Event plan",
+   "icon": "party-popper",
+   "tone": "amber",
+   "template": "event"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Event tasks",
+    "icon": "party-popper",
+    "tone": "pink",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Task",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "Backlog",
+        "c": "gray"
+       },
+       {
+        "v": "In progress",
+        "c": "blue"
+       },
+       {
+        "v": "In review",
+        "c": "amber"
+       },
+       {
+        "v": "Done",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     },
+     {
+      "id": "budget",
+      "name": "Budget ($)",
+      "type": "number",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Book venue",
+      "status": "Done",
+      "owner": "asha",
+      "due": "2026-11-10",
+      "budget": 4200
+     },
+     "rbxc0r79ise": {
+      "title": "Speaker lineup",
+      "status": "In progress",
+      "owner": "priya",
+      "due": "2026-11-28",
+      "budget": 0
+     },
+     "rbxc0gies3l": {
+      "title": "Catering order",
+      "status": "Backlog",
+      "owner": "ravi",
+      "due": "2026-12-05",
+      "budget": 1800
+     },
+     "rbxc0j6gsdj": {
+      "title": "Swag and badges",
+      "status": "In review",
+      "owner": "lin",
+      "due": "2026-12-01",
+      "budget": 950
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "mindmap": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "board",
+    "attrs": {
+     "boardId": "bdbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Mind map",
+   "icon": "network",
+   "tone": "purple",
+   "template": "mindmap"
+  },
+  "databases": {},
+  "boards": {
+   "bdbxc0000d58": {
+    "shapes": {
+     "sbxc04qh0z1": {
+      "type": "arrow",
+      "pts": [
+       [
+        375,
+        207
+       ],
+       [
+        125,
+        64
+       ]
+      ],
+      "id": "sbxc04qh0z1"
+     },
+     "sbxc0r79ise": {
+      "type": "arrow",
+      "pts": [
+       [
+        375,
+        207
+       ],
+       [
+        125,
+        324
+       ]
+      ],
+      "id": "sbxc0r79ise"
+     },
+     "sbxc0gies3l": {
+      "type": "arrow",
+      "pts": [
+       [
+        375,
+        207
+       ],
+       [
+        625,
+        64
+       ]
+      ],
+      "id": "sbxc0gies3l"
+     },
+     "sbxc0j6gsdj": {
+      "type": "arrow",
+      "pts": [
+       [
+        375,
+        207
+       ],
+       [
+        625,
+        324
+       ]
+      ],
+      "id": "sbxc0j6gsdj"
+     },
+     "sbxc07vrrcp": {
+      "type": "arrow",
+      "pts": [
+       [
+        375,
+        207
+       ],
+       [
+        375,
+        34
+       ]
+      ],
+      "id": "sbxc07vrrcp"
+     },
+     "sbxc01oyww1": {
+      "type": "arrow",
+      "pts": [
+       [
+        375,
+        207
+       ],
+       [
+        375,
+        354
+       ]
+      ],
+      "id": "sbxc01oyww1"
+     },
+     "sbxc0oft41g": {
+      "type": "ellipse",
+      "x": 290,
+      "y": 170,
+      "w": 170,
+      "h": 74,
+      "text": "Launch plan",
+      "id": "sbxc0oft41g"
+     },
+     "sbxc0ogd941": {
+      "type": "rect",
+      "x": 60,
+      "y": 40,
+      "w": 130,
+      "h": 48,
+      "label": "",
+      "dashed": false,
+      "text": "Audience",
+      "id": "sbxc0ogd941"
+     },
+     "sbxc0xnd155": {
+      "type": "rect",
+      "x": 60,
+      "y": 300,
+      "w": 130,
+      "h": 48,
+      "label": "",
+      "dashed": false,
+      "text": "Pricing",
+      "id": "sbxc0xnd155"
+     },
+     "sbxc0dt0o84": {
+      "type": "rect",
+      "x": 560,
+      "y": 40,
+      "w": 130,
+      "h": 48,
+      "label": "",
+      "dashed": false,
+      "text": "Channels",
+      "id": "sbxc0dt0o84"
+     },
+     "sbxc0ip5w1r": {
+      "type": "rect",
+      "x": 560,
+      "y": 300,
+      "w": 130,
+      "h": 48,
+      "label": "",
+      "dashed": false,
+      "text": "Metrics",
+      "id": "sbxc0ip5w1r"
+     },
+     "sbxc0twxiov": {
+      "type": "rect",
+      "x": 310,
+      "y": 10,
+      "w": 130,
+      "h": 48,
+      "label": "",
+      "dashed": false,
+      "text": "Messaging",
+      "id": "sbxc0twxiov"
+     },
+     "sbxc018szvb": {
+      "type": "rect",
+      "x": 310,
+      "y": 330,
+      "w": 130,
+      "h": 48,
+      "label": "",
+      "dashed": false,
+      "text": "Timeline",
+      "id": "sbxc018szvb"
+     }
+    },
+    "order": [
+     "sbxc04qh0z1",
+     "sbxc0r79ise",
+     "sbxc0gies3l",
+     "sbxc0j6gsdj",
+     "sbxc07vrrcp",
+     "sbxc01oyww1",
+     "sbxc0oft41g",
+     "sbxc0ogd941",
+     "sbxc0xnd155",
+     "sbxc0dt0o84",
+     "sbxc0ip5w1r",
+     "sbxc0twxiov",
+     "sbxc018szvb"
+    ]
+   }
+  },
+  "comments": {}
+ },
+ "flowchart": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "board",
+    "attrs": {
+     "boardId": "bdbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Flowchart",
+   "icon": "workflow",
+   "tone": "blue",
+   "template": "flowchart"
+  },
+  "databases": {},
+  "boards": {
+   "bdbxc0000d58": {
+    "shapes": {
+     "sbxc04qh0z1": {
+      "type": "ellipse",
+      "x": 270,
+      "y": 20,
+      "w": 160,
+      "h": 56,
+      "text": "Start",
+      "id": "sbxc04qh0z1"
+     },
+     "sbxc0r79ise": {
+      "type": "arrow",
+      "pts": [
+       [
+        350,
+        76
+       ],
+       [
+        350,
+        110
+       ]
+      ],
+      "id": "sbxc0r79ise"
+     },
+     "sbxc0gies3l": {
+      "type": "rect",
+      "x": 260,
+      "y": 110,
+      "w": 180,
+      "h": 60,
+      "label": "",
+      "dashed": false,
+      "text": "User opens link",
+      "id": "sbxc0gies3l"
+     },
+     "sbxc0j6gsdj": {
+      "type": "arrow",
+      "pts": [
+       [
+        350,
+        170
+       ],
+       [
+        350,
+        200
+       ]
+      ],
+      "id": "sbxc0j6gsdj"
+     },
+     "sbxc07vrrcp": {
+      "type": "diamond",
+      "x": 270,
+      "y": 200,
+      "w": 160,
+      "h": 100,
+      "text": "Has access?",
+      "id": "sbxc07vrrcp"
+     },
+     "sbxc01oyww1": {
+      "type": "arrow",
+      "pts": [
+       [
+        430,
+        250
+       ],
+       [
+        540,
+        250
+       ]
+      ],
+      "id": "sbxc01oyww1"
+     },
+     "sbxc0oft41g": {
+      "type": "rect",
+      "x": 540,
+      "y": 222,
+      "w": 150,
+      "h": 56,
+      "label": "",
+      "dashed": false,
+      "text": "Open editor",
+      "id": "sbxc0oft41g"
+     },
+     "sbxc0ogd941": {
+      "type": "arrow",
+      "pts": [
+       [
+        270,
+        250
+       ],
+       [
+        160,
+        250
+       ]
+      ],
+      "id": "sbxc0ogd941"
+     },
+     "sbxc0xnd155": {
+      "type": "rect",
+      "x": 10,
+      "y": 222,
+      "w": 150,
+      "h": 56,
+      "label": "",
+      "dashed": false,
+      "text": "Ask the host",
+      "id": "sbxc0xnd155"
+     },
+     "sbxc0dt0o84": {
+      "type": "text",
+      "x": 470,
+      "y": 240,
+      "text": "yes",
+      "size": 13,
+      "id": "sbxc0dt0o84"
+     },
+     "sbxc0ip5w1r": {
+      "type": "text",
+      "x": 200,
+      "y": 240,
+      "text": "no",
+      "size": 13,
+      "id": "sbxc0ip5w1r"
+     }
+    },
+    "order": [
+     "sbxc04qh0z1",
+     "sbxc0r79ise",
+     "sbxc0gies3l",
+     "sbxc0j6gsdj",
+     "sbxc07vrrcp",
+     "sbxc01oyww1",
+     "sbxc0oft41g",
+     "sbxc0ogd941",
+     "sbxc0xnd155",
+     "sbxc0dt0o84",
+     "sbxc0ip5w1r"
+    ]
+   }
+  },
+  "comments": {}
+ },
+ "kanban": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Kanban board",
+   "icon": "square-kanban",
+   "tone": "green",
+   "template": "kanban"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Kanban",
+    "icon": "square-kanban",
+    "tone": "blue",
+    "view": "board",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Card",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "To do",
+        "c": "gray"
+       },
+       {
+        "v": "Doing",
+        "c": "blue"
+       },
+       {
+        "v": "Review",
+        "c": "amber"
+       },
+       {
+        "v": "Done",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "owner",
+      "name": "Owner",
+      "type": "person",
+      "options": null
+     },
+     {
+      "id": "due",
+      "name": "Due",
+      "type": "date",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Collect requirements",
+      "status": "Done",
+      "owner": "asha",
+      "due": "2026-11-18"
+     },
+     "rbxc0r79ise": {
+      "title": "Draft the plan",
+      "status": "Doing",
+      "owner": "priya",
+      "due": "2026-11-24"
+     },
+     "rbxc0gies3l": {
+      "title": "Review with stakeholders",
+      "status": "To do",
+      "owner": "ravi",
+      "due": "2026-11-27"
+     },
+     "rbxc0j6gsdj": {
+      "title": "Kickoff",
+      "status": "To do",
+      "owner": null,
+      "due": "2026-12-01"
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "reading": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Reading list",
+   "icon": "book-open",
+   "tone": "green",
+   "template": "reading"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Reading list",
+    "icon": "book-open",
+    "tone": "green",
+    "view": "gallery",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Title",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "author",
+      "name": "Author",
+      "type": "text",
+      "options": null
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "type": "status",
+      "options": [
+       {
+        "v": "To read",
+        "c": "gray"
+       },
+       {
+        "v": "Reading",
+        "c": "blue"
+       },
+       {
+        "v": "Finished",
+        "c": "green"
+       }
+      ]
+     },
+     {
+      "id": "rating",
+      "name": "Rating",
+      "type": "number",
+      "options": null
+     },
+     {
+      "id": "tags",
+      "name": "Topics",
+      "type": "tags",
+      "options": [
+       {
+        "v": "Design",
+        "c": "pink"
+       },
+       {
+        "v": "Systems",
+        "c": "purple"
+       },
+       {
+        "v": "Leadership",
+        "c": "amber"
+       }
+      ]
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Designing Data-Intensive Applications",
+      "author": "Martin Kleppmann",
+      "status": "Reading",
+      "rating": null,
+      "tags": [
+       "Systems"
+      ]
+     },
+     "rbxc0r79ise": {
+      "title": "The Design of Everyday Things",
+      "author": "Don Norman",
+      "status": "Finished",
+      "rating": 5,
+      "tags": [
+       "Design"
+      ]
+     },
+     "rbxc0gies3l": {
+      "title": "An Elegant Puzzle",
+      "author": "Will Larson",
+      "status": "To read",
+      "rating": null,
+      "tags": [
+       "Leadership",
+       "Systems"
+      ]
+     },
+     "rbxc0j6gsdj": {
+      "title": "Thinking in Systems",
+      "author": "Donella Meadows",
+      "status": "Finished",
+      "rating": 4,
+      "tags": [
+       "Systems"
+      ]
+     },
+     "rbxc07vrrcp": {
+      "title": "Refactoring UI",
+      "author": "Wathan & Schoger",
+      "status": "To read",
+      "rating": null,
+      "tags": [
+       "Design"
+      ]
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "habits": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "database",
+    "attrs": {
+     "dbId": "dbxc0000d58"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Habit tracker",
+   "icon": "repeat",
+   "tone": "amber",
+   "template": "habits"
+  },
+  "databases": {
+   "dbxc0000d58": {
+    "name": "Habit tracker",
+    "icon": "repeat",
+    "tone": "green",
+    "view": "table",
+    "fields": [
+     {
+      "id": "title",
+      "name": "Day",
+      "type": "title",
+      "options": null
+     },
+     {
+      "id": "ex",
+      "name": "Exercise",
+      "type": "checkbox",
+      "options": null
+     },
+     {
+      "id": "read",
+      "name": "Read 20 min",
+      "type": "checkbox",
+      "options": null
+     },
+     {
+      "id": "med",
+      "name": "Meditate",
+      "type": "checkbox",
+      "options": null
+     },
+     {
+      "id": "sleep",
+      "name": "Sleep (h)",
+      "type": "number",
+      "options": null
+     }
+    ],
+    "order": [
+     "rbxc04qh0z1",
+     "rbxc0r79ise",
+     "rbxc0gies3l",
+     "rbxc0j6gsdj",
+     "rbxc07vrrcp"
+    ],
+    "rows": {
+     "rbxc04qh0z1": {
+      "title": "Mon, Nov 16",
+      "ex": true,
+      "read": true,
+      "med": false,
+      "sleep": 7.5
+     },
+     "rbxc0r79ise": {
+      "title": "Tue, Nov 17",
+      "ex": false,
+      "read": true,
+      "med": true,
+      "sleep": 6.5
+     },
+     "rbxc0gies3l": {
+      "title": "Wed, Nov 18",
+      "ex": true,
+      "read": false,
+      "med": true,
+      "sleep": 8
+     },
+     "rbxc0j6gsdj": {
+      "title": "Thu, Nov 19",
+      "ex": true,
+      "read": true,
+      "med": true,
+      "sleep": 7
+     },
+     "rbxc07vrrcp": {
+      "title": "Fri, Nov 20",
+      "ex": false,
+      "read": true,
+      "med": false,
+      "sleep": 6
+     }
+    },
+    "notes": {},
+    "views": {}
+   }
+  },
+  "boards": {},
+  "comments": {}
+ },
+ "trip": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "table",
+    "content": [
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Day"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Plan"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableHeader",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Stay"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Fri"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Fly to Lisbon"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Alfama"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "tableRow",
+      "content": [
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Sat"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Sintra day trip"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "tableCell",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Alfama"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 2
+    },
+    "content": [
+     {
+      "type": "text",
+      "text": "Packing"
+     }
+    ]
+   },
+   {
+    "type": "taskList",
+    "content": [
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Passport"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Adapter"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "taskItem",
+      "attrs": {
+       "checked": false
+      },
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Rain jacket"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "bookmark",
+    "attrs": {
+     "url": "https://maps.example.com",
+     "title": "Saved places",
+     "description": "12 places · Lisbon",
+     "site": "maps.example.com"
+    }
+   },
+   {
+    "type": "paragraph"
+   }
+  ],
+  "meta": {
+   "title": "Trip planner",
+   "icon": "plane",
+   "tone": "blue",
+   "template": "trip"
+  },
+  "databases": {},
+  "boards": {},
+  "comments": {}
+ }
+}

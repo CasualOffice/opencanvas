@@ -170,6 +170,12 @@ fn op_blocks(
         };
         ids.push(id);
     }
+    // MOD-01: refuse blocks that break the schema, naming the bad node; unknown content
+    // is kept (a warning).
+    let report = crate::validate::record(crate::validate::validate_blocks("blocks", &nodes));
+    if let Some(e) = report.first_error() {
+        return Err(PatchError::Invalid(n, e));
+    }
     Ok(nodes)
 }
 

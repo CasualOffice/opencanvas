@@ -13,9 +13,11 @@ pub mod import;
 pub mod ocanvas;
 pub mod patch;
 pub mod people;
+pub mod validate;
 
 pub use doc::{doc_to_json, ensure_roots, is_empty, new_doc};
 pub use ocanvas::{CommitInfo, Error, read_ocanvas, write_ocanvas};
+pub use validate::{Issue, Report, validate, validate_blocks, validate_json};
 
 /// Root names of the shared Y.Doc (docs/15 §4).
 pub mod roots {

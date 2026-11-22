@@ -227,16 +227,19 @@ with 1,000 rooms of nonstop typing in `wal` mode stays above the 700 ms p95 targ
 
 ### Block schema validation and format compatibility
 
-`oc-model` has **no block schema validation** (tracker MOD-01, Todo): the schema is only mirrored
-by the `doc.rs` walk and the web `schema.test.ts`. Unknown blocks and attributes are kept, not
-checked. Format caveats:
+`oc-model` validates the block schema (MOD-01, docs/15 §4.1) when a `.ocanvas` is read and on REST
+patch, import and MCP writes: a document or block that breaks it is refused with the path of the
+bad node. Unknown blocks, marks and attributes are only warnings (counted in
+`oc_schema_warnings_total`) and are kept. The rules cover the server's view of the schema; the web
+editor still relies on ProseMirror's own schema, and link/embed URLs are sanitised on export rather
+than checked. Format caveats:
 
 - Only `.ocanvas` format version 1 exists; files from other writers are read as tested in
   **FC-03b** (`document.json` only, `ydoc.bin` only as a v2 update, no manifest).
 - The reader prefers `ydoc.bin`: a tool that edits only `document.json` must drop `ydoc.bin` or
   bump `schemaVersion` (**FC-06**, docs/04 §2.3).
 - HTML import is a forgiving parser and is tested by `tests/import.rs`, not a full round trip.
-- The built-in templates are not loaded by a server-side test (**FC-07** Not run).
+- All 40 built-in templates are validated and round-tripped by a server-side test (**FC-07** PASS).
 
 ### AI and MCP
 

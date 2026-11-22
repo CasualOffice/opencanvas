@@ -37,6 +37,9 @@ pub enum Error {
     BadUpdate,
     #[error("render failed: {0}")]
     Render(String),
+    /// The document breaks the block schema (MOD-01): `path: message` of the first error.
+    #[error("document does not match the block schema at {0}")]
+    Invalid(String),
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -170,6 +173,11 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
         (_, Some(json)) => apply_document_json(&doc, &serde_json::from_slice(json)?),
         (Some(bin), None) => apply_update_bytes(&doc, bin)?,
         (None, None) => return Err(Error::Empty),
+    }
+    // MOD-01: errors refuse the file; warnings (unknown content, kept) are only counted.
+    let report = crate::validate::record(crate::validate::validate(&doc));
+    if let Some(e) = report.first_error() {
+        return Err(Error::Invalid(e));
     }
     Ok(Loaded { doc, manifest })
 }
