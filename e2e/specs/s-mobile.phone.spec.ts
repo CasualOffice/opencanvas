@@ -39,6 +39,8 @@ test("MOB-07: comments open full width on a phone", async ({ page }) => {
   await page.getByRole("button", { name: /^Comments/ }).first().tap();
   const side = page.locator("aside.side[aria-label=Comments]");
   await expect(side).toBeVisible();
+  // The panel can re-render as it opens; measure once it has a box.
+  await expect.poll(async () => (await side.boundingBox())?.width ?? 0).toBeGreaterThan(0);
   const box = (await side.boundingBox())!;
   const vw = page.viewportSize()!.width;
   expect(box.x).toBeGreaterThanOrEqual(-1);
