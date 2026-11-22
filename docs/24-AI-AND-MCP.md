@@ -512,13 +512,22 @@ and reload like comments do. The role filter (COL-03) gains: `comment` may write
    `resource`) = `https://canvas.example.com/mcp/{hostId}`; `scope` from `canvas:read`,
    `canvas:comment`, `canvas:write`, `canvas:write:direct`; lifetime ≤ 15 min (refresh at the
    host); optional `files` claim restricting the token to listed file ids.
+   The audience base is configuration only: `[host.ai] mcp_audience` (a public base URL), else
+   `OC_PUBLIC_URL`. It is never built from request headers. Without either, MCP is off for the
+   host (`/mcp/{hostId}` and its metadata answer `404`, session `ai.mcp` is false) and the server
+   logs one start-up warning (SEC-33).
 3. **No token passthrough.** OpenCanvas never forwards a client's MCP token anywhere. When it
    calls the host it uses its own signed callback channel (HMAC `v2`, ADR-022) and names the user
    in the signed body. Tokens issued for other audiences are refused.
 4. **Scope is a ceiling; the host role decides.** The effective permission for a call is
    `min(token scope, host role for (user, file))`. Scope `canvas:write` does not let a `view` user
    write.
-5. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
+5. **A token names its files unless the host answers `/access`.** When the host implements
+   `POST /access`, the per-file role comes from it. When it does not, a token without a `files`
+   claim is refused (`ROLE_FORBIDDEN`, message `FILES_REQUIRED: …`), because its `role` claim
+   would otherwise apply to every file of the host. A host that really wants that sets
+   `[host.ai] mcp_all_files = true` (broad: one token covers all its files) (SEC-34).
+6. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
    member invalidation also cut off running agent runs and cached MCP role answers for that user.
 
 ### 7.2 Flows
@@ -565,7 +574,7 @@ New optional callbacks, signed like the existing ones:
 
 | Callback | Request | Response | Used for |
 |---|---|---|---|
-| `POST /access` | `{fileId, userId, client?: {id, name}}` | `{role: "view"\|"comment"\|"edit"\|"none"}` | Per-file role for MCP calls without a launch session (cached 30 s per user and file, dropped by the role API and member invalidation; `404`/`405`/`501` = not implemented, then the token's `role` claim is used) |
+| `POST /access` | `{fileId, userId, client?: {id, name}}` | `{role: "view"\|"comment"\|"edit"\|"none"}` | Per-file role for MCP calls without a launch session (cached 30 s per user and file, dropped by the role API and member invalidation; `404`/`405`/`501` = not implemented, then the token's `role` claim is used for the files the token's `files` claim lists; a token without `files` is refused unless `mcp_all_files = true`, §7.1 rule 5) |
 | `POST /ai/events` | `{runId, fileId, userId, agent, event, tool?, counts, usage?, at}` | `2xx` | Audit (§9.3) |
 | `GET /search` | `?q=&userId=&limit=` | `[{fileId, name, url, excerpt}]` | `canvas_search` across files (phase 3) |
 
@@ -589,6 +598,10 @@ model_agent     = "claude-opus-5-5"   # optional per-host overrides of the profi
 model_fast      = "claude-sonnet-5-5"
 mcp             = true
 mcp_issuer      = "https://id.acme.example"   # authorization server named in PRM
+mcp_audience    = "https://canvas.example.com" # public base URL; aud = {this}/mcp/{hostId}.
+                                      # Default OC_PUBLIC_URL; with neither, MCP is off
+mcp_all_files   = false               # true: without /access, a token with no `files` claim
+                                      # covers every file (broad; off by default)
 mcp_jwks_url    = "https://id.acme.example/.well-known/jwks.json"
 default_mode    = "suggest"           # direct | suggest, for changes to existing content
 features        = ["rewrite", "summarise", "ask", "autofill", "assistant", "board"]

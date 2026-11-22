@@ -172,7 +172,7 @@ OpenCanvas:
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
-| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none"}`. Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used); other errors refuse the call (`INTERNAL`) |
+| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none"}`. Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
 
@@ -243,7 +243,9 @@ placeholders, which are ignored), Collabora style.
 
 **Launch.** Your page form-POSTs `access_token` and `access_token_ttl` (ms since the epoch; 0 or
 absent = 10 h) into an iframe at `/v1/launch?WOPISrc=<urlencoded https://host/wopi/files/<id>>`.
-We answer `303 /app/#t=<ticket>`, like a JWT launch. The session expires at `access_token_ttl`.
+We answer `303 /app/#t=<ticket>`, like a JWT launch. The session expires at `access_token_ttl`,
+capped at 10 h from the launch like a JWT session (SEC-35); after that, launch again (the editor's
+`Action_RefreshToken` renewal is a fresh launch).
 `401 TOKEN_INVALID` when CheckFileInfo answers 4xx or the ttl has passed. The access token is
 opaque to us, sealed at rest under `OC_KEK` like a callback token, sent only in the query string
 of calls to `WOPISrc` (as WOPI requires), and never logged. The file id (room, REST API path) is
@@ -338,7 +340,9 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
 
 ## 7a. MCP endpoint (AI-01, ADR-032; off by default)
 
-Turn it on per host with `[host.ai] mcp = true`. External MCP clients and your own agents call
+Turn it on per host with `[host.ai] mcp = true`, and give it a public URL: `OC_PUBLIC_URL`, or
+`[host.ai] mcp_audience` for this host. Without one, MCP stays off (`404`) and the server logs a
+start-up warning; the audience is never taken from the request's `Host` header. External MCP clients and your own agents call
 `POST /mcp/{hostId}` (streamable HTTP, stateless, one JSON-RPC message per POST, JSON answers;
 MCP `2026-07-28`, and `2025-11-25` by version negotiation). Methods: `initialize`
 (`server/discover`), `ping`, `tools/list`, `tools/call`, `resources/templates/list`,
@@ -350,17 +354,20 @@ same keys as launch tokens (HS256 secret, PEM or JWKS):
 | claim | value |
 |---|---|
 | `iss` | your host id, or `[host.ai] mcp_issuer` |
-| `aud` | `https://<opencanvas>/mcp/{hostId}` (a token for another host or a launch token is refused) |
+| `aud` | `{mcp_audience or OC_PUBLIC_URL}/mcp/{hostId}` (a token for another host or a launch token is refused) |
 | `sub` | the user id (`svc:<name>` for a backend job) |
 | `exp` | at most 15 minutes ahead |
 | `scope` | space-separated `canvas:read`, `canvas:comment`, `canvas:write`, `canvas:write:direct` |
 | `role` | the user's role on the files (`view`/`comment`/`edit`; absent = `view`) |
-| `files` | optional list of file ids the token covers |
+| `files` | the file ids the token covers; **required** when you do not implement `POST /access` (see below) |
 | `name`, `client_id` | optional display name; client id recorded in the edit origin `mcp:<clientId>` |
 
 **Role source.** If you implement the optional `POST /access` callback (§5), OpenCanvas asks it
 for the user's role on each file an MCP call touches (cached 30 s) and ignores the token's
-`role` claim; `none` refuses every tool. Without it, the `role` claim is trusted.
+`role` claim; `none` refuses every tool. Without it, the `role` claim is trusted, but only for
+the files the token lists in `files`: a token without `files` is refused (`ROLE_FORBIDDEN`,
+`FILES_REQUIRED: …`). Setting `[host.ai] mcp_all_files = true` lifts that and lets one token's
+role apply to **every file of the host**; it is broad, so prefer `files` or `/access` (SEC-34).
 
 The effective permission is `min(scope, role)`: `canvas:write` does not let a `view` user write,
 and a `canvas:read` token does not let an editor write. A request without a valid token gets

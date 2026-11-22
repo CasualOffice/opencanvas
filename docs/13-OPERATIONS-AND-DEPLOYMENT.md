@@ -180,13 +180,20 @@ Off unless set per host. Phase 1 (AI-01) reads:
 [host.ai]
 mcp              = true                        # POST /mcp/{hostId}; default false (404)
 mcp_issuer       = "https://id.acme.example"   # `iss` of MCP tokens; default the host id
+mcp_audience     = "https://canvas.example.com" # public base URL of /mcp; default OC_PUBLIC_URL
+mcp_all_files    = false                       # true: without /access, a token with no `files`
+                                               # covers every file of the host (broad)
 default_mode     = "suggest"                   # suggest | direct, for changes to existing content
 mcp_rate_per_min = 120                         # per token; burst 2x
 ```
 
 MCP tokens are verified with the host's launch-token keys (`jwt_secret`, `jwt_public_key` or
-`jwt_jwks_url`). Set `OC_PUBLIC_URL` so the token audience and the protected-resource metadata
-URL are the public one (otherwise the request's `Host` is used). Tool calls run on the node that
+`jwt_jwks_url`). The token audience and the protected-resource metadata URL come from
+`[host.ai] mcp_audience`, else `OC_PUBLIC_URL`, never from request headers: with neither set, MCP
+is off (`404`) and start-up logs `MCP is off because OC_PUBLIC_URL isn't set` once (SEC-33).
+Without the host's `/access` callback, MCP tokens must carry a `files` claim unless
+`mcp_all_files = true` (SEC-34). WOPI sessions are capped at 10 h whatever `access_token_ttl`
+says (SEC-35). Tool calls run on the node that
 owns the room; in cluster mode a call that lands on another node is forwarded to the owner over
 the signed internal API (`POST /v1/internal/tools/:room`, `OC_CLUSTER_SECRET`), carrying only the
 verified identity (never the bearer token), with a request id so a retry never runs twice. If
