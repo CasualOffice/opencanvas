@@ -95,6 +95,8 @@ pub struct HostClient {
     store: Option<Store>,
     /// WOPI mode: `BaseFileName` per `WOPISrc` (decides `.md` vs `.ocanvas` on save).
     wopi_names: Arc<Mutex<HashMap<String, String>>>,
+    /// WOPI proof keys: every WOPI call is signed (docs/05 §6.4).
+    proof: Option<crate::proof::ProofKeys>,
 }
 
 /// Largest image fetched for an export.
@@ -170,6 +172,7 @@ impl HostClient {
             store: None,
             wopi_names: Arc::default(),
             access_cache: Arc::default(),
+            proof: None,
         }
     }
 
@@ -177,6 +180,17 @@ impl HostClient {
     pub fn with_store(mut self, store: Store) -> Self {
         self.store = Some(store);
         self
+    }
+
+    /// Gives the client the WOPI proof keys it signs every WOPI call with.
+    pub fn with_proof(mut self, proof: Option<crate::proof::ProofKeys>) -> Self {
+        self.proof = proof;
+        self
+    }
+
+    /// The WOPI proof keys, when configured.
+    pub fn wopi_proof(&self) -> Option<&crate::proof::ProofKeys> {
+        self.proof.as_ref()
     }
 
     /// The HTTP client for WOPI calls (no redirects).
@@ -202,7 +216,7 @@ impl HostClient {
         if let Some(n) = cached {
             return n;
         }
-        match wopi::check_file_info(&self.assets, src, token).await {
+        match wopi::check_file_info(&self.assets, self.proof.as_ref(), src, token).await {
             Ok(info) => {
                 self.remember_wopi_name(src, &info.base_file_name);
                 info.base_file_name
@@ -243,9 +257,10 @@ impl HostClient {
         src: &Url,
         token: &str,
     ) -> Result<Fetched, HostError> {
-        let info = wopi::check_file_info(&self.assets, src, token).await?;
+        let info = wopi::check_file_info(&self.assets, self.proof.as_ref(), src, token).await?;
         self.remember_wopi_name(src, &info.base_file_name);
-        let (bytes, content_type) = wopi::get_contents(&self.assets, src, token).await?;
+        let (bytes, content_type) =
+            wopi::get_contents(&self.assets, self.proof.as_ref(), src, token).await?;
         if bytes.is_empty() {
             return Ok(Fetched::Missing);
         }
@@ -293,14 +308,23 @@ impl HostClient {
             let room = crate::grant::room_id(&host.id, src.as_str());
             self.inline_assets(&room, req.body).await?
         };
-        match wopi::put_contents(&self.assets, src, token, body, req.if_match).await? {
+        match wopi::put_contents(
+            &self.assets,
+            self.proof.as_ref(),
+            src,
+            token,
+            body,
+            req.if_match,
+        )
+        .await?
+        {
             wopi::PutResult::Conflict => Ok(PutOutcome::Conflict),
             wopi::PutResult::Saved(Some(stamp)) => Ok(PutOutcome::Saved {
                 version: Some(stamp),
             }),
             // No LastModifiedTime in the answer: ask for it, so the next save is checked.
             wopi::PutResult::Saved(None) => {
-                let version = wopi::check_file_info(&self.assets, src, token)
+                let version = wopi::check_file_info(&self.assets, self.proof.as_ref(), src, token)
                     .await
                     .ok()
                     .and_then(|i| i.stamp());
@@ -319,7 +343,15 @@ impl HostClient {
         let name = self.wopi_name(src, token).await;
         let room = crate::grant::room_id(&host.id, src.as_str());
         let body = self.inline_assets(&room, body).await?;
-        wopi::put_relative(&self.assets, src, token, body, &wopi::copy_name(&name)).await
+        wopi::put_relative(
+            &self.assets,
+            self.proof.as_ref(),
+            src,
+            token,
+            body,
+            &wopi::copy_name(&name),
+        )
+        .await
     }
 
     fn url(host: &HostConfig, segments: &[&str]) -> Result<Url, HostError> {

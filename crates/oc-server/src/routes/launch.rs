@@ -197,7 +197,14 @@ async fn launch_wopi(
             "access_token_ttl has passed".into(),
         ));
     }
-    let info = match wopi::check_file_info(state.host.wopi_http(), &src, &form.access_token).await {
+    let info = match wopi::check_file_info(
+        state.host.wopi_http(),
+        state.host.wopi_proof(),
+        &src,
+        &form.access_token,
+    )
+    .await
+    {
         Ok(info) => info,
         Err(HostError::Status(s)) if s.is_client_error() => {
             return Err(rejected(
@@ -237,7 +244,7 @@ pub async fn discovery(State(state): State<SharedState>, headers: HeaderMap) -> 
             (header::CONTENT_TYPE, "text/xml; charset=utf-8"),
             (header::CACHE_CONTROL, cache),
         ],
-        wopi::discovery_xml(&public),
+        wopi::discovery_xml(&public, state.host.wopi_proof()),
     )
         .into_response()
 }

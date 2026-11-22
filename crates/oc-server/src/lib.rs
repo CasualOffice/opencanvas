@@ -17,6 +17,7 @@ pub mod metrics;
 pub mod notify;
 pub mod pdf;
 pub mod people;
+pub mod proof;
 pub mod redis_store;
 pub mod redis_wal;
 pub mod room;
@@ -92,7 +93,14 @@ impl AppState {
             );
         }
         let metrics = Arc::new(Metrics::default());
-        let host = HostClient::new().with_store(store.clone());
+        if cfg.wopi_proof.is_none() && hosts.iter().any(|h| h.accepts_wopi()) {
+            anyhow::bail!(
+                "a host speaks WOPI but there are no proof keys: set OC_WOPI_PROOF_KEY (PEM path, 2048-bit RSA; docs/05 §6.4) or OC_DEV=1"
+            );
+        }
+        let host = HostClient::new()
+            .with_store(store.clone())
+            .with_proof(cfg.wopi_proof.clone());
         let members = Arc::new(people::Members::default());
         let ai_cfg = match cfg.ai.clone() {
             Some(c) => c,

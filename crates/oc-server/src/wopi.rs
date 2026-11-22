@@ -9,6 +9,8 @@
 //!   WOPI requires), is sealed at rest like a callback token and never logged: every
 //!   `reqwest` error is stripped of its URL.
 //! - Redirects are never followed.
+//! - Every call carries `X-WOPI-TimeStamp`, `X-WOPI-Proof` and `X-WOPI-ProofOld` (proof keys,
+//!   [`crate::proof`]), which the host may verify against the keys in `/hosting/discovery`.
 
 use std::time::Duration;
 
@@ -19,6 +21,7 @@ use serde_json::Value;
 
 use crate::grant::{FileRef, Grant, Perms, Role, User, derive_color, room_id};
 use crate::host_client::HostError;
+use crate::proof::ProofKeys;
 
 /// Longest accepted `WOPISrc` (it is the file id, stored in `VARCHAR(255)` columns).
 pub const MAX_SRC_LEN: usize = 255;
@@ -269,10 +272,10 @@ fn xml_attr(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// `GET /hosting/discovery`: `ocanvas` (edit, view) and `md` (edit, view, convert → ocanvas).
+/// `GET /hosting/discovery`: the proof keys (`<proof-key …/>`) and `ocanvas` (edit, view) and `md` (edit, view, convert → ocanvas).
 /// `urlsrc` is `{public}/v1/launch?`; hosts append `WOPISrc=<encoded>&…` (Collabora style) and
 /// POST `access_token` + `access_token_ttl`.
-pub fn discovery_xml(public: &str) -> String {
+pub fn discovery_xml(public: &str, proof: Option<&ProofKeys>) -> String {
     let zone = if public.starts_with("https://") {
         "external-https"
     } else {
@@ -300,8 +303,12 @@ pub fn discovery_xml(public: &str) -> String {
         format!(r#"      <action name="getinfo" ext="" urlsrc="{caps}"/>"#),
         "    </app>".into(),
         "  </net-zone>".into(),
-        "</wopi-discovery>".into(),
     ];
+    let mut lines = lines.to_vec();
+    if let Some(p) = proof {
+        lines.push(format!("  {}", p.discovery_element()));
+    }
+    lines.push("</wopi-discovery>".into());
     lines.join("\n") + "\n"
 }
 
@@ -363,6 +370,25 @@ fn with_token(src: &Url, contents: bool, token: &str) -> Url {
     u
 }
 
+/// Sends a WOPI call, signed with the proof keys when there are any.
+async fn send(
+    rb: reqwest::RequestBuilder,
+    proof: Option<&ProofKeys>,
+    url: &Url,
+    token: &str,
+) -> Result<reqwest::Response, HostError> {
+    let mut rb = rb.timeout(Duration::from_secs(10));
+    if let Some(keys) = proof {
+        for (k, v) in keys
+            .sign(token, url.as_str(), crate::proof::ticks_now())
+            .headers()
+        {
+            rb = rb.header(k, v);
+        }
+    }
+    rb.send().await.map_err(net)
+}
+
 /// The response body, at most `limit` bytes.
 async fn body(mut res: reqwest::Response, limit: usize) -> Result<Bytes, HostError> {
     if res.content_length().is_some_and(|l| l > limit as u64) {
@@ -381,15 +407,12 @@ async fn body(mut res: reqwest::Response, limit: usize) -> Result<Bytes, HostErr
 /// `GET {WOPISrc}?access_token=` → CheckFileInfo.
 pub async fn check_file_info(
     http: &reqwest::Client,
+    proof: Option<&ProofKeys>,
     src: &Url,
     token: &str,
 ) -> Result<FileInfo, HostError> {
-    let res = http
-        .get(with_token(src, false, token))
-        .timeout(Duration::from_secs(10))
-        .send()
-        .await
-        .map_err(net)?;
+    let url = with_token(src, false, token);
+    let res = send(http.get(url.clone()), proof, &url, token).await?;
     if !res.status().is_success() {
         return Err(HostError::Status(res.status()));
     }
@@ -402,15 +425,12 @@ pub async fn check_file_info(
 /// `GET {WOPISrc}/contents?access_token=` → GetFile: (bytes, content type).
 pub async fn get_contents(
     http: &reqwest::Client,
+    proof: Option<&ProofKeys>,
     src: &Url,
     token: &str,
 ) -> Result<(Bytes, String), HostError> {
-    let res = http
-        .get(with_token(src, true, token))
-        .timeout(Duration::from_secs(10))
-        .send()
-        .await
-        .map_err(net)?;
+    let url = with_token(src, true, token);
+    let res = send(http.get(url.clone()), proof, &url, token).await?;
     if !res.status().is_success() {
         return Err(HostError::Status(res.status()));
     }
@@ -449,19 +469,20 @@ pub fn put_headers(timestamp: Option<&str>) -> Vec<(&'static str, String)> {
 /// `POST {WOPISrc}/contents?access_token=` with `X-WOPI-Override: PUT` → PutFile.
 pub async fn put_contents(
     http: &reqwest::Client,
+    proof: Option<&ProofKeys>,
     src: &Url,
     token: &str,
     body_bytes: Vec<u8>,
     timestamp: Option<&str>,
 ) -> Result<PutResult, HostError> {
+    let url = with_token(src, true, token);
     let mut rb = http
-        .post(with_token(src, true, token))
-        .timeout(Duration::from_secs(10))
+        .post(url.clone())
         .header(header::CONTENT_TYPE, "application/octet-stream");
     for (k, v) in put_headers(timestamp) {
         rb = rb.header(k, v);
     }
-    let res = rb.body(body_bytes).send().await.map_err(net)?;
+    let res = send(rb.body(body_bytes), proof, &url, token).await?;
     let status = res.status();
     let answer: Value = body(res, 1024 * 1024)
         .await
@@ -490,22 +511,21 @@ pub async fn put_contents(
 /// (`HostEditUrl`, else `HostViewUrl`, else empty).
 pub async fn put_relative(
     http: &reqwest::Client,
+    proof: Option<&ProofKeys>,
     src: &Url,
     token: &str,
     body_bytes: Vec<u8>,
     suggested: &str,
 ) -> Result<(String, String), HostError> {
-    let res = http
-        .post(with_token(src, false, token))
-        .timeout(Duration::from_secs(10))
+    let url = with_token(src, false, token);
+    let rb = http
+        .post(url.clone())
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header("X-WOPI-Override", "PUT_RELATIVE")
         .header("X-WOPI-SuggestedTarget", utf7(suggested))
         .header("X-WOPI-Size", body_bytes.len().to_string())
-        .body(body_bytes)
-        .send()
-        .await
-        .map_err(net)?;
+        .body(body_bytes);
+    let res = send(rb, proof, &url, token).await?;
     if !res.status().is_success() {
         return Err(HostError::Status(res.status()));
     }
@@ -703,7 +723,7 @@ mod tests {
 
     #[test]
     fn discovery_advertises_ocanvas_and_md() {
-        let xml = discovery_xml("https://canvas.example.com");
+        let xml = discovery_xml("https://canvas.example.com", None);
         assert!(xml.starts_with("<?xml"));
         assert!(xml.contains("<wopi-discovery>") && xml.ends_with("</wopi-discovery>\n"));
         assert!(xml.contains(r#"<net-zone name="external-https">"#));
@@ -723,8 +743,8 @@ mod tests {
         }
         assert!(xml.contains(r#"<app name="Capabilities">"#));
         assert!(xml.contains("https://canvas.example.com/hosting/capabilities"));
-        assert!(discovery_xml("http://localhost:8380").contains(r#"name="external-http""#));
-        assert!(discovery_xml("http://x/?a&b").contains("a&amp;b"));
+        assert!(discovery_xml("http://localhost:8380", None).contains(r#"name="external-http""#));
+        assert!(discovery_xml("http://x/?a&b", None).contains("a&amp;b"));
     }
 
     #[test]

@@ -17,6 +17,8 @@
 //   WOPI_SECRET          HMAC key for access tokens (default dev-wopi-secret)
 //   WOPI_HOST_TEST=1     enables POST /__test/files/:id/bump (e2e only: an out-of-band save,
 //                        so OpenCanvas' next PutFile gets a 409 / 1010)
+//   WOPI_PROOF=off       opt-out: do not verify X-WOPI-Proof (for OpenCanvas servers without
+//                        proof keys; default on: every /wopi call must carry a valid proof)
 //
 // opencanvas.hosts.toml needs: [[host]] id="wopi-sample" mode="wopi"
 //                               wopi_allowlist=["http://localhost:4300"]
@@ -34,6 +36,7 @@ const SELF = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const DATA = path.resolve(process.env.DATA_DIR || "./data-wopi");
 const TEST_HOOKS = process.env.WOPI_HOST_TEST === "1";
 const TOKEN_TTL_MS = 10 * 3600 * 1000;
+const PROOF_CHECK = process.env.WOPI_PROOF !== "off";
 fs.mkdirSync(path.join(DATA, "files"), { recursive: true });
 
 const USERS = {
@@ -91,6 +94,66 @@ async function actionUrl(ext) {
   // The browser-facing OpenCanvas origin, whatever origin the discovery document names.
   const src = m ? m[1].replace(/&amp;/g, "&") : `${OC_SERVER}/v1/launch?`;
   return src.replace(/^https?:\/\/[^/]+/, OC_SERVER);
+}
+
+// ---------- proof keys: is this request really from OpenCanvas? (docs/05 §6.4) ----------
+// Signed bytes: be32 len ‖ access_token ‖ be32 len ‖ UPPERCASE(full URL) ‖ be32 8 ‖ be64 ticks.
+// Accepted: X-WOPI-Proof with the current key, X-WOPI-ProofOld with the current key, or
+// X-WOPI-Proof with the old key (rotation). Timestamps older than 20 minutes are refused.
+const TICKS_AT_UNIX_EPOCH = 621355968000000000n;
+const MAX_PROOF_AGE_MS = 20 * 60 * 1000;
+const b64url = s => Buffer.from(s, "base64").toString("base64url");
+function proofKeys(xml) {
+  const tag = (xml.match(/<proof-key [^>]*\/>/) || [])[0];
+  if (!tag) return null;
+  const attr = name => (tag.match(new RegExp(`\\s${name}="([^"]*)"`)) || [])[1];
+  const key = (n, e) => crypto.createPublicKey({ key: { kty: "RSA", n: b64url(n), e: b64url(e) }, format: "jwk" });
+  return { current: key(attr("modulus"), attr("exponent")), old: key(attr("oldmodulus"), attr("oldexponent")) };
+}
+function proofBytes(token, url, ticks) {
+  const t = Buffer.from(token, "utf8");
+  const u = Buffer.from(url.toUpperCase(), "utf8");
+  const out = Buffer.alloc(4 + t.length + 4 + u.length + 4 + 8);
+  let o = out.writeUInt32BE(t.length, 0);
+  o += t.copy(out, o);
+  o = out.writeUInt32BE(u.length, o);
+  o += u.copy(out, o);
+  o = out.writeUInt32BE(8, o);
+  out.writeBigInt64BE(ticks, o);
+  return out;
+}
+const verifyOne = (key, msg, sig) => {
+  try {
+    return !!sig && crypto.verify("sha256", msg, key, Buffer.from(sig, "base64"));
+  } catch {
+    return false;
+  }
+};
+// null when the proof holds, else why it does not.
+async function checkProof(req, token) {
+  if (!PROOF_CHECK) return null;
+  const stamp = String(req.headers["x-wopi-timestamp"] || "");
+  if (!/^\d+$/.test(stamp)) return "no X-WOPI-TimeStamp";
+  const ticks = BigInt(stamp);
+  const ms = Number((ticks - TICKS_AT_UNIX_EPOCH) / 10000n);
+  if (Date.now() - ms > MAX_PROOF_AGE_MS) return "X-WOPI-TimeStamp older than 20 minutes";
+  const msg = proofBytes(String(token || ""), `${SELF}${req.url}`, ticks);
+  const proof = req.headers["x-wopi-proof"];
+  const old = req.headers["x-wopi-proofold"];
+  for (const refresh of [false, true]) {
+    // A miss may be a key rotation: fetch discovery again once.
+    const keys = await discoveryKeys(refresh);
+    if (!keys) return "no proof-key in OpenCanvas discovery";
+    if (verifyOne(keys.current, msg, proof) || verifyOne(keys.current, msg, old) || verifyOne(keys.old, msg, proof)) {
+      return null;
+    }
+  }
+  return "X-WOPI-Proof does not verify";
+}
+async function discoveryKeys(refresh) {
+  if (refresh || !discovery || !proofKeys(discovery)) discovery = null;
+  await actionUrl("ocanvas");
+  return proofKeys(discovery);
 }
 
 // ---------- UTF-7 (X-WOPI-SuggestedTarget) ----------
@@ -212,7 +275,12 @@ http
         console.log(`401 ${req.method} ${logPath(req.url)}`);
         return send(res, 401, {});
       }
-
+      // Proof keys: refuse anything not signed by OpenCanvas (500, as the WOPI spec says).
+      const bad = await checkProof(req, url.searchParams.get("access_token"));
+      if (bad) {
+        console.log(`proof rejected ${req.method} ${logPath(req.url)}: ${bad}`);
+        return send(res, 500, { error: "proof" });
+      }
       // CheckFileInfo
       if (!contents && req.method === "GET") return send(res, 200, checkFileInfo(id, userId));
 
@@ -268,4 +336,6 @@ http
       send(res, 500, { error: "internal" });
     }
   })
-  .listen(PORT, () => console.log(`WOPI sample host on ${SELF} (OpenCanvas ${OC_SERVER})`));
+  .listen(PORT, () =>
+    console.log(`WOPI sample host on ${SELF} (OpenCanvas ${OC_SERVER}; proof keys ${PROOF_CHECK ? "checked" : "NOT checked"})`),
+  );

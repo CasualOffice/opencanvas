@@ -7,6 +7,9 @@
 # edit over the WebSocket with the smoke client → autosave PutFile, Markdown files saved as
 # Markdown, an asset inlined into the saved .ocanvas, a LastModifiedTime conflict (409 / 1010)
 # resolved with PutRelativeFile, an allowlist refusal, and no access token in the server log.
+# Proof keys (WOPI-13): the reference host verifies X-WOPI-Proof on every call (a PEM current
+# key, an old key sealed with OC_KEK), discovery publishes them, and the host refuses missing,
+# tampered and stale proofs.
 #
 #   scripts/e2e-wopi.sh                              # OpenCanvas :8380, WOPI host :4300
 #   scripts/e2e-wopi.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
@@ -42,7 +45,11 @@ fi
 PORT=$HOST_PORT OC_SERVER=$OC DATA_DIR=$WORK/host WOPI_HOST_TEST=1 \
   node examples/wopi-host/server.mjs > "$WORK/host.log" 2>&1 &
 PIDS+=("$!")
-env -u OC_DEV -u OC_CALLBACK_BASE_OVERRIDE DATABASE_URL="$DBURL" OC_KEK="$(openssl rand -base64 32)" \
+KEK=$(openssl rand -base64 32)
+openssl genrsa -out "$WORK/proof.pem" 2048 2>/dev/null; openssl genrsa -out "$WORK/proof-old.pem" 2048 2>/dev/null
+OC_KEK=$KEK "$BIN" seal-proof-key < "$WORK/proof-old.pem" > "$WORK/proof-old.sealed" || { echo "FAIL [wopi/$LABEL]: seal-proof-key"; exit 1; }
+env -u OC_DEV -u OC_CALLBACK_BASE_OVERRIDE DATABASE_URL="$DBURL" OC_KEK="$KEK" \
+  OC_WOPI_PROOF_KEY="$WORK/proof.pem" OC_WOPI_PROOF_KEY_OLD="$WORK/proof-old.sealed" \
   OC_HOSTS_FILE="$HOSTS_FILE" OC_BIND=127.0.0.1:$OC_PORT OC_PUBLIC_URL=$OC \
   OC_AUTOSAVE_DEBOUNCE_MS=1500 OC_LOG=debug "$BIN" > "$WORK/oc.log" 2>&1 &
 PIDS+=("$!")
@@ -57,6 +64,10 @@ curl -sf "$OC/readyz" >/dev/null || fail "server not ready"
 DISC=$(curl -s "$OC/hosting/discovery")
 echo "$DISC" | grep -q "<action name=\"edit\" ext=\"ocanvas\" default=\"true\" urlsrc=\"$OC/v1/launch?\"" || fail "discovery: $DISC"
 echo "$DISC" | grep -q '<action name="convert" ext="md" targetext="ocanvas"' || fail "discovery lacks md convert"
+# Proof keys: the published moduli are the configured keys'.
+b64mod() { openssl rsa -in "$1" -noout -modulus | sed 's/^Modulus=//' | xxd -r -p | base64 | tr -d '\n'; }
+echo "$DISC" | grep -q " modulus=\"$(b64mod "$WORK/proof.pem")\" exponent=\"AQAB\"" || fail "discovery lacks the proof key: $DISC"
+echo "$DISC" | grep -q " oldmodulus=\"$(b64mod "$WORK/proof-old.pem")\" oldexponent=\"AQAB\"" || fail "discovery lacks the old proof key"
 
 # Launch like the host page does: POST access_token + ttl to the form action from discovery.
 launch() { # $1 file id, $2 user → prints the ticket
@@ -78,6 +89,20 @@ S=$(session "$TICKET")
 ROOM=$(echo "$S" | js 'v.room')
 VIEW=$(launch board_1 u_sam); [ "$(session "$VIEW" | js 'v.role')" = view ] || fail "Sam should view"
 COMM=$(launch board_1 u_ravi); [ "$(session "$COMM" | js 'v.role')" = comment ] || fail "Ravi should comment"
+
+# The host refuses calls without a valid proof (500): missing, tampered, older than 20 min.
+TOK=$(curl -s "$HOST/open/board_1?as=u_asha" | field access_token)
+TICKS=$(node -pe "String(BigInt(Date.now()) * 10000n + 621355968000000000n)")
+OLDTICKS=$(node -pe "String(BigInt(Date.now() - 21 * 60000) * 10000n + 621355968000000000n)")
+CFI="$HOST/wopi/files/board_1?access_token=$TOK"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$CFI")" = 500 ] || fail "host accepted a call without a proof"
+BOGUS=$(head -c 256 /dev/urandom | base64 | tr -d '\n')
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "X-WOPI-TimeStamp: $TICKS" -H "X-WOPI-Proof: $BOGUS" -H "X-WOPI-ProofOld: $BOGUS" "$CFI")" = 500 ] \
+  || fail "host accepted a tampered proof"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "X-WOPI-TimeStamp: $OLDTICKS" -H "X-WOPI-Proof: $BOGUS" "$CFI")" = 500 ] \
+  || fail "host accepted a stale timestamp"
+grep -q "proof rejected .*older than 20 minutes" "$WORK/host.log" || fail "stale timestamp not reported"
+[ "$(grep -c 'proof rejected' "$WORK/host.log")" = 3 ] || fail "real OpenCanvas calls were refused: $(grep 'proof rejected' "$WORK/host.log")"
 
 # Edit → autosave PutFile.
 "$SMOKE" "ws://localhost:$OC_PORT/v1/collab" "$ROOM" "$TICKET" "Hello over WOPI" > "$WORK/smoke.log" 2>&1 || fail "smoke client: $(tail -3 "$WORK/smoke.log")"
@@ -124,9 +149,10 @@ if [ -z "$DB" ]; then
   RAW=$(sqlite3 "$WORK/oc.db" "SELECT grant_json FROM sessions LIMIT 1" 2>/dev/null)
   echo "$RAW" | grep -q '"callback_token":"enc:v1:' || fail "access token not sealed: ${RAW:-no session row}"
 fi
+[ "$(grep -c 'proof rejected' "$WORK/host.log")" = 3 ] || fail "a real OpenCanvas call failed its proof check"
 cleanup; PIDS=()
 grep -q "u_asha\.[0-9]*\." "$WORK/oc.log" && fail "an access token appears in the server log"
 grep -q "access_token" "$WORK/oc.log" && fail "access_token appears in the server log"
 grep -qiE 'panic' "$WORK/oc.log" && fail "server panicked"
-echo "PASS [wopi/$LABEL]: $(grep -c '^saved ' "$WORK/host.log") PutFiles, roles edit/comment/view, asset inlined, md kept as md, 1010 → PutRelativeFile copy, allowlist refuses, no token in logs"
+echo "PASS [wopi/$LABEL]: $(grep -c '^saved ' "$WORK/host.log") PutFiles, roles edit/comment/view, asset inlined, md kept as md, 1010 → PutRelativeFile copy, allowlist refuses, proofs verified (tampered/stale refused), no token in logs"
 rm -rf "$WORK"

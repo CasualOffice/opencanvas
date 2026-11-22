@@ -50,6 +50,62 @@ struct Wopi {
     relatives: Vec<Req>,
     /// Every PutFile answers 409 / 1010 while set.
     conflict: bool,
+    /// Per request (method path): whether its `X-WOPI-Proof` verified, as a host would.
+    proofs: Vec<(String, bool)>,
+}
+
+/// Verifies the proof headers of every request against the test server's public keys
+/// (docs/05 §6.4) and records the outcome; never refuses, so tests can assert on it.
+async fn check_proof(
+    State(w): State<W>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let headers = req.headers().clone();
+    let h = |k: &str| {
+        headers
+            .get(k)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+    };
+    let url = format!("http://{}{}", h("host").unwrap_or_default(), req.uri());
+    let token = reqwest::Url::parse(&url)
+        .ok()
+        .and_then(|u| {
+            u.query_pairs()
+                .find(|(k, _)| k == "access_token")
+                .map(|(_, v)| v.into_owned())
+        })
+        .unwrap_or_default();
+    let ok = match (
+        h("x-wopi-timestamp"),
+        h("x-wopi-proof"),
+        h("x-wopi-proofold"),
+    ) {
+        (Some(t), Some(proof), Some(proof_old)) => {
+            let keys = test_proof_keys();
+            let p = oc_server::proof::Proof {
+                timestamp: t.parse().unwrap_or_default(),
+                proof,
+                proof_old,
+            };
+            let age = oc_server::proof::ticks_now() - p.timestamp;
+            (0..20 * 60 * 10_000_000).contains(&age)
+                && oc_server::proof::verify(
+                    &keys.current_public(),
+                    &keys.old_public(),
+                    &token,
+                    &url,
+                    &p,
+                )
+        }
+        _ => false,
+    };
+    w.lock()
+        .unwrap()
+        .proofs
+        .push((format!("{} {}", req.method(), req.uri().path()), ok));
+    next.run(req).await
 }
 
 type W = Arc<Mutex<Wopi>>;
@@ -187,6 +243,7 @@ async fn wopi_host() -> (String, W) {
             "/wopi/files/{id}/contents",
             get(get_contents).post(put_contents),
         )
+        .layer(axum::middleware::from_fn_with_state(w.clone(), check_proof))
         .with_state(w.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -399,6 +456,10 @@ async fn discovery_route_serves_xml() {
         .await
         .unwrap();
     assert_eq!(caps["productName"], "OpenCanvas");
+    // The proof keys (docs/05 §6.4): CSP blob, modulus and exponent, current and old.
+    let el = test_proof_keys().discovery_element();
+    assert!(xml.contains(&format!("  {el}\n</wopi-discovery>")), "{xml}");
+    assert!(el.contains(r#" exponent="AQAB""#) && el.contains(r#" oldexponent="AQAB""#));
 }
 
 #[tokio::test]
@@ -577,6 +638,30 @@ async fn edit_autosaves_through_putfile() {
     );
 }
 
+/// WOPI-13: CheckFileInfo, GetFile and PutFile all carry a fresh `X-WOPI-Proof` that verifies
+/// with the published key, over the exact URL (access_token included) and token.
+#[tokio::test]
+async fn every_wopi_call_carries_a_valid_proof() {
+    let (origin, w) = wopi_host().await;
+    let state = wopi_app(&origin, &temp_db()).await;
+    let addr = serve_state(state.clone()).await;
+    let src = format!("{origin}/wopi/files/doc_1");
+    let start = oc_model::write_ocanvas(&oc_model::new_doc(), &Default::default()).unwrap();
+    w.lock().unwrap().files.insert("doc_1".into(), (start, 3));
+    let (_, ticket) = launch(&addr, &src, "tok-asha", Some(ttl_in_an_hour())).await;
+    let s = session_json(&addr, &ticket).await;
+    let mut c = Client::connect(&addr, s["room"].as_str().unwrap(), &ticket).await;
+    c.type_paragraph("Signed").await;
+    wait_for(&w, |w| !w.puts.is_empty()).await;
+    c.pump(200).await;
+    let w = w.lock().unwrap();
+    let seen = |m: &str| w.proofs.iter().any(|(r, _)| r == m);
+    assert!(seen("GET /wopi/files/doc_1"), "{:?}", w.proofs);
+    assert!(seen("GET /wopi/files/doc_1/contents"), "{:?}", w.proofs);
+    assert!(seen("POST /wopi/files/doc_1/contents"), "{:?}", w.proofs);
+    assert!(w.proofs.iter().all(|(_, ok)| *ok), "{:?}", w.proofs);
+}
+
 /// A Markdown file is saved back as Markdown.
 #[tokio::test]
 async fn markdown_files_stay_markdown() {
@@ -618,6 +703,8 @@ async fn conflict_1010_saves_a_copy_with_put_relative() {
 
     let w = w.lock().unwrap();
     assert_eq!(w.puts.len(), 1, "autosave stops after the conflict");
+    // PUT_RELATIVE is signed like every other call (WOPI-13).
+    assert!(w.proofs.iter().all(|(_, ok)| *ok), "{:?}", w.proofs);
     let rel = &w.relatives[0];
     assert_eq!(header(rel, "x-wopi-override"), Some("PUT_RELATIVE"));
     assert_eq!(
