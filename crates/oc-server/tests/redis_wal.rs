@@ -269,3 +269,145 @@ async fn failed_redis_append_is_not_fanned_out() {
     let tv = v.doc.get_or_insert_text("t");
     assert_eq!(tv.get_string(&v.doc.transact()), "durable lost?");
 }
+
+/// Redis lost its data (restart without AOF) while a database is configured (ADR-030): the
+/// room's epoch is restored from `room_epochs`, so the current owner keeps writing instead of
+/// every room of the cluster being fenced. An older writer is still refused.
+#[tokio::test]
+async fn epoch_is_restored_from_the_database_after_a_redis_wipe() {
+    let Some(url) = redis_url() else { return };
+    let s = store(&url).await;
+    let mut c = raw(&url).await;
+    let room = new_room();
+    let e1 = s.claim_epoch(&room, 1_000).await.unwrap();
+    s.append_updates(&room, e1, vec![row(1, b"a".to_vec())])
+        .await
+        .unwrap();
+    let e2 = s.claim_epoch(&room, 2_000).await.unwrap();
+    s.append_updates(&room, e2, vec![row(2, b"b".to_vec())])
+        .await
+        .unwrap();
+    // The wipe, for this room's keys.
+    let _: () = redis::cmd("DEL")
+        .arg(oc_server::redis_wal::epoch_key(&room))
+        .arg(oc_server::redis_wal::stream_key(&room))
+        .query_async(&mut c)
+        .await
+        .unwrap();
+    // The current owner goes on: no fencing, and the epoch is back in Redis.
+    s.append_updates(&room, e2, vec![row(3, b"c".to_vec())])
+        .await
+        .unwrap();
+    let mirrored: Option<i64> = redis::cmd("GET")
+        .arg(oc_server::redis_wal::epoch_key(&room))
+        .query_async(&mut c)
+        .await
+        .unwrap();
+    assert_eq!(mirrored, Some(e2));
+    // The stale owner is refused, as before the wipe.
+    let _: () = redis::cmd("DEL")
+        .arg(oc_server::redis_wal::epoch_key(&room))
+        .query_async(&mut c)
+        .await
+        .unwrap();
+    let err = s
+        .append_updates(&room, e1, vec![row(4, b"x".to_vec())])
+        .await
+        .unwrap_err();
+    assert!(is_fenced(&err), "{err}");
+    // The next claim is the database's latest plus one.
+    assert_eq!(s.claim_epoch(&room, 3_000).await.unwrap(), e2 + 1);
+}
+
+/// Redis-only storage has nothing to restore from: a writer whose epoch key vanished is fenced
+/// (its room rebuilds from the host's file and the clients), the next claim starts at the
+/// clock, and the missing instance id key is reported as a wipe.
+#[tokio::test]
+async fn redis_only_wipe_fences_the_writer_and_is_detected() {
+    let Some(url) = redis_url() else { return };
+    let s = Store::connect_redis(&url, None).await.unwrap();
+    let mut c = raw(&url).await;
+    let room = new_room();
+    let e1 = s.claim_epoch(&room, 1_000).await.unwrap();
+    assert_eq!(e1, 1_000, "first claim starts at the clock");
+    assert_eq!(
+        s.claim_epoch(&room, 1_500).await.unwrap(),
+        1_001,
+        "then INCR"
+    );
+    let e = 1_001;
+    s.append_updates(&room, e, vec![row(1, b"a".to_vec())])
+        .await
+        .unwrap();
+    let r = s.redis_wal().unwrap().clone();
+    assert!(!r.check_instance().await.unwrap());
+    let _: () = redis::cmd("DEL")
+        .arg(oc_server::redis_wal::epoch_key(&room))
+        .arg(oc_server::redis_wal::INSTANCE_KEY)
+        .query_async(&mut c)
+        .await
+        .unwrap();
+    assert!(r.check_instance().await.unwrap(), "wipe detected");
+    assert!(!r.check_instance().await.unwrap(), "reported once");
+    let err = s
+        .append_updates(&room, e, vec![row(2, b"b".to_vec())])
+        .await
+        .unwrap_err();
+    assert!(is_fenced(&err), "{err}");
+    assert_eq!(s.claim_epoch(&room, 9_000).await.unwrap(), 9_000);
+}
+
+/// Redis-only storage end to end (ADR-030): no database; a second server on the same Redis
+/// (the room's next owner after a crash) rebuilds the room from Redis alone, and the old owner
+/// is fenced at its next write.
+#[tokio::test]
+async fn redis_only_server_recovers_a_room_from_redis_alone() {
+    let Some(url) = redis_url() else { return };
+    let (base, _host) = mock_host().await;
+    let node = |url: String| {
+        let base = base.clone();
+        async move {
+            app_full(
+                &base,
+                room_cfg(),
+                &std::path::PathBuf::from("/nonexistent/never-opened.db"),
+                |_| {},
+                move |c| {
+                    c.database_url = String::new();
+                    c.wal_redis_url = Some(url.clone());
+                    c.storage_redis_url = Some(url);
+                    c.rooms.durability = oc_server::config::Durability::Wal;
+                },
+            )
+            .await
+        }
+    };
+    let n1 = node(url.clone()).await;
+    assert!(n1.store.is_redis_only());
+    let mut g = grant("u_a", Role::Edit);
+    g.room = new_room();
+    let mut a = Peer::join(&n1, g.clone()).await;
+    a.settle().await;
+    a.edit(|d| {
+        d.get_or_insert_text("t")
+            .push(&mut d.transact_mut(), "kept in redis")
+    });
+    a.settle().await;
+    assert!(n1.store.room(&g.room).await.unwrap().unwrap().dirty);
+
+    let n2 = node(url.clone()).await;
+    let mut v = g.clone();
+    v.user.id = "u_v".into();
+    v.role = Role::View;
+    let mut viewer = Peer::join(&n2, v).await;
+    viewer.settle().await;
+    let tv = viewer.doc.get_or_insert_text("t");
+    assert_eq!(tv.get_string(&viewer.doc.transact()), "kept in redis");
+
+    a.edit(|d| {
+        d.get_or_insert_text("t")
+            .push(&mut d.transact_mut(), " stale")
+    });
+    a.settle().await;
+    assert_eq!(a.closed, Some(1012), "old owner fenced");
+}

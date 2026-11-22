@@ -1,4 +1,6 @@
-//! Transient state in SQLite or MySQL/MariaDB through the sqlx `Any` driver (docs/04 §5).
+//! Transient state in SQLite or MySQL/MariaDB through the sqlx `Any` driver (docs/04 §5), or,
+//! in a cluster without `DATABASE_URL`, in Redis only ([`crate::redis_store`], ADR-030): every
+//! public method dispatches there first, so the SQL paths below are unchanged.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -33,6 +35,8 @@ pub struct Store {
     /// WAL batches shared: on InnoDB their gap locks deadlocked (1213) with each other and with
     /// concurrent inserts (docs/22 §10.1), so they never overlap in this process.
     snapshot_gate: Arc<tokio::sync::RwLock<()>>,
+    /// Redis-only storage (ADR-030): every method dispatches here, and `pool` is never used.
+    kv: Option<crate::redis_store::RedisStore>,
 }
 
 /// One Yjs update for the WAL, at its own `seq`.
@@ -246,7 +250,35 @@ impl Store {
             redis: None,
             write_lock,
             snapshot_gate: Arc::new(tokio::sync::RwLock::new(())),
+            kv: None,
         })
+    }
+
+    /// Redis-only storage (ADR-030): snapshots, WAL, epochs, outboxes, sessions, used launch
+    /// tokens and assets all live in the Redis at `url`. No database is opened.
+    pub async fn connect_redis(url: &str, kek: Option<Kek>) -> anyhow::Result<Self> {
+        install_default_drivers();
+        let kv = crate::redis_store::RedisStore::connect(url).await?;
+        // Never connected: every method returns from `kv` before it could touch the pool, and
+        // this URL would fail loudly (no such file, read-only) if one ever did.
+        let pool = AnyPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("sqlite:///nonexistent/opencanvas-redis-only-has-no-database?mode=ro")
+            .context("placeholder pool")?;
+        Ok(Self {
+            pool,
+            kek,
+            group: None,
+            redis: Some(kv.wal().clone()),
+            write_lock: None,
+            snapshot_gate: Arc::new(tokio::sync::RwLock::new(())),
+            kv: Some(kv),
+        })
+    }
+
+    /// True with Redis-only storage (no database).
+    pub fn is_redis_only(&self) -> bool {
+        self.kv.is_some()
     }
 
     /// Moves the hot WAL to Redis (ADR-021): appends, epoch mirror, replay and trim.
@@ -269,11 +301,19 @@ impl Store {
     }
 
     pub async fn ping(&self) -> bool {
+        if let Some(kv) = &self.kv {
+            return kv.ping().await;
+        }
         sqlx::query("SELECT 1").execute(&self.pool).await.is_ok()
     }
 
     /// Records a launch `jti`; returns false if it was already used.
     pub async fn use_jti(&self, host: &str, jti: &str, expires_at: i64) -> anyhow::Result<bool> {
+        if let Some(kv) = &self.kv {
+            return kv
+                .use_jti(host, jti, expires_at, crate::util::now_secs())
+                .await;
+        }
         let res = sqlx::query("INSERT INTO launch_jti (host_id, jti, expires_at) VALUES (?, ?, ?)")
             .bind(host)
             .bind(jti)
@@ -299,6 +339,12 @@ impl Store {
         expires_at: i64,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            let sealed = self.seal_grant(ticket, grant)?;
+            return kv
+                .insert_session(ticket, grant, &sealed, expires_at, now_ms)
+                .await;
+        }
         sqlx::query(
             "INSERT INTO sessions (id, room_id, host_id, file_id, user_id, role, grant_json, expires_at, created_at) \
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -319,6 +365,12 @@ impl Store {
 
     /// Returns the grant and its expiry (unix seconds) when the ticket exists.
     pub async fn session(&self, ticket: &str) -> anyhow::Result<Option<(Grant, i64)>> {
+        if let Some(kv) = &self.kv {
+            return match kv.session(ticket).await? {
+                Some((json, exp)) => Ok(Some((self.open_grant(ticket, &json)?, exp))),
+                None => Ok(None),
+            };
+        }
         let row = sqlx::query("SELECT grant_json, expires_at FROM sessions WHERE id = ?")
             .bind(ticket)
             .fetch_optional(&self.pool)
@@ -344,6 +396,9 @@ impl Store {
     /// Raw `grant_json` as stored (tests check that secrets are sealed).
     #[doc(hidden)]
     pub async fn raw_grant_json(&self, ticket: &str) -> anyhow::Result<Option<String>> {
+        if let Some(kv) = &self.kv {
+            return Ok(kv.session(ticket).await?.map(|s| s.0));
+        }
         let row = sqlx::query("SELECT grant_json FROM sessions WHERE id = ?")
             .bind(ticket)
             .fetch_optional(&self.pool)
@@ -354,6 +409,14 @@ impl Store {
     /// Raw `token` column of a room's newest outbox row (tests check that it is sealed).
     #[doc(hidden)]
     pub async fn raw_outbox_token(&self, room: &str) -> anyhow::Result<String> {
+        if let Some(kv) = &self.kv {
+            return kv
+                .outbox_rows(room)
+                .await?
+                .pop()
+                .map(|r| r.token)
+                .context("no outbox row");
+        }
         let row = sqlx::query(
             "SELECT token FROM commit_outbox WHERE room_id = ? ORDER BY created_at DESC, id DESC",
         )
@@ -371,6 +434,31 @@ impl Store {
         user: &str,
         role: Option<Role>,
     ) -> anyhow::Result<u64> {
+        if let Some(kv) = &self.kv {
+            let mine: Vec<(String, String)> = kv
+                .room_sessions(room)
+                .await?
+                .into_iter()
+                .filter(|(_, u, _)| u == user)
+                .map(|(t, _, g)| (t, g))
+                .collect();
+            let Some(role) = role else {
+                let tickets: Vec<String> = mine.into_iter().map(|(t, _)| t).collect();
+                return kv.delete_sessions(room, &tickets).await;
+            };
+            let mut n = 0;
+            for (id, json) in mine {
+                let mut grant = self.open_grant(&id, &json)?;
+                grant.set_role(role);
+                if kv
+                    .update_session(&id, role.as_str(), &self.seal_grant(&id, &grant)?)
+                    .await?
+                {
+                    n += 1;
+                }
+            }
+            return Ok(n);
+        }
         let Some(role) = role else {
             let res = sqlx::query("DELETE FROM sessions WHERE room_id = ? AND user_id = ?")
                 .bind(room)
@@ -403,6 +491,15 @@ impl Store {
 
     /// Drops every session of a room (the host closed it: file deleted or moved).
     pub async fn delete_room_sessions(&self, room: &str) -> anyhow::Result<u64> {
+        if let Some(kv) = &self.kv {
+            let tickets: Vec<String> = kv
+                .room_sessions(room)
+                .await?
+                .into_iter()
+                .map(|(t, _, _)| t)
+                .collect();
+            return kv.delete_sessions(room, &tickets).await;
+        }
         let res = sqlx::query("DELETE FROM sessions WHERE room_id = ?")
             .bind(room)
             .execute(&self.pool)
@@ -423,6 +520,11 @@ impl Store {
         epoch: i64,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            let mut sealed = row.clone();
+            sealed.token = crypto::seal(self.kek.as_ref(), &row.token, &row.id);
+            return kv.outbox_insert(&sealed, epoch, now_ms).await;
+        }
         retry_transient("outbox write", move || {
             self.outbox_insert_once(row, epoch, now_ms)
         })
@@ -489,6 +591,14 @@ impl Store {
 
     /// All outbox rows of a room, oldest first.
     pub async fn outbox_rows(&self, room: &str) -> anyhow::Result<Vec<OutboxRow>> {
+        if let Some(kv) = &self.kv {
+            return kv
+                .outbox_rows(room)
+                .await?
+                .into_iter()
+                .map(|r| self.open_outbox(r))
+                .collect();
+        }
         retry_transient("room load", move || self.outbox_rows_once(room)).await
     }
 
@@ -514,6 +624,16 @@ impl Store {
 
     /// Every pending commit (startup sweeper), oldest first. Unreadable rows are skipped.
     pub async fn outbox_all_pending(&self) -> anyhow::Result<Vec<OutboxRow>> {
+        if let Some(kv) = &self.kv {
+            let mut out = Vec::new();
+            for r in kv.outbox_all_pending().await? {
+                match self.open_outbox(r) {
+                    Ok(row) => out.push(row),
+                    Err(e) => tracing::error!(error = %e, "unreadable outbox row skipped"),
+                }
+            }
+            return Ok(out);
+        }
         let rows = sqlx::query(
             "SELECT id, room_id, host_id, file_id, seq, base_version, token, payload, authors, attempts, status \
              FROM commit_outbox WHERE status = 'pending' ORDER BY created_at, id",
@@ -531,7 +651,16 @@ impl Store {
     }
 
     /// Final state of a commit: `done` (payload dropped), `conflict` or `superseded`.
+    /// A row read sealed from Redis, with its token opened.
+    fn open_outbox(&self, mut r: OutboxRow) -> anyhow::Result<OutboxRow> {
+        r.token = crypto::open(self.kek.as_ref(), &r.token, &r.id)?;
+        Ok(r)
+    }
+
     pub async fn outbox_finish(&self, id: &str, status: &str) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.outbox_finish(id, status).await;
+        }
         retry_transient("outbox mark done", move || {
             self.outbox_finish_once(id, status)
         })
@@ -560,6 +689,9 @@ impl Store {
         now_ms: i64,
         until_ms: i64,
     ) -> anyhow::Result<bool> {
+        if let Some(kv) = &self.kv {
+            return kv.outbox_claim(id, node, now_ms, until_ms).await;
+        }
         let res = sqlx::query(
             "UPDATE commit_outbox SET claimed_by = ?, claim_until = ? WHERE id = ? AND status = 'pending' \
              AND (claim_until IS NULL OR claim_until < ? OR claimed_by = ?)",
@@ -580,6 +712,9 @@ impl Store {
         next_try_at: i64,
         error: &str,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.outbox_failed(id, next_try_at, error).await;
+        }
         sqlx::query(
             "UPDATE commit_outbox SET attempts = attempts + 1, next_try_at = ?, last_error = ? WHERE id = ?",
         )
@@ -596,6 +731,11 @@ impl Store {
     /// Queues a notification as `pending`, due at `next_try_at`. False when a row with this id
     /// already exists (the same message was queued before): nothing is sent twice.
     pub async fn notify_insert(&self, row: &NotifyRow, now_ms: i64) -> anyhow::Result<bool> {
+        if let Some(kv) = &self.kv {
+            let mut sealed = row.clone();
+            sealed.token = crypto::seal(self.kek.as_ref(), &row.token, &row.id);
+            return kv.notify_insert(&sealed, now_ms).await;
+        }
         let res = sqlx::query(
             "INSERT INTO notify_outbox (id, room_id, host_id, file_id, kind, token, payload, attempts, next_try_at, status, created_at) \
              VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', ?)",
@@ -620,6 +760,19 @@ impl Store {
 
     /// Pending notifications due at `now_ms`, oldest first. Unreadable rows are skipped.
     pub async fn notify_due(&self, now_ms: i64, limit: i64) -> anyhow::Result<Vec<NotifyRow>> {
+        if let Some(kv) = &self.kv {
+            let mut out = Vec::new();
+            for mut r in kv.notify_due(now_ms, limit).await? {
+                match crypto::open(self.kek.as_ref(), &r.token, &r.id) {
+                    Ok(t) => {
+                        r.token = t;
+                        out.push(r);
+                    }
+                    Err(e) => tracing::error!(error = %e, "unreadable notification row skipped"),
+                }
+            }
+            return Ok(out);
+        }
         let rows = sqlx::query(
             "SELECT id, room_id, host_id, file_id, kind, token, payload, attempts, next_try_at \
              FROM notify_outbox WHERE status = 'pending' AND next_try_at <= ? ORDER BY next_try_at, id LIMIT ?",
@@ -658,6 +811,9 @@ impl Store {
     /// Takes a due row for one attempt by pushing its `next_try_at` from `seen` to `until`.
     /// False when another worker (or node) took it first.
     pub async fn notify_claim(&self, id: &str, seen: i64, until: i64) -> anyhow::Result<bool> {
+        if let Some(kv) = &self.kv {
+            return kv.notify_claim(id, seen, until).await;
+        }
         let res = sqlx::query(
             "UPDATE notify_outbox SET next_try_at = ? WHERE id = ? AND status = 'pending' AND next_try_at = ?",
         )
@@ -672,6 +828,9 @@ impl Store {
     /// Final state: `done`, `unsupported` (the host has no such callback) or `failed`. The
     /// payload (it holds an excerpt of the canvas) is dropped.
     pub async fn notify_finish(&self, id: &str, status: &str) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.notify_finish(id, status).await;
+        }
         sqlx::query("UPDATE notify_outbox SET status = ?, payload = '' WHERE id = ?")
             .bind(status)
             .bind(id)
@@ -682,6 +841,9 @@ impl Store {
 
     /// A failed attempt: try again at `next_try_at`.
     pub async fn notify_retry(&self, id: &str, next_try_at: i64) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.notify_retry(id, next_try_at).await;
+        }
         sqlx::query(
             "UPDATE notify_outbox SET attempts = attempts + 1, next_try_at = ? WHERE id = ? AND status = 'pending'",
         )
@@ -695,6 +857,9 @@ impl Store {
     /// Status of one notification row (tests).
     #[doc(hidden)]
     pub async fn notify_status(&self, id: &str) -> anyhow::Result<Option<(String, String)>> {
+        if let Some(kv) = &self.kv {
+            return kv.notify_status(id).await;
+        }
         let row = sqlx::query("SELECT status, payload FROM notify_outbox WHERE id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
@@ -706,6 +871,11 @@ impl Store {
     }
 
     pub async fn purge_expired(&self, now: i64) -> anyhow::Result<()> {
+        if self.kv.is_some() {
+            // Sessions, used launch tokens, finished notifications and idle epochs expire
+            // through their Redis TTLs.
+            return Ok(());
+        }
         // Finished notifications are kept a day (their id still deduplicates), payload-free.
         sqlx::query("DELETE FROM notify_outbox WHERE status <> 'pending' AND created_at < ?")
             .bind((now - 86_400) * 1000)
@@ -734,6 +904,9 @@ impl Store {
     /// epoch are refused with [`Fenced`]. A room seen for the first time (or swept) starts at
     /// `now_ms`, so an epoch never goes back.
     pub async fn claim_epoch(&self, room: &str, now_ms: i64) -> anyhow::Result<i64> {
+        if let Some(kv) = &self.kv {
+            return kv.claim_epoch(room, now_ms).await;
+        }
         let epoch =
             retry_transient("epoch claim", move || self.claim_epoch_once(room, now_ms)).await?;
         if let Some(r) = &self.redis {
@@ -774,6 +947,9 @@ impl Store {
 
     /// The room's latest epoch (tests and diagnostics).
     pub async fn room_epoch(&self, room: &str) -> anyhow::Result<Option<i64>> {
+        if let Some(kv) = &self.kv {
+            return kv.room_epoch(room).await;
+        }
         let row = sqlx::query("SELECT epoch FROM room_epochs WHERE room_id = ?")
             .bind(room)
             .fetch_optional(&self.pool)
@@ -782,6 +958,9 @@ impl Store {
     }
 
     pub async fn room(&self, id: &str) -> anyhow::Result<Option<RoomRow>> {
+        if let Some(kv) = &self.kv {
+            return kv.room(id).await;
+        }
         retry_transient("room load", move || self.room_once(id)).await
     }
 
@@ -808,6 +987,9 @@ impl Store {
         dirty: bool,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.put_room(id, host, file, version, dirty, now_ms).await;
+        }
         retry_transient("room load", move || {
             self.put_room_once(id, host, file, version, dirty, now_ms)
         })
@@ -852,6 +1034,9 @@ impl Store {
         now_ms: i64,
         committed: bool,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.mark_room(id, version, dirty, now_ms, committed).await;
+        }
         let _w = self.write_turn().await;
         sqlx::query(
             "UPDATE rooms SET host_version = ?, dirty = ?, last_active_at = ?, \
@@ -904,7 +1089,13 @@ impl Store {
         }
         if let Some(r) = &self.redis {
             let started = std::time::Instant::now();
-            let res = r.append(room, epoch, &rows).await;
+            let mut res = r.append(room, epoch, &rows).await;
+            if res
+                .as_ref()
+                .is_err_and(|e| e.is::<crate::redis_wal::NoEpoch>())
+            {
+                res = self.append_without_epoch(r, room, epoch, &rows).await;
+            }
             if started.elapsed() > Duration::from_millis(500) {
                 tracing::warn!(
                     room,
@@ -945,7 +1136,46 @@ impl Store {
         .await
     }
 
+    /// The Redis WAL had no epoch for the room: Redis lost its data (ADR-030). With a
+    /// database, the epoch is restored from `room_epochs` (the authoritative one) and the batch
+    /// tried again, so a wipe no longer fences every room of the cluster; a writer whose epoch
+    /// is not the database's latest is still refused. Redis-only: there is nothing to restore
+    /// from, the writer is fenced and its room rebuilds from the host's file and the clients.
+    async fn append_without_epoch(
+        &self,
+        r: &crate::redis_wal::RedisWal,
+        room: &str,
+        epoch: i64,
+        rows: &[WalRow],
+    ) -> anyhow::Result<()> {
+        let restored = match &self.kv {
+            Some(_) => None,
+            None => self.room_epoch(room).await?,
+        };
+        let Some(latest) = restored else {
+            tracing::error!(
+                room,
+                epoch,
+                "no fencing epoch in Redis and none to restore it from: Redis lost its data; the room rebuilds from the host's file and reconnecting clients"
+            );
+            return Err(Fenced(room.into()).into());
+        };
+        r.mirror_epoch(room, latest).await?;
+        tracing::warn!(
+            room,
+            epoch = latest,
+            "Redis had no fencing epoch for the room (Redis lost its data); restored from room_epochs"
+        );
+        match r.append(room, epoch, rows).await {
+            Err(e) if e.is::<crate::redis_wal::NoEpoch>() => Err(Fenced(room.into()).into()),
+            other => other,
+        }
+    }
+
     pub async fn load_wal(&self, room: &str) -> anyhow::Result<Wal> {
+        if let Some(kv) = &self.kv {
+            return kv.load_wal(room).await;
+        }
         let mut wal = retry_transient("room load", move || self.load_wal_once(room)).await?;
         if let Some(r) = &self.redis {
             let after = wal.last_seq();
@@ -986,6 +1216,9 @@ impl Store {
         state: &[u8],
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.compact(room, epoch, seq, state, now_ms).await;
+        }
         retry_transient("compaction", move || {
             self.compact_once(room, epoch, seq, state, now_ms)
         })
@@ -1052,6 +1285,9 @@ impl Store {
         asset: &oc_model::ocanvas::Asset,
         now_ms: i64,
     ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.asset_put(room, asset, now_ms).await;
+        }
         let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM room_assets WHERE room_id = ? AND asset_id = ?")
@@ -1079,6 +1315,9 @@ impl Store {
         room: &str,
         id: &str,
     ) -> anyhow::Result<Option<oc_model::ocanvas::Asset>> {
+        if let Some(kv) = &self.kv {
+            return kv.asset_get(room, id).await;
+        }
         let row =
             sqlx::query("SELECT mime, data FROM room_assets WHERE room_id = ? AND asset_id = ?")
                 .bind(room)
@@ -1096,6 +1335,9 @@ impl Store {
     }
 
     pub async fn room_assets(&self, room: &str) -> anyhow::Result<Vec<oc_model::ocanvas::Asset>> {
+        if let Some(kv) = &self.kv {
+            return kv.room_assets(room).await;
+        }
         let rows = sqlx::query(
             "SELECT asset_id, mime, data FROM room_assets WHERE room_id = ? ORDER BY asset_id",
         )
@@ -1115,6 +1357,9 @@ impl Store {
 
     /// Total bytes of the assets of `room`.
     pub async fn room_assets_size(&self, room: &str) -> anyhow::Result<i64> {
+        if let Some(kv) = &self.kv {
+            return kv.room_assets_size(room).await;
+        }
         let row = sqlx::query("SELECT COALESCE(SUM(size), 0) FROM room_assets WHERE room_id = ?")
             .bind(room)
             .fetch_one(&self.pool)
@@ -1132,6 +1377,9 @@ impl Store {
     /// Deletes assets of rooms that are gone and have no pending commit, created before
     /// `older_than_ms` (so a room being opened right now keeps its freshly extracted assets).
     pub async fn purge_orphan_assets(&self, older_than_ms: i64) -> anyhow::Result<u64> {
+        if let Some(kv) = &self.kv {
+            return kv.purge_orphan_assets(older_than_ms).await;
+        }
         let res = sqlx::query(
             "DELETE FROM room_assets WHERE created_at < ? \
              AND room_id NOT IN (SELECT id FROM rooms) \
@@ -1146,6 +1394,19 @@ impl Store {
     /// The users that opened `room` (one entry per user id), from the session rows. In WOPI
     /// mode this is the mention directory: WOPI has no user lookup.
     pub async fn room_users(&self, room: &str) -> anyhow::Result<Vec<crate::grant::User>> {
+        if let Some(kv) = &self.kv {
+            let mut seen = std::collections::HashSet::new();
+            let mut out = Vec::new();
+            for (_, _, json) in kv.room_sessions(room).await? {
+                let v: serde_json::Value = serde_json::from_str(&json)?;
+                if let Ok(u) = serde_json::from_value::<crate::grant::User>(v["user"].clone())
+                    && seen.insert(u.id.clone())
+                {
+                    out.push(u);
+                }
+            }
+            return Ok(out);
+        }
         let rows =
             sqlx::query("SELECT grant_json FROM sessions WHERE room_id = ? ORDER BY created_at")
                 .bind(room)
@@ -1168,6 +1429,9 @@ impl Store {
     /// [`Self::purge_room`] by the room's actor when it closes: refused with [`Fenced`] when
     /// another writer took the room since (its WAL is not ours to drop).
     pub async fn purge_room_fenced(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.purge_room(room, Some(epoch)).await;
+        }
         retry_transient("room purge", move || async move {
             let _g = self.snapshot_gate.write().await;
             let _w = self.write_turn().await;
@@ -1185,6 +1449,9 @@ impl Store {
     }
 
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.purge_room(room, None).await;
+        }
         retry_transient("room purge", move || async move {
             let _g = self.snapshot_gate.write().await;
             let _w = self.write_turn().await;

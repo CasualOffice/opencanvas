@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod notify;
 pub mod pdf;
 pub mod people;
+pub mod redis_store;
 pub mod redis_wal;
 pub mod room;
 pub mod routes;
@@ -55,8 +56,22 @@ pub type SharedState = Arc<AppState>;
 
 impl AppState {
     pub async fn new(cfg: Config, hosts: Hosts) -> anyhow::Result<SharedState> {
-        let mut store = Store::connect(&cfg.database_url, cfg.kek.clone()).await?;
-        if let Some(url) = &cfg.wal_redis_url {
+        let mut store = match &cfg.storage_redis_url {
+            Some(url) => {
+                let s = Store::connect_redis(url, cfg.kek.clone()).await?;
+                tracing::info!(
+                    "Redis-only storage (no DATABASE_URL): snapshots, WAL, epochs, outboxes, sessions and launch tokens in Redis; a snapshot every {:?} (ADR-030)",
+                    cfg.rooms.compact_interval
+                );
+                s
+            }
+            None => Store::connect(&cfg.database_url, cfg.kek.clone()).await?,
+        };
+        if let Some(url) = cfg
+            .wal_redis_url
+            .as_ref()
+            .filter(|_| !store.is_redis_only())
+        {
             store = store.with_redis_wal(url).await?;
             tracing::info!(
                 "hot WAL in Redis; the database gets a snapshot every {:?}",

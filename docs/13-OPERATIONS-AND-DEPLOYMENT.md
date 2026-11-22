@@ -79,16 +79,17 @@ helm install oc deploy/helm/opencanvas --set secrets.kek=$(openssl rand -base64 
 - CI (`helm` job) lints and renders single-node SQLite, cluster MariaDB + Redis and
   Gotenberg value sets, and checks SQLite + 2 replicas is refused.
 
-## Cluster (MySQL/MariaDB + Redis, ADR-006)
+## Cluster (Redis, optionally MySQL/MariaDB; ADR-006, ADR-030)
 ```
-DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas
+DATABASE_URL=mysql://oc:***@mariadb:3306/opencanvas   # optional: leave unset for Redis-only
 REDIS_URL=redis://redis:6379                 # enables cluster mode
 OC_NODE_ID=node-1                            # default: $HOSTNAME
 OC_CLUSTER_ADVERTISE=http://node-1:8080      # how other nodes reach this one (default http://$OC_NODE_ID:<port>)
 OC_CLUSTER_SECRET=<≥ 32 chars, same on every node>
 OC_KEK=<same on every node>                  # nodes read each other's sealed rows
 ```
-`REDIS_URL` with SQLite refuses to start. Rooms are owned by one node through the Redis
+`REDIS_URL` with SQLite refuses to start. Without `DATABASE_URL` the cluster keeps all of its
+state in Redis (see **Redis-only cluster** below). Rooms are owned by one node through the Redis
 lease `room:{id}:owner` (`SET NX PX 15000`, renewed every 5 s). A node that receives a socket
 for a room it does not own relays it to the owner over `/v1/internal/relay/:room`; host-API
 room calls go to `/v1/internal/rooms/:room`. **Never expose `/v1/internal/` through the load
@@ -101,6 +102,33 @@ rooms move along the ring (see `deploy/nginx/opencanvas-cluster.conf`).
 host (`:4580`). `scripts/chaos-cluster.sh` brings it up, types from two clients, `docker kill`s
 the room owner, checks reconnect ≤ 5 s, convergence and that the host's file has every
 acknowledged edit, then removes everything.
+
+### Redis-only cluster (ADR-030)
+```
+REDIS_URL=redis://redis:6379   # and no DATABASE_URL
+```
+Snapshots, the WAL, fencing epochs, the commit and mention outboxes, sessions, used launch
+tokens and WOPI assets all live in Redis (key map in docs/03 §5.2.2). Use one Redis primary
+(standalone or Sentinel; Redis Cluster is not supported). Memory: each open or recently closed
+room holds its encoded snapshot (about the size of the `.ocanvas` document) plus the WAL tail
+since its last sync (`OC_DB_SYNC_MS`, 5 s); rooms are purged when they close cleanly.
+
+**Redis persistence is the durability of the whole cluster.** Required:
+```
+appendonly yes
+appendfsync always        # nothing acknowledged is lost on a Redis crash (recommended)
+# or: appendfsync everysec + a replica you fail over to (accepts about 1 s of loss)
+```
+The server logs a warning at start-up when `appendonly` is `no` (Redis-only: "a Redis restart
+loses every room snapshot, WAL entry, epoch, pending commit and session") or `appendfsync` is
+not `always`. Every node writes `oc:instance` once and checks it every 2 s; if it disappears,
+Redis lost its data and each node logs `REDIS LOST ITS DATA` at ERROR. **What a wipe costs in
+Redis-only mode:** rooms close with 1012 and rebuild from the host's last saved file plus what
+reconnecting clients resend; edits of clients that never return, commits the host had not yet
+acknowledged, and open sessions (users relaunch) are lost; a launch token used before the wipe
+could be replayed until it expires. With `DATABASE_URL` set the same wipe only costs the WAL
+tail since each room's last DB snapshot (still in the owners' memory), and fencing epochs are
+restored from `room_epochs` instead of reconnecting every client.
 
 ### Durability mode (ADR-029)
 ```
@@ -136,6 +164,8 @@ and **acknowledged means in Redis**. Redis persistence therefore decides what a 
 lose: `appendonly yes` + `appendfsync always` loses nothing acknowledged (recommended);
 `appendfsync everysec` can lose about the last second (acceptable only with a replica you fail
 over to); `appendonly no` loses everything since the room's last DB sync (≤ `OC_DB_SYNC_MS`).
+After such a loss the fencing epochs are restored from `room_epochs` as rooms write (ADR-030),
+so owners keep their rooms instead of every client reconnecting.
 The server logs a warning at start-up when `appendonly` is `no` or `appendfsync` is not
 `always` (or when `CONFIG GET` is refused). Redis memory per room is the updates since the last
 sync (a busy room: a few thousand entries, well under 1 MB). Fencing: the append script refuses

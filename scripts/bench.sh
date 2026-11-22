@@ -16,13 +16,15 @@
 # Resilience and worst case (docs/22 §8-§11):
 # S1 sustained: one room of 550, 100 % editors typing with no pauses, 10 one-minute buckets
 # S2 sustained: 1,000 rooms x 5, 100 % editors, no pauses, 10 one-minute buckets
-#    (S1/S2: S_DB=maria syncs to MariaDB in Docker; OC_WAL_REDIS_URL puts the hot WAL in Redis)
+#    (S1/S2: S_DB=maria syncs to MariaDB in Docker; OC_WAL_REDIS_URL puts the hot WAL in Redis;
+#    S_DB=redis: Redis-only storage, a one-node cluster on REDIS_PORT with no DATABASE_URL)
 # R  crash recovery on SQLite: 200 rooms x 2 typing, kill -9 the server, restart, verify
 # mR the same on MariaDB (Docker)
 # K  cluster chaos: 3 nodes, load (300 rooms x 5 at 20 % + one 550 room), verified rooms spread
 #    over nodes; kill -9 the owner, rolling restart, Redis restart, pause one node (SIGSTOP)
 # K2 cluster: Redis kill and a 20 s SIGSTOP of one node inside the verified window
 #    (K2_REDIS_KILL=0: the pause only; REDIS_ARGS="--appendonly yes --appendfsync always")
+#    K, K2, T with CLUSTER_DB=none: Redis-only storage, no MariaDB and no DATABASE_URL (ADR-030)
 # KD cluster with node 2 in Docker (NODE2_IMAGE): docker pause 20 s, then a 25 s partition
 # T  throughput 1 node vs 3 nodes, clients of a room on different nodes, host latency 20-50 ms
 #    (T1 / T3: each half on a fresh MariaDB container; S2m: S2 on MariaDB for 3 minutes)
@@ -124,7 +126,9 @@ lg() {
 wal_watch() {
   local db=$1 out=$2
   ( while :; do
-      if [ "$db" = maria ]; then
+      if [ "$db" = redis ]; then
+        r="$(docker exec $CPFX-redis redis-cli DBSIZE 2>/dev/null) keys, $(docker exec $CPFX-redis redis-cli INFO memory 2>/dev/null | grep '^used_memory:' | tr -d '\r')"
+      elif [ "$db" = maria ]; then
         r=$(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e "SELECT (SELECT count(*) FROM room_updates),(SELECT coalesce(sum(length(data)),0) FROM room_updates),(SELECT count(*) FROM room_snapshots),(SELECT coalesce(sum(length(state)),0) FROM room_snapshots)" opencanvas 2>/dev/null | tr '\t' ' ')
       else
         r=$(sqlite3 "$db" "SELECT (SELECT count(*) FROM room_updates),(SELECT coalesce(sum(length(data)),0) FROM room_updates),(SELECT count(*) FROM room_snapshots),(SELECT coalesce(sum(length(state)),0) FROM room_snapshots)" 2>/dev/null | tr '|' ' ')
@@ -139,8 +143,13 @@ sqlite_url() { echo "sqlite://$WORK/$1.db?mode=rwc"; }
 # s_db <name>: the sustained runs (S1, S2) on SQLite, or on MariaDB with S_DB=maria. Sets DBURL,
 # WALDB (for wal_watch) and SQLARG (oc-bench --sqlite, SQLite only). With OC_WAL_REDIS_URL set the
 # hot WAL is in Redis and the DB only gets snapshots (docs/22 §9.3).
+S_ENV=()
 s_db() {
-  if [ "${S_DB:-sqlite}" = maria ]; then
+  if [ "${S_DB:-sqlite}" = redis ]; then
+    redis_up; DBURL=""; WALDB=redis; SQLARG=()
+    S_ENV=(REDIS_URL="redis://127.0.0.1:$REDIS_PORT" OC_NODE_ID=bench-1 OC_CLUSTER_SECRET="bench-cluster-secret-0123456789abcdef"
+      OC_CLUSTER_ADVERTISE="http://127.0.0.1:$OC_PORT")
+  elif [ "${S_DB:-sqlite}" = maria ]; then
     [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
     mariadb_reset; DBURL=$MARIA_URL; WALDB=maria; SQLARG=()
   else
@@ -158,6 +167,12 @@ mariadb_up() {
   done
   echo "MariaDB did not start"; exit 1
 }
+# Redis in Docker on REDIS_PORT (REDIS_ARGS, e.g. "--appendonly yes --appendfsync always").
+redis_up() {
+  docker rm -f $CPFX-redis >/dev/null 2>&1
+  docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine redis-server ${REDIS_ARGS:-} >/dev/null || exit 1
+  CONTAINERS+=($CPFX-redis); sleep 2
+}
 mariadb_reset() {
   docker exec $CPFX-mariadb mariadb -uroot -proot -e 'DROP DATABASE IF EXISTS opencanvas; CREATE DATABASE opencanvas' >/dev/null
 }
@@ -174,19 +189,21 @@ D_ARGS=(--per-room 2 --editors 1 --probes 2 --doc demo --steps 400 --step-secs 1
 # ---------- cluster helpers (K, T): 3 nodes on 8711-8713, MariaDB + Redis in Docker ----------
 CL_SECRET="bench-cluster-secret-0123456789abcdef"
 declare -a NODE_PID
+# CLUSTER_DB=none: Redis-only storage (no DATABASE_URL, ADR-030).
+CL_DB=$MARIA_URL; [ "${CLUSTER_DB:-maria}" = none ] && CL_DB=""
 start_node() { # n
   local port=$((NODE_BASE + $1))
-  start_server "$MARIA_URL" "$port" REDIS_URL="redis://127.0.0.1:$REDIS_PORT" OC_NODE_ID="bench-$1" \
+  start_server "$CL_DB" "$port" REDIS_URL="redis://127.0.0.1:$REDIS_PORT" OC_NODE_ID="bench-$1" \
     OC_CLUSTER_ADVERTISE="http://127.0.0.1:$port" OC_CLUSTER_SECRET="$CL_SECRET" OC_KEK="$CL_KEK"
   NODE_PID[$1]=$SERVER_PID
 }
 cluster_up() {
-  [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
-  mariadb_reset
-  docker rm -f $CPFX-redis >/dev/null 2>&1
+  if [ -n "$CL_DB" ]; then
+    [ -n "$(docker ps -q -f name=$CPFX-mariadb)" ] || mariadb_up
+    mariadb_reset
+  fi
   # REDIS_ARGS, e.g. "--appendonly yes --appendfsync always" (the hot WAL's documented setting).
-  docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine redis-server ${REDIS_ARGS:-} >/dev/null || exit 1
-  CONTAINERS+=($CPFX-redis); sleep 2
+  redis_up
   CL_KEK=$(openssl rand -base64 32)
   for n in 1 2 3; do
     if [ -n "${NODE2_IMAGE:-}" ] && [ "$n" = 2 ]; then start_node_docker; else start_node "$n"; fi
@@ -213,7 +230,7 @@ start_node_docker() {
   CONTAINERS+=($CPFX-node2 $CPFX-fwd)
   docker run -d --name $CPFX-fwd -p 127.0.0.1:$port:$port --entrypoint sh alpine/socat -c "$fw wait" >/dev/null || exit 1
   docker run -d --name $CPFX-node2 --network container:$CPFX-fwd -v "$WORK:/work" --entrypoint /opencanvas \
-    -e DATABASE_URL="$MARIA_URL" -e REDIS_URL="redis://127.0.0.1:$REDIS_PORT" -e OC_NODE_ID=bench-2 \
+    -e DATABASE_URL="$CL_DB" -e REDIS_URL="redis://127.0.0.1:$REDIS_PORT" -e OC_NODE_ID=bench-2 \
     -e OC_CLUSTER_ADVERTISE="http://127.0.0.1:$port" -e OC_CLUSTER_SECRET="$CL_SECRET" -e OC_KEK="$CL_KEK" \
     -e OC_HOSTS_FILE=/work/hosts.toml -e OC_BIND="0.0.0.0:$port" -e OC_PUBLIC_URL="http://127.0.0.1:$port" \
     -e OC_LOG="${OC_LOG:-info}" "$NODE2_IMAGE" >/dev/null || exit 1
@@ -275,6 +292,10 @@ node_report() {
     f="$WORK/server-$((NODE_BASE + n)).log"
     echo "node $n: takeovers $(grep -c 'took the room over' "$f"), stepped down $(grep -c 'stepping down' "$f"), fenced $(grep -c 'a newer owner holds the room' "$f"), rooms closed for reconnect $(grep -c 'clients told to reconnect' "$f"), WAL append failed $(grep -c 'WAL append failed' "$f"), duplicate entry $(grep -ci 'duplicate entry' "$f"), WALSEQ $(grep -c 'WALSEQ' "$f"), deadlock errors $(grep '"level":"ERROR"' "$f" | grep -ci deadlock), transient retries $(grep -c 'transient database error' "$f"), drain-joins refused after upgrade $(grep -c 'server is draining' "$f"), errors $(grep -c '"level":"ERROR"' "$f"), panics $(grep -ci panicked "$f")"
   done
+  if [ -z "$CL_DB" ]; then
+    echo "Redis-only: epoch keys $(redis --scan --pattern 'oc:epoch:*' | wc -l | tr -d ' '), snapshot keys $(redis --scan --pattern 'oc:snap:*' | wc -l | tr -d ' '), WAL streams $(redis --scan --pattern 'oc:wal:*' | wc -l | tr -d ' '), pending commits $(redis ZCARD oc:obpending), wipes detected $(cat "$WORK"/server-$((NODE_BASE + 1)).log "$WORK"/server-$((NODE_BASE + 2)).log "$WORK"/server-$((NODE_BASE + 3)).log | grep -c 'REDIS LOST ITS DATA')"
+    return
+  fi
   echo "room_epochs rows: $(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e 'SELECT count(*) FROM room_epochs' opencanvas 2>/dev/null)"
   echo "DB room_updates rows: $(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e 'SELECT count(*) FROM room_updates' opencanvas 2>/dev/null)"
   echo "Redis epoch keys: $(redis --scan --pattern 'oc:epoch:*' | wc -l | tr -d ' '); epoch keys lower than room_epochs: $(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e 'SELECT room_id, epoch FROM room_epochs' opencanvas 2>/dev/null | while read -r r e; do v=$(redis GET "oc:epoch:{$r}"); [ -n "$v" ] && [ "$v" -lt "$e" ] && echo "$r"; done | wc -l | tr -d ' ')"
@@ -343,7 +364,7 @@ scenario() {
       grep -c 'relaying connection' "$WORK"/server-$((NODE_BASE / 10))*.log | tee -a "$OUT/E-cluster3.md"
       for p in ${pids//,/ }; do stop_server "$p"; done ;;
     S1)
-      s_db S1; start_server "$DBURL"
+      s_db S1; start_server "$DBURL" "$OC_PORT" "${S_ENV[@]}"
       echo "# unix wal_rows wal_bytes snapshots snapshot_bytes db_bytes db_wal_bytes" > "$OUT/S1-wal.txt"
       wal_watch "$WALDB" "$OUT/S1-wal.raw"
       lg S1-sustained-550 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room ${S1_PER_ROOM:-550} --editors 1.0 --no-pauses \
@@ -352,7 +373,7 @@ scenario() {
       cat "$OUT/S1-wal.raw" >> "$OUT/S1-wal.txt"; grep -ciE '"level":"(ERROR|WARN)"' "$WORK/server-$OC_PORT.log" | sed 's/^/server warn+error lines: /' | tee -a "$OUT/S1-sustained-550.md"
       stop_server "$SERVER_PID" ;;
     S2)
-      s_db S2; start_server "$DBURL"
+      s_db S2; start_server "$DBURL" "$OC_PORT" "${S_ENV[@]}"
       echo "# unix wal_rows wal_bytes snapshots snapshot_bytes db_bytes db_wal_bytes" > "$OUT/S2-wal.txt"
       wal_watch "$WALDB" "$OUT/S2-wal.raw"
       lg S2-sustained-1000x5 "$SERVER_PID" "http://127.0.0.1:$OC_PORT" --per-room 5 --editors 1.0 --no-pauses \
