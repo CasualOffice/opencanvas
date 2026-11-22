@@ -51,6 +51,10 @@ fn metadata_url(base: &str, host_id: &str) -> String {
 }
 
 fn mcp_host(state: &SharedState, host_id: &str) -> Option<std::sync::Arc<HostConfig>> {
+    // The server-wide AI switch beats `[host.ai] mcp` (docs/24 §7.3).
+    if !state.ai_on() {
+        return None;
+    }
     state.hosts.get(host_id).filter(|h| HostAi(h).mcp())
 }
 

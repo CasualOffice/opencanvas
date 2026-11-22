@@ -51,7 +51,7 @@ async fn ok(addr: &str, tok: &str, method: &str, params: Value) -> Value {
 
 async fn serve(tweak: fn(&mut oc_server::hosts::HostConfig)) -> (String, oc_server::SharedState) {
     let (base, _h) = mock_host().await;
-    let state = app_custom(&base, room_cfg(), &temp_db(), tweak).await;
+    let state = app_ai(&base, room_cfg(), &temp_db(), tweak).await;
     (serve_state(state.clone()).await, state)
 }
 
@@ -275,7 +275,7 @@ async fn serve_with_host(
     tweak: fn(&mut oc_server::hosts::HostConfig),
 ) -> (String, oc_server::SharedState, Shared) {
     let (base, h) = mock_host().await;
-    let state = app_custom(&base, room_cfg(), &temp_db(), tweak).await;
+    let state = app_ai(&base, room_cfg(), &temp_db(), tweak).await;
     (serve_state(state.clone()).await, state, h)
 }
 

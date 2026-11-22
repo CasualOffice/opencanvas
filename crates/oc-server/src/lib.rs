@@ -45,6 +45,8 @@ pub struct AppState {
     pub tickets: Mutex<HashMap<String, TicketUse>>,
     /// Members callback answers per room (docs/21 revision 2).
     pub members: Arc<people::Members>,
+    /// The server-wide AI switch as `"on"` or `"off (<reason>)"` (`/readyz`).
+    pub ai_status: String,
 }
 
 #[derive(Clone, Copy)]
@@ -56,6 +58,12 @@ pub struct TicketUse {
 pub type SharedState = Arc<AppState>;
 
 impl AppState {
+    /// The server-wide AI switch (docs/24 §7.3): `OC_AI_CONFIG` set, `[ai] enabled = true`
+    /// and `OC_AI` not `off`. Off overrides every `[host.ai]`.
+    pub fn ai_on(&self) -> bool {
+        self.rooms.ctx().ai.is_some()
+    }
+
     pub async fn new(cfg: Config, hosts: Hosts) -> anyhow::Result<SharedState> {
         let mut store = match &cfg.storage_redis_url {
             Some(url) => {
@@ -82,7 +90,13 @@ impl AppState {
         let metrics = Arc::new(Metrics::default());
         let host = HostClient::new().with_store(store.clone());
         let members = Arc::new(people::Members::default());
-        let ai_cfg = crate::ai::config::AiConfig::from_env()?;
+        let ai_cfg = match cfg.ai.clone() {
+            Some(c) => c,
+            None => crate::ai::config::AiConfig::from_env()?,
+        };
+        // One line, once: the effective server-wide AI switch (docs/24 §7.3).
+        tracing::info!("AI: {}", ai_cfg.status());
+        let ai_status = ai_cfg.status();
         let ai = ai_cfg.enabled.then(|| {
             // The canvas tool layer is plugged in below, once the app state exists.
             let rt = crate::ai::agent::AiRuntime::new(ai_cfg, None, metrics.clone());
@@ -113,6 +127,7 @@ impl AppState {
             jwks: jwt::Jwks::new(),
             tickets: Mutex::default(),
             members,
+            ai_status,
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

@@ -32,7 +32,7 @@ async fn node(
     id: &str,
     bus: Arc<dyn Bus>,
 ) -> Node {
-    let state = app_custom(base, room_cfg(), db, |h| {
+    let state = app_ai(base, room_cfg(), db, |h| {
         h.api_key = Some("test-api-key".into());
         h.ai.insert("mcp".into(), toml::Value::Boolean(true));
         h.ai.insert("default_mode".into(), toml::Value::String("direct".into()));

@@ -400,11 +400,31 @@ pub async fn app_full(
         storage_redis_url: None,
         kek: Some(oc_server::crypto::Kek::from_b64(TEST_KEK).unwrap()),
         rooms,
+        ai: None,
+        import_off: false,
     };
     tweak_cfg(&mut cfg);
     AppState::new(cfg, Hosts::from_list(vec![host]))
         .await
         .unwrap()
+}
+
+/// Turns the server-wide AI switch on (as `OC_AI_CONFIG` with `[ai] enabled = true` would).
+pub fn ai_server_on(c: &mut Config) {
+    c.ai = Some(oc_server::ai::config::AiConfig {
+        enabled: true,
+        ..Default::default()
+    });
+}
+
+/// Like `app_custom`, with the server-wide AI switch on.
+pub async fn app_ai(
+    base: &str,
+    rooms: RoomConfig,
+    db: &std::path::Path,
+    tweak: impl FnOnce(&mut HostConfig),
+) -> SharedState {
+    app_full(base, rooms, db, tweak, ai_server_on).await
 }
 
 pub fn grant(user: &str, role: Role) -> Grant {

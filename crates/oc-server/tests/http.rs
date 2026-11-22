@@ -539,7 +539,71 @@ async fn session_ai(addr: &str, role: &str) -> Value {
 }
 
 async fn serve_with(base: &str, tweak: fn(&mut oc_server::hosts::HostConfig)) -> String {
-    serve_state(app_custom(base, room_cfg(), &temp_db(), tweak).await).await
+    serve_state(app_ai(base, room_cfg(), &temp_db(), tweak).await).await
+}
+
+fn host_ai_all_on(h: &mut oc_server::hosts::HostConfig) {
+    h.ai.insert("enabled".into(), toml::Value::Boolean(true));
+    h.ai.insert("provider".into(), toml::Value::String("claude".into()));
+    h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+}
+
+/// The server-wide switch (docs/24 §7.3) beats `[host.ai]`: session flag, MCP and ai-run.
+#[tokio::test]
+async fn server_ai_switch_off_overrides_host_ai() {
+    for off in [
+        oc_server::ai::config::AiConfig::off("OC_AI=off"),
+        oc_server::ai::config::AiConfig::default(),
+    ] {
+        let (base, _h) = mock_host().await;
+        let state = app_full(&base, room_cfg(), &temp_db(), host_ai_all_on, |c| {
+            c.ai = Some(off.clone())
+        })
+        .await;
+        let addr = serve_state(state.clone()).await;
+        assert_eq!(
+            session_ai(&addr, "edit").await,
+            json!({"enabled": false, "modes": [], "mcp": false})
+        );
+        let res = http()
+            .post(format!("http://{addr}/mcp/sample"))
+            .json(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 404);
+        let res = http()
+            .get(format!(
+                "http://{addr}/.well-known/oauth-protected-resource/mcp/sample"
+            ))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 404);
+        let mut p = Peer::join(&state, grant("u_a", oc_server::grant::Role::Edit)).await;
+        p.settle().await;
+        p.send(oc_server::room::protocol::control(
+            &json!({"t": "ai-run", "runId": "r1", "prompt": "hi", "mode": "answer"}),
+        ));
+        p.settle().await;
+        let done = p
+            .controls
+            .iter()
+            .find(|c| c["t"] == "ai-done")
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(done["outcome"], "refused", "{:?}", p.controls);
+        assert_eq!(done["reason"], "ai_disabled", "{:?}", p.controls);
+        let ready: Value = http()
+            .get(format!("http://{addr}/readyz"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(ready["ai"], off.status());
+    }
 }
 
 /// The session says whether the assistant shows (docs/15 §2): from `[host.ai]` and the role.

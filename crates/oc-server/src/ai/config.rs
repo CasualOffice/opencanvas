@@ -118,21 +118,60 @@ struct RawFile {
 pub struct AiConfig {
     pub enabled: bool,
     pub providers: BTreeMap<String, ProviderProfile>,
+    /// Why AI is off server-wide (logged once at start-up, shown in `/readyz`).
+    pub off_reason: Option<String>,
 }
 
 impl AiConfig {
-    /// `OC_AI_CONFIG=<path>`; absent means AI is off.
+    /// The server-wide AI switch (docs/24 §7.3): on only when `OC_AI_CONFIG` is set, its
+    /// `[ai] enabled = true` and the kill switch `OC_AI` is not `off`. Default off.
     pub fn from_env() -> anyhow::Result<Self> {
-        match std::env::var("OC_AI_CONFIG")
-            .ok()
-            .filter(|v| !v.trim().is_empty())
-        {
-            None => Ok(Self::default()),
-            Some(path) => {
-                let text =
-                    std::fs::read_to_string(&path).with_context(|| format!("reading {path}"))?;
-                Self::parse(&text, &|n| std::env::var(n).ok())
-            }
+        let var = |n: &str| std::env::var(n).ok().filter(|v| !v.trim().is_empty());
+        Self::resolve(
+            var("OC_AI_CONFIG"),
+            var("OC_AI"),
+            &|path| std::fs::read_to_string(path).with_context(|| format!("reading {path}")),
+            &|n| std::env::var(n).ok(),
+        )
+    }
+
+    /// [`AiConfig::from_env`] with the environment and file reads injected (tests).
+    pub fn resolve(
+        config_path: Option<String>,
+        kill_switch: Option<String>,
+        read: &dyn Fn(&str) -> anyhow::Result<String>,
+        env: &dyn Fn(&str) -> Option<String>,
+    ) -> anyhow::Result<Self> {
+        if kill_switch.is_some_and(|k| k.trim().eq_ignore_ascii_case("off")) {
+            return Ok(Self::off("OC_AI=off"));
+        }
+        let Some(path) = config_path else {
+            return Ok(Self::off("OC_AI_CONFIG unset"));
+        };
+        let mut c = Self::parse(&read(&path)?, env)?;
+        if !c.enabled {
+            c.off_reason = Some("[ai] enabled = false".into());
+        }
+        Ok(c)
+    }
+
+    /// AI off server-wide, for `reason`.
+    pub fn off(reason: &str) -> Self {
+        Self {
+            off_reason: Some(reason.into()),
+            ..Self::default()
+        }
+    }
+
+    /// `"on"` or `"off (<reason>)"`.
+    pub fn status(&self) -> String {
+        if self.enabled {
+            "on".into()
+        } else {
+            format!(
+                "off ({})",
+                self.off_reason.as_deref().unwrap_or("[ai] enabled = false")
+            )
         }
     }
 
@@ -186,6 +225,7 @@ impl AiConfig {
         Ok(Self {
             enabled: raw.ai.enabled,
             providers,
+            off_reason: None,
         })
     }
 }
@@ -265,6 +305,25 @@ context_tokens = 8192
         assert!(!v.tools);
         assert_eq!(v.context_tokens, 8192);
         assert!(!format!("{c:?}").contains("SECRET"));
+    }
+
+    #[test]
+    fn the_server_switch_is_off_by_default_and_the_kill_switch_wins() {
+        let read = |_: &str| Ok("[ai]\nenabled = true\n".to_string());
+        let none = |_: &str| None;
+        let off = AiConfig::resolve(None, None, &read, &none).unwrap();
+        assert!(!off.enabled);
+        assert_eq!(off.status(), "off (OC_AI_CONFIG unset)");
+        let on = AiConfig::resolve(Some("ai.toml".into()), None, &read, &none).unwrap();
+        assert!(on.enabled);
+        assert_eq!(on.status(), "on");
+        let killed =
+            AiConfig::resolve(Some("ai.toml".into()), Some("off".into()), &read, &none).unwrap();
+        assert!(!killed.enabled);
+        assert_eq!(killed.status(), "off (OC_AI=off)");
+        let read_off = |_: &str| Ok("[ai]\nenabled = false\n".to_string());
+        let disabled = AiConfig::resolve(Some("ai.toml".into()), None, &read_off, &none).unwrap();
+        assert_eq!(disabled.status(), "off ([ai] enabled = false)");
     }
 
     #[test]
