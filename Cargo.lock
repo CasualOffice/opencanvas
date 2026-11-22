@@ -1727,7 +1727,7 @@ dependencies = [
 
 [[package]]
 name = "oc-bench"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1744,7 +1744,7 @@ dependencies = [
 
 [[package]]
 name = "oc-model"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "base64 0.22.1",
  "fontdb",
@@ -1761,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "oc-server"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
