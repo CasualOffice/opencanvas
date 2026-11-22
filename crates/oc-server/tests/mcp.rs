@@ -270,3 +270,88 @@ async fn a_scope_narrower_than_the_role_wins() {
     peer.settle().await;
     assert!(json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
 }
+
+async fn serve_with_host(
+    tweak: fn(&mut oc_server::hosts::HostConfig),
+) -> (String, oc_server::SharedState, Shared) {
+    let (base, h) = mock_host().await;
+    let state = app_custom(&base, room_cfg(), &temp_db(), tweak).await;
+    (serve_state(state.clone()).await, state, h)
+}
+
+fn patch(addr: &str) -> Value {
+    let _ = addr;
+    json!({"name": "canvas_patch", "arguments": {"fileId": FILE,
+        "ops": [{"op": "append", "markdown": "from mcp"}]}})
+}
+
+#[tokio::test]
+async fn the_host_access_callback_decides_the_role_over_the_token_claim() {
+    let (addr, state, host) = serve_with_host(mcp_on).await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    // The host says `view` although the token claims `edit`: writing is refused.
+    host.lock().unwrap().access = Some(
+        [("u_mcp".to_string(), "view".to_string())]
+            .into_iter()
+            .collect(),
+    );
+    let t = token(&addr, "canvas:write", "edit", |_| {});
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], true, "{r}");
+    assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN");
+    {
+        let st = host.lock().unwrap();
+        assert_eq!(st.access_calls.len(), 1);
+        let (f, u, signed) = &st.access_calls[0];
+        assert_eq!((f.as_str(), u.as_str(), *signed), (FILE, "u_mcp", true));
+    }
+    // Reading is fine for a viewer, and the answer is cached (no second callback).
+    let r = ok(
+        &addr,
+        &t,
+        "tools/call",
+        json!({"name": "canvas_read", "arguments": {"fileId": FILE}}),
+    )
+    .await;
+    assert_eq!(r["isError"], false, "{r}");
+    assert_eq!(host.lock().unwrap().access_calls.len(), 1, "cached");
+    // `none` refuses even reads; the token's role claim never widens it.
+    host.lock().unwrap().access = Some(Default::default());
+    let t2 = token(&addr, "canvas:write", "edit", |c| {
+        c["sub"] = json!("u_other")
+    });
+    let r = ok(
+        &addr,
+        &t2,
+        "tools/call",
+        json!({"name": "canvas_read", "arguments": {"fileId": FILE}}),
+    )
+    .await;
+    assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN", "{r}");
+    // The host says `edit` but the scope is `canvas:comment`: min(scope, role) = comment.
+    host.lock().unwrap().access = Some(
+        [("u_c".to_string(), "edit".to_string())]
+            .into_iter()
+            .collect(),
+    );
+    let t3 = token(&addr, "canvas:comment", "view", |c| c["sub"] = json!("u_c"));
+    let r = ok(&addr, &t3, "tools/call", patch(&addr)).await;
+    assert_eq!(r["structuredContent"]["code"], "ROLE_FORBIDDEN", "{r}");
+    peer.settle().await;
+    assert!(json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn without_the_access_callback_the_token_role_claim_is_used() {
+    let (addr, state, host) = serve_with_host(mcp_on).await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    // The mock host answers 404 on /access: fall back to the claim (`edit`).
+    let t = token(&addr, "canvas:write", "edit", |_| {});
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], false, "{r}");
+    assert_eq!(host.lock().unwrap().access_calls.len(), 1, "asked once");
+    peer.settle().await;
+    assert!(!json_of(&peer.doc)["content"].as_array().unwrap().is_empty());
+}

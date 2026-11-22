@@ -527,7 +527,7 @@ MCP client                    OpenCanvas /mcp/acme                Acme authoriza
     │ ◀──────────────────── access token (JWT, aud=…/mcp/acme, scope, sub, exp≤15m) │
     │ POST tools/call + Bearer ─────▶ │ verify sig (host JWKS, ADR-005 code), iss, aud, exp, scope
     │                                 │ role? ── signed POST /access {fileId,userId} ──▶ Acme callbacks
-    │                                 │ ◀── {"role":"edit"} (cached 60 s, dropped on revoke)
+    │                                 │ ◀── {"role":"edit"} (cached 30 s, dropped on revoke)
     │                                 │ tool layer → room → Yjs; audit → POST /ai/events
     │ ◀── result ─────────────────────│
 ```
@@ -552,7 +552,7 @@ New optional callbacks, signed like the existing ones:
 
 | Callback | Request | Response | Used for |
 |---|---|---|---|
-| `POST /access` | `{fileId, userId, client?: {id, name}}` | `{role: "view"\|"comment"\|"edit"\|"none"}` | Per-file role for MCP calls without a launch session (cached 60 s per user and file, dropped by the role API and member invalidation) |
+| `POST /access` | `{fileId, userId, client?: {id, name}}` | `{role: "view"\|"comment"\|"edit"\|"none"}` | Per-file role for MCP calls without a launch session (cached 30 s per user and file, dropped by the role API and member invalidation; `404`/`405`/`501` = not implemented, then the token's `role` claim is used) |
 | `POST /ai/events` | `{runId, fileId, userId, agent, event, tool?, counts, usage?, at}` | `2xx` | Audit (§9.3) |
 | `GET /search` | `?q=&userId=&limit=` | `[{fileId, name, url, excerpt}]` | `canvas_search` across files (phase 3) |
 

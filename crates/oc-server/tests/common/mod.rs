@@ -59,6 +59,10 @@ pub struct HostState {
     pub members_calls: Vec<(String, String, bool)>,
     /// Bearer tokens the host refuses on `PUT /files/{id}` with 403 (a revoked grant).
     pub denied_tokens: std::collections::HashSet<String>,
+    /// `POST /access` answers: user id -> role word (docs/05). `None` = 404 (not implemented).
+    pub access: Option<HashMap<String, String>>,
+    /// (fileId, userId, v2 signature ok) of every access call.
+    pub access_calls: Vec<(String, String, bool)>,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -285,6 +289,24 @@ async fn members(
     }
 }
 
+async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
+    let ok = verify_v2(&headers, "/api/access", &body);
+    let v: Value = serde_json::from_slice(&body).unwrap_or_default();
+    let (file, user) = (
+        v["fileId"].as_str().unwrap_or_default().to_string(),
+        v["userId"].as_str().unwrap_or_default().to_string(),
+    );
+    let mut st = s.lock().unwrap();
+    st.access_calls.push((file, user.clone(), ok));
+    match &st.access {
+        None => (StatusCode::NOT_FOUND, axum::Json(json!({"error": "no"}))),
+        Some(m) => {
+            let role = m.get(&user).cloned().unwrap_or_else(|| "none".into());
+            (StatusCode::OK, axum::Json(json!({"role": role})))
+        }
+    }
+}
+
 /// Starts the mock host; returns its callback base URL and shared state.
 pub async fn mock_host() -> (String, Shared) {
     let state: Shared = Arc::default();
@@ -293,6 +315,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/files/{id}/copies", axum::routing::post(post_copy))
         .route("/api/files/{id}/members", get(members))
         .route("/api/mentions", axum::routing::post(mentions))
+        .route("/api/access", axum::routing::post(access))
         .route("/assets/{id}", get(asset))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

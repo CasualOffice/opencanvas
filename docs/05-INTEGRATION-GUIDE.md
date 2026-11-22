@@ -170,6 +170,7 @@ OpenCanvas:
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
+| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none"}`. Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used); other errors refuse the call (`INTERNAL`) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
 
@@ -342,6 +343,10 @@ same keys as launch tokens (HS256 secret, PEM or JWKS):
 | `role` | the user's role on the files (`view`/`comment`/`edit`; absent = `view`) |
 | `files` | optional list of file ids the token covers |
 | `name`, `client_id` | optional display name; client id recorded in the edit origin `mcp:<clientId>` |
+
+**Role source.** If you implement the optional `POST /access` callback (§5), OpenCanvas asks it
+for the user's role on each file an MCP call touches (cached 30 s) and ignores the token's
+`role` claim; `none` refuses every tool. Without it, the `role` claim is trusted.
 
 The effective permission is `min(scope, role)`: `canvas:write` does not let a `view` user write,
 and a `canvas:read` token does not let an editor write. A request without a valid token gets
