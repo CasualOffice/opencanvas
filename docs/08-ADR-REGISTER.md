@@ -33,11 +33,11 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-027 | Editor/server open items (docs/19 UX-02, FILE-01, LAY-01): host callback `POST /mentions` + `notify_outbox` table; control `ping` heartbeat; `textColor` mark and `dateMention` node; `fileAttachment.display/height`, `columns.widths`, `column.title`; `GET /v1/assets/fetch` preview route; `UI_BlockLink` and launch `block`; `BlockEnv.undoManager` used; new dependency `pdfjs-dist` (lazy) | Accepted (2026-11-21) |
 | ADR-030 | Redis-only cluster storage: `REDIS_URL` without `DATABASE_URL` keeps snapshots, WAL, authoritative epochs (`INCR`), commit and mention outboxes, sessions, used launch `jti` (`SET NX EX`) and assets in Redis behind the same `Store`; with SQL, a Redis wipe restores epochs from `room_epochs` instead of fencing every room; `oc:instance` detects wipes | Accepted (2026-11-22) |
 | ADR-029 | Memory durability (`OC_DURABILITY=memory`, the default without Redis): rooms live in memory and their state is dumped to the DB every `OC_DB_SYNC_MS` (2 s) and before saves, drain and close; `wal` keeps ADR-028; SQLite write turn; idle eviction `OC_ROOM_IDLE_MS` (60 s) | Accepted (2026-11-22) |
-| ADR-031 | AI is a server-side plug-in capability: a `ModelProvider` abstraction with two protocols: `anthropic` (Claude Platform) and `openai-compatible` (OpenAI, vLLM, Ollama, llama.cpp, LM Studio); browser → OpenCanvas server → model server only; per-profile `tools` capability gates agent mode configured in server config/env (`[ai.providers]`, keys in env or sealed with `OC_KEK`), enabled per host in `hosts.toml` (`[host.ai]`, flags, quotas); browsers never see keys; document content is sent to the configured provider and the docs say so; BYO-in-browser and host AI callbacks rejected (owner decision 2026-11-22) (docs/24 §4, §8) | Proposed |
+| ADR-031 | AI is a server-side plug-in capability: a `ModelProvider` abstraction with two protocols: `anthropic` (Claude Platform) and `openai-compatible` (OpenAI, vLLM, Ollama, llama.cpp, LM Studio); browser → OpenCanvas server → model server only; per-profile `tools` capability gates agent mode configured in server config/env (`[ai.providers]`, keys in env or sealed with `OC_KEK`), enabled per host in `hosts.toml` (`[host.ai]`, flags, quotas); browsers never see keys; document content is sent to the configured provider and the docs say so; BYO-in-browser and host AI callbacks rejected (owner decision 2026-11-22) (docs/24 §4, §8) | Accepted (2026-11-22) |
 | ADR-032 | OpenCanvas MCP server at `/mcp/{hostId}`: MCP 2026-07-28 stateless streamable HTTP (2025-11-25 negotiated), tools over one Rust canvas tool layer shared with REST patch and the agent runtime; OAuth 2.1 resource server only (RFC 9728 PRM per host, audience-bound host-issued tokens ≤ 15 min, scopes `canvas:read/comment/write/write:direct`, no token passthrough); effective permission = min(scope, host role via launch grant or new `POST /access` callback) (docs/24 §5, §7) | Proposed |
 | ADR-033 | AI edits as a visible collaborator: server-stamped agent identity and awareness, origin `ai:<runId>`, agent in `X-OpenCanvas-Authors`, server-side per-run undo, `rev`/`ifMatch` optimistic writes with minimal Y.Text diffs (no locks), and a new `suggestions` Y root (direct vs suggest modes; `comment` role may write `comments` and `suggestions`) (docs/24 §6) | Proposed |
-| ADR-034 | Agent runtime inside the server: plan → act → review loop as a task on the room owner node, tools filtered by the invoking user's role, grant re-checked before each write, limits (steps, wall clock, tokens, writes, runs per user, concurrent runs per room, host monthly quota), cancel via `ai-cancel`, no network/file/code tools; new control messages `ai-run`, `ai-cancel`, `ai-undo`, `ai-step`, `ai-plan`, `ai-done` (docs/24 §10) | Proposed |
-| ADR-035 | AI safety and audit: canvas content treated as untrusted data; no outbound channel for the agent; agent-inserted links and images inert until a person acts; confirmation for bulk deletes; no prompts, outputs or tool arguments in logs; audit events to the host through `POST /ai/events` via the notification outbox (docs/24 §9) | Proposed |
+| ADR-034 | Agent runtime inside the server: plan → act → review loop as a task on the room owner node, tools filtered by the invoking user's role, grant re-checked before each write, limits (steps, wall clock, tokens, writes, runs per user, concurrent runs per room, host monthly quota), cancel via `ai-cancel`, no network/file/code tools; new control messages `ai-run`, `ai-cancel`, `ai-undo`, `ai-step`, `ai-plan`, `ai-done` (docs/24 §10) | Accepted (2026-11-22) |
+| ADR-035 | AI safety and audit: canvas content treated as untrusted data; no outbound channel for the agent; agent-inserted links and images inert until a person acts; confirmation for bulk deletes; no prompts, outputs or tool arguments in logs; audit events to the host through `POST /ai/events` via the notification outbox (docs/24 §9) | Accepted (2026-11-22) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -360,7 +360,7 @@ room's snapshot (≈ the encoded doc per open or recently closed room) besides t
 − Redis persistence decides durability for all state, not only the last seconds of edits;
 − not compatible with Redis Cluster (one primary).
 
-### ADR-031 — AI as a server-side capability with a provider abstraction (Proposed, 2026-11-22)
+### ADR-031 — AI as a server-side capability with a provider abstraction (Accepted, 2026-11-22)
 **Context.** Hosts want AI writing, Q&A, database autofill and an agentic assistant. The owner
 decided (2026-11-22) that AI is a plug-in capability of the OpenCanvas server, configured from
 the backend, not bring-your-own in the browser and not a host inference callback. Research:
@@ -404,7 +404,7 @@ Role filter: `comment` may write `comments` and `suggestions` only.
 **Consequences.** + people see, follow and undo the agent; + no locks; − file format gains a
 root (old clients ignore it; unknown roots already round-trip).
 
-### ADR-034 — Agent runtime inside the server (Proposed, 2026-11-22)
+### ADR-034 — Agent runtime inside the server (Accepted, 2026-11-22)
 **Decision.** The in-editor assistant loop (plan → act → review) runs as a tokio task on the
 room's owner node, writing only through the room actor's mailbox. Tools are the MCP tools filtered
 by the invoking user's role; no network, file system or code execution. Limits default to 25
@@ -414,7 +414,7 @@ transaction. Runs end with their room or grant; a room move cancels the run.
 **Consequences.** + one place for limits, cancel and presence; − model latency and streaming
 connections now live in the server process (bounded by the concurrency limits).
 
-### ADR-035 — AI safety and audit (Proposed, 2026-11-22)
+### ADR-035 — AI safety and audit (Accepted, 2026-11-22)
 **Decision.** Canvas content is data inside delimited blocks, labelled untrusted; the agent has
 no outbound channel; agent-inserted links and images outside `asset_origins` are inert and badged,
 and not unfurled until a person clicks; deletes over 5 blocks, 50 rows or a whole database or

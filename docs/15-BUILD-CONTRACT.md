@@ -125,6 +125,32 @@ Server rules:
   dropped socket) and reconnects with the same ticket.
 - Room ids are `r_` + 26 lowercase base32 chars of sha256(`<hostId>:<fileId>`).
 
+### 3.1 AI control messages (AI-02, ADR-034; docs/24 §10)
+
+Client → server (type 100 JSON); answers go only to the sending connection:
+
+| Message | Who | Effect |
+|---|---|---|
+| `{"t":"ai-run","runId","prompt","selection"?,"mode"?}` | `edit`: modes `edit` (default), `comment`, `answer`; `comment`: `answer` (default) and `comment` only; `view`: refused | Starts a run on the room owner node. `runId` is chosen by the client, `[A-Za-z0-9_-]{1,64}`, unique per room |
+| `{"t":"ai-cancel","runId"}` | the user who started the run | Aborts the model call; the current tool call finishes; outcome `cancelled` |
+| `{"t":"ai-undo","runId"}` | the user who started the run | Reverts every change made with origin `ai:<runId>` (once; in memory, lost if the room moves) |
+
+Server → client:
+
+| Message | When |
+|---|---|
+| `{"t":"ai-plan","runId","plan"}` | After the plan call (modes `comment` and `edit`) |
+| `{"t":"ai-step","runId","step","tool","ok","error"?}` | After each tool call; `error` is a code (`not_allowed`, `forbidden`, `bad_input`, `not_found`, `stale`, `confirmation_required`, `internal`) |
+| `{"t":"ai-done","runId","outcome","summary"?,"reason"?,"steps","writes","undoable","usage":{"input","output"}}` | `outcome`: `done`, `cancelled`, `limit` (`reason`: `steps`, `time`, `tokens`, `writes`, `quota`), `error`, `refused` (with `reason`), `undone` |
+
+Other people see the agent only as an awareness entry (`user.id = "ai:<runId>"`, `name =
+"Assistant"`, `agent: true`, `cursor.blockId` at the last touched block) and its edits. A run is
+cancelled when its user's last connection leaves. Audit events go to the host as
+`POST {callback_base}/ai/events` through the notification outbox, signed like every callback:
+`{runId, fileId, userId, agent, event, counts, at}` with `event` one of `run.started`,
+`tool.called`, `run.finished`, `run.cancelled`, `run.undone`. No prompts, outputs or tool
+arguments are sent or logged.
+
 ## 4. Y.Doc layout (shared by server export and web)
 
 | root | type | contents |

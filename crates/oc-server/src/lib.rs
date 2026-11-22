@@ -82,11 +82,21 @@ impl AppState {
         let metrics = Arc::new(Metrics::default());
         let host = HostClient::new().with_store(store.clone());
         let members = Arc::new(people::Members::default());
+        let ai_cfg = crate::ai::config::AiConfig::from_env()?;
+        let ai = ai_cfg.enabled.then(|| {
+            // The canvas tool layer (AI-01 MCP branch) plugs in here; until then only answer
+            // mode without tools is available.
+            let rt = crate::ai::agent::AiRuntime::new(ai_cfg, None, metrics.clone());
+            let probe = rt.clone();
+            tokio::spawn(async move { probe.probe_all().await });
+            rt
+        });
         let rooms = Rooms::new(Arc::new(Ctx {
             store: store.clone(),
             host: host.clone(),
             cfg: cfg.rooms.clone(),
             metrics: metrics.clone(),
+            ai: ai.clone(),
         }));
         Ok(Arc::new(Self {
             cfg,

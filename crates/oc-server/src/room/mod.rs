@@ -102,6 +102,26 @@ pub(crate) enum Cmd {
     Commit {
         reply: oneshot::Sender<CommitResult>,
     },
+    /// AI run port (docs/24 §10.5): the user's current role.
+    AiRole {
+        user_id: String,
+        reply: oneshot::Sender<Option<Role>>,
+    },
+    /// Agent presence at a block (`None` block: in the canvas), or gone (`active` false).
+    AiPresence {
+        run_id: String,
+        block_id: Option<String>,
+        active: bool,
+    },
+    /// Track transactions with this origin for run undo.
+    AiTrack {
+        origin: String,
+    },
+    /// Revert every tracked change with this origin.
+    AiUndo {
+        origin: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
     /// Cluster: the lease went to another node. Tell clients to reconnect and stop without
     /// saving (the new owner continues from the WAL).
     StepDown,
@@ -153,6 +173,8 @@ pub struct Ctx {
     pub host: HostClient,
     pub cfg: RoomConfig,
     pub metrics: Arc<Metrics>,
+    /// Server-side AI (docs/24, ADR-031/034); `None` when `[ai]` is off.
+    pub ai: Option<Arc<crate::ai::agent::AiRuntime>>,
 }
 
 struct Entry {

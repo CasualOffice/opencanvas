@@ -1,7 +1,14 @@
 # 24 — AI, agents and MCP
 
-**Status:** Proposed, draft v0.1, 2026-11-22. Research and design only; no product code.
-Decisions are ADR-031 to ADR-035 in [08](08-ADR-REGISTER.md), all **Proposed**. Tracker row
+**Status:** draft v0.2, 2026-11-22. ADR-031, ADR-034 and ADR-035 **Accepted** (owner,
+2026-11-22); ADR-032 and ADR-033 Proposed, in [08](08-ADR-REGISTER.md). **AI-02 phase 1 built**
+(server only): `ModelProvider` (`anthropic`, `openai-compatible`), start-up tool probe,
+`context_tokens` trimming, retries; agent runtime with plan → act → review, limits, cancel, run
+undo, agent presence, audit via `/ai/events`; control messages in docs/15 §3.1; config in
+docs/13. Owner decisions: writes are `direct` for new content and `suggest` for changes;
+commenters run answer and comment modes only; quotas in tokens per month; no BYO model. Pending:
+the canvas tool layer (MCP branch) plugged into the runtime, persistent quota counters, the
+panel UI (prototype first, ADR-011). Tracker row
 AI-01 in [10](10-EXECUTION-TRACKER.md). Owner directive of 2026-11-22: AI is a server-side
 plug-in capability of the OpenCanvas server (§4).
 

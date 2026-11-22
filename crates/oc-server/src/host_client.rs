@@ -569,7 +569,21 @@ impl HostClient {
         body: Vec<u8>,
         idempotency_key: &str,
     ) -> Result<StatusCode, HostError> {
-        let url = Self::url(host, &["mentions"])?;
+        self.post_notification(host, &["mentions"], token, body, idempotency_key)
+            .await
+    }
+
+    /// `POST {callback_base}/<path>` for outbox notifications (`mentions`, `ai/events`),
+    /// signed like every callback.
+    pub async fn post_notification(
+        &self,
+        host: &HostConfig,
+        path: &[&str],
+        token: &str,
+        body: Vec<u8>,
+        idempotency_key: &str,
+    ) -> Result<StatusCode, HostError> {
+        let url = Self::url(host, path)?;
         let res = self
             .request(host, token, Method::POST, url, body, 5)
             .header(header::CONTENT_TYPE, "application/json")

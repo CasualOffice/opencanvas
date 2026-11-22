@@ -309,6 +309,7 @@ pub fn host_config(base: &str) -> HostConfig {
         allowed_origins: vec!["http://localhost:4000".into()],
         asset_origins: vec![],
         original_callback_base: None,
+        ai: None,
         flags: Default::default(),
     }
 }

@@ -2,6 +2,7 @@
 //! the canvas tool contract.
 
 pub mod agent;
+pub mod agent_room;
 pub mod config;
 pub mod provider;
 pub mod provider_anthropic;

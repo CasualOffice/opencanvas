@@ -48,6 +48,9 @@ pub struct HostConfig {
     pub original_callback_base: Option<String>,
     #[serde(default)]
     pub flags: toml::Table,
+    /// `[host.ai]` (docs/24 §7.3): AI on for this host, its provider profile and limits.
+    #[serde(default)]
+    pub ai: Option<crate::ai::config::HostAi>,
 }
 
 fn default_mode() -> String {
