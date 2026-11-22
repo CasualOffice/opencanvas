@@ -1,6 +1,6 @@
 # 24 — AI, agents and MCP
 
-**Status:** Proposed, draft v0.1, 2026-11-22. Research and design only; no product code.
+**Status:** Draft v0.2, 2026-11-22. ADR-032, ADR-033 and ADR-035 **Accepted** by the owner; the canvas tool layer and the MCP endpoint (phase 1) are built (tracker AI-01, `crates/oc-server/src/ai/tools.rs`, `routes/mcp.rs`). The provider abstraction and agent runtime are AI-02. Owner decisions 2026-11-22: AI and MCP run only in the OpenCanvas server; MCP tokens are host-issued (verified like launch tokens: same keys/JWKS), OpenCanvas runs no OAuth server and publishes RFC 9728 metadata per host; writes default to `direct` for new content and `suggest` for changes to existing content, overridable per host (`default_mode`).
 Decisions are ADR-031 to ADR-035 in [08](08-ADR-REGISTER.md), all **Proposed**. Tracker row
 AI-01 in [10](10-EXECUTION-TRACKER.md). Owner directive of 2026-11-22: AI is a server-side
 plug-in capability of the OpenCanvas server (§4).

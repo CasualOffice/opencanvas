@@ -172,6 +172,24 @@ sync (a busy room: a few thousand entries, well under 1 MB). Fencing: the append
 a writer whose epoch is older than `oc:epoch:{room}` (raised at every room claim), and that room
 closes with 1012.
 
+## AI and MCP (`[host.ai]` in the hosts file)
+
+Off unless set per host. Phase 1 (AI-01) reads:
+
+```toml
+[host.ai]
+mcp              = true                        # POST /mcp/{hostId}; default false (404)
+mcp_issuer       = "https://id.acme.example"   # `iss` of MCP tokens; default the host id
+default_mode     = "suggest"                   # suggest | direct, for changes to existing content
+mcp_rate_per_min = 120                         # per token; burst 2x
+```
+
+MCP tokens are verified with the host's launch-token keys (`jwt_secret`, `jwt_public_key` or
+`jwt_jwks_url`). Set `OC_PUBLIC_URL` so the token audience and the protected-resource metadata
+URL are the public one (otherwise the request's `Host` is used). Tool calls run on the node that
+owns the room; in cluster mode a call that lands on another node is refused for now (retry).
+Provider settings for the in-editor assistant come with AI-02.
+
 ## Health & metrics
 - `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining.
 - `/metrics` (Prometheus): `oc_rooms_live`, `oc_connections{role}`,

@@ -1,5 +1,6 @@
 //! OpenCanvas server: launch, sessions, collaboration rooms, autosave and exports.
 
+pub mod ai;
 pub mod assets;
 pub mod cluster;
 pub mod config;

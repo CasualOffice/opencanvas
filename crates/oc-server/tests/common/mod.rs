@@ -318,6 +318,7 @@ pub fn host_config(base: &str) -> HostConfig {
         asset_origins: vec![],
         original_callback_base: None,
         flags: Default::default(),
+        ai: Default::default(),
     }
 }
 

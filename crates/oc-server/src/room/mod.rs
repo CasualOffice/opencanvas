@@ -98,6 +98,15 @@ pub(crate) enum Cmd {
         author: String,
         reply: oneshot::Sender<Result<Patched, PatchFailure>>,
     },
+    /// Canvas tool call (docs/24 §5): `run` reads the live doc and returns an optional update
+    /// (computed on a scratch copy) plus the tool's answer. The update is applied with origin
+    /// `origin` as one transaction and handled exactly like a client update.
+    Tool {
+        run: ToolFn,
+        origin: String,
+        author: String,
+        reply: oneshot::Sender<Result<serde_json::Value, crate::ai::tools::ToolError>>,
+    },
     /// Host commit API: save now and answer once the host acknowledged (or it failed).
     Commit {
         reply: oneshot::Sender<CommitResult>,
@@ -111,6 +120,14 @@ pub(crate) enum Cmd {
         reply: oneshot::Sender<()>,
     },
 }
+
+/// A tool step run inside the room actor: `(update, answer)`.
+pub type ToolFn = Box<
+    dyn FnOnce(
+            &yrs::Doc,
+        ) -> Result<(Option<Vec<u8>>, serde_json::Value), crate::ai::tools::ToolError>
+        + Send,
+>;
 
 #[derive(Debug)]
 pub struct Patched {
@@ -747,6 +764,44 @@ impl Rooms {
             remote::decode_patch,
         )
         .await
+    }
+
+    /// Runs a canvas tool step on the room's actor (opening the room when needed). Phase 1:
+    /// the room must be owned by this node; cluster forwarding of tool calls comes later.
+    pub async fn tool(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        origin: &str,
+        run: ToolFn,
+    ) -> Result<serde_json::Value, crate::ai::tools::ToolError> {
+        use crate::ai::tools::ToolError;
+        let tx = match self.place(host, grant, true).await {
+            Ok(Placement::Local(tx, _)) => tx,
+            Ok(Placement::Remote(_)) => {
+                return Err(ToolError::Internal(
+                    "the room is owned by another node; retry there".into(),
+                ));
+            }
+            Err(e) => return Err(ToolError::Internal(e.to_string())),
+        };
+        let (reply, rx) = oneshot::channel();
+        let cmd = Cmd::Tool {
+            run,
+            origin: origin.to_string(),
+            author: grant.user.id.clone(),
+            reply,
+        };
+        if tx.send(cmd).is_err() {
+            return Err(ToolError::Internal("room unavailable; retry".into()));
+        }
+        match tokio::time::timeout(Duration::from_secs(30), rx).await {
+            Ok(Ok(v)) => v,
+            Ok(Err(_)) => Err(ToolError::Internal(
+                "room unavailable (could not load the file from the host)".into(),
+            )),
+            Err(_) => Err(ToolError::Internal("room did not answer".into())),
+        }
     }
 
     /// Forces a save of the room `grant` names (opening it if needed) and waits for the host.

@@ -321,6 +321,46 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   only; other images become links. Boards become pictures (PNG in DOCX, SVG in HTML/PDF).
   `to=pdf` needs the operator to run the Gotenberg sidecar (`OC_PDF_RENDERER`), else `501`.
 
+## 7a. MCP endpoint (AI-01, ADR-032; off by default)
+
+Turn it on per host with `[host.ai] mcp = true`. External MCP clients and your own agents call
+`POST /mcp/{hostId}` (streamable HTTP, stateless, one JSON-RPC message per POST, JSON answers;
+MCP `2026-07-28`, and `2025-11-25` by version negotiation). Methods: `initialize`
+(`server/discover`), `ping`, `tools/list`, `tools/call`, `resources/templates/list`,
+`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON).
+
+**Tokens are yours.** OpenCanvas runs no OAuth server. You mint an access token (JWT) with the
+same keys as launch tokens (HS256 secret, PEM or JWKS):
+
+| claim | value |
+|---|---|
+| `iss` | your host id, or `[host.ai] mcp_issuer` |
+| `aud` | `https://<opencanvas>/mcp/{hostId}` (a token for another host or a launch token is refused) |
+| `sub` | the user id (`svc:<name>` for a backend job) |
+| `exp` | at most 15 minutes ahead |
+| `scope` | space-separated `canvas:read`, `canvas:comment`, `canvas:write`, `canvas:write:direct` |
+| `role` | the user's role on the files (`view`/`comment`/`edit`; absent = `view`) |
+| `files` | optional list of file ids the token covers |
+| `name`, `client_id` | optional display name; client id recorded in the edit origin `mcp:<clientId>` |
+
+The effective permission is `min(scope, role)`: `canvas:write` does not let a `view` user write,
+and a `canvas:read` token does not let an editor write. A request without a valid token gets
+`401` with `WWW-Authenticate: Bearer resource_metadata="https://<opencanvas>/.well-known/oauth-protected-resource/mcp/{hostId}"`;
+that RFC 9728 document names your `mcp_issuer` as the authorization server. Tokens are never
+forwarded to you; callbacks stay HMAC-signed. Each token gets 120 requests/min (burst 240,
+`[host.ai] mcp_rate_per_min`), then `429`.
+
+**Tools** (each takes `fileId`): `canvas_read`, `canvas_find`, `db_describe`, `db_query`,
+`board_read`, `comment_list`, `members_list` (read); `comment_add` (comment);
+`canvas_patch`, `db_upsert_rows`, `db_create`, `db_add_field`, `board_add_shapes` (write). Edits
+are live Yjs transactions, broadcast and autosaved like a person's. Canvas content comes back
+wrapped as untrusted data. Changes to existing blocks carry `ifMatch` (the block `rev` from a
+read; a mismatch returns `STALE_BLOCK` with the fresh block). By default new content lands
+directly and changes to existing content become **suggestions** (stored in the file's
+`suggestions` root for a person to accept in the editor); `[host.ai] default_mode = "direct"`
+changes that. Deleting more than 5 blocks needs `confirm: true`. Member lists never carry
+e-mail addresses. Errors are tool results with `isError: true` and a `code`.
+
 ## 8. Lifecycle & guarantees
 
 - **One live room per (host, file).** Users who open the same file join the
