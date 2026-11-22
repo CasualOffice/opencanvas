@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 oc-model.workspace = true
+async-trait = "0.1"
 yrs.workspace = true
 serde.workspace = true
 serde_json.workspace = true

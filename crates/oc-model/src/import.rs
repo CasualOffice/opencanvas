@@ -29,7 +29,7 @@ pub fn json_to_any(v: &Value) -> Any {
 }
 
 /// Objects become Y.Maps and arrays Y.Arrays, except `options` which stays a plain JSON value.
-fn json_to_in(key: &str, v: &Value) -> In {
+pub fn json_to_in(key: &str, v: &Value) -> In {
     match v {
         Value::Object(o) if key != "options" => In::Map(
             o.iter()
