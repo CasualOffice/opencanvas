@@ -33,6 +33,16 @@ impl HostAi<'_> {
             .unwrap_or(false)
     }
 
+    /// `mcp_audience`: the public base URL MCP clients reach this host's endpoint on (e.g.
+    /// `https://canvas.example.com`); tokens must carry `aud = {mcp_audience}/mcp/{hostId}`.
+    /// Overrides `OC_PUBLIC_URL` for MCP. Without either, MCP is off (SEC-33).
+    pub fn mcp_audience(&self) -> Option<String> {
+        self.str("mcp_audience")
+            .map(|u| u.trim().trim_end_matches('/'))
+            .filter(|u| !u.is_empty())
+            .map(str::to_string)
+    }
+
     /// `mcp_all_files = true`: when the host has no `/access` callback, an MCP token without
     /// a `files` claim covers every file of the host with its `role` claim. Broad; off by
     /// default, so such a token is refused (SEC-34, docs/24 §7.1).

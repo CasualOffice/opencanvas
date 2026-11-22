@@ -357,7 +357,7 @@ pub async fn session_info(
         (true, crate::grant::Role::Edit) => &["edit", "comment", "answer"],
     };
     let body = json!({
-        "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": server_ai && host_ai.mcp()},
+        "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": super::mcp::mcp_enabled(&state, &host)},
         // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
         "import": {"formats": super::import::formats(&state, &host, grant.role)},
         "ticket": ticket,

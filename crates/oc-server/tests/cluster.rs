@@ -38,6 +38,10 @@ async fn node(
     let state = app_ai(base, room_cfg(), db, |h| {
         h.api_key = Some("test-api-key".into());
         h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+        h.ai.insert(
+            "mcp_audience".into(),
+            toml::Value::String("https://oc.example".into()),
+        );
         h.ai.insert("default_mode".into(), toml::Value::String("direct".into()));
     })
     .await;
@@ -396,9 +400,9 @@ async fn revoke_on_one_node_reaches_every_node_over_redis() {
     revoke_reaches_every_node(&n1, &n2, &host).await;
 }
 
-fn mcp_token(addr: &str) -> String {
+fn mcp_token() -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let c = json!({"iss": "sample", "aud": format!("http://{addr}/mcp/sample"), "sub": "u_mcp",
+    let c = json!({"iss": "sample", "aud": "https://oc.example/mcp/sample", "sub": "u_mcp",
         "name": "Asha", "exp": oc_server::util::now_secs() + 600,
         "scope": "canvas:read canvas:write", "role": "edit", "client_id": "claude",
         "files": [FILE]});
@@ -413,7 +417,7 @@ fn mcp_token(addr: &str) -> String {
 async fn mcp_call(addr: &str, name: &str, args: Value) -> (u16, Value) {
     let res = http()
         .post(format!("http://{addr}/mcp/sample"))
-        .bearer_auth(mcp_token(addr))
+        .bearer_auth(mcp_token())
         .json(&json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
             "params": {"name": name, "arguments": args}}))
         .send()
@@ -514,7 +518,7 @@ async fn an_unreachable_owner_answers_503_with_retry_after() {
     tokio::time::sleep(Duration::from_millis(100)).await;
     let res = http()
         .post(format!("http://{}/mcp/sample", n2.addr))
-        .bearer_auth(mcp_token(&n2.addr))
+        .bearer_auth(mcp_token())
         .json(&json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
             "params": {"name": "canvas_read", "arguments": {"fileId": FILE}}}))
         .send()

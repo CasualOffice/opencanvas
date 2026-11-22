@@ -33,15 +33,38 @@ pub const SCOPES: [&str; 4] = [
     "canvas:write:direct",
 ];
 
-fn base_url(state: &SharedState, headers: &HeaderMap) -> String {
-    if let Some(u) = &state.cfg.public_url {
-        return u.clone();
+/// The public base URL of a host's MCP endpoint: `[host.ai] mcp_audience`, else
+/// `OC_PUBLIC_URL`. Never derived from request headers (SEC-33): without one, MCP is off.
+fn mcp_base(state: &SharedState, host: &HostConfig) -> Option<String> {
+    HostAi(host)
+        .mcp_audience()
+        .or_else(|| state.cfg.public_url.clone())
+}
+
+/// Whether MCP is on for `host`: the server-wide AI switch, `[host.ai] mcp = true` and a
+/// configured public URL (docs/24 §7.3).
+pub fn mcp_enabled(state: &SharedState, host: &HostConfig) -> bool {
+    state.ai_on() && HostAi(host).mcp() && mcp_base(state, host).is_some()
+}
+
+/// One startup warning when a host turns MCP on but no public URL is configured.
+pub fn warn_if_unreachable(state: &SharedState) {
+    if !state.ai_on() || state.cfg.public_url.is_some() {
+        return;
     }
-    let host = headers
-        .get(header::HOST)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("localhost");
-    format!("http://{host}")
+    let mut off: Vec<String> = state
+        .hosts
+        .iter()
+        .filter(|h| HostAi(h).mcp() && HostAi(h).mcp_audience().is_none())
+        .map(|h| h.id.clone())
+        .collect();
+    if !off.is_empty() {
+        off.sort();
+        tracing::warn!(
+            hosts = %off.join(","),
+            "MCP is off because OC_PUBLIC_URL isn't set (or set [host.ai] mcp_audience)"
+        );
+    }
 }
 
 /// The MCP resource URI of a host: the `aud` its tokens must carry.
@@ -53,24 +76,25 @@ fn metadata_url(base: &str, host_id: &str) -> String {
     format!("{base}/.well-known/oauth-protected-resource/mcp/{host_id}")
 }
 
-fn mcp_host(state: &SharedState, host_id: &str) -> Option<std::sync::Arc<HostConfig>> {
-    // The server-wide AI switch beats `[host.ai] mcp` (docs/24 §7.3).
+/// The host and its MCP base URL, when MCP is on for it. The server-wide AI switch beats
+/// `[host.ai] mcp` (docs/24 §7.3).
+fn mcp_host(state: &SharedState, host_id: &str) -> Option<(std::sync::Arc<HostConfig>, String)> {
     if !state.ai_on() {
         return None;
     }
-    state.hosts.get(host_id).filter(|h| HostAi(h).mcp())
+    let host = state.hosts.get(host_id).filter(|h| HostAi(h).mcp())?;
+    let base = mcp_base(state, &host)?;
+    Some((host, base))
 }
 
 /// `GET /.well-known/oauth-protected-resource/mcp/{hostId}` (RFC 9728).
 pub async fn resource_metadata(
     State(state): State<SharedState>,
     Path(host_id): Path<String>,
-    headers: HeaderMap,
 ) -> Response {
-    let Some(host) = mcp_host(&state, &host_id) else {
+    let Some((host, base)) = mcp_host(&state, &host_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let base = base_url(&state, &headers);
     Json(json!({
         "resource": resource_uri(&base, &host.id),
         "authorization_servers": [HostAi(&host).mcp_issuer()],
@@ -283,7 +307,7 @@ pub async fn mcp(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let Some(host) = mcp_host(&state, &host_id) else {
+    let Some((host, base)) = mcp_host(&state, &host_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     // Transport rule: a browser Origin must be one the host allows.
@@ -292,7 +316,6 @@ pub async fn mcp(
     {
         return StatusCode::FORBIDDEN.into_response();
     }
-    let base = base_url(&state, &headers);
     let Some(token) = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
