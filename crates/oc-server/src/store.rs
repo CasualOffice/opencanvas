@@ -307,6 +307,74 @@ impl Store {
         sqlx::query("SELECT 1").execute(&self.pool).await.is_ok()
     }
 
+    /// Adds `tokens` to a host's AI usage for `month` (`YYYY-MM`, UTC); returns the new total
+    /// across every node (docs/24 §9.1 T8).
+    pub async fn ai_usage_add(&self, host: &str, month: &str, tokens: u64) -> anyhow::Result<u64> {
+        if let Some(kv) = &self.kv {
+            return kv.ai_usage_add(host, month, tokens).await;
+        }
+        let n = i64::try_from(tokens).unwrap_or(i64::MAX);
+        // Portable upsert: update, else insert; a racing insert falls back to the update.
+        for _ in 0..3 {
+            let up = sqlx::query(
+                "UPDATE ai_usage SET tokens = tokens + ? WHERE host_id = ? AND month = ?",
+            )
+            .bind(n)
+            .bind(host)
+            .bind(month)
+            .execute(&self.pool)
+            .await?;
+            if up.rows_affected() == 0 {
+                let ins =
+                    sqlx::query("INSERT INTO ai_usage (host_id, month, tokens) VALUES (?, ?, ?)")
+                        .bind(host)
+                        .bind(month)
+                        .bind(n)
+                        .execute(&self.pool)
+                        .await;
+                match ins {
+                    Ok(_) => {}
+                    Err(e)
+                        if e.as_database_error()
+                            .is_some_and(|d| d.is_unique_violation()) =>
+                    {
+                        continue;
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            let row = sqlx::query("SELECT tokens FROM ai_usage WHERE host_id = ? AND month = ?")
+                .bind(host)
+                .bind(month)
+                .fetch_one(&self.pool)
+                .await?;
+            return Ok(row.try_get::<i64, _>(0)?.max(0) as u64);
+        }
+        anyhow::bail!("ai_usage upsert kept racing")
+    }
+
+    /// Every host's AI usage for `month` (loaded at start-up).
+    pub async fn ai_usage_month(
+        &self,
+        month: &str,
+    ) -> anyhow::Result<std::collections::HashMap<String, u64>> {
+        if let Some(kv) = &self.kv {
+            return kv.ai_usage_month(month).await;
+        }
+        let rows = sqlx::query("SELECT host_id, tokens FROM ai_usage WHERE month = ?")
+            .bind(month)
+            .fetch_all(&self.pool)
+            .await?;
+        rows.iter()
+            .map(|r| {
+                Ok((
+                    r.try_get::<String, _>(0)?,
+                    r.try_get::<i64, _>(1)?.max(0) as u64,
+                ))
+            })
+            .collect()
+    }
+
     /// Records a launch `jti`; returns false if it was already used.
     pub async fn use_jti(&self, host: &str, jti: &str, expires_at: i64) -> anyhow::Result<bool> {
         if let Some(kv) = &self.kv {

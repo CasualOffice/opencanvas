@@ -90,6 +90,12 @@ impl AppState {
             tokio::spawn(async move { probe.probe_all().await });
             rt
         });
+        if let Some(rt) = &ai {
+            // The monthly quota counters live in the storage layer (survive restarts).
+            rt.persist_quota(store.clone())
+                .await
+                .map_err(|e| anyhow::anyhow!("loading AI usage: {e:#}"))?;
+        }
         let rooms = Rooms::new(Arc::new(Ctx {
             store: store.clone(),
             host: host.clone(),

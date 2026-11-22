@@ -420,3 +420,22 @@ async fn rooms_sessions_notifications_and_assets() {
         );
     }
 }
+
+#[tokio::test]
+async fn ai_token_usage_is_counted_per_host_and_month() {
+    for (b, s) in backends().await {
+        let (h1, h2) = (uid("host"), uid("host"));
+        assert_eq!(s.ai_usage_add(&h1, "2026-11", 15).await.unwrap(), 15, "{b}");
+        assert_eq!(s.ai_usage_add(&h1, "2026-11", 5).await.unwrap(), 20, "{b}");
+        assert_eq!(s.ai_usage_add(&h1, "2026-12", 7).await.unwrap(), 7, "{b}");
+        assert_eq!(s.ai_usage_add(&h2, "2026-11", 1).await.unwrap(), 1, "{b}");
+        let month = s.ai_usage_month("2026-11").await.unwrap();
+        assert_eq!(month.get(&h1), Some(&20), "{b}");
+        assert_eq!(month.get(&h2), Some(&1), "{b}");
+        assert_eq!(
+            s.ai_usage_month("2026-12").await.unwrap().get(&h2),
+            None,
+            "{b}"
+        );
+    }
+}

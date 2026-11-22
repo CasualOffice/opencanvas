@@ -163,10 +163,14 @@ pub struct RunEnv {
     pub emit: mpsc::UnboundedSender<Value>,
 }
 
-/// Per-host monthly token counters (UTC calendar month). In memory on the owner node.
+/// Per-host monthly token counters (UTC calendar month). Kept in memory for the checks, and
+/// written through to the storage layer (`ai_usage`; Redis in Redis-only mode) once
+/// [`AiRuntime::persist_quota`] attaches it, so the quota survives restarts and counts every node.
 #[derive(Default)]
 pub struct Quota {
-    used: Mutex<HashMap<(String, String), u64>>,
+    used: Arc<Mutex<HashMap<(String, String), u64>>>,
+    store: std::sync::OnceLock<crate::store::Store>,
+    pending: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 fn month_key() -> String {
@@ -192,9 +196,60 @@ impl Quota {
             .unwrap_or(0)
     }
     pub fn add(&self, host: &str, n: u64) {
+        let key = (host.to_string(), month_key());
         if let Ok(mut m) = self.used.lock() {
-            *m.entry((host.to_string(), month_key())).or_default() += n;
+            *m.entry(key.clone()).or_default() += n;
         }
+        let (Some(store), Ok(rt)) = (self.store.get(), tokio::runtime::Handle::try_current())
+        else {
+            return;
+        };
+        if n == 0 {
+            return;
+        }
+        let (store, used) = (store.clone(), self.used.clone());
+        let task = rt.spawn(async move {
+            match store.ai_usage_add(&key.0, &key.1, n).await {
+                // The stored total also counts other nodes' runs.
+                Ok(total) => {
+                    if let Ok(mut m) = used.lock() {
+                        let e = m.entry(key).or_default();
+                        *e = (*e).max(total);
+                    }
+                }
+                Err(e) => tracing::warn!(error = %e, "could not persist AI usage"),
+            }
+        });
+        if let Ok(mut p) = self.pending.lock() {
+            p.retain(|t| !t.is_finished());
+            p.push(task);
+        }
+    }
+
+    /// Waits for every usage write in flight (shutdown and tests).
+    pub async fn flush(&self) {
+        let tasks: Vec<_> = self
+            .pending
+            .lock()
+            .map(|mut p| p.drain(..).collect())
+            .unwrap_or_default();
+        for t in tasks {
+            let _ = t.await;
+        }
+    }
+
+    /// Loads this month's stored usage and writes every later addition through to `store`.
+    pub async fn persist(&self, store: crate::store::Store) -> anyhow::Result<()> {
+        let month = month_key();
+        let stored = store.ai_usage_month(&month).await?;
+        if let Ok(mut m) = self.used.lock() {
+            for (host, n) in stored {
+                let e = m.entry((host, month.clone())).or_default();
+                *e = (*e).max(n);
+            }
+        }
+        let _ = self.store.set(store);
+        Ok(())
     }
     fn spent(&self, host: &str, quota: u64) -> bool {
         quota > 0 && self.used(host) >= quota
@@ -269,6 +324,11 @@ impl AiRuntime {
             reg: Mutex::default(),
             metrics,
         })
+    }
+
+    /// Persists the monthly quota counters in `store` (loads this month's usage first).
+    pub async fn persist_quota(&self, store: crate::store::Store) -> anyhow::Result<()> {
+        self.quota.persist(store).await
     }
 
     /// Plugs in the canvas tool layer (once; later calls are ignored).

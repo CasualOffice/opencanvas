@@ -1001,3 +1001,36 @@ async fn instruction_like_canvas_content_is_flagged_but_still_sent_as_data() {
     };
     assert!(first.contains("<canvas_data>") && first.contains("ignore your instructions"));
 }
+
+#[tokio::test]
+async fn the_monthly_quota_survives_a_restart() {
+    let path = std::env::temp_dir().join(format!("oc-test-quota-{}.db", ulid::Ulid::new()));
+    let url = format!("sqlite://{}?mode=rwc", path.display());
+    let limits = Limits {
+        monthly_token_quota: 10,
+        ..Limits::default()
+    };
+    {
+        let h = harness(vec![text("a")], Role::Edit);
+        let store = oc_server::store::Store::connect(&url, None).await.unwrap();
+        h.rt.persist_quota(store).await.unwrap();
+        let (env, mut rx) = h.env(Role::Edit, limits.clone());
+        h.rt.start(env, run_req("r1", Some("answer")))
+            .unwrap()
+            .await
+            .unwrap();
+        drain(&mut rx).await;
+        assert_eq!(h.rt.quota.used("acme"), 15);
+        h.rt.quota.flush().await;
+    }
+    // A new process: fresh runtime, same database.
+    let h = harness(vec![text("b")], Role::Edit);
+    assert_eq!(h.rt.quota.used("acme"), 0);
+    let store = oc_server::store::Store::connect(&url, None).await.unwrap();
+    h.rt.persist_quota(store).await.unwrap();
+    assert_eq!(h.rt.quota.used("acme"), 15);
+    let (env, mut rx) = h.env(Role::Edit, limits);
+    let err = h.rt.start(env, run_req("r2", Some("answer"))).unwrap_err();
+    assert!(err.contains("quota"), "{err}");
+    drain(&mut rx).await;
+}
