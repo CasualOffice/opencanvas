@@ -497,6 +497,14 @@ impl Room {
             Cmd::Patch { ops, author, reply } => {
                 let _ = reply.send(self.patch(&ops, &author).await);
             }
+            Cmd::Tool {
+                run,
+                origin,
+                author,
+                reply,
+            } => {
+                let _ = reply.send(self.tool(run, &origin, &author).await);
+            }
             Cmd::Commit { reply } => self.commit(reply),
             Cmd::Shutdown { .. } | Cmd::StepDown => unreachable!("handled by run loop"),
         }
@@ -1026,21 +1034,37 @@ impl Room {
             format!("b_{}", ulid::Ulid::new().to_string().to_lowercase())
         })
         .map_err(PatchFailure::Invalid)?;
+        let changed = self
+            .apply_server_update(out.update, &format!("api:{author}"), author)
+            .await?;
+        tracing::info!(room = %self.id, ops = ops.len(), changed, "patch applied by host API");
+        Ok(Patched {
+            block_ids: out.block_ids,
+        })
+    }
+
+    /// Applies an update made by the server (patch API, canvas tools) with `origin`, then logs
+    /// and broadcasts it like a client update. Returns whether the doc changed.
+    async fn apply_server_update(
+        &mut self,
+        update: Vec<u8>,
+        origin: &str,
+        author: &str,
+    ) -> Result<bool, PatchFailure> {
         let cap = self.ctx.cfg.max_doc_bytes;
-        if self.doc_bytes + out.update.len() > cap {
+        if self.doc_bytes + update.len() > cap {
             self.doc_bytes = encoded_len(&self.doc);
-            if self.doc_bytes + out.update.len() > cap {
-                tracing::info!(room = %self.id, size = self.doc_bytes, update = out.update.len(), "patch refused: document size limit");
+            if self.doc_bytes + update.len() > cap {
+                tracing::info!(room = %self.id, size = self.doc_bytes, update = update.len(), "server edit refused: document size limit");
                 return Err(PatchFailure::TooLarge);
             }
         }
-        let update = Update::decode_v1(&out.update).map_err(|e| {
+        let decoded = Update::decode_v1(&update).map_err(|e| {
             PatchFailure::Invalid(oc_model::patch::PatchError::Request(e.to_string()))
         })?;
-        let origin = format!("api:{author}");
         let changed = {
-            let mut txn = self.doc.transact_mut_with(origin.as_str());
-            if let Err(e) = txn.apply_update(update) {
+            let mut txn = self.doc.transact_mut_with(origin);
+            if let Err(e) = txn.apply_update(decoded) {
                 return Err(PatchFailure::Invalid(oc_model::patch::PatchError::Request(
                     e.to_string(),
                 )));
@@ -1049,15 +1073,43 @@ impl Room {
             txn.has_changes()
         };
         if changed {
-            self.queue(out.update, author, None, true);
+            self.queue(update, author, None, true);
             if !self.flush_wal().await {
                 return Err(PatchFailure::Unavailable);
             }
         }
-        tracing::info!(room = %self.id, ops = ops.len(), changed, "patch applied by host API");
-        Ok(Patched {
-            block_ids: out.block_ids,
-        })
+        Ok(changed)
+    }
+
+    /// Canvas tool step (docs/24 §5): runs against the live doc; a resulting update is one
+    /// transaction with the tool's origin (`ai:<runId>` / `mcp:<clientId>`).
+    async fn tool(
+        &mut self,
+        run: super::ToolFn,
+        origin: &str,
+        author: &str,
+    ) -> Result<Value, crate::ai::tools::ToolError> {
+        use crate::ai::tools::ToolError;
+        let (update, answer) = run(&self.doc)?;
+        let Some(update) = update.filter(|u| !u.is_empty()) else {
+            return Ok(answer);
+        };
+        if self.conflict.is_some() {
+            return Err(ToolError::Internal(
+                "CONFLICT: the room is handling a save conflict and is read-only".into(),
+            ));
+        }
+        match self.apply_server_update(update, origin, author).await {
+            Ok(_) => Ok(answer),
+            Err(PatchFailure::TooLarge) => Err(ToolError::BadInput(
+                "DOC_TOO_LARGE: the change would exceed the document size limit".into(),
+            )),
+            Err(PatchFailure::Invalid(e)) => Err(ToolError::Internal(e.to_string())),
+            Err(PatchFailure::Conflict) => Err(ToolError::Internal("CONFLICT".into())),
+            Err(PatchFailure::Unavailable) => Err(ToolError::Internal(
+                "the change could not be stored; retry".into(),
+            )),
+        }
     }
 
     /// Host commit API: answers at once when clean, else forces a save and waits for it.

@@ -57,3 +57,42 @@ pub enum ToolError {
     ConfirmationRequired(String),
     Internal(String),
 }
+
+impl ToolError {
+    /// The machine code an agent can act on (docs/24 §5.3).
+    pub fn code(&self) -> &'static str {
+        match self {
+            ToolError::Forbidden(_) => "ROLE_FORBIDDEN",
+            ToolError::BadInput(_) => "BAD_INPUT",
+            ToolError::NotFound(_) => "NOT_FOUND",
+            ToolError::Stale(_) => "STALE_BLOCK",
+            ToolError::ConfirmationRequired(_) => "CONFIRMATION_REQUIRED",
+            ToolError::Internal(_) => "INTERNAL",
+        }
+    }
+
+    pub fn message(&self) -> String {
+        match self {
+            ToolError::Stale(_) => "a block changed since it was read; re-read it and retry".into(),
+            ToolError::Forbidden(m)
+            | ToolError::BadInput(m)
+            | ToolError::NotFound(m)
+            | ToolError::ConfirmationRequired(m)
+            | ToolError::Internal(m) => m.clone(),
+        }
+    }
+}
+
+impl std::fmt::Display for ToolError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code(), self.message())
+    }
+}
+
+mod live;
+mod read;
+mod write;
+
+pub use live::{LiveTools, phase1_specs, role_allows};
+pub use read::{DATA_NOTICE, rev};
+pub use write::{CONFIRM_BLOCK_DELETES, SUGGESTIONS, suggestions};
