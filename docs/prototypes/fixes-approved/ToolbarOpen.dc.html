@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone toolbar, keyboard open</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tb{width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:#18181b;display:grid;place-items:center;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: Geist, ui-sans-serif, system-ui, sans-serif; color: #18181b;">
+  <header style="height: 54px; display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid rgba(24,24,32,.085);"><strong style="font-size: 16px;">Sprint 42 planning</strong></header>
+  <div style="padding: 18px 16px; display: flex; flex-direction: column; gap: 10px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Decisions</h2>
+    <p style="margin: 0; font-size: 16px; line-height: 1.7;">The file stays in the host. We save on idle<span style="display: inline-block; width: 2px; height: 20px; background: #2a5ad7; vertical-align: text-bottom;"></span></p>
+  </div>
+  <div role="toolbar" aria-label="Format" style="position: absolute; left: 0; right: 0; bottom: 336px; background: #fbfbfa; border-top: 1px solid rgba(24,24,32,.085); padding: 6px 8px; display: flex; gap: 2px; align-items: center;">
+    <button class="tb" aria-label="Insert block"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+    <button class="tb" aria-label="Bold" style="font-weight: 700; font-size: 17px;">B</button>
+    <button class="tb" aria-label="Italic" style="font-style: italic; font-size: 17px;">I</button>
+    <button class="tb" aria-label="Checklist"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg></button>
+    <span style="flex-grow: 1;"></span>
+    <button class="tb" aria-label="Hide keyboard"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+  </div>
+  <div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 0; height: 336px; background: #d1d3d9; display: grid; place-items: center; color: #55555e; font-size: 13px;">On-screen keyboard</div>
+  <span style="position: absolute; left: 12px; bottom: 396px; font-size: 11px; color: #55555e; background: #fff; padding: 0 4px;">Sits on the keyboard; no extra bottom padding</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

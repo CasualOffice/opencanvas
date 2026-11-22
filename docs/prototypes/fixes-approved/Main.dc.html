@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Access expiring</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.oc{--app:#ffffff;--panel:#fbfbfa;--sunk:#f4f4f2;--hover:rgba(24,24,32,.045);--line:rgba(24,24,32,.085);--line-2:rgba(24,24,32,.15);--fg:#18181b;--fg-2:#55555e;--fg-3:#6e6e78;--accent:#2a5ad7;--accent-fg:#fff;--amber-bg:#fcf0d9;--amber-fg:#7a4600;--green-bg:#e2f3e8;--green-fg:#17703f;--red-bg:#fde6e6;--red-fg:#a51f1f;font-family:"Geist",ui-sans-serif,-apple-system,system-ui,sans-serif;color:var(--fg)}
+.btn{font:inherit;font-size:13px;font-weight:500;height:30px;padding:0 12px;border-radius:7px;border:0;display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:transparent;color:inherit;box-shadow:inset 0 0 0 1px currentColor}
+.btn.pri{background:var(--accent);color:var(--accent-fg);box-shadow:none}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tab{font:inherit;font-size:12px;height:28px;padding:0 10px;border-radius:999px;border:0;cursor:pointer;background:transparent;color:var(--fg-2)}
+.tab.on{background:var(--fg);color:var(--app)}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+</style>
+</helmet>
+<div class="oc" style="width: 1280px; height: 720px; background: var(--app); display: flex; flex-direction: column; position: relative;">
+  <header style="height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line);">
+    <span style="font-size: 13px; color: var(--fg-3);">Engineering /</span>
+    <strong style="font-size: 14px;">Sprint 42 planning</strong>
+    <span style="flex-grow: 1;"></span>
+    <sc-if value="{{showSaved}}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; color: var(--green-fg); display: inline-flex; gap: 5px; align-items: center;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px;"><path d="M20 6 9 17l-5-5"/></svg>Saved</span></sc-if>
+    <sc-if value="{{isExpired}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: var(--fg-2); display: inline-flex; gap: 5px; align-items: center;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Read only</span></sc-if>
+  </header>
+
+  <sc-if value="{{showWarn}}" hint-placeholder-val="{{ true }}">
+    <div role="status" style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--amber-bg); color: var(--amber-fg); font-size: 13px;">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span style="flex-grow: 1;"><strong>Your access to this canvas ends in 1 minute.</strong> We asked Acme to renew it. Nothing you type is lost either way.</span>
+      <button class="btn" onClick="{{renew}}">Renew now</button>
+      <button class="btn" onClick="{{expire}}" style="box-shadow: none; text-decoration: underline;">Let it end</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{isExpired}}" hint-placeholder-val="{{ false }}">
+    <div role="alert" style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--red-bg); color: var(--red-fg); font-size: 13px;">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span style="flex-grow: 1;"><strong>Your access ended, so the canvas is read only.</strong> Your last changes were saved at 10:42. Reconnect to keep editing.</span>
+      <button class="btn pri" onClick="{{renew}}">Reconnect</button>
+    </div>
+  </sc-if>
+
+  <main style="flex-grow: 1; display: flex; justify-content: center; padding: 40px 24px;">
+    <div style="width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 12px; opacity: {{docOpacity}};">
+      <h1 style="margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.02em;">Sprint 42 planning</h1>
+      <p style="margin: 0; font-size: 13px; color: var(--fg-3);">Edited just now by you</p>
+      <h2 style="margin: 12px 0 0; font-size: 18px; font-weight: 600;">Decisions</h2>
+      <p style="margin: 0; font-size: 15px; line-height: 1.7;">The file stays in the host. We save on idle and when the last person leaves.</p>
+    </div>
+  </main>
+
+  <sc-if value="{{showToast}}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: 10px; background: var(--fg); color: var(--app); font-size: 13px;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Access renewed. You can keep editing.</div>
+  </sc-if>
+
+  <nav aria-label="Prototype states" style="position: absolute; right: 16px; bottom: 16px; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--sunk); box-shadow: inset 0 0 0 1px var(--line);">
+    <span style="font-size: 11px; color: var(--fg-3); align-self: center; padding: 0 6px;">Prototype</span>
+    <button class="{{tabSilent}}" onClick="{{toSilent}}">Renewed quietly</button>
+    <button class="{{tabWarn}}" onClick="{{toWarn}}">Ending soon</button>
+    <button class="{{tabExpired}}" onClick="{{expire}}">Ended</button>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { s: 'warn', toast: false }; }
+  renderVals() {
+    const s = this.state.s;
+    const tab = (k) => 'tab' + (s === k ? ' on' : '');
+    return {
+      showWarn: s === 'warn', isExpired: s === 'expired', showSaved: s !== 'expired',
+      showToast: this.state.toast, docOpacity: s === 'expired' ? '0.72' : '1',
+      tabSilent: tab('silent'), tabWarn: tab('warn'), tabExpired: tab('expired'),
+      renew: () => { this.setState({ s: 'silent', toast: true }); setTimeout(() => this.setState({ toast: false }), 2500); },
+      expire: () => this.setState({ s: 'expired', toast: false }),
+      toSilent: () => this.setState({ s: 'silent', toast: false }),
+      toWarn: () => this.setState({ s: 'warn', toast: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

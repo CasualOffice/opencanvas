@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Database on a phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+td,th{white-space:nowrap}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: Geist, ui-sans-serif, system-ui, sans-serif; color: #18181b;">
+  <header style="height: 54px; display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid rgba(24,24,32,.085);"><strong style="font-size: 16px;">Sprint 42 planning</strong></header>
+  <div style="padding: 16px 0 0 16px;">
+    <div style="display: flex; align-items: center; gap: 8px; padding-right: 16px; margin-bottom: 8px;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="color: #6e6e78;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg><strong style="font-size: 16px;">Tasks</strong><span style="flex-grow: 1;"></span><span style="font-size: 12px; color: #6e6e78;">6 rows</span></div>
+    <div style="position: relative; overflow: hidden;">
+      <table style="border-collapse: separate; border-spacing: 0; font-size: 15px;">
+        <thead><tr style="color: #6e6e78; text-align: left;">
+          <th style="position: sticky; left: 0; background: #fff; font-weight: 500; padding: 10px 12px 10px 0; width: 132px; max-width: 132px; box-shadow: 6px 0 8px -6px rgba(0,0,0,.18);">Task</th>
+          <th style="font-weight: 500; padding: 10px 12px;">Owner</th><th style="font-weight: 500; padding: 10px 12px;">Due</th><th style="font-weight: 500; padding: 10px 12px;">Status</th>
+        </tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <tr>
+              <td style="position: sticky; left: 0; background: #fff; border-top: 1px solid rgba(24,24,32,.085); padding: 12px 12px 12px 0; width: 132px; max-width: 132px; overflow: hidden; text-overflow: ellipsis; box-shadow: 6px 0 8px -6px rgba(0,0,0,.18);"><a href="#" style="color: inherit; text-decoration: none;">{{r.task}}</a></td>
+              <td style="border-top: 1px solid rgba(24,24,32,.085); padding: 12px;">{{r.owner}}</td>
+              <td style="border-top: 1px solid rgba(24,24,32,.085); padding: 12px; color: #55555e;">{{r.due}}</td>
+              <td style="border-top: 1px solid rgba(24,24,32,.085); padding: 12px;"><span style="font-size: 13px; background: #f4f4f2; padding: 2px 8px; border-radius: 999px;">To do</span></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin: 12px 16px 0 0; font-size: 13px; line-height: 1.5; color: #55555e;">The title column is at most 132 px (a third of the screen), truncates with "…", and casts a soft edge so the scrolled cells read as passing under it. Tap a title to open the whole row.</p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { rows: [
+      { task: 'Finish embed SDK docs', owner: 'Ravi Menon', due: 'Dec 4' },
+      { task: 'Review mention list redesign', owner: 'Priya Shah', due: 'Dec 6' },
+      { task: 'Fix PDF zoom on iPhone', owner: 'Sam Lee', due: '—' },
+      { task: 'Token-expiry banner', owner: 'Asha Rao', due: 'Dec 8' },
+      { task: 'Load test the 550 room', owner: 'Lin Park', due: '—' },
+      { task: 'Ask legal about wording', owner: 'Priya Shah', due: '—' }
+    ] };
+  }
+}
+</script>
+</body>
+</html>

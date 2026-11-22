@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone toolbar, keyboard closed</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tb{width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:#18181b;display:grid;place-items:center;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: Geist, ui-sans-serif, system-ui, sans-serif; color: #18181b;">
+  <header style="height: 54px; display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid rgba(24,24,32,.085);"><strong style="font-size: 16px;">Sprint 42 planning</strong></header>
+  <div style="padding: 18px 16px; display: flex; flex-direction: column; gap: 10px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Decisions</h2>
+    <p style="margin: 0; font-size: 16px; line-height: 1.7;">The file stays in the host. We save on idle and when the last person leaves.</p>
+  </div>
+  <div role="toolbar" aria-label="Format" style="position: absolute; left: 0; right: 0; bottom: 0; background: #fbfbfa; border-top: 1px solid rgba(24,24,32,.085); padding: 6px 8px 34px; display: flex; gap: 2px; align-items: center;">
+    <button class="tb" aria-label="Insert block"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+    <button class="tb" aria-label="Bold" style="font-weight: 700; font-size: 17px;">B</button>
+    <button class="tb" aria-label="Italic" style="font-style: italic; font-size: 17px;">I</button>
+    <button class="tb" aria-label="Checklist"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg></button>
+    <span style="flex-grow: 1;"></span>
+    <button class="tb" aria-label="Comment"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></button>
+  </div>
+  <div aria-hidden="true" style="position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: #18181b;"></div>
+  <div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: repeating-linear-gradient(45deg, rgba(229,96,42,.16) 0 6px, transparent 6px 12px); pointer-events: none;"></div>
+  <span style="position: absolute; right: 10px; bottom: 40px; font-size: 11px; color: #b0461a; background: #fff; padding: 0 4px;">34 px safe area: nothing tappable here</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

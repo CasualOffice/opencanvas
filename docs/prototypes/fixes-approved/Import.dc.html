@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Import Markdown, HTML or CSV</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.btn{font:inherit;font-size:13px;font-weight:500;height:32px;padding:0 12px;border-radius:8px;border:0;display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:transparent;color:#18181b;box-shadow:inset 0 0 0 1px rgba(24,24,32,.15)}
+.btn.pri{background:#2a5ad7;color:#fff;box-shadow:none}
+.btn:focus-visible,select:focus-visible{outline:2px solid #2a5ad7;outline-offset:2px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+select{font:inherit;font-size:12px;height:26px;border-radius:6px;border:0;box-shadow:inset 0 0 0 1px rgba(24,24,32,.15);background:#fff;color:#18181b;padding:0 6px}
+th,td{text-align:left;white-space:nowrap}
+</style>
+</helmet>
+<div style="width: 1280px; height: 760px; background: #f1f1ef; font-family: Geist, ui-sans-serif, system-ui, sans-serif; color: #18181b; position: relative; display: grid; place-items: center;">
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(10,10,15,.28);"></div>
+  <section role="dialog" aria-label="Import into this canvas" style="position: relative; width: 640px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px rgba(24,24,32,.07), 0 30px 80px -30px rgba(20,20,30,.4); overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 16px 18px; border-bottom: 1px solid rgba(24,24,32,.085);">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+      <strong style="font-size: 15px; flex-grow: 1;">Import into this canvas</strong>
+      <button class="btn" aria-label="Close" style="width: 32px; padding: 0; justify-content: center; box-shadow: none;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    </div>
+
+    <sc-if value="{{isPick}}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <button onClick="{{choose}}" style="font: inherit; border: 0; cursor: pointer; border-radius: 12px; padding: 34px 20px; background: #fbfbfa; box-shadow: inset 0 0 0 1.5px rgba(24,24,32,.18); display: flex; flex-direction: column; align-items: center; gap: 8px; color: #18181b;">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="width: 24px; height: 24px; color: #55555e;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+          <strong style="font-size: 14px;">Drop a file here, or choose one</strong>
+          <span style="font-size: 13px; color: #55555e;">Markdown (.md), HTML (.html) or CSV (.csv), up to 10 MB</span>
+        </button>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; font-size: 12px; color: #55555e; line-height: 1.45;">
+          <span><strong style="color: #18181b;">Markdown and HTML</strong> become text blocks, lists, tables and images.</span>
+          <span><strong style="color: #18181b;">CSV</strong> becomes a database. You check the column types first.</span>
+          <span><strong style="color: #18181b;">Safe by default:</strong> scripts are removed and links are checked.</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isCsv}}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="font-family: 'Geist Mono', monospace;">tasks-export.csv</span><span style="color: #6e6e78;">· 128 rows · 4 columns</span><span style="flex-grow: 1;"></span><button class="btn" onClick="{{back}}" style="height: 28px;">Choose another</button></div>
+        <div style="overflow-x: auto; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(24,24,32,.085);">
+          <table style="border-collapse: collapse; font-size: 13px; width: 100%;">
+            <thead><tr style="background: #fbfbfa;">
+              <th style="padding: 8px 10px;"><div style="display: flex; flex-direction: column; gap: 4px;"><span>Task</span><label style="font-size: 11px; color: #6e6e78; font-weight: 400;">Type <select aria-label="Type of Task"><option>Text</option></select></label></div></th>
+              <th style="padding: 8px 10px;"><div style="display: flex; flex-direction: column; gap: 4px;"><span>Owner</span><label style="font-size: 11px; color: #6e6e78; font-weight: 400;">Type <select aria-label="Type of Owner"><option>Select (5 values)</option><option>Text</option></select></label></div></th>
+              <th style="padding: 8px 10px;"><div style="display: flex; flex-direction: column; gap: 4px;"><span>Due</span><label style="font-size: 11px; color: #6e6e78; font-weight: 400;">Type <select aria-label="Type of Due"><option>Date</option><option>Text</option></select></label></div></th>
+              <th style="padding: 8px 10px;"><div style="display: flex; flex-direction: column; gap: 4px;"><span>Done</span><label style="font-size: 11px; color: #6e6e78; font-weight: 400;">Type <select aria-label="Type of Done"><option>Checkbox</option><option>Text</option></select></label></div></th>
+            </tr></thead>
+            <tbody>
+              <tr style="border-top: 1px solid rgba(24,24,32,.085);"><td style="padding: 8px 10px;">Finish embed SDK docs</td><td style="padding: 8px 10px;">Ravi</td><td style="padding: 8px 10px;">2026-12-04</td><td style="padding: 8px 10px;">false</td></tr>
+              <tr style="border-top: 1px solid rgba(24,24,32,.085);"><td style="padding: 8px 10px;">Review mention list</td><td style="padding: 8px 10px;">Priya</td><td style="padding: 8px 10px;">2026-12-06</td><td style="padding: 8px 10px;">true</td></tr>
+              <tr style="border-top: 1px solid rgba(24,24,32,.085);"><td style="padding: 8px 10px;">Fix PDF zoom on iPhone</td><td style="padding: 8px 10px;">Sam</td><td style="padding: 8px 10px; color: #6e6e78;">empty</td><td style="padding: 8px 10px;">false</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">Insert <select aria-label="Where to insert"><option>After "Notes from Monday"</option><option>At the end</option></select></label>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid rgba(24,24,32,.085); background: #fbfbfa;">
+        <button class="btn" onClick="{{back}}">Cancel</button>
+        <button class="btn pri" onClick="{{done}}">Import 128 rows</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isDone}}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 28px 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="width: 24px; height: 24px; color: #17703f;"><path d="M20 6 9 17l-5-5"/></svg>
+        <strong style="font-size: 14px;">Imported a database with 128 rows</strong>
+        <span style="font-size: 13px; color: #55555e;">Undo with ⌘Z, like any edit.</span>
+        <button class="btn" onClick="{{back}}" style="margin-top: 6px;">Import another</button>
+      </div>
+    </sc-if>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":760}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { s: 'pick' }; }
+  renderVals() {
+    const s = this.state.s;
+    return {
+      isPick: s === 'pick', isCsv: s === 'csv', isDone: s === 'done',
+      choose: () => this.setState({ s: 'csv' }),
+      back: () => this.setState({ s: 'pick' }),
+      done: () => this.setState({ s: 'done' })
+    };
+  }
+}
+</script>
+</body>
+</html>
