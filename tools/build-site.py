@@ -125,7 +125,13 @@ def _md_body(source: str) -> tuple[str, str]:
     if file == "README.md":
         # The project page's own sections; the site has its own Documentation and Contributing.
         text = re.sub(r"^# .*\n", "", text, count=1)
-        text = re.sub(r"^\*\*A real-time.*?\n\n", "", text, count=1, flags=re.S | re.M)
+        text = re.sub(r"^\*\*An? (real-time|embeddable).*?\n\n", "", text, count=1, flags=re.S | re.M)
+        # GitHub-only parts: badges, the link row, the <picture> and the screenshot tour (raw HTML,
+        # which the site's Markdown escapes; the homepage already shows these screenshots).
+        text = re.sub(r"^\[!\[.*?\n\n", "", text, count=1, flags=re.S | re.M)
+        text = re.sub(r"^\[Website\].*?\n\n", "", text, count=1, flags=re.S | re.M)
+        text = re.sub(r"^<picture>.*?</picture>\n\n", "", text, count=1, flags=re.S | re.M)
+        text = re.sub(r"^## A quick tour\n.*?(?=^## |\Z)", "", text, flags=re.S | re.M)
         text = re.sub(r"^## (Documentation|Contributing|License)\n.*?(?=^## |\Z)", "", text, flags=re.S | re.M)
         return file, text
     if section:

@@ -75,26 +75,6 @@ The terms these pages use.
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
-[![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0--alpha.1-7a45f0)](docs/25-RELEASE-v0.1.0-alpha.1.md)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
-
-**An embeddable, real-time collaborative canvas for your app.** Rich text, databases and
-whiteboards in one document, with live cursors and comments. Your application keeps the users,
-the permissions and the file; OpenCanvas does the editing, the way Collabora Online does for
-office documents.
-
-[Website](https://canvas.casualoffice.org) ·
-[Try the demo](https://canvas.casualoffice.org/app/#demo) ·
-[Release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) ·
-[Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
-[Documentation](docs/00-README.md)
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="site/assets/screens/canvas-dark.png">
-  <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
-</picture>
-
 > **Alpha: v0.1.0-alpha.1.** For evaluation, with no production SLA. Read the
 > [release notes](docs/25-RELEASE-v0.1.0-alpha.1.md) and its
 > [known limitations](docs/25-RELEASE-v0.1.0-alpha.1.md#known-limitations) (memory, durability
@@ -116,15 +96,6 @@ and receives the saved file back through its own storage. It aims to be:
   cluster. See the measured [capacity and sizing](docs/22-CAPACITY-AND-SIZING.md).
 - **Usable.** A considered editor on desktop and phone, accessible to WCAG 2.2 AA, with autosave
   only.
-
-## A quick tour
-
-| | |
-|---|---|
-| <img alt="A task database in table view with typed fields, owners and statuses." src="site/assets/screens/database-light.png"> | <img alt="A whiteboard with sticky notes, shapes and connected arrows inside the canvas." src="site/assets/screens/whiteboard-light.png"> |
-| **Databases**: typed fields with table, board, calendar and gallery views, inside the page. | **Whiteboards**: shapes, sticky notes, pen, arrows that stay attached, in the same document. |
-| <img alt="The assistant's review bar after a run: suggested links on each note with accept and reject, and the new Tasks database tagged New by Assistant." src="site/assets/screens/assistant-review-light.png"> | <img alt="OpenCanvas on a phone, with the editing toolbar above the keyboard." src="site/assets/screens/phone-light.png" width="300"> |
-| **Assistant (experimental, off by default)**: plan, approve, it builds in place, you review. | **Phone**: bottom sheets, a toolbar above the keyboard, touch-friendly boards. |
 
 ## How it fits
 
