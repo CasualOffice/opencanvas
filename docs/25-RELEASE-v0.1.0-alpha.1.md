@@ -136,6 +136,24 @@ An in-editor assistant (plan, approve, act, review, undo) and an MCP endpoint
 - Evidence: `tests/ai.rs`, `ai_tools.rs`, `ai_e2e.rs`, `mcp.rs`; e2e `t-assistant`,
   `t-assistant.real` (against a mock model).
 
+## Security
+
+The release security gate (docs/18, "Release audit, v0.1.0-alpha.1") re-audited everything added
+since the first audit: the assistant and MCP, import, Redis storage and fencing, access renewal, the
+SDK's CORS and export enforcement.
+
+- **Fixed, High (SEC-29):** deeply nested HTML or Markdown overflowed the stack and stopped the
+  whole server. It was reachable through import and through any host Markdown file opened in a
+  room. Nesting is now capped in `oc-model`; tests aborted before the fix and pass after it.
+- **Fixed, Medium (SEC-30):** a quadratic scan in the HTML importer.
+- **Open, Medium (fix before beta):** the MCP token audience falls back to the `Host` header when
+  `OC_PUBLIC_URL` is unset (set `OC_PUBLIC_URL` in production); an MCP token without a `files`
+  list applies its role to every file of the host; WOPI session lifetime has no upper cap. AI and
+  MCP are off by default.
+- **Dependencies:** `cargo audit` reports 0 vulnerabilities (405 crates); `cargo deny` advisories,
+  bans, licences and sources pass; `npm audit` reports 0 for `web/` and `e2e/`.
+- No Critical or High finding is open.
+
 ## Known limitations
 
 ### Alpha, with no SLA

@@ -41,6 +41,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
+| Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only. **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
 | Assistant and MCP | **Experimental, off by default.** Phase 1, in review: plan → approve → act → review → undo run, suggestions for existing text, limits and audit; MCP endpoint with host-issued tokens; Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp) |
 
 ## Run it
@@ -79,6 +80,8 @@ the exact wire formats.
 
 **Experimental and off by default.** AI runs only in the OpenCanvas server and stays off until
 the operator turns it on (`OC_AI_CONFIG` with `[ai] enabled = true`, then `[host.ai]` per host).
+One server switch governs everything: with it off (the default, or `OC_AI=off`) there is no
+assistant, no MCP endpoint and no model call for any host.
 Its interfaces may change in any release. Select
 text, press ⌘J (Ctrl+J) and ask: the assistant shows a plan, waits for you to run it,
 builds in place with its own cursor, turns changes to existing text into suggestions you
