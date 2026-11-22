@@ -186,71 +186,71 @@ does not count (docs/26 §2).
 ```sh
 OC_DEV=1 cargo test --workspace
 ```
-Result: PENDING
+Result: 341 passed, 0 failed on `d5d0032`.
 
 ```sh
 cargo clippy --workspace --all-targets -- -D warnings
 ```
-Result: PENDING
+Result: Clean on `d5d0032`.
 
 ```sh
 cargo fmt --all -- --check
 ```
-Result: PENDING
+Result: Clean on `d5d0032`.
 
 ```sh
 cd web && pnpm install --frozen-lockfile && pnpm -r typecheck
 ```
-Result: PENDING
+Result: 0 errors on `824a580` (no web source changed after it).
 
 ```sh
 cd web && pnpm -r test          # vitest
 ```
-Result: PENDING
+Result: 322 passed (board 83, database 184, editor 55) on `824a580`.
 
 ```sh
 cd e2e && npm ci && npx playwright install chromium webkit && npm run e2e
 ```
-Result: PENDING
+Result: 86 passed on `d5d0032` (desktop Chromium, WebKit iPhone, Android Chromium).
 
 ```sh
 scripts/e2e-db.sh sqlite
 ```
-Result: PENDING
+Result: PASS on `d5d0032`, with a real PDF through Gotenberg.
 
 ```sh
 scripts/e2e-db.sh mariadb mysql://root:root@127.0.0.1:33061/opencanvas
 ```
-Result: PENDING
+Result: PASS on `d5d0032` (MariaDB 11.4).
 
 ```sh
 scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 ```
-Result: PENDING
+Result: PASS on `d5d0032` (MySQL 8.4).
 
 ```sh
 scripts/e2e-wopi.sh             # proof keys verified; tampered and stale proofs refused
 ```
-Result: PENDING
+Result: PASS on `824a580`: proofs verified, tampered and stale proofs refused, allow-list refuses, no token in logs.
 
 ```sh
 scripts/audit.sh
 ```
-Result: PENDING
+Result: ok on `824a580`: cargo-audit 0 vulnerabilities, cargo-deny advisories/bans/licences/sources ok, npm 0 vulnerabilities, SPDX 0 missing (no dependency changed after it).
 
 ```sh
 docker build -f deploy/Dockerfile -t opencanvas:0.1.0 .
 ```
-Result: PENDING
+Result: Built on `d5d0032`.
 
 ```sh
 curl -s http://localhost:8080/healthz    # on the built server: "version":"0.1.0"
 ```
-Result: PENDING
+Result: `{"ok":true,"version":"0.1.0"}`; `/readyz` 200, `/app/` 200, discovery publishes the WOPI proof key.
 
 ```sh
 # Release workflow on the tag: pull ghcr.io/casualoffice/opencanvas:0.1.0 on linux/amd64 and
 # linux/arm64, start it, and check /readyz; verify the binaries' SHA-256 checksums and provenance
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/readyz
 ```
-Result: PENDING
+Result: PENDING: runs after the tag (release workflow); recorded on the GitHub release.
