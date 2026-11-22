@@ -147,7 +147,9 @@ pub async fn serve(port: u16, stats: Arc<HostStats>) -> anyhow::Result<()> {
         .route("/api/files/{id}", get(load).put(save))
         .layer(DefaultBodyLimit::disable())
         .with_state(ctx);
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+    // `OC_BENCH_HOST_BIND=0.0.0.0` when the servers run on other machines (docs/22 §12.1).
+    let ip = std::env::var("OC_BENCH_HOST_BIND").unwrap_or_else(|_| "127.0.0.1".into());
+    let listener = tokio::net::TcpListener::bind((ip.as_str(), port)).await?;
     tokio::spawn(async move {
         let _ = axum::serve(listener, app).await;
     });

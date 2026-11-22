@@ -340,6 +340,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
     let base_rss = base_snap.srv.rss_kb;
     let mut rows = Vec::new();
     let mut spawned = 0usize;
+    let mut users = Vec::new();
     let gate = Arc::new(tokio::sync::Semaphore::new(a.n("max-inflight", 128)));
     println!(
         "# {label}: per-room {per_room}, editors {editors}, doc {}, steps {steps:?}, {step_secs}s/step; server RSS at start {} MB",
@@ -366,7 +367,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
                 probe: k < probes,
             };
             let (sh2, permit) = (sh.clone(), gate.clone().acquire_owned().await?);
-            tokio::spawn(async move {
+            users.push(tokio::spawn(async move {
                 // The permit covers launch + connect only.
                 let sh3 = sh2.clone();
                 let watch = tokio::spawn(async move {
@@ -384,7 +385,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
                 });
                 run_user(sh2, spec).await;
                 watch.abort();
-            });
+            }));
             spawned += 1;
             tokio::time::sleep(gap).await;
         }
@@ -504,6 +505,41 @@ async fn run(a: Args) -> anyhow::Result<()> {
     );
     if let Some(out) = a.0.get("out") {
         std::fs::write(out, serde_json::to_vec_pretty(&report)?)?;
+    }
+    // `--idle-secs N` (docs/22 §9.5): typing stops, every client disconnects, and the mock host
+    // stays up (rooms save and are evicted) while the server's RSS is sampled every 10 s.
+    let idle_secs: u64 = a.n("idle-secs", 0);
+    if idle_secs > 0 {
+        for u in &users {
+            u.abort();
+        }
+        let start = Instant::now();
+        let mut peak = 0u64;
+        println!("idle: secs after stop, server RSS MB, rooms open, saves");
+        loop {
+            let s = snap(&sh, &pids).await;
+            let rss = s.srv.rss_kb / 1024;
+            peak = peak.max(rss);
+            let t = start.elapsed().as_secs();
+            println!(
+                "idle: {t} s, {rss} MB, rooms {}, saves {}",
+                s.m.get("oc_rooms_active").copied().unwrap_or(-1.0),
+                host_stats.saves.load(Ordering::Relaxed)
+            );
+            if t >= idle_secs {
+                println!(
+                    "idle summary: RSS at start {} MB, end of typing {} MB, {t} s after stop {rss} MB (peak {peak} MB), rooms open {}",
+                    base_rss / 1024,
+                    rows.last()
+                        .and_then(|r| r["server"]["rssMb"].as_f64())
+                        .unwrap_or(0.0)
+                        .round(),
+                    s.m.get("oc_rooms_active").copied().unwrap_or(-1.0),
+                );
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        }
     }
     // Leave politely: closing sockets lets rooms save (last client leaves).
     std::process::exit(0);

@@ -666,6 +666,47 @@ was the noisy machine). **RSS FAIL** against "flat": +72 % over 5 minutes (≈ 1
 in-memory cost (≈ 20× encoded, §9.4) times 1,000 growing documents; next: allocator comparison
 and the in-memory Y.Doc overhead.
 
+### 9.5 Where S2's RSS growth goes, and the allocator (PERF-06, 2026-11-23)
+
+Branch `perf-memory-reliability` off main `63e9e01`. **Target** (RSS growth per minute ≤ about
+3× the growth of the summed encoded documents, and RSS falls back after idle eviction): **FAIL,
+not fixable in the server without changing yrs.**
+
+**S2 before** (`S2_STEPS=5000,5000,5000`, memory mode, SQLite; the machine was not fully quiet:
+another session was running debug tests, so p95 was 324–1,367 ms, not the 43 ms of §9.4.1):
+RSS 757 · 943 · 1,088 MB, **≈ 165 MB/min**; summed snapshots (the encoded documents) 55.2 →
+78.6 MB over 2.5 min, **≈ 9.4 MB/min**. RSS grows ≈ 17× the encoded growth.
+
+**Why** (`tests/ydoc_memory.rs`, a measurement on the S2 editor mix: 92 % typed characters,
+6 % cell overwrites, 2 % drags of 10 x/y overwrites): typed text squashes on the server (2,000
+characters in one update each, merged windows, or 5 interleaved clients: 3–15 blocks), so text
+costs almost nothing. Every **map overwrite** (a status cell, a shape's x or y) leaves a deleted
+yrs `Item` that can never merge with its neighbour (different key, non-consecutive clock): about
+210 heap bytes per block against a few encoded bytes. The live heap grows **14.7× the encoded
+growth** with the system allocator's overhead excluded. A 3× bound would need yrs to drop or
+compact dead map items in memory (it keeps them for causality); the server cannot get there
+by itself.
+
+**Allocator (WIP branch `worktree-agent-a638f7cbfb02756d4`, reviewed, not merged).** Its
+`alloc::release` (macOS `malloc_zone_pressure_relief`, glibc `malloc_trim`) after rooms close was
+tested: 400 MB of freed 160-byte blocks, RSS 405 MB before the call and **405 MB after** on macOS,
+the same as with the call removed, so it is not proven to help and was dropped. The optional
+mimalloc/jemalloc features were dropped untested (no time for the S2 comparison; they add four
+dependencies). Kept: the yrs squash/heap tests and `oc-bench --idle-secs` (bench.sh
+`S_IDLE_SECS`), which samples the server's RSS after typing stops.
+
+**Idle eviction does not give the memory back (FAIL).** Same main server, `S2_STEPS=5000,5000
+S_IDLE_SECS=120`: RSS 884 → 1,039 MB over the 2 typing minutes (p95 380 / 44 ms), then every
+client disconnected. Rooms saved, and all 1,000 closed 60–70 s later (`OC_ROOM_IDLE_MS`), but RSS
+was **1,004 MB with 0 rooms open** at 120 s (peak 1,087 MB). The freed Y.Docs stay in the macOS
+allocator's free lists and the release call above did not return them. Next: measure mimalloc
+(`mi_collect(true)`) or jemalloc (`arena.<all>.purge`) on S2 + idle; on Linux, glibc
+`malloc_trim(0)` is likely to work but was not measured here.
+
+**Not run (PERF-06):** the Redis-only cluster runs (K, K2, S1 with `CLUSTER_DB=none`) and any
+build after the measurements: free disk fell to 7.7 GB (below the 8 GB floor for builds and
+Docker) after the release build.
+
 ## 10. Crash recovery (`scripts/bench.sh R` / `mR`)
 
 **Method.** `oc-bench verify`: 200 rooms × 2 editors (empty doc), each client appends a paragraph
@@ -902,6 +943,42 @@ memory at equal load, and its p95 knee came earlier (between 2,500 and 5,000) th
 (above 5,000). Real scale-out needs nodes on separate machines and a database that is not
 shared on the same host. This run cannot show that; it shows that relaying works and what it
 costs.
+
+### 12.1 Why one laptop cannot show scale-out, and the multi-machine recipe (PERF-06)
+
+Not rerun on purpose. On one machine the three nodes, the load generator, its mock hosts, Redis
+and the database share the same 10 cores, memory bandwidth, loopback and (for MariaDB) one Docker
+VM. Adding a node adds no hardware, only work: about 60 % of sockets are relayed (every relayed
+update crosses loopback twice and is framed on two nodes), each node keeps its own Redis lease
+traffic and DB pool, and the load generator (57 % of a core at 5,000) competes with the nodes it
+measures. A cluster can only beat one node when each node brings its own CPU and network, so the
+single-laptop T result is an upper bound on relay *cost*, not a measure of scale-out.
+
+**Recipe (5 machines, same LAN, ≥ 1 Gbit/s, same CPU class; record `machine` on each):**
+
+1. **Data machine D:** Redis 7 (`redis-server --appendonly yes --appendfsync always --bind 0.0.0.0
+   --protected-mode no`, port 6379) and, for the DB variant, MariaDB 10.11
+   (`--max-connections=500`, database `opencanvas`). For ADR-030, skip MariaDB.
+2. **Nodes N1–N3:** the same release build (`cargo build --release -p oc-server --bin opencanvas`),
+   one `opencanvas` each, the same `OC_KEK` and `OC_CLUSTER_SECRET`, and:
+   `DATABASE_URL=mysql://root:root@D:3306/opencanvas` (omit for Redis-only),
+   `REDIS_URL=redis://D:6379`, `OC_NODE_ID=node-<n>`, `OC_BIND=0.0.0.0:8701`,
+   `OC_PUBLIC_URL` and `OC_CLUSTER_ADVERTISE` both `http://N<n>:8701`, and a hosts file whose `bench`
+   host has `callback_base = "http://L:8702/api"` and the bench secret (copy the one
+   `scripts/bench.sh` writes). `ulimit -n 65536` first.
+3. **Load machine L:** `OC_BENCH_HOST_BIND=0.0.0.0 oc-bench run --server
+   http://N1:8701,http://N2:8701,http://N3:8701 --host-port 8702 --secret <bench secret>
+   --per-room 5 --editors 0.2 --probes 5 --doc demo --steps 1000,2500,5000,10000,15000
+   --step-secs 60 --connect-rate 250 --host-latency-ms 20,50 --affinity hash --out T3.json`.
+   `--affinity hash` sends a room's clients to one node (what a room-aware load balancer does);
+   rerun with `--affinity rr` for the relay worst case. Leave `--server-pid` empty: CPU and RSS
+   come from each node (`ps -o %cpu=,rss= -p $(pgrep opencanvas)` every 10 s, or `/metrics`).
+4. **Baseline:** the same command against N1 alone (N2, N3 stopped), same D. Both halves on a
+   fresh database and an empty Redis (`FLUSHALL`).
+5. **Report** per step: p50/p95/p99, connections and updates/s applied, CPU and RSS per node, D's
+   CPU, and the largest step with p95 ≤ 150 ms for 1 and 3 nodes. Scale-out holds when the
+   3-node knee is about 3× the 1-node knee with `hash` affinity; check that L stays below 70 %
+   CPU (add a second load machine with a different `--run-id` if not).
 
 ## 13. Commands, and what did not run
 
