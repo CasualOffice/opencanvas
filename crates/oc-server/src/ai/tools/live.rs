@@ -218,6 +218,28 @@ impl CanvasTools for LiveTools {
     }
 
     async fn call(&self, ctx: &ToolCtx, name: &str, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, name, input, true).await
+    }
+}
+
+impl LiveTools {
+    /// A call another node forwarded here (docs/24 §5.6): the same checks, never forwarded again.
+    pub async fn call_owned(
+        &self,
+        ctx: &ToolCtx,
+        name: &str,
+        input: Value,
+    ) -> Result<Value, ToolError> {
+        self.run(ctx, name, input, false).await
+    }
+
+    async fn run(
+        &self,
+        ctx: &ToolCtx,
+        name: &str,
+        input: Value,
+        forward: bool,
+    ) -> Result<Value, ToolError> {
         let spec = phase1_specs()
             .into_iter()
             .find(|s| s.name == name)
@@ -257,6 +279,22 @@ impl CanvasTools for LiveTools {
                 .is_empty()
         {
             return Err(ToolError::Forbidden("access was revoked".into()));
+        }
+        // Cluster: a room owned by another node runs there (docs/24 §5.6).
+        if forward && self.state.rooms.cluster().is_some() {
+            match self.state.rooms.tool_owner(&host, &ctx.user).await {
+                Ok(Some(owner)) => {
+                    if let Some(out) =
+                        super::forward::forward(&self.state, &host, ctx, owner, name, &input).await
+                    {
+                        tracing::info!(host = %ctx.host_id, room = %ctx.user.room, tool = name,
+                            origin = %ctx.origin, ok = out.is_ok(), "canvas tool (forwarded)");
+                        return out;
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => return Err(ToolError::Unavailable(e.to_string())),
+            }
         }
         let w = write::Writer {
             user_id: ctx.user.user.id.clone(),

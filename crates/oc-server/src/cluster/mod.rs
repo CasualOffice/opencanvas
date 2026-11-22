@@ -329,6 +329,50 @@ impl Cluster {
     }
 }
 
+/// Outcome of a canvas tool call forwarded to the owner (`POST /v1/internal/tools/:room`).
+#[derive(Debug)]
+pub enum ToolSent {
+    /// The owner ran it (or had already run this request id): its JSON envelope.
+    Done(Value),
+    /// The owner refused before running it (it no longer owns the room): look again.
+    Moved,
+    /// Not connected: the call never reached the owner.
+    Unreachable(String),
+    /// Sent, but no answer (timeout, reset): it may have run. Retry with the same request id.
+    Lost(String),
+}
+
+/// How long the owner gets to answer a forwarded tool call (its own room timeout is 30 s).
+pub const TOOL_FORWARD_TIMEOUT: Duration = Duration::from_secs(35);
+
+impl Cluster {
+    /// Sends a signed, serialized [`crate::ai::tools::ToolForward`] to the owner of `room`.
+    pub async fn call_tool(&self, owner: &Owner, room: &str, body: &[u8]) -> ToolSent {
+        let mut req = self
+            .http
+            .post(format!("{}/v1/internal/tools/{room}", owner.url))
+            .timeout(TOOL_FORWARD_TIMEOUT)
+            .header("content-type", "application/json");
+        for (k, v) in self.sign(room, body) {
+            req = req.header(k, v);
+        }
+        let res = match req.body(body.to_vec()).send().await {
+            Ok(r) => r,
+            Err(e) if e.is_connect() => return ToolSent::Unreachable(e.to_string()),
+            Err(e) => return ToolSent::Lost(e.to_string()),
+        };
+        match res.status().as_u16() {
+            200 => match res.json::<Value>().await {
+                Ok(v) => ToolSent::Done(v),
+                Err(e) => ToolSent::Lost(e.to_string()),
+            },
+            409 | 503 => ToolSent::Moved,
+            s => ToolSent::Done(serde_json::json!({"err": {
+                "code": "INTERNAL", "message": format!("the room owner answered {s}")}})),
+        }
+    }
+}
+
 /// Renews this node's leases every 5 s; a room lost to another node is stepped down (its
 /// clients are told to reconnect, nothing is saved: the new owner has the WAL).
 pub fn spawn_renewer(rooms: Arc<crate::room::Rooms>, cluster: Arc<Cluster>) {

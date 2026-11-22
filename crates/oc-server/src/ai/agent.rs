@@ -1015,6 +1015,7 @@ impl RunState<'_> {
                     ToolError::Stale(v) => ("stale", format!("stale; re-read: {v}")),
                     ToolError::ConfirmationRequired(m) => ("confirmation_required", m),
                     ToolError::Internal(_) => ("internal", "internal error".to_string()),
+                    ToolError::Unavailable(m) => ("unavailable", m),
                 };
                 (
                     format!("error {code}: {msg}"),
