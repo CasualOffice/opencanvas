@@ -10,6 +10,8 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
 COPY migrations migrations
+# jemalloc (the server's allocator, docs/22 §9.6) builds with make.
+RUN apt-get update && apt-get install -y --no-install-recommends make && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked -p oc-server --bin opencanvas \

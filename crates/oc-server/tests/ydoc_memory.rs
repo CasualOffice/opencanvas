@@ -224,3 +224,34 @@ fn heap_cost_of_the_s2_workload() {
         (h1 - h0) as f64 / (b1 - b0) as f64
     );
 }
+
+#[test]
+fn rebuilding_the_s2_doc_from_its_encoding_measurement() {
+    let editors: Vec<Vec<Vec<u8>>> = (1..=5).map(|s| bench_editor(120, s)).collect();
+    let h0 = live();
+    let doc = oc_model::new_doc();
+    let n = editors.iter().map(|e| e.len()).max().unwrap();
+    for i in 0..n {
+        for e in &editors {
+            if let Some(u) = e.get(i) {
+                apply(&doc, u);
+            }
+        }
+    }
+    let h1 = live();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    let h2 = live();
+    let fresh = oc_model::new_doc();
+    apply(&fresh, &state);
+    let h3 = live();
+    eprintln!(
+        "S2 doc: original heap {} B, {} blocks; encoded {} B; rebuilt heap {} B, {} blocks",
+        h1 - h0,
+        blocks(&doc),
+        state.len(),
+        h3 - h2,
+        blocks(&fresh)
+    );
+}

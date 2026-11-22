@@ -7,6 +7,13 @@ use oc_server::util::now_secs;
 use oc_server::{AppState, app};
 use tracing_subscriber::EnvFilter;
 
+#[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let level = std::env::var("OC_LOG").unwrap_or_else(|_| "info".into());
@@ -32,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!(node = %node, advertise = %advertise, "cluster mode: room leases in Redis");
     }
 
+    oc_server::alloc::spawn_sweeper();
     let sweeper = state.clone();
     tokio::spawn(async move {
         // Startup sweep of commits that never reached the host, then a slow safety net.
