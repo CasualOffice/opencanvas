@@ -2,6 +2,8 @@
 //   oc-server (release build, OC_DEV=1, temp SQLite)  on :8280
 //   sample host (copy conflict policy)                 on :4200
 //   sample host "reload" (reload conflict policy)      on :4201
+//   mock model (Anthropic SSE, mock-model.ts)          on a free port; host "sample" has
+//                                                      `[host.ai]` on it (t-assistant.real)
 // Ports 8080/4000 (the dev defaults) are never touched, and only the processes
 // started here are stopped.
 //
@@ -13,8 +15,17 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { HOST, HOST_RELOAD, OC, ROOT, SDK_HOST } from "./env";
+import { startMockModel, type MockModel } from "./mock-model";
 
 const children: ChildProcess[] = [];
+let model: MockModel | null = null;
+
+/** The assistant on the "sample" host, with the mock model's profile (t-assistant.real). */
+const AI_HOST = `
+[host.ai]
+enabled  = true
+provider = "mock"
+`;
 
 function portFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -50,6 +61,8 @@ async function waitFor(url: string, ms = 60_000) {
 
 function stopAll() {
   for (const p of children) if (p.exitCode === null && !p.killed) p.kill("SIGTERM");
+  void model?.close();
+  model = null;
 }
 
 export default async function globalSetup() {
@@ -65,7 +78,7 @@ export default async function globalSetup() {
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "oc-e2e-"));
   const hosts = path.join(tmp, "hosts.toml");
-  const entry = (id: string, name: string, origin: string, policy: string, extra: string[] = []) => `
+  const entry = (id: string, name: string, origin: string, policy: string, extra: string[] = [], ai = "") => `
 [[host]]
 id              = "${id}"
 name            = "${name}"
@@ -79,8 +92,17 @@ allowed_origins = ["${origin}"${extra.map((o) => `, "${o}"`).join("")}]
 [host.flags]
 export_formats = ["md", "html", "json", "docx", "pdf", "ocanvas", "svg", "png"]
 on_conflict    = "${policy}"
-`;
-  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST]) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
+${ai}`;
+  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
+
+  // The assistant against a mock model (t-assistant.real.spec.ts). Started before the server:
+  // the server probes each provider's tool calling once, at start-up.
+  model = await startMockModel();
+  const aiConfig = path.join(tmp, "ai.toml");
+  fs.writeFileSync(
+    aiConfig,
+    `[ai]\nenabled = true\n[ai.providers.mock]\nkind = "anthropic"\nbase_url = "${model.base}"\napi_key_env = "OC_E2E_AI_KEY"\nmodel_agent = "mock-agent"\ntimeout_secs = 10\n`,
+  );
 
   start(
     "oc-server",
@@ -90,6 +112,8 @@ on_conflict    = "${policy}"
       OC_DEV: "1",
       OC_KEK: "",
       OC_HOSTS_FILE: hosts,
+      OC_AI_CONFIG: aiConfig,
+      OC_E2E_AI_KEY: "sk-e2e-mock",
       DATABASE_URL: `sqlite://${path.join(tmp, "oc.db")}?mode=rwc`,
       OC_BIND: "127.0.0.1:8280",
       OC_PUBLIC_URL: OC,
