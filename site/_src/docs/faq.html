@@ -33,4 +33,7 @@
 <p>One node runs on SQLite. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, other nodes relay to it, and if the owner dies another node takes the room over from its log. See <a href="operations.html">Operations</a> and <a href="architecture.html">Architecture</a>.</p>
 
 <h2>Does the demo send anything anywhere?</h2>
-<p>No. The <a href="../app/#demo">demo</a> is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so.</p>
+<p>No. The <a href="../app/#demo">demo</a> is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so. Its assistant plays a scripted run: no model is called.</p>
+
+<h2>Where does the assistant send my content?</h2>
+<p>Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser, and it keeps no prompts or answers. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer. See <a href="ai.html">AI and MCP</a>.</p>

@@ -1,12 +1,12 @@
 # OpenCanvas
 
-> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Source-available under the Business Source License 1.1 (free to self-host and embed; offering it as a hosted collaborative-editing service needs a commercial licence; each version becomes MPL-2.0 four years after release). Status: P1 alpha, pre-release.
+> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. Source-available under the Business Source License 1.1 (free to self-host and embed; offering it as a hosted collaborative-editing service needs a commercial licence; each version becomes MPL-2.0 four years after release). Status: P1 alpha, pre-release.
 
 ## Site
 - [OpenCanvas: a collaborative canvas you embed](https://casualoffice.github.io/opencanvas/): OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Source-available under BUSL-1.1.
 - [Roadmap](https://casualoffice.github.io/opencanvas/roadmap.html): What OpenCanvas has built, what is in review and in progress, and the phases that follow, from the project's tracker.
 - [Changelog](https://casualoffice.github.io/opencanvas/changelog.html): What changed in OpenCanvas and how each change was verified, from the project's integration log.
-- [Interactive demo](https://casualoffice.github.io/opencanvas/app/#demo): the real editor with a sample canvas, no server
+- [Interactive demo](https://casualoffice.github.io/opencanvas/app/#demo): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server
 
 ## Documentation
 - [Documentation](https://casualoffice.github.io/opencanvas/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
@@ -18,6 +18,7 @@
 - [Operations and deployment](https://casualoffice.github.io/opencanvas/docs/operations.html): Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.
 - [Security and limits](https://casualoffice.github.io/opencanvas/docs/security.html): OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.
 - [Capacity and sizing](https://casualoffice.github.io/opencanvas/docs/capacity.html): Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.
+- [AI and MCP](https://casualoffice.github.io/opencanvas/docs/ai.html): The OpenCanvas assistant and MCP endpoint: how they work, what they may do, what is sent to the model server, the threat model and limits, and how an operator configures Claude Platform or a self-hosted model.
 - [Architecture](https://casualoffice.github.io/opencanvas/docs/architecture.html): How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.
 - [Collaboration and presence](https://casualoffice.github.io/opencanvas/docs/collaboration.html): How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.
 - [Product requirements](https://casualoffice.github.io/opencanvas/docs/product.html): What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.

@@ -10,6 +10,10 @@
 | **P2 Board & scale** | Board block; columns; comments; WOPI mode; MySQL/MariaDB + Redis cluster; PDF/DOCX/PNG export; templates; role API; Helm | 3-node chaos test (kill owner, no acked edit lost); MySQL+MariaDB CI; board fuzz green |
 | **P3 Platform** | Portable live blocks (embed one block in another host surface), AI assist (pluggable), DOCX import, offline-first option, Loro re-evaluation | Feature-flagged GA |
 
+AI was brought forward (owner directive, 2026-11-22): phase 1 of the assistant, the MCP
+endpoint and the model providers is built and in review (tracker rows AI-01, AI-02, AI-UI;
+design [24](24-AI-AND-MCP.md) §11).
+
 ## Milestone sequence (P0 → P1)
 
 1. P0-a Docs set approved (this PR).
