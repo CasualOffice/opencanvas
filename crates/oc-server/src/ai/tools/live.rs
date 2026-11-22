@@ -218,8 +218,51 @@ impl CanvasTools for LiveTools {
     }
 
     async fn call(&self, ctx: &ToolCtx, name: &str, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, name, input, true, false).await
+    }
+}
+
+/// The server's own CSV import step (`POST /v1/import`), never offered to models or MCP.
+const IMPORT_CSV: &str = "import_csv";
+
+fn import_spec() -> ToolSpec {
+    ToolSpec {
+        name: IMPORT_CSV,
+        description: "",
+        input_schema: json!({}),
+        scope: Scope::Write,
+        read_only: false,
+    }
+}
+
+impl LiveTools {
+    /// A call another node forwarded here (docs/24 §5.6): the same checks, never forwarded again.
+    pub async fn call_owned(
+        &self,
+        ctx: &ToolCtx,
+        name: &str,
+        input: Value,
+    ) -> Result<Value, ToolError> {
+        self.run(ctx, name, input, false, true).await
+    }
+
+    /// A CSV import as one database block (docs/23 FC-10): the same checks and cluster
+    /// forwarding as a tool call, with the import row limit.
+    pub async fn import_csv(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, IMPORT_CSV, input, true, true).await
+    }
+
+    async fn run(
+        &self,
+        ctx: &ToolCtx,
+        name: &str,
+        input: Value,
+        forward: bool,
+        internal: bool,
+    ) -> Result<Value, ToolError> {
         let spec = phase1_specs()
             .into_iter()
+            .chain(internal.then(import_spec))
             .find(|s| s.name == name)
             .ok_or_else(|| ToolError::NotFound(format!("unknown tool {name:?}")))?;
         if !input.is_object() && !input.is_null() {
@@ -258,6 +301,22 @@ impl CanvasTools for LiveTools {
         {
             return Err(ToolError::Forbidden("access was revoked".into()));
         }
+        // Cluster: a room owned by another node runs there (docs/24 §5.6).
+        if forward && self.state.rooms.cluster().is_some() {
+            match self.state.rooms.tool_owner(&host, &ctx.user).await {
+                Ok(Some(owner)) => {
+                    if let Some(out) =
+                        super::forward::forward(&self.state, &host, ctx, owner, name, &input).await
+                    {
+                        tracing::info!(host = %ctx.host_id, room = %ctx.user.room, tool = name,
+                            origin = %ctx.origin, ok = out.is_ok(), "canvas tool (forwarded)");
+                        return out;
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => return Err(ToolError::Unavailable(e.to_string())),
+            }
+        }
         let w = write::Writer {
             user_id: ctx.user.user.id.clone(),
             name: ctx.user.user.name.clone(),
@@ -280,6 +339,7 @@ impl CanvasTools for LiveTools {
             "canvas_patch" => Box::new(move |d| write::canvas_patch(d, &i, &w)),
             "db_upsert_rows" => Box::new(move |d| write::db_upsert_rows(d, &i)),
             "db_create" => Box::new(move |d| write::db_create(d, &i)),
+            IMPORT_CSV => Box::new(move |d| write::import_csv(d, &i)),
             "db_add_field" => Box::new(move |d| write::db_add_field(d, &i)),
             "board_add_shapes" => Box::new(move |d| write::board_add_shapes(d, &i)),
             "comment_add" => Box::new(move |d| write::comment_add(d, &i, &w)),

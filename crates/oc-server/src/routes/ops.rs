@@ -26,7 +26,8 @@ pub async fn readyz(State(state): State<SharedState>) -> impl IntoResponse {
         status,
         Json(json!({
             "ok": ok, "db": db, "draining": draining,
-            "hosts": state.hosts.len(), "rooms": state.rooms.live_rooms()
+            "hosts": state.hosts.len(), "rooms": state.rooms.live_rooms(),
+            "ai": state.ai_status
         })),
     )
 }

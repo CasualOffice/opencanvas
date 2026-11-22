@@ -7,6 +7,9 @@ use std::sync::Arc;
 use anyhow::{Context, bail};
 use serde::Deserialize;
 
+/// What `POST /v1/import` reads (docs/23 FC-10).
+pub const IMPORT_FORMATS: [&str; 3] = ["md", "html", "csv"];
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct HostConfig {
     pub id: String,
@@ -90,6 +93,22 @@ impl HostConfig {
         }
     }
 
+    /// `[host.flags] import_formats = ["md", "html", "csv"]`: the formats this host lets
+    /// editors import (docs/05 §2, docs/23 FC-10). Absent or empty means import is off.
+    pub fn import_formats(&self) -> Vec<String> {
+        self.flags
+            .get("import_formats")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str())
+                    .filter(|f| IMPORT_FORMATS.contains(f))
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
@@ -155,6 +174,19 @@ impl Hosts {
                     .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
             {
                 bail!("host id {:?} must be 1-64 chars of [A-Za-z0-9._-]", h.id);
+            }
+            if let Some(v) = h.flags.get("import_formats") {
+                let ok = v.as_array().is_some_and(|a| {
+                    a.iter()
+                        .all(|f| f.as_str().is_some_and(|f| IMPORT_FORMATS.contains(&f)))
+                });
+                if !ok {
+                    bail!(
+                        "host {}: [host.flags] import_formats takes a list of {:?}",
+                        h.id,
+                        IMPORT_FORMATS
+                    );
+                }
             }
             h.jwt_secret = resolve(h.jwt_secret)?;
             h.jwt_public_key = resolve(h.jwt_public_key)?;

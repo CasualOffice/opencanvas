@@ -891,9 +891,12 @@ impl Room {
             let _ = out.send(Outbound::Frame(protocol::control(&v).into()));
         };
         let run_id = msg["runId"].as_str().unwrap_or_default().to_string();
-        let (Some(rt), Some(host_ai)) =
-            (self.ctx.ai.clone(), crate::ai::HostAi(&self.host).agent())
-        else {
+        let Some(rt) = self.ctx.ai.clone() else {
+            // AI is off server-wide (docs/24 §7.3).
+            reply(json!({"t":"ai-done","runId":run_id,"outcome":"refused","reason":"ai_disabled"}));
+            return;
+        };
+        let Some(host_ai) = crate::ai::HostAi(&self.host).agent() else {
             reply(
                 json!({"t":"ai-done","runId":run_id,"outcome":"refused","reason":"AI is not enabled for this host"}),
             );

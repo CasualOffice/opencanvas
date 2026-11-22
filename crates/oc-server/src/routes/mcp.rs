@@ -51,6 +51,10 @@ fn metadata_url(base: &str, host_id: &str) -> String {
 }
 
 fn mcp_host(state: &SharedState, host_id: &str) -> Option<std::sync::Arc<HostConfig>> {
+    // The server-wide AI switch beats `[host.ai] mcp` (docs/24 §7.3).
+    if !state.ai_on() {
+        return None;
+    }
     state.hosts.get(host_id).filter(|h| HostAi(h).mcp())
 }
 
@@ -406,10 +410,17 @@ pub async fn mcp(
                     tool_result(Err(ToolError::BadInput("fileId is required".into()))),
                 );
             };
-            rpc_result(
-                &id,
-                tool_result(call(&state, &caller, &file_id, name, args).await),
-            )
+            match call(&state, &caller, &file_id, name, args).await {
+                // Cluster: the room's owner is unreachable or moving (docs/24 §5.6).
+                Err(ToolError::Unavailable(m)) => (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::RETRY_AFTER, "2")],
+                    Json(json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32000,
+                        "message": m, "data": {"code": "UNAVAILABLE", "retryAfterMs": 2000}}})),
+                )
+                    .into_response(),
+                out => rpc_result(&id, tool_result(out)),
+            }
         }
         "resources/templates/list" => rpc_result(
             &id,
