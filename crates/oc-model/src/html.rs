@@ -113,6 +113,9 @@ fn parse_attrs(src: &str) -> Vec<(String, String)> {
 /// An open element while parsing: (tag, attributes, children so far).
 type Open = (String, Vec<(String, String)>, Vec<Node>);
 
+/// Deepest element nesting kept by `parse`; real documents stay far below it.
+const MAX_DEPTH: usize = 64;
+
 /// Tokenizes and builds a tree; mismatched end tags are tolerated.
 fn parse(src: &str) -> Vec<Node> {
     // stack of (tag, attrs, children)
@@ -194,9 +197,13 @@ fn parse(src: &str) -> Vec<Node> {
             close_top(&mut stack);
         }
         if RAW.contains(&tag.as_str()) {
+            // Case-insensitive search for `</tag` without copying the rest of the input
+            // (a copy per raw tag was quadratic, SEC-30).
             let close = format!("</{tag}");
-            let lower = src[i..].to_ascii_lowercase();
-            let end = lower.find(&close).unwrap_or(lower.len());
+            let end = src.as_bytes()[i..]
+                .windows(close.len())
+                .position(|w| w.eq_ignore_ascii_case(close.as_bytes()))
+                .unwrap_or(src.len() - i);
             i += end;
             i += src[i..].find('>').map_or(src.len() - i, |e| e + 1);
             continue;
@@ -207,9 +214,12 @@ fn parse(src: &str) -> Vec<Node> {
                 attrs,
                 children: vec![],
             });
-        } else {
+        } else if stack.len() <= MAX_DEPTH {
             stack.push((tag, attrs, vec![]));
         }
+        // Deeper than MAX_DEPTH, the start tag is dropped and its content joins the current
+        // element: the tree walks below recurse, and 100 000 nested tags overflowed the
+        // stack and aborted the server (SEC-29).
     }
     while stack.len() > 1 {
         close_top(&mut stack);
@@ -727,5 +737,46 @@ mod tests {
         ]});
         let back = html_to_json(&to_html(&doc));
         assert_eq!(back["content"], doc["content"]);
+    }
+
+    /// Release audit (docs/18 SEC-29): the tree walks after `parse` recurse, so an import of
+    /// 100 000 nested tags overflowed a 2 MB worker stack and aborted the whole server.
+    #[test]
+    fn deeply_nested_markup_does_not_overflow_the_stack() {
+        for open in ["<b>", "<div>", "<ul><li>", "<blockquote>"] {
+            let src = open.repeat(100_000) + "deep";
+            let v = std::thread::Builder::new()
+                .stack_size(2 << 20)
+                .spawn(move || html_to_json(&src).to_string())
+                .unwrap()
+                .join()
+                .expect("no stack overflow");
+            assert!(v.contains("deep"), "{open}: the text survives");
+        }
+    }
+
+    /// Release audit (docs/18 SEC-30): each raw-text tag lowercased a copy of the rest of the
+    /// input, so many `<style>` tags were quadratic.
+    #[test]
+    fn many_raw_text_tags_are_linear() {
+        let src = "<style></style>".repeat(200_000) + "<p>end</p>";
+        let t = std::time::Instant::now();
+        let v = html_to_json(&src);
+        assert!(v.to_string().contains("end"));
+        assert!(t.elapsed().as_secs_f64() < 2.0, "took {:?}", t.elapsed());
+    }
+
+    /// Markdown import goes through the same kind of tree walk; deep quotes and lists too.
+    #[test]
+    fn deeply_nested_markdown_does_not_overflow_the_stack() {
+        for open in ["> ", "- ", "*", "**", "["] {
+            let src = open.repeat(50_000) + "deep](javascript:x)";
+            std::thread::Builder::new()
+                .stack_size(2 << 20)
+                .spawn(move || crate::import::markdown_to_json(&src).to_string())
+                .unwrap()
+                .join()
+                .expect("no stack overflow");
+        }
     }
 }
