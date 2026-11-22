@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! A small, forgiving HTML reader for `POST /v1/convert?from=html`: builds the logical
 //! Tiptap JSON (headings, paragraphs, marks, links, lists, task lists, quotes, code, rules,
 //! images, tables, callouts). Scripts, styles and unknown markup are dropped; text is kept.

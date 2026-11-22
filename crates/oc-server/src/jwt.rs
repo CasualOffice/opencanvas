@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Launch token verification (docs/05 §3, docs/07 §2).
 
 use std::collections::HashMap;

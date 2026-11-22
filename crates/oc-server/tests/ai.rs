@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! AI-02: model providers against mock HTTP servers and the agent loop with a scripted
 //! provider and fake canvas tools (docs/24 §8.2, §9, §10).
 

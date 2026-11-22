@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // r. Acceptance (docs/23 Permissions): live role changes down and back up, a forged
 //    write from a viewer's devtools, and what a revoke does to the other people.
 import path from "node:path";

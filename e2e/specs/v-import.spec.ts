@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // v. docs/23 FC-10, prototype docs/prototypes/fixes-approved/Import.dc.html: "Import…" from the
 //    slash menu and the "…" menu; a drop zone; a CSV preview with detected, changeable column
 //    types and where to insert; a done state. Hidden when the host's `import_formats` is off

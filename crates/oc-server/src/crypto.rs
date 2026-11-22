@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Secrets at rest (docs/07 §2): AES-256-GCM under the key-encryption key `OC_KEK`.
 //!
 //! Sealed values look like `enc:v1:<base64(nonce ‖ ciphertext ‖ tag)>`. The caller passes

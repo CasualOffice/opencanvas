@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // docs/23 FC-10, prototype docs/prototypes/fixes-approved/Import.dc.html: "Import into this
 // canvas". A drop zone for Markdown, HTML or CSV; a CSV gets a preview with a detected, changeable
 // type per column and where to insert; then a done state. Lazy: never in the initial bundle.

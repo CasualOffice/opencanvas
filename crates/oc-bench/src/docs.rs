@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Seed documents the mock host serves (docs/22 §2).
 //!
 //! `demo` approximates the editor's "Sprint 42 planning" demo canvas (web/packages/editor/src/lib/demo.ts):

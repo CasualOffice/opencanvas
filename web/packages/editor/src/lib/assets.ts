@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Room-served assets (WOPI mode stores uploads inside the .ocanvas and serves them at
 // `/v1/assets/:id`, docs/15 §6). The document keeps the bare path; each viewer adds their own
 // session ticket when displaying it, so no credential is ever written into the file.

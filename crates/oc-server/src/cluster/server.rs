@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Owner side: the internal endpoints other nodes call. Never exposed through the load
 //! balancer; every request carries an `OC_CLUSTER_SECRET` HMAC over room + payload + time.
 //!

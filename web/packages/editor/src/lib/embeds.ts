@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Embed allow-list (docs/07): only these providers render as iframes, and only
 // through the provider's own embed URL. Everything else becomes a link card.
 

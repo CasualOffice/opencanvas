@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The agent runtime (docs/24 §10.5, ADR-034, ADR-035): a plan → act → review loop run as a
 //! task on the room owner node, started by `{"t":"ai-run"}` on the room socket.
 //!

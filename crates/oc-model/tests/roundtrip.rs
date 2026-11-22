@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 use oc_model::import::{apply_document_json, apply_markdown};
 use oc_model::{CommitInfo, doc_to_json, new_doc, read_ocanvas, write_ocanvas};
 use serde_json::json;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @vitest-environment jsdom
 // Adding a field (highlight, naming in place, Escape discards), insert left / right, and field
 // descriptions (shared, tooltip, peek, Markdown). docs/20-BLOCKS-UX-AUDIT.md D28–D31.

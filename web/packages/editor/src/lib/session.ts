@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Launch flow (docs/15 §2) and the collaboration socket (docs/15 §3).
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `POST /v1/assets` and `GET /v1/users`, proxied to the host's callbacks; in WOPI mode
 //! served from the room instead (plus `GET /v1/assets/:id`).
 

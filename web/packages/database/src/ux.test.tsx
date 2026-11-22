@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @vitest-environment jsdom
 // UX pass (docs/20-BLOCKS-UX-AUDIT.md): field editing, multi-sort/filter, spreadsheet keyboard,
 // clipboard, row/column reordering, virtualisation, undo, peek navigation, CSV import undo.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Host REST API: patch, commit, convert, and the DOCX export (docs/04 §6, docs/05 §7).
 mod common;
 

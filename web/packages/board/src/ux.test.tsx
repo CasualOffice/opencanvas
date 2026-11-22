@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @vitest-environment jsdom
 // UX pass (docs/20-BLOCKS-UX-AUDIT.md): multi-select, box select, groups, align / distribute,
 // snapping, copy / paste, z-order, keyboard alternatives, sticky auto-grow, labels, presence.

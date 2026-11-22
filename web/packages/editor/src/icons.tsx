@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Lucide icons only (never emoji). Every icon goes through <Ic> so stroke width
 // and sizing stay consistent with the approved prototype (strokeWidth 1.75).
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The `link` mark and the `mention` node, without their heavy runtime parts.
 //
 // @tiptap/extension-link pulls in linkifyjs (~10 KB gzip) for autolinking and

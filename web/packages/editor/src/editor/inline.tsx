@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Inline additions (UX-02, ADR-027): the `textColor` mark (a token palette that holds up in
 // light and dark) and the `dateMention` node (an inline date chip). Both are part of the file
 // format (docs/15 §4): names and attrs are fixed.

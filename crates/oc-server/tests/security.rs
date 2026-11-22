@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Regression tests for the 2026-11-21 security audit (docs/18). Each test names its finding.
 
 mod common;

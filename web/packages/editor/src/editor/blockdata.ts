@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The database and board packages are heavy (views, styles, presets), so they
 // stay out of the initial bundle (docs/02 §7). Everything that needs them goes
 // through these loaders; nothing in the entry graph may import them statically

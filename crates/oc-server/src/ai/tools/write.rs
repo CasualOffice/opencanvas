@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Writing canvas tools. Each runs on a scratch copy of the live doc and returns the update
 //! that reproduces it, so a failing call changes nothing and a good one lands as one Yjs
 //! transaction in the room actor (docs/24 §6.4).

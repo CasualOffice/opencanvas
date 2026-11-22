@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Languages offered by the code block's picker. The ids are highlight.js names
 // (lowlight `common`); the `language` attr stores them as-is (docs/15 §4).
 // "" means auto-detect. Kept apart from highlight.ts so the picker renders

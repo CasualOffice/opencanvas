@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, Info } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";

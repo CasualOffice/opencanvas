@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 use std::time::Duration;
 
 use oc_server::cluster::{self, Cluster, ClusterConfig};

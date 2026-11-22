@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // docs/21 revision 2 (ADR-026): telling people apart, and the canvas member list.
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";

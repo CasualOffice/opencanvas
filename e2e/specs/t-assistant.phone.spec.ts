@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // t. Assistant on a phone (Phone.dc.html): bottom toolbar "Ask Assistant", action sheet, plan,
 // progress pill, review bar; 44 px targets, 16 px inputs. `#demo` scripted run.
 import AxeBuilder from "@axe-core/playwright";

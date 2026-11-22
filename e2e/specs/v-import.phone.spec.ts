@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // v. docs/23 FC-10 on a phone (webkit-phone): the import dialog from the "…" menu, a CSV
 //    preview that fits the screen (the table scrolls inside), done; axe light and dark.
 import path from "node:path";

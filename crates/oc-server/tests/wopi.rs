@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! WOPI-compatible mode end to end (docs/05 §6): an in-process mock WOPI host, a real
 //! WebSocket client, CheckFileInfo → GetFile → edit → autosave PutFile, conflicts (1010 →
 //! PUT_RELATIVE), assets inlined into the file, and the WOPISrc allowlist.

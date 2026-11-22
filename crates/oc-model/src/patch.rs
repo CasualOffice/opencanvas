@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Block patches from the host API (`POST /v1/files/:id/patch`, docs/04 §6).
 //!
 //! Blocks are addressed by the optional `blockId` attribute (docs/15 §4). Ops run against a

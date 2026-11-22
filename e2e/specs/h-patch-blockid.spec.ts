@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // h. A bot appends a block through the host REST API while people are editing. The block
 //    appears live, keeps its blockId after a person edits it, and a second API call can
 //    still address it by that id.

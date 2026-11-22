@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! @mention notifications (UX-02, docs/05 §5): finds mentions that are new in the room's doc
 //! and turns them into `POST {callback_base}/mentions` calls.
 //!

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # Chaos test for cluster mode (CLU-02, ADR-006):
 #   1. bring up docker-compose.cluster.yml (3 nodes, MariaDB, Redis, nginx, sample host)
 #   2. connect two clients to the same room through nginx and type

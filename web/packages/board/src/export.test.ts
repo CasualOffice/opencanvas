@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // node:fs through a computed specifier: this package has no Node typings.
 interface Fs { readFileSync(p: string, enc: "utf8"): string; writeFileSync(p: string, s: string): void }
 const { readFileSync, writeFileSync } = (await import(/* @vite-ignore */ ["node", "fs"].join(":"))) as Fs;

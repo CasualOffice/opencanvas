@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # End-to-end check of WOPI-compatible mode (docs/05 §6) against the reference WOPI host
 # (examples/wopi-host/server.mjs): discovery, launch with access_token, CheckFileInfo roles,
 # edit over the WebSocket with the smoke client → autosave PutFile, Markdown files saved as

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Board SVG/PNG export, PDF through a (mock) Gotenberg, and the asset-origin policy for
 //! images in exports (docs/15 §6, ADR-010).
 mod common;

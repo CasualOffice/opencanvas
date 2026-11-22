@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Redis-only storage (ADR-030): a cluster with `REDIS_URL` and no `DATABASE_URL` keeps every
 //! piece of transient server state in Redis. [`crate::store::Store`] dispatches here before its
 //! SQL code, so the SQLite and MySQL/MariaDB paths are unchanged.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Read-only canvas tools over the live doc: `canvas_read`, `canvas_find`, `db_describe`,
 //! `db_query`, `board_read`, `comment_list`, plus the block walk and `rev` hashes that writes
 //! check with `ifMatch`.

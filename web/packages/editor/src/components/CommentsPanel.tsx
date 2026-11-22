@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 import { secondLine, type OcUser, type Role } from "@opencanvas/ui";

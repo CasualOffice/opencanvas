@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // b. Live typing and database cell edits reach the other person within 2 s,
 //    autosave lands a new version in the host, and a reload shows the saved content.
 import { expect, test } from "@playwright/test";

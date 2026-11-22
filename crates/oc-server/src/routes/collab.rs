@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `GET /v1/collab/:room?ticket=` WebSocket (docs/15 §3).
 
 use std::time::{Duration, Instant};

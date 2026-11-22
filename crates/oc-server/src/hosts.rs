@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Static host registry from `opencanvas.hosts.toml` (docs/05 §2).
 
 use std::collections::HashMap;

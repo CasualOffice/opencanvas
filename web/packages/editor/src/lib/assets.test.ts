@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveAsset, setAssetTicket } from "./assets";
 

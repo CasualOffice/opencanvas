@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // t. Assistant (docs/24 §10.2, docs/prototypes/assistant-approved) in `#demo`: the scripted run
 // (no AI server) on the same UI path as a real run. Select the notes → Ask Assistant → plan →
 // Run → the Tasks database appears → review → Accept all → Undo run. Axe on bar, plan and review.

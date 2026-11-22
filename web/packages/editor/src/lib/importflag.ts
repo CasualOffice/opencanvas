@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // docs/23 FC-10, prototype Import.dc.html: "Import…" in the slash menu and the "…" menu.
 // Tiny and in the initial bundle; the dialog itself is a lazy chunk (components/ImportInto).
 import type { Role } from "@opencanvas/ui";

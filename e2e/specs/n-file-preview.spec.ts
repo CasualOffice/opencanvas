@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // n. File previews (FILE-01): a PDF uploaded through the host shows inline as pages, the card
 //    gets a first-page thumbnail, the viewer pages and zooms, Expand goes full screen and Esc
 //    comes back, the inline viewer resizes by mouse and keyboard, and rename / delete + undo

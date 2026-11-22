@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Y.Doc memory under nonstop typing (docs/22 §9.5): consecutive single-character inserts by
 //! one client must squash into a few blocks on the server, whatever way the updates arrive.
 use std::sync::{Arc, Mutex};

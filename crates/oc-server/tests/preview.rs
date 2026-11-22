@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! FILE-01: `GET /v1/assets/fetch?ticket=&url=` serves an attachment's bytes from this origin
 //! (pdf.js and text previews can't read the host's origin), under the same origin rules as
 //! export image fetching: exact allowed origins, no userinfo, no redirects; at most 50 MB.

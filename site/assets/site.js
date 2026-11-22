@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The website's behaviour (SITE-01): theme switch, phone menu, search over the prebuilt
 // index (search-index.json), copy buttons on code, scroll reveals and the docs'
 // "on this page" highlight. No framework; every string set as text. The hero's entrance

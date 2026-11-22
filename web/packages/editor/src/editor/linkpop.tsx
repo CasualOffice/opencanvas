@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Link popover: edit a link (⌘K, toolbar, phone bar) or act on one that was
 // clicked (open, edit, copy, remove). Lazy: loads the first time it is shown.
 import { useState } from "react";

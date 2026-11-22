@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! WAL durability and fencing (docs/22 §8 weaknesses 3 and 4): a writer that lost the room
 //! writes nothing, and an update that is not in the WAL is never fanned out.
 

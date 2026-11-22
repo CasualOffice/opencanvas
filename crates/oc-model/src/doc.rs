@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Y.Doc layout and the JSON walk used for `document.json` and exports.
 
 use serde_json::{Map as JsonMap, Value, json};

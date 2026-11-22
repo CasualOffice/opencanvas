@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! HTTP surface (docs/15 §2, §3, §6).
 
 mod api;

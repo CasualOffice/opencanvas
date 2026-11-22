@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Popover placement, kept apart from React so it can be unit tested.
 
 /**

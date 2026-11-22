@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // l. Phone UX pass (docs/19): "+" opens the block menu on a new line instead of
 //    typing "/" into the middle of a word, and links are edited in a sheet (no
 //    window.prompt). Runs in the WebKit phone project (file name matches /phone\.spec/).

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `oc-bench verify`: correctness under failure (docs/22 §8): crash recovery and cluster chaos.
 //!
 //!   oc-bench verify --server URL[,URL…] --rooms 200 --per-room 2 --secs 40 --host-port 8722 \

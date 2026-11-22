@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // A compact block vocabulary used by templates and the demo document. It is
 // turned into Tiptap JSON (node names per docs/15 §4) when applied to a Y.Doc,
 // and rendered as skeleton thumbnails in the template gallery.

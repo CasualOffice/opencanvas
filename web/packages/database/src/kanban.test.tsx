@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";

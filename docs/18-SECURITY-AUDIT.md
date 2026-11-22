@@ -142,7 +142,7 @@ tool renders Markdown of content the session can already see). jemalloc static `
 | Check | Result |
 |---|---|
 | `cargo audit` (1 560 advisories, 405 crates) | before: 1 vulnerability (RUSTSEC-2026-0592) + 1 unmaintained; after: 0 vulnerabilities, 6 documented ignores |
-| `cargo deny … advisories bans licenses sources` | ok / ok / ok / ok (licence allow-list added: permissive only; our crates BUSL-1.1) |
+| `cargo deny … advisories bans licenses sources` | ok / ok / ok / ok (licence allow-list added: permissive only; our crates Apache-2.0) |
 | `pnpm audit` (web, prod and full) | No known vulnerabilities |
 | `npm audit` (e2e lockfile) | 0 vulnerabilities |
 | `tests/security.rs`, `tests/hardening.rs` | 11 + 11 pass |

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! UX-02: @mentions in comments and canvas text reach the host's `POST /mentions` callback,
 //! once per message, signed like every callback, retried through the notification outbox.
 mod common;

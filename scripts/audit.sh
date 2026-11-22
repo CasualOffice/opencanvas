@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Supply-chain checks (docs/07 §2, docs/18): RustSec advisories, licences, crate sources and bans, and
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+# Supply-chain checks (docs/07 §2, docs/18): RustSec advisories, licences, crate sources and bans, the
+# SPDX headers (check-spdx.sh), and
 # the npm dependencies (web production, e2e lockfile). The accepted advisories and their reasons are in
 # scripts/deny.toml; anything new fails this script.
 #
@@ -12,4 +16,5 @@ cargo audit $IGNORES
 cargo deny --config scripts/deny.toml check advisories bans licenses sources
 (cd web && pnpm audit --prod)
 (cd e2e && npm audit)
+bash scripts/check-spdx.sh
 echo "audit: ok"

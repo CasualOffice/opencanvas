@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Images for exports (DOCX, board PNG, PDF) are fetched only from origins the host allows:
 //! its `callback_base` origin (signed, with the callback token), the original `callback_base`
 //! origin while `OC_CALLBACK_BASE_OVERRIDE` is active (fetched through the override), and the

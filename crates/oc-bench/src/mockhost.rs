@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! A tiny in-process host (docs/15 §5) so the host never bottlenecks a run: `GET /files/{id}`
 //! answers a pre-built seed document (or 404 = new file) and `PUT /files/{id}` answers 200 at
 //! once. Signatures are not checked; the bench host entry is local only.

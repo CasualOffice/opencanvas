@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The room actor: owns the Y.Doc, peers, WAL, autosave and awareness for one file.
 
 use std::collections::{BTreeSet, HashMap, HashSet};

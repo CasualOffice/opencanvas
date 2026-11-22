@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Check that every claim on the website traces to the repository.
 
     python3 -I tools/check-site-claims.py            # the built site, site/
@@ -16,14 +19,11 @@ exactly one marking, written by the `{{claim:...}}` placeholder (tools/sitelib.p
 - `data-claim-mark="deployment"`: what the operator configures, as non-empty text.
 
 A number in a claim with a tested or deployment marking fails too: a figure needs a
-source. And on every page, llms.txt and llms-full.txt, the words "open source" (or
-"open-source") fail the check: OpenCanvas is source-available (BUSL-1.1), not open
 source. Exits non-zero naming each problem. Standard library only; no network.
 """
 
 from __future__ import annotations
 
-import html as html_mod
 import pathlib
 import re
 import sys
@@ -35,7 +35,6 @@ REPO_BLOB = "https://github.com/CasualOffice/opencanvas/blob/main/"
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr",
         "path", "circle", "line", "rect", "polyline", "polygon", "ellipse"}
 NUMBER = re.compile(r"(?<![\w.\-])\d+(?:[.,]\d+)*(?![A-Za-z])")
-BANNED = re.compile(r"\bopen[\s\-]+source\b", re.I)
 
 
 def norm(s: str) -> str:
@@ -159,10 +158,6 @@ def problems_in(rel: str, page: str) -> tuple[int, list[str]]:
     return len([c for c in p.claims if not c.get("stray")]), out
 
 
-def banned_in(rel: str, text: str) -> list[str]:
-    plain = html_mod.unescape(re.sub(r"<[^>]+>", " ", text))
-    return [f"{rel}: says \"{m.group(0)}\"; OpenCanvas is source-available (BUSL-1.1)" for m in BANNED.finditer(plain)]
-
 
 def self_test() -> int:
     tracker = "docs/10-EXECUTION-TRACKER.md"
@@ -191,14 +186,9 @@ def self_test() -> int:
         if len(got) != want:
             print(f"check-site-claims self-test: case {i} expected {want} problem(s), got {got}", file=sys.stderr)
             failed += 1
-    for page, want in (("<p>An open-source canvas</p>", 1), ("<p>Open Source</p>", 1), ("<p>open or closed source</p>", 0),
-                       ("<p>source-available</p>", 0)):
-        if len(banned_in("case", page)) != want:
-            print(f"check-site-claims self-test: banned-words case {page!r} expected {want}", file=sys.stderr)
-            failed += 1
     if failed:
         return 1
-    print(f"check-site-claims: self-test passed ({len(cases) + 4} cases)")
+    print(f"check-site-claims: self-test passed ({len(cases)} cases)")
     return 0
 
 
@@ -219,16 +209,12 @@ def main(argv: list[str]) -> int:
         n, out = problems_in(rel, text)
         total += n
         problems.extend(out)
-        problems.extend(banned_in(rel, text))
-    for name in ("llms.txt", "llms-full.txt"):
-        if (SITE / name).exists():
-            problems.extend(banned_in(name, (SITE / name).read_text(encoding="utf8")))
     if problems:
         print(f"check-site-claims: {len(problems)} problem(s)", file=sys.stderr)
         for line in problems:
             print(f"  {line}", file=sys.stderr)
         return 1
-    print(f"check-site-claims: {total} claims on {len(pages)} pages, each traced to a test, a quoted source or the deployment; no page says \"open source\"")
+    print(f"check-site-claims: {total} claims on {len(pages)} pages, each traced to a test, a quoted source or the deployment")
     return 0
 
 

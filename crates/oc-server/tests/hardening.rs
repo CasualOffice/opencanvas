@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Durable saves, conflict policies, size limits and the host role API.
 mod common;
 

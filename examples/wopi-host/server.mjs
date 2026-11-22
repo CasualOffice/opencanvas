@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // OpenCanvas reference WOPI host: a stand-in for Nextcloud / ownCloud / Seafile, which open
 // editors through WOPI (docs/05-INTEGRATION-GUIDE.md §6). Zero dependencies.
 //

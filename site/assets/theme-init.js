@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Runs before the page paints (a classic script, no inline code under the CSP): the
 // remembered theme, and the `js` class that lets scroll reveals hide content only when
 // a script will show it again. Same storage key as the web app (webapp/theme.js).

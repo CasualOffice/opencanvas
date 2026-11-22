@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The initial-JS budget swapped StarterKit, @tiptap/extension-link and
 // @tiptap/extension-mention for leaner definitions (base.ts, link.ts) whose
 // runtime plugins load after first paint (late.ts). The schema must stay

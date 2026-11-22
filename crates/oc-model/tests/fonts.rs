@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Glyph coverage of board PNGs: symbols from the embedded fonts, other scripts from
 //! `OC_FONT_DIRS`. System fonts are switched off (`OC_SYSTEM_FONTS=0`) so the result does not
 //! depend on the machine running the tests.

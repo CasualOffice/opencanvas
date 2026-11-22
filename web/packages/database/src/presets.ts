@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import type { OcUser, Tone } from "@opencanvas/ui";
 import type { CellValue, DbField, FieldType, ViewKind } from "./types";
 

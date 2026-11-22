@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Built-in templates (TPL-02), ported from the approved UI-02 prototype.
 import type { Tone } from "@opencanvas/ui";
 import {

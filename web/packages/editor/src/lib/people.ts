@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // People on this canvas (docs/21 revision 2, ADR-026). The mention list is the people with
 // access to this canvas: the server's `/v1/members` (members callback > token `members` > the
 // saved `people` map). The list is the same for every viewer, everyone sees real names, and

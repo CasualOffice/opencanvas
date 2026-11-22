@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Calls from OpenCanvas to the host (docs/15 §5): signed with HMAC, bearer callback token.
 
 use std::collections::HashMap;

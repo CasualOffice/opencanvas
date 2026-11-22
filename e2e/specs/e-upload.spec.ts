@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // e. Pasting an image uploads it through the server to the host; the other person sees it.
 import { expect, test } from "@playwright/test";
 import { HOST } from "../env";

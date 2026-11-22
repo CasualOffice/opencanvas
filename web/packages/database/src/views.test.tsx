@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @vitest-environment jsdom
 // Open items from docs/20-BLOCKS-UX-AUDIT.md: typed filters (D21), per-view fields (D22),
 // calendar drag + tray + double-click (D23), header count (docs/19 #43), shared undo manager.

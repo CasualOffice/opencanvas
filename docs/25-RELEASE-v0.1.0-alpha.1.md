@@ -7,7 +7,7 @@ This is an **alpha** for evaluation. There is **no production SLA**: no uptime, 
 response-time or data-retention commitment of any kind. Read [Known limitations](#known-limitations)
 before you run it with real users.
 
-OpenCanvas is source-available under the [Business Source License 1.1](../LICENSE). Your
+OpenCanvas is open source under the [Apache License 2.0](../LICENSE); keep [NOTICE](../NOTICE) when you redistribute it. Your
 application keeps the users, the permissions and the files; OpenCanvas does the editing,
 real-time merge (Yjs CRDT), presence, export and autosave back to your storage (ADR-001).
 

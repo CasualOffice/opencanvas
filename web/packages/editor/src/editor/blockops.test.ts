@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Block operations on a real (headless) editor: the phone "+" must never type
 // "/" into existing text, moves keep the block whole, duplicates drop blockId.
 import { afterEach, describe, expect, it } from "vitest";

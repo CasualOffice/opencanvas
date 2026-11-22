@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // What the assistant draws inside the document: the selection it works on, the slot the inline
 // command bar and plan render into, the agent's label on the block it touches, the outline on
 // blocks it created, and pending suggestions with ✓ / ✕. DOM is built with textContent only:

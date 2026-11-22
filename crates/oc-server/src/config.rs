@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Environment configuration (docs/04 §7, docs/15 §7-8).
 
 use std::path::PathBuf;

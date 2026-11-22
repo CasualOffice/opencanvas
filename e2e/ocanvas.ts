@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Just enough of a zip reader to look inside the .ocanvas files the host stored.
 import fs from "node:fs";
 import path from "node:path";

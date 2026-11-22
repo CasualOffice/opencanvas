@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Shared pieces of the website build: page layout, icons, screenshots, a Markdown
 renderer for the repository's documents, SEO metadata, and the search index. Used by
 tools/build-site.py and tools/build-roadmap.py; standard library only.
@@ -46,7 +49,7 @@ BLOB = REPO + "/blob/main/"
 TREE = REPO + "/tree/main/"
 BASE_URL = "https://canvas.casualoffice.org/"
 NAME = "OpenCanvas"
-LICENCE = "BUSL-1.1"
+LICENCE = "Apache-2.0"
 DEMO = "app/#demo"
 
 # ---- Icons -------------------------------------------------------------------------
@@ -215,15 +218,15 @@ def footer(root: str) -> str:
     <div class="foot-brand">
       <img class="logo-light" src="{root}assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
       <img class="logo-dark" src="{root}assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
-      <p>A source-available collaborative canvas you embed, under <span class="nowrap">{LICENCE}</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">{LICENCE}</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
       <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
     </div>
     {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
     {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("WOPI mode", "docs/wopi.html"), ("Operations", "docs/operations.html")])}
     {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html")])}
-    {col("Project", [("GitHub", REPO), ("Licence (BUSL-1.1)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
+    {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>
-  <div class="wrap foot-base"><p>Business Source License 1.1: free to self-host and embed. Offering OpenCanvas to others as a hosted collaborative-editing service needs a commercial licence. Each version becomes MPL-2.0 four years after its release.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
 </footer>"""
 
 

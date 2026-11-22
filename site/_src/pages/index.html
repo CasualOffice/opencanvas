@@ -1,4 +1,4 @@
-<!--meta {"title": "OpenCanvas", "description": "OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Source-available under BUSL-1.1.", "nav": "home"} -->
+<!--meta {"title": "OpenCanvas", "description": "OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Open source under Apache 2.0.", "nav": "home"} -->
 <!-- Product screenshots come from tools/capture-site-screens.mjs: the real editor in its
      #demo mode, captured by Playwright. No mock-ups. Numbers in claim blocks are quoted
      from the repository by a source marking; tools/check-site-claims.py checks them. -->
@@ -14,7 +14,7 @@
       </div>
       <p class="hero-note">The demo is the real editor running in your browser on a sample canvas, with simulated collaborators: no server, no account, nothing sent. <a href="#limits">Alpha: read the limits first.</a></p>
       <ul class="hero-meta" aria-label="In short">
-        <li>{{icon:circle-check:16}}Source-available (BUSL-1.1), free to self-host and embed</li>
+        <li>{{icon:circle-check:16}}Open source under Apache 2.0, free to self-host and embed</li>
         <li>{{icon:circle-check:16}}One Rust server</li>
         <li>{{icon:circle-check:16}}Your app keeps the files</li>
       </ul>
@@ -366,13 +366,13 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
     <div class="reveal">
       <div class="sec-head flush">
         <span class="eyebrow eyebrow--dot">Licence</span>
-        <h2 id="licence-h">Source-available. Free to self-host and embed.</h2>
-        <p>OpenCanvas is under the Business Source License 1.1, with CasualOffice as the licensor. Read the code, run it in production, and build it into your own products, open or closed.</p>
+        <h2 id="licence-h">Open source under Apache 2.0.</h2>
+        <p>OpenCanvas is under the Apache License 2.0, copyright CasualOffice. Read the code, run it in production, change it, and build it into your own products, open or closed.</p>
       </div>
       <ul class="os-points">
-        <li>{{icon:circle-check}}<span>Self-host it and embed it in your own products and services, including commercial ones, at no cost.</span></li>
-        <li>{{icon:circle-check}}<span>A commercial licence is needed only to offer OpenCanvas to others as a hosted collaborative-editing service.</span></li>
-        <li>{{icon:circle-check}}<span>Each version becomes MPL-2.0 four years after its release.</span></li>
+        <li>{{icon:circle-check}}<span>Self-host, modify, embed and redistribute it, including in commercial products, at no cost.</span></li>
+        <li>{{icon:circle-check}}<span>Keep the NOTICE file when you redistribute OpenCanvas or a work derived from it.</span></li>
+        <li>{{icon:circle-check}}<span>Bundled fonts stay under the SIL Open Font License.</span></li>
       </ul>
     </div>
     <div class="badge-card reveal reveal-d1">
@@ -417,7 +417,7 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
     </div>
     <div class="faq reveal reveal-d1">
       <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div><p>Not yet. OpenCanvas is a P1 alpha for evaluation: the server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it awaits the owner's review and there is no tagged release. The <a href="roadmap.html">roadmap</a> shows each item's status.</p></div></details>
-      <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div><p>OpenCanvas is source-available under the Business Source License 1.1. You may run it in production, self-host it, and embed it in your own products and services, open or closed. You need a commercial licence only to offer OpenCanvas to others as a hosted collaborative-editing service. Each version becomes MPL-2.0 four years after its release. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
+      <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div><p>OpenCanvas is open source under the Apache License 2.0. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products. When you redistribute it, keep the NOTICE file. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
       <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
       <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
       <details><summary>We already use Collabora through WOPI. Can we reuse that?{{icon:chevron-down}}</summary><div><p>Yes. OpenCanvas speaks WOPI as a client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc it will call. See <a href="docs/wopi.html">WOPI mode</a>.</p></div></details>

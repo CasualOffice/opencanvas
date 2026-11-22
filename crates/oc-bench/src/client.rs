@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! One virtual user: launch (JWT → ticket), session lookup, WebSocket, then type / watch.
 //!
 //! Editors type 3–6 chars/s in bursts, move their caret (awareness), sometimes edit a database

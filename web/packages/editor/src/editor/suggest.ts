@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Bridges @tiptap/suggestion (slash menu, @mentions) to a React-rendered menu.
 import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
 import { createStore } from "../lib/store";

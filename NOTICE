@@ -1,8 +1,18 @@
 OpenCanvas
 Copyright 2026 CasualOffice
 
-Licensed under the Business Source License 1.1 (LICENSE). Each version converts
-to the Mozilla Public License 2.0 on its Change Date, as stated in LICENSE.
+This product includes software developed by CasualOffice
+(https://github.com/CasualOffice/opencanvas).
 
-Third-party components keep their own licences; bundled fonts are listed in
-crates/oc-model/fonts/THIRD-PARTY.md.
+Licensed under the Apache License, Version 2.0 (LICENSE). Under section 4(d) of that
+licence, any redistribution of OpenCanvas or of a work derived from it, in source or
+binary form, must keep a readable copy of this NOTICE file.
+
+Third-party components keep their own licences:
+
+- Fonts embedded in oc-model for board PNG rendering (Geist; Noto Sans Symbols 2 and
+  Noto Sans Math, subset) are under the SIL Open Font License 1.1. The licence texts
+  are crates/oc-model/fonts/OFL-Geist.txt and crates/oc-model/fonts/OFL-Noto.txt; the
+  list, sources and subsetting are in crates/oc-model/fonts/THIRD-PARTY.md.
+- The Lucide icons used by the project site (site/_src/lucide) are under the ISC
+  licence, as stated by their upstream project.

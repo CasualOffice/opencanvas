@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Block menu (turn into, colour, columns, duplicate, link, comment, move,
 // delete) and starting a comment from a selection. Opened from the desktop
 // gutter, ⌘/ at the caret, the selection toolbar's "Turn into" and the phone bar.

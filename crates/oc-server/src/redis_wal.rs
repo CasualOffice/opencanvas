@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The hot WAL in Redis (ADR-021, docs/03 §5.4): one stream per room, `oc:wal:{room}`, one
 //! entry per update with id `<seq>-0`. Appends are a Lua script that checks the room's
 //! fencing epoch (`oc:epoch:{room}`, mirrored from `room_epochs` when an actor claims the

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Cluster-wide member events (docs/21 revision 2): a revoke, restore or members invalidate on
 //! one node reaches every node's members cache and revoke set at once. Events go out on the
 //! Redis pub/sub channel [`CHANNEL`], signed with `OC_CLUSTER_SECRET` like every other

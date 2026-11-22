@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Telling people apart (docs/21 "Telling people apart"). Pure helpers shared by the editor and
 // the block packages: case- and accent-insensitive name matching, the second line, initials
 // with subscripts on collision, and the "No longer has access" note. Never an e-mail.

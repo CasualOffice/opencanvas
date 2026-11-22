@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! PDF export through a Gotenberg sidecar (ADR-010): the self-contained print HTML is posted to
 //! `/forms/chromium/convert/html` and the PDF is streamed back to the caller.
 

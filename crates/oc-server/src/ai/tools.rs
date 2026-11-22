@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The canvas tool layer (docs/24 §5, ADR-032/033): one contract for the in-server agent and
 //! the MCP endpoint. Tools go through the room actor, so every edit is a real Yjs transaction
 //! with origin `ctx.origin`, broadcast and saved like any other edit.

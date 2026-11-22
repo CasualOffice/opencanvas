@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 """Build the website's roadmap page, site/roadmap.html, from the roadmap (docs/09) and
 the tracker (docs/10), so the page cannot drift from them.
 

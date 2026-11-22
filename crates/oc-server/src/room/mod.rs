@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! One actor per live room (host, file); the manager hands out handles and restarts closed rooms.
 
 mod actor;

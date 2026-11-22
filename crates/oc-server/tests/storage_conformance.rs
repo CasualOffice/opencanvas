@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Storage conformance (ADR-030): the same contract on every backend. SQLite always;
 //! MySQL/MariaDB when `OC_TEST_MYSQL_URL` is set; Redis-only storage when `OC_TEST_REDIS_URL`
 //! is set (for example `redis://127.0.0.1:8801/`). Every id is fresh, so a shared Redis is fine.

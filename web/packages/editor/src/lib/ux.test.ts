@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Unit tests for the UX pass helpers (docs/19): contrast-safe label colours,
 // platform key labels, popover placement, link normalisation, comment mentions,
 // slash ranking, image width.

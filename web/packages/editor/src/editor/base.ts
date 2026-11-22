@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The basic text nodes and marks: StarterKit's extensions in its order, minus
 // undo/redo (Yjs owns history), its code block (OcCodeBlock in nodes.tsx) and
 // the drop / gap cursors (plugins only, registered by late.ts after first

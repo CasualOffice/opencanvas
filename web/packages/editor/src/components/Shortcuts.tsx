@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Keyboard shortcuts help: `?` (outside text) or ⌘⇧/ anywhere, and the More menu.
 import { keyParts } from "../lib/keys";
 import { Modal, ModalHead } from "./overlay";

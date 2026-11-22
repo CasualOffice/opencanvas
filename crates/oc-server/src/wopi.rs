@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! WOPI-compatible mode (docs/05 §6, ADR-021). OpenCanvas is the WOPI *client* (the editor);
 //! the integrating app (Nextcloud, ownCloud, Seafile…) is the WOPI *host* (the storage).
 //!

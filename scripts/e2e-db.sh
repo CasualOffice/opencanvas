@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # End-to-end check against one database: launch through the sample host, edit over
 # the WebSocket with the smoke client, and confirm the autosave reached the host.
 # Also checks: the server refuses to start without OC_KEK, callback tokens are stored

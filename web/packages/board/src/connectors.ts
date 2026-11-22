@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Bound connectors: arrows whose ends attach to an anchor of another shape.
 //
 // An arrow keeps `pts` (the last known geometry, so readers that ignore bindings still draw

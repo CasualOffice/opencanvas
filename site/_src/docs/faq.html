@@ -1,4 +1,4 @@
-<!--meta {"title": "FAQ", "description": "Answers about OpenCanvas: its status, what the Business Source License allows, what data it keeps, how users sign in, WOPI, exports and scaling."} -->
+<!--meta {"title": "FAQ", "description": "Answers about OpenCanvas: its status, what the Apache 2.0 licence allows, what data it keeps, how users sign in, WOPI, exports and scaling."} -->
 <h1>FAQ</h1>
 <p class="lede">Short answers, with links to the pages that say more.</p>
 
@@ -6,13 +6,13 @@
 <p>Not yet. OpenCanvas is a P1 alpha for evaluation. The server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it still awaits the owner's review and there is no tagged release. The <a href="../roadmap.html">roadmap</a> shows each item's status.</p>
 
 <h2>What does the licence allow?</h2>
-<p>OpenCanvas is source-available under the Business Source License 1.1 (BUSL-1.1), with CasualOffice as the licensor.</p>
+<p>OpenCanvas is open source under the Apache License 2.0, copyright 2026 CasualOffice.</p>
 <ul>
-  <li><strong>Allowed at no cost:</strong> running it in production, self-hosting it, and embedding it in your own products and services, whether those are open or closed source, commercial or not.</li>
-  <li><strong>Needs a commercial licence:</strong> offering OpenCanvas to others as a hosted or managed service whose main purpose is collaborative editing of documents, databases or whiteboards.</li>
-  <li><strong>Later:</strong> each version becomes available under the Mozilla Public License 2.0 four years after it is first published under BUSL-1.1.</li>
+  <li><strong>Allowed:</strong> using, modifying, self-hosting, embedding and redistributing it, in open or closed, commercial or non-commercial products and services.</li>
+  <li><strong>Attribution:</strong> when you redistribute OpenCanvas or a work derived from it, keep the NOTICE file and the licence.</li>
+  <li><strong>Fonts:</strong> the bundled fonts are under the SIL Open Font License 1.1.</li>
 </ul>
-<p>The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file states the exact terms and is the authority; this summary is not legal advice. For other arrangements, contact the licensor through the repository.</p>
+<p>The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file states the exact terms and is the authority; this summary is not legal advice.</p>
 
 <h2>Does OpenCanvas keep my documents?</h2>
 <p>Only while a session is live. The server keeps a snapshot and the recent updates so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file lives in your app; OpenCanvas writes it back there. See <a href="architecture.html">Architecture</a>.</p>

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! A handful of Prometheus counters, gauges and histograms, rendered as text.
 
 use std::collections::BTreeMap;

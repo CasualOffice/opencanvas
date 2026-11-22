@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Writes a tiny 3-page PDF (one heading per page, Helvetica, US Letter) for the file preview
 // tests and the demo canvas:  node e2e/fixtures/make-pdf.mjs <out.pdf>
 import fs from "node:fs";

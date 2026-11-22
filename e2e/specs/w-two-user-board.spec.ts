@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // w — docs/23 two-user acceptance, board: two people edit shapes live and converge; a
 //     viewer cannot move a shape (not on their own screen, not for anyone else).
 import { expect, test, type Locator } from "@playwright/test";

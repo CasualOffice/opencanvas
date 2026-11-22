@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The `ModelProvider` abstraction (docs/24 §8.2, ADR-031): streaming chat with tools over two
 //! wire protocols, `anthropic` (Claude Platform) and `openai-compatible` (OpenAI, vLLM, Ollama,
 //! llama.cpp). The browser never reaches a provider; keys never leave this process.

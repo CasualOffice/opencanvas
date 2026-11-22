@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! `kind = "openai-compatible"`: `/v1/chat/completions` with `tools` and SSE streaming. Works
 //! with OpenAI, vLLM, Ollama (`:11434`) and llama.cpp `llama-server`.
 

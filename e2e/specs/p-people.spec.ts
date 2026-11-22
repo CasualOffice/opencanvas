@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // p. Users and identity (docs/21 revision 2, ADR-026), one test per acceptance bullet: the
 //    mention list is exactly the canvas's members, everyone sees real names, two people called
 //    Asha Rao are told apart everywhere, no e-mail anywhere, removing access marks mentions

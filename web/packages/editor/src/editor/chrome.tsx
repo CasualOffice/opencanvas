@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Desktop-only editing chrome: the block gutter (+ and drag grip) and the
 // floating selection toolbar. Lazy-loaded: it brings drag-handle, bubble-menu
 // and floating-ui, which phones and viewers never need.

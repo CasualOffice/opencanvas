@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // @opencanvas/board: collaborative whiteboard block backed by Yjs.
 // Y.Doc layout: docs/15-BUILD-CONTRACT.md §4 (`boards` root): shapes Y.Map<shapeId, Y.Map>, order Y.Array<shapeId>.
 export { BoardBlock } from "./BoardBlock";

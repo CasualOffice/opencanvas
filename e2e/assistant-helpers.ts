@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Shared by t-assistant.spec.ts and t-assistant.phone.spec.ts.
 import { expect, type Page } from "@playwright/test";
 import { OC } from "./env";

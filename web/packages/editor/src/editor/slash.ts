@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Slash menu items (grouped, with tiles and markdown shortcuts) and block actions.
 import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { insertUploads } from "../lib/uploads";

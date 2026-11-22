@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // UX-02: text colour mark and date chips (schema, HTML round trip, the @ menu's date items),
 // and LAY-01 column width maths.
 import { afterEach, describe, expect, it } from "vitest";

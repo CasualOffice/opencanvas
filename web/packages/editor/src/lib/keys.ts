@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Keyboard shortcut labels that match the person's platform: ⌘⇧K on a Mac,
 // Ctrl+Shift+K elsewhere. Combos use ProseMirror's spelling ("Mod-Shift-k").
 

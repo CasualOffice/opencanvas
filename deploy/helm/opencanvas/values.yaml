@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
 # OpenCanvas Helm values. See docs/13-OPERATIONS-AND-DEPLOYMENT.md.
 #
 # Three common shapes (see ci/*.yaml for complete examples):

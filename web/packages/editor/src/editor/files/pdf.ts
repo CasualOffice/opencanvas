@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // pdf.js, loaded on first use with its worker from this origin (CSP `script-src 'self'`,
 // `worker-src 'self'`): never part of the initial JS (docs/02 §7). No eval (fonts are drawn
 // without `new Function`), no scripting, no external resources.

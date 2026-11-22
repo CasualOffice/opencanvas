@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Board export: a standalone SVG (and a PNG rendered from it) fitted to the content.
 // Uses a fixed light palette so the file looks the same whatever theme the exporter had.
 // Keep in step with the Rust port (`crates/oc-model/src/board.rs`): both must produce

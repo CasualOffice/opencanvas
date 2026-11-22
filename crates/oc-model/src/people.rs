@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! People in a document (docs/21): which ids it refers to, and rendering them for one viewer.
 //!
 //! The document stores ids plus a snapshot label that the author saw. Exports show the canvas

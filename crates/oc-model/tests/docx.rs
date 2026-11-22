@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! DOCX export: the package opens (parts present, XML well-formed) and, when LibreOffice is
 //! installed, converts to PDF headlessly.
 

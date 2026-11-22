@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! The process allocator (docs/22 §9.6, PERF-07).
 //!
 //! The `opencanvas` binary uses jemalloc by default (feature `jemalloc`, dirty pages decay in

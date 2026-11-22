@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 //! Cluster forwarding of canvas tool calls (docs/24 §5.6): a call that lands on a node that
 //! does not own the room is sent to the owner over the signed internal API
 //! (`POST /v1/internal/tools/:room`, `OC_CLUSTER_SECRET` HMAC over room + body + time).

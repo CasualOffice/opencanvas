@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // The `suggestions` Y root (ADR-033, docs/24 §6.3): `{id → {id, by, name, origin, ops, status, at}}`.
 // Ops are `editText` against a `blockId` (+ `rev`): `textEdits: [{find, replace}]`. The editor shows
 // each pending one inline; accepting applies it as the accepting person, rejecting only marks it.

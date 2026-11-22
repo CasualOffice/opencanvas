@@ -1,3 +1,8 @@
+{{- /*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 CasualOffice
+*/ -}}
+
 {{- define "opencanvas.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}

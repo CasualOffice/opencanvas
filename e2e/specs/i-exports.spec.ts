@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // i. The canvas menu's exports: Markdown, .ocanvas and Word download from the server;
 //    PDF asks the server first and, when it has no renderer (501), opens the print dialog.
 import fs from "node:fs";

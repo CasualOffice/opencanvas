@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/geist/400.css";

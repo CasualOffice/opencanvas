@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
 // Styles for the database block. Injected once into document.head on first mount.
 // Uses only design tokens from @opencanvas/ui/tokens.css; light and dark come free.
 
