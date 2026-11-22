@@ -35,7 +35,7 @@ export function serverTransport(collab: Collab): Transport {
         // docs/15 §3.1: in mode `edit` the run waits after `ai-plan` until `ai-approve`.
         ...(r.mode === "edit" ? { confirm: true } : {}),
         // A string (the server wraps it as data, never as instructions).
-        ...(r.selection.kind === "none" ? {} : { selection: r.selection.lines.join("\n") }),
+        ...(r.selection.kind === "none" ? {} : { selection: r.selection.lines.join("\n"), selectionBlockIds: r.selection.blockIds }),
       }),
     approve: (runId) => collab.sendControl({ t: "ai-approve", runId }),
     cancel: (runId) => collab.sendControl({ t: "ai-cancel", runId }),

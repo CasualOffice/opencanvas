@@ -90,6 +90,9 @@ pub struct RunRequest {
     pub run_id: String,
     pub prompt: String,
     pub selection: Option<String>,
+    /// `selectionBlockIds`: the selection's block ids (one per line, or one for the whole
+    /// selection); only used to place injection flags.
+    pub selection_block_ids: Vec<String>,
     pub mode: Option<String>,
     /// `confirm`: stop after `ai-plan` until `ai-approve` (default `true` in edit mode).
     pub confirm: Option<bool>,
@@ -113,6 +116,17 @@ impl RunRequest {
             selection: v["selection"]
                 .as_str()
                 .map(|s| s.chars().take(64 * 1024).collect()),
+            selection_block_ids: v["selectionBlockIds"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .filter(|s| s.len() <= 128)
+                        .take(1000)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default(),
             mode: v["mode"].as_str().map(str::to_string),
             confirm: v["confirm"].as_bool(),
         })
@@ -494,6 +508,7 @@ impl AiRuntime {
             steps: 0,
             writes: 0,
             tools_used: Vec::new(),
+            flags: Vec::new(),
         };
         let result = st.go(tools_ok).await;
         let (outcome, summary, reason) = match result {
@@ -503,7 +518,8 @@ impl AiRuntime {
             Err(Stop::Limit(what)) => ("limit", None, Some(what.to_string())),
             Err(Stop::Error(e)) => ("error", None, Some(e)),
         };
-        let (steps, writes, usage, tools_used) = (st.steps, st.writes, st.usage, st.tools_used);
+        let (steps, writes, usage, tools_used, flags) =
+            (st.steps, st.writes, st.usage, st.tools_used, st.flags);
         env.port.presence(&req.run_id, None, false);
         if let Ok(mut reg) = self.reg.lock() {
             reg.active.remove(&req.run_id);
@@ -544,6 +560,9 @@ impl AiRuntime {
         }
         if let Some(r) = reason {
             done["reason"] = json!(r);
+        }
+        if !flags.is_empty() {
+            done["flags"] = json!(flags);
         }
         let _ = env.emit.send(done);
     }
@@ -610,6 +629,15 @@ fn audit(grant: &Grant, run_id: &str, event: &str, counts: Value) -> Value {
     })
 }
 
+/// (content for the model, ok, error code, touched block, injection flags).
+type ToolOutcome = (
+    String,
+    bool,
+    Option<&'static str>,
+    Option<String>,
+    Vec<Value>,
+);
+
 #[derive(Debug)]
 enum Stop {
     Cancelled,
@@ -634,6 +662,8 @@ struct RunState<'a> {
     steps: u32,
     writes: u32,
     tools_used: Vec<String>,
+    /// Prompt-injection flags raised on content this run read (docs/24 §9.1 T1).
+    flags: Vec<Value>,
 }
 
 impl RunState<'_> {
@@ -767,6 +797,9 @@ impl RunState<'_> {
                 sel.replace("</canvas_data>", "</canvas_data_>")
             ));
         }
+        if let Some(sel) = &self.req.selection {
+            self.flags = super::inject::scan_selection(sel, &self.req.selection_block_ids);
+        }
         let mut messages = vec![Msg::user(first)];
 
         // Plan: one call without tools, shown to the requester.
@@ -780,6 +813,7 @@ impl RunState<'_> {
                 "t": "ai-plan", "runId": self.req.run_id,
                 "plan": structured_plan(&plan),
                 "awaitingApproval": self.gate.confirm,
+                "flags": self.flags,
             }));
             if self.gate.confirm {
                 self.wait_for_approval().await?;
@@ -821,10 +855,19 @@ impl RunState<'_> {
                     return Err(Stop::Limit("steps"));
                 }
                 self.steps += 1;
-                let (content, ok, code, block) = self.tool(&ctx, &specs, &name, input).await?;
+                let (content, ok, code, block, flags) =
+                    self.tool(&ctx, &specs, &name, input).await?;
                 let mut step = json!({"t":"ai-step","runId":self.req.run_id,"step":self.steps,"tool":name,"ok":ok});
                 if let Some(c) = code {
                     step["error"] = json!(c);
+                }
+                if !flags.is_empty() {
+                    step["flags"] = json!(flags);
+                    for f in flags {
+                        if self.flags.len() < super::inject::MAX_FLAGS && !self.flags.contains(&f) {
+                            self.flags.push(f);
+                        }
+                    }
                 }
                 let _ = self.env.emit.send(step);
                 self.env.audit.event(audit(
@@ -852,20 +895,22 @@ impl RunState<'_> {
         }
     }
 
-    /// Runs one tool call. Returns (content for the model, ok, error code, touched block).
+    /// Runs one tool call. Returns (content for the model, ok, error code, touched block,
+    /// injection flags in what a read tool returned).
     async fn tool(
         &mut self,
         ctx: &ToolCtx,
         specs: &[ToolSpec],
         name: &str,
         input: Value,
-    ) -> Result<(String, bool, Option<&'static str>, Option<String>), Stop> {
+    ) -> Result<ToolOutcome, Stop> {
         let Some(spec) = specs.iter().find(|s| s.name == name) else {
             return Ok((
                 "This tool is not available in this run.".into(),
                 false,
                 Some("not_allowed"),
                 None,
+                Vec::new(),
             ));
         };
         let tools = self.rt.tools.get().ok_or(Stop::Error("no tools".into()))?;
@@ -890,11 +935,17 @@ impl RunState<'_> {
                     .as_str()
                     .or_else(|| v["blockIds"][0].as_str())
                     .map(str::to_string);
+                // Flagged, never filtered: the model still gets the content as data.
+                let flags = if spec.read_only {
+                    super::inject::scan_value(&v)
+                } else {
+                    Vec::new()
+                };
                 let mut s = v.to_string();
                 if s.len() > 50_000 {
                     s = s.chars().take(50_000).collect::<String>() + "…[truncated]";
                 }
-                (s, true, None, block)
+                (s, true, None, block, flags)
             }
             Err(e) => {
                 let (code, msg) = match e {
@@ -905,7 +956,13 @@ impl RunState<'_> {
                     ToolError::ConfirmationRequired(m) => ("confirmation_required", m),
                     ToolError::Internal(_) => ("internal", "internal error".to_string()),
                 };
-                (format!("error {code}: {msg}"), false, Some(code), None)
+                (
+                    format!("error {code}: {msg}"),
+                    false,
+                    Some(code),
+                    None,
+                    Vec::new(),
+                )
             }
         })
     }
