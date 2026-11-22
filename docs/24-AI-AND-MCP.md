@@ -10,8 +10,8 @@ switched on per host. Three parts share one tool layer and one rule: the host de
 what, and the OpenCanvas server enforces it.
 
 1. **Model provider abstraction on the server.** The provider, models and keys come from server
-   config and env (Claude API, Bedrock, Vertex AI, Foundry, or an OpenAI-compatible or
-   self-hosted endpoint). Each host enables AI and gets quotas in `hosts.toml`. Browsers never
+   config and env: the Claude Platform API, or any OpenAI-compatible server (OpenAI, vLLM,
+   Ollama, llama.cpp). The browser asks the OpenCanvas server; only the server calls the model. Each host enables AI and gets quotas in `hosts.toml`. Browsers never
    see a key or call a model. **Document content is sent to the configured provider**, and the
    docs must say so.
 2. **Agent runtime in the server.** The plan → act → review loop runs next to the room actor. The
@@ -330,8 +330,9 @@ to a model.
 │            ▼                                                                      │ Yjs sync  │
 │  ┌──────────────────────────────────────────┐                                      │          │
 │  │ Model provider abstraction               │── HTTPS ──▶ configured provider      │          │
-│  │ anthropic · bedrock · vertex · foundry · │   (Claude API, Bedrock, Vertex AI,   │          │
-│  │ openai-compatible (incl. self-hosted)    │    Foundry, or a self-hosted model)  │          │
+│  │ anthropic (Claude Platform) ·            │   (Claude API, OpenAI, vLLM,         │          │
+│  │ openai-compatible: OpenAI, vLLM,         │    Ollama, llama.cpp)                │          │
+│  │ Ollama, llama.cpp, LM Studio             │                                      │          │
 │  │ keys from env / sealed with OC_KEK       │                                      │          │
 │  └──────────────────────────────────────────┘                                      │          │
 └────────────────────────────────────────────────────────────────────────────────────┼──────────┘
@@ -587,18 +588,29 @@ monthly_token_quota    = 200000000    # per host; runs refused when spent
 
 ### 8.2 Model provider abstraction and configuration
 
-The server has one internal trait, `ModelProvider`, with a streaming `messages(request) →
-stream of {text, tool_call, usage, stop}` call. The request shape is content blocks with tool
-definitions and tool results, which maps directly onto the Claude Messages API and mechanically
-onto the others. Implementations:
+The flow is always **browser → OpenCanvas server → model server**. The editor (or an MCP
+client) sends a request to the OpenCanvas server over the existing session; the server checks the
+role and quotas, builds the prompt, calls the configured model server, applies tool calls to the
+live canvas, and streams progress back. The browser never talks to a model server.
 
-| Provider kind | Endpoint | Auth |
-|---|---|---|
-| `anthropic` | Claude API | API key from env |
-| `bedrock` | Amazon Bedrock (Claude and others) | AWS credentials from the environment (IAM role) |
-| `vertex` | Google Vertex AI | Google application default credentials |
-| `foundry` | Microsoft Foundry | API key or Entra ID |
-| `openai-compatible` | Any OpenAI-style chat endpoint, including self-hosted models (vLLM, Ollama) for air-gapped installs | Key from env, optional |
+The server has one internal trait, `ModelProvider`, with a streaming `chat(request) → stream of
+{text, tool_call, usage, stop}` call over content blocks, tool definitions and tool results.
+Two wire protocols cover every target the owner named (2026-11-22):
+
+| Provider kind | Covers | Endpoint | Auth |
+|---|---|---|---|
+| `anthropic` | Claude Platform (the Claude API from the Claude Console) | `https://api.anthropic.com/v1/messages` | API key from env |
+| `openai-compatible` | OpenAI; **vLLM** (`vllm serve`, `/v1/chat/completions`); **Ollama** (`/v1/chat/completions` on port 11434); **llama.cpp** (`llama-server`, `/v1/chat/completions`); LM Studio, LocalAI and any gateway that speaks the OpenAI Chat Completions API | `base_url` + `/v1/chat/completions` | Bearer key from env, optional for local servers |
+
+Later, if asked for: `bedrock`, `vertex` and `foundry` profiles (cloud-hosted Claude), as
+further `ModelProvider` implementations; nothing else changes.
+
+**Capability checks for self-hosted models.** The agentic assistant and MCP-driven edits need
+reliable tool calling. Each profile declares `tools = true | false` (and the server probes it at
+start-up with one tool-call request). A profile without tool calling serves the inline features
+only (rewrite, summarise, Q&A); agent mode is hidden for hosts using it. Context length is read
+from the profile (`context_tokens`), and the server trims what it sends to fit. Streaming uses
+server-sent events on both protocols; JSON-mode fallbacks are not used for edits.
 
 Provider profiles live in the server config (or env), never in a host entry and never in a
 token:
@@ -615,11 +627,14 @@ model_fast  = "claude-sonnet-5-5"
 inference_geo = "eu"                   # optional, where the provider supports it
 timeout_secs = 120
 
-[ai.providers.claude-bedrock-eu]
-kind        = "bedrock"
-region      = "eu-central-1"
-model_agent = "anthropic.claude-opus-5-5"
-model_fast  = "anthropic.claude-sonnet-5-5"
+[ai.providers.local-vllm]
+kind        = "openai-compatible"
+base_url    = "http://vllm.internal:8000"   # vLLM; Ollama: http://ollama:11434; llama.cpp: http://llama:8080
+api_key_env = ""                            # optional for local servers
+model_agent = "qwen3-32b"                   # whatever the server serves
+model_fast  = "qwen3-8b"
+tools       = true                          # false: inline features only, no agent mode
+context_tokens = 32768
 ```
 
 Rules: keys are read at start-up, held in memory only, never logged, never sent to browsers or
