@@ -82,13 +82,22 @@ impl AppState {
         let metrics = Arc::new(Metrics::default());
         let host = HostClient::new().with_store(store.clone());
         let members = Arc::new(people::Members::default());
+        let ai_cfg = crate::ai::config::AiConfig::from_env()?;
+        let ai = ai_cfg.enabled.then(|| {
+            // The canvas tool layer is plugged in below, once the app state exists.
+            let rt = crate::ai::agent::AiRuntime::new(ai_cfg, None, metrics.clone());
+            let probe = rt.clone();
+            tokio::spawn(async move { probe.probe_all().await });
+            rt
+        });
         let rooms = Rooms::new(Arc::new(Ctx {
             store: store.clone(),
             host: host.clone(),
             cfg: cfg.rooms.clone(),
             metrics: metrics.clone(),
+            ai: ai.clone(),
         }));
-        Ok(Arc::new(Self {
+        let state = Arc::new(Self {
             cfg,
             hosts,
             store,
@@ -98,7 +107,13 @@ impl AppState {
             jwks: jwt::Jwks::new(),
             tickets: Mutex::default(),
             members,
-        }))
+        });
+        if let Some(rt) = &ai {
+            // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
+            // state -> rooms -> runtime -> tools chain is not a cycle.
+            rt.set_tools(Arc::new(crate::ai::StateTools(Arc::downgrade(&state))));
+        }
+        Ok(state)
     }
 }
 

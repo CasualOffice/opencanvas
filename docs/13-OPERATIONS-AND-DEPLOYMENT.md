@@ -188,7 +188,70 @@ MCP tokens are verified with the host's launch-token keys (`jwt_secret`, `jwt_pu
 `jwt_jwks_url`). Set `OC_PUBLIC_URL` so the token audience and the protected-resource metadata
 URL are the public one (otherwise the request's `Host` is used). Tool calls run on the node that
 owns the room; in cluster mode a call that lands on another node is refused for now (retry).
-Provider settings for the in-editor assistant come with AI-02.
+The in-editor assistant (AI-02) reads the same `[host.ai]` table; see below.
+
+## AI (optional; AI-02, ADR-031)
+
+AI runs entirely in the OpenCanvas server; browsers never see a key or call a model. It is off
+unless `OC_AI_CONFIG` names a TOML file with `[ai] enabled = true`, and a host has `[host.ai]
+enabled = true`. **Document content is sent to the configured model provider.** Keys come from
+env (`api_key_env`), are held in memory only and never logged. At start-up each profile gets one
+tool-call probe; a profile without working tool calling (or `tools = false`) serves answer mode
+only. `context_tokens` sets how much input is sent (older turns are dropped first). Calls time
+out after `timeout_secs` and retry `max_retries` times with backoff on 429/5xx.
+
+```toml
+# OC_AI_CONFIG=/etc/opencanvas/ai.toml
+[ai]
+enabled = true
+
+[ai.providers.claude]                 # Claude Platform (Claude API)
+kind        = "anthropic"
+api_key_env = "OC_AI_ANTHROPIC_KEY"
+model_agent = "claude-opus-5-5"
+model_fast  = "claude-sonnet-5-5"
+timeout_secs = 120
+
+[ai.providers.vllm]                   # vllm serve Qwen/Qwen3-32B --enable-auto-tool-choice --tool-call-parser hermes
+kind        = "openai-compatible"
+base_url    = "http://vllm:8000"
+model_agent = "Qwen/Qwen3-32B"
+context_tokens = 32768
+
+[ai.providers.ollama]                 # ollama serve; a tool-capable model (qwen3, llama3.1)
+kind        = "openai-compatible"
+base_url    = "http://ollama:11434"
+model_agent = "qwen3:14b"
+context_tokens = 16384
+
+[ai.providers.llamacpp]               # llama-server --jinja -m model.gguf --port 8080
+kind        = "openai-compatible"
+base_url    = "http://llama:8080"
+model_agent = "local"
+tools       = true                    # set false if the model cannot call tools
+context_tokens = 8192
+```
+
+Per host, in `hosts.toml` (the same table as the MCP keys above; `default_mode` applies to
+the agent too):
+
+```toml
+[host.ai]
+enabled  = true
+provider = "claude"                   # a profile name from [ai.providers]
+[host.ai.limits]                      # defaults shown
+max_steps = 25
+max_run_secs = 300
+max_tokens_per_run = 400000
+max_writes_per_run = 500
+runs_per_user_per_hour = 60
+concurrent_runs_per_room = 3
+monthly_token_quota = 0               # tokens (input + output) per UTC month; 0 = no quota
+```
+
+Quota counters are kept in memory on the room owner node in this phase (reset on restart).
+Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_total{direction}`,
+`oc_ai_runs_total{outcome}`, `oc_ai_run_seconds`. No content.
 
 ## Health & metrics
 - `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining.

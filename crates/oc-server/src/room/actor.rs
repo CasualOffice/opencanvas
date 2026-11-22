@@ -155,6 +155,10 @@ struct Room {
     memory: bool,
     /// A background dump is running (memory durability).
     dump_in_flight: bool,
+    /// Per-run undo managers by origin `ai:<runId>` (in memory; lost with the node).
+    ai_undo: HashMap<String, yrs::UndoManager>,
+    /// Agent presence: awareness client id and clock per run.
+    ai_presence: HashMap<String, (ClientID, u32)>,
 }
 
 /// An update applied to the doc, waiting for its WAL batch.
@@ -455,6 +459,8 @@ impl Room {
             memory: ctx.cfg.durability == crate::config::Durability::Memory
                 && ctx.store.redis_wal().is_none(),
             dump_in_flight: false,
+            ai_undo: HashMap::new(),
+            ai_presence: HashMap::new(),
             ctx,
         })
     }
@@ -523,6 +529,24 @@ impl Room {
                 let _ = reply.send(self.tool(run, &origin, &author).await);
             }
             Cmd::Commit { reply } => self.commit(reply),
+            Cmd::AiRole { user_id, reply } => {
+                let role = self
+                    .peers
+                    .values()
+                    .filter(|p| p.grant.user.id == user_id)
+                    .map(|p| p.grant.role)
+                    .max_by_key(|r| *r as u8);
+                let _ = reply.send(role);
+            }
+            Cmd::AiPresence {
+                run_id,
+                block_id,
+                active,
+            } => self.ai_presence(&run_id, block_id.as_deref(), active),
+            Cmd::AiTrack { origin } => self.ai_track(&origin),
+            Cmd::AiUndo { origin, reply } => {
+                let _ = reply.send(self.ai_undo(&origin).await);
+            }
             Cmd::Shutdown { .. } | Cmd::StepDown => unreachable!("handled by run loop"),
         }
     }
@@ -670,6 +694,15 @@ impl Room {
             return;
         };
         self.inbox.forget(conn);
+        // A run never outlives its requester's last connection (docs/24 §10.5).
+        if let Some(rt) = &self.ctx.ai
+            && !self
+                .peers
+                .values()
+                .any(|p| p.grant.user.id == peer.grant.user.id)
+        {
+            rt.cancel_all(&self.id, Some(&peer.grant.user.id));
+        }
         if !peer.clients.is_empty() {
             self.presence.forget(peer.clients.iter().copied());
             for c in &peer.clients {
@@ -825,15 +858,163 @@ impl Room {
     /// Client control JSON. Only `{"t":"save"}` (the "Retry now" button) is acted on:
     /// it skips the retry backoff so the next tick saves straight away.
     fn on_control(&mut self, conn: ConnId, body: &[u8]) {
-        let wants_save = std::str::from_utf8(body)
+        let msg = std::str::from_utf8(body)
             .ok()
             .and_then(|s| serde_json::from_str::<Value>(s).ok())
-            .is_some_and(|v| v["t"] == "save");
+            .unwrap_or(Value::Null);
+        if matches!(msg["t"].as_str(), Some("ai-run" | "ai-cancel" | "ai-undo")) {
+            self.on_ai_control(conn, &msg);
+            return;
+        }
+        let wants_save = msg["t"] == "save";
         let can_write = self.peers.get(&conn).is_some_and(|p| p.grant.can_write());
         if wants_save && can_write && self.dirty_since.is_some() && self.conflict.is_none() {
             self.save.retry_at = None;
             self.dirty_since = Some(Instant::now() - self.ctx.cfg.autosave_max);
         }
+    }
+
+    /// `ai-run`, `ai-cancel`, `ai-undo` (docs/15, docs/24 §10.5). Replies go to `conn` only.
+    fn on_ai_control(&mut self, conn: ConnId, msg: &Value) {
+        let Some(peer) = self.peers.get(&conn) else {
+            return;
+        };
+        let grant = (*peer.grant).clone();
+        let out = peer.tx.clone();
+        let reply = |v: Value| {
+            let _ = out.send(Outbound::Frame(protocol::control(&v).into()));
+        };
+        let run_id = msg["runId"].as_str().unwrap_or_default().to_string();
+        let (Some(rt), Some(host_ai)) =
+            (self.ctx.ai.clone(), crate::ai::HostAi(&self.host).agent())
+        else {
+            reply(
+                json!({"t":"ai-done","runId":run_id,"outcome":"refused","reason":"AI is not enabled for this host"}),
+            );
+            return;
+        };
+        let (emit, mut rx) = mpsc::unbounded_channel::<Value>();
+        let fwd = out.clone();
+        tokio::spawn(async move {
+            while let Some(v) = rx.recv().await {
+                if fwd
+                    .send(Outbound::Frame(protocol::control(&v).into()))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+        let env = crate::ai::agent::RunEnv {
+            room_id: self.id.clone(),
+            host_ai,
+            port: Arc::new(crate::ai::agent_room::ActorPort {
+                tx: self.self_tx.clone(),
+            }),
+            audit: Arc::new(crate::ai::agent_room::OutboxAudit {
+                ctx: self.ctx.clone(),
+                host: self.host.clone(),
+                room: self.id.clone(),
+                file_id: self.file_id.clone(),
+                token: self.callback_token.clone(),
+                seq: Default::default(),
+            }),
+            grant,
+            emit,
+        };
+        match msg["t"].as_str() {
+            Some("ai-run") => match crate::ai::agent::RunRequest::from_control(msg) {
+                Some(req) => {
+                    let _ = rt.start(env, req);
+                }
+                None => reply(
+                    json!({"t":"ai-done","runId":run_id,"outcome":"refused","reason":"bad request"}),
+                ),
+            },
+            Some("ai-cancel") => {
+                rt.cancel(&self.id, &run_id, &env.grant.user.id);
+            }
+            _ => {
+                tokio::spawn(async move {
+                    if let Err(e) = rt.undo(&env, &run_id).await {
+                        let _ = env.emit.send(
+                            json!({"t":"ai-done","runId":run_id,"outcome":"error","reason":e}),
+                        );
+                    }
+                });
+            }
+        }
+    }
+
+    /// Starts an undo manager over every root for transactions with `origin`.
+    fn ai_track(&mut self, origin: &str) {
+        let mut mgr = yrs::UndoManager::with_options(yrs::undo::Options::default());
+        let content = self
+            .doc
+            .get_or_insert_xml_fragment(oc_model::roots::CONTENT);
+        mgr.expand_scope(&self.doc, &content);
+        for name in oc_model::roots::MAPS {
+            let map = self.doc.get_or_insert_map(name);
+            mgr.expand_scope(&self.doc, &map);
+        }
+        mgr.include_origin(origin);
+        self.ai_undo.insert(origin.to_string(), mgr);
+    }
+
+    /// Reverts a run: undoes every tracked change with `origin` and ships the result like a
+    /// client update (WAL, fan-out, autosave).
+    async fn ai_undo(&mut self, origin: &str) -> Result<(), String> {
+        let Some(mut mgr) = self.ai_undo.remove(origin) else {
+            return Err("nothing to undo".into());
+        };
+        let before = self.doc.transact().state_vector();
+        while mgr.undo_blocking() {}
+        drop(mgr);
+        let update = self.doc.transact().encode_state_as_update_v1(&before);
+        if self.doc.transact().state_vector() != before {
+            self.queue(update, origin, None, true);
+            if !self.flush_wal().await {
+                return Err("storage unavailable".into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Server-side agent presence: an awareness entry with the agent identity and a cursor
+    /// at the last touched block (docs/24 §6.1).
+    fn ai_presence(&mut self, run_id: &str, block_id: Option<&str>, active: bool) {
+        let (client, clock) = match self.ai_presence.get(run_id) {
+            Some((c, k)) => (*c, k + 1),
+            None => {
+                let h = <sha2::Sha256 as sha2::Digest>::digest(
+                    format!("{}:{run_id}", self.id).as_bytes(),
+                );
+                let c = ClientID::new(u64::from(
+                    u32::from_le_bytes([h[0], h[1], h[2], h[3]]) | (1 << 31),
+                ));
+                (c, 1)
+            }
+        };
+        let json: Arc<str> = if active {
+            json!({
+                "user": {"id": format!("ai:{run_id}"), "name": "Assistant", "color": "#7a45f0", "agent": true},
+                "cursor": block_id.map(|b| json!({"blockId": b})),
+            })
+            .to_string()
+            .into()
+        } else {
+            Arc::from("null")
+        };
+        if active {
+            self.ai_presence.insert(run_id.to_string(), (client, clock));
+        } else {
+            self.ai_presence.remove(run_id);
+        }
+        let update = AwarenessUpdate {
+            clients: [(client, AwarenessUpdateEntry { clock, json })].into(),
+        };
+        let _ = self.awareness.apply_update(update.clone());
+        self.fan_out_awareness(update, None);
     }
 
     fn after_handshake(&mut self, conn: ConnId) {
