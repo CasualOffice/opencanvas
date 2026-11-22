@@ -8,6 +8,7 @@ import type { Peer } from "../lib/presence";
 import { rel, useTick, type Meta } from "../lib/meta";
 import { Avatar, Popover, useShell, type Anchor } from "./overlay";
 import { readableOn } from "../lib/color";
+import { isMac } from "../lib/keys";
 import type { ExportFormat } from "../lib/exports";
 
 export type SaveState =
@@ -44,6 +45,8 @@ export function TopBar(props: {
   onHistory(): void;
   onRetry(): void;
   onShortcuts(): void;
+  /** Shown only when the assistant is on for this person (docs/24 §10.2). */
+  onAssistant?: () => void;
 }) {
   const { compact } = useShell();
   const pressed = useRef<{ id: number; fired: boolean } | null>(null);
@@ -76,7 +79,18 @@ export function TopBar(props: {
       </div>
       <StatusButton save={save} hostName={props.hostName} onClick={open("status")} />
       <div className="avs" aria-label="People here">
-        {visible.map((p) => (
+        {visible.map((p) =>
+          p.agent ? (
+            <button
+              key={p.id}
+              className="av ai-av"
+              title={`Assistant, working for ${p.agent.forName?.split(" ")[0] ?? "someone here"}`}
+              aria-label={`Assistant, working for ${p.agent.forName ?? "someone here"}. Show where`}
+              onClick={() => props.onFollow(p)}
+            >
+              <Ic name="sparkles" size={14} />
+            </button>
+          ) : (
           <button
             key={p.id}
             className={"av" + (props.following === p.id ? " following" : "")}
@@ -117,13 +131,26 @@ export function TopBar(props: {
               </span>
             ) : null}
           </button>
-        ))}
+          ),
+        )}
         {extra > 0 ? (
           <button className="av more" onClick={open("people")} aria-label={`${extra} more people here`} title="Everyone here">
             <span aria-hidden="true">+{extra}</span>
           </button>
         ) : null}
       </div>
+      {props.onAssistant ? (
+        compact ? (
+          <button className="ib" onClick={props.onAssistant} title="Assistant" aria-label="Assistant" aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
+            <Ic name="sparkles" style={{ color: "var(--ai)" }} />
+          </button>
+        ) : (
+          <button className="btn out ai-hbtn" onClick={props.onAssistant} title={`Ask about this canvas (${isMac ? "⌘J" : "Ctrl+J"})`} aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
+            <Ic name="sparkles" style={{ color: "var(--ai)" }} />
+            Assistant
+          </button>
+        )
+      ) : null}
       <button
         className="ib rel"
         onClick={props.onComments}

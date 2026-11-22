@@ -14,6 +14,8 @@ export interface Peer {
   typing: boolean;
   me: boolean;
   hasCursor: boolean;
+  /** The assistant (docs/15 §3.1: `agent: true`, `user.id "ai:<runId>"`), stamped by the server. */
+  agent?: { forName?: string; blockId?: string };
 }
 
 function read(aw: Awareness): Peer[] {
@@ -36,6 +38,11 @@ function read(aw: Awareness): Peer[] {
       me,
       hasCursor: !!st.cursor,
     };
+    if (st.agent === true || id.startsWith("ai:")) {
+      const u2 = st.user as { onBehalfOfName?: unknown } | undefined;
+      const c = st.cursor as { blockId?: unknown } | undefined;
+      p.agent = { forName: typeof u2?.onBehalfOfName === "string" ? u2.onBehalfOfName : undefined, blockId: typeof c?.blockId === "string" ? c.blockId : undefined };
+    }
     // One avatar per person even with several tabs open; keep the most active.
     if (!prev || me || (!prev.me && (p.typing || p.hasCursor))) byUser.set(id, prev ? { ...p, me: prev.me || me, typing: prev.typing || p.typing } : p);
   });
@@ -48,7 +55,7 @@ export function usePeers(aw: Awareness): Peer[] {
     let last = "";
     const f = () => {
       const next = read(aw);
-      const key = JSON.stringify(next.map((p) => [p.id, p.name, p.color, p.avatar, p.detail, p.role, p.typing, p.hasCursor, p.me]));
+      const key = JSON.stringify(next.map((p) => [p.id, p.name, p.color, p.avatar, p.detail, p.role, p.typing, p.hasCursor, p.me, p.agent?.blockId]));
       if (key !== last) {
         last = key;
         setPeers(next);

@@ -3,7 +3,7 @@
 export { DatabaseBlock } from "./DatabaseBlock";
 export { CsvImportDialog } from "./CsvImportDialog";
 export type { CsvImportDialogProps } from "./CsvImportDialog";
-export { createDatabase, importCsvToDatabase, databaseToCsv, readDb, getDbMap, DB_ORIGIN, moveRow, presetPeopleMap } from "./model";
+export { createDatabase, importCsvToDatabase, databaseToCsv, readDb, getDbMap, DB_ORIGIN, moveRow, presetPeopleMap, addRow, deleteRow } from "./model";
 export { parseCsv, detectType, detectFields } from "./csv";
 export type { DbPreset } from "./presets";
 export { DB_PRESETS } from "./presets";

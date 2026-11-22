@@ -16,6 +16,7 @@ import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { isMac } from "./lib/keys";
+import { aiAvailability, aiStore, openAssistant } from "./lib/assistant";
 import { usePeers, type Peer } from "./lib/presence";
 import { People, setPeople } from "./lib/people";
 import { PersonCards } from "./components/PersonCard";
@@ -34,6 +35,7 @@ const CommentsPanel = lazy(() => import("./components/CommentsPanel").then((m) =
 const ImportDialog = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.ImportDialog })));
 const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.UrlPrompt })));
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
+const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
@@ -203,6 +205,10 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const modified = useRef(false);
 
   const effectiveRole: Role = forcedReadOnly || conflict || closed ? "view" : role;
+  // docs/24 §10.2: the assistant shows only when the session's AI flag is on (or `?ai=1`, `#demo`).
+  const ai = useMemo(() => aiAvailability(session, effectiveRole), [session, effectiveRole]);
+  useEffect(() => aiStore.set(ai), [ai]);
+  useEffect(() => () => aiStore.set({ on: false, modes: [] }), []);
   const meta = useMeta(doc);
   const lastEdit = useLastEdit(doc);
   const peers = usePeers(awareness);
@@ -253,7 +259,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   }, [people]);
   const peopleVersion = useSyncExternalStore(people.version.subscribe, people.version.get);
   useEffect(() => {
-    people.setPeers(peers.filter((p) => !p.me).map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar ?? undefined, detail: p.detail })));
+    people.setPeers(peers.filter((p) => !p.me && !p.agent).map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar ?? undefined, detail: p.detail })));
   }, [people, peers]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -472,6 +478,11 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       const t = e.target as HTMLElement | null;
       const inText = !!t?.closest?.("input,textarea,select,[contenteditable=true]");
       const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && !e.shiftKey && !e.altKey && (e.key === "j" || e.key === "J" || e.code === "KeyJ") && aiStore.get().on) {
+        e.preventDefault();
+        openAssistant();
+        return;
+      }
       if ((mod && e.shiftKey && (e.code === "Slash" || e.key === "?")) || (!inText && !mod && !e.altKey && e.key === "?")) {
         e.preventDefault();
         setHelp(true);
@@ -622,6 +633,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // ---------- follow mode ----------
   const follow = useCallback(
     (p: Peer, start?: boolean) => {
+      if (p.agent) {
+        const el = scrollRef.current?.querySelector(".ai-touch, .ai-new");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        else toast("The assistant is working on this canvas", { icon: "sparkles" });
+        return;
+      }
       if (following === p.id) {
         if (!start) setFollowing(null);
         return;
@@ -850,6 +867,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               }}
               onRetry={() => collab.sendControl({ t: "save" })}
               onShortcuts={() => setHelp(true)}
+              onAssistant={ai.on ? openAssistant : undefined}
             />
             {banners}
             <div className="body">
@@ -885,6 +903,11 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               ) : null}
             </div>
           </div>
+          {ai.on && editor ? (
+            <Suspense fallback={null}>
+              <AssistantRoot editor={editor} collab={collab} demo={!!session.demo} me={me} people={() => people.pickable()} role={effectiveRole} compact={compact} hostName={hostName} />
+            </Suspense>
+          ) : null}
           <Toasts />
           <PersonCards root={root} people={people} />
 
