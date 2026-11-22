@@ -37,8 +37,28 @@ deployment's own TLS and proxy settings.
 
 ## Supported versions
 
-OpenCanvas is pre-release. Fixes land on `main`; there are no maintained release branches yet.
+OpenCanvas is an alpha. **There are no maintained release branches yet**: fixes land on `main`
+and ship in the next pre-release. Upgrade to the newest pre-release to get a fix.
+
+| Version | Supported | Notes |
+|---|---|---|
+| `0.1.0-alpha.1` | Best effort | Alpha, for evaluation; no production SLA ([release notes](docs/25-RELEASE-v0.1.0-alpha.1.md)) |
+| Untagged builds of `main` | No | Reproduce on `0.1.0-alpha.1` or current `main` before reporting |
+
 Supported release lines will be listed here before the first stable release.
+
+## Response expectations
+
+Best effort, by the maintainers, with no SLA:
+
+- acknowledgement within 5 working days of a report through the channel above;
+- an assessment of severity and affected versions once the report is reproduced;
+- a fix on `main` and in the next pre-release, with an advisory, for confirmed issues; critical
+  issues (the list above) first;
+- credit in the advisory if you ask for it;
+- coordinated disclosure: 90 days, or until a fix ships if sooner.
+
+There is no backporting: an alpha is fixed by moving to the next pre-release.
 
 ## Hardening notes for operators
 
