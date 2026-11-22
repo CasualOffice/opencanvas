@@ -50,6 +50,17 @@ secrets:
   #  SAMPLE_JWT_SECRET: "…"
   #  SAMPLE_API_KEY: "…"
 
+# -- WOPI proof keys (docs/05 §6, SEC-44). Required when any host in hosts.toml uses WOPI:
+# without them the server refuses to start. Create a Secret holding the key files (PEM, or
+# sealed with OC_KEK by `opencanvas seal-proof-key`) under the keys `current` and, while you
+# rotate, `old`:
+#   kubectl create secret generic oc-wopi-proof --from-file=current=proof.pem --from-file=old=proof-old.pem
+wopi:
+  # -- Name of that Secret; empty = no WOPI proof keys.
+  proofKeySecret: ""
+  # -- Set true when the Secret also holds `old` (the previous key, published during rotation).
+  oldKey: false
+
 # -- The host registry (docs/05 §2), mounted at /etc/opencanvas/hosts.toml from a ConfigMap.
 # Keep secrets out of it: use `jwt_secret = "env:NAME"` / `api_key = "env:NAME"` and put the
 # values in secrets.env (or existingSecret).

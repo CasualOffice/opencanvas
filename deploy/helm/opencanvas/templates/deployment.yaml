@@ -77,6 +77,14 @@ spec:
               value: {{ .Values.fontDirs | quote }}
             - name: OC_NODE_ID
               valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            {{- with .Values.wopi.proofKeySecret }}
+            - name: OC_WOPI_PROOF_KEY
+              value: /etc/opencanvas-wopi/current
+            {{- if $.Values.wopi.oldKey }}
+            - name: OC_WOPI_PROOF_KEY_OLD
+              value: /etc/opencanvas-wopi/old
+            {{- end }}
+            {{- end }}
             {{- with .Values.publicUrl }}
             - name: OC_PUBLIC_URL
               value: {{ . | quote }}
@@ -145,6 +153,11 @@ spec:
             - name: hosts
               mountPath: /etc/opencanvas
               readOnly: true
+            {{- if .Values.wopi.proofKeySecret }}
+            - name: wopi-proof
+              mountPath: /etc/opencanvas-wopi
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -178,6 +191,12 @@ spec:
             items:
               - key: hosts.toml
                 path: hosts.toml
+        {{- with .Values.wopi.proofKeySecret }}
+        - name: wopi-proof
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0400
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
