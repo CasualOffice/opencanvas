@@ -20,6 +20,8 @@ export type SaveState =
   | { kind: "offline" }
   | { kind: "reconnecting" }
   | { kind: "readonly" }
+  /** docs/23 PERM-07: access ended; read only until it is renewed. */
+  | { kind: "ended" }
   /** Conflict or session closed: nothing is being saved from this tab any more. */
   | { kind: "paused" };
 
@@ -41,6 +43,8 @@ export function TopBar(props: {
   onFollow(p: Peer, start?: boolean): void;
   onComments(): void;
   onWide(): void;
+  /** FC-10: "Import…" (only when the host's import flag is on for this person). */
+  onImportInto?: () => void;
   onExport(fmt: ExportFormat): void;
   onHistory(): void;
   onRetry(): void;
@@ -226,6 +230,12 @@ export function TopBar(props: {
               <div className="msep" />
             </>
           ) : null}
+          {props.onImportInto ? (
+            <button className="mi" onClick={() => (close(), props.onImportInto!())}>
+              <Ic name="upload" />
+              Import…
+            </button>
+          ) : null}
           {!compact ? (
             <button className="mi" onClick={() => (close(), props.onWide())}>
               <Ic name="move-horizontal" />
@@ -284,6 +294,8 @@ function statusLook(save: SaveState): { cls: string; icon: string; label: string
       return { cls: "warn", icon: "loader-circle", label: "Reconnecting" };
     case "readonly":
       return { cls: "", icon: "eye", label: "View only" };
+    case "ended":
+      return { cls: "", icon: "lock", label: "Read only" };
     case "paused":
       return { cls: "warn", icon: "circle-pause", label: "Autosave paused" };
     case "saved":
@@ -322,6 +334,8 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
         ? "Reconnecting to the canvas server. Keep working; nothing is lost."
         : save.kind === "error"
           ? `${hostName} didn't accept the last save. We retry every ${Math.round((save.retryInMs ?? 10000) / 1000)} seconds. Nothing is lost.`
+          : save.kind === "ended"
+            ? `Your access ended. Reconnect to keep editing; your changes are kept on this page.`
           : save.kind === "readonly"
             ? `You can view this canvas. ${hostName} saves the changes others make.`
             : paused

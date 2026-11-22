@@ -17,8 +17,9 @@ async function axe(page: Page) {
   for (const theme of ["light", "dark"]) {
     await f.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
     const r = await new AxeBuilder({ page }).include("iframe[name=oc]").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+    expect(r.passes.some((v) => v.id === "color-contrast" && v.nodes.some((n) => /Renew now|Reconnect|Let it end|Your access/.test(n.html + JSON.stringify(n.target)))), `${theme}: contrast was checked on the bar`).toBe(true);
     // Only the access bars are under test here.
-    const bad = r.violations.flatMap((v) => v.nodes.filter((n) => JSON.stringify(n.target).includes("access")).map((n) => `${theme}: ${v.id} ${JSON.stringify(n.target)}`));
+    const bad = r.violations.flatMap((v) => v.nodes.filter((n) => /Renew now|Reconnect|Let it end|Your access/.test(n.html + JSON.stringify(n.target))).map((n) => `${theme}: ${v.id} ${JSON.stringify(n.target)}`));
     expect(bad).toEqual([]);
   }
   await f.evaluate(() => delete document.documentElement.dataset.theme);
@@ -76,6 +77,13 @@ test("PERM-07: no renewal → amber bar, then the red read-only bar; edits kept;
   await expect(editor(priya)).toHaveAttribute("contenteditable", "false");
   await expect(editor(priya)).toContainText("Kept through expiry");
   await expect(warn).toHaveCount(0);
+  // The header's save status becomes a lock and "Read only" (prototype Main.dc.html).
+  await expect(priya.oc.locator(".top .status .lbl")).toHaveText("Read only");
+  await expect(priya.oc.locator(".top .status .lbl")).toBeVisible();
+  await expect(priya.oc.locator(".top .status", { hasText: "Saved" })).toHaveCount(0);
+  // Reconnect is the solid accent button (contrast checked by axe below, light and dark).
+  await expect(ended.getByRole("button", { name: "Reconnect" })).toHaveCSS("background-color", "rgb(42, 90, 215)");
+  await expect(ended.getByRole("button", { name: "Reconnect" })).toHaveCSS("color", "rgb(255, 255, 255)");
   await axe(priya.page);
   await priya.page.screenshot({ path: path.join(ROOT, "target/fix-shots/perm07-ended.png") });
 

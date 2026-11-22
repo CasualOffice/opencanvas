@@ -7,6 +7,7 @@ import { loadBoard, loadDatabase } from "./blockdata";
 import { bridge } from "../lib/bridge";
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 import { aiStore, openAssistant } from "../lib/assistant";
+import { importStore, openImport } from "../lib/importflag";
 
 export interface SlashItem {
   group: "Basic" | "Data" | "Media" | "Layout";
@@ -137,6 +138,15 @@ export function columnsJSON(n: number): JSONContent {
   return { type: "columns", content: Array.from({ length: n }, () => ({ type: "column", content: [{ type: "paragraph" }] })) };
 }
 
+// FC-10 (prototype Import.dc.html): only when the host's import flag is on for this person.
+SLASH.push({
+  group: "Data", id: "import", icon: "upload", title: "Import…", desc: "Markdown, HTML or CSV into this canvas", keywords: "import upload markdown html csv file",
+  run: (e, r) => {
+    if (r) e.chain().focus().deleteRange(r).run();
+    openImport();
+  },
+});
+
 // Last, so it never displaces the block types people use most.
 SLASH.push({
   group: "Basic", id: "assistant", icon: "sparkles", title: "Assistant", desc: "Ask the assistant to write or organise", keywords: "ai ask",
@@ -154,7 +164,9 @@ SLASH.push({
 export function filterSlash(q: string): SlashItem[] {
   const s = q.toLowerCase().trim();
   // `/assistant` only when the assistant is on for this person (docs/24 §10.2).
-  const all = aiStore.get().on ? SLASH : SLASH.filter((x) => x.id !== "assistant");
+  const ai = aiStore.get().on;
+  const imp = importStore.get().formats.length > 0;
+  const all = SLASH.filter((x) => (x.id !== "assistant" || ai) && (x.id !== "import" || imp));
   if (!s) return all;
   const rank = (x: SlashItem) => {
     const t = x.title.toLowerCase();

@@ -21,8 +21,9 @@ import { usePeers, type Peer } from "./lib/presence";
 import { People, setPeople } from "./lib/people";
 import { PersonCards } from "./components/PersonCard";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
+import { importFormats, importOpenStore, importStore, openImport } from "./lib/importflag";
 import { renewSession, savedAtLabel, schedule, WARN_S, type AccessState } from "./lib/access";
-import { toast } from "./lib/store";
+import { toast, useStore } from "./lib/store";
 import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
@@ -35,6 +36,7 @@ const Gallery = lazy(() => import("./components/Gallery").then((m) => ({ default
 const CommentsPanel = lazy(() => import("./components/CommentsPanel").then((m) => ({ default: m.CommentsPanel })));
 const ImportDialog = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.ImportDialog })));
 const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ default: m.UrlPrompt })));
+const ImportInto = lazy(() => import("./components/ImportInto").then((m) => ({ default: m.ImportInto })));
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
 const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
@@ -245,6 +247,18 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // docs/24 §10.2: the assistant shows only when the session's AI flag is on (or `?ai=1`, `#demo`).
   const ai = useMemo(() => aiAvailability(session, effectiveRole), [session, effectiveRole]);
   useEffect(() => aiStore.set(ai), [ai]);
+  // FC-10: "Import…" in the slash and "…" menus, behind the host's import flag.
+  const impFormats = useMemo(() => importFormats(session, effectiveRole), [session, effectiveRole]);
+  useEffect(() => importStore.set({ formats: impFormats }), [impFormats]);
+  const impOpen = useStore(importOpenStore);
+  const [importInto, setImportInto] = useState(false);
+  const impSeen = useRef(impOpen);
+  useEffect(() => {
+    if (impOpen !== impSeen.current) {
+      impSeen.current = impOpen;
+      if (impFormats.length) setImportInto(true);
+    }
+  }, [impOpen, impFormats]);
   useEffect(() => () => aiStore.set({ on: false, modes: [] }), []);
   const meta = useMeta(doc);
   const lastEdit = useLastEdit(doc);
@@ -791,7 +805,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
 
   // ---------- derived ----------
   const shownSave: SaveState =
-    conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
+    access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
   const parent = session.demo ? "Engineering" : hostName;
 
   const banners: React.ReactNode[] = [];
@@ -918,6 +932,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onGallery={() => setScreen("gallery")}
               onFollow={follow}
               onComments={() => (side ? closeSide() : setSide("comments"))}
+              onImportInto={impFormats.length ? openImport : undefined}
               onWide={() =>
                 setWide((w) => {
                   try {
@@ -994,6 +1009,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           ) : null}
           {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
           {urlAsk ? <UrlPrompt kind={urlAsk.kind} onClose={() => setUrlAsk(null)} onUrl={urlAsk.cb} /> : null}
+          {importInto && editor ? (
+            <ImportInto editor={editor} doc={doc} ticket={session.demo ? null : session.ticket} formats={impFormats} demo={!!session.demo} onClose={() => setImportInto(false)} />
+          ) : null}
           {importing ? (
             <ImportDialog
               onClose={() => setImporting(false)}

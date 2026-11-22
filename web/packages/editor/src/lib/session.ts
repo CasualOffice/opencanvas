@@ -22,6 +22,8 @@ export interface Session {
   ai?: { enabled?: boolean; modes?: string[] } | null;
   /** docs/23 PERM-07: when the session ends (seconds since the epoch). */
   exp?: number | null;
+  /** docs/23 FC-10: what the host lets this person import (empty or absent: no import). */
+  import?: { formats?: string[] } | null;
 }
 
 export class SessionError extends Error {

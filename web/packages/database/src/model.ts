@@ -114,11 +114,15 @@ export function createDatabase(doc: Y.Doc, preset: DbPreset = "blank", users?: O
 }
 
 /** Import CSV text as a new database. Returns the new dbId. Pass `users` to detect person columns. */
-export function importCsvToDatabase(doc: Y.Doc, csv: string, name?: string, opts: { users?: OcUser[] } = {}): string {
+export function importCsvToDatabase(doc: Y.Doc, csv: string, name?: string, opts: { users?: OcUser[]; types?: (FieldType | null)[] } = {}): string {
   const parsed = parseCsv(csv);
   const users = opts.users ?? [];
   if (!parsed.length) parsed.push(["Name"]);
-  const fields = detectFields(parsed, users);
+  // FC-10: the import dialog lets people change a detected column type (only ever to text).
+  const fields = detectFields(parsed, users).map((f, i) => {
+    const t = opts.types?.[i];
+    return t && f.type !== "title" && t !== f.type ? { ...f, type: t, options: undefined } : f;
+  });
   const rows = parsed.slice(1).map((r) => {
     const v: Record<string, CellValue> = {};
     fields.forEach((f, i) => (v[f.id] = f.type === "title" ? (r[i] ?? "").trim() : coerce(r[i] ?? "", f.type, users)));
