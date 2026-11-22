@@ -10,6 +10,7 @@ pub mod presence;
 pub mod protocol;
 mod remote;
 
+pub use actor::EPHEMERAL_CLOSED;
 pub use remote::RemoteOp;
 
 use std::collections::HashMap;

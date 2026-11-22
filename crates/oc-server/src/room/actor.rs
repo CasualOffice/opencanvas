@@ -162,7 +162,13 @@ struct Room {
     ai_undo: HashMap<String, yrs::UndoManager>,
     /// Agent presence: awareness client id and clock per run.
     ai_presence: HashMap<String, (ClientID, u32)>,
+    /// `storage = "ephemeral"` (ADR-043): never loaded from or saved to the host; destroyed
+    /// when the room closes.
+    ephemeral: bool,
 }
+
+/// What clients of an ephemeral room are told when it ends (ADR-043).
+pub const EPHEMERAL_CLOSED: &str = "This canvas ended with the meeting";
 
 /// An update applied to the doc, waiting for its WAL batch.
 struct Queued {
@@ -275,6 +281,12 @@ pub(super) async fn run(
                 r.remove(&id, generation);
             }
             let _ = reply.send(());
+        }
+        End::Idle if room.ephemeral => {
+            room.destroy().await;
+            if let Some(r) = rooms.upgrade() {
+                r.remove(&id, generation);
+            }
         }
         End::Idle => {
             match ctx.store.purge_room_fenced(&id, room.epoch).await {
@@ -391,10 +403,21 @@ impl Room {
             tracing::info!(room = %id, "recovered unsaved room state from the commit outbox");
         } else {
             ctx.store.purge_room(&id).await?;
-            let fetched = ctx
-                .host
-                .get_file(&host, &seed.callback_token, &seed.file.id)
-                .await?;
+            let fetched = if host.ephemeral() {
+                // ADR-043: no load callback; a new canvas, or the host's template.
+                match &host.template_bytes {
+                    Some(b) => Fetched::Found {
+                        bytes: b.as_ref().clone().into(),
+                        content_type: String::new(),
+                        etag: None,
+                    },
+                    None => Fetched::Missing,
+                }
+            } else {
+                ctx.host
+                    .get_file(&host, &seed.callback_token, &seed.file.id)
+                    .await?
+            };
             let (loaded, etag) = doc_from_host(&id, fetched)?;
             doc = loaded;
             host_version = etag.or(host_version);
@@ -423,7 +446,12 @@ impl Room {
             }
             None => None,
         };
-        let status = json!({"t": "saved", "at": now_ms(), "version": host_version});
+        let status = if host.ephemeral() {
+            json!({"t": "temporary"})
+        } else {
+            json!({"t": "saved", "at": now_ms(), "version": host_version})
+        };
+        let ephemeral = host.ephemeral();
         let mentions = crate::notify::enabled(&host, &seed.file.id)
             .then(|| super::mentions::Tracker::new(&doc));
         Ok(Self {
@@ -467,6 +495,7 @@ impl Room {
             dump_in_flight: false,
             ai_undo: HashMap::new(),
             ai_presence: HashMap::new(),
+            ephemeral,
             ctx,
         })
     }
@@ -1381,6 +1410,11 @@ impl Room {
 
     /// Host commit API: answers at once when clean, else forces a save and waits for it.
     fn commit(&mut self, reply: tokio::sync::oneshot::Sender<CommitResult>) {
+        if self.ephemeral {
+            // Nothing is ever saved to the host (ADR-043).
+            let _ = reply.send(CommitResult::Clean { version: None });
+            return;
+        }
         if self.conflict.is_some() {
             let _ = reply.send(CommitResult::Conflict);
             return;
@@ -1462,6 +1496,7 @@ impl Room {
         let ctx = self.ctx.clone();
         let cfg = &ctx.cfg;
         if let Some(since) = self.dirty_since
+            && !self.ephemeral
             && !self.save.in_flight
             && self.conflict.is_none()
             && self.save.retry_at.is_none_or(|t| now >= t)
@@ -1501,7 +1536,7 @@ impl Room {
             // next open loads the host's version.
             Some(c) => c.resolved,
             None => {
-                self.dirty_since.is_none()
+                (self.ephemeral || self.dirty_since.is_none())
                     && self.idle_since.is_some_and(|t| now - t >= cfg.room_ttl)
             }
         }
@@ -1973,6 +2008,22 @@ impl Room {
         self.peers.clear();
     }
 
+    /// Ephemeral storage (ADR-043): deletes everything the room left in storage.
+    async fn destroy(&mut self) {
+        match self
+            .ctx
+            .store
+            .destroy_room(&self.id, Some(self.epoch))
+            .await
+        {
+            Ok(()) => tracing::info!(room = %self.id, "ephemeral canvas destroyed"),
+            Err(e) if crate::store::is_fenced(&e) => {
+                tracing::warn!(room = %self.id, "room taken by a newer owner; not destroyed")
+            }
+            Err(e) => tracing::error!(room = %self.id, error = %e, "destroying the room failed"),
+        }
+    }
+
     fn step_down(&mut self) {
         tracing::warn!(room = %self.id, seq = self.seq, "room moved to another node");
         self.tell_reconnect("room moved");
@@ -1981,6 +2032,19 @@ impl Room {
     /// SIGTERM or host close: wait for an in-flight save, make a final one if still dirty,
     /// then close peers.
     async fn shutdown(&mut self, rx: &mut mpsc::UnboundedReceiver<Cmd>, by_host: bool) {
+        if self.ephemeral {
+            // ADR-043: host close or drain ends the canvas; nothing to save, nothing kept.
+            self.flush_mentions().await;
+            let closed = Bytes::from(protocol::control(
+                &json!({"t": "closed", "reason": EPHEMERAL_CLOSED}),
+            ));
+            for p in self.peers.values() {
+                let _ = p.tx.send(Outbound::Frame(closed.clone()));
+                let _ = p.tx.send(Outbound::Close(1000, EPHEMERAL_CLOSED.into()));
+            }
+            self.destroy().await;
+            return;
+        }
         self.flush_mentions().await;
         while self.save.in_flight {
             match tokio::time::timeout(Duration::from_secs(15), rx.recv()).await {

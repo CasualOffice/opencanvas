@@ -483,3 +483,15 @@ to audit and keep compatible.
 which 0.1.x preserves as unknown content. A test that opens and saves a v0.2 file with 0.1.x and
 finds no loss is a v0.2 release gate.
 **Consequences.** + no migration for hosts; − 0.1.x shows placeholders for the new blocks.
+
+### ADR-043 — Ephemeral storage for hosts without file storage (Accepted, owner decision 2026-11-23)
+**Context.** ADR-001: the host owns files and we never persist documents. A meeting integration
+(Jitsi Meet) has no file storage at all.
+**Decision.** Opt-in `storage = "ephemeral"` per host. No load or save callback, no
+`callback_base` required. Canvases are temporary: the room is destroyed (every row and key)
+when it closes after the idle grace, on drain, or on `DELETE /v1/files/{id}/session`. Uploads
+live with the room. Users keep work by exporting during the meeting. ADR-001 stands for every
+other host; this is the only exception, and it keeps nothing beyond the room's life.
+**Consequences.** + meeting hosts integrate with a JWT secret only; − work not exported is gone
+when the meeting ends, and a node crash during the meeting recovers from the WAL only until the
+room closes.

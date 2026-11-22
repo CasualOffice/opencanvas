@@ -134,6 +134,14 @@ pub async fn close_session(
         .await
         .map_err(ApiError::internal)?;
     let closed = state.rooms.close(&room).await;
+    if host.ephemeral() {
+        // ADR-043: the live room destroyed itself; this also clears a room that was not live.
+        state
+            .store
+            .destroy_room(&room, None)
+            .await
+            .map_err(ApiError::internal)?;
+    }
     tracing::info!(host = %host.id, room = %room, closed, sessions, "session closed by host");
     Ok(Json(json!({"closed": closed, "sessions": sessions})))
 }

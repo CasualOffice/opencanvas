@@ -282,6 +282,27 @@ impl RedisWal {
         Ok(n == 1)
     }
 
+    /// Ephemeral storage (ADR-043): deletes the room's stream and its epoch mirror.
+    pub async fn destroy(&self, room: &str) -> anyhow::Result<()> {
+        let mut c = self.conn.clone();
+        redis::cmd("DEL")
+            .arg(stream_key(room))
+            .arg(epoch_key(room))
+            .query_async::<i64>(&mut c)
+            .await?;
+        Ok(())
+    }
+
+    /// How many of the room's keys exist (tests).
+    pub async fn room_keys(&self, room: &str) -> anyhow::Result<i64> {
+        let mut c = self.conn.clone();
+        Ok(redis::cmd("EXISTS")
+            .arg(stream_key(room))
+            .arg(epoch_key(room))
+            .query_async(&mut c)
+            .await?)
+    }
+
     /// Entries in the room's stream (tests and diagnostics).
     pub async fn len(&self, room: &str) -> anyhow::Result<i64> {
         let mut c = self.conn.clone();

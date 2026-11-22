@@ -321,6 +321,14 @@ Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a
 period of ≥ 30 s. While draining, `/readyz` answers 503 and new WebSocket upgrades get HTTP 503
 with `Retry-After: 5` (refused before the upgrade), so clients and load balancers move on.
 
+## Ephemeral hosts (ADR-043)
+
+A host with `storage = "ephemeral"` keeps canvases only while their room is open. Room close
+(idle `OC_ROOM_IDLE_MS` after the last person leaves, a drain, or the host's
+`DELETE /v1/files/{id}/session`) deletes everything of that room in SQLite/MySQL and Redis.
+A deploy therefore ends live ephemeral canvases: clients are told "This canvas ended with the
+meeting". Drain such nodes between meetings where you can.
+
 ## Sizing
 Measured on an Apple M4 laptop (10 cores, 16 GB); method, raw tables and caveats in
 [22](22-CAPACITY-AND-SIZING.md). Keep ≤ 60 % of measured use.

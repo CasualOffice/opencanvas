@@ -55,7 +55,7 @@ pub async fn upload_asset(
             "send multipart/form-data with a `file` field",
         ));
     }
-    if is_wopi(&host, &grant) {
+    if room_assets(&host, &grant) {
         return upload_wopi(&state, &grant, ctype, &body).await;
     }
     let (status, ct, bytes) = state
@@ -142,11 +142,14 @@ pub async fn members(
 // WOPI has no asset or user API: assets are kept with the room and inlined into the saved
 // `.ocanvas` (`assets/<id>`); the member list is the people map and the users who opened the file.
 
-pub(super) fn is_wopi(host: &HostConfig, grant: &Grant) -> bool {
-    matches!(
-        SaveTarget::of(host, &grant.file.id),
-        Ok(SaveTarget::Wopi(_))
-    )
+/// Uploads are kept with the room: WOPI mode, and ephemeral storage (ADR-043), where they are
+/// destroyed with it.
+pub(super) fn room_assets(host: &HostConfig, grant: &Grant) -> bool {
+    host.ephemeral()
+        || matches!(
+            SaveTarget::of(host, &grant.file.id),
+            Ok(SaveTarget::Wopi(_))
+        )
 }
 
 /// The `file` part of a `multipart/form-data` body: (content type, bytes).
@@ -211,7 +214,7 @@ async fn upload_wopi(
         ApiError::new(
             StatusCode::PAYLOAD_TOO_LARGE,
             "ASSET_TOO_LARGE",
-            format!("{what} limited to {mb} MB in WOPI mode"),
+            format!("{what} limited to {mb} MB for this host"),
         )
     };
     if data.len() > wopi::MAX_ASSET_BYTES {
@@ -254,7 +257,7 @@ pub async fn get_asset(
 ) -> Result<Response, ApiError> {
     let (host, grant) = session(&state, &p.ticket).await?;
     let not_found = || ApiError::new(StatusCode::NOT_FOUND, "ASSET_NOT_FOUND", "no such asset");
-    if !is_wopi(&host, &grant) || !oc_model::ocanvas::valid_asset_id(&id) {
+    if !room_assets(&host, &grant) || !oc_model::ocanvas::valid_asset_id(&id) {
         return Err(not_found());
     }
     let asset = state

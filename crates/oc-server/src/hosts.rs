@@ -52,6 +52,16 @@ pub struct HostConfig {
     /// its origin are still accepted, and fetched through the override.
     #[serde(skip)]
     pub original_callback_base: Option<String>,
+    /// `"host"` (default): the host loads and saves the file (ADR-001). `"ephemeral"`
+    /// (ADR-043): no load, no save, the canvas is destroyed when its room closes.
+    #[serde(default = "default_storage")]
+    pub storage: String,
+    /// Ephemeral storage: an `.ocanvas` or Markdown file every new canvas starts from.
+    #[serde(default)]
+    pub template: Option<String>,
+    /// The bytes of `template`, read once at startup.
+    #[serde(skip)]
+    pub template_bytes: Option<Arc<Vec<u8>>>,
     #[serde(default)]
     pub flags: toml::Table,
     /// `[host.ai]` (docs/24 §7.3): AI and MCP settings (agent and MCP); read through `crate::ai::HostAi`.
@@ -61,6 +71,9 @@ pub struct HostConfig {
 
 fn default_mode() -> String {
     "jwt".into()
+}
+fn default_storage() -> String {
+    "host".into()
 }
 fn default_alg() -> String {
     "HS256".into()
@@ -76,6 +89,11 @@ pub enum ConflictPolicy {
 }
 
 impl HostConfig {
+    /// `storage = "ephemeral"` (ADR-043): canvases live only while their room is open.
+    pub fn ephemeral(&self) -> bool {
+        self.storage == "ephemeral"
+    }
+
     /// `mode = "wopi"`: launches only through WOPI (CheckFileInfo), never a JWT.
     pub fn wopi_only(&self) -> bool {
         self.mode == "wopi"
@@ -210,12 +228,34 @@ impl Hosts {
                     })?;
                 }
             }
+            match h.storage.as_str() {
+                "host" => {
+                    if h.template.is_some() {
+                        bail!("host {}: template needs storage = \"ephemeral\"", h.id);
+                    }
+                }
+                "ephemeral" => {
+                    if h.mode != "jwt" {
+                        bail!(
+                            "host {}: storage = \"ephemeral\" needs mode = \"jwt\"",
+                            h.id
+                        );
+                    }
+                    if let Some(path) = &h.template {
+                        let bytes = std::fs::read(path).with_context(|| {
+                            format!("host {}: cannot read template {path}", h.id)
+                        })?;
+                        h.template_bytes = Some(Arc::new(bytes));
+                    }
+                }
+                other => bail!("host {}: unknown storage {other} (host | ephemeral)", h.id),
+            }
             if h.wopi_only() {
                 h.callback_base = h.callback_base.trim_end_matches('/').to_string();
                 list.push(h);
                 continue;
             }
-            if h.callback_base.is_empty() {
+            if h.callback_base.is_empty() && !h.ephemeral() {
                 bail!(
                     "host {}: callback_base is required for mode {}",
                     h.id,
@@ -245,7 +285,7 @@ impl Hosts {
                 "HS256" | "RS256" | "EdDSA" => {}
                 other => bail!("host {}: unsupported jwt_alg {other}", h.id),
             }
-            if let Some(base) = callback_override {
+            if let Some(base) = callback_override.filter(|_| !h.callback_base.is_empty()) {
                 tracing::warn!(host = %h.id, "OC_CALLBACK_BASE_OVERRIDE replaces callback_base (dev/compose only)");
                 h.original_callback_base = Some(h.callback_base.trim_end_matches('/').to_string());
                 h.callback_base = base.to_string();
