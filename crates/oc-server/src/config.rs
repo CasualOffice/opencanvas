@@ -26,6 +26,10 @@ pub struct Config {
     /// server state lives in this Redis (the WAL Redis); `database_url` is empty and unused.
     pub storage_redis_url: Option<String>,
     pub rooms: RoomConfig,
+    /// The server's `[ai]` settings; `None` reads `OC_AI_CONFIG` / `OC_AI` at start-up.
+    pub ai: Option<crate::ai::config::AiConfig>,
+    /// `OC_IMPORT=off`: import is off for every host, whatever `[host.flags]` says.
+    pub import_off: bool,
 }
 
 /// How edits reach the database between host saves (ADR-029, `OC_DURABILITY`).
@@ -170,6 +174,8 @@ impl Config {
             kek,
             metrics_token: var("OC_METRICS_TOKEN"),
             wal_redis_url: wal_redis.clone(),
+            ai: None,
+            import_off: var("OC_IMPORT").is_some_and(|v| v.trim().eq_ignore_ascii_case("off")),
             rooms: RoomConfig {
                 compact_interval: if memory {
                     Duration::from_millis(num("OC_DB_SYNC_MS", 2_000).max(100))

@@ -342,14 +342,18 @@ pub async fn session_info(
     // docs/15 §2: whether the assistant shows, from `[host.ai]` and the role (the run modes the
     // server would accept; viewers never get it).
     let host_ai = crate::ai::HostAi(&host);
-    let ai_on = host_ai.agent().is_some_and(|a| a.enabled);
+    // The server-wide switch beats `[host.ai]` (docs/24 §7.3).
+    let server_ai = state.ai_on();
+    let ai_on = server_ai && host_ai.agent().is_some_and(|a| a.enabled);
     let modes: &[&str] = match (ai_on, grant.role) {
         (false, _) | (_, crate::grant::Role::View) => &[],
         (true, crate::grant::Role::Comment) => &["answer", "comment"],
         (true, crate::grant::Role::Edit) => &["edit", "comment", "answer"],
     };
     let body = json!({
-        "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": host_ai.mcp()},
+        "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": server_ai && host_ai.mcp()},
+        // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
+        "import": {"formats": super::import::formats(&state, &host, grant.role)},
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,

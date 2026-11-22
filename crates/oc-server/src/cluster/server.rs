@@ -28,7 +28,18 @@ pub fn routes(state: SharedState) -> Router {
     Router::new()
         .route("/v1/internal/relay/{room}", get(relay))
         .route("/v1/internal/rooms/{room}", post(call))
+        .route("/v1/internal/tools/{room}", post(tool))
         .with_state(state)
+}
+
+/// `POST /v1/internal/tools/:room`: a canvas tool call forwarded by another node.
+async fn tool(
+    State(state): State<SharedState>,
+    Path(room): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    crate::ai::tools::serve_forward(state, room, headers, body).await
 }
 
 fn status(code: StatusCode, msg: &str) -> Response {

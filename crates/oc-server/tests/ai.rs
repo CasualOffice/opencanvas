@@ -497,6 +497,7 @@ fn harness(script: Vec<ChatResponse>, role: Role) -> Harness {
     let cfg = AiConfig {
         enabled: true,
         providers: Default::default(),
+        off_reason: None,
     };
     let mut providers: HashMap<String, Arc<dyn ModelProvider>> = HashMap::new();
     providers.insert("claude".into(), provider.clone());

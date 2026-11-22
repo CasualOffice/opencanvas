@@ -788,8 +788,21 @@ impl Rooms {
         .await
     }
 
-    /// Runs a canvas tool step on the room's actor (opening the room when needed). Phase 1:
-    /// the room must be owned by this node; cluster forwarding of tool calls comes later.
+    /// Where a tool call on `grant.room` must run: `None` here (the room is placed on this
+    /// node), `Some(owner)` on another node (the caller forwards it, docs/24 §5.6).
+    pub async fn tool_owner(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+    ) -> anyhow::Result<Option<Owner>> {
+        Ok(match self.place(host, grant, true).await? {
+            Placement::Local(..) => None,
+            Placement::Remote(o) => Some(o),
+        })
+    }
+
+    /// Runs a canvas tool step on the room's actor (opening the room when needed). The room
+    /// must be placed on this node: callers forward first ([`Rooms::tool_owner`]).
     pub async fn tool(
         &self,
         host: &Arc<HostConfig>,
@@ -801,8 +814,8 @@ impl Rooms {
         let tx = match self.place(host, grant, true).await {
             Ok(Placement::Local(tx, _)) => tx,
             Ok(Placement::Remote(_)) => {
-                return Err(ToolError::Internal(
-                    "the room is owned by another node; retry there".into(),
+                return Err(ToolError::Unavailable(
+                    "the room moved to another node; retry".into(),
                 ));
             }
             Err(e) => return Err(ToolError::Internal(e.to_string())),

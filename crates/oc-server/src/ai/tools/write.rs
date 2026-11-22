@@ -305,6 +305,10 @@ fn sub_array<T: ReadTxn>(txn: &T, m: &MapRef, key: &str) -> Option<ArrayRef> {
 }
 
 pub fn db_upsert_rows(doc: &Doc, input: &Value) -> Step {
+    upsert_rows(doc, input, MAX_ROWS_PER_CALL)
+}
+
+fn upsert_rows(doc: &Doc, input: &Value, max_rows: usize) -> Step {
     let d = doc_json(doc);
     let db_id = input["dbId"]
         .as_str()
@@ -319,9 +323,9 @@ pub fn db_upsert_rows(doc: &Doc, input: &Value) -> Step {
         .as_array()
         .filter(|r| !r.is_empty())
         .ok_or_else(|| ToolError::BadInput("rows must be a non-empty array".into()))?;
-    if rows.len() > MAX_ROWS_PER_CALL {
+    if rows.len() > max_rows {
         return Err(ToolError::BadInput(format!(
-            "at most {MAX_ROWS_PER_CALL} rows per call"
+            "at most {max_rows} rows per call"
         )));
     }
     // Resolve field names to ids up front so a bad row changes nothing.
@@ -427,6 +431,18 @@ fn insert_block(s: &Doc, input: &Value, node: Value) -> Result<String, ToolError
 }
 
 pub fn db_create(doc: &Doc, input: &Value) -> Step {
+    create_db(doc, input, MAX_ROWS_PER_CALL)
+}
+
+/// Most rows a CSV import creates (docs/23 FC-10).
+pub const MAX_IMPORT_ROWS: usize = 10_000;
+
+/// A CSV import (`POST /v1/import?format=csv`): [`db_create`] with the import row limit.
+pub fn import_csv(doc: &Doc, input: &Value) -> Step {
+    create_db(doc, input, MAX_IMPORT_ROWS)
+}
+
+fn create_db(doc: &Doc, input: &Value, max_rows: usize) -> Step {
     let name = input["name"]
         .as_str()
         .filter(|n| !n.trim().is_empty())
@@ -440,9 +456,9 @@ pub fn db_create(doc: &Doc, input: &Value) -> Step {
         fields.insert(0, field_json(&json!({"name": "Name", "type": "title"}))?);
     }
     let rows = input["rows"].as_array().cloned().unwrap_or_default();
-    if rows.len() > MAX_ROWS_PER_CALL {
+    if rows.len() > max_rows {
         return Err(ToolError::BadInput(format!(
-            "at most {MAX_ROWS_PER_CALL} rows per call"
+            "at most {max_rows} rows per call"
         )));
     }
     let db_id = new_id("db");
@@ -466,7 +482,7 @@ pub fn db_create(doc: &Doc, input: &Value) -> Step {
     let field_ids: Vec<Value> = fields.iter().map(|f| f["id"].clone()).collect();
     let mut row_ids = Vec::new();
     if !rows.is_empty() {
-        let (update, out) = db_upsert_rows(&s, &json!({"dbId": db_id, "rows": rows}))?;
+        let (update, out) = upsert_rows(&s, &json!({"dbId": db_id, "rows": rows}), max_rows)?;
         oc_model::ocanvas::apply_update_bytes(&s, &update.unwrap_or_default())
             .map_err(|e| ToolError::Internal(e.to_string()))?;
         row_ids = out["rowIds"].as_array().cloned().unwrap_or_default();

@@ -187,8 +187,30 @@ mcp_rate_per_min = 120                         # per token; burst 2x
 MCP tokens are verified with the host's launch-token keys (`jwt_secret`, `jwt_public_key` or
 `jwt_jwks_url`). Set `OC_PUBLIC_URL` so the token audience and the protected-resource metadata
 URL are the public one (otherwise the request's `Host` is used). Tool calls run on the node that
-owns the room; in cluster mode a call that lands on another node is refused for now (retry).
+owns the room; in cluster mode a call that lands on another node is forwarded to the owner over
+the signed internal API (`POST /v1/internal/tools/:room`, `OC_CLUSTER_SECRET`), carrying only the
+verified identity (never the bearer token), with a request id so a retry never runs twice. If
+the owner is unreachable the client gets `503` with `Retry-After: 2`.
 The in-editor assistant (AI-02) reads the same `[host.ai]` table; see below.
+
+## AI server switch (one switch for every AI feature)
+
+AI is **off by default** and on only when all three hold: `OC_AI_CONFIG` names a file, that file
+has `[ai] enabled = true`, and the kill switch `OC_AI` is not `off`. When it is off, every AI
+feature is off for every host, whatever `[host.ai]` says: the session's `ai.enabled` and `ai.mcp`
+are false, `POST /mcp/{hostId}` and its protected-resource metadata answer `404`, `ai-run`,
+`ai-approve`, `ai-undo` and `ai-cancel` are refused (`ai-done` with `outcome: "refused"`, `reason:
+"ai_disabled"`), and no provider is probed. Per host, `[host.ai] enabled` and `mcp` narrow it
+further. The effective state is logged once at start-up (`AI: on`, `AI: off (OC_AI=off)`,
+`AI: off (OC_AI_CONFIG unset)`, `AI: off ([ai] enabled = false)`) and shown as `"ai"` in `/readyz`.
+To stop all AI in an incident: set `OC_AI=off` and restart (rolling).
+
+## Import switch
+
+Editors and hosts can import Markdown, HTML and CSV into a canvas (`POST /v1/import`,
+docs/05 §7). Off unless a host lists formats in `[host.flags] import_formats = ["md","html","csv"]`
+(unknown values stop start-up). `OC_IMPORT=off` turns import off for every host. Bodies are
+limited to 5 MiB, CSV to 10,000 rows and 200 columns.
 
 ## AI (optional; AI-02, ADR-031)
 
@@ -254,7 +276,8 @@ Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_tota
 `oc_ai_runs_total{outcome}`, `oc_ai_run_seconds`. No content.
 
 ## Health & metrics
-- `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining.
+- `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining;
+  its body also carries `"ai": "on" | "off (<reason>)"`, the server-wide AI switch.
 - `/metrics` (Prometheus): `oc_rooms_live`, `oc_connections{role}`,
   `oc_updates_total`, `oc_update_apply_seconds`, `oc_fanout_bytes_total`,
   `oc_commit_total{result}`, `oc_commit_seconds`, `oc_host_callback_seconds{op,status}`,

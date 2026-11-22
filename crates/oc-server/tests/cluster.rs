@@ -32,8 +32,10 @@ async fn node(
     id: &str,
     bus: Arc<dyn Bus>,
 ) -> Node {
-    let state = app_custom(base, room_cfg(), db, |h| {
+    let state = app_ai(base, room_cfg(), db, |h| {
         h.api_key = Some("test-api-key".into());
+        h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+        h.ai.insert("default_mode".into(), toml::Value::String("direct".into()));
     })
     .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -389,4 +391,131 @@ async fn revoke_on_one_node_reaches_every_node_over_redis() {
     // Let both subscriptions come up before anything is published.
     tokio::time::sleep(Duration::from_millis(300)).await;
     revoke_reaches_every_node(&n1, &n2, &host).await;
+}
+
+fn mcp_token(addr: &str) -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    let c = json!({"iss": "sample", "aud": format!("http://{addr}/mcp/sample"), "sub": "u_mcp",
+        "name": "Asha", "exp": oc_server::util::now_secs() + 600,
+        "scope": "canvas:read canvas:write", "role": "edit", "client_id": "claude"});
+    encode(
+        &Header::new(Algorithm::HS256),
+        &c,
+        &EncodingKey::from_secret(SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+async fn mcp_call(addr: &str, name: &str, args: Value) -> (u16, Value) {
+    let res = http()
+        .post(format!("http://{addr}/mcp/sample"))
+        .bearer_auth(mcp_token(addr))
+        .json(&json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
+            "params": {"name": name, "arguments": args}}))
+        .send()
+        .await
+        .unwrap();
+    let status = res.status().as_u16();
+    (status, res.json().await.unwrap_or(Value::Null))
+}
+
+#[tokio::test]
+async fn mcp_tool_call_on_a_non_owner_is_forwarded_to_the_owner() {
+    let (_host, fake, n1, n2) = two_nodes().await;
+    let mut a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let room = grant("u_a", Role::Edit).room;
+    assert!(fake.value(&key(&room)).unwrap().starts_with("n1@"));
+
+    let (status, v) = mcp_call(
+        &n2.addr,
+        "canvas_patch",
+        json!({"fileId": FILE, "ops": [{"op": "append", "markdown": "From MCP on n2"}]}),
+    )
+    .await;
+    assert_eq!(status, 200, "{v}");
+    assert_eq!(v["result"]["isError"], false, "{v}");
+    assert!(!n2.state.rooms.is_live(&room), "n2 must forward, not open");
+    a.settle().await;
+    assert!(
+        has(&json_of(&a.doc), "From MCP on n2"),
+        "{}",
+        json_of(&a.doc)
+    );
+
+    // Reads are forwarded too.
+    let (_, v) = mcp_call(&n2.addr, "canvas_read", json!({"fileId": FILE})).await;
+    assert!(v.to_string().contains("From MCP on n2"), "{v}");
+}
+
+#[tokio::test]
+async fn forged_tool_forward_is_refused() {
+    let (_host, _fake, n1, _n2) = two_nodes().await;
+    let mut a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let room = grant("u_a", Role::Edit).room;
+    let body = json!({"requestId": "r1", "hostId": "sample", "fileId": FILE,
+        "grant": grant("u_evil", Role::Edit), "origin": "mcp:evil", "mode": "direct",
+        "name": "canvas_patch",
+        "args": {"fileId": FILE, "ops": [{"op": "append", "markdown": "forged"}]}});
+    let res = http()
+        .post(format!("http://{}/v1/internal/tools/{room}", n1.addr))
+        .header("x-oc-cluster-ts", oc_server::util::now_secs().to_string())
+        .header("x-oc-cluster-sig", "00".repeat(32))
+        .header("x-oc-cluster-node", "n2")
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status().as_u16(), 401);
+    a.settle().await;
+    assert!(!has(&json_of(&a.doc), "forged"));
+}
+
+#[tokio::test]
+async fn a_repeated_forward_request_id_runs_once() {
+    let (_host, _fake, n1, n2) = two_nodes().await;
+    let mut a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let room = grant("u_a", Role::Edit).room;
+    let body = serde_json::to_vec(&json!({"requestId": "req-once", "hostId": "sample",
+        "fileId": FILE, "grant": grant("u_b", Role::Edit), "origin": "mcp:test",
+        "mode": "direct", "name": "canvas_patch",
+        "args": {"fileId": FILE, "ops": [{"op": "append", "markdown": "only once"}]}}))
+    .unwrap();
+    let cluster = n2.state.rooms.cluster().unwrap().clone();
+    for _ in 0..2 {
+        let mut req = http()
+            .post(format!("http://{}/v1/internal/tools/{room}", n1.addr))
+            .header("content-type", "application/json");
+        for (k, v) in cluster.sign(&room, &body) {
+            req = req.header(k, v);
+        }
+        let res = req.body(body.clone()).send().await.unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+        let v: Value = res.json().await.unwrap();
+        assert!(v.get("ok").is_some(), "{v}");
+    }
+    a.settle().await;
+    let text = json_of(&a.doc).to_string();
+    assert_eq!(text.matches("only once").count(), 1, "{text}");
+}
+
+#[tokio::test]
+async fn an_unreachable_owner_answers_503_with_retry_after() {
+    let (_host, _fake, n1, n2) = two_nodes().await;
+    let mut a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    n1.server.abort();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let res = http()
+        .post(format!("http://{}/mcp/sample", n2.addr))
+        .bearer_auth(mcp_token(&n2.addr))
+        .json(&json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
+            "params": {"name": "canvas_read", "arguments": {"fileId": FILE}}}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status().as_u16(), 503);
+    assert_eq!(res.headers()["retry-after"], "2");
 }

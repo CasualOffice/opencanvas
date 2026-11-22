@@ -23,6 +23,23 @@ pub enum WriteMode {
     Suggest,
 }
 
+impl WriteMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            WriteMode::Direct => "direct",
+            WriteMode::Suggest => "suggest",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        if s == "direct" {
+            WriteMode::Direct
+        } else {
+            WriteMode::Suggest
+        }
+    }
+}
+
 /// One tool as described to a model or an MCP client.
 #[derive(Debug, Clone)]
 pub struct ToolSpec {
@@ -56,6 +73,8 @@ pub enum ToolError {
     Stale(Value),
     ConfirmationRequired(String),
     Internal(String),
+    /// Cluster: the room's owner could not be reached; the caller retries after a moment.
+    Unavailable(String),
 }
 
 impl ToolError {
@@ -68,6 +87,7 @@ impl ToolError {
             ToolError::Stale(_) => "STALE_BLOCK",
             ToolError::ConfirmationRequired(_) => "CONFIRMATION_REQUIRED",
             ToolError::Internal(_) => "INTERNAL",
+            ToolError::Unavailable(_) => "UNAVAILABLE",
         }
     }
 
@@ -78,7 +98,31 @@ impl ToolError {
             | ToolError::BadInput(m)
             | ToolError::NotFound(m)
             | ToolError::ConfirmationRequired(m)
-            | ToolError::Internal(m) => m.clone(),
+            | ToolError::Internal(m)
+            | ToolError::Unavailable(m) => m.clone(),
+        }
+    }
+
+    /// The error as JSON, for a call forwarded between nodes.
+    pub fn to_json(&self) -> Value {
+        let mut v = serde_json::json!({"code": self.code(), "message": self.message()});
+        if let ToolError::Stale(f) = self {
+            v["fresh"] = f.clone();
+        }
+        v
+    }
+
+    /// The inverse of [`ToolError::to_json`].
+    pub fn from_json(v: &Value) -> Self {
+        let m = v["message"].as_str().unwrap_or_default().to_string();
+        match v["code"].as_str().unwrap_or_default() {
+            "ROLE_FORBIDDEN" => ToolError::Forbidden(m),
+            "BAD_INPUT" => ToolError::BadInput(m),
+            "NOT_FOUND" => ToolError::NotFound(m),
+            "STALE_BLOCK" => ToolError::Stale(v["fresh"].clone()),
+            "CONFIRMATION_REQUIRED" => ToolError::ConfirmationRequired(m),
+            "UNAVAILABLE" => ToolError::Unavailable(m),
+            _ => ToolError::Internal(m),
         }
     }
 }
@@ -89,10 +133,12 @@ impl std::fmt::Display for ToolError {
     }
 }
 
+mod forward;
 mod live;
 mod read;
 mod write;
 
+pub use forward::{ToolForward, serve_forward};
 pub use live::{LiveTools, phase1_specs, role_allows};
 pub use read::{DATA_NOTICE, rev};
-pub use write::{CONFIRM_BLOCK_DELETES, SUGGESTIONS, suggestions};
+pub use write::{CONFIRM_BLOCK_DELETES, MAX_IMPORT_ROWS, SUGGESTIONS, suggestions};
