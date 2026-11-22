@@ -68,13 +68,22 @@ pub fn spawn_sweeper() {
     });
 }
 
-/// jemalloc options baked into the binary (`_RJEM_MALLOC_CONF` still overrides them): dirty
-/// pages go back to the OS after about a second, and on Linux a background thread purges them
-/// even when no thread allocates (not supported on macOS).
+/// jemalloc options for Linux: dirty pages go back to the OS after about a second, and a
+/// background thread purges them even when no thread allocates. Defined on every platform so a
+/// length mistake fails the build everywhere, not only on Linux (it once reached CI that way).
+#[cfg_attr(not(all(feature = "jemalloc", target_os = "linux")), allow(dead_code))]
+const LINUX_CONF: &[u8; 60] = b"background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:0\0";
+/// The same without the background thread, which macOS jemalloc does not support.
+#[cfg_attr(
+    not(all(feature = "jemalloc", not(target_os = "linux"))),
+    allow(dead_code)
+)]
+const OTHER_CONF: &[u8; 37] = b"dirty_decay_ms:1000,muzzy_decay_ms:0\0";
+
+/// jemalloc options baked into the binary (`_RJEM_MALLOC_CONF` still overrides them).
 #[cfg(all(feature = "jemalloc", target_os = "linux"))]
 #[unsafe(export_name = "_rjem_malloc_conf")]
-pub static MALLOC_CONF: &[u8; 61] =
-    b"background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:0\0";
+pub static MALLOC_CONF: &[u8; 60] = LINUX_CONF;
 #[cfg(all(feature = "jemalloc", not(target_os = "linux")))]
 #[unsafe(export_name = "_rjem_malloc_conf")]
-pub static MALLOC_CONF: &[u8; 37] = b"dirty_decay_ms:1000,muzzy_decay_ms:0\0";
+pub static MALLOC_CONF: &[u8; 37] = OTHER_CONF;
