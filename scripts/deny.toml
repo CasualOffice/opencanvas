@@ -1,4 +1,4 @@
-# Used by scripts/audit.sh: cargo deny --config scripts/deny.toml check advisories bans sources
+# Used by scripts/audit.sh: cargo deny --config scripts/deny.toml check advisories bans licenses sources
 # Every ignore says why it does not apply (docs/18, "Dependencies"); re-check on each audit.
 
 [advisories]
@@ -14,6 +14,9 @@ ignore = [
   { id = "RUSTSEC-2026-0206", reason = "unmaintained, no vulnerability; parses bundled fonts only" },
   { id = "RUSTSEC-2026-0215", reason = "unmaintained, no vulnerability" },
   { id = "RUSTSEC-2026-0192", reason = "unmaintained, no vulnerability; parses bundled fonts only" },
+  # paste: unmaintained proc-macro (compile time only), via tikv-jemalloc-ctl. No vulnerability,
+  # no code of it runs in the binary. Release audit v0.1.0-alpha.1.
+  { id = "RUSTSEC-2024-0436", reason = "unmaintained compile-time proc-macro, no vulnerability" },
 ]
 
 [bans]
@@ -23,3 +26,18 @@ wildcards = "allow"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+
+# Licences of every dependency: permissive only (no copyleft in the shipped binary). Our own
+# crates are BUSL-1.1 (LICENSE). `LGPL-2.1-or-later` appears only as an OR alternative.
+[licenses]
+confidence-threshold = 0.9
+allow = [
+  "MIT", "MIT-0", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-1-Clause", "BSD-2-Clause",
+  "BSD-3-Clause", "BSL-1.0", "ISC", "Unicode-3.0", "Zlib", "0BSD", "CC0-1.0", "Unlicense",
+  "CDLA-Permissive-2.0",
+]
+private = { ignore = true }
+exceptions = [
+  { name = "oc-model", allow = ["BUSL-1.1"] },
+  { name = "oc-server", allow = ["BUSL-1.1"] },
+]

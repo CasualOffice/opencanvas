@@ -91,3 +91,68 @@ recommend verifying `v2`, and say callbacks are never redirected.
 `OC_KEK`, `OC_PUBLIC_URL`, `OC_METRICS_TOKEN` set; `/metrics`, `/readyz`, `/v1/internal/*` not
 routed publicly; TLS and per-IP limits at the proxy; secrets ≥ 32 random characters; hosts verify
 `v2`; `scripts/audit.sh` in CI.
+
+## 5. Release audit, v0.1.0-alpha.1 (2026-11-23)
+
+Baseline `main` at `c6eca7a`, branch `release-security-gate-alpha1`. Re-audited what changed
+since §1: AI assistant and MCP, import (HTML, Markdown, CSV, zip), Redis storage and WAL,
+access-expiry renewal, SDK CORS, `export_formats`, jemalloc `MALLOC_CONF`. For each: injection
+(SQL/Lua/HTML), auth bypass, SSRF (model `base_url`, WOPI, asset fetch), secrets in logs, DoS
+limits, CSRF on POST.
+
+### Findings
+
+| ID | Sev | Area | Finding (evidence) | Status / decision | Regression test |
+|---|---|---|---|---|---|
+| SEC-29 | **High** | DoS (import) | The tree walks after `html::parse` (`blocks`/`block`/`inline`/`clone_node`, and drop) and Markdown `inline_into` recurse without a depth bound. 100 000 nested `<b>` (300 KB) or `***…` / `[[[…` overflowed a 2 MB worker stack: **the process aborts, every room on the node is lost.** Reached by an editor through `POST /v1/import` (html/md flag on), by the host API `/v1/convert`, and, with no flag at all, by any host `.md` file opened in a room (`actor.rs:322` → `apply_markdown`). | **Fixed** in `oc-model` (no `room/` change): HTML keeps ≤ 64 element levels (deeper start tags are dropped, their content kept); inline Markdown nests ≤ 16 marks/link labels, then stays literal | `html::tests::deeply_nested_markup_does_not_overflow_the_stack`, `deeply_nested_markdown_does_not_overflow_the_stack` (both seen aborting with "stack overflow" first) |
+| SEC-30 | Medium | DoS (import) | Each `<script|style|template|noscript>` lowercased a copy of the rest of the input (`html.rs:198`): quadratic, ~30 s CPU on a tokio worker per 5 MB body. Edit role + html flag. | **Fixed**: case-insensitive search in place | `html::tests::many_raw_text_tags_are_linear` (seen failing: > 3 min in debug) |
+| SEC-31 | Low | Dependencies | `url` 2.5.8, RUSTSEC-2026-0592 (stack overflow in `Url::origin()` on nested `blob:`). Our `origin()` calls run only after an http(s) scheme check (`assets.rs`), so not reachable from our code. | **Fixed**: `url` 2.5.9 | `scripts/audit.sh` |
+| SEC-32 | Low | Dependencies | `paste` 1.0.15 unmaintained (RUSTSEC-2024-0436), compile-time proc-macro via `tikv-jemalloc-ctl`. | Accepted, reason in `scripts/deny.toml` | `scripts/audit.sh` |
+| SEC-33 | Medium | MCP auth | Without `OC_PUBLIC_URL`, the MCP token audience is built from the request `Host` header (`routes/mcp.rs:33-42,288`): a token signed by the same host key for another resource (staging, another deployment) is accepted by sending that `Host`. Needs a valid host-signed token. | **Open, decision: fix before beta** (refuse MCP unless `public_url` is set). Operator checklist already requires `OC_PUBLIC_URL`; MCP is off by default | — |
+| SEC-34 | Medium | MCP authZ | Without the host `/access` callback, the token's `role` applies to every file of the host when `files` is absent (`mcp.rs:131-134,225-230`). As designed (docs/24) but sharp. | **Open, decision:** document in docs/05; require `files` when `/access` is not configured, before beta | — |
+| SEC-35 | Medium | WOPI session | WOPI `access_token_ttl` (form field) sets the session expiry with no upper bound (`launch.rs:163-180`), unlike the JWT 10 h cap. Needs a valid WOPI token; the host can still end the session. | **Open, decision:** clamp to the JWT cap, before beta | — |
+| SEC-36 | Low | SSRF / secrets | Clients that follow redirects: AI provider (`ai/provider.rs:175`; reqwest forwards the Anthropic `x-api-key` header across hosts), cluster peer client (`cluster/mod.rs:199`), JWKS (`limited(3)`). Targets are operator config only. | Open, decision: `Policy::none()` with the next AI change | — |
+| SEC-37 | Low | MCP scope | `canvas:write:direct` is never checked; direct writes follow the host's `default_mode` (`mcp.rs:155,496`). The user still needs the edit role. | Open, decision: enforce the scope before beta | — |
+| SEC-38 | Low | Cluster | Tool-forward dedupe keys on the unsigned `x-oc-cluster-node` header; replay inside the 30 s MAC window by someone on the internal network (`ai/tools/forward.rs:181`). | Accepted for alpha (internal network, docs/13) | — |
+| SEC-39 | Low | DoS (CSV) | `parse_csv` (`import.rs:228`) builds all fields before the 200-column check: a 5 MB row of commas is ~120 MB transient. | Accepted (bounded by the 5 MB body cap) | — |
+| SEC-40 | Low | Redis | Keys are a fixed `oc:` prefix: two deployments sharing one Redis database collide. No cross-tenant collision inside one deployment (room = sha256 of a validated host id + file). | Accepted: one Redis database per deployment (docs/13) | — |
+| SEC-41 | Low | Import links | `safe_href` accepts protocol-relative `//evil` links (no script). | Accepted | — |
+| SEC-42 | Low | Prompt injection | Read content can steer an edit-mode run to write external links/images inside the user's own role (CSP allows `img-src https:`). Bounded: one file, no network tools, plan approval by default, undo. | Accepted (`inject.rs` flags only) | — |
+| SEC-43 | Info | MCP | MCP `comment_add` always refused: grants use `Perms::default()` (`comment: false`). Fails closed. | Functional bug, open | — |
+
+Checked and fine: AI master switch off by default (`OC_AI_CONFIG` + `[ai] enabled`, `OC_AI=off`
+wins; MCP also needs `[host.ai] mcp = true`); MCP bearer-only auth with pinned alg, `iss`/`aud`/`exp`,
+15 min TTL cap, launch tokens refused; effective permission = scope ∩ role, re-checked per tool and
+before every write; assistant: viewers refused, commenters answer/comment only; prompt 32 KB,
+selection 64 KB, per-run steps/writes/tokens/seconds, per-hour and monthly quotas; `Secret` redacts
+in `Debug`. Import format flag off by default, enforced server-side on both routes; HTML scheme
+allow-list; zip caps on actual inflated bytes; CSV 200 columns / 10 000 rows. Redis Lua: every
+script takes KEYS/ARGV (no source concatenation), fencing compares the epoch inside the script.
+Renewal re-launches with a fresh host JWT (jti single-use), JSON answer `no-store`, no cookies
+(no CSRF). SDK CORS: explicit `allowed_origins`, GET/POST, `Content-Type` only, no credentials,
+no reflection. `export_formats` enforced on `/v1/export/{fmt}` and board svg/png (the AI read
+tool renders Markdown of content the session can already see). jemalloc static `MALLOC_CONF`:
+`background_thread` and decay only, no profiling/dumps. SSRF: host, asset, WOPI and PDF clients
+`redirect::Policy::none()`; WOPISrc allow-list; asset fetch exact-origin.
+
+**No Critical or High finding is open.**
+
+### Tool output
+
+| Check | Result |
+|---|---|
+| `cargo audit` (1 560 advisories, 405 crates) | before: 1 vulnerability (RUSTSEC-2026-0592) + 1 unmaintained; after: 0 vulnerabilities, 6 documented ignores |
+| `cargo deny … advisories bans licenses sources` | ok / ok / ok / ok (licence allow-list added: permissive only; our crates BUSL-1.1) |
+| `pnpm audit` (web, prod and full) | No known vulnerabilities |
+| `npm audit` (e2e lockfile) | 0 vulnerabilities |
+| `tests/security.rs`, `tests/hardening.rs` | 11 + 11 pass |
+| `cargo test -p oc-model` | 30 + 39 pass (3 new) |
+| Two-user Playwright specs `w-two-user-board`, `x-two-user-comments` | written; **not yet run** (see below) |
+| Docker build (`deploy/Dockerfile`) | **skipped**: 11 GB free at start (< 12 GB rule) |
+
+`scripts/audit.sh` now also checks licences and the e2e lockfile.
+
+**Not completed in this pass (disk):** free space fell from 11 GB to 4 GB during the run (another
+session building on the same volume), below the 6 GB stop rule, so the release builds for the
+Playwright run, the full `cargo test`, and the full Playwright suite were stopped. The two
+acceptance specs and the full regression run must be executed on the release commit before tagging.

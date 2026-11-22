@@ -166,7 +166,7 @@ fn plain_block(tag: &str, text: &str) -> Value {
 /// `[text](url)` and `\` escapes. Unmatched delimiters stay literal.
 pub fn inline_markdown(src: &str) -> Vec<Value> {
     let mut out = Vec::new();
-    inline_into(src, &[], &mut out);
+    inline_into(src, &[], &mut out, 0);
     out
 }
 
@@ -184,7 +184,17 @@ fn with_mark(marks: &[Value], mark: Value) -> Vec<Value> {
     m
 }
 
-fn inline_into(src: &str, marks: &[Value], out: &mut Vec<Value>) {
+/// Deepest nesting of marks and link labels; past it, delimiters stay literal. Unbounded,
+/// `***…` or `[[[…` recursed once per character and overflowed the stack (SEC-29).
+const MAX_INLINE_DEPTH: usize = 16;
+
+fn inline_into(src: &str, marks: &[Value], out: &mut Vec<Value>, depth: usize) {
+    if depth > MAX_INLINE_DEPTH {
+        if !src.is_empty() {
+            out.push(text_with(src, marks));
+        }
+        return;
+    }
     let mut buf = String::new();
     let flush = |buf: &mut String, out: &mut Vec<Value>| {
         if !buf.is_empty() {
@@ -233,7 +243,12 @@ fn inline_into(src: &str, marks: &[Value], out: &mut Vec<Value>) {
             let close = find_closing(body, delim);
             if let Some(end) = close.filter(|e| *e > 0 && !body.starts_with(' ')) {
                 flush(&mut buf, out);
-                inline_into(&body[..end], &with_mark(marks, json!({"type": mark})), out);
+                inline_into(
+                    &body[..end],
+                    &with_mark(marks, json!({"type": mark})),
+                    out,
+                    depth + 1,
+                );
                 i += delim.len() * 2 + end;
                 matched = true;
                 break;
@@ -251,10 +266,10 @@ fn inline_into(src: &str, marks: &[Value], out: &mut Vec<Value>) {
             flush(&mut buf, out);
             if crate::export::safe_target(href) {
                 let link = json!({"type": "link", "attrs": {"href": href}});
-                inline_into(label, &with_mark(marks, link), out);
+                inline_into(label, &with_mark(marks, link), out, depth + 1);
             } else {
                 // `javascript:` and friends never become links (SEC-16).
-                inline_into(label, marks, out);
+                inline_into(label, marks, out, depth + 1);
             }
             i += mid + 3 + close;
             continue;
