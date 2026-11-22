@@ -707,6 +707,53 @@ allocator's free lists and the release call above did not return them. Next: mea
 build after the measurements: free disk fell to 7.7 GB (below the 8 GB floor for builds and
 Docker) after the release build.
 
+### 9.6 Allocator comparison, dead-item compaction (PERF-07, 2026-11-23)
+
+Branch `perf-allocator-compaction` off main `34b685c`. Same release source for all three
+variants (cargo features `jemalloc` (now the default), `mimalloc`, none = system). Each:
+`S2_STEPS=5000,5000,5000 OC_ROOM_IDLE_MS=20000 S_IDLE_SECS=60 scripts/bench.sh S2`, memory mode,
+SQLite, one at a time on a quiet M4. On a room close the server drops the doc and calls
+`alloc::release` (jemalloc `arena.<all>.purge`, mimalloc `mi_collect(true)`), plus a 2 s sweeper
+while rooms close. jemalloc: `dirty_decay_ms:1000,muzzy_decay_ms:0` (and `background_thread`
+on Linux only; macOS does not support it). RSS is `ps` resident size; for jemalloc the macOS
+`phys_footprint` was sampled too and tracked it (1,174 MB peak → 684 MB with 0 rooms).
+
+| allocator | p95 ms per bucket | p99 ms | RSS MB per bucket | RSS 60 s after typing stopped, 0 rooms open |
+|---|---|---|---|---|
+| system | 43.3 · 134.4 · 48.9 | 73 · 2,203 · 307 | 744 · 907 · 1,074 | **1,069** (peak 1,088) |
+| mimalloc + `mi_collect` | 118.5 · 46.4 · 80.1 | 2,150 · 1,275 · 940 | 756 · 970 · 1,101 | **1,063** (peak 1,101) |
+| **jemalloc + purge** | 43.3 · 43.4 · 243.2 | 47 · 46 · 3,790 | **594 · 734 · 972** | **628** (peak 977) |
+
+All three applied ≈ 25,000 updates/s with 0 errors and 0 drops; every variant had one slow
+bucket (single-run noise on a laptop; p95 stays ≤ 700 ms). **Pick: jemalloc** — lowest steady
+RSS (−10 to −20 %) and the only one that gave memory back after eviction (−36 %). mimalloc
+returned nothing. Docker: the image builds on `rust:1.98-slim-bookworm` (glibc); jemalloc's
+build needs `make`, now installed in the server stage (not built here: free disk under 6 GB).
+
+**Still FAIL: RSS does not return to baseline.** 628 MB stays with 0 rooms and 0 connections.
+The guard test `tests/alloc_release.rs` (24 rooms × 20,000 x/y overwrites, then eviction) shows
+why it is not the allocator: RSS 22 → 117 MB with the rooms open, **134 MB after all closed, and
+134 MB after an explicit `arena.<all>.purge`** — the memory is still live, so something keeps
+part of the closed rooms reachable. The test is `#[ignore]` with that reason until the holder is
+found (next: a heap snapshot of the test after eviction; candidates are per-room state kept by
+the room manager, the mock host's recorded puts are ≈ 5 MB).
+
+**Dead-item compaction: skipped, it does not help with yrs 0.28.** Measured on the S2 mix
+(`ydoc_memory::rebuilding_the_s2_doc_from_its_encoding_measurement`): original doc 333,304 heap
+bytes in 1,574 blocks, encoded 22,550 B; a fresh Doc with that encoding applied: **332,331 B in
+1,574 blocks** (−0.3 %). Encoding keeps every deleted map item as its own `Item` with
+`ContentDeleted` (they cannot merge: different key, non-consecutive clock), so decoding rebuilds
+the same blocks. A rebuild would also have to re-create the awareness, the mentions tracker
+and drop any AI undo managers (bound to the old Doc) for no gain. Only yrs can shrink these
+(dropping dead map items in memory), so no failing test was written for a feature not built.
+
+**Not run (disk):** the Redis-only reruns K, K2 and S1. Free disk fell to 5.8 GB (stop rule:
+6 GB) after the three release builds and the test/clippy builds. `scripts/bench.sh` now takes
+`REDIS_LOCAL=1` (local `redis-server` on `REDIS_PORT` with its files under the work dir, kill -9 +
+restart for the Redis-restart event), so the reruns are:
+`REDIS_LOCAL=1 REDIS_ARGS="--appendonly yes" CLUSTER_DB=none NODE_BASE=8810 REDIS_PORT=8834 HOST_PORT=8802 HOST2_PORT=8842 HOST3_PORT=8852 scripts/bench.sh K`
+(then `K2_REDIS_KILL=0 … K2`, and `S_DB=redis REDIS_LOCAL=1 OC_PORT=8801 … S1`).
+
 ## 10. Crash recovery (`scripts/bench.sh R` / `mR`)
 
 **Method.** `oc-bench verify`: 200 rooms × 2 editors (empty doc), each client appends a paragraph

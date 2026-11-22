@@ -27,6 +27,7 @@
 # K2 cluster: Redis kill and a 20 s SIGSTOP of one node inside the verified window
 #    (K2_REDIS_KILL=0: the pause only; REDIS_ARGS="--appendonly yes --appendfsync always")
 #    K, K2, T with CLUSTER_DB=none: Redis-only storage, no MariaDB and no DATABASE_URL (ADR-030)
+#    REDIS_LOCAL=1: a local redis-server on REDIS_PORT instead of Docker (K, K2, S_DB=redis)
 # KD cluster with node 2 in Docker (NODE2_IMAGE): docker pause 20 s, then a 25 s partition
 # T  throughput 1 node vs 3 nodes, clients of a room on different nodes, host latency 20-50 ms
 #    (T1 / T3: each half on a fresh MariaDB container; S2m: S2 on MariaDB for 3 minutes)
@@ -130,7 +131,7 @@ wal_watch() {
   local db=$1 out=$2
   ( while :; do
       if [ "$db" = redis ]; then
-        r="$(docker exec $CPFX-redis redis-cli DBSIZE 2>/dev/null) keys, $(docker exec $CPFX-redis redis-cli INFO memory 2>/dev/null | grep '^used_memory:' | tr -d '\r')"
+        r="$(redis DBSIZE 2>/dev/null) keys, $(redis INFO memory 2>/dev/null | grep '^used_memory:' | tr -d '\r')"
       elif [ "$db" = maria ]; then
         r=$(docker exec $CPFX-mariadb mariadb -uroot -proot -N -e "SELECT (SELECT count(*) FROM room_updates),(SELECT coalesce(sum(length(data)),0) FROM room_updates),(SELECT count(*) FROM room_snapshots),(SELECT coalesce(sum(length(state)),0) FROM room_snapshots)" opencanvas 2>/dev/null | tr '\t' ' ')
       else
@@ -171,7 +172,18 @@ mariadb_up() {
   echo "MariaDB did not start"; exit 1
 }
 # Redis in Docker on REDIS_PORT (REDIS_ARGS, e.g. "--appendonly yes --appendfsync always").
+# REDIS_LOCAL=1: a local redis-server (no Docker) with its AOF/RDB under $WORK/redis.
+REDIS_PID=""
+redis_local_start() {
+  mkdir -p "$WORK/redis"
+  redis-server --port "$REDIS_PORT" --bind 127.0.0.1 --dir "$WORK/redis" --save "" ${REDIS_ARGS:-} \
+    >> "$WORK/redis.log" 2>&1 &
+  REDIS_PID=$!; PIDS+=("$REDIS_PID")
+  for _ in $(seq 1 50); do redis-cli -p "$REDIS_PORT" PING >/dev/null 2>&1 && return 0; sleep 0.2; done
+  echo "redis-server did not start"; exit 1
+}
 redis_up() {
+  if [ -n "${REDIS_LOCAL:-}" ]; then redis_local_start; return; fi
   docker rm -f $CPFX-redis >/dev/null 2>&1
   docker run -d --name $CPFX-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7-alpine redis-server ${REDIS_ARGS:-} >/dev/null || exit 1
   CONTAINERS+=($CPFX-redis); sleep 2
@@ -251,7 +263,9 @@ partition_node() {
   echo "partition bench-2 for $1 s (forwarder paused: no Redis, DB, peers or host; its own port still answers)"
   docker pause $CPFX-fwd >/dev/null; sleep "$1"; docker unpause $CPFX-fwd >/dev/null; echo "partition healed"
 }
-redis() { docker exec $CPFX-redis redis-cli "$@"; }
+redis() {
+  if [ -n "${REDIS_LOCAL:-}" ]; then redis-cli -p "$REDIS_PORT" "$@"; else docker exec $CPFX-redis redis-cli "$@"; fi
+}
 # "<room key> <node>@<token>" for every lease, in one round trip (a docker exec per key took
 # about 18 s for 360 keys, which delayed the events and made the lease watch far slower than 1 s).
 owners() {
@@ -280,6 +294,11 @@ rolling_restart() {
   done
 }
 redis_crash() {
+  if [ -n "${REDIS_LOCAL:-}" ]; then
+    echo "kill -9 + start the local redis-server (AOF replayed on start)"
+    kill -9 "$REDIS_PID" 2>/dev/null; wait "$REDIS_PID" 2>/dev/null; sleep 2; redis_local_start
+    echo "keys after restart: $(redis DBSIZE)"; return
+  fi
   echo "docker kill + start $CPFX-redis (no RDB save on SIGKILL: lease keys are lost)"
   docker kill $CPFX-redis >/dev/null; sleep 2; docker start $CPFX-redis >/dev/null; sleep 1
   echo "keys after restart: $(redis DBSIZE)"
