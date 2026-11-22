@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/release-v0.1.0--alpha.1-7a45f0)](docs/25-RELEASE-v0.1.0-alpha.1.md)
-[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-2a5ad7)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 
 **An embeddable, real-time collaborative canvas for your app.** Rich text, databases and
 whiteboards in one document, with live cursors and comments. Your application keeps the users,
@@ -208,10 +208,8 @@ Read [AGENTS.md](AGENTS.md) first. All work is tracked in
 
 ## License
 
-OpenCanvas is source-available under the [Business Source License 1.1](LICENSE) (BUSL-1.1), with CasualOffice as the licensor.
+OpenCanvas is open source under the [Apache License 2.0](LICENSE), copyright 2026 CasualOffice.
 
-- **Free to use in production**, including self-hosting and embedding it in your own products, whether open or closed source.
-- **Not allowed without a commercial licence:** offering OpenCanvas itself to others as a hosted collaborative-editing service.
-- **Each version becomes open source** under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/) four years after its release.
-
-Bundled fonts are under the SIL Open Font License; see `crates/oc-model/fonts/THIRD-PARTY.md`.
+- Use, modify, self-host, embed and redistribute it, commercially or not.
+- When you redistribute it or a derived work, keep the [NOTICE](NOTICE) file (Apache-2.0 §4(d)).
+- The bundled fonts are under the SIL Open Font License 1.1 ([crates/oc-model/fonts/THIRD-PARTY.md](crates/oc-model/fonts/THIRD-PARTY.md)).

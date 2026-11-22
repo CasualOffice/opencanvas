@@ -361,6 +361,15 @@ room's snapshot (≈ the encoded doc per open or recently closed room) besides t
 − Redis persistence decides durability for all state, not only the last seconds of edits;
 − not compatible with Redis Cluster (one primary).
 
+### ADR-036 — Relicense to Apache-2.0 with NOTICE attribution (Accepted, 2026-11-23)
+**Context.** OpenCanvas was published under the Business Source License 1.1 (source-available, MPL-2.0
+after four years). The owner chose a permissive open-source licence for the first release.
+**Decision.** Apache License 2.0, canonical text in LICENSE. Attribution through NOTICE, which
+redistributions must keep (§4(d)), and a two-line SPDX header (`SPDX-License-Identifier: Apache-2.0`,
+`Copyright 2026 CasualOffice`) in every source file, checked by `scripts/check-spdx.sh` in CI and
+`scripts/audit.sh`. Bundled fonts stay under the SIL OFL 1.1. **Supersedes** the earlier BUSL-1.1
+licence decision.
+
 ### ADR-031 — AI as a server-side capability with a provider abstraction (Accepted, 2026-11-22)
 **Context.** Hosts want AI writing, Q&A, database autofill and an agentic assistant. The owner
 decided (2026-11-22) that AI is a plug-in capability of the OpenCanvas server, configured from

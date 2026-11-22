@@ -9,6 +9,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [0.1.0-alpha.1] - 2026-11-23
 
+**Licence:** relicensed from BUSL-1.1 to the Apache License 2.0 before this first release, with
+attribution through NOTICE and an SPDX header in every source file (ADR-036).
+
 Embeddable collaborative workspace canvas. The first alpha, for evaluation; there is no production
 SLA. Release notes, known limitations, backup and recovery:
 [docs/25](docs/25-RELEASE-v0.1.0-alpha.1.md).

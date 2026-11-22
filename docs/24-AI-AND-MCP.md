@@ -304,7 +304,7 @@ These constraints come from ADR-001, ADR-005, ADR-026 and docs/07. The design ke
 | OpenCanvas never persists documents (rule 5) | No vector index, no embeddings store, no long-lived run history on our side. Q&A over *one* canvas puts the canvas in the model context (1M-token windows make this practical for a 20 MB-capped doc after Markdown conversion). Q&A over the *workspace* is the host's job (its search index), reached through an optional search callback. Run audit goes to the host, not to our DB. |
 | The server enforces roles on every frame (rule 6) | AI writes are server-side Yjs transactions that pass the same role check as a human frame. A `view` user's agent cannot write; a `comment` user's agent can only comment or suggest. |
 | No secrets or content in logs (rule 9) | Prompts, completions and tool arguments are never logged. Metrics count tokens, steps and latencies only. |
-| Licence is BUSL-1.1 | Nothing here depends on a licence change. AI is part of the product, behind a host flag. |
+| Licence is Apache-2.0 (ADR-036) | Nothing here depends on the licence. AI is part of the product, behind a host flag. |
 
 ## 4. Recommended architecture
 

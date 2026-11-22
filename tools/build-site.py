@@ -297,8 +297,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP "
         "endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible "
         "server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. "
-        "Source-available under the Business Source License 1.1 (free to self-host and embed; offering it as a hosted "
-        "collaborative-editing service needs a commercial licence; each version becomes MPL-2.0 four years after release). "
+        "Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). "
         "Status: P1 alpha, pre-release.",
         "",
         "## Site",
@@ -312,7 +311,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "",
         "## Source",
         f"- [Repository]({sitelib.REPO})",
-        f"- [Licence (BUSL-1.1)]({sitelib.BLOB}LICENSE)",
+        f"- [Licence (Apache-2.0)]({sitelib.BLOB}LICENSE)",
         f"- [Full documentation as text]({base}llms-full.txt)",
         "",
     ])
