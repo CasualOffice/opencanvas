@@ -36,6 +36,16 @@ bytes = "1"
 # Cluster mode (ADR-006): Redis leases, node-to-node relay WebSocket.
 redis = { version = "1.7", default-features = false, features = ["tokio-comp", "connection-manager", "script", "streams"] }
 tokio-tungstenite = "0.28"
+# Allocator (docs/22 §9.6): jemalloc by default; mimalloc measured; neither = system.
+mimalloc = { version = "0.1.52", optional = true, default-features = false }
+libmimalloc-sys = { version = "0.1.49", optional = true, default-features = false, features = ["extended"] }
+tikv-jemallocator = { version = "0.6.1", optional = true }
+tikv-jemalloc-ctl = { version = "0.6.1", optional = true }
+
+[features]
+default = ["jemalloc"]
+mimalloc = ["dep:mimalloc", "dep:libmimalloc-sys"]
+jemalloc = ["dep:tikv-jemallocator", "dep:tikv-jemalloc-ctl"]
 
 [dev-dependencies]
 sqlx.workspace = true

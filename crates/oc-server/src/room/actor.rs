@@ -291,6 +291,9 @@ pub(super) async fn run(
     while rx.try_recv().is_ok() {}
     Metrics::dec(&ctx.metrics.rooms_active);
     tracing::info!(room = %id, "room closed");
+    // Free the doc here and hand the memory back (docs/22 §9.6).
+    drop(room);
+    crate::alloc::room_closed();
 }
 
 enum End {
