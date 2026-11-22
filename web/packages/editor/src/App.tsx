@@ -36,8 +36,31 @@ const UrlPrompt = lazy(() => import("./components/Dialogs").then((m) => ({ defau
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 
-/** A downgrade whose unsynced edits the server refused: the next Workspace keeps the banner. */
-let downgradedOnReboot = false;
+/** A downgrade whose unsynced edits the server refused: the client starts over and the next
+ *  Workspace shows the banner once (docs/23 PERM-03). Per room, in sessionStorage, so it
+ *  survives the restart and a page reload. */
+const downgradeKey = (room: string) => `oc:downgraded:${room}`;
+function markDowngraded(room: string) {
+  try {
+    sessionStorage.setItem(downgradeKey(room), "1");
+  } catch {
+    /* storage blocked: the banner is lost, the edits are still dropped */
+  }
+}
+function peekDowngraded(room: string): boolean {
+  try {
+    return sessionStorage.getItem(downgradeKey(room)) === "1";
+  } catch {
+    return false;
+  }
+}
+function clearDowngraded(room: string) {
+  try {
+    sessionStorage.removeItem(downgradeKey(room));
+  } catch {
+    /* nothing to clear */
+  }
+}
 
 const EXPORTS = new Set(["md", "html", "ocanvas", "json", "docx", "pdf"]);
 
@@ -59,7 +82,7 @@ function Splash() {
 type Boot =
   | { phase: "loading" }
   | { phase: "error"; title: string; message: string; retry?: boolean }
-  | { phase: "ready"; session: Session; collab: Collab; demo: Demo | null };
+  | { phase: "ready"; session: Session; collab: Collab; demo: Demo | null; gen: number };
 
 export default function App() {
   const [boot, setBoot] = useState<Boot>({ phase: "loading" });
@@ -82,7 +105,7 @@ export default function App() {
         const m = await import("./lib/demo");
         if (cancelled) return;
         d = m.createDemo(role);
-        setBoot({ phase: "ready", session: m.demoSession(role), collab: d.collab, demo: d });
+        setBoot({ phase: "ready", session: m.demoSession(role), collab: d.collab, demo: d, gen });
         return;
       }
       if (!ticket) {
@@ -96,7 +119,7 @@ export default function App() {
         collab = connectCollab(s);
         await collab.synced;
         if (cancelled) return;
-        setBoot({ phase: "ready", session: s, collab, demo: null });
+        setBoot({ phase: "ready", session: s, collab, demo: null, gen });
       } catch (e) {
         const msg = e instanceof SessionError ? e.message : "We couldn't reach the canvas server. Check your connection and try again.";
         postToHost("Error", { code: e instanceof SessionError ? e.code : "NETWORK", message: msg });
@@ -111,7 +134,9 @@ export default function App() {
     };
   }, [gen]);
 
-  if (boot.phase === "loading") return <Splash />;
+  // A reboot bumps `gen` one render before the effect resets `boot`: never mount the next
+  // Workspace on the previous (destroyed) session.
+  if (boot.phase === "loading" || (boot.phase === "ready" && boot.gen !== gen)) return <Splash />;
   if (boot.phase === "error")
     return (
       <div className="splash" role="alert">
@@ -146,10 +171,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [compact, setCompact] = useState(false);
   const [role, setRole] = useState<Role>(session.role);
   const [forcedReadOnly, setForcedReadOnly] = useState(false);
-  const [roleChanged, setRoleChanged] = useState(() => downgradedOnReboot && session.role !== "edit");
-  useEffect(() => {
-    downgradedOnReboot = false;
-  }, []);
+  const [roleChanged, setRoleChanged] = useState(() => !demo && peekDowngraded(session.room) && session.role !== "edit");
+  useEffect(() => clearDowngraded(session.room), [session.room]);
   // Had more than view access at some point in this Workspace (or the one before a reboot).
   const everEdited = useRef(session.role !== "view" || roleChanged);
   if (role !== "view") everEdited.current = true;
@@ -312,7 +335,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         // write): they never sync, so start over from the room's state rather than keep
         // showing text nobody else has (docs/06 §4, docs/23 PERM-03).
         if (!demo) {
-          downgradedOnReboot = everEdited.current;
+          if (everEdited.current) markDowngraded(session.room);
           onReboot();
           return;
         }
