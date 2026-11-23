@@ -36,6 +36,10 @@ type Backend interface {
 	CreateCanvasPost(rec *Record, userID string) (string, error)
 	// Permalink to a post (for the conflict-copy answer).
 	PostURL(postID string) string
+	// UpdateCanvasPost rewrites the card after a rename (props and fallback text).
+	UpdateCanvasPost(rec *Record) error
+	// Publish sends a plugin WebSocket event to everyone in the channel (cards refresh).
+	Publish(channelID, event string, payload map[string]any)
 }
 
 // Record is one canvas: its index entry in the KV store. The document bytes live in
