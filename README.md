@@ -222,10 +222,16 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 | Version | Focus |
 |---|---|
 | **v0.1** (this alpha) | The collaborative editor, databases, whiteboards and embedding |
-| v0.2 | Portable live blocks, an extensible block SDK and stable headless APIs |
-| v0.3 | Offline-first editing, version history, search and automation |
+| v0.1.x (in progress) | Host integrations (Jitsi Meet, Nextcloud, Mattermost, Element / Matrix), link previews, team templates, viewer preview, a UI that follows the reader's text size |
+| v0.2 | Stable headless APIs, an extensible block SDK, version history and webhooks |
+| v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
+
+Alongside the releases, **structured diagramming** is its own workstream ([docs/29](docs/29-DIAGRAMMING.md)):
+diagram mode on a board, shape libraries, ports, connectors that route around shapes, auto-layout,
+generic icons plus your own, and draw.io, Excalidraw and Mermaid import. It ships when each part is
+ready and does not move the release commitments above.
 
 OpenCanvas integrates with any application through standardized APIs and SDKs and depends on no
 specific CasualOffice product. Priorities and detail: [docs/09](docs/09-ROADMAP.md) and the

@@ -27,10 +27,16 @@ open to a broad developer ecosystem (ADR-038).
 | Version | Focus |
 |---|---|
 | v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
+| v0.1.x | Host integrations (Jitsi Meet, Nextcloud, Mattermost, Element / Matrix), link previews, team templates, viewer preview, a UI that follows the reader's text size |
 | v0.2 | Stable headless APIs, an extensible block SDK, version history and webhooks |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
+
+Alongside the releases, **structured diagramming** is its own workstream ([docs/29](29-DIAGRAMMING.md)):
+diagram mode on a board, shape libraries, ports, connectors that route around shapes, auto-layout,
+generic icons plus your own, and draw.io, Excalidraw and Mermaid import. It ships when each part is
+ready and does not move the release commitments above.
 
 ## Feature priorities
 
