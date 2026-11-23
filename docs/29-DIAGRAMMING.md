@@ -139,7 +139,7 @@ drags grows the state, which is why drags stay throttled.
 | Per-board budget warning; per-board diagram mode, stencils, inspector, editor placeholder for unknown types: prototypes first (ADR-011) | 2 (prototypes in progress elsewhere) |
 | O(n) per change left: projection and resolver copy the full list (10k `drag20` 20 ms); scene layer separate from React and level-of-detail for the fit view (10k pan 68 ms) | 3 |
 | `syncBoundArrows` reads the whole board on each commit; use the projection and `EdgeIndex` | 2, done (`syncArrows`, §6.2) |
-| Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid and draw.io import through FC-10 | 3 |
+| Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid import through FC-10 | 3 (draw.io and Excalidraw import: done, §7) |
 | 5k/10k browser stress, multi-client fuzz with diagram fields | 4 |
 
 ## 6. Phase 2 (engine only, built 2026-11-24)
@@ -252,3 +252,196 @@ shuffled obstacle order with no obstacle crossed; 10-seed × 15-edit incremental
 (about half the routes recomputed); deferred results with stale versions dropped; the scheduler; the
 board draws and commits the route (seen failing first: drew `M100 30 L400 30`). Readers without a
 router (0.1.x, both exporters) draw the plain elbow.
+
+## 7. Diagram import: draw.io and Excalidraw (DGM-15, built 2026-11-24)
+
+Owner request 2026-11-24. Through the FC-10 pipeline (`POST /v1/import`, 5 MB `MAX_IMPORT_BYTES`,
+SEC-39, host `import_formats`, `OC_IMPORT=off`): a **dry run** first (`dryRun=1`, the report of
+approved frame 7b), then the import, then "Undo import" (7e). Converter:
+`crates/oc-model/src/diagram_import/` (server only; the editor bundle only gains the dialog
+states). Dependencies: ADR-053 (Proposed). Mermaid (frame 7c) is not built yet.
+
+**Result.** From a document: a new board block after the caret block (or at the end), shapes moved
+so the top left is at (40, 40), relative positions kept. With `boardId`: added to that board, to
+the right of its shapes (80 px gap). Every shape gets a new id; bindings, `group` and
+`props.parent` follow. Each shape keeps `props.source` (`drawio`/`excalidraw`) and
+`props.sourceId` (its id in the file); `props` is the per-field map of ADR-045.
+
+**Report.** Counts (shapes, connectors, need a look = warning items), then one row per kind of
+change, warnings first, with up to three examples by name and "and N more". Codes: `stencil`,
+`shape_box`, `image_large`, `image_svg`, `image_type`, `image_link`, `link`, `embed` (warnings);
+`page_other`, `curved`, `colour`, `dashed`, `stroke_width`, `font`, `text_style`, `rough`,
+`fill_style`, `opacity`, `effects`, `rotation`, `arrowheads`, `nested_groups`, `layers`,
+`pen_thinned`, `unbound`, `data` (approximations); `containers`, `groups`, `elbow`, `lines`,
+`images` (kept). Nothing is dropped without a row (AGENTS.md rule 7).
+
+### 7.1 Support matrix
+
+| Source | Becomes | Kept exactly | Approximated (reported) | Not imported (reported) |
+|---|---|---|---|---|
+| draw.io file structure | `mxfile` → `diagram` → `mxGraphModel`, inline or compressed (base64 → raw deflate → URL-decoding); a bare `mxGraphModel` (`.xml`) | One page per import, chosen in the report | Layers are flattened (paint order kept) | Other pages ("Page 2, “Sequence”, is not imported") |
+| draw.io vertex, default / `rounded` / `process` | `rect` | Position (absolute, through parent groups), size, label, colour family | Fill colour → nearest board tone (`#dae8fc → Blue`) | — |
+| `ellipse`, `doubleEllipse` / `rhombus` | `ellipse` / `diamond` | as above | as above | — |
+| `text` | `text` | Text, font size | — | — |
+| Group (`group`), `swimlane`, `container=1`, any vertex with children | Container: dashed `rect` with the name as `label`; children carry `props.parent` | Membership, position, size | Container fill | — |
+| Vendor stencils `mxgraph.*` (AWS, Azure, Google Cloud, Kubernetes, Cisco, …) | Plain `rect` with the label (or the icon's name), `props.stencil` = the stencil id | Size, position, connections, label | — | The icon itself (never fetched or bundled; icons policy) |
+| Other shapes (`cylinder3`, `hexagon`, `cloud`, `note`, …) | `rect` with `props.shape` | Text, size, connections | Outline shape ("Cylinder: orders-db") | — |
+| Embedded image (`shape=image;image=data:…`) | `image` (re-encoded `data:` URL) | Bytes, size, position | — | SVG, non-PNG/JPEG/GIF/WebP bytes, over 2 MB: a dashed box keeps the place |
+| Linked image (`image=https://…`) | Dashed box with the name | Position, size | — | The image (never fetched) |
+| Edge with `source`/`target` | `arrow` bound to both shapes | Ends, label (incl. `edgeLabel` children), waypoints → `via`, exit/entry side → anchor | `curved=1` and other edge styles → elbow | Start arrowheads and arrowhead styles |
+| `edgeStyle=orthogonalEdgeStyle` (and elbow/ER/segment styles) | `route: "elbow"` | Waypoints | — | — |
+| Edge without ends | Free `arrow` from `sourcePoint` to `targetPoint` | Points | Ends to a missing shape → free connector | — |
+| HTML labels (`html=1`) | Plain text; `<br>`, `div`, `p` → line breaks; entities decoded | Text | Bold, italic, colours, alignment | `script`, `style`, `svg`, `iframe` content; links |
+| Style | `fill`, `dashed` (unfilled rects), `size` | — | `strokeWidth`, `fontFamily`, `fontStyle`, `rotation`, opacity, `sketch=1`, shadow/gradient, dashed outlines on filled shapes | — |
+| `UserObject` / `object` | Its `label` and `id` | — | — | `link` (incl. `javascript:`), tooltips and custom data ("custom properties") |
+| Excalidraw file | `{type: "excalidraw", elements, files}`, any version | — | — | `isDeleted` elements (skipped, they are deleted in the source) |
+| `rectangle` / `ellipse` / `diamond` | `rect` / `ellipse` / `diamond` | Position, size, bound label | Background colour, else stroke colour → nearest tone; hachure/cross-hatch → solid | — |
+| `text` with `containerId` | The container's label (shape or arrow) | Text, font size | — | — |
+| `text` | `text` | Text, font size | Font → board font | — |
+| `arrow` (and `line` with bindings) | `arrow`; `startBinding`/`endBinding` → bound ends (`center`) | Points (middle points → `via`), label | `elbowed` → elbow; arrowheads at the end only | — |
+| `line` without bindings, `freedraw` | `pen` | Points (≤ 1,000 per stroke, longer strokes thinned) | Colour → accent | — |
+| `image` (`files[fileId].dataURL`) | `image` | Bytes, size, position | — | SVG, wrong bytes, over 2 MB, missing file: a dashed box keeps the place |
+| `frame` / `magicframe` | Container (dashed `rect`, name as `label`; children `props.parent`) | Membership | — | — |
+| `groupIds` | `group` (the outermost group) | Membership | Groups inside groups become one group | — |
+| `embeddable` / `iframe` | `rect` "Web embed" | Position, size | — | The page (never loaded) |
+| Style | — | — | `roughness` (hand-drawn), `strokeWidth` > 2, `strokeStyle` on shapes that can't be dashed, `opacity`, `angle`, fonts | `link` |
+
+### 7.2 Untrusted input
+
+| Threat | Limit | Test |
+|---|---|---|
+| Large file | 5 MB before parsing (`MAX_IMPORT_BYTES`, browser and server) | `hostile_diagram_files_are_refused_with_a_reason`, e2e refusal |
+| Decompression bomb | Inflated page ≤ 16 MB (`MAX_INFLATED`, read through `take`) | `decompression_bombs_and_node_floods_are_refused` (64 MB of zeros in ~64 KB) |
+| Billion laughs, external entities | `roxmltree` with `allow_dtd: false`: any DTD is refused, entities never expand | `billion_laughs_and_external_entities_are_refused` (< 2 s), server and e2e |
+| Deep nesting | XML depth ≤ 64 (checked without recursion); JSON nesting ≤ 128 (serde_json) | `deep_nesting_is_refused_without_overflowing_the_stack` (50,000 levels) |
+| Node flood | ≤ 200,000 XML nodes; ≤ 20,000 shapes | `decompression_bombs_and_node_floods_are_refused` |
+| Parent cycles | Walks bounded by a visited set | `deep_nesting_…` (cycle case) |
+| Scripts in labels | Tags stripped; `script`, `style`, `svg`, `iframe`, `object` removed with their content | `labels_are_plain_text_and_scripts_links_and_svg_are_removed` |
+| `javascript:` and other links | Never imported, reported | same, `drawio_vendor_stencils_…` |
+| External URLs | Never fetched; linked images become boxes | same |
+| Image data URLs | PNG, JPEG, GIF, WebP by signature (not the declared type), ≤ 2 MB decoded; SVG never | `image_data_urls_are_checked_for_type_and_size` |
+
+### 7.3 Tests
+
+`crates/oc-model/tests/diagram_import.rs` (10, golden on `tests/fixtures/import/`: flowchart,
+architecture with vendor stencils and containers, compressed, bare `.xml`, multi-page, Excalidraw
+with bound arrows, text in shapes, images and a frame; hostile files built in the tests), unit
+tests in `diagram_import/mod.rs` (colours, HTML to text), `crates/oc-server/tests/import.rs`
+(dry run adds nothing; board block with bound connectors placed at (40, 40); adding to an open
+board to the right with new ids; refusals), `e2e/specs/v-import-diagram.spec.ts` (4: each format
+through the dialog to a board, report, Undo import, page choice, compressed file, refusals, axe in
+light and dark). Fixtures were written for these tests; no third-party diagram is copied.
+
+## 8. Diagram editing UI (DGM-14, built to the approved prototype)
+
+Prototype: `docs/prototypes/diagram-approved/DiagramScreens.html` (approved 2026-11-24, recommended
+options). Code: `web/packages/board/src/diagram/` (its own lazy chunk `diagram`, loaded the first time
+someone opens a board as a diagram; nothing in the initial bundle). Browser specs:
+`e2e/diagram/` (own config, production build in `#demo`, no server stack:
+`cd e2e && npx playwright test -c diagram/playwright.config.ts`).
+
+### 8.1 Entering and leaving (S1, DGM-14.1)
+
+- The block's top cluster gets a labelled **Diagram** button between Redo and Options; under 560 px
+  of board width it folds into the options menu. The menu always has **Open as diagram ⇧D**, and
+  ⇧D works while the board has focus.
+- The diagram window grows from the block's rectangle to the full window in 220 ms (`clip-path`
+  animation), the side panels slide in last; with `prefers-reduced-motion: reduce` it switches at
+  once. Leaving runs it in reverse. The document stays mounted under it (the block keeps a placeholder
+  of its own height), so the scroll position is unchanged.
+- Top bar: Back to document, the document title (its first heading 1) and the board name, people
+  on this board, Undo, Redo, the board options menu. Esc with nothing selected leaves (5d); the canvas
+  deselects first. Leaving puts focus back on the Diagram button and shows "Back in the document".
+- Per person: diagram mode is React state in one view. Nothing about it is written to the document
+  (`diagram.test.tsx` compares the encoded state before and after); other views of the same board
+  keep the ordinary whiteboard.
+- Board names (1d): optional `name` string on the board map (`boards/<id>.name`), set in the
+  diagram's settings panel; additive, ignored by older clients and the exporters. Without a name
+  the bar uses the heading above the block.
+
+### 8.2 Canvas (S3, DGM-14.2, part 1)
+
+- Grid: lines every *grid size* (20 by default, hidden when closer than 6 screen px) and major lines
+  every 100 board units, instead of the whiteboard's dots. Rulers along the top and left in board
+  units, labelled every 10/20/50/100/… so labels are at least 60 px apart; the selection's span is
+  highlighted.
+- Settings (right panel with nothing selected; per person, not stored): Show grid, Grid size, Show
+  rulers, Snap to grid, Snap to other shapes ("Shows guides and equal gaps"), New connectors
+  (Straight, Elbow, Avoid shapes).
+- Moving: alignment to other shapes' edges and centres (as on the whiteboard) wins on its axis; then
+  equal spacing between the two neighbours on an axis (`equalGapOffset`, pink marks with the gap);
+  then the grid (`gridOffset`, top-left corner). ⌥ moves freely.
+- Ports: pointing at a shape shows its side ports (`portsOf`: the four sides, the kind's ports and the
+  shape's own). Dragging from one draws a connector; over another shape the nearest side port snaps.
+  The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
+  `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
+  people get no ports (10c).
+- Containers (3f, 3g): `diagram:container`, registered in `src/kinds.ts` (base `rect`, title in
+  `label`, so 0.1.x clients and both exporters draw a frame). "Container" in the selection's action
+  bar wraps the selection with a 24 px margin (36 on top for the title) and places it just behind
+  the lowest selected shape. In diagram mode, moving a container moves every shape whose box is
+  fully inside it, nested containers and their contents included (`containedIn`); membership is
+  geometric, so nothing new is stored. The ordinary whiteboard moves a container on its own.
+- Bends (3e): your own bends (`via`) are drawn as diamonds in diagram mode. Dragging a segment's
+  handle still inserts one bend; moving the whole segment is left.
+
+
+### 8.6 Auto-layout (S6, DGM-14.6, engine built; dialog and preview to come)
+
+- Engine: Dagre (`@dagrejs/dagre` 1.1.4, MIT, ADR-047 §5), loaded by dynamic import the first time
+  Auto-layout opens (`diagram/layout/load.ts`), inside the lazy diagram chunk.
+- `computeLayout(dagre, shapes, options)` is pure: direction (down, right), spacing (compact 24/40,
+  normal 48/72, roomy 80/120: gap between shapes / between layers), scope (the whole diagram, the
+  selected shapes, inside a container), keep containers (a container is a Dagre compound node and is
+  resized around its children, 24 padding plus room for its label), keep your bends (off by
+  default). Nodes, parents and edges are given to Dagre sorted by id, so the same board gives the
+  same layout whatever the order of its shapes. Shapes keep their sizes; the arranged group keeps
+  its top-left corner. Connectors bound at both ends to arranged shapes rank the layers.
+- `applyLayout` writes every position, clears the bends of those connectors (unless kept) and
+  refreshes their `pts` in one Yjs transaction: one Undo restores all of it.
+- Tests: `web/packages/board/src/diagram-layout.test.ts`.
+
+
+### 8.3 Keyboard and accessibility (S5, DGM-14.5)
+
+- Outline (5a): ⌥O or the top-bar Outline button opens it on the left. A tree of containers (frames:
+  rectangles with a corner label or a dashed border that hold other shapes entirely; the smallest one
+  wins) and their shapes in board order, then connectors ("A → B" or their label). ↑↓ move, → opens
+  a container or goes into it, ← closes or goes to the parent, Enter selects on the canvas (one
+  shared selection), F2 renames, ⌥↑/⌥↓ moves the shape before/after its sibling in the board order
+  (only that id is re-inserted, so concurrent edits merge). `keyboard.ts` `outlineTree`, `siblingOf`.
+- Announcements go to one polite live region of the diagram window, e.g. "Payments service,
+  Rectangle, in VPC, 1 connection, selected. 3 of 5." (`announce`).
+- Commands ⌘K / Ctrl+K (5b): one search for actions (filtered by the selection: Duplicate, Delete,
+  Group, Start a connector need an editor and a selection), shapes (Go to) and help. The best match
+  is first; typing a shape's name jumps to it. Actions run as the canvas's own shortcuts, dispatched
+  on the canvas, so there is one implementation of each.
+- Keyboard connector (5c): C on the canvas with one shape selected. Targets in order of distance
+  (Tab, ⇧Tab), arrows pick the target's side, Enter connects in the "New connectors" style, Esc
+  cancels. The hint bar sits over the canvas while connecting.
+- Shortcuts sheet (5d): ?; also from Commands.
+- Focus: 2.5 px (`.15625rem`) accent ring with a 2 px offset everywhere in the window.
+
+
+
+### 8.3 Properties panel, something selected (S4, DGM-14.4)
+
+Code: `diagram/props/` (`Properties.tsx`, `fields.ts`, `styles.ts`), in the lazy diagram chunk. The
+shell shows it in the right panel whenever the selection is not empty; with nothing selected the
+diagram's settings stay. Every input writes **one key**: a shape key (`text`, `fill`, `kind`, `route`,
+`routing`, `dashed`) or one `props` key through `updateShape`, which merges `props` per field
+(ADR-045), so two people editing different fields of one shape both keep their change
+(`properties.test.tsx` merges two docs). Text inputs write on blur or Enter; Esc restores.
+
+| Selection | Sections | `props` keys |
+|---|---|---|
+| UML class (`uml:class`, `uml:interface`, `uml:enumeration`) | Class (Name = `text`, Stereotype, Abstract), Attributes, Methods | `stereotype`, `abstract`, `attributes`, `methods` (lists of `{vis, name, type}`) |
+| ERD entity (`erd:entity`) | Entity (Name, Note), Columns (key – / PK / FK, name, type; FK asks for References; Can be empty), Relationships (from the connectors bound to it, "many to one" from their cardinality) | `note`, `columns` (list of `{key, name, type, ref?, nullable?}`) |
+| Network node (`net:*`) | Text (Name, Detail), Shape (Kind, Colour), Connections (in / out) | `detail`; Kind writes only `kind`, so name, colour and connections (bindings by id) stay |
+| Connector | Ends (shape · port), Label, Route (Straight / Elbow, Avoid shapes), Cardinality when an end is an ERD entity, else Line (start/end arrowhead, pattern) | `startCard`, `endCard`; `startArrow`, `endArrow`, `pattern` (also writes `dashed` for older readers) |
+| Several shapes, or other shapes | Text (text size, colour); a value that differs shows "Mixed" and writes to all | — |
+
+Lists reorder by dragging the grip or with ⌥↑ / ⌥↓ on a row (the list is one `props` key). View-only
+people get the same sections read only, without add, remove or grips (10c). Not yet: the canvas
+drawing of the new `props` (compartments, column rows, cardinality marks, arrowheads) is S2/S3's
+renderer work; the panel writes the fields.

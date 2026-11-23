@@ -43,7 +43,7 @@ export function targets() {
   };
   walk(path.join(PKG, "editor/src"));
   walk(path.join(PKG, "ui/src"));
-  return [...css, path.join(PKG, "database/src/styles.ts"), path.join(PKG, "board/src/styles.ts")];
+  return [...css, path.join(PKG, "database/src/styles.ts"), path.join(PKG, "board/src/styles.ts"), path.join(PKG, "board/src/diagram/styles.ts")];
 }
 
 const CONVERT = new RegExp(

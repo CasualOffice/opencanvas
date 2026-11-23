@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+# Single node with the dashboard ConfigMap, ServiceMonitor (bearer token) and PrometheusRule.
+dev: true
+grafanaDashboard:
+  enabled: true
+serviceMonitor:
+  enabled: true
+  labels: { release: kube-prometheus-stack }
+  bearerTokenSecret: { name: opencanvas-metrics, key: OC_METRICS_TOKEN }
+prometheusRule:
+  enabled: true
+  labels: { release: kube-prometheus-stack }
+  memoryLimitBytes: 2147483648
+resources:
+  limits: { memory: 2Gi }

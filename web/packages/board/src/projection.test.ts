@@ -23,7 +23,8 @@ function live(doc: Y.Doc, id: string) {
   return { p, off, calls: () => calls };
 }
 
-describe("BoardProjection", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("BoardProjection", { timeout: 60_000 }, () => {
   it("equals readShapes after every kind of change", () => {
     const doc = new Y.Doc();
     const bid = createBoard(doc, "flowchart");

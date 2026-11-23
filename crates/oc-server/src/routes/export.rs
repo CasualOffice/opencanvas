@@ -50,7 +50,11 @@ fn filename(name: &str, ext: &str) -> String {
 }
 
 /// The session's live document (or the host's file when no room is open).
-async fn load(state: &SharedState, host: &Arc<HostConfig>, grant: &Grant) -> Result<Doc, ApiError> {
+pub(super) async fn load(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+) -> Result<Doc, ApiError> {
     let bytes = state
         .rooms
         .state(host, grant)
@@ -178,7 +182,7 @@ pub async fn export_board(
 
 /// Current names of the canvas's members (docs/21 revision 2): the members callback, then the
 /// token's `members`, then the saved `people` map. Anyone else keeps the snapshot label.
-async fn member_names(
+pub(super) async fn member_names(
     state: &SharedState,
     host: &HostConfig,
     grant: &Grant,
@@ -246,8 +250,25 @@ async fn images(
     images
 }
 
-/// Renders `doc` as `fmt`: (body, content type, file extension).
+/// Renders `doc` as `fmt`: (body, content type, file extension). Counted in
+/// `oc_exports_total{format,result}` and timed in `oc_export_seconds{format}`.
 pub(super) async fn render(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    doc: &Doc,
+    fmt: &str,
+    req: RenderReq<'_>,
+) -> Result<(Body, &'static str, &'static str), ApiError> {
+    let started = std::time::Instant::now();
+    let out = render_once(state, host, doc, fmt, req).await;
+    // Unknown formats are not labels (a client could make up any number of them).
+    if let Some(format) = FORMATS.split(", ").find(|f| *f == fmt) {
+        state.metrics.export(format, out.is_ok(), started.elapsed());
+    }
+    out
+}
+
+async fn render_once(
     state: &SharedState,
     host: &Arc<HostConfig>,
     doc: &Doc,

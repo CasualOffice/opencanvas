@@ -99,6 +99,29 @@ pub struct HostClient {
     wopi_names: Arc<Mutex<HashMap<String, String>>>,
     /// WOPI proof keys: every WOPI call is signed (docs/05 §6.4).
     proof: Option<crate::proof::ProofKeys>,
+    /// `oc_host_callback_seconds{host,op}` and `oc_host_callbacks_total{host,op,result}`.
+    metrics: Arc<crate::metrics::Metrics>,
+}
+
+/// Result label of a host call that failed.
+fn err_class(e: &HostError) -> &'static str {
+    match e {
+        HostError::Status(s) if s.is_client_error() => "4xx",
+        HostError::Status(_) => "5xx",
+        HostError::Http(_) => "unreachable",
+        _ => "error",
+    }
+}
+
+/// Result label of a host answer carried as a status code.
+fn status_result(s: StatusCode) -> &'static str {
+    if s.is_success() {
+        "ok"
+    } else if s.is_client_error() {
+        "4xx"
+    } else {
+        "5xx"
+    }
 }
 
 /// Largest image fetched for an export.
@@ -175,7 +198,19 @@ impl HostClient {
             wopi_names: Arc::default(),
             access_cache: Arc::default(),
             proof: None,
+            metrics: Arc::default(),
         }
+    }
+
+    /// Records host calls in these metrics.
+    pub fn with_metrics(mut self, metrics: Arc<crate::metrics::Metrics>) -> Self {
+        self.metrics = metrics;
+        self
+    }
+
+    fn record(&self, host: &HostConfig, op: &str, result: &str, started: std::time::Instant) {
+        self.metrics
+            .host_call(&host.id, op, result, started.elapsed());
     }
 
     /// Gives the client the store WOPI-mode assets live in.
@@ -422,6 +457,19 @@ impl HostClient {
         token: &str,
         file_id: &str,
     ) -> Result<Fetched, HostError> {
+        let started = std::time::Instant::now();
+        let r = self.get_file_once(host, token, file_id).await;
+        let result = r.as_ref().map_or_else(err_class, |_| "ok");
+        self.record(host, "load", result, started);
+        r
+    }
+
+    async fn get_file_once(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        file_id: &str,
+    ) -> Result<Fetched, HostError> {
         if let SaveTarget::Wopi(src) = SaveTarget::of(host, file_id)? {
             return self.wopi_get(host, &src, token).await;
         }
@@ -460,6 +508,23 @@ impl HostClient {
     }
 
     pub async fn put_file(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        req: PutRequest<'_>,
+    ) -> Result<PutOutcome, HostError> {
+        let started = std::time::Instant::now();
+        let r = self.put_file_once(host, token, req).await;
+        let result = match &r {
+            Ok(PutOutcome::Saved { .. }) => "ok",
+            Ok(PutOutcome::Conflict) => "conflict",
+            Err(e) => err_class(e),
+        };
+        self.record(host, "save", result, started);
+        r
+    }
+
+    async fn put_file_once(
         &self,
         host: &HostConfig,
         token: &str,
@@ -508,6 +573,23 @@ impl HostClient {
     /// Conflict policy `copy`: `POST /files/{id}/copies` with the session's `.ocanvas`.
     /// Returns the new file's id and URL.
     pub async fn post_copy(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        file_id: &str,
+        body: Vec<u8>,
+        idempotency_key: &str,
+    ) -> Result<(String, String), HostError> {
+        let started = std::time::Instant::now();
+        let r = self
+            .post_copy_once(host, token, file_id, body, idempotency_key)
+            .await;
+        let result = r.as_ref().map_or_else(err_class, |_| "ok");
+        self.record(host, "copy", result, started);
+        r
+    }
+
+    async fn post_copy_once(
         &self,
         host: &HostConfig,
         token: &str,
@@ -638,6 +720,23 @@ impl HostClient {
         body: Vec<u8>,
         idempotency_key: &str,
     ) -> Result<StatusCode, HostError> {
+        let started = std::time::Instant::now();
+        let r = self
+            .post_notification_once(host, path, token, body, idempotency_key)
+            .await;
+        let result = r.as_ref().map_or_else(err_class, |s| status_result(*s));
+        self.record(host, "notify", result, started);
+        r
+    }
+
+    async fn post_notification_once(
+        &self,
+        host: &HostConfig,
+        path: &[&str],
+        token: &str,
+        body: Vec<u8>,
+        idempotency_key: &str,
+    ) -> Result<StatusCode, HostError> {
         let url = Self::url(host, path)?;
         let res = self
             .request(host, token, Method::POST, url, body, 5)
@@ -667,7 +766,11 @@ impl HostClient {
         if let Some(a) = cached {
             return Ok(a);
         }
-        let a = self.access_uncached(host, file_id, user_id).await?;
+        let started = std::time::Instant::now();
+        let r = self.access_uncached(host, file_id, user_id).await;
+        let result = r.as_ref().map_or_else(err_class, |_| "ok");
+        self.record(host, "access", result, started);
+        let a = r?;
         if let Ok(mut m) = self.access_cache.lock() {
             if m.len() > 50_000 {
                 m.retain(|_, (at, _)| at.elapsed() < ACCESS_TTL);
@@ -737,6 +840,23 @@ impl HostClient {
     /// `GET {callback_base}/files/{fileId}/members?q=&limit=` (docs/21 revision 2): the people
     /// with access to this file, signed like every callback. Returns status and body.
     pub async fn members(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        file_id: &str,
+        q: &str,
+        limit: usize,
+    ) -> Result<(StatusCode, Bytes), HostError> {
+        let started = std::time::Instant::now();
+        let r = self.members_once(host, token, file_id, q, limit).await;
+        let result = r
+            .as_ref()
+            .map_or_else(err_class, |(s, _)| status_result(*s));
+        self.record(host, "members", result, started);
+        r
+    }
+
+    async fn members_once(
         &self,
         host: &HostConfig,
         token: &str,

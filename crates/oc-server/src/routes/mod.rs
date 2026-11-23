@@ -14,6 +14,7 @@ pub mod preview;
 mod proxy;
 mod templates;
 pub mod unfurl;
+pub mod v1;
 
 pub use collab::write_frames;
 
@@ -24,7 +25,7 @@ use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::{delete, get, post};
+use axum::routing::{get, post};
 use serde_json::json;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
@@ -83,6 +84,11 @@ impl IntoResponse for ApiError {
         )
             .into_response()
     }
+}
+
+/// The `X-OpenCanvas-Callback-Token` a host API call carries (empty when absent).
+pub fn callback_token_of(headers: &axum::http::HeaderMap) -> String {
+    api::callback_token(headers)
 }
 
 /// Resolves a ticket into its grant and host; expired or unknown tickets are rejected.
@@ -243,19 +249,14 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/members", get(proxy::members))
         .route("/hosting/discovery", get(launch::discovery))
         .route("/hosting/capabilities", get(launch::capabilities))
-        .route("/v1/files/{file_id}/role", post(api::set_role))
-        .route("/v1/files/{file_id}/session", delete(api::close_session))
-        .route("/v1/files/{file_id}/members/invalidate", post(api::invalidate_members))
-        .route("/v1/files/{file_id}/patch", post(api::patch).layer(DefaultBodyLimit::max(body_limit)))
-        .route("/v1/files/{file_id}/commit", post(api::commit))
         .route("/v1/import", post(import::import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
-        .route("/v1/files/{file_id}/import", post(import::host_import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
         .route("/v1/templates", get(templates::index))
         .route("/v1/templates/undo", post(templates::undo))
         .route("/v1/templates/{id}/apply", post(templates::apply))
-        .route("/v1/convert", post(api::convert).layer(DefaultBodyLimit::max(body_limit)))
         .route("/mcp/{host_id}", post(mcp::mcp).layer(DefaultBodyLimit::max(body_limit)))
         .route("/.well-known/oauth-protected-resource/mcp/{host_id}", get(mcp::resource_metadata))
+        // Headless API v1 and the 0.1 host routes it keeps as aliases (docs/27 §4).
+        .merge(v1::router(body_limit))
         .route("/healthz", get(ops::healthz))
         .route("/readyz", get(ops::readyz))
         .route("/metrics", get(ops::metrics))
@@ -279,6 +280,22 @@ pub fn router(state: SharedState) -> Router {
                 }
             },
         ))
+        .layer({
+            // OPS-01: `oc_http_responses_total{code}` by status class.
+            let m = state.metrics.clone();
+            axum::middleware::from_fn(
+                move |req: Request<axum::body::Body>, next: axum::middleware::Next| {
+                    let m = m.clone();
+                    async move {
+                        let res = next.run(req).await;
+                        let class = crate::metrics::status_class(res.status().as_u16());
+                        m.http_responses
+                            .inc(crate::metrics::labels(&[("code", class)]));
+                        res
+                    }
+                },
+            )
+        })
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<_>| {
             tracing::info_span!("http", method = %req.method(), path = %redacted_path(req.uri().path()))
         }))

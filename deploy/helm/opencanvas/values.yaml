@@ -209,3 +209,31 @@ affinity: {}
 topologySpreadConstraints: []
 extraVolumes: []
 extraVolumeMounts: []
+
+# -- Monitoring (OPS-01; docs/13 "Dashboards and alerts"). All off by default.
+# The Grafana dashboard as a ConfigMap the Grafana sidecar picks up (kube-prometheus-stack:
+# grafana.sidecar.dashboards.enabled, label grafana_dashboard="1").
+grafanaDashboard:
+  enabled: false
+  # Namespace the sidecar watches; default the release namespace.
+  namespace: ""
+  label: grafana_dashboard
+  labelValue: "1"
+  annotations: {}
+# -- prometheus-operator ServiceMonitor for /metrics (needs the monitoring.coreos.com CRDs).
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  # Labels your Prometheus selects ServiceMonitors by (kube-prometheus-stack: release: <name>).
+  labels: {}
+  # With OC_METRICS_TOKEN set (secrets.env), the Secret and key that hold the same token.
+  bearerTokenSecret:
+    name: ""
+    key: OC_METRICS_TOKEN
+# -- prometheus-operator PrometheusRule with the alerts in files/opencanvas-alerts.yml.
+prometheusRule:
+  enabled: false
+  labels: {}
+  # OpenCanvasMemoryNearLimit fires at 85 % of this; keep it equal to resources.limits.memory.
+  memoryLimitBytes: 1073741824

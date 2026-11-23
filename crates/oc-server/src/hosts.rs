@@ -14,7 +14,7 @@ use serde::Deserialize;
 pub const TEMPLATE_JSON_TAG: &[u8] = b"\0oc-template-json\0";
 
 /// What `POST /v1/import` reads (docs/23 FC-10).
-pub const IMPORT_FORMATS: [&str; 3] = ["md", "html", "csv"];
+pub const IMPORT_FORMATS: [&str; 5] = ["md", "html", "csv", "drawio", "excalidraw"];
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct HostConfig {
@@ -78,6 +78,10 @@ pub struct HostConfig {
     /// `[host.ai]` (docs/24 §7.3): AI and MCP settings (agent and MCP); read through `crate::ai::HostAi`.
     #[serde(default)]
     pub ai: toml::Table,
+    /// `[host.api]` (docs/27 §4, ADR-041): headless API v1 settings (token audience and
+    /// issuer, default write mode, admin scope for tokens, rate limits).
+    #[serde(default)]
+    pub api: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -169,6 +173,21 @@ impl HostConfig {
         }
     }
 
+    /// `[host.flags] api_v1 = true` (docs/27 §5): the headless API under `/api/v1` answers for
+    /// this host. Off by default in 0.2.0-alpha; the 0.1 host routes work either way.
+    pub fn api_v1(&self) -> bool {
+        self.flags.get("api_v1").and_then(|v| v.as_bool()) == Some(true)
+    }
+
+    /// `[host.api] default_mode = "direct" | "suggest"`: where API writes to existing blocks
+    /// land when the call does not say. Default `direct` (a program asked for the change).
+    pub fn api_default_mode(&self) -> crate::ai::tools::WriteMode {
+        match self.api.get("default_mode").and_then(|v| v.as_str()) {
+            Some("suggest") => crate::ai::tools::WriteMode::Suggest,
+            _ => crate::ai::tools::WriteMode::Direct,
+        }
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
@@ -256,6 +275,9 @@ impl Hosts {
                     "host {}: [host.flags] temporary_wording takes \"meeting\" or \"room\"",
                     h.id
                 );
+            }
+            if h.flags.get("api_v1").is_some_and(|v| v.as_bool().is_none()) {
+                bail!("host {}: [host.flags] api_v1 takes true or false", h.id);
             }
             if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] unfurl takes true or false", h.id);

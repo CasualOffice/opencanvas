@@ -89,7 +89,8 @@ describe("board collaboration", () => {
   });
 });
 
-describe("BoardBlock render", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("BoardBlock render", { timeout: 60_000 }, () => {
   let cleanup: (() => void) | null = null;
   afterEach(() => {
     cleanup?.();

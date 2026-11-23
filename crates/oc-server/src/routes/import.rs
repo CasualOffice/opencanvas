@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-//! Server-side import (docs/23 FC-10): `POST /v1/import?format=md|html|csv&ticket=` from the
-//! editor session and `POST /v1/files/:fileId/import?format=&author=` from the host. The body
-//! is the file. Markdown and HTML become blocks (`oc-model` converters; HTML through the same
-//! URL rules as the editor: scripts, styles, event attributes and unsafe links are dropped);
-//! CSV becomes one database block with detected field types. Either lands after `blockId`, or
-//! at the end, as one Yjs transaction through the room. Edit role only.
+//! Server-side import (docs/23 FC-10): `POST /v1/import?format=md|html|csv|drawio|excalidraw
+//! &ticket=` from the editor session and `POST /v1/files/:fileId/import?format=&author=` from
+//! the host. The body is the file. Markdown and HTML become blocks (`oc-model` converters; HTML
+//! through the same URL rules as the editor: scripts, styles, event attributes and unsafe links
+//! are dropped); CSV becomes one database block with detected field types. Either lands after
+//! `blockId`, or at the end, as one Yjs transaction through the room. Edit role only.
+//! draw.io and Excalidraw (DGM-15, docs/29 §7) become a board block, or join `boardId`;
+//! `dryRun=1` returns the conversion report and adds nothing; `page` picks a draw.io page.
 //!
 //! Gate: `[host.flags] import_formats` (absent or empty: off) and `OC_IMPORT=off` for all.
 
@@ -37,26 +39,88 @@ pub const MAX_IMPORT_ROWS: usize = crate::ai::tools::MAX_IMPORT_ROWS;
 /// At most this many distinct values (and each used twice on average) make a `select`.
 const SELECT_MAX_OPTIONS: usize = 20;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct ImportParams {
     #[serde(default)]
-    ticket: String,
+    pub(super) ticket: String,
     #[serde(default)]
-    format: String,
+    pub(super) format: String,
     #[serde(default, rename = "blockId")]
-    block_id: Option<String>,
+    pub(super) block_id: Option<String>,
     /// Database name for CSV (default "Imported table").
     #[serde(default)]
-    name: Option<String>,
+    pub(super) name: Option<String>,
     /// Host REST only: who the import is attributed to.
     #[serde(default)]
-    author: Option<String>,
+    pub(super) author: Option<String>,
     #[serde(default, rename = "authorName")]
-    author_name: Option<String>,
+    pub(super) author_name: Option<String>,
     /// CSV only: the field type per column, as chosen in the import dialog (JSON array;
     /// the first column is always `title`). Absent means detected types.
     #[serde(default)]
-    types: Option<String>,
+    pub(super) types: Option<String>,
+    /// Diagrams (DGM-15): `1` converts and returns the report only; nothing is added.
+    #[serde(default, rename = "dryRun")]
+    pub(super) dry_run: Option<String>,
+    /// Diagrams: the page to import (0-based; draw.io files can have several).
+    #[serde(default)]
+    pub(super) page: Option<usize>,
+    /// Diagrams: add to this open board instead of a new board block.
+    #[serde(default, rename = "boardId")]
+    pub(super) board_id: Option<String>,
+}
+
+/// A diagram file (DGM-15): a dry run returns `{format, dryRun, report}`; an import also adds
+/// the shapes (a new board block after `blockId` or at the end, or onto `boardId`) and returns
+/// `{boardId, blockIds, shapeIds, shapes, connectors, report}`.
+async fn import_diagram(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    p: &ImportParams,
+    format: oc_model::diagram_import::Format,
+    body: &[u8],
+) -> Result<Value, ApiError> {
+    let c = oc_model::diagram_import::convert(format, body, p.page.unwrap_or(0)).map_err(|e| {
+        if e.code == "too_large" {
+            too_large(e.message)
+        } else {
+            invalid(e.message)
+        }
+    })?;
+    if matches!(p.dry_run.as_deref(), Some("1" | "true")) {
+        return Ok(json!({"format": p.format, "dryRun": true, "report": c.report}));
+    }
+    if c.shapes.is_empty() {
+        return Err(invalid("There is nothing on this page to import."));
+    }
+    let mut input = json!({"shapes": c.shapes});
+    if let Some(b) = &p.board_id {
+        input["boardId"] = json!(b);
+    } else if let Some(id) = &p.block_id {
+        input["afterBlockId"] = json!(id);
+    }
+    let ctx = ToolCtx {
+        host_id: host.id.clone(),
+        file_id: grant.file.id.clone(),
+        user: grant.clone(),
+        origin: format!("import:{}", grant.user.id),
+        mode_default: WriteMode::Direct,
+    };
+    let v = LiveTools::new(state.clone())
+        .import_board(&ctx, input)
+        .await
+        .map_err(tool_error)?;
+    let block: Vec<Value> = v["blockId"]
+        .as_str()
+        .map(|b| json!(b))
+        .into_iter()
+        .collect();
+    Ok(
+        json!({"format": p.format, "boardId": v["boardId"], "blockIds": block,
+        "shapeIds": v["shapeIds"], "shapes": c.report["counts"]["shapes"],
+        "connectors": c.report["counts"]["connectors"], "report": c.report}),
+    )
 }
 
 /// Field types a CSV column may be imported as.
@@ -78,7 +142,11 @@ pub fn formats(state: &SharedState, host: &HostConfig, role: Role) -> Vec<String
     host.import_formats()
 }
 
-fn check_format(state: &SharedState, host: &HostConfig, format: &str) -> Result<(), ApiError> {
+pub(super) fn check_format(
+    state: &SharedState,
+    host: &HostConfig,
+    format: &str,
+) -> Result<(), ApiError> {
     if !IMPORT_FORMATS.contains(&format) {
         return Err(invalid(format!(
             "format must be one of {}",
@@ -142,7 +210,7 @@ pub async fn host_import(
     save_if_idle(&state, &host, &grant, out, live).await
 }
 
-async fn run(
+pub(super) async fn run(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,
@@ -153,6 +221,12 @@ async fn run(
         return Err(too_large(format!(
             "imports are at most {MAX_IMPORT_BYTES} bytes"
         )));
+    }
+    if let Some(f) = oc_model::diagram_import::Format::parse(&p.format) {
+        let out = import_diagram(state, host, grant, p, f, body).await?;
+        tracing::info!(host = %host.id, room = %grant.room, format = %p.format,
+            dry_run = out["dryRun"] == true, "import");
+        return Ok(out);
     }
     let text = std::str::from_utf8(body).map_err(|_| invalid("the file must be UTF-8 text"))?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);

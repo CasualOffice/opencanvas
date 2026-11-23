@@ -107,6 +107,16 @@ pub fn canvas_patch(doc: &Doc, input: &Value, w: &Writer) -> Step {
         )));
     }
     let d = doc_json(doc);
+    // `If-Match: "<doc rev>"` on `POST /api/v1/…/blocks:batch` (docs/27 §4.2): checked in the
+    // same room step that applies the ops, so nothing can land in between.
+    if let Some(want) = input["ifMatchDoc"].as_str() {
+        let now = rev(&d["content"]);
+        if now != want {
+            return Err(ToolError::Stale(read::wrap(
+                json!({"rev": now, "stale": []}),
+            )));
+        }
+    }
     let mut stale = Vec::new();
     let mut deletes = 0;
     let mut changes_existing = false;
@@ -182,9 +192,11 @@ pub fn canvas_patch(doc: &Doc, input: &Value, w: &Writer) -> Step {
     }
     flush(&mut pending, &mut block_ids)?;
     let update = s.transact().encode_state_as_update_v1(&before);
+    let after = rev(&doc_json(&s)["content"]);
     Ok((
         Some(update),
-        json!({"applied": ops.len(), "mode": "direct", "blockIds": block_ids, "stale": []}),
+        json!({"applied": ops.len(), "mode": "direct", "blockIds": block_ids, "stale": [],
+            "rev": after}),
     ))
 }
 
@@ -207,10 +219,14 @@ fn suggest(doc: &Doc, ops: &[Value], d: &Value, w: &Writer) -> Step {
         "ops": ops, "status": "pending", "at": crate::util::now_ms(),
     });
     let sid = id.clone();
+    let doc_rev = rev(&d["content"]);
     edit(doc, move |_, txn| {
         let map = txn.get_or_insert_map(SUGGESTIONS);
         map.insert(txn, sid.as_str(), json_to_any(&record));
-        Ok(json!({"applied": 0, "mode": "suggest", "suggestionId": sid, "blockIds": []}))
+        Ok(
+            json!({"applied": 0, "mode": "suggest", "suggestionId": sid, "blockIds": [],
+            "rev": doc_rev}),
+        )
     })
 }
 
@@ -706,6 +722,167 @@ pub fn board_add_shapes(doc: &Doc, input: &Value) -> Step {
     Ok((
         Some(update),
         json!({"boardId": board_id, "blockId": block, "shapeIds": refs, "created": ids}),
+    ))
+}
+
+/// Gap between an open board's shapes and an import placed to their right.
+const IMPORT_GAP: f64 = 80.0;
+/// Where an import starts on a new board.
+const IMPORT_ORIGIN: f64 = 40.0;
+
+fn shift_pts(v: &mut Value, dx: f64, dy: f64) {
+    if let Some(a) = v.as_array_mut() {
+        for p in a.iter_mut() {
+            if let Some(q) = p.as_array_mut()
+                && q.len() == 2
+            {
+                q[0] = json!(q[0].as_f64().unwrap_or(0.0) + dx);
+                q[1] = json!(q[1].as_f64().unwrap_or(0.0) + dy);
+            }
+        }
+    }
+}
+
+/// A diagram import (DGM-15, `oc_model::diagram_import`): `{shapes, boardId?, afterBlockId?}`.
+/// Shapes get new ids (bindings, `group` and `props.parent` follow), keep their relative
+/// positions and land at the top left of a new board block, or to the right of an open board's
+/// shapes. `props` is written as a nested map, one key per property (ADR-045).
+pub fn import_board(doc: &Doc, input: &Value) -> Step {
+    let shapes = input["shapes"]
+        .as_array()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ToolError::BadInput("nothing to import".into()))?;
+    if shapes.len() > oc_model::diagram_import::MAX_SHAPES {
+        return Err(ToolError::BadInput("too many shapes".into()));
+    }
+    let d = doc_json(doc);
+    let s = scratch(doc);
+    let before = s.transact().state_vector();
+    // New ids for shapes and groups.
+    let mut ids: std::collections::HashMap<String, String> = Default::default();
+    let mut groups: std::collections::HashMap<String, String> = Default::default();
+    for sh in shapes {
+        let old = sh["id"].as_str().unwrap_or_default().to_string();
+        ids.insert(old, new_id("s"));
+    }
+    // Placement: the imported shapes' box, moved to the new board's origin or beside the open
+    // board's shapes (connectors aside: their points follow).
+    let extent = |list: &mut dyn Iterator<Item = &Value>| {
+        let (mut x0, mut y0, mut x1) = (f64::MAX, f64::MAX, f64::MIN);
+        for v in list.filter(|v| v["type"] != "arrow") {
+            let (x, y) = (
+                v["x"].as_f64().unwrap_or(0.0),
+                v["y"].as_f64().unwrap_or(0.0),
+            );
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x + v["w"].as_f64().unwrap_or(0.0));
+        }
+        (x0 < f64::MAX).then_some((x0, y0, x1))
+    };
+    let (sx, sy, _) = extent(&mut shapes.iter()).unwrap_or((0.0, 0.0, 0.0));
+    let (board_id, block, (tx, ty)) = match input["boardId"].as_str() {
+        Some(id) => {
+            let Some(board) = d["boards"].get(id).filter(|b| b.is_object()) else {
+                return Err(ToolError::NotFound(format!("no board {id:?}")));
+            };
+            let at = board["shapes"]
+                .as_object()
+                .and_then(|m| extent(&mut m.values()))
+                .map_or((IMPORT_ORIGIN, IMPORT_ORIGIN), |(_, y0, x1)| {
+                    (x1 + IMPORT_GAP, y0)
+                });
+            (id.to_string(), None, at)
+        }
+        None => {
+            let id = new_id("bd");
+            let block = insert_block(
+                &s,
+                input,
+                json!({"type": "board", "attrs": {"boardId": id}}),
+            )?;
+            let mut txn = s.transact_mut();
+            let boards = txn.get_or_insert_map(roots::BOARDS);
+            boards.insert(
+                &mut txn,
+                id.as_str(),
+                json_to_in("", &json!({"shapes": {}, "order": []})),
+            );
+            (id, Some(block), (IMPORT_ORIGIN, IMPORT_ORIGIN))
+        }
+    };
+    let (dx, dy) = (tx - sx, ty - sy);
+    let mut placed: Vec<(String, Value)> = Vec::with_capacity(shapes.len());
+    for sh in shapes {
+        let mut v = sh.clone();
+        let id = ids[sh["id"].as_str().unwrap_or_default()].clone();
+        if let Some(o) = v.as_object_mut() {
+            o.remove("id");
+        }
+        for k in ["x", "y"] {
+            if let Some(n) = v[k].as_f64() {
+                v[k] = json!(n + if k == "x" { dx } else { dy });
+            }
+        }
+        shift_pts(&mut v["pts"], dx, dy);
+        shift_pts(&mut v["via"], dx, dy);
+        for end in ["start", "end"] {
+            let new = v[end]["shapeId"].as_str().and_then(|b| ids.get(b)).cloned();
+            match new {
+                Some(n) => v[end]["shapeId"] = json!(n),
+                None => {
+                    if let Some(o) = v.as_object_mut() {
+                        o.remove(end);
+                    }
+                }
+            }
+        }
+        if let Some(g) = v["group"].as_str().map(str::to_string) {
+            let n = groups.entry(g).or_insert_with(|| new_id("g")).clone();
+            v["group"] = json!(n);
+        }
+        if let Some(p) = v["props"]["parent"]
+            .as_str()
+            .and_then(|p| ids.get(p))
+            .cloned()
+        {
+            v["props"]["parent"] = json!(p);
+        }
+        placed.push((id, v));
+    }
+    {
+        let mut txn = s.transact_mut();
+        let boards = txn.get_or_insert_map(roots::BOARDS);
+        let board = sub_map(&txn, &boards, &board_id)
+            .ok_or_else(|| ToolError::NotFound(format!("no board {board_id:?}")))?;
+        let shapes_map = match sub_map(&txn, &board, "shapes") {
+            Some(m) => m,
+            None => board.insert(&mut txn, "shapes", MapPrelim::default()),
+        };
+        let order = match sub_array(&txn, &board, "order") {
+            Some(a) => a,
+            None => board.insert(&mut txn, "order", yrs::ArrayPrelim::default()),
+        };
+        for (id, v) in &placed {
+            let m = shapes_map.insert(&mut txn, id.as_str(), MapPrelim::default());
+            for (k, val) in v.as_object().into_iter().flatten() {
+                if k == "props" && val.is_object() {
+                    let p = m.insert(&mut txn, "props", MapPrelim::default());
+                    for (pk, pv) in val.as_object().into_iter().flatten() {
+                        p.insert(&mut txn, pk.as_str(), json_to_any(pv));
+                    }
+                } else {
+                    m.insert(&mut txn, k.as_str(), json_to_any(val));
+                }
+            }
+            order.push_back(&mut txn, Any::from(id.as_str()));
+        }
+    }
+    let update = s.transact().encode_state_as_update_v1(&before);
+    let created: Vec<&String> = placed.iter().map(|(i, _)| i).collect();
+    Ok((
+        Some(update),
+        json!({"boardId": board_id, "blockId": block, "shapeIds": created}),
     ))
 }
 

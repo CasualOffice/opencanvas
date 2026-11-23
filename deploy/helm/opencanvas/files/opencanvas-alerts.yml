@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+#
+# OpenCanvas alert rules (OPS-01). Plain Prometheus rules file; the Helm chart wraps the same
+# groups in a PrometheusRule (prometheusRule.enabled). Runbook: docs/13 "Dashboards and alerts".
+# Check: promtool check rules opencanvas-alerts.yml
+#        promtool test rules deploy/monitoring/alerts-test.yml
+# The memory rule compares RSS with 85 % of 1073741824 bytes (the chart's default 1Gi limit);
+# the chart replaces that number with prometheusRule.memoryLimitBytes.
+groups:
+  - name: opencanvas.availability
+    rules:
+      - alert: OpenCanvasDown
+        expr: up{job=~".*opencanvas.*"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "OpenCanvas {{ $labels.instance }} is not answering /metrics"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasDown"
+      - alert: OpenCanvasNotReady
+        expr: oc_ready == 0 and oc_draining == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "OpenCanvas {{ $labels.instance }} is not ready (database unreachable)"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasNotReady"
+      - alert: OpenCanvasRestarting
+        expr: changes(process_start_time_seconds[30m]) >= 2
+        labels: { severity: warning }
+        annotations:
+          summary: "OpenCanvas {{ $labels.instance }} restarted {{ $value }} times in 30 min"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasRestarting"
+      - alert: OpenCanvasMemoryNearLimit
+        expr: process_resident_memory_bytes > 0.85 * 1073741824
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "OpenCanvas {{ $labels.instance }} uses {{ $value | humanize1024 }}B, over 85 % of its memory limit"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasMemoryNearLimit"
+      - alert: OpenCanvasFileDescriptorsNearLimit
+        expr: process_open_fds / process_max_fds > 0.8
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "OpenCanvas {{ $labels.instance }} uses {{ $value | humanizePercentage }} of its file descriptors"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasFileDescriptorsNearLimit"
+  - name: opencanvas.persistence
+    rules:
+      - alert: OpenCanvasSavesFailing
+        expr: |
+          sum by (namespace, job) (rate(oc_save_errors_total[10m]))
+            / clamp_min(sum by (namespace, job) (rate(oc_saves_total[10m]) + rate(oc_save_errors_total[10m])), 1e-9)
+            > 0.2
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of OpenCanvas saves to the host fail"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasSavesFailing"
+      - alert: OpenCanvasOutboxGrowing
+        expr: |
+          max by (namespace, job) (oc_commit_outbox_pending) >= 5
+            and max by (namespace, job) (deriv(oc_commit_outbox_pending[15m])) > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} commits wait for the host and the queue keeps growing"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasOutboxGrowing"
+      - alert: OpenCanvasOutboxStuck
+        expr: min_over_time(oc_commit_outbox_pending[1h]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "OpenCanvas has had commits waiting for the host for an hour"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasOutboxStuck"
+      - alert: OpenCanvasHighSyncLatency
+        expr: |
+          histogram_quantile(0.95, sum by (namespace, job, le) (rate(oc_wal_append_seconds_bucket[5m]))) > 0.05
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "OpenCanvas WAL append p95 is {{ $value | humanizeDuration }} (edit latency floor; budget 50 ms)"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasHighSyncLatency"
+  - name: opencanvas.hosts
+    rules:
+      - alert: OpenCanvasHostCallbackErrors
+        expr: |
+          sum by (namespace, job, host) (rate(oc_host_callbacks_total{result=~"5xx|unreachable|error"}[10m]))
+            / clamp_min(sum by (namespace, job, host) (rate(oc_host_callbacks_total[10m])), 1e-9)
+            > 0.05
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Host {{ $labels.host }}: {{ $value | humanizePercentage }} of callbacks fail"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasHostCallbackErrors"
+      - alert: OpenCanvasHostCallbackSlow
+        expr: |
+          histogram_quantile(0.95, sum by (namespace, job, host, le) (rate(oc_host_callback_seconds_bucket[10m]))) > 2
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Host {{ $labels.host }}: callback p95 is {{ $value | humanizeDuration }}"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasHostCallbackSlow"
+      - alert: OpenCanvasPdfExportsFailing
+        expr: |
+          sum by (namespace, job) (increase(oc_exports_total{format="pdf",result="error"}[15m])) >= 3
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} PDF exports failed in 15 min (Gotenberg)"
+          runbook: "docs/13 Dashboards and alerts: OpenCanvasPdfExportsFailing"

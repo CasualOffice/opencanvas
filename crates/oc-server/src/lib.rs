@@ -6,6 +6,7 @@
 pub mod ai;
 pub mod alloc;
 pub mod assets;
+pub mod authz;
 pub mod cluster;
 pub mod config;
 pub mod crypto;
@@ -100,6 +101,7 @@ impl AppState {
                 cfg.rooms.compact_interval
             );
         }
+        crate::metrics::mark_start();
         let metrics = Arc::new(Metrics::default());
         if cfg.wopi_proof.is_none() && hosts.iter().any(|h| h.accepts_wopi()) {
             anyhow::bail!(
@@ -107,6 +109,7 @@ impl AppState {
             );
         }
         let host = HostClient::new()
+            .with_metrics(metrics.clone())
             .with_store(store.clone())
             .with_proof(cfg.wopi_proof.clone());
         let members = Arc::new(people::Members::default());

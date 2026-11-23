@@ -33,7 +33,8 @@ function randomShape(r: () => number, id: string): Shape {
   return type === "pen" ? { id, type, pts: [[r() * 3000, r() * 3000], [r() * 3000 + 5, r() * 3000 + 5]] } : { id, type, x: r() * 3000, y: r() * 3000, w: 20 + r() * 200, h: 20 + r() * 200 };
 }
 
-describe("SceneIndex", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("SceneIndex", { timeout: 60_000 }, () => {
   it("matches the linear scans under random edits (culling, marquee, snapping)", () => {
     for (let seed = 1; seed <= 25; seed++) {
       const r = rng(seed);
@@ -83,7 +84,8 @@ describe("SceneIndex", () => {
   });
 });
 
-describe("commit-time connector sync", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("commit-time connector sync", { timeout: 60_000 }, () => {
   it("syncArrows over the affected connectors writes what syncBoundArrows writes", () => {
     for (let seed = 1; seed <= 15; seed++) {
       const r = rng(seed);
@@ -138,14 +140,15 @@ async function mount(doc: Y.Doc, boardId: string) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => root.render(<BoardBlock doc={doc} boardId={boardId} env={env} />));
-  // The first measure happens in a frame.
-  await act(async () => void (await new Promise((r) => setTimeout(r, 40))));
+  // Wait for the frames the board measures in (rAF callbacks run in order), not a fixed time.
+  await act(async () => void (await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))));
   cleanup = () => act(() => root.unmount());
   return { host, root };
 }
 const drawn = (host: HTMLElement) => [...host.querySelectorAll("svg.ocbd-svg > g > g[data-s]")].map((g) => g.getAttribute("data-s"));
 
-describe("board view through the scene index", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("board view through the scene index", { timeout: 60_000 }, () => {
   it("culls through the spatial index and draws exactly what the linear filter keeps", async () => {
     size.w = 800;
     size.h = 600;

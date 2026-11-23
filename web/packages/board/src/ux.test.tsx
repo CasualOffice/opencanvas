@@ -95,7 +95,8 @@ describe("ops", () => {
   });
 });
 
-describe("board selection", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("board selection", { timeout: 60_000 }, () => {
   it("box-selects by dragging on empty canvas, Shift adds", () => {
     const { doc, id, c } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
@@ -162,7 +163,8 @@ describe("board selection", () => {
   });
 });
 
-describe("board keyboard", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("board keyboard", { timeout: 60_000 }, () => {
   it("Tab walks the shapes; arrows nudge; Alt+arrows resize; Delete removes; undo restores", () => {
     const { doc, id, a, b } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
@@ -246,7 +248,8 @@ describe("board keyboard", () => {
   });
 });
 
-describe("board clipboard and presence", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("board clipboard and presence", { timeout: 60_000 }, () => {
   const clipEvent = (type: string, data: Map<string, string>) => {
     const e = new Event(type, { bubbles: true, cancelable: true });
     Object.defineProperty(e, "clipboardData", { value: { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? "", files: [], items: [], types: [...data.keys()] } });

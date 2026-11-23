@@ -48,12 +48,14 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-044 | Per-host embed origins: optional `frame_ancestors`; such hosts launch to `/app/?h=<host id>` and only that page carries them (MX-01) | Accepted (owner, 2026-11-24) |
 | ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props` (a per-field map: concurrent edits of different properties merge), `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Accepted (owner, 2026-11-24; condition: `props` merges per field) |
 | ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Accepted (owner, 2026-11-24) |
-| ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Accepted (owner, 2026-11-24) |
+| ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review). Dependency added (DGM-14.6): `@dagrejs/dagre` 1.1.4, MIT, in `@opencanvas/board`, dynamic import in the diagram chunk | Accepted (owner, 2026-11-24) |
 | ADR-048 | Skip the start screen: optional launch-token claim `"start": "page"` opens a new canvas straight into the page without the template picker; it travels as `&start=page` after the ticket in the app fragment (other values ignored). The editor also tells the host a session closed (`Error {code: "SESSION_CLOSED"}`) so host chrome can offer Reopen (MM-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-049 | Temporary-canvas wording per host: `[host.flags] temporary_wording`, "meeting" (default, Jitsi) or "room" (Matrix); the session carries `wording`; room wording adds "Start a new canvas" on the ended screen, which posts `UI_StartNew` to the host (MX-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-050 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Accepted (owner, 2026-11-24) |
 | ADR-051 | Version history lives with the host: optional JWT callbacks and WOPI extensions (or a host version-page link); named versions are saves with a commit message; restore is a live-room edit; OpenCanvas stores no versions (VH-01, docs/30) | Accepted (owner, 2026-11-24) |
 | ADR-052 | Version diff is structural and computed on the server in `oc-model` over `document.json` (blocks, text, databases, boards); one implementation for UI, API, MCP and webhooks (VH-02, docs/30) | Accepted (owner, 2026-11-24) |
+| ADR-053 | Diagram import parsers (DGM-15): `oc-model` gains `roxmltree` 0.21, `flate2` 1 and `percent-encoding` 2 as direct dependencies (all three already in Cargo.lock through resvg/usvg and reqwest; no new crate, no new version). draw.io and Excalidraw are converted on the server only, through FC-10 | Proposed (needs owner sign-off) |
+| ADR-054 | Headless API v1 boundary details (HAPI-01/02): `/api/v1` behind `[host.flags] api_v1`; RFC 9457 types `urn:opencanvas:problem:<code>`; 0.1 host routes kept as aliases with `Deprecation` (RFC 9745) and `Link: rel="successor-version"`; user tokens host-minted (no exchange, no token store), `iss` → one host (`[host.api] issuer`), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, ≤ 15 min; one `authz::Principal` check shared with MCP; `canvas:admin` for tokens only with `[host.api] token_admin` (docs/27 §4.4) | Proposed (2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -486,6 +488,21 @@ The 0.1 host routes stay as aliases.
 **Consequences.** + one contract for programs and agents; − a new store table and more surface
 to audit and keep compatible.
 
+### ADR-054 — Headless API v1 boundary details (Proposed, 2026-11-24)
+**Context.** ADR-041 fixed the API's shape; HAPI-01/02 had to pin the details a host codes
+against: the gate, the error type URIs, how the 0.1 routes announce their successor, and how a
+user token names its host and audience without OpenCanvas issuing tokens (ADR-001).
+**Decision.** `/api/v1` answers per host when `[host.flags] api_v1 = true`. Problem `type` is
+`urn:opencanvas:problem:<code>` (stable, not a URL to fetch). The 0.1 host routes stay, with
+their answers, plus `Deprecation: @1795478400` and a successor `Link`. User tokens are minted by
+the host with its launch-token keys; `iss` selects exactly one host (`[host.api] issuer`, default
+the host id); `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, never from the request;
+`exp` ≤ 15 min. One `Principal` check serves the API and MCP. `canvas:admin` counts for tokens
+only with `[host.api] token_admin = true`.
+**Consequences.** + no token store or exchange endpoint; + MCP and the API cannot drift apart;
+− hosts sharing one external issuer must set distinct `[host.api] issuer` values; − a public base
+URL is required for user tokens.
+
 ### ADR-042 — `.ocanvas` forward compatibility in v0.2 (Accepted, 2026-11-23)
 **Decision.** Format version 1 and `schemaVersion` unchanged; v0.2 adds only nodes (`liveBlock`,
 `blockRef`, `extBlock`), the `ext` root, `meta.kind` and `manifest.requires.blocks`, all of
@@ -557,6 +574,11 @@ nine board types, named ports and semantic edges. Boards are blocks inside a doc
    20 MB), measured to hold 10,000 nodes + 15,000 edges with short labels (4.44 MB). Enforcement
    (a warning near the budget) is Phase 2 UI.
 8. *Diagram mode is per board* (a board opening full screen as a diagram), not an editor-wide mode.
+   It is per person and never stored in the document. *(DGM-14, 2026-11-24, with the prototype
+   approval, 1d)* The one document field it adds is the board's optional name, `boards/<id>.name`
+   (a plain string beside `shapes` and `order`; additive, same rules as §1 and §4; kept by import,
+   validation and `.ocanvas` round trips, not drawn by the exporters: `oc-model/tests/diagram.rs`
+   `a_board_name_survives_import_validation_and_ocanvas_round_trips`).
 9. *Projection.* The editor projects a board incrementally (`BoardProjection`): only shapes a
    transaction touched are re-read; output equal to `readShapes`.
 **Consequences.** + Every 0.1.x client and export keeps working and keeps new data; + no migration;
@@ -684,3 +706,18 @@ See [docs/30 §11](30-VERSION-HISTORY.md) for the full text: context, decision, 
 
 ### ADR-052 — Version diff is structural and computed on the server (Accepted by the owner 2026-11-24, VH-02)
 See [docs/30 §11](30-VERSION-HISTORY.md).
+
+### ADR-053 — Diagram import parsers (Proposed 2026-11-24, DGM-15)
+
+**Context.** The owner asked for draw.io and Excalidraw import on 2026-11-24, through the FC-10
+pipeline (5 MB, SEC-39, dry run, "Undo import"). draw.io files are XML whose pages are often
+compressed (base64, raw deflate, URL-encoding); Excalidraw files are JSON. Both are untrusted.
+**Decision.** Convert on the server, in `oc-model::diagram_import`, never in the browser (one
+converter, one set of limits, the browser bundle unchanged). Add three direct dependencies to
+`oc-model`, each already compiled into the server through another crate (Cargo.lock gains only
+the three dependency lines of `oc-model`): `roxmltree` 0.21 (used by usvg; DTDs refused by
+default, so no entity expansion and no external entities; node limit), `flate2` 1 (raw inflate
+read through a size cap) and `percent-encoding` 2. `base64` and `serde_json` were already direct.
+**Consequences.** + No new crate or version in the tree; + parser limits are ours to test (depth,
+nodes, inflated size, image bytes); − three more direct dependencies to keep current with usvg.
+

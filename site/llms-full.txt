@@ -135,7 +135,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
-| Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only. **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
+| Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only; draw.io and Excalidraw diagrams into a board after a dry-run report (DGM-15). **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
 | Assistant and MCP | **Experimental, off by default.** Phase 1, in review: plan → approve → act → review → undo run, suggestions for existing text, limits and audit; MCP endpoint with host-issued tokens; Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp) |
 
 ## Run it
@@ -631,7 +631,7 @@ asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
 export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images); omit for all
-import_formats  = ["md", "html", "csv"]    # formats editors may import (POST /v1/import); absent or empty = import OFF;
+import_formats  = ["md", "html", "csv", "drawio", "excalidraw"]  # formats editors may import (POST /v1/import); absent or empty = import OFF;
                                            # any other value is refused at start-up
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
@@ -899,6 +899,16 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   when nobody had the file open (saved straight away, like `patch`). Editors use the same with a
   session: `POST /v1/import?format=&ticket=` (edit role only); the session response carries
   `import.formats` so the editor shows the entry only when allowed.
+- Diagram files (DGM-15, [docs/29 §7](29-DIAGRAMMING.md)): `format=drawio` (`.drawio`, diagrams.net
+  `.xml`, compressed pages too) and `format=excalidraw`, same 5 MB limit and gate. `dryRun=1`
+  converts and answers `{"format","dryRun":true,"report"}` without changing anything; `report` is
+  `{pages, page, counts: {shapes, connectors, images, containers, needLook}, items: [{level:
+  warn|gray|ok, code, title, detail?, count, examples}]}`, most important first. `page=<n>`
+  (0-based) picks a draw.io page. The import adds a board block after `blockId` (or at the end),
+  or adds to an existing board with `boardId=` (to the right of its shapes), and answers
+  `{"boardId","blockIds","shapeIds","shapes","connectors","report"}`. Unreadable, too deep, too
+  large after decompression or entity-declaring files get `400 IMPORT_INVALID` /
+  `413 IMPORT_TOO_LARGE` with a plain-words reason. Nothing is ever fetched from a file.
 - Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`
   with the file as the raw body. DOCX and PDF embed images only from your `callback_base` origin
   (fetched signed) or an `asset_origins` entry (plain GET) — no redirects, ≤ 10 MB, `image/*`
@@ -913,7 +923,9 @@ start-up warning; the audience is never taken from the request's `Host` header. 
 `POST /mcp/{hostId}` (streamable HTTP, stateless, one JSON-RPC message per POST, JSON answers;
 MCP `2026-07-28`, and `2025-11-25` by version negotiation). Methods: `initialize`
 (`server/discover`), `ping`, `tools/list`, `tools/call`, `resources/templates/list`,
-`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON).
+`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON). MCP and the
+headless API (§7b) share one auth check: the same scope ceiling, `files` rule, `/access` role and
+revocation; a `canvas:comment` token may comment.
 
 **Tokens are yours.** OpenCanvas runs no OAuth server. You mint an access token (JWT) with the
 same keys as launch tokens (HS256 secret, PEM or JWKS):
@@ -953,6 +965,94 @@ directly and changes to existing content become **suggestions** (stored in the f
 `suggestions` root for a person to accept in the editor); `[host.ai] default_mode = "direct"`
 changes that. Deleting more than 5 blocks needs `confirm: true`. Member lists never carry
 e-mail addresses. Errors are tool results with `isError: true` and a `code`.
+
+## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
+
+The supported API for programs: bots, integrations, back-office jobs. It is described by an
+OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
+`crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
+per host with `[host.flags] api_v1 = true` (off by default in 0.2.0-alpha; otherwise every
+`/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
+`v1` changes are additive.
+
+**Auth, two kinds, one check** (shared with MCP, §7a):
+
+1. **Host key**, server to server, as in §7: `X-OpenCanvas-Host` + `X-OpenCanvas-Key` (full
+   access to your files, admin operations included). Optional `X-OpenCanvas-Author: <userId>`
+   attributes changes to that user (edit origin `api:<userId>`; default `svc:<hostId>`);
+   `X-OpenCanvas-Callback-Token` is passed on callbacks as in §7.
+2. **User-scoped bearer token** (`Authorization: Bearer <jwt>`) for code acting for one of your
+   users. **You mint it**; OpenCanvas never issues user tokens. Same keys as launch tokens
+   (HS256 secret, PEM or JWKS), same claims as MCP tokens:
+
+   | claim | value |
+   |---|---|
+   | `iss` | your host id, or `[host.api] issuer` (must be unique among hosts) |
+   | `aud` | `{[host.api] audience or OC_PUBLIC_URL}/api/v1`. An MCP token (`…/mcp/{hostId}`) or a launch token is refused here, and an API token is refused by MCP |
+   | `sub` | the user id (`svc:<name>` for a backend job) |
+   | `exp` | at most 15 minutes ahead (`nbf` honoured) |
+   | `scope` | space-separated `canvas:read`, `canvas:comment`, `canvas:write` (`canvas:write:direct` counts as write), `canvas:admin` |
+   | `role`, `files` | as for MCP: the role on the listed files when you do not implement `POST /access` |
+   | `name` | optional display name |
+
+   Without a public base URL (`OC_PUBLIC_URL` or `[host.api] audience`) user tokens are off for
+   the host (`401 TOKEN_INVALID`); the audience is never taken from the request.
+   The effective permission is `min(scope, role)`, the role coming from your `POST /access`
+   callback when you implement it (cached 30 s, dropped by the role API), else from the token's
+   `role` claim, but only for the files in its `files` claim (`403 FILES_REQUIRED` otherwise,
+   unless `[host.api] all_files = true`). Writes re-check revocation: after
+   `POST …/role {"role":"none"}` the user's next call is refused. `canvas:admin` only works when
+   `[host.api] token_admin = true`; by default the admin operations are the host key's.
+   Errors: `401 UNAUTHENTICATED` (no credentials), `401 TOKEN_INVALID` (signature, issuer,
+   audience, lifetime over 15 min, not yet valid), `401 TOKEN_EXPIRED`, `403 SCOPE_REQUIRED`
+   (the operation needs a scope the token lacks), `403 ROLE_FORBIDDEN` (the host role is lower,
+   or the file is not in `files`). The OpenAPI document marks each operation's scope
+   (`x-opencanvas-scope`).
+
+```toml
+[host.api]
+issuer       = "acme"                        # default: the host id
+audience     = "https://canvas.example.com"  # default: OC_PUBLIC_URL
+default_mode = "direct"                      # or "suggest" for changes to existing blocks
+all_files    = false                         # true: without /access, a token with no `files` covers every file
+token_admin  = false                         # true: tokens with canvas:admin may commit, set roles, close sessions
+```
+
+**Operations** (all under `/api/v1/files/{fileId}` unless noted; each is a thin adapter over the
+same tool layer as MCP, §7a):
+
+| Operation | Method and path | Notes |
+|---|---|---|
+| Read | `GET …?format=json\|markdown\|outline` | JSON (default): `{title, rev, blocks:[{blockId, rev, node}]}`; `ETag: "<rev>"` |
+| List blocks | `GET …/blocks?limit=` | top-level blocks, `limit` ≤ 100; `{blocks, has_more, next_cursor}` |
+| One block | `GET …/blocks/{blockId}` | nested blocks too; `ETag` = block `rev` |
+| Find | `GET …/blocks:find?q=&types=a,b&limit=` | case-insensitive text match |
+| Change blocks | `POST …/blocks:batch {ops, mode?, confirm?}` | ops `append`, `insertAfter`, `replace`, `delete`, `editText`, each with optional `ifMatch` (block `rev`); `If-Match: "<doc rev>"` for the whole document. One transaction or none. Answer `{applied, mode, blockIds, rev}` |
+| Databases | `GET …/databases`, `POST …/databases`, `GET …/databases/{dbId}`, `GET …/databases/{dbId}/rows?filter=&sort=&fields=&limit=`, `POST …/databases/{dbId}/rows:upsert`, `POST …/databases/{dbId}/fields` | `filter` / `sort` are JSON arrays (`[{"f","op","v"}]`, `[{"f","dir"}]`) |
+| Boards | `GET` / `POST …/boards/{boardId}/shapes` | |
+| Comments | `GET …/comments?resolved=`, `POST …/comments {text, blockId\|quote, threadId?}` | |
+| Members | `GET …/members?q=&limit=` | never e-mail addresses |
+| Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |
+| Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
+| Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
+
+Writes land in the live room as one Yjs transaction, broadcast to editors and autosaved to you
+like any edit (open the file with `POST …/commit` when you need it saved now). Changes to
+existing blocks land directly unless the call sends `"mode": "suggest"` or the host sets
+`[host.api] default_mode = "suggest"`. Deleting more than 5 blocks needs `"confirm": true`.
+
+**Errors** are RFC 9457 `application/problem+json`:
+`{"type":"urn:opencanvas:problem:stale-block","title":"Precondition Failed","status":412,"detail":"…","code":"STALE_BLOCK","fresh":{…}}`.
+The `code` is the same machine code the 0.1 routes use (`BLOCK_NOT_FOUND`, `STALE_BLOCK`,
+`ROLE_FORBIDDEN`, `PATCH_INVALID`, `DOC_TOO_LARGE`, `CONFLICT`, `CONFIRMATION_REQUIRED`, …).
+Statuses: `400` bad input, `401` no or wrong credentials, `403` role or scope, `404` unknown file
+part, operation or `API_OFF`, `409` conflict or confirmation, `412` a stale `ifMatch` / `If-Match`
+(with `fresh`), `413` too large, `503` retry (`Retry-After`).
+
+**The 0.1 routes** (`/v1/files/{id}/patch|commit|role|import|session|members/invalidate`,
+`/v1/convert`) keep working unchanged through 0.x, with or without `api_v1`, and keep their
+`{"error":{"code","message"}}` shape. They now carry `Deprecation: @1795478400` (RFC 9745,
+2026-11-24) and `Link: </api/v1/…>; rel="successor-version"`; they are retired in v0.3.
 
 ## 8. Lifecycle & guarantees
 
@@ -2263,7 +2363,7 @@ arguments are sent or logged.
 | `content` | XmlFragment | Tiptap/ProseMirror document (`Collaboration` extension, `field: "content"`) |
 | `meta` | Map | `title` string, `icon` lucide name, `tone` Tone, `template` id |
 | `databases` | Map<dbId, Y.Map> | per database: `name`, `icon`, `tone`, `fields` Y.Array<Y.Map{id,name,type,options(JSON array)}>, `order` Y.Array<rowId>, `rows` Y.Map<rowId, Y.Map<fieldId,value>>, `notes` Y.Map<rowId,string>, `view` string, `views` Y.Map (per-view prefs JSON) |
-| `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId> |
+| `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId>; *(DGM-14, optional)* `name` string, the board's own name shown in diagram mode (additive: older clients ignore it, every reader keeps it, the exporters don't draw it) |
 | `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,name,color,text,at,mentions?,labels?}>; *(docs/21)* `labels` = `{userId: "@label as inserted"}`, so the text shows the member's current name in place of the inserted label |
 | `people` | Map<userId, object> | *(docs/21, optional)* who opened the file: `{id, name, detail?, avatar?, lastSeen}` (ms), never an e-mail. Written by the server on join (never makes the room dirty; `lastSeen` refreshed at most hourly). The member list when the host gives neither token `members` nor the members callback; otherwise only fills a missing `detail`/`avatar` |
 
@@ -2879,22 +2979,99 @@ Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_tota
 ## Health & metrics
 - `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining;
   its body also carries `"ai": "on" | "off (<reason>)"`, the server-wide AI switch.
-- `/metrics` (Prometheus): `oc_rooms_live`, `oc_connections{role}`,
-  `oc_updates_total`, `oc_update_apply_seconds`, `oc_fanout_bytes_total`,
-  `oc_commit_total{result}`, `oc_commit_seconds`, `oc_host_callback_seconds{op,status}`,
-  `oc_wal_bytes`, `oc_room_doc_bytes` (histogram), `oc_relay_frames_total`.
-- **Implemented today**: `oc_rooms_active`, `oc_connections_active`, `oc_launches_total`,
-  `oc_launches_rejected_total`, `oc_updates_total`, `oc_updates_rejected_total`, `oc_saves_total`,
-  `oc_save_errors_total`, `oc_save_conflicts_total`, and **`oc_wal_append_seconds`**: a
-  histogram (buckets 1 ms … 5 s, plus `_sum` and `_count`) of the time to append one room's
-  batch of updates to the WAL, deadlock retries included, success or failure, and
-  `oc_wal_batches_total` / `oc_wal_rows_total` (their ratio is the mean batch size). Every
-  accepted edit waits for its batch before it is fanned out, so its p95 is the floor of edit
-  latency; alert when
-  `histogram_quantile(0.95, rate(oc_wal_append_seconds_bucket[5m]))` stays above 50 ms (a slow
-  or contended database; docs/22 §8 weaknesses 2 and 6). The other names above are planned.
+- `/metrics` (Prometheus text; `OC_METRICS_TOKEN` makes it need `Authorization: Bearer`).
+  Every series it exports (OPS-01; histograms have buckets 1 ms … 5 s plus `_sum`/`_count`):
+
+| Series | Type | Labels | Meaning |
+|---|---|---|---|
+| `oc_rooms_active` | gauge | | Rooms open on this node |
+| `oc_connections_active` | gauge | | WebSocket connections on this node |
+| `oc_ready` | gauge | | 1 when `/readyz` would answer 200 (DB reachable, not draining) |
+| `oc_draining` | gauge | | 1 while draining after SIGTERM |
+| `oc_commit_outbox_pending` | gauge | | Commits waiting for the host, whole store (same on every cluster node: use `max`) |
+| `oc_http_responses_total` | counter | `code` (`1xx`…`5xx`) | HTTP responses; WebSocket upgrades are `1xx` |
+| `oc_launches_total` | counter | | Sessions started |
+| `oc_launches_rejected_total` | counter | `code` (`TOKEN_INVALID`, `TOKEN_EXPIRED`, …) | Launches refused |
+| `oc_updates_total` / `oc_updates_rejected_total` | counter | | Edits accepted / refused (role, malformed) |
+| `oc_wal_append_seconds` | histogram | | One room batch appended to the WAL (retries included); every accepted edit waits for it before fan-out, so it is the floor of sync latency |
+| `oc_wal_batches_total` / `oc_wal_rows_total` | counter | | WAL batches and the updates in them (ratio = mean batch size) |
+| `oc_saves_total` / `oc_save_errors_total` / `oc_save_conflicts_total` | counter | | Host acknowledged a save / a save failed (retried with backoff) / host answered 409/412 (conflict policy ran) |
+| `oc_host_callback_seconds` | histogram | `host`, `op` | One call to the host (callbacks or WOPI); `op` = `load`, `save`, `copy`, `access`, `members`, `notify` |
+| `oc_host_callbacks_total` | counter | `host`, `op`, `result` | `result` = `ok`, `conflict`, `4xx`, `5xx`, `unreachable`, `error` |
+| `oc_export_seconds` | histogram | `format` | One export render (PDF includes Gotenberg) |
+| `oc_exports_total` | counter | `format`, `result` (`ok`, `error`) | Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`) |
+| `oc_awareness_broadcasts_total` / `oc_awareness_coalesced_total` | counter | | Presence frames fanned out / parked on a full room inbox |
+| `oc_schema_warnings_total` | counter | | Unknown content kept on read/write |
+| `oc_ai_requests_total` | counter | `host`, `provider`, `model`, `outcome` | AI model calls (AI on only) |
+| `oc_ai_tokens_total` | counter | `direction` | AI tokens in/out |
+| `oc_ai_runs_total` / `oc_ai_run_seconds` | counter / histogram | `outcome` / – | Agent runs |
+| `process_start_time_seconds` | gauge | | Process start (every OS) |
+| `process_cpu_seconds_total`, `process_resident_memory_bytes`, `process_virtual_memory_bytes`, `process_threads`, `process_open_fds`, `process_max_fds` | counter / gauges | | From `/proc`: **Linux only** (the image); absent on macOS dev builds |
+
 - Logs: JSON, request id, room id, host id; never content.
 - Traces: OTLP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` set.
+
+## Dashboards and alerts (OPS-01)
+
+Files: the Grafana dashboard `deploy/helm/opencanvas/files/opencanvas-dashboard.json` (generated
+by `python3 deploy/monitoring/build-dashboard.py`; edit the script, not the JSON) and the alert
+rules `deploy/helm/opencanvas/files/opencanvas-alerts.yml` (plain Prometheus rules; unit tests in
+`deploy/monitoring/alerts-test.yml`). Dashboard variables: data source, job, namespace,
+instance, host id. Rows: traffic and health, collaboration, persistence, host callbacks,
+exports, process, security signals, cluster/Redis (text: no series yet), AI (collapsed).
+
+**Kubernetes** (all off by default):
+```sh
+helm upgrade --install oc deploy/helm/opencanvas ... \
+  --set grafanaDashboard.enabled=true \
+  --set serviceMonitor.enabled=true --set serviceMonitor.labels.release=kube-prometheus-stack \
+  --set prometheusRule.enabled=true --set prometheusRule.labels.release=kube-prometheus-stack \
+  --set prometheusRule.memoryLimitBytes=1073741824
+```
+`grafanaDashboard` creates a ConfigMap labelled `grafana_dashboard: "1"` (the Grafana sidecar
+convention); keep `memoryLimitBytes` equal to `resources.limits.memory`.
+With `OC_METRICS_TOKEN` set, point `serviceMonitor.bearerTokenSecret` at the Secret and key that
+hold it. ServiceMonitor and PrometheusRule need the prometheus-operator CRDs. Example values:
+`deploy/helm/opencanvas/ci/monitoring-values.yaml`.
+
+**Local quick-start** (Docker for Prometheus and Grafana; OpenCanvas built from the checkout):
+```sh
+cargo build -p oc-server -p oc-bench
+docker compose -f deploy/monitoring/docker-compose.yml up -d   # Prometheus :9391, Grafana :3391
+deploy/monitoring/demo-load.sh 600   # server :8791 (SQLite), 2 editors in one room via oc-bench
+                                     # (saves to its mock host), host `broken` whose saves get 500,
+                                     # md/docx/pdf exports, refused launches
+open http://localhost:3391/d/opencanvas-ops     # anonymous viewer; admin/admin to edit
+open http://localhost:9391/alerts
+docker compose -f deploy/monitoring/docker-compose.yml down -v
+```
+Checks: `promtool check rules deploy/helm/opencanvas/files/opencanvas-alerts.yml` and
+`(cd deploy/monitoring && promtool test rules alerts-test.yml)`; CI runs both in the `helm` job
+through the `prom/prometheus` image.
+
+### Alerts and runbook
+
+| Alert | Fires when | Do this |
+|---|---|---|
+| **OpenCanvasDown** (critical) | `up == 0` for 2 min | Pod/container status and logs (`kubectl describe`, OOMKilled?). Clients reconnect to another node in a cluster; on one node editing stops until it is back (no edits lost while clients keep their tabs open). |
+| **OpenCanvasNotReady** (critical) | `oc_ready == 0` and not draining for 5 min | The database (or Redis) is unreachable: check `DATABASE_URL`/`REDIS_URL`, the DB's health and connection limits; `/readyz` shows `"db": false`. |
+| **OpenCanvasRestarting** (warning) | ≥ 2 process starts in 30 min | Crash loop: logs before the restart, `OOMKilled` (see memory), panics. Restarts lose at most `OC_DB_SYNC_MS` of edits in memory mode (see Durability mode). |
+| **OpenCanvasMemoryNearLimit** (warning) | RSS > 85 % of `prometheusRule.memoryLimitBytes` for 10 min | Compare `oc_rooms_active`/connections with the Sizing table; raise the limit or add nodes (cluster). Memory ≈ 50 MB + 0.25 MB/user + 5–14× doc per room. |
+| **OpenCanvasFileDescriptorsNearLimit** (warning) | open fds > 80 % of the limit | Raise `nofile`; each WebSocket holds one fd. |
+| **OpenCanvasSavesFailing** (critical) | > 20 % of saves fail for 10 min | Dashboard "Host callbacks": which host, which result. `5xx`/`unreachable`: the host's save endpoint is down (edits stay in the outbox and are retried; nothing is lost while the DB holds them). `4xx`: callback token expired or rejected, check the host's signature secret. |
+| **OpenCanvasOutboxGrowing** (warning) | outbox ≥ 5 and still growing for 15 min | Same as saves failing; also check the host's rate limits. Outbox rows survive restarts and are resent at start-up. |
+| **OpenCanvasOutboxStuck** (warning) | outbox > 0 for a whole hour | One file's save keeps failing (look for `save failed` with its room id in logs); a 412/409 loop means a conflict the host keeps refusing. |
+| **OpenCanvasHighSyncLatency** (warning) | WAL append p95 > 50 ms for 10 min | Slow or contended database (docs/22 §8 weaknesses 2 and 6): DB CPU/IO, SQLite on network storage, MySQL lock waits; consider the Redis hot WAL (ADR-028). |
+| **OpenCanvasHostCallbackErrors** (warning) | > 5 % of one host's calls fail (5xx, unreachable, error) for 10 min | Tell that host's operators; `op` shows which callback. Loads failing means users cannot open files. |
+| **OpenCanvasHostCallbackSlow** (warning) | one host's callback p95 > 2 s for 15 min | The host is slow; opens and saves feel it. Check its latency from inside the cluster. |
+| **OpenCanvasPdfExportsFailing** (warning) | ≥ 3 PDF export errors in 15 min | Gotenberg down or erroring (`OC_PDF_RENDERER`), or unset (501). Check the Gotenberg pod/sidecar logs. |
+
+### What has no metric yet (gaps)
+End-to-end edit/sync latency (only the WAL append floor), connections by role, sessions alive,
+snapshot/compaction counts and WAL bytes, outbox retry attempts, document sizes, cluster relay
+frames, lease moves and Redis latency (use redis_exporter), rate-limited requests (MCP, launch),
+role changes/revocations through `/v1/files/{id}/role`, Gotenberg health on its own (only via
+PDF export errors). Gotenberg itself and the database are not scraped by this dashboard.
 
 ## Graceful shutdown / deploys
 SIGTERM → refuse new rooms → commit all dirty rooms (≤ 20 s each, in parallel) →
@@ -2958,6 +3135,7 @@ Reporting a vulnerability: [SECURITY.md](../SECURITY.md).
 | Script injection into the SPA | Every response: `Content-Security-Policy` with `script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'` (+ `frame-ancestors`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`. Handler CSPs are kept: exports and room assets are served `sandbox; default-src 'none'`. Node views pass doc URLs through `safeHref` / `safeImageSrc` (`web/packages/editor/src/lib/urls.ts`). |
 | Injection into exports | HTML/SVG/DOCX escape every text and attribute; link targets limited to `http(s):`, `mailto:`, `/`, `#`; Markdown escapes `<` and drops script/data link targets; CSV cells starting with `= + - @ TAB CR` get a leading `'`. |
 | SQL injection | Every statement is a literal with `?` binds (guard test `sec05_every_sql_statement_is_a_literal`); no dynamic identifiers, no `LIKE`. |
+| Headless API tokens (HAPI-02) | Host-minted only (OpenCanvas issues none); `alg` pinned by host config; `iss` maps to exactly one host; `aud` = `{public base}/api/v1` from config, never the request, so MCP, launch and API tokens are not interchangeable; `exp` ≤ 15 min, `nbf`; scope is a ceiling under the host role (`/access` or `role` for listed `files` only); writes re-check revocation; admin scope off for tokens unless the host opts in. Tests: `tests/api_tokens.rs`. Errors are RFC 9457 problems without content. |
 | Callback replay | `X-OpenCanvas-Signature` `v2` binds method + path + query + body; the signed client never follows redirects. |
 | Callback spoofing (someone pretends to be us) | HMAC `X-OpenCanvas-Signature` with timestamp (5 min skew). |
 | DoS | Per-connection frame rate limits (per-IP limits belong in the reverse proxy); readers that stop reading are dropped (30 s send timeout, 4096-frame backlog); multipart boundaries ≤ 70 chars; frame ≤ 1 MB; doc ≤ 20 MB (block and shape counts are bounded by the doc cap only); room peers ≤ 550 (then close 1013), ≤ 8 awareness client ids per connection; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal), enforced on the bytes actually inflated, never on the sizes the archive declares. |
@@ -4398,7 +4576,10 @@ and reload like comments do. The role filter (COL-03) gains: `comment` may write
    claim is refused (`ROLE_FORBIDDEN`, message `FILES_REQUIRED: …`), because its `role` claim
    would otherwise apply to every file of the host. A host that really wants that sets
    `[host.ai] mcp_all_files = true` (broad: one token covers all its files) (SEC-34).
-6. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
+6. **One check for MCP and the headless API** (HAPI-02, `crate::authz`): the same scope
+   ceiling, `files` rule, `/access` role and revocation, with audience `…/mcp/{hostId}` for MCP
+   and `…/api/v1` for the API, so a token for one is refused by the other.
+7. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
    member invalidation also cut off running agent runs and cached MCP role answers for that user.
 
 ### 7.2 Flows
