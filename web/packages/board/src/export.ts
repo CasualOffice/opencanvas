@@ -9,6 +9,7 @@ import * as Y from "yjs";
 import { withResolvedArrows } from "./connectors";
 import { contentBounds, getBoardMap, readShapes, smooth, type Pt, type Shape } from "./model";
 import { STICKY_TEXT, stickyHeight, wrapText } from "./ops";
+import { ICON_LABEL, iconGlyphBox, iconLabelLayout, iconPathsOf } from "./icons";
 
 export const EXPORT_PALETTE = {
   bg: "#ffffff",
@@ -118,6 +119,15 @@ function shapeSvg(s: Shape): string {
         { size: STICKY_TEXT.size, fill: P.stickyFg },
       )}</g>`;
     case "rect": {
+      // An icon shape (DGM-17): tinted tile, the glyph as inline paths, the label outside.
+      const icon = iconPathsOf(s);
+      if (icon) {
+        const g = iconGlyphBox(s);
+        const lb = iconLabelLayout(s);
+        return `<g><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="12" fill="${bg}"/><g transform="translate(${n(g.x)} ${n(g.y)}) scale(${n(g.size / 24)})" fill="none" stroke="${line}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon
+          .map((d) => `<path d="${esc(d)}"/>`)
+          .join("")}</g>${lb ? lines(lb.lines, lb.x, lb.y, ICON_LABEL.lh, { anchor: lb.middle, size: ICON_LABEL.size, weight: 600, fill: P.fg }) : ""}</g>`;
+      }
       const size = s.size ?? 14;
       return `<g><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="12" fill="${s.dashed ? "none" : bg}" stroke="${s.dashed ? P.fg3 : line}" stroke-width="1.5"${s.dashed ? ` stroke-dasharray="6 5"` : ""}/>${
         s.label ? `<text x="${n(x + 14)}" y="${n(y + 24)}" font-size="11.5" font-weight="600" fill="${P.fg3}" letter-spacing=".6">${esc(String(s.label).toUpperCase())}</text>` : ""
@@ -184,12 +194,12 @@ function boundsOf(list: Shape[]): [number, number, number, number] {
   const b = contentBounds(list);
   if (!b) return [0, 0, 320, 200];
   for (const s of list) {
-    const lb = labelBox(s);
-    if (!lb) continue;
-    b[0] = Math.min(b[0], lb.box[0]);
-    b[1] = Math.min(b[1], lb.box[1]);
-    b[2] = Math.max(b[2], lb.box[2]);
-    b[3] = Math.max(b[3], lb.box[3]);
+    const box = labelBox(s)?.box ?? (iconPathsOf(s) ? iconLabelLayout(s)?.box : undefined);
+    if (!box) continue;
+    b[0] = Math.min(b[0], box[0]);
+    b[1] = Math.min(b[1], box[1]);
+    b[2] = Math.max(b[2], box[2]);
+    b[3] = Math.max(b[3], box[3]);
   }
   return [b[0] - PAD, b[1] - PAD, b[2] + PAD, b[3] + PAD];
 }

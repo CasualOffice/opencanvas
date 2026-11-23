@@ -50,6 +50,8 @@ export interface ShapeLook {
   tone?: string;
   /** Default text of a new shape (else the label). */
   text?: string;
+  /** A built-in icon (`icons/generic.json` id) drawn inside the box, left of the text (DGM-17). */
+  icon?: string;
 }
 
 const PATH_RE = /^[MLHVCSQTAZmlhvcsqtaz0-9 ,.\-]{1,2000}$/;
@@ -59,11 +61,12 @@ const TONE_RE = /^[a-z]{1,16}$/;
 function readLook(v: unknown): Readonly<ShapeLook> | string {
   if (!v || typeof v !== "object" || Array.isArray(v)) return "look must be an object";
   const o = v as Record<string, unknown>;
-  for (const k of Object.keys(o)) if (!["path", "w", "h", "tone", "text"].includes(k)) return `unexpected look.${k}`;
+  for (const k of Object.keys(o)) if (!["path", "w", "h", "tone", "text", "icon"].includes(k)) return `unexpected look.${k}`;
   if (o.path !== undefined && (typeof o.path !== "string" || !PATH_RE.test(o.path))) return "look.path must be SVG path data";
   for (const k of ["w", "h"] as const) if (o[k] !== undefined && !(typeof o[k] === "number" && o[k] > 0 && o[k] <= 4000)) return `look.${k} must be a size`;
   if (o.tone !== undefined && (typeof o.tone !== "string" || !TONE_RE.test(o.tone))) return "look.tone must be a tone name";
   if (o.text !== undefined && (typeof o.text !== "string" || o.text.length > 200)) return "look.text must be a short string";
+  if (o.icon !== undefined && (typeof o.icon !== "string" || !/^[a-z0-9-]{1,64}$/.test(o.icon))) return "look.icon must be an icon id";
   return Object.freeze({ ...o }) as Readonly<ShapeLook>;
 }
 

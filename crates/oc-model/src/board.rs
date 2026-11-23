@@ -144,6 +144,10 @@ struct Shape {
     src: String,
     /// Custom ports (`ports`), read defensively like the web `readPorts`.
     ports: Vec<Port>,
+    /// Built-in icon of an `icon:node` shape (DGM-17): `props.icon`, empty otherwise.
+    icon: String,
+    /// `props.labelPos` of an icon shape: `below` (default), `right` or `hidden`.
+    label_pos: String,
 }
 
 fn num(v: &Value) -> f64 {
@@ -249,7 +253,110 @@ fn shape(id: &str, v: &Value) -> Shape {
         via: points(&v["via"]),
         src: string(&v["src"]),
         ports: read_ports(&v["ports"]),
+        icon: if v["kind"].as_str() == Some(ICON_KIND) {
+            string(&v["props"]["icon"])
+        } else {
+            String::new()
+        },
+        label_pos: string(&v["props"]["labelPos"]),
     }
+}
+
+/// The registry kind of an icon shape (DGM-17, `web/packages/board/src/icons.ts`).
+const ICON_KIND: &str = "icon:node";
+/// Icon labels: 13 px semibold, 17 px lines, below the box or 10 px to its right.
+const ICON_LABEL_SIZE: f64 = 13.0;
+const ICON_LABEL_LH: f64 = 17.0;
+const ICON_LABEL_GAP: f64 = 10.0;
+
+/// The path data an icon shape draws: an `icon:node` rect whose icon this build has.
+fn icon_paths(s: &Shape) -> Option<&'static [String]> {
+    if s.kind != "rect" || s.icon.is_empty() {
+        return None;
+    }
+    crate::icons::get(&s.icon).map(|i| i.paths.as_slice())
+}
+
+struct IconLabel {
+    lines: Vec<String>,
+    x: f64,
+    y: f64,
+    middle: bool,
+    rect: [f64; 4],
+}
+
+/// Where an icon shape's label goes, as the web `iconLabelLayout`; None when hidden or empty.
+fn icon_label(s: &Shape) -> Option<IconLabel> {
+    if s.label_pos == "hidden" || js_trim(&s.text).is_empty() {
+        return None;
+    }
+    let ls: Vec<String> = s.text.split('\n').map(String::from).collect();
+    let n_lines = ls.len() as f64;
+    let lw = ls.iter().map(|l| len16(l)).max().unwrap_or(0) as f64 * ICON_LABEL_SIZE * 0.56;
+    let (x, y, w, h) = (s.x, s.y, s.w, s.h);
+    if s.label_pos == "right" {
+        let y0 = y + h / 2.0 + ICON_LABEL_SIZE * 0.36 - ((n_lines - 1.0) * ICON_LABEL_LH) / 2.0;
+        return Some(IconLabel {
+            lines: ls,
+            x: x + w + ICON_LABEL_GAP,
+            y: y0,
+            middle: false,
+            rect: [
+                x + w,
+                y + h / 2.0 - (n_lines * ICON_LABEL_LH) / 2.0,
+                x + w + ICON_LABEL_GAP + lw,
+                y + h / 2.0 + (n_lines * ICON_LABEL_LH) / 2.0,
+            ],
+        });
+    }
+    Some(IconLabel {
+        lines: ls,
+        x: x + w / 2.0,
+        y: y + h + ICON_LABEL_LH,
+        middle: true,
+        rect: [
+            x + w / 2.0 - lw / 2.0,
+            y + h,
+            x + w / 2.0 + lw / 2.0,
+            y + h + 6.0 + n_lines * ICON_LABEL_LH,
+        ],
+    })
+}
+
+/// An icon shape: tinted tile, the glyph as inline paths (never `<image>`), the label outside.
+fn icon_svg(s: &Shape, paths: &[String], bg: &str, line: &str) -> String {
+    let size = s.w.min(s.h) * 0.5;
+    let (gx, gy) = (s.x + (s.w - size) / 2.0, s.y + (s.h - size) / 2.0);
+    let glyph: String = paths
+        .iter()
+        .map(|d| format!("<path d=\"{}\"/>", esc(d)))
+        .collect();
+    let label = icon_label(s)
+        .map(|lb| {
+            lines(
+                &lb.lines,
+                lb.x,
+                lb.y,
+                ICON_LABEL_LH,
+                TextOpts {
+                    anchor: lb.middle,
+                    size: ICON_LABEL_SIZE,
+                    weight: Some(600),
+                    fill: p::FG,
+                },
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "<g><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" fill=\"{bg}\"/><g transform=\"translate({} {}) scale({})\" fill=\"none\" stroke=\"{line}\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">{glyph}</g>{label}</g>",
+        n(s.x),
+        n(s.y),
+        n(s.w),
+        n(s.h),
+        n(gx),
+        n(gy),
+        n(size / 24.0)
+    )
 }
 
 /// Shapes in paint order: `order` first, then any other shape by id (as the web `readShapes`).
@@ -992,6 +1099,9 @@ fn shape_svg(
                 )
             )
         }
+        "rect" if icon_paths(s).is_some() => {
+            icon_svg(s, icon_paths(s).unwrap_or_default(), bg, line)
+        }
         "rect" => {
             let size = s.size.unwrap_or(14.0);
             let label = if s.label.is_empty() {
@@ -1246,12 +1356,17 @@ fn export_bounds(resolved: &[Shape]) -> [f64; 4] {
     let Some(mut b) = content_bounds(resolved) else {
         return [0.0, 0.0, 320.0, 200.0];
     };
-    for lb in resolved.iter().filter_map(label_box) {
+    let boxes = resolved.iter().filter_map(|s| {
+        label_box(s)
+            .map(|lb| lb.rect)
+            .or_else(|| icon_paths(s).and_then(|_| icon_label(s)).map(|lb| lb.rect))
+    });
+    for r in boxes {
         b = [
-            b[0].min(lb.rect[0]),
-            b[1].min(lb.rect[1]),
-            b[2].max(lb.rect[2]),
-            b[3].max(lb.rect[3]),
+            b[0].min(r[0]),
+            b[1].min(r[1]),
+            b[2].max(r[2]),
+            b[3].max(r[3]),
         ];
     }
     [b[0] - PAD, b[1] - PAD, b[2] + PAD, b[3] + PAD]

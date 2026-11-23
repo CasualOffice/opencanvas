@@ -92,6 +92,21 @@ export const DIAGRAM_CSS = `
 .ocdg-none p{margin:0 0 .25rem}
 .ocdg-btn{display:inline-flex;align-items:center;gap:.375rem;height:2rem;margin-top:.5rem;padding:0 .75rem;border:1px solid var(--line-2);border-radius:.5rem;background:var(--app);font-size:.8125rem}
 .ocdg-btn:hover{background:var(--hover)}
+.ocdg-btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.ocdg-btn.pri:hover{filter:brightness(1.06);background:var(--accent)}
+.ocdg-btn:disabled{opacity:.5;cursor:default}
+.ocdg-ig{margin:0 0 .125rem .5rem}
+.ocdg-igh{margin:0}
+.ocdg-igh button{display:flex;align-items:center;gap:.375rem;width:100%;height:1.625rem;border:0;background:none;border-radius:.375rem;padding:0 .25rem;font-size:.75rem;font-weight:500;color:var(--fg-2)}
+.ocdg-igh button:hover{background:var(--hover);color:var(--fg)}
+.ocdg-igh button[aria-expanded="true"] .ocdg-chev{transform:rotate(90deg)}
+.ocdg-ihint{margin:.375rem .25rem 0;font-size:.75rem;line-height:1.45;color:var(--fg-2)}
+.ocdg-link{border:0;background:none;padding:0;color:var(--accent);font-size:inherit;text-decoration:underline;text-underline-offset:2px}
+.ocdg-link:disabled{color:var(--fg-2);text-decoration:none;cursor:default}
+.ocdg-noicon{display:flex;flex-direction:column;align-items:center}
+.ocdg-noicon .ocdg-tiles{width:100%;margin-top:.25rem}
+.ocdg-ei{color:var(--fg-2);margin-bottom:.375rem}
+.ocdg-or{margin-top:.875rem}
 @media (max-width:60em){.ocdg-left{width:13.5rem}.ocdg-right{width:15rem}.ocdg-doc{display:none}}
 @media (max-width:45em){.ocdg-side{display:none}.ocdg-people{display:none}}
 @media (prefers-reduced-motion:reduce){.ocdg *{animation-duration:.01ms!important;transition-duration:.01ms!important}}

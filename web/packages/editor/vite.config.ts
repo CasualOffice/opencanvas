@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react";
 
 // The server serves the built editor at /app/ (docs/15 §1). In dev the SPA
@@ -19,6 +19,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // The built-in diagram icons live at the repo root (icons/generic.json), shared with oc-model.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), "../../../icons"] },
     proxy: {
       "/v1": { target: "http://localhost:8080", changeOrigin: true, ws: true },
     },

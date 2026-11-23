@@ -49,7 +49,8 @@ export interface DiagramShellProps {
   /** Transaction origin of this view (undo). */
   origin: unknown;
   /** Adds a shape of this kind in the middle of the view (shapes panel). */
-  onAddShape?: (kind: string) => void;
+  /** Adds a shape of `kind`; for `icon:node`, `icon` names the built-in icon (DGM-17). */
+  onAddShape?: (kind: string, icon?: string) => void;
   prefs: DiagramPrefs;
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */

@@ -23,6 +23,27 @@ fn doc_with(board: Value) -> Value {
     })
 }
 
+fn icons_board() -> Value {
+    serde_json::from_str(include_str!("fixtures/board-icons.json")).expect("fixture json")
+}
+
+#[test]
+fn svg_matches_web_export_for_icon_shapes() {
+    // DGM-17: built-in icons draw as inline paths, the label below / right / hidden; an icon this
+    // build doesn't have draws as the rect with its text. `board-icons.web.svg` is the web output.
+    let expected = include_str!("fixtures/board-icons.web.svg");
+    let svg = oc_model::board::to_svg(&doc_with(icons_board()), "b1");
+    assert_eq!(svg.replace("ocbd-b1-", "ocbd-x-"), expected);
+    assert!(!svg.contains("<image") && !svg.contains("href="));
+}
+
+#[test]
+fn icon_preview_draws_the_glyph() {
+    let html = oc_model::preview::render(&doc_with(icons_board())).html;
+    let d = &oc_model::icons::get("object-storage").unwrap().paths[0];
+    assert!(html.contains(&format!("<path d=\"{d}\"/>")));
+}
+
 fn texts(svg: &str) -> Vec<String> {
     svg.split("<text")
         .skip(1)

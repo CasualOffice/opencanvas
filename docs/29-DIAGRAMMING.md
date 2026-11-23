@@ -512,3 +512,47 @@ the real limit needs a session field (server change), not done here.
 - "What uses space" (from the banner, the chip or the Size section): totals by part, the largest
   containers (rectangles with a label, counting the shapes inside) and images with Select, and the
   whole document's size.
+
+### 8.10 Icons (DGM-17)
+
+Prototype: `docs/prototypes/icons-approved/DiagramIcons.html` (approved 2026-11-24, decisions 1–6 in
+its README). Owner policy: OpenCanvas ships only icons it is clearly free to ship; no vendor or
+product logo is bundled or offered as a pack; people add the logos they need themselves. Nothing is
+taken from, traced from or modelled on draw.io's stencils (their licence forbids derivatives).
+
+**Built-in icons (part 1).**
+
+- Data: `icons/generic.json` at the repo root, one file shared by the editor
+  (`web/packages/board/src/icons.ts`, in the board chunk) and `oc-model` (`src/icons.rs`,
+  `include_str!`; the Docker image copies `icons/` into both build stages). 59 generic icons in the
+  nine groups of frames 1a/1b (Compute 8, Storage and data 7, Network 11, Messaging and events 6,
+  Real-time and media 5, Security and identity 5, People and clients 7, Operations 4, General 6; the
+  prototype's header said 53, its group counts add up to 59; the four folded groups were filled with
+  Lucide icons plus our own vault and identity provider). Each icon: `id`, `name`, `category`,
+  `keywords`, `paths` (SVG path data in a 24 × 24 box, stroked 2, round caps and joins) and `source`
+  (`lucide`, ISC, or `opencanvas`, our own drawing in Lucide's style). Our own: object storage, API
+  gateway, load balancer, reverse proxy, CDN, DNS, VPN tunnel, service mesh, queue, event bus, video
+  bridge, relay, vault, data warehouse, cache, service, identity provider, pod, cluster. Product names
+  are keywords only (decision 2: "s3", "redis", "kafka"); no glyph imitates a logo.
+- Shape: kind `icon:node` on base `rect` (ADR-045), `props.icon` (the id), `props.labelPos`
+  (`below` by default, `right`, `hidden`), `fill` the group's tone, `text` the label. Default box
+  52 × 52 (the tile); the label sits outside it. The four side ports are the legacy anchors.
+- Canvas: tinted tile, the glyph at half the shorter side, centred; the label 13 px semibold, below or
+  10 px to the right. An id this build doesn't have draws the empty dashed icon frame with the label
+  (6a).
+- Exports and preview: `export.ts` and `oc-model::board` draw the same tile and the glyph as inline
+  `<path>` elements (no `<image>`, no `href`), checked byte for byte against
+  `crates/oc-model/tests/fixtures/board-icons.web.svg`; the label box counts towards the export
+  bounds. An unknown icon id draws as the plain rect with its text, as 0.1.x clients do.
+- Panel: the **Icons** library above the shape libraries, its groups folding (Compute and Storage
+  open by default, remembered per person). Search covers icons too (placeholder "Search shapes and
+  icons"): name prefix, then inside the name, then keywords; the Icons group comes first when its best
+  match is as good as the best shape's (1d), so Enter adds it. A keyword hit says "… is a generic icon
+  drawn by OpenCanvas, not a vendor logo. Need the real logo? Add your own icon" (1c). A product we
+  ship no logo for ("jitsi") shows "No built-in icon for “jitsi”", **Add your own icon** and generic
+  alternatives (`suggest` in the data file) (1e); any other miss keeps the plain "No shapes match".
+- Network library (decision 6): load balancer, API gateway and queue draw the new glyphs
+  (`look.icon`, a new declarative look field: the glyph left of the text). Exporters draw them as
+  their base rect, as before.
+- Tests: `icons.test.tsx`, `export.test.ts` (shared fixture), `oc-model/tests/diagram.rs`, the
+  `oc-model::icons` unit test; browser `e2e/diagram/icons.spec.ts`.

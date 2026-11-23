@@ -5,6 +5,7 @@
 // (ADR-045 §3): each kind is a legacy base type plus an optional outline path in a 100 × 100 box,
 // a default size, tone and text. Registered when the board package loads, so every client draws
 // them, in diagram mode or not (1f); older clients and the exporters draw the base type.
+// Load balancer, API gateway and queue draw the generic icon glyphs (DGM-17 decision 6).
 import { registeredKinds, registerShape, type ShapeDescriptor } from "./registry";
 
 /** Drag data type of a shapes-panel tile (the kind id). */
@@ -57,11 +58,11 @@ const DATA: { id: string; name: string; icon: string; items: Item[] }[] = [
     items: [
       { name: "server", label: "Server", base: "rect", keywords: ["host", "machine", "vm", "node"], look: { path: "M0 0H100V100H0Z M8 18H30 M8 30H30", w: 150, h: 70 } },
       { name: "database", label: "Database", base: "rect", keywords: ["db", "sql", "postgres", "mysql", "storage", "data"], look: { path: CYLINDER, w: 120, h: 90, tone: "green" } },
-      { name: "load-balancer", label: "Load balancer", base: "rect", keywords: ["lb", "proxy", "ingress", "traffic"], look: { path: "M0 0H100V100H0Z M50 15V40 M50 40L25 85 M50 40L75 85", w: 150, h: 70, tone: "purple" } },
+      { name: "load-balancer", label: "Load balancer", base: "rect", keywords: ["lb", "proxy", "ingress", "traffic"], look: { icon: "load-balancer", w: 150, h: 70, tone: "purple" } },
       { name: "service", label: "Service", base: "rect", keywords: ["microservice", "app", "api", "pod"], look: { w: 150, h: 70, tone: "blue" } },
-      { name: "api-gateway", label: "API gateway", base: "rect", keywords: ["gateway", "api", "edge", "ingress"], look: { path: "M10 0H90L100 50L90 100H10L0 50Z", w: 160, h: 70, tone: "blue" } },
+      { name: "api-gateway", label: "API gateway", base: "rect", keywords: ["gateway", "api", "edge", "ingress"], look: { icon: "api-gateway", w: 160, h: 70, tone: "blue" } },
       { name: "cloud", label: "Cloud", base: "rect", keywords: ["internet", "external", "saas", "vpc"], look: { path: "M25 85C8 85 0 72 4 60C-2 45 10 30 25 34C28 15 50 8 62 20C72 8 95 15 92 35C104 40 102 62 90 66C94 80 80 88 70 85Z", w: 160, h: 100 } },
-      { name: "queue", label: "Queue", base: "rect", keywords: ["topic", "kafka", "stream", "message", "bus", "events"], look: { path: "M12 0H88C104 0 104 100 88 100H12C-4 100 -4 0 12 0Z M88 0C72 0 72 100 88 100", w: 160, h: 60, tone: "amber" } },
+      { name: "queue", label: "Queue", base: "rect", keywords: ["topic", "kafka", "stream", "message", "bus", "events"], look: { icon: "queue", w: 160, h: 60, tone: "amber" } },
       { name: "cache", label: "Cache", base: "rect", keywords: ["redis", "memcached", "memory", "data"], look: { path: "M25 0H75L100 50L75 100H25L0 50Z", w: 140, h: 70, tone: "red" } },
       { name: "client", label: "Client", base: "rect", keywords: ["browser", "user", "app", "device", "web", "mobile"], look: { path: "M0 0H100V78H0Z M35 100H65 M50 78V100", w: 140, h: 90 } },
     ],

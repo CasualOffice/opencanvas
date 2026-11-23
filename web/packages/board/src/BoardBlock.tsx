@@ -27,6 +27,7 @@ import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
 import { CONTAINER, isContainer } from "./kinds";
 import { descriptorOf, makeNode } from "./registry";
 import { KIND_MIME } from "./libraries";
+import { ICON_KIND, ICON_LABEL, ICON_MIME, iconById, iconGlyphBox, iconLabelLayout, iconNodeFields, iconProps } from "./icons";
 import { KindMarks, UnknownShape } from "./diagram/Placeholder";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 // Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
@@ -631,8 +632,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
   };
   /** Adds a shape of a registered kind centred on `at` (the view's centre by default): S2. */
-  const addKind = (kind: string, at: Pt = viewCenter()) => {
+  const addKind = (kind: string, at: Pt = viewCenter(), icon?: string) => {
     if (!S.current.edit) return;
+    if (kind === ICON_KIND) return addIcon(icon ?? "", at);
     const d = descriptorOf({ type: "rect", kind });
     if (d.kind !== kind) return;
     const w = d.look?.w ?? 140, h = d.look?.h ?? 70;
@@ -646,6 +648,21 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const id = addShape(doc, boardId, makeNode(kind, { x, y, w, h, text: d.look?.text ?? d.label ?? "", ...(d.look?.tone ? { fill: d.look.tone } : {}) }), origin);
     setSel([id]);
     setLive(`${d.label ?? "Shape"} added`);
+    return id;
+  };
+  /** Adds a built-in icon shape (DGM-17) centred on `at`, on the grid in diagram mode. */
+  const addIcon = (icon: string, at: Pt) => {
+    const f = iconNodeFields(icon, at);
+    if (!f) return;
+    if (S.current.dgm && S.current.dp.snapGrid) {
+      const g = S.current.dp.gridSize;
+      f.x = Math.round((f.x ?? 0) / g) * g;
+      f.y = Math.round((f.y ?? 0) / g) * g;
+    }
+    um?.stopCapturing();
+    const id = addShape(doc, boardId, f, origin);
+    setSel([id]);
+    setLive(`${f.text} icon added`);
     return id;
   };
   const onDragOver = (e: React.DragEvent) => {
@@ -667,7 +684,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (kind) {
       e.preventDefault();
       e.stopPropagation();
-      addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter());
+      addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter(), kind === ICON_KIND ? dt.getData(ICON_MIME) : undefined);
       return;
     }
     const files = imageFiles(e.dataTransfer);
@@ -2051,7 +2068,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             menuOpen={menu}
             onMenu={() => setMenu((m) => !m)}
             origin={origin}
-            onAddShape={(kind) => addKind(kind)}
+            onAddShape={(kind, icon) => addKind(kind, undefined, icon)}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
             canvas={{ shapes, sel, select: setSel }}
@@ -2224,6 +2241,45 @@ function centered(s: Shape, lh: number, size: number, wrap: number) {
 
 const toneFill = (s: Shape) => (s.fill && TONES.includes(s.fill as (typeof TONES)[number]) ? { fill: `var(--${s.fill}-bg)`, stroke: `var(--${s.fill}-fg)` } : null);
 
+/** A 24 × 24 stroked icon glyph (Lucide style) placed in a square. */
+function IconGlyph({ paths, x, y, size, color }: { paths: readonly string[]; x: number; y: number; size: number; color: string }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${size / 24})`} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths.map((d, i) => (
+        <path key={i} d={d} />
+      ))}
+    </g>
+  );
+}
+
+/** An `icon:node` shape: the tile, its glyph (or the empty frame when the icon is missing, 6a), the label. */
+function IconNodeView({ s, stroke, hideText }: { s: Shape; stroke: string; hideText?: boolean }) {
+  const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = s.h ?? 0;
+  const tone = toneFill(s);
+  const icon = iconById(iconProps(s).icon);
+  const g = iconGlyphBox(s);
+  const lb = hideText ? null : iconLabelLayout(s);
+  return (
+    <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
+      {icon ? (
+        <>
+          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} stroke={tone ? "none" : stroke} strokeWidth={1.5} />
+          <IconGlyph paths={icon.paths} x={g.x} y={g.y} size={g.size} color={tone?.stroke ?? stroke} />
+        </>
+      ) : (
+        <rect data-missing-icon="" x={x} y={y} width={w} height={h} rx={12} fill="var(--app)" stroke="var(--fg-3)" strokeWidth={1.25} strokeDasharray="4 3" />
+      )}
+      {lb
+        ? lb.lines.map((l, i) => (
+            <text key={i} x={lb.x} y={lb.y + i * ICON_LABEL.lh} textAnchor={lb.middle ? "middle" : undefined} fontSize={ICON_LABEL.size} fontWeight={600} fill="currentColor">
+              {l}
+            </text>
+          ))
+        : null}
+    </g>
+  );
+}
+
 const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string; growH?: number }) {
   const stroke = s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)";
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = growH ?? s.h ?? 0;
@@ -2240,8 +2296,23 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       );
     case "rect": {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
+      // An icon shape (DGM-17): tinted tile, the glyph, the label below or to the right.
+      if (s.kind === ICON_KIND) return <IconNodeView s={s} stroke={stroke} hideText={hideText} />;
       // A library kind with an outline (DGM-14 S2): its path, stretched to the box.
-      const path = s.kind ? descriptorOf(s).look?.path : undefined;
+      const look = s.kind ? descriptorOf(s).look : undefined;
+      const path = look?.path;
+      const glyph = look?.icon ? iconById(look.icon) : undefined;
+      if (glyph) {
+        // Network kinds drawn with a generic icon (DGM-17 decision 6): glyph on the left, text beside it.
+        const gs = Math.min(22, h * 0.5), tx = x + 12 + gs + 6, tw = Math.max(20, x + w - 8 - tx);
+        return (
+          <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
+            <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} />
+            <IconGlyph paths={glyph.paths} x={x + 12} y={y + (h - gs) / 2} size={gs} color={tone?.stroke ?? stroke} />
+            {text ? <Lines text={text} x={tx + tw / 2} y={centered(s, lh, size, tw)} lh={lh} anchor size={size} wrap={tw} /> : null}
+          </g>
+        );
+      }
       if (path) {
         return (
           <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>

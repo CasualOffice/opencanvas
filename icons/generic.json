@@ -1,0 +1,1244 @@
+{
+ "$comment": "Built-in diagram icons (DGM-17). Generic only: Lucide (ISC) or drawn by OpenCanvas in Lucide's style (Apache-2.0). Paths are SVG path data in a 24 x 24 box, stroked 2, round caps and joins, no fill. Product names are search keywords only; no glyph imitates a logo. Shared by web/packages/board and crates/oc-model.",
+ "version": 1,
+ "box": 24,
+ "categories": [
+  {
+   "id": "compute",
+   "name": "Compute",
+   "tone": "blue"
+  },
+  {
+   "id": "storage",
+   "name": "Storage and data",
+   "tone": "blue"
+  },
+  {
+   "id": "network",
+   "name": "Network",
+   "tone": "purple"
+  },
+  {
+   "id": "messaging",
+   "name": "Messaging and events",
+   "tone": "amber"
+  },
+  {
+   "id": "realtime",
+   "name": "Real-time and media",
+   "tone": "pink"
+  },
+  {
+   "id": "security",
+   "name": "Security and identity",
+   "tone": "red"
+  },
+  {
+   "id": "people",
+   "name": "People and clients",
+   "tone": "gray"
+  },
+  {
+   "id": "operations",
+   "name": "Operations",
+   "tone": "green"
+  },
+  {
+   "id": "general",
+   "name": "General",
+   "tone": "gray"
+  }
+ ],
+ "icons": [
+  {
+   "id": "server",
+   "name": "Server",
+   "category": "compute",
+   "keywords": [
+    "host",
+    "machine",
+    "vm",
+    "instance",
+    "ec2",
+    "compute",
+    "bare-metal"
+   ],
+   "paths": [
+    "M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+    "M4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+    "M6 6L6.01 6",
+    "M6 18L6.01 18"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "service",
+   "name": "Service",
+   "category": "compute",
+   "keywords": [
+    "microservice",
+    "app",
+    "application",
+    "backend",
+    "api",
+    "component"
+   ],
+   "paths": [
+    "M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z",
+    "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "container",
+   "name": "Container",
+   "category": "compute",
+   "keywords": [
+    "docker",
+    "image",
+    "oci",
+    "podman"
+   ],
+   "paths": [
+    "M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z",
+    "M10 21.9V14L2.1 9.1",
+    "m10 14 11.9-6.9",
+    "M14 19.8v-8.1",
+    "M18 17.5V9.4"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "pod",
+   "name": "Pod",
+   "category": "compute",
+   "keywords": [
+    "kubernetes",
+    "k8s",
+    "pod",
+    "replica"
+   ],
+   "paths": [
+    "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0",
+    "M12 6.5l5 2.8v5.4l-5 2.8-5-2.8V9.3z",
+    "M7 9.3l5 2.8 5-2.8M12 12.1v5.4"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "cluster",
+   "name": "Cluster",
+   "category": "compute",
+   "keywords": [
+    "kubernetes",
+    "k8s",
+    "nodes",
+    "eks",
+    "gke",
+    "aks",
+    "nomad",
+    "swarm"
+   ],
+   "paths": [
+    "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1 -5 5h-10a5 5 0 0 1 -5 -5v-10a5 5 0 0 1 5 -5Z",
+    "M7 6h3a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1Z",
+    "M14 6h3a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1Z",
+    "M10.5 13h3a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1Z"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "function",
+   "name": "Function",
+   "category": "compute",
+   "keywords": [
+    "serverless",
+    "lambda",
+    "faas",
+    "cloud",
+    "function"
+   ],
+   "paths": [
+    "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2Z",
+    "M9 17c2 0 2.8-1 2.8-2.8V10c0-2 1-3.3 3.2-3",
+    "M9 11.2h5.7"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "worker",
+   "name": "Worker",
+   "category": "compute",
+   "keywords": [
+    "job",
+    "background",
+    "processor",
+    "cpu",
+    "task"
+   ],
+   "paths": [
+    "M12 20v2",
+    "M12 2v2",
+    "M17 20v2",
+    "M17 2v2",
+    "M2 12h2",
+    "M2 17h2",
+    "M2 7h2",
+    "M20 12h2",
+    "M20 17h2",
+    "M20 7h2",
+    "M7 20v2",
+    "M7 2v2",
+    "M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2Z",
+    "M9 8h6a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1Z"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "scheduler",
+   "name": "Scheduler",
+   "category": "compute",
+   "keywords": [
+    "cron",
+    "timer",
+    "job",
+    "schedule",
+    "batch"
+   ],
+   "paths": [
+    "M16 2v3",
+    "M17 15.5v1.7l1 .625",
+    "M21 8.936V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h3.935",
+    "M3 9h9.873",
+    "M8 2v3",
+    "M12 17a5 5 0 1 0 10 0a5 5 0 1 0 -10 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "database",
+   "name": "Database",
+   "category": "storage",
+   "keywords": [
+    "db",
+    "sql",
+    "postgres",
+    "postgresql",
+    "mysql",
+    "mariadb",
+    "sqlite",
+    "oracle",
+    "rds"
+   ],
+   "paths": [
+    "M3 5a9 3 0 1 0 18 0a9 3 0 1 0 -18 0",
+    "M3 5V19A9 3 0 0 0 21 19V5",
+    "M3 12A9 3 0 0 0 21 12"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "object-storage",
+   "name": "Object storage",
+   "category": "storage",
+   "keywords": [
+    "s3",
+    "bucket",
+    "blob",
+    "minio",
+    "gcs",
+    "azure",
+    "blob",
+    "files"
+   ],
+   "paths": [
+    "M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0",
+    "M4 6l1.8 12.4C6.1 20.2 8.8 21 12 21s5.9-.8 6.2-2.6L20 6",
+    "M5.1 11.4C6.8 12.4 9.2 12.9 12 12.9s5.2-.5 6.9-1.5"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "cache",
+   "name": "Cache",
+   "category": "storage",
+   "keywords": [
+    "redis",
+    "memcached",
+    "valkey",
+    "memory",
+    "in-memory"
+   ],
+   "paths": [
+    "M4 5a8 3 0 1 0 16 0a8 3 0 1 0 -16 0",
+    "M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5",
+    "m13 9.5-3 4.5h4l-3 4.5"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "data-warehouse",
+   "name": "Data warehouse",
+   "category": "storage",
+   "keywords": [
+    "warehouse",
+    "analytics",
+    "olap",
+    "bigquery",
+    "snowflake",
+    "redshift",
+    "clickhouse",
+    "lake"
+   ],
+   "paths": [
+    "M3 6a4 2 0 1 0 8 0a4 2 0 1 0 -8 0",
+    "M3 6v12c0 1.1 1.8 2 4 2s4-.9 4-2V6",
+    "M3 12c0 1.1 1.8 2 4 2s4-.9 4-2",
+    "M13 6a4 2 0 1 0 8 0a4 2 0 1 0 -8 0",
+    "M13 6v12c0 1.1 1.8 2 4 2s4-.9 4-2V6",
+    "M13 12c0 1.1 1.8 2 4 2s4-.9 4-2"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "search-index",
+   "name": "Search index",
+   "category": "storage",
+   "keywords": [
+    "search",
+    "elasticsearch",
+    "opensearch",
+    "solr",
+    "meilisearch",
+    "index"
+   ],
+   "paths": [
+    "M21 11.693V5",
+    "m22 22-1.875-1.875",
+    "M3 12a9 3 0 0 0 8.697 2.998",
+    "M3 5v14a9 3 0 0 0 9.28 2.999",
+    "M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+    "M3 5a9 3 0 1 0 18 0a9 3 0 1 0 -18 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "disk",
+   "name": "Disk",
+   "category": "storage",
+   "keywords": [
+    "volume",
+    "block",
+    "storage",
+    "ssd",
+    "drive",
+    "ebs"
+   ],
+   "paths": [
+    "M10 16h.01",
+    "M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+    "M21.946 12.013H2.054",
+    "M6 16h.01"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "backup",
+   "name": "Backup",
+   "category": "storage",
+   "keywords": [
+    "restore",
+    "snapshot",
+    "archive"
+   ],
+   "paths": [
+    "M3 3h18a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-18a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1Z",
+    "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8",
+    "M10 12h4"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "load-balancer",
+   "name": "Load balancer",
+   "category": "network",
+   "keywords": [
+    "lb",
+    "balancing",
+    "traffic",
+    "haproxy",
+    "elb",
+    "alb",
+    "ingress"
+   ],
+   "paths": [
+    "M2 12h4.5",
+    "M6.5 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M10.5 12H22",
+    "M13.5 12l3-6H22",
+    "M13.5 12l3 6H22"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "api-gateway",
+   "name": "API gateway",
+   "category": "network",
+   "keywords": [
+    "gateway",
+    "api",
+    "edge",
+    "ingress",
+    "kong"
+   ],
+   "paths": [
+    "M2 6h3.5l4 6",
+    "M2 18h3.5l4-6",
+    "M2 12h7.5",
+    "M11 8h2a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1 -1.5 1.5h-2a1.5 1.5 0 0 1 -1.5 -1.5v-5a1.5 1.5 0 0 1 1.5 -1.5Z",
+    "M14.5 12H22",
+    "m19 9 3 3-3 3"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "reverse-proxy",
+   "name": "Reverse proxy",
+   "category": "network",
+   "keywords": [
+    "proxy",
+    "nginx",
+    "traefik",
+    "caddy",
+    "envoy",
+    "gateway"
+   ],
+   "paths": [
+    "M2 12h5",
+    "M9 6h6a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2Z",
+    "M10 10h4M10 14h4",
+    "M17 12h5",
+    "m19.5 9.5 2.5 2.5-2.5 2.5"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "cdn",
+   "name": "CDN",
+   "category": "network",
+   "keywords": [
+    "content",
+    "delivery",
+    "edge",
+    "cloudfront",
+    "cloudflare",
+    "fastly",
+    "static"
+   ],
+   "paths": [
+    "M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0",
+    "M8 12h8",
+    "M12 8c1.5 1.3 1.5 6.7 0 8",
+    "M2 4a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M18 4a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M2 20a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M18 20a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "m5.5 5.5 3.7 3.7M18.5 5.5l-3.7 3.7M5.5 18.5l3.7-3.7M18.5 18.5l-3.7-3.7"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "dns",
+   "name": "DNS",
+   "category": "network",
+   "keywords": [
+    "domain",
+    "name",
+    "resolver",
+    "route53",
+    "records"
+   ],
+   "paths": [
+    "M2.5 9a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0",
+    "M2.5 9h13",
+    "M9 2.5c2 2 2 11 0 13M9 2.5c-2 2-2 11 0 13",
+    "M14 18h8M14 21.5h6"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "firewall",
+   "name": "Firewall",
+   "category": "network",
+   "keywords": [
+    "waf",
+    "security",
+    "rules",
+    "block"
+   ],
+   "paths": [
+    "M16 3v2.107",
+    "M17 9c1 3 2.5 3.5 3.5 4.5A5 5 0 0 1 22 17a5 5 0 0 1-10 0c0-.3 0-.6.1-.9a2 2 0 1 0 3.3-2C13 11.5 16 9 17 9",
+    "M21 8.274V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.938",
+    "M3 15h5.253",
+    "M3 9h8.228",
+    "M8 15v6",
+    "M8 3v6"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "vpn-tunnel",
+   "name": "VPN tunnel",
+   "category": "network",
+   "keywords": [
+    "vpn",
+    "tunnel",
+    "wireguard",
+    "ipsec",
+    "private"
+   ],
+   "paths": [
+    "M3 20v-8a9 9 0 0 1 18 0v8",
+    "M8 20v-8a4 4 0 0 1 8 0v8",
+    "M2 20h20"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "router",
+   "name": "Router",
+   "category": "network",
+   "keywords": [
+    "routing",
+    "switch",
+    "gateway",
+    "nat"
+   ],
+   "paths": [
+    "M4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+    "M6.01 18H6",
+    "M10.01 18H10",
+    "M15 10v4",
+    "M17.84 7.17a4 4 0 0 0-5.66 0",
+    "M20.66 4.34a8 8 0 0 0-11.31 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "internet",
+   "name": "Internet",
+   "category": "network",
+   "keywords": [
+    "web",
+    "www",
+    "public",
+    "world",
+    "global"
+   ],
+   "paths": [
+    "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0",
+    "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20",
+    "M2 12h20"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "cloud",
+   "name": "Cloud",
+   "category": "network",
+   "keywords": [
+    "saas",
+    "vpc",
+    "region",
+    "provider",
+    "external"
+   ],
+   "paths": [
+    "M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "service-mesh",
+   "name": "Service mesh",
+   "category": "network",
+   "keywords": [
+    "mesh",
+    "istio",
+    "linkerd",
+    "sidecar",
+    "envoy"
+   ],
+   "paths": [
+    "M3 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M17 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M3 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M17 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M7 5h10M5 7v10M19 7v10M7 19h10M6.5 6.5l11 11M17.5 6.5l-11 11"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "queue",
+   "name": "Queue",
+   "category": "messaging",
+   "keywords": [
+    "message",
+    "queue",
+    "rabbitmq",
+    "sqs",
+    "fifo",
+    "jobs"
+   ],
+   "paths": [
+    "M4 7h16a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2Z",
+    "M6.5 10v4M10 10v4M13.5 10v4",
+    "m17 10 2 2-2 2"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "event-bus",
+   "name": "Event bus",
+   "category": "messaging",
+   "keywords": [
+    "events",
+    "stream",
+    "kafka",
+    "topic",
+    "pubsub",
+    "nats",
+    "pulsar",
+    "kinesis"
+   ],
+   "paths": [
+    "M2 6h20",
+    "M6 6v8.5M12 6v4.5M18 6v8.5",
+    "M3.5 17a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0",
+    "M9.5 13a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0",
+    "M15.5 17a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "webhook",
+   "name": "Webhook",
+   "category": "messaging",
+   "keywords": [
+    "callback",
+    "http",
+    "hook"
+   ],
+   "paths": [
+    "M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2",
+    "m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06",
+    "m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "email",
+   "name": "Email",
+   "category": "messaging",
+   "keywords": [
+    "mail",
+    "smtp",
+    "imap",
+    "ses"
+   ],
+   "paths": [
+    "m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7",
+    "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2Z"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "notification",
+   "name": "Notification",
+   "category": "messaging",
+   "keywords": [
+    "push",
+    "alert",
+    "bell"
+   ],
+   "paths": [
+    "M10.268 21a2 2 0 0 0 3.464 0",
+    "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "chat",
+   "name": "Chat",
+   "category": "messaging",
+   "keywords": [
+    "message",
+    "messaging",
+    "conversation",
+    "slack"
+   ],
+   "paths": [
+    "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "video-bridge",
+   "name": "Video bridge",
+   "category": "realtime",
+   "keywords": [
+    "sfu",
+    "mcu",
+    "conference",
+    "media",
+    "server",
+    "webrtc"
+   ],
+   "paths": [
+    "M4 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+    "m13 11 4-2.5v7L13 13",
+    "M19.5 6.5 22 4M19.5 12H22M19.5 17.5 22 20"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "relay",
+   "name": "Relay",
+   "category": "realtime",
+   "keywords": [
+    "turn",
+    "stun",
+    "coturn",
+    "nat",
+    "traversal",
+    "media",
+    "relay"
+   ],
+   "paths": [
+    "M2 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M18 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M10.5 7h3a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1 -1.5 1.5h-3a1.5 1.5 0 0 1 -1.5 -1.5v-7a1.5 1.5 0 0 1 1.5 -1.5Z",
+    "M6 12h3M15 12h3",
+    "M12 3.5V7M12 17v3.5"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "video-call",
+   "name": "Video call",
+   "category": "realtime",
+   "keywords": [
+    "video",
+    "meeting",
+    "camera",
+    "conference",
+    "call"
+   ],
+   "paths": [
+    "m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5",
+    "M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2Z"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "phone",
+   "name": "Phone",
+   "category": "realtime",
+   "keywords": [
+    "voice",
+    "call",
+    "sip",
+    "telephony",
+    "pstn"
+   ],
+   "paths": [
+    "M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "broadcast",
+   "name": "Broadcast",
+   "category": "realtime",
+   "keywords": [
+    "stream",
+    "streaming",
+    "live",
+    "rtmp",
+    "hls",
+    "radio"
+   ],
+   "paths": [
+    "M4.9 16.1C1 12.2 1 5.8 4.9 1.9",
+    "M7.8 4.7a6.14 6.14 0 0 0-.8 7.5",
+    "M10 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M16.2 4.8c2 2 2.26 5.11.8 7.47",
+    "M19.1 1.9a9.96 9.96 0 0 1 0 14.1",
+    "M9.5 18h5",
+    "m8 22 4-11 4 11"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "identity-provider",
+   "name": "Identity provider",
+   "category": "security",
+   "keywords": [
+    "idp",
+    "sso",
+    "oidc",
+    "saml",
+    "oauth",
+    "login",
+    "ldap",
+    "keycloak",
+    "auth0",
+    "okta"
+   ],
+   "paths": [
+    "M5.5 7.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0",
+    "M3 20c0-3.3 2.7-5.5 6-5.5 1 0 2 .2 2.8.6",
+    "M18 12l3.5 1.4v2.8c0 2.2-1.5 3.8-3.5 4.8-2-1-3.5-2.6-3.5-4.8v-2.8Z"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "vault",
+   "name": "Vault",
+   "category": "security",
+   "keywords": [
+    "secrets",
+    "secret",
+    "manager",
+    "kms",
+    "hsm"
+   ],
+   "paths": [
+    "M5 4h14a2 2 0 0 1 2 2v11a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2Z",
+    "M8.5 11.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0",
+    "M12 8v1.5M12 13.5V15M8.5 11.5H10M14 11.5h1.5",
+    "M6 19v2M18 19v2"
+   ],
+   "source": "opencanvas"
+  },
+  {
+   "id": "key",
+   "name": "Key",
+   "category": "security",
+   "keywords": [
+    "api",
+    "key",
+    "token",
+    "credential",
+    "password"
+   ],
+   "paths": [
+    "M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z",
+    "M16 7.5a0.5 0.5 0 1 0 1 0a0.5 0.5 0 1 0 -1 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "certificate",
+   "name": "Certificate",
+   "category": "security",
+   "keywords": [
+    "tls",
+    "ssl",
+    "x509",
+    "cert",
+    "verified"
+   ],
+   "paths": [
+    "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z",
+    "m16 9-5.5 5.5L8 12"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "access-policy",
+   "name": "Access policy",
+   "category": "security",
+   "keywords": [
+    "permission",
+    "rbac",
+    "acl",
+    "policy",
+    "security"
+   ],
+   "paths": [
+    "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+    "m9 12 2 2 4-4"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "user",
+   "name": "User",
+   "category": "people",
+   "keywords": [
+    "person",
+    "account",
+    "customer",
+    "actor"
+   ],
+   "paths": [
+    "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2",
+    "M8 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "team",
+   "name": "Team",
+   "category": "people",
+   "keywords": [
+    "group",
+    "people",
+    "users",
+    "organisation"
+   ],
+   "paths": [
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+    "M16 3.128a4 4 0 0 1 0 7.744",
+    "M22 21v-2a4 4 0 0 0-3-3.87",
+    "M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "browser",
+   "name": "Browser",
+   "category": "people",
+   "keywords": [
+    "web",
+    "app",
+    "website",
+    "spa",
+    "client"
+   ],
+   "paths": [
+    "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2Z",
+    "M10 4v4",
+    "M2 8h20",
+    "M6 4v4"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "mobile-app",
+   "name": "Mobile app",
+   "category": "people",
+   "keywords": [
+    "phone",
+    "ios",
+    "android",
+    "app",
+    "device"
+   ],
+   "paths": [
+    "M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-16a2 2 0 0 1 2 -2Z",
+    "M12 18h.01"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "desktop",
+   "name": "Desktop",
+   "category": "people",
+   "keywords": [
+    "pc",
+    "computer",
+    "workstation",
+    "screen"
+   ],
+   "paths": [
+    "M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2Z",
+    "M8 21L16 21",
+    "M12 17L12 21"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "laptop",
+   "name": "Laptop",
+   "category": "people",
+   "keywords": [
+    "notebook",
+    "computer",
+    "device"
+   ],
+   "paths": [
+    "M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z",
+    "M20.054 15.987H3.946"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "bot",
+   "name": "Bot",
+   "category": "people",
+   "keywords": [
+    "assistant",
+    "agent",
+    "ai",
+    "automation"
+   ],
+   "paths": [
+    "M12 8V4H8",
+    "M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2Z",
+    "M2 14h2",
+    "M20 14h2",
+    "M15 13v2",
+    "M9 13v2"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "monitoring",
+   "name": "Monitoring",
+   "category": "operations",
+   "keywords": [
+    "metrics",
+    "prometheus",
+    "grafana",
+    "observability",
+    "health"
+   ],
+   "paths": [
+    "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "logs",
+   "name": "Logs",
+   "category": "operations",
+   "keywords": [
+    "logging",
+    "loki",
+    "audit",
+    "trail"
+   ],
+   "paths": [
+    "M15 12h-5",
+    "M15 8h-5",
+    "M19 17V5a2 2 0 0 0-2-2H4",
+    "M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "alert",
+   "name": "Alert",
+   "category": "operations",
+   "keywords": [
+    "alerting",
+    "pager",
+    "on-call",
+    "incident",
+    "alertmanager"
+   ],
+   "paths": [
+    "M10.268 21a2 2 0 0 0 3.464 0",
+    "M22 8c0-2.3-.8-4.3-2-6",
+    "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
+    "M4 2C2.8 3.7 2 5.7 2 8"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "pipeline",
+   "name": "Pipeline",
+   "category": "operations",
+   "keywords": [
+    "ci",
+    "cd",
+    "ci/cd",
+    "build",
+    "deploy",
+    "release",
+    "git"
+   ],
+   "paths": [
+    "M15 6a9 9 0 0 0-9 9V3",
+    "M15 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+    "M3 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "document",
+   "name": "Document",
+   "category": "general",
+   "keywords": [
+    "file",
+    "page",
+    "text",
+    "report"
+   ],
+   "paths": [
+    "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
+    "M14 2v5a1 1 0 0 0 1 1h5",
+    "M10 9H8",
+    "M16 13H8",
+    "M16 17H8"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "folder",
+   "name": "Folder",
+   "category": "general",
+   "keywords": [
+    "directory",
+    "files",
+    "share"
+   ],
+   "paths": [
+    "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "settings",
+   "name": "Settings",
+   "category": "general",
+   "keywords": [
+    "config",
+    "configuration",
+    "gear",
+    "options"
+   ],
+   "paths": [
+    "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915",
+    "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "code",
+   "name": "Code",
+   "category": "general",
+   "keywords": [
+    "source",
+    "repository",
+    "script"
+   ],
+   "paths": [
+    "m18 16 4-4-4-4",
+    "m6 8-4 4 4 4",
+    "m14.5 4-5 16"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "package",
+   "name": "Package",
+   "category": "general",
+   "keywords": [
+    "artifact",
+    "library",
+    "module",
+    "box",
+    "bundle"
+   ],
+   "paths": [
+    "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z",
+    "M12 22V12",
+    "M3.29 7L12 12L20.71 7",
+    "m7.5 4.27 9 5.15"
+   ],
+   "source": "lucide"
+  },
+  {
+   "id": "clock",
+   "name": "Clock",
+   "category": "general",
+   "keywords": [
+    "time",
+    "timer",
+    "schedule",
+    "latency"
+   ],
+   "paths": [
+    "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0",
+    "M12 6v6l4 2"
+   ],
+   "source": "lucide"
+  }
+ ],
+ "suggest": {
+  "jitsi": [
+   "video-bridge",
+   "video-call",
+   "relay"
+  ],
+  "bigbluebutton": [
+   "video-bridge",
+   "video-call",
+   "relay"
+  ],
+  "zoom": [
+   "video-call",
+   "video-bridge"
+  ],
+  "teams": [
+   "video-call",
+   "chat"
+  ],
+  "nextcloud": [
+   "object-storage",
+   "folder",
+   "cloud"
+  ],
+  "owncloud": [
+   "object-storage",
+   "folder",
+   "cloud"
+  ],
+  "mattermost": [
+   "chat",
+   "notification"
+  ],
+  "rocketchat": [
+   "chat",
+   "notification"
+  ],
+  "element": [
+   "chat"
+  ],
+  "matrix": [
+   "chat",
+   "event-bus"
+  ],
+  "keycloak": [
+   "identity-provider",
+   "key"
+  ],
+  "authentik": [
+   "identity-provider",
+   "key"
+  ],
+  "gitlab": [
+   "pipeline",
+   "code"
+  ],
+  "github": [
+   "pipeline",
+   "code"
+  ],
+  "jenkins": [
+   "pipeline",
+   "worker"
+  ],
+  "sentry": [
+   "monitoring",
+   "alert"
+  ],
+  "postgres": [
+   "database"
+  ]
+ }
+}

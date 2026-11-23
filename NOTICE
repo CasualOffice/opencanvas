@@ -16,3 +16,8 @@ Third-party components keep their own licences:
   list, sources and subsetting are in crates/oc-model/fonts/THIRD-PARTY.md.
 - The Lucide icons used by the project site (site/_src/lucide) are under the ISC
   licence, as stated by their upstream project.
+- The built-in diagram icons (icons/generic.json, shared by the editor and oc-model) are
+  either Lucide icons (ISC; the few derived from Feather are MIT) or drawn by CasualOffice
+  in Lucide's style (Apache-2.0); each icon's `source` says which. The Lucide licence
+  text, including the Feather MIT notice, is icons/LICENSE-lucide.txt. The editor also
+  uses Lucide through the lucide-react package (ISC). No vendor or product logo is bundled.

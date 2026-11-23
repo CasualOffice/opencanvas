@@ -9,6 +9,7 @@ import * as Y from "yjs";
 import { exportBoardSvg, shapesToSvg } from "./export";
 import { getBoardMap, readShapes, type Shape } from "./model";
 import { withResolvedArrows } from "./connectors";
+import { GENERIC_ICONS } from "./icons";
 
 // Shared with the Rust renderer (`crates/oc-model/tests/board.rs`): both must produce
 // `board.web.svg` byte for byte from `board.json`. Regenerate with OC_UPDATE_FIXTURE=1.
@@ -158,5 +159,21 @@ describe("board export: UX pass keys", () => {
     const svg = svgOf({ type: "arrow", pts: [[0, 0], [100, 0]], text: `a&"\u0007` }, { type: "rect", x: 0, y: 0, w: 300, h: 40, text: "<b>" });
     expect(svg).toContain(">a&amp;&quot;</text>");
     expect(svg).toContain(">&lt;b&gt;</text>");
+  });
+});
+
+describe("icon export (shared fixture with oc-model)", () => {
+  it("matches board-icons.web.svg, which the Rust renderer is checked against", () => {
+    const svg = exportBoardSvg(fixtureDoc("board-icons.json"), "b1");
+    if (UPDATE) writeFileSync(FIX + "board-icons.web.svg", svg);
+    expect(svg).toBe(readFileSync(FIX + "board-icons.web.svg", "utf8"));
+    // Inline paths for the icon, label escaped below / to the right, hidden label left out, and
+    // an icon this build doesn't have drawn as the plain rect with its text.
+    const cdn = GENERIC_ICONS.find((i) => i.id === "object-storage")!;
+    expect(svg).toContain(`<path d="${cdn.paths[0]}"/>`);
+    expect(svg).toContain("Edge &lt;proxy&gt; &amp;");
+    expect(svg).not.toContain("hidden label");
+    expect(svg).toContain(">Not</text>");
+    expect(svg).not.toMatch(/<image|<use|href=/);
   });
 });

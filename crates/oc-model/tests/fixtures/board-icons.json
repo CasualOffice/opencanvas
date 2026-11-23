@@ -1,0 +1,11 @@
+{
+  "order": ["i1", "i2", "i3", "i4", "i5", "e1"],
+  "shapes": {
+    "i1": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 0, "y": 0, "w": 52, "h": 52, "text": "Object storage", "fill": "blue", "props": {"icon": "object-storage", "labelPos": "below"}},
+    "i2": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 200, "y": 0, "w": 64, "h": 52, "text": "Edge <proxy> &\nsecond line", "fill": "purple", "props": {"icon": "reverse-proxy", "labelPos": "right"}},
+    "i3": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 0, "y": 160, "w": 52, "h": 52, "text": "hidden label", "fill": "amber", "props": {"icon": "queue", "labelPos": "hidden"}},
+    "i4": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 200, "y": 160, "w": 52, "h": 52, "text": "Not in this build", "props": {"icon": "no-such-icon"}},
+    "i5": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 400, "y": 160, "w": 40, "h": 40, "text": "Cache", "fill": "nonsense", "props": {"icon": "cache"}},
+    "e1": {"type": "arrow", "pts": [[26, 52], [26, 160]], "start": {"shapeId": "i1", "anchor": "bottom"}, "end": {"shapeId": "i3", "anchor": "top"}}
+  }
+}

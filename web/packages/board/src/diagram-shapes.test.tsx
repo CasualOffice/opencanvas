@@ -117,7 +117,8 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     const panel = dg.querySelector<HTMLElement>('aside[aria-label="Shapes"]')!;
     expect(panel).toBeTruthy();
     const heads = [...panel.querySelectorAll(".ocdg-lh button")].map((b) => b.textContent);
-    expect(heads).toEqual(["Flowchart7", "UML5", "Network9"]);
+    // The Icons library (DGM-17) sits above the shape libraries.
+    expect(heads).toEqual(["Icons59", "Flowchart7", "UML5", "Network9"]);
     act(() => btn(panel, "Add Process")!.click());
     expect(all(doc, id)).toHaveLength(1);
     expect(all(doc, id)[0]).toMatchObject({ type: "rect", kind: "flowchart:process", text: "Process", w: 140, h: 70 });
@@ -132,11 +133,12 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     const id = createBoard(doc, "blank");
     const dg = await open(doc, id);
     const input = dg.querySelector<HTMLInputElement>('input[aria-label="Search shapes"]')!;
-    type(input, "kafka");
+    type(input, "queue");
     const tile = dg.querySelector<HTMLElement>('.ocdg-tile[data-kind="network:queue"]')!;
-    expect(tile.textContent).toContain("kafka");
+    expect(tile.textContent).toContain("Queue");
+    // Icons match as well (label prefix), so they come first (DGM-17, 1d): Enter adds the queue icon.
     act(() => void input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
-    expect(all(doc, id)[0]).toMatchObject({ kind: "network:queue", fill: "amber", text: "Queue" });
+    expect(all(doc, id)[0]).toMatchObject({ kind: "icon:node", fill: "amber", text: "Queue", props: { icon: "queue" } });
     type(input, "zzz");
     expect(dg.querySelector(".ocdg-none")!.textContent).toContain("No shapes match “zzz”.");
     act(() => btn(dg, "Clear search")!.click());

@@ -4,9 +4,10 @@
 // Shapes panel (DGM-14 S2, frames 2a-2e, 2g): libraries from the registry, search, click or drag
 // to add. Every tile is registry data (libraries.ts); nothing here defines a shape.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from "react";
-import { Boxes, ChevronRight, Network, Search, Workflow, X, type LucideIcon } from "lucide-react";
+import { Boxes, ChevronRight, Network, Search, Shapes, Upload, Workflow, X, type LucideIcon } from "lucide-react";
 import { KIND_MIME, LIBRARIES, type Library } from "../libraries";
 import { descriptorOf, type ResolvedDescriptor } from "../registry";
+import { GENERIC_ICONS, ICON_CATEGORIES, ICON_KIND, ICON_MIME, iconById, searchIcons, suggestIcons, toneOf, type GenericIcon, type IconHit } from "../icons";
 
 const SW = 1.75;
 const ICONS: Record<string, LucideIcon> = { workflow: Workflow, boxes: Boxes, network: Network };
@@ -21,8 +22,10 @@ function readOpen(): Record<string, boolean> {
   } catch {
     /* private window, blocked storage */
   }
-  return { flowchart: true };
+  return {};
 }
+/** Open by default (1a): Flowchart, the Icons library, its Compute and Storage groups. */
+const OPEN_DEFAULT: Record<string, boolean> = { flowchart: true, icons: true, "icons:compute": true, "icons:storage": true };
 function writeOpen(v: Record<string, boolean>) {
   try {
     localStorage.setItem(OPEN_KEY, JSON.stringify(v));
@@ -72,7 +75,14 @@ export function Preview({ d }: { d: ResolvedDescriptor }) {
   return (
     <svg className="ocdg-pv" width={40} height={30} viewBox="0 0 40 30" aria-hidden="true">
       <g transform={`translate(${(40 - pw) / 2} ${(30 - ph) / 2}) scale(${pw / 100} ${ph / 100})`}>
-        {d.look?.path ? (
+        {d.look?.icon && iconById(d.look.icon) ? (
+          <>
+            <rect width={100} height={100} rx={12} {...common} />
+            <g transform="translate(6 25) scale(2.1 2.1)">
+              <path d={iconById(d.look.icon)!.paths.join(" ")} fill="none" stroke={common.stroke} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            </g>
+          </>
+        ) : d.look?.path ? (
           <path d={d.look.path} {...common} />
         ) : d.base === "diamond" ? (
           <path d="M50 0L100 50L50 100L0 50Z" {...common} />
@@ -121,6 +131,51 @@ function Tile({ kind, onAdd, hit }: { kind: string; onAdd: (k: string) => void; 
   );
 }
 
+/** A built-in icon tile (DGM-17, 1a): the glyph on its category tone. */
+function IconTile({ icon, onAdd, hit }: { icon: GenericIcon; onAdd: (kind: string, icon?: string) => void; hit?: IconHit }) {
+  const tone = toneOf(icon);
+  const label = icon.name;
+  const name = hit?.at ? (
+    <>
+      {label.slice(0, hit.at[0])}
+      <mark>{label.slice(hit.at[0], hit.at[1])}</mark>
+      {label.slice(hit.at[1])}
+    </>
+  ) : (
+    label
+  );
+  return (
+    <button
+      type="button"
+      className="ocdg-tile"
+      data-kind={ICON_KIND}
+      data-icon={icon.id}
+      draggable
+      title={`${label}. Click to add in the middle of the view, or drag onto the canvas`}
+      aria-label={`Add ${label} icon`}
+      onClick={() => onAdd(ICON_KIND, icon.id)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(KIND_MIME, ICON_KIND);
+        e.dataTransfer.setData(ICON_MIME, icon.id);
+        e.dataTransfer.effectAllowed = "copy";
+        e.currentTarget.classList.add("dragging");
+      }}
+      onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
+    >
+      <svg className="ocdg-pv" width={40} height={30} viewBox="0 0 40 30" aria-hidden="true">
+        <rect x={6} y={0} width={28} height={28} rx={7} fill={`var(--${tone}-bg)`} />
+        <g transform="translate(10 4) scale(0.8333)" fill="none" stroke={`var(--${tone}-fg)`} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          {icon.paths.map((d, i) => (
+            <path key={i} d={d} />
+          ))}
+        </g>
+      </svg>
+      <span className="ocdg-tl">{name}</span>
+      {hit?.keyword ? <span className="ocdg-tk">{hit.keyword}</span> : null}
+    </button>
+  );
+}
+
 const COLS = 3;
 /** Arrow keys move between tiles (2d). */
 function onGridKey(e: RKE<HTMLElement>) {
@@ -133,11 +188,28 @@ function onGridKey(e: RKE<HTMLElement>) {
   tiles[Math.max(0, Math.min(tiles.length - 1, i + step))]?.focus();
 }
 
-export function ShapesPanel({ onAdd }: { onAdd: (kind: string) => void }) {
+export interface ShapesPanelProps {
+  /** Adds a shape of `kind`; for `icon:node`, `icon` is the built-in icon's id. */
+  onAdd: (kind: string, icon?: string) => void;
+  /** Opens Add your own icon (DGM-17 part 2); without it the button is disabled. */
+  onAddOwnIcon?: () => void;
+}
+
+const matchClass = (score: number) => Math.floor(score / 10_000);
+
+export function ShapesPanel({ onAdd, onAddOwnIcon }: ShapesPanelProps) {
   const [q, setQ] = useState("");
-  const [open, setOpenState] = useState(readOpen);
+  const [open, setOpenState] = useState(() => ({ ...OPEN_DEFAULT, ...readOpen() }));
   const input = useRef<HTMLInputElement>(null);
   const hits = useMemo(() => searchShapes(q), [q]);
+  const iconHits = useMemo(() => searchIcons(q), [q]);
+  const suggested = useMemo(() => (hits.length || iconHits.length ? [] : suggestIcons(q)), [q, hits.length, iconHits.length]);
+  // Icons go first when they match at least as well as the best shape (1d).
+  const iconsFirst = iconHits.length > 0 && (!hits.length || matchClass(iconHits[0].score) <= matchClass(hits[0].score));
+  const addFirst = () => {
+    if (iconsFirst) onAdd(ICON_KIND, iconHits[0].id);
+    else if (hits[0]) onAdd(hits[0].kind);
+  };
   const setOpen = (id: string, v: boolean) =>
     setOpenState((o) => {
       const n = { ...o, [id]: v };
@@ -159,6 +231,26 @@ export function ShapesPanel({ onAdd }: { onAdd: (kind: string) => void }) {
   }, []);
 
   const searching = q.trim().length > 0;
+  const top = iconHits[0] ? iconById(iconHits[0].id) : undefined;
+  // Search results from the Icons library; a keyword match says it is not the vendor's logo (1c).
+  const iconResults = (
+    <section className="ocdg-lib" aria-label="Icons">
+      <h3 className="ocdg-lh">Icons</h3>
+      <div className="ocdg-tiles">
+        {iconHits.map((h) => (
+          <IconTile key={h.id} icon={iconById(h.id)!} hit={h} onAdd={onAdd} />
+        ))}
+      </div>
+      {top && iconHits[0].keyword ? (
+        <p className="ocdg-ihint">
+          {`${top.name} is a generic icon drawn by OpenCanvas, not a vendor logo. Need the real logo? `}
+          <button type="button" className="ocdg-link" disabled={!onAddOwnIcon} onClick={() => onAddOwnIcon?.()}>
+            Add your own icon
+          </button>
+        </p>
+      ) : null}
+    </section>
+  );
   return (
     <div className="ocdg-lp">
       <h2 className="ocdg-ph ocdg-sr">Shapes</h2>
@@ -168,15 +260,15 @@ export function ShapesPanel({ onAdd }: { onAdd: (kind: string) => void }) {
           ref={input}
           type="search"
           value={q}
-          placeholder="Search shapes"
+          placeholder="Search shapes and icons"
           aria-label="Search shapes"
           aria-keyshortcuts="/"
           aria-controls="ocdg-lib-results"
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && hits[0]) {
+            if (e.key === "Enter" && (hits[0] || iconHits[0])) {
               e.preventDefault();
-              onAdd(hits[0].kind);
+              addFirst();
             } else if (e.key === "Escape" && q) {
               e.stopPropagation();
               setQ("");
@@ -190,9 +282,10 @@ export function ShapesPanel({ onAdd }: { onAdd: (kind: string) => void }) {
       </div>
       <div className="ocdg-lscroll" id="ocdg-lib-results" onKeyDown={onGridKey}>
         {searching ? (
-          hits.length ? (
+          hits.length || iconHits.length ? (
             <>
-              <p className="ocdg-sr" role="status">{`${hits.length} ${hits.length === 1 ? "shape" : "shapes"} found`}</p>
+              <p className="ocdg-sr" role="status">{`${hits.length + iconHits.length} ${hits.length + iconHits.length === 1 ? "match" : "matches"} found`}</p>
+              {iconsFirst ? iconResults : null}
               {/* Groups in the order of their best match, so the first tile is what Enter adds. */}
               {LIBRARIES.filter((l) => hits.some((h) => h.library === l.id))
                 .sort((a, b) => hits.findIndex((h) => h.library === a.id) - hits.findIndex((h) => h.library === b.id))
@@ -208,7 +301,26 @@ export function ShapesPanel({ onAdd }: { onAdd: (kind: string) => void }) {
                   </div>
                 </section>
               ))}
+              {iconHits.length && !iconsFirst ? iconResults : null}
             </>
+          ) : suggested.length ? (
+            <div className="ocdg-none ocdg-noicon" role="status">
+              <Shapes size={20} strokeWidth={SW} aria-hidden="true" className="ocdg-ei" />
+              <p>
+                <b>{`No built-in icon for “${q.trim()}”`}</b>
+              </p>
+              <p className="ocdg-hint">OpenCanvas ships generic icons only, no product logos. Add the logo yourself and it stays in this document for everyone here.</p>
+              <button type="button" className="ocdg-btn pri" disabled={!onAddOwnIcon} onClick={() => onAddOwnIcon?.()}>
+                <Upload size={14} strokeWidth={SW} />
+                Add your own icon
+              </button>
+              <p className="ocdg-hint ocdg-or">Or use a generic one:</p>
+              <div className="ocdg-tiles">
+                {suggested.map((i) => (
+                  <IconTile key={i.id} icon={i} onAdd={onAdd} />
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="ocdg-none" role="status">
               <p>{`No shapes match “${q.trim()}”.`}</p>
@@ -221,7 +333,42 @@ export function ShapesPanel({ onAdd }: { onAdd: (kind: string) => void }) {
           )
         ) : (
           <>
-            {/* Recent (2a) and the Icons library (DGM-17) go here, above the libraries. */}
+            {/* Recent (2a) and In this document (DGM-17 part 2) go here, above the Icons library. */}
+            <section className="ocdg-lib" data-library="icons">
+              <h3 className="ocdg-lh">
+                <button type="button" aria-expanded={!!open.icons} onClick={() => setOpen("icons", !open.icons)}>
+                  <ChevronRight size={14} strokeWidth={SW} className="ocdg-chev" aria-hidden="true" />
+                  <Shapes size={14} strokeWidth={SW} aria-hidden="true" />
+                  <span>Icons</span>
+                  <span className="ocdg-cnt">{GENERIC_ICONS.length}</span>
+                </button>
+              </h3>
+              {open.icons
+                ? ICON_CATEGORIES.map((c) => {
+                    const items = GENERIC_ICONS.filter((i) => i.category === c.id);
+                    const key = `icons:${c.id}`;
+                    const on = !!open[key];
+                    return (
+                      <section key={c.id} className="ocdg-ig" data-group={c.id} aria-label={c.name}>
+                        <h4 className="ocdg-igh">
+                          <button type="button" aria-expanded={on} onClick={() => setOpen(key, !on)}>
+                            <ChevronRight size={12} strokeWidth={SW} className="ocdg-chev" aria-hidden="true" />
+                            <span>{c.name}</span>
+                            <span className="ocdg-cnt">{items.length}</span>
+                          </button>
+                        </h4>
+                        {on ? (
+                          <div className="ocdg-tiles">
+                            {items.map((i) => (
+                              <IconTile key={i.id} icon={i} onAdd={onAdd} />
+                            ))}
+                          </div>
+                        ) : null}
+                      </section>
+                    );
+                  })
+                : null}
+            </section>
             {LIBRARIES.map((l) => {
               const I = ICONS[l.icon] ?? Boxes;
               const on = !!open[l.id];

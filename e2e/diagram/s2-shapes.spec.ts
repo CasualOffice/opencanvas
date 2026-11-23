@@ -25,15 +25,19 @@ test("S2: search, click and drag shapes onto the canvas; the panel passes axe", 
   await page.keyboard.press("/");
   await expect(panel.getByRole("searchbox", { name: "Search shapes" })).toBeFocused();
   await page.keyboard.type("data");
-  await expect(panel.locator(".ocdg-tile").first()).toHaveAttribute("data-kind", "network:database");
+  // The Database icon (DGM-17) matches as well as the Network shape, so the Icons group is first (1d).
+  await expect(panel.locator(".ocdg-tile").first()).toHaveAttribute("data-icon", "database");
   await page.keyboard.press("Enter");
   await expect.poll(count).toBe(n0 + 1);
+  await expect(dg.locator('g[data-kind="icon:node"]')).toHaveCount(1);
+  await panel.locator('.ocdg-tile[data-kind="network:database"]').click();
+  await expect.poll(count).toBe(n0 + 2);
   await expect(dg.locator('g[data-kind="network:database"] path')).toHaveCount(1);
 
   // Drag a tile onto the canvas.
   const svg = (await dg.locator("svg.ocbd-svg").boundingBox())!;
   await panel.locator('.ocdg-tile[data-kind="flowchart:stored-data"]').dragTo(dg.locator("svg.ocbd-svg"), { targetPosition: { x: svg.width - 160, y: 140 } });
-  await expect.poll(count).toBe(n0 + 2);
+  await expect.poll(count).toBe(n0 + 3);
   await expect(dg.locator('g[data-kind="flowchart:stored-data"]')).toHaveCount(1);
 
   await page.evaluate(() => Promise.all(document.querySelector(".ocdg")!.getAnimations({ subtree: true }).filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));

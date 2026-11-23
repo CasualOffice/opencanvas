@@ -11,6 +11,7 @@ pub mod docx;
 pub mod export;
 pub mod fonts;
 pub mod html;
+pub mod icons;
 pub mod import;
 pub mod ocanvas;
 pub mod patch;

@@ -12,6 +12,8 @@ FROM rust:1.98-slim-bookworm AS server
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
+# Built-in diagram icons, shared by oc-model and the editor (DGM-17).
+COPY icons icons
 COPY migrations migrations
 # jemalloc (the server's allocator, docs/22 §9.6) builds with make.
 RUN apt-get update && apt-get install -y --no-install-recommends make && rm -rf /var/lib/apt/lists/*
@@ -33,6 +35,7 @@ COPY web/packages/ui/package.json packages/ui/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 COPY web/packages packages
+COPY icons /src/icons
 RUN pnpm --filter @opencanvas/editor build \
  && test -f packages/editor/dist/index.html
 
