@@ -1,11 +1,13 @@
 {
-  "order": ["i1", "i2", "i3", "i4", "i5", "e1"],
+  "order": ["i1", "i2", "i3", "i4", "i5", "l1", "l2", "e1"],
   "shapes": {
     "i1": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 0, "y": 0, "w": 52, "h": 52, "text": "Object storage", "fill": "blue", "props": {"icon": "object-storage", "labelPos": "below"}},
     "i2": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 200, "y": 0, "w": 64, "h": 52, "text": "Edge <proxy> &\nsecond line", "fill": "purple", "props": {"icon": "reverse-proxy", "labelPos": "right"}},
     "i3": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 0, "y": 160, "w": 52, "h": 52, "text": "hidden label", "fill": "amber", "props": {"icon": "queue", "labelPos": "hidden"}},
     "i4": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 200, "y": 160, "w": 52, "h": 52, "text": "Not in this build", "props": {"icon": "no-such-icon"}},
     "i5": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 400, "y": 160, "w": 40, "h": 40, "text": "Cache", "fill": "nonsense", "props": {"icon": "cache"}},
+    "l1": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 600, "y": 0, "w": 52, "h": 52, "text": "Rocket", "fill": "gray", "props": {"icon": "lucide:rocket", "labelPos": "below", "paths": ["M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5", "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09", "M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z", "M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"]}},
+    "l2": {"type": "rect", "kind": "icon:node", "kindVersion": 1, "x": 600, "y": 160, "w": 52, "h": 52, "text": "Forged", "props": {"icon": "lucide:x", "paths": ["M0 0\"/><script>alert(1)</script><path d=\"M0 0"]}},
     "e1": {"type": "arrow", "pts": [[26, 52], [26, 160]], "start": {"shapeId": "i1", "anchor": "bottom"}, "end": {"shapeId": "i3", "anchor": "top"}}
   }
 }

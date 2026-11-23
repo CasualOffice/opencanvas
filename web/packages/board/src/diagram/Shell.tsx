@@ -52,7 +52,7 @@ export interface DiagramShellProps {
   origin: unknown;
   /** Adds a shape of this kind in the middle of the view (shapes panel). */
   /** Adds a shape of `kind`; for `icon:node`, `icon` names the built-in icon (DGM-17). */
-  onAddShape?: (kind: string, icon?: string) => void;
+  onAddShape?: (kind: string, icon?: string, paths?: readonly string[]) => void;
   prefs: DiagramPrefs;
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
@@ -217,7 +217,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           onTab={(t) => setOutline(t === "outline")}
           shapes={edit && !!p.onAddShape}
           outline={cv && (outline || (edit && !!p.onAddShape)) ? <Outline doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} onSay={say} /> : null}
-          onAdd={(k, icon) => p.onAddShape?.(k, icon)}
+          onAdd={(k, icon, paths) => p.onAddShape?.(k, icon, paths)}
           flags={env.diagram}
         />
         <main className="ocdg-mid">

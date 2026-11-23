@@ -20,4 +20,6 @@ Third-party components keep their own licences:
   either Lucide icons (ISC; the few derived from Feather are MIT) or drawn by CasualOffice
   in Lucide's style (Apache-2.0); each icon's `source` says which. The Lucide licence
   text, including the Feather MIT notice, is icons/LICENSE-lucide.txt. The editor also
-  uses Lucide through the lucide-react package (ISC). No vendor or product logo is bundled.
+  uses Lucide through the lucide-react package (ISC), and the full Lucide set as diagram icons
+  (web/packages/board/src/lucide, generated from lucide-static and the Lucide repository by
+  tools/build-lucide-icons.py; same licence). No vendor or product logo is bundled.

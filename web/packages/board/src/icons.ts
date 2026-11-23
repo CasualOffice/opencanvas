@@ -13,6 +13,7 @@
 import data from "../../../../icons/generic.json";
 import type { Shape } from "./model";
 import { kindOf, registerShape, registeredKinds } from "./registry";
+import { LUCIDE_PREFIX, lucideLabel, readPaths } from "./lucide";
 
 export const ICON_KIND = "icon:node";
 /** Drag data type of an icon tile (the icon id); dropped with `KIND_MIME` = `icon:node`. */
@@ -62,12 +63,19 @@ export function iconProps(s: Partial<Shape>): { icon?: string; labelPos: LabelPo
   return { icon: typeof p.icon === "string" ? p.icon : undefined, labelPos };
 }
 
-/** Fields of a new icon shape centred on `at`. */
-export function iconNodeFields(id: string, at: [number, number]): Omit<Shape, "id"> | null {
-  const i = BY_ID.get(id);
-  if (!i) return null;
+/**
+ * Fields of a new icon shape centred on `at`. A built-in id, or `lucide:<name>` with its path data
+ * (`paths`), which is embedded in the shape so every renderer draws it without the Lucide data.
+ */
+export function iconNodeFields(id: string, at: [number, number], paths?: readonly string[]): Omit<Shape, "id"> | null {
   const w = ICON_SIZE, h = ICON_SIZE;
-  return { type: "rect", kind: ICON_KIND, kindVersion: 1, x: Math.round(at[0] - w / 2), y: Math.round(at[1] - h / 2), w, h, text: i.name, fill: toneOf(i), props: { icon: i.id, labelPos: "below" } };
+  const box = { type: "rect" as const, kind: ICON_KIND, kindVersion: 1, x: Math.round(at[0] - w / 2), y: Math.round(at[1] - h / 2), w, h };
+  const i = BY_ID.get(id);
+  if (i) return { ...box, text: i.name, fill: toneOf(i), props: { icon: i.id, labelPos: "below" } };
+  const name = id.startsWith(LUCIDE_PREFIX) ? id.slice(LUCIDE_PREFIX.length) : "";
+  const ok = readPaths(paths);
+  if (!/^[a-z0-9-]{1,64}$/.test(name) || !ok) return null;
+  return { ...box, text: lucideLabel(name), fill: "gray", props: { icon: id, labelPos: "below", paths: [...ok] } };
 }
 
 export interface IconHit {
@@ -108,10 +116,31 @@ export function suggestIcons(q: string): GenericIcon[] {
   return ids.map((id) => BY_ID.get(id)).filter((i): i is GenericIcon => !!i);
 }
 
+/** Drag payload of an icon tile (`ICON_MIME`): a built-in id, or JSON `{id, paths}` for a Lucide icon. */
+export const iconDragData = (id: string, paths?: readonly string[]) => (paths ? JSON.stringify({ id, paths }) : id);
+
+/** Reads an icon drag payload; anything malformed gives undefined (paths are checked when placed). */
+export function readIconDrag(v: string): { id: string; paths?: string[] } | undefined {
+  if (!v) return undefined;
+  if (!v.startsWith("{")) return { id: v };
+  try {
+    const o = JSON.parse(v) as { id?: unknown; paths?: unknown };
+    const paths = readPaths(o.paths);
+    return typeof o.id === "string" && paths ? { id: o.id, paths } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Path data an icon shape draws, or null (not an icon shape, or an icon this build doesn't have). */
 export function iconPathsOf(s: Partial<Shape> & Pick<Shape, "type">): readonly string[] | null {
   if (s.type !== "rect" || kindOf(s) !== ICON_KIND) return null;
-  return iconById(iconProps(s).icon)?.paths ?? null;
+  const id = iconProps(s).icon;
+  const builtIn = iconById(id)?.paths;
+  if (builtIn) return builtIn;
+  // A Lucide icon carries its own path data (checked: path syntax only, at most 32 paths).
+  if (id?.startsWith(LUCIDE_PREFIX)) return readPaths((s.props as Record<string, unknown> | undefined)?.paths);
+  return null;
 }
 
 /** The glyph's square inside the box: half the shorter side, centred. Same in every renderer. */

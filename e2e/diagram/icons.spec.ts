@@ -42,3 +42,29 @@ test("Icons: the library, search “s3” and “jitsi”, placing an icon; the 
   await axe(page);
   if (process.env.DGM_SHOT) await page.screenshot({ path: process.env.DGM_SHOT });
 });
+
+test("All icons: the full Lucide set loads lazily, searches and places with its paths", async ({ page }) => {
+  const board = await openDemo(page, srv.url);
+  await board.getByRole("button", { name: "Diagram", exact: true }).click();
+  const dg = page.getByRole("dialog", { name: /^Diagram: / });
+  const panel = dg.getByRole("complementary", { name: "Shapes" });
+  const all = panel.locator('[data-library="lucide"]');
+  await all.locator(".ocdg-lh button").click();
+  await expect(all.getByRole("combobox", { name: "Category" })).toBeVisible();
+  await expect(all.locator(".ocdg-tile:not(:disabled)").first()).toBeVisible();
+  // Virtualised: a window of tiles, not all 2,000+.
+  expect(await all.locator(".ocdg-tile").count()).toBeLessThan(120);
+  await all.getByRole("combobox", { name: "Category" }).selectOption("gaming");
+  // Rocket is the 68th icon in Gaming: row 23, 4.5rem per row.
+  await all.locator(".ocdg-allg").evaluate((el) => (el.scrollTop = 22 * 4.5 * parseFloat(getComputedStyle(document.documentElement).fontSize)));
+  await expect(all.locator('.ocdg-tile[data-icon="lucide:rocket"]:not(:disabled)')).toBeVisible();
+  await all.locator('.ocdg-tile[data-icon="lucide:rocket"]').click();
+  const icon = dg.locator('g[data-kind="icon:node"]');
+  await expect(icon).toHaveCount(1);
+  await expect(icon.locator("path").first()).toBeVisible();
+  await axe(page);
+
+  await panel.getByRole("searchbox", { name: "Search shapes" }).fill("fish");
+  await expect(panel.locator('section[aria-label="All icons"] .ocdg-tile[data-icon="lucide:fish"]:not(:disabled)')).toBeVisible();
+  await axe(page);
+});

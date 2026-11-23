@@ -152,8 +152,8 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     const expected = panelLibraries()
       .filter((l) => !l.flag)
       .map((l) => `${l.name}${l.kinds.length + (l.connectors?.length ?? 0) || l.count}`);
-    // The Icons library (DGM-17) sits above the shape libraries.
-    expect(heads).toEqual(["Icons59", ...expected]);
+    // The Icons library and All icons (Lucide, DGM-17) sit above the shape libraries.
+    expect(heads).toEqual(["Icons59", "All iconsLucide", ...expected]);
     expect(panel.querySelectorAll('[data-library="tz"] .ocdg-tile')).toHaveLength(4);
     act(() => btn(panel, "Add Big zeta")!.click());
     expect(all(doc, id)[0]).toMatchObject({ type: "rect", kind: "tz:beta", text: "Beta text", fill: "amber", w: 150, h: 70 });

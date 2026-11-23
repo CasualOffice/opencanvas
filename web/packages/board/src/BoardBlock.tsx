@@ -28,7 +28,7 @@ import { CONTAINER, isContainer } from "./kinds";
 import { descriptorOf, makeNode } from "./registry";
 import { ends, HEADS } from "./heads";
 import { KIND_MIME } from "./libraries";
-import { ICON_KIND, ICON_LABEL, ICON_MIME, iconById, iconGlyphBox, iconLabelLayout, iconNodeFields, iconProps } from "./icons";
+import { ICON_KIND, ICON_LABEL, ICON_MIME, iconById, iconGlyphBox, iconLabelLayout, iconNodeFields, iconPathsOf, readIconDrag } from "./icons";
 import { newShapeFields, PRESET, presetOf, type ConnectorPreset } from "./panel";
 import { KindMarks, UnknownShape } from "./diagram/Placeholder";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
@@ -650,9 +650,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
   };
   /** Adds a shape of a registered kind centred on `at` (the view's centre by default): S2. */
-  const addKind = (kind: string, at: Pt = viewCenter(), icon?: string) => {
+  const addKind = (kind: string, at: Pt = viewCenter(), icon?: string, paths?: readonly string[]) => {
     if (!S.current.edit) return;
-    if (kind === ICON_KIND) return addIcon(icon ?? "", at);
+    if (kind === ICON_KIND) return addIcon(icon ?? "", at, paths);
     const d = descriptorOf({ type: "rect", kind });
     if (d.kind !== kind) return;
     const f = newShapeFields(kind, d);
@@ -674,8 +674,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     return id;
   };
   /** Adds a built-in icon shape (DGM-17) centred on `at`, on the grid in diagram mode. */
-  const addIcon = (icon: string, at: Pt) => {
-    const f = iconNodeFields(icon, at);
+  const addIcon = (icon: string, at: Pt, paths?: readonly string[]) => {
+    const f = iconNodeFields(icon, at, paths);
     if (!f) return;
     if (S.current.dgm && S.current.dp.snapGrid) {
       const g = S.current.dp.gridSize;
@@ -728,7 +728,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       e.preventDefault();
       e.stopPropagation();
       if (kind.startsWith(PRESET)) usePreset(kind);
-      else addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter(), kind === ICON_KIND ? dt.getData(ICON_MIME) : undefined);
+      else {
+        const icon = kind === ICON_KIND ? readIconDrag(dt.getData(ICON_MIME)) : undefined;
+        addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter(), icon?.id, icon?.paths);
+      }
       return;
     }
     const files = imageFiles(e.dataTransfer);
@@ -2197,7 +2200,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             menuOpen={menu}
             onMenu={() => setMenu((m) => !m)}
             origin={origin}
-            onAddShape={(kind, icon) => (kind.startsWith(PRESET) ? usePreset(kind) : addKind(kind, undefined, icon))}
+            onAddShape={(kind, icon, paths) => (kind.startsWith(PRESET) ? usePreset(kind) : addKind(kind, undefined, icon, paths))}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
             canvas={{ shapes, sel, select: setSel, reveal: revealShape }}
@@ -2387,7 +2390,7 @@ function IconGlyph({ paths, x, y, size, color }: { paths: readonly string[]; x: 
 function IconNodeView({ s, stroke, hideText }: { s: Shape; stroke: string; hideText?: boolean }) {
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = s.h ?? 0;
   const tone = toneFill(s);
-  const icon = iconById(iconProps(s).icon);
+  const icon = iconPathsOf(s);
   const g = iconGlyphBox(s);
   const lb = hideText ? null : iconLabelLayout(s);
   return (
@@ -2395,7 +2398,7 @@ function IconNodeView({ s, stroke, hideText }: { s: Shape; stroke: string; hideT
       {icon ? (
         <>
           <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} stroke={tone ? "none" : stroke} strokeWidth={1.5} />
-          <IconGlyph paths={icon.paths} x={g.x} y={g.y} size={g.size} color={tone?.stroke ?? stroke} />
+          <IconGlyph paths={icon} x={g.x} y={g.y} size={g.size} color={tone?.stroke ?? stroke} />
         </>
       ) : (
         <rect data-missing-icon="" x={x} y={y} width={w} height={h} rx={12} fill="var(--app)" stroke="var(--fg-3)" strokeWidth={1.25} strokeDasharray="4 3" />
