@@ -1175,19 +1175,30 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
+    // Inline, one trackpad gesture keeps the axis it started with (events < 200 ms apart): a
+    // sideways pan that drifts down must not start scrolling the page halfway, nor the reverse.
+    let axis: "x" | "y" = "y", last = -Infinity;
     const onWheel = (e: WheelEvent) => {
       const r = svg.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         zoomAt(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
-      } else if (big) {
+        return;
+      }
+      if (big) {
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
-      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        return;
+      }
+      const now = performance.now();
+      const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (now - last > 200) axis = sideways ? "x" : "y";
+      last = now;
+      if (axis === "x") {
         // A sideways swipe pans the board; left to the browser it becomes Back at the page edge.
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX }));
-      }
+      } else if (sideways) e.preventDefault();
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
