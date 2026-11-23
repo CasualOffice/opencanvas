@@ -25,6 +25,7 @@ import { SceneIndex } from "./scene";
 import { AvoidRouter, RouteScheduler } from "./routing";
 import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
 import { CONTAINER, isContainer } from "./kinds";
+import { KindMarks, UnknownShape } from "./diagram/Placeholder";
 import { makeNode } from "./registry";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 // Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
@@ -1825,6 +1826,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               growH={editing?.id === s.id && s.type === "sticky" ? stickyHeight(editing.text, s.w ?? 150, s.h ?? 110) : undefined}
             />
           ))}
+          <KindMarks shapes={visible} />
           {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
           {peerSel}
           {selection}
@@ -2300,7 +2302,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       );
     }
   }
-  return null;
+  return <UnknownShape s={s} />;
 });
 
 /* ------------------------------------------------------- text editor */

@@ -13,6 +13,7 @@ import {
   setField, setProp, shared, touchesErd, type Column, type KeyMark, type Member, type Shared, type Vis,
 } from "./fields";
 import { ensurePropsStyles } from "./styles";
+import { PlaceholderPanel, unknownOf } from "../Placeholder";
 
 const SW = 1.75;
 
@@ -186,6 +187,29 @@ export function Properties(p: PropertiesProps) {
   const heading = panel === "connector" ? (touchesErd(selected[0]!, byId) ? "Relationship" : "Connector") : panel === "uml-class" ? "Class" : panel === "erd-entity" ? "Entity" : panel === "network" ? (NETWORK_KINDS.find(([k]) => k === kind)?.[1] ?? "Node") : "Shape";
   const title = one ? (one.type === "arrow" ? (one.text ? `“${one.text}”` : `${nameOf(byId(one.start?.shapeId ?? ""))} → ${nameOf(byId(one.end?.shapeId ?? ""))}`) : nameOf(one)) : `${selected.length} selected`;
 
+  const unk = one ? unknownOf(one) : null;
+  if (one && unk) {
+    return (
+      <div className="ocdg-panel ocpp" data-panel={unk.what === "type" ? "unknown-type" : "missing-library"}>
+        <h2 className="ocdg-ph ocpp-h">
+          <span className="ocpp-kind">{unk.what === "type" ? "Unknown shape" : "From a library you don’t have"}</span>
+          <span className="ocpp-title">{nameOf(one)}</span>
+        </h2>
+        {p.notice}
+        <PlaceholderPanel s={one} u={unk} />
+        <Sec title="Text">
+          <Text label="Name" value={one.text ?? ""} edit={edit} onCommit={(text) => field({ text })} />
+        </Sec>
+        <Sec title="Position and size">
+          <div className="ocpp-xywh">
+            {(["x", "y", "w", "h"] as const).map((k) => (
+              <Text key={k} label={k.toUpperCase()} value={String(Math.round(one[k] ?? 0))} edit={edit} onCommit={(v) => Number.isFinite(Number(v)) && v.trim() !== "" && field({ [k]: k === "w" || k === "h" ? Math.max(8, Number(v)) : Number(v) })} />
+            ))}
+          </div>
+        </Sec>
+      </div>
+    );
+  }
   return (
     <div className="ocdg-panel ocpp" data-panel={panel === MIXED ? "mixed" : panel}>
       <h2 className="ocdg-ph ocpp-h">
