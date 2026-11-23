@@ -49,7 +49,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props` (a per-field map: concurrent edits of different properties merge), `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Accepted (owner, 2026-11-24; condition: `props` merges per field) |
 | ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Accepted (owner, 2026-11-24) |
 | ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Accepted (owner, 2026-11-24) |
-| ADR-048 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Proposed (owner signs) |
+| ADR-050 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Proposed (owner signs) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -599,7 +599,7 @@ avoidance is the main Phase 2 routing feature; layout (ELK/Dagre) is Phase 3.
 **Consequences.** + Mixed-version rooms draw something sensible; + no new persisted geometry; − the
 Rust export of an `avoid` connector may fall back to a plain elbow when `pts` is stale.
 
-### ADR-048 — UI units: rem for type and spacing, em for breakpoints (Proposed 2026-11-24, owner signs)
+### ADR-050 — UI units: rem for type and spacing, em for breakpoints (Proposed 2026-11-24, owner signs)
 
 **Context.** The owner asked (2026-11-24) that the UI not become unusable when zoom or resolution
 changes. Browser zoom and high-DPI screens already scale CSS px; what px ignores is the reader's

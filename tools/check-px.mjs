@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-// SCALE-01 lint guard (ADR-048): fails when px creeps back into the UI's type and spacing.
+// SCALE-01 lint guard (ADR-050): fails when px creeps back into the UI's type and spacing.
 //
 //   node tools/check-px.mjs
 //
@@ -28,7 +28,7 @@ for (const f of targets()) {
     const { converted } = convertCss(line);
     if (converted) errors.push(`${path.relative(ROOT, f)}:${i + 1}: px in type/spacing (${converted}); use rem (node tools/px-to-rem.mjs) or mark /* px */`);
   });
-  if (/(^|[{;\s,])html\s*[,{][^}]*font-size/.test(src.replace(/\/\*[\s\S]*?\*\//g, ""))) errors.push(`${path.relative(ROOT, f)}: font-size on html; the root keeps the reader's default (ADR-048)`);
+  if (/(^|[{;\s,])html\s*[,{][^}]*font-size/.test(src.replace(/\/\*[\s\S]*?\*\//g, ""))) errors.push(`${path.relative(ROOT, f)}: font-size on html; the root keeps the reader's default (ADR-050)`);
 }
 
 const INLINE = [
@@ -56,7 +56,7 @@ for (const pkg of ["editor", "database", "board", "ui"]) {
 
 if (errors.length) {
   console.error(errors.join("\n"));
-  console.error(`check-px: ${errors.length} problem(s) (ADR-048)`);
+  console.error(`check-px: ${errors.length} problem(s) (ADR-050)`);
   process.exit(1);
 }
 console.log("check-px: ok (type and spacing are rem; media queries are em)");

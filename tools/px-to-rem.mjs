@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-// SCALE-01 (ADR-048): converts px to rem in the web UI's CSS so the chrome follows the
+// SCALE-01 (ADR-050): converts px to rem in the web UI's CSS so the chrome follows the
 // reader's default font size. 16 px = 1 rem. Idempotent: it only touches px values, so
 // re-running it after other work lands converts just the new ones.
 //
@@ -16,7 +16,7 @@
 // scroll-margin*/scroll-padding*, text-indent, and custom properties whose whole value is
 // one length (the token scales: --r-s, --r, --r-l, ...). Media queries: px → em.
 //
-// What stays px (ADR-048 lists why):
+// What stays px (ADR-050 lists why):
 //   - any value of 2 px or less (borders, hairlines, 1-2 px nudges);
 //   - borders, outlines, outline-offset, box-shadow, text-shadow, filters, transforms,
 //     text-underline-offset, background-position/size, stroke widths;

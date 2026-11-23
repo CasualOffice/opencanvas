@@ -104,7 +104,7 @@ type Boot =
   | { phase: "error"; title: string; message: string; retry?: boolean }
   | { phase: "ready"; session: Session; collab: Collab; demo: Demo | null; gen: number };
 
-/** The compact breakpoint in CSS px: 45em of the root font size (ADR-048). */
+/** The compact breakpoint in CSS px: 45em of the root font size (ADR-050). */
 function compactBelow(): number {
   const fs = parseFloat(getComputedStyle(document.documentElement).fontSize);
   return 45 * (Number.isFinite(fs) && fs > 0 ? fs : 16);
@@ -309,7 +309,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     const el = rootRef.current;
     if (!el) return;
     setRoot(el);
-    // ADR-048: the phone/side-panel breakpoint is 45em (720 px at the default 16 px), so a
+    // ADR-050: the phone/side-panel breakpoint is 45em (720 px at the default 16 px), so a
     // larger default font size switches to the compact layout sooner, like a media query.
     const ro = new ResizeObserver(() => setCompact(el.clientWidth < compactBelow()));
     ro.observe(el);

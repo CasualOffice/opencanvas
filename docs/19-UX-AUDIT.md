@@ -120,7 +120,7 @@ Besides #39–#45 above:
 
 ## Scaling: rem units, zoom and large text (SCALE-01, 2026-11-24)
 
-ADR-048 (Proposed). Type, spacing, control sizes, radii and chrome widths are rem; breakpoints are
+ADR-050 (Proposed). Type, spacing, control sizes, radii and chrome widths are rem; breakpoints are
 em (CSS and the JS compact breakpoint, 45em); the root keeps the reader's default font size.
 At 16 px and 100 % the UI is pixel-identical to before (SCALE-01 pixel suite: 14 screens × desktop
 1280 and phone 390, light, three runs, 0 px). Codemod `tools/px-to-rem.mjs`, guard
@@ -135,7 +135,7 @@ fixed in SCALE-01, these are the follow-up (SCALE-02):
 | S1 | 24 px font | Lucide icons keep their `size={n}` px, so icons look small beside 1.5× text (top bar, database toolbar and tabs, menus, board toolbar) | an icon size in em (`width:1em` on `svg.lucide` inside chrome, or a `size` in rem) — changes nothing at 16 px if mapped 1:1 |
 | S2 | 24 px font | Database column widths are px stored in the document, so cells truncate early ("Launch-token …"); status pills clip without an ellipsis ("In progres") | scale stored widths by root font/16 at render; ellipsis on pills |
 | S3 | 24 px font, side panel open | Board block narrows; its tool bar (rem) and the zoom pill (rem) overlap at the bottom | let the tool bar wrap or collapse tools into a menu below a width (UI change: prototype) |
-| S4 | 24 px font | Board-space text (stickies, labels) stays its board size: board geometry, by design (ADR-048); readers zoom the board instead | none, or a "larger board text" preference later |
+| S4 | 24 px font | Board-space text (stickies, labels) stays its board size: board geometry, by design (ADR-050); readers zoom the board instead | none, or a "larger board text" preference later |
 | S5 | 24 px font, side panel open | Comments panel is 1.5× wider (rem) and the document column gets narrow at 1280 px; the compact switch only happens below 1080 px | consider a panel `max-width` in % (UI change) |
 | S6 | 200 % zoom | The document scroller scrolls sideways by 5 px: a collaborator's caret label at the right edge overflows | clip caret labels to the column, or `overflow-x:clip` on the scroller |
 | S7 | all | axe `aria-allowed-attr` (1): `aria-multiselectable` on the database `<table>` — also at 100 %, not caused by scaling | move it to a `grid` role or drop it |
