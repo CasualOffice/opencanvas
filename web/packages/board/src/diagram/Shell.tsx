@@ -17,6 +17,7 @@ export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
 import type { Shape } from "../model";
 import { Properties } from "./props/Properties";
+import { useBudget } from "./Budget";
 
 const SW = 1.75;
 
@@ -54,6 +55,8 @@ export interface DiagramShellProps {
   /** The selected shapes and every shape of the board: the properties panel (S4). */
   selected?: Shape[];
   shapes?: Shape[];
+  /** The document limit (`max_doc_bytes`) when the session carries it; else 20 MB (S9). */
+  maxDocBytes?: number;
   children: ReactNode;
 }
 
@@ -131,6 +134,7 @@ export default function DiagramShell(p: DiagramShellProps) {
   const connectorStyle = () => (p.prefs.connector === "straight" ? {} : p.prefs.connector === "avoid" ? { route: "elbow" as const, routing: "avoid" as const } : { route: "elbow" as const });
   const keys = useDiagramKeys({ doc, boardId, canvas: cv, edit, origin: p.origin, connectorStyle, onSay: say, onOutline: () => setOutline((v) => !v) });
 
+  const budget = useBudget(doc, boardId, p.maxDocBytes, cv?.select);
   const people = [{ id: -1, name: env.me.name, color: env.me.color }, ...p.peers];
 
   return (
@@ -163,6 +167,7 @@ export default function DiagramShell(p: DiagramShellProps) {
             </button>
           </>
         ) : null}
+        {budget.chip}
         <ul className="ocdg-people" aria-label={`${people.length} ${people.length === 1 ? "person" : "people"} here`}>
           {people.slice(0, 5).map((u) => (
             <li key={u.id} className="ocdg-av" style={{ background: u.color }} title={u.id === -1 ? `${u.name} (you)` : u.name}>
@@ -185,6 +190,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           <Ellipsis size={16} strokeWidth={SW} />
         </button>
       </header>
+      {budget.banner}
       <div className="ocdg-body">
         {cv && outline ? (
           <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Outline">
@@ -196,10 +202,11 @@ export default function DiagramShell(p: DiagramShellProps) {
           {cv && keys.conn ? <ConnectHint canvas={cv} conn={keys.conn} /> : null}
         </main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
-          {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
+          {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} extra={budget.section} />}
         </aside>
       </div>
       {cv && keys.palette ? <Commands root={ref.current} canvas={cv} edit={edit} onSay={say} onClose={() => keys.setPalette(false)} onOutline={() => setOutline(true)} onShortcuts={() => keys.setSheet(true)} /> : null}
+      {budget.dialog}
       {keys.sheet ? <Shortcuts onClose={() => keys.setSheet(false)} /> : null}
       <div className="ocdg-sr ocdg-live" role="status" aria-live="polite">{said}</div>
     </div>
@@ -220,7 +227,7 @@ function Switch({ on, label, hint, onChange }: { on: boolean; label: string; hin
 
 const CONNECTORS: [DiagramPrefs["connector"], string][] = [["straight", "Straight"], ["elbow", "Elbow"], ["avoid", "Avoid shapes"]];
 
-function DiagramSettings({ name, heading, edit, onName, prefs, onPrefs }: { name: string; heading: string; edit: boolean; onName: (v: string) => void; prefs: DiagramPrefs; onPrefs: (p: Partial<DiagramPrefs>) => void }) {
+function DiagramSettings({ name, heading, edit, onName, prefs, onPrefs, extra }: { name: string; heading: string; edit: boolean; onName: (v: string) => void; prefs: DiagramPrefs; onPrefs: (p: Partial<DiagramPrefs>) => void; extra?: ReactNode }) {
   const [v, setV] = useState(name);
   useEffect(() => setV(name), [name]);
   return (
@@ -278,6 +285,7 @@ function DiagramSettings({ name, heading, edit, onName, prefs, onPrefs }: { name
           </section>
         </>
       ) : null}
+      {extra}
     </div>
   );
 }
