@@ -62,6 +62,8 @@ pub struct AppState {
     pub unfurl: unfurl::Unfurler,
     /// RND-01: rendered previews per room version (`GET /v1/preview`).
     pub previews: routes::preview::PreviewCache,
+    /// VH-01b: version history caches (memory only).
+    pub history: history::Caches,
 }
 
 #[derive(Clone, Copy)]
@@ -164,6 +166,7 @@ impl AppState {
             ai_status,
             team_templates: Default::default(),
             previews: Default::default(),
+            history: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

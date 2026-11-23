@@ -142,6 +142,8 @@ struct Room {
     next_meta: Option<SaveMeta>,
     /// In-file history (ADR-055) while the room is open; `None` until known.
     file_hist: Option<FileHist>,
+    /// VH-01b: restore origins and until when their author may undo them.
+    restore_until: HashMap<String, Instant>,
     /// Upper bound of the encoded doc size (exact after load and compaction).
     doc_bytes: usize,
     save: SaveState,
@@ -551,6 +553,7 @@ impl Room {
             last_checkpoint: Instant::now(),
             next_meta: None,
             file_hist,
+            restore_until: HashMap::new(),
             save: SaveState {
                 pending,
                 ..SaveState::default()
@@ -637,6 +640,7 @@ impl Room {
             } => {
                 let _ = reply.send(self.template(&doc, &origin, &author).await);
             }
+            Cmd::History { op, author, reply } => self.history(op, &author, reply).await,
             Cmd::TemplateUndo { origin, reply } => {
                 let r = if self.conflict.is_some() {
                     Err(PatchFailure::Conflict)
@@ -1438,6 +1442,145 @@ impl Room {
         })
     }
 
+    /// Version history writes (VH-01b, docs/30 §4-5).
+    async fn history(
+        &mut self,
+        op: super::HistoryOp,
+        author: &str,
+        reply: tokio::sync::oneshot::Sender<Value>,
+    ) {
+        use oc_model::ocanvas::CommitKind;
+        if self.ephemeral {
+            let _ = reply.send(json!({"error": "HISTORY_OFF"}));
+            return;
+        }
+        if self.conflict.is_some() {
+            let _ = reply.send(json!({"error": "CONFLICT"}));
+            return;
+        }
+        match op {
+            super::HistoryOp::Save { name } => {
+                // "Save first" before a restore: only when there is something to save.
+                if name.is_none() && self.dirty_since.is_none() && !self.save.in_flight {
+                    let _ = reply.send(json!({"version": self.host_version}));
+                    return;
+                }
+                let meta = SaveMeta {
+                    kind: if name.is_some() {
+                        CommitKind::Named
+                    } else {
+                        CommitKind::Auto
+                    },
+                    message: name,
+                    restored_from: None,
+                    checkpoint: true,
+                };
+                self.commit_with(meta, reply, json!({}));
+            }
+            super::HistoryOp::Restore {
+                target,
+                from,
+                name,
+                restore_id,
+                by_name,
+            } => {
+                let update = match oc_model::restore::restore_update(&self.doc, &target) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        tracing::warn!(room = %self.id, error = %e, "restore could not be computed");
+                        let _ = reply.send(json!({"error": "VERSION_INVALID"}));
+                        return;
+                    }
+                };
+                let origin = format!("restore:{restore_id}:{author}");
+                // Only the latest restore per person stays undoable.
+                let mine = format!(":{author}");
+                self.ai_undo
+                    .retain(|o, _| !(o.starts_with("restore:") && o.ends_with(&mine)));
+                self.restore_until
+                    .retain(|o, _| !(o.starts_with("restore:") && o.ends_with(&mine)));
+                self.ai_track(&origin);
+                let changed = match self.apply_server_update(update, &origin, author).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        self.ai_undo.remove(&origin);
+                        let code = match e {
+                            PatchFailure::TooLarge => "DOC_TOO_LARGE",
+                            PatchFailure::Conflict => "CONFLICT",
+                            PatchFailure::Unavailable => "UNAVAILABLE",
+                            PatchFailure::Invalid(_) => "VERSION_INVALID",
+                        };
+                        let _ = reply.send(json!({"error": code}));
+                        return;
+                    }
+                };
+                self.restore_until
+                    .insert(origin, Instant::now() + self.ctx.cfg.restore_undo_window);
+                tracing::info!(room = %self.id, changed, "version restored");
+                let ctl = json!({"t": "restored", "by": author, "byName": by_name, "from": from,
+                    "name": name, "at": now_ms(), "restoreId": restore_id});
+                self.broadcast(protocol::control(&ctl), None);
+                let meta = SaveMeta {
+                    kind: CommitKind::Restore,
+                    message: Some(name),
+                    restored_from: Some(from),
+                    checkpoint: true,
+                };
+                self.commit_with(
+                    meta,
+                    reply,
+                    json!({"changed": changed, "restoreId": restore_id}),
+                );
+            }
+            super::HistoryOp::Undo { restore_id } => {
+                let origin = format!("restore:{restore_id}:{author}");
+                let r = match self.restore_until.remove(&origin) {
+                    Some(t) if Instant::now() <= t && self.ai_undo.contains_key(&origin) => {
+                        match self.ai_undo(&origin).await {
+                            Ok(()) => json!({"undone": true}),
+                            Err(_) => json!({"error": "UNAVAILABLE"}),
+                        }
+                    }
+                    Some(_) => {
+                        self.ai_undo.remove(&origin);
+                        json!({"error": "UNDO_EXPIRED"})
+                    }
+                    None => json!({"error": "NOTHING_TO_UNDO"}),
+                };
+                let _ = reply.send(r);
+            }
+        }
+    }
+
+    /// Saves now with `meta` (also when nothing changed: a named version still reaches the
+    /// host, docs/30 §10 decision 3) and answers `extra` plus `version` once the host has it.
+    fn commit_with(
+        &mut self,
+        meta: SaveMeta,
+        reply: tokio::sync::oneshot::Sender<Value>,
+        extra: Value,
+    ) {
+        self.next_meta = Some(meta);
+        if self.dirty_since.is_none() {
+            self.dirty_since = Some(Instant::now());
+        }
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.commit_waiters.push((self.seq, tx));
+        self.force_save();
+        tokio::spawn(async move {
+            let mut out = extra;
+            match rx.await {
+                Ok(CommitResult::Saved { version } | CommitResult::Clean { version }) => {
+                    out["version"] = json!(version);
+                }
+                Ok(CommitResult::Queued { .. }) => out["queued"] = json!(true),
+                Ok(CommitResult::Conflict) => out["error"] = json!("CONFLICT"),
+                Err(_) => out["error"] = json!("UNAVAILABLE"),
+            }
+            let _ = reply.send(out);
+        });
+    }
+
     /// Team template (TPL-01): replaces the content with `doc` as one transaction with
     /// `origin` (`template:<user>:<applyId>`), tracked for undo. Only the latest template per
     /// user stays undoable.
@@ -1835,6 +1978,7 @@ impl Room {
     async fn prepare_save(&mut self) -> Result<Pending, String> {
         if let Some(p) = &self.save.pending
             && p.seq == self.seq
+            && self.next_meta.is_none()
         {
             if !self.revoked_tokens.contains(&p.token) {
                 return Ok(p.clone());

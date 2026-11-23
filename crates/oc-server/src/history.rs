@@ -92,3 +92,52 @@ impl Sources {
         v
     }
 }
+
+/// A decoded version: its `document.json` and Yjs state (what the editor previews).
+pub struct VersionDoc {
+    pub json: Value,
+    pub state: Vec<u8>,
+}
+
+/// The host's current file as far as in-file history is concerned (ADR-055).
+pub struct FileSnapshot {
+    pub current: Value,
+    pub meta: oc_model::history::VersionMeta,
+    pub history: oc_model::history::FileHistory,
+}
+
+/// In-memory caches (docs/30 §6.1: memory only, never the database). Keys start with the room
+/// id, so a room's entries can be dropped together.
+pub struct Caches {
+    /// Decoded versions, 64 MB, 5 minutes.
+    pub versions: oc_model::diff::DiffCache<VersionDoc>,
+    /// Diff results between two fixed versions, 16 MB, 5 minutes.
+    pub diffs: oc_model::diff::DiffCache<Value>,
+    /// Version lists, 30 s (docs/30 §2: listing costs a host round trip).
+    pub lists: oc_model::diff::DiffCache<Value>,
+    /// The host file's in-file history, 30 s.
+    pub files: oc_model::diff::DiffCache<FileSnapshot>,
+    /// Rooms whose host answered the list call with 404/405/501: no host history.
+    pub unsupported: std::sync::Mutex<std::collections::HashSet<String>>,
+}
+
+impl Default for Caches {
+    fn default() -> Self {
+        use std::time::Duration;
+        Self {
+            versions: oc_model::diff::DiffCache::new(64 << 20, Duration::from_secs(300)),
+            diffs: oc_model::diff::DiffCache::new(16 << 20, Duration::from_secs(300)),
+            lists: oc_model::diff::DiffCache::new(8 << 20, Duration::from_secs(30)),
+            files: oc_model::diff::DiffCache::new(64 << 20, Duration::from_secs(30)),
+            unsupported: Default::default(),
+        }
+    }
+}
+
+impl Caches {
+    /// Forgets what a save makes stale for `room` (lists, the file snapshot).
+    pub fn saved(&self, room: &str) {
+        self.lists.remove_prefix(room);
+        self.files.remove_prefix(room);
+    }
+}

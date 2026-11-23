@@ -98,6 +98,8 @@ pub struct RoomConfig {
     /// docs/30 §4: after this much editing since the last checkpoint, the next save is one again
     /// (`X-OpenCanvas-Checkpoint`; `OC_CHECKPOINT_MINUTES`, default 30).
     pub checkpoint_every: Duration,
+    /// docs/30 §5: how long the person who restored a version may undo it (30 s).
+    pub restore_undo_window: Duration,
 }
 
 impl Default for RoomConfig {
@@ -114,6 +116,7 @@ impl Default for RoomConfig {
             tick: Duration::from_millis(250),
             heartbeat: Duration::from_secs(10),
             checkpoint_every: Duration::from_secs(30 * 60),
+            restore_undo_window: Duration::from_secs(30),
         }
     }
 }

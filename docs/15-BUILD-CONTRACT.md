@@ -101,6 +101,8 @@ drop its local Y.Doc and reconnect, the room now holds the host's version),
 `{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000),
 `{"t":"ping"}` (heartbeat every `OC_HEARTBEAT_MS`, default 10 s, on every connection; clients
 treat 15 s without any frame as a lost connection, docs/06 §5; added 2026-11-21, UX-02),
+`{"t":"restored","by","byName","from","name","at","restoreId"}` (VH-01b: someone restored a version; the
+edit itself arrives as an ordinary update, docs/30 §5),
 `{"t":"reconnect"}` (always followed by close **1012**: the client keeps its Y.Doc and
 reconnects; sent on graceful drain and, in cluster mode, when the room moved to another node).
 (Changed 2026-11-21 by the server hardening: `conflict` carries `policy`.)
@@ -366,6 +368,14 @@ logged as a warning).
 `GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host; WOPI mode:
 stored with the room, `201 {"assetId","url":"/v1/assets/<id>","mime","size"}`, ≤ 10 MB each, ≤ 50 MB
 per file) · `GET /v1/assets/:id?ticket=` (WOPI mode only, else 404) ·
+*(VH-01b, docs/30 §8; memory caches only)* `GET /v1/history?ticket=[&cursor=]` → `{source, versions, next?, recent?,
+hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the version's Yjs state) ·
+`GET /v1/history/diff?ticket=&from=&to=current|<v>` (ADR-052 JSON; `422 DIFF_TOO_LARGE`) ·
+`POST /v1/history/name?ticket=` `{name}` (edit + `commitMessage`; saves now even when clean) ·
+`POST /v1/history/:v/restore?ticket=` `{label?}` → `{restoreId, name, version, changed}` (edit + `restore`) ·
+`POST /v1/history/restore/undo?ticket=&restoreId=` (the same person, within 30 s; `409 NOTHING_TO_UNDO` /
+`UNDO_EXPIRED`). History routes need `perms.history` (`403 HISTORY_FORBIDDEN`), `404 HISTORY_OFF` without
+a source, `404 VERSION_GONE`, `413 VERSION_TOO_LARGE`. ·
 `GET /v1/members?ticket=&q=` → `{"members":[{id,name,color,detail?,avatar?}]}` (docs/21 revision 2:
 the same list for every viewer; merged by id, members callback > token `members` > the saved `people`
 map, which counts only when the host gave neither; the viewer is always in; people revoked by the

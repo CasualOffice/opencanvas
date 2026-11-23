@@ -110,6 +110,12 @@ pub(crate) enum Cmd {
         author: String,
         reply: oneshot::Sender<Result<Patched, PatchFailure>>,
     },
+    /// Version history writes (VH-01b); answers JSON.
+    History {
+        op: HistoryOp,
+        author: String,
+        reply: oneshot::Sender<serde_json::Value>,
+    },
     /// Revert the template applied with `origin` (only by the user who applied it).
     TemplateUndo {
         origin: String,
@@ -195,6 +201,25 @@ pub enum CommitResult {
     Queued { message: String },
     /// The host answered 409; the conflict policy runs and the room is read-only.
     Conflict,
+}
+
+/// Version history writes (VH-01b, docs/30 §4-5), run by the room that owns the canvas.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum HistoryOp {
+    /// A checkpoint save now, even when nothing changed; `name` makes it a named version.
+    Save { name: Option<String> },
+    /// Apply `target` (an older version's `document.json`) as one edit that the restoring
+    /// person can undo, then save it as a restore version named `name`.
+    Restore {
+        target: serde_json::Value,
+        from: String,
+        name: String,
+        restore_id: String,
+        by_name: String,
+    },
+    /// Undo the restore `restore_id` made by the same person, within the undo window.
+    Undo { restore_id: String },
 }
 
 pub(crate) enum ConflictOutcome {
@@ -840,6 +865,42 @@ impl Rooms {
                 origin: origin.to_string(),
             },
             remote::decode_patch,
+        )
+        .await
+    }
+
+    /// Version history writes (VH-01b): name, restore, undo a restore. Answers JSON:
+    /// `{"version"}` / `{"version","changed"}` / `{"undone":true}`, or `{"error": CODE}`.
+    pub async fn history(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        op: HistoryOp,
+    ) -> anyhow::Result<serde_json::Value> {
+        self.history_at(host, grant, op, true).await
+    }
+
+    pub(super) async fn history_at(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        op: HistoryOp,
+        forward: bool,
+    ) -> anyhow::Result<serde_json::Value> {
+        self.ask(
+            host,
+            grant,
+            forward,
+            |reply| Cmd::History {
+                op: op.clone(),
+                author: grant.user.id.clone(),
+                reply,
+            },
+            || RemoteOp::History {
+                grant: grant.clone(),
+                history: op.clone(),
+            },
+            Ok,
         )
         .await
     }

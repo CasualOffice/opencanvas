@@ -193,6 +193,11 @@ fn obj_apply(newer: &Value, diff: &Value) -> Value {
     Value::Object(out)
 }
 
+/// Applies an object diff (the `meta`, `databases` or `boards` part of a reverse diff).
+pub fn apply_object_diff(newer: &Value, diff: &Value) -> Value {
+    obj_apply(newer, diff)
+}
+
 const ROOTS: [&str; 3] = ["meta", "databases", "boards"];
 
 /// The diff that turns `newer` back into `older` (both `document.json`).
