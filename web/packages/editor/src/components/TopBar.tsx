@@ -396,10 +396,10 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
             <Ic name={ok ? "circle-check" : bad ? "triangle-alert" : save.kind === "readonly" ? "eye" : "cloud-off"} />
           </span>
           <div>
-            <b style={{ fontWeight: 600, fontSize: 13.5 }}>{ok ? "Autosave is on" : save.kind === "readonly" ? "View only" : paused ? "Autosave paused" : "Saving paused"}</b>
-            <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5 }}>{msg}</p>
+            <b style={{ fontWeight: 600, fontSize: ".8438rem" }}>{ok ? "Autosave is on" : save.kind === "readonly" ? "View only" : paused ? "Autosave paused" : "Saving paused"}</b>
+            <p style={{ margin: "2px 0 0", fontSize: ".8125rem", color: "var(--fg-2)", lineHeight: 1.5 }}>{msg}</p>
             {save.kind === "saved" && save.version ? (
-              <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--fg-3)", fontFamily: "var(--mono)" }}>Version {save.version}</p>
+              <p style={{ margin: ".375rem 0 0", fontSize: ".75rem", color: "var(--fg-3)", fontFamily: "var(--mono)" }}>Version {save.version}</p>
             ) : null}
           </div>
         </div>

@@ -1986,14 +1986,14 @@ function TextEditor({ s, view, compact, value, onChange, onDone }: { s: Shape; v
   const fs = compact ? Math.max(16, base * z) : base * z;
   if (s.type === "text") {
     const b = bbox(s);
-    style = { left: b[0] * z + tx - 4, top: b[1] * z + ty - 2, width: Math.max(160, (b[2] - b[0]) * z + 40), height: Math.max(fs * 1.5, (b[3] - b[1]) * z + 8), fontSize: fs, fontWeight: 600, color: "var(--fg)", padding: "0 4px" };
+    style = { left: b[0] * z + tx - 4, top: b[1] * z + ty - 2, width: Math.max(160, (b[2] - b[0]) * z + 40), height: Math.max(fs * 1.5, (b[3] - b[1]) * z + 8), fontSize: fs, fontWeight: 600, color: "var(--fg)", padding: "0 4px" }; // px-ok: board-space text editor, sized with the zoom
   } else if (s.type === "sticky") {
     // Grows with the text, like the note itself does.
     const h = stickyHeight(value, s.w ?? 150, s.h ?? 110);
     style = { left: ((s.x ?? 0) + 10) * z + tx, top: ((s.y ?? 0) + 14) * z + ty, width: ((s.w ?? 150) - 20) * z, height: (h - 22) * z, fontSize: fs, color: "var(--sticky-fg)", lineHeight: `${STICKY_TEXT.lh * z}px`, padding: `0 ${4 * z}px` };
   } else if (s.type === "arrow") {
     const [mx, my] = midPoint(s.pts ?? []);
-    style = { left: mx * z + tx - 90, top: my * z + ty - fs, width: 180, height: fs * 2.2, fontSize: fs, textAlign: "center", color: "var(--fg-2)", background: "var(--panel)", padding: "2px 6px" };
+    style = { left: mx * z + tx - 90, top: my * z + ty - fs, width: 180, height: fs * 2.2, fontSize: fs, textAlign: "center", color: "var(--fg-2)", background: "var(--panel)", padding: "2px 6px" }; // px-ok: board-space label editor, sized with the zoom
   } else {
     style = { left: ((s.x ?? 0) + 8) * z + tx, top: ((s.y ?? 0) + 8) * z + ty, width: ((s.w ?? 140) - 16) * z, height: ((s.h ?? 80) - 16) * z, fontSize: fs, textAlign: "center", color: "var(--fg)", fontWeight: s.type === "ellipse" ? 600 : 400, display: "flex", paddingTop: Math.max(0, ((s.h ?? 80) - 16) * z / 2 - fs) };
   }

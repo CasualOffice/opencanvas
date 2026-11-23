@@ -104,6 +104,12 @@ type Boot =
   | { phase: "error"; title: string; message: string; retry?: boolean }
   | { phase: "ready"; session: Session; collab: Collab; demo: Demo | null; gen: number };
 
+/** The compact breakpoint in CSS px: 45em of the root font size (ADR-048). */
+function compactBelow(): number {
+  const fs = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return 45 * (Number.isFinite(fs) && fs > 0 ? fs : 16);
+}
+
 export default function App() {
   const [boot, setBoot] = useState<Boot>({ phase: "loading" });
   // Bumped to drop the local Y.Doc and start over from the server (`reload` conflict policy).
@@ -303,7 +309,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     const el = rootRef.current;
     if (!el) return;
     setRoot(el);
-    const ro = new ResizeObserver(() => setCompact(el.clientWidth < 720));
+    // ADR-048: the phone/side-panel breakpoint is 45em (720 px at the default 16 px), so a
+    // larger default font size switches to the compact layout sooner, like a media query.
+    const ro = new ResizeObserver(() => setCompact(el.clientWidth < compactBelow()));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -1146,7 +1154,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                   <span className="cic tone-green">
                     <Ic name="copy" />
                   </span>
-                  <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                  <div style={{ fontSize: ".8438rem", lineHeight: 1.55 }}>
                     {conflict.policy === "copy" ? (
                       <>
                         Your edits are safe. They were saved as <b>“{copyName}”</b> in {hostName}. This canvas is read-only now.

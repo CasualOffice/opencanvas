@@ -2920,7 +2920,7 @@ function SettingsBody({ ctx }: { ctx: Ctx }) {
       <>
         <div className="ocdb-mh">Group cards by</div>
         {opts.map((f) => radio(g?.id === f.id, f.name, TYPE_ICON[f.type], () => patchPrefs({ group: f.id }), f.id))}
-        {!opts.length ? <p className="ocdb-hint" style={{ padding: "4px 10px" }}>No Status or Select field yet.</p> : null}
+        {!opts.length ? <p className="ocdb-hint" style={{ padding: ".25rem .625rem" }}>No Status or Select field yet.</p> : null}
         {edit ? <button className="ocdb-mi" onClick={() => add("status", "group")}><Ic i={Plus} />New Status field</button> : null}
       </>
     );
@@ -2932,7 +2932,7 @@ function SettingsBody({ ctx }: { ctx: Ctx }) {
       <>
         <div className="ocdb-mh">Show rows by</div>
         {opts.map((f) => radio(d?.id === f.id, f.name, TYPE_ICON.date, () => patchPrefs({ date: f.id }), f.id))}
-        {!opts.length ? <p className="ocdb-hint" style={{ padding: "4px 10px" }}>No Date field yet.</p> : null}
+        {!opts.length ? <p className="ocdb-hint" style={{ padding: ".25rem .625rem" }}>No Date field yet.</p> : null}
         {edit ? <button className="ocdb-mi" onClick={() => add("date", "date")}><Ic i={Plus} />New Date field</button> : null}
       </>
     );
@@ -3134,7 +3134,7 @@ function CellEditor({ ctx, f, r, close }: { ctx: Ctx; f: DbField; r: DbRow; clos
             {v === u.id ? <span className="chk"><Ic i={Check} s={14} /></span> : null}
           </button>
         ))}
-        {!list.length ? <p className="ocdb-hint" style={{ padding: "6px 10px" }}>No one matches.</p> : null}
+        {!list.length ? <p className="ocdb-hint" style={{ padding: ".375rem .625rem" }}>No one matches.</p> : null}
         {v ? (
           <>
             <div className="ocdb-msep" />

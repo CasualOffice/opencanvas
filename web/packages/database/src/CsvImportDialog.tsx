@@ -109,7 +109,7 @@ export function CsvImportDialog({ open, env, onClose, onImport, title }: CsvImpo
             <input ref={fileRef} type="file" accept=".csv,text/csv,.tsv,text/tab-separated-values" hidden onChange={(e) => readFile(e.target.files?.[0])} />
           </label>
         </div>
-        <div style={{ fontSize: 12 }}>Up to 10,000 rows. Commas or tabs.</div>
+        <div style={{ fontSize: ".75rem" }}>Up to 10,000 rows. Commas or tabs.</div>
       </div>
       <div className="ocdb-or">
         <span>Or paste it here</span>
