@@ -1041,6 +1041,16 @@ like any edit (open the file with `POST …/commit` when you need it saved now).
 existing blocks land directly unless the call sends `"mode": "suggest"` or the host sets
 `[host.api] default_mode = "suggest"`. Deleting more than 5 blocks needs `"confirm": true`.
 
+**Idempotency.** Every `POST /api/v1/files/…` accepts `Idempotency-Key: <1-255 visible ASCII>`.
+The key is yours per user (host key + `X-OpenCanvas-Author`, or the token's `sub`). A repeat of
+the same request answers the stored result with `Idempotency-Replayed: true` for 24 h; the same
+key with another body is `422 IDEMPOTENCY_KEY_REUSED`; a duplicate that arrives while the first
+still runs, on any node, is `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After: 1`. Failed requests
+are not stored, so a retry runs again. Keys live in the database (`api_idempotency`) or, in
+Redis-only mode, in Redis (`oc:idem:…`), with request hashes and write answers (ids, counts,
+revisions) only, never document content. `POST /api/v1/convert` returns a document and takes no
+key (it changes nothing).
+
 **Errors** are RFC 9457 `application/problem+json`:
 `{"type":"urn:opencanvas:problem:stale-block","title":"Precondition Failed","status":412,"detail":"…","code":"STALE_BLOCK","fresh":{…}}`.
 The `code` is the same machine code the 0.1 routes use (`BLOCK_NOT_FOUND`, `STALE_BLOCK`,

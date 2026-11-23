@@ -66,6 +66,23 @@ fn sess_key(ticket: &str) -> String {
 fn room_sess_key(room: &str) -> String {
     format!("oc:roomsess:{{{room}}}")
 }
+/// `Idempotency-Key` entries (HAPI-03): `id` is already a hash of host, subject and key.
+fn idem_key(host: &str, id: &str) -> String {
+    format!("oc:idem:{host}:{id}")
+}
+
+/// Deletes an idempotency entry only while it is still this request's running claim.
+const IDEM_RELEASE: &str = r"
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+";
+
+fn idem_running(request_hash: &str) -> String {
+    serde_json::json!({"h": request_hash, "s": "running"}).to_string()
+}
+
 fn jti_key(host: &str, jti: &str) -> String {
     format!("oc:jti:{host}:{jti}")
 }
@@ -343,6 +360,90 @@ impl RedisStore {
             .await
             .context("recording the launch jti")?;
         Ok(set.is_some())
+    }
+
+    // ---------- idempotency (HAPI-03) ----------
+
+    pub async fn idem_begin(
+        &self,
+        host: &str,
+        id: &str,
+        request_hash: &str,
+        lease: i64,
+    ) -> anyhow::Result<crate::store::IdemBegin> {
+        use crate::store::IdemBegin;
+        let key = idem_key(host, id);
+        for _ in 0..4 {
+            let set: Option<String> = redis::cmd("SET")
+                .arg(&key)
+                .arg(idem_running(request_hash))
+                .arg("NX")
+                .arg("EX")
+                .arg(lease.max(1))
+                .query_async(&mut self.c())
+                .await
+                .context("claiming an idempotency key")?;
+            if set.is_some() {
+                return Ok(IdemBegin::Started);
+            }
+            let got: Option<String> = redis::cmd("GET")
+                .arg(&key)
+                .query_async(&mut self.c())
+                .await?;
+            // Expired between the two calls: claim again.
+            let Some(v) = got.and_then(|g| serde_json::from_str::<serde_json::Value>(&g).ok())
+            else {
+                continue;
+            };
+            if v["h"].as_str() != Some(request_hash) {
+                return Ok(IdemBegin::Mismatch);
+            }
+            if v["s"] != "done" {
+                return Ok(IdemBegin::InProgress);
+            }
+            return Ok(IdemBegin::Replay {
+                status: v["status"].as_u64().unwrap_or(200) as u16,
+                response: v["r"].as_str().unwrap_or_default().to_string(),
+            });
+        }
+        anyhow::bail!("idempotency key claim kept racing")
+    }
+
+    pub async fn idem_finish(
+        &self,
+        host: &str,
+        id: &str,
+        request_hash: &str,
+        status: u16,
+        response: &str,
+        ttl: i64,
+    ) -> anyhow::Result<()> {
+        let v =
+            serde_json::json!({"h": request_hash, "s": "done", "status": status, "r": response});
+        let _: () = redis::cmd("SET")
+            .arg(idem_key(host, id))
+            .arg(v.to_string())
+            .arg("EX")
+            .arg(ttl.max(1))
+            .query_async(&mut self.c())
+            .await
+            .context("storing an idempotent answer")?;
+        Ok(())
+    }
+
+    pub async fn idem_release(
+        &self,
+        host: &str,
+        id: &str,
+        request_hash: &str,
+    ) -> anyhow::Result<()> {
+        let _: i64 = redis::Script::new(IDEM_RELEASE)
+            .key(idem_key(host, id))
+            .arg(idem_running(request_hash))
+            .invoke_async(&mut self.c())
+            .await
+            .context("releasing an idempotency key")?;
+        Ok(())
     }
 
     // ---------- sessions ----------
