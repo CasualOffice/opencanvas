@@ -225,25 +225,33 @@ impl Client {
         for _ in 0..n.min(self.inbox.len()) {
             let i = rng.next(self.inbox.len() as u32) as usize;
             let frame = self.inbox.swap_remove(i);
-            let mut d = DecoderV1::new(Cursor::new(&frame));
-            for m in MessageReader::new(&mut d)
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap()
-            {
-                match m {
-                    Message::Sync(SyncMessage::SyncStep1(sv)) => {
-                        let diff = self.doc.transact().encode_state_as_update_v1(&sv);
-                        self.outbox.push(protocol::step2(diff));
-                    }
-                    Message::Sync(SyncMessage::SyncStep2(u) | SyncMessage::Update(u)) => {
-                        self.doc
-                            .transact_mut()
-                            .apply_update(Update::decode_v1(&u).unwrap())
-                            .unwrap();
-                    }
-                    Message::Auth(reason) => panic!("editor denied: {reason:?}"),
-                    _ => {}
+            self.receive(&frame);
+        }
+    }
+
+    /// Applies one received frame and answers a sync step 1.
+    fn receive(&mut self, frame: &[u8]) {
+        let mut d = DecoderV1::new(Cursor::new(frame));
+        for m in MessageReader::new(&mut d)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+        {
+            match m {
+                Message::Sync(SyncMessage::SyncStep1(sv)) => {
+                    let diff = self.doc.transact().encode_state_as_update_v1(&sv);
+                    self.outbox.push(protocol::step2(diff));
                 }
+                Message::Sync(SyncMessage::SyncStep2(u) | SyncMessage::Update(u)) => {
+                    // Yjs (what real clients run) retries pending structs once their causes
+                    // arrive; plain yrs 0.28.2 can strand them (oc_model::sync).
+                    oc_model::sync::apply_update(
+                        &mut self.doc.transact_mut(),
+                        Update::decode_v1(&u).unwrap(),
+                    )
+                    .unwrap();
+                }
+                Message::Auth(reason) => panic!("editor denied: {reason:?}"),
+                _ => {}
             }
         }
         // Our own later edits only need to carry what we created ourselves.
@@ -347,4 +355,113 @@ async fn random_concurrent_edits_converge() {
         "fuzz: {iters} iterations from seed {base_seed} converged in {:.1?}",
         started.elapsed()
     );
+}
+
+/// An update with a cross-client dependency cycle (A#0 before B#0, B#3 before A#0) and the
+/// B#0..3 it waits for, plus the text both give. yrs 0.28.2 strands the cycle in its pending
+/// structs when the cause arrives second (oc_model::sync). Seed 66002356 of the nightly fuzz
+/// hit this in a client once a 40 ms outbound tick split a batch differently.
+fn dependency_cycle() -> (Vec<u8>, Vec<u8>, String) {
+    // yrs picks the highest client id first: A must sort above B.
+    let b = Doc::with_client_id(1);
+    let a = Doc::with_client_id(2);
+    let tb = b.get_or_insert_text("t");
+    let ta = a.get_or_insert_text("t");
+    tb.insert(&mut b.transact_mut(), 0, "bbb");
+    let b0 = b
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    a.transact_mut()
+        .apply_update(Update::decode_v1(&b0).unwrap())
+        .unwrap();
+    ta.insert(&mut a.transact_mut(), 0, "a");
+    let from_a = a
+        .transact()
+        .encode_state_as_update_v1(&b.transact().state_vector());
+    b.transact_mut()
+        .apply_update(Update::decode_v1(&from_a).unwrap())
+        .unwrap();
+    let mut before_a = StateVector::default();
+    before_a.set_max(yrs::block::ClientID::new(1), 3);
+    tb.insert(&mut b.transact_mut(), 0, "c");
+    let cycle = b.transact().encode_state_as_update_v1(&before_a);
+    let text = tb.get_string(&b.transact());
+    (cycle, b0, text)
+}
+
+/// Deterministic regression for the 66002356 divergence: the cycle reaches the room and a
+/// peer before its cause. Both must integrate everything once the cause arrives.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_pending_dependency_cycle_is_integrated_by_the_room_and_its_peers() {
+    let (base, _host) = mock_host().await;
+    let state = app(&base, room_cfg()).await;
+    let mk = |user: &str| {
+        let mut g = grant(user, Role::Edit);
+        g.file.id = "cycle".into();
+        g.room = room_id("sample", "cycle");
+        g
+    };
+    let mut sender = Client::join(&state, mk("u0")).await;
+    let mut peer = Client::join(&state, mk("u1")).await;
+    let probe = mk("probe");
+    // Handshakes first, so the peer gets the two updates as relayed frames.
+    for c in [&mut sender, &mut peer] {
+        for f in std::mem::take(&mut c.outbox) {
+            c.membership.try_send(f);
+        }
+    }
+    barrier(&state, &probe).await;
+    let (cycle, cause, want) = dependency_cycle();
+    sender.membership.try_send(protocol::update(cycle));
+    sender.membership.try_send(protocol::update(cause));
+
+    // Read the room's own doc: its encoded state would hide the bug, since yrs merges the
+    // pending structs into `encode_state_as_update_v1`.
+    barrier(&state, &probe).await;
+    let host = state.hosts.get("sample").unwrap();
+    let room = state
+        .rooms
+        .tool(
+            &host,
+            &probe,
+            "probe",
+            Box::new(|doc: &Doc| {
+                let text = doc.get_or_insert_text("t");
+                let txn = doc.transact();
+                Ok((
+                    None,
+                    serde_json::json!({
+                        "pending": txn.store().pending_update().is_some(),
+                        "text": text.get_string(&txn),
+                    }),
+                ))
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        room,
+        serde_json::json!({ "pending": false, "text": want }),
+        "the room stranded the cycle in its pending structs"
+    );
+
+    // The relayed frames reach the peer one outbound tick later, in the order they were sent.
+    let text = peer.doc.get_or_insert_text("t");
+    for _ in 0..50 {
+        barrier(&state, &probe).await;
+        peer.pump();
+        for f in std::mem::take(&mut peer.inbox) {
+            peer.receive(&f);
+        }
+        if text.get_string(&peer.doc.transact()) == want {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let txn = peer.doc.transact();
+    assert!(
+        txn.store().pending_update().is_none(),
+        "the peer stranded the cycle in its pending structs"
+    );
+    assert_eq!(text.get_string(&txn), want);
 }

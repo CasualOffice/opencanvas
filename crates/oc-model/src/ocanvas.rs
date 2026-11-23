@@ -102,9 +102,7 @@ pub fn apply_update_bytes(doc: &Doc, bytes: &[u8]) -> Result<(), Error> {
         Update::decode_v1(bytes).or_else(|_| Update::decode_v2(bytes))
     }
     .map_err(|_| Error::BadUpdate)?;
-    doc.transact_mut()
-        .apply_update(update)
-        .map_err(|_| Error::BadUpdate)
+    crate::sync::apply_update(&mut doc.transact_mut(), update).map_err(|_| Error::BadUpdate)
 }
 
 /// Inflates one entry, trusting none of the sizes the archive declares (SEC-14): at most its

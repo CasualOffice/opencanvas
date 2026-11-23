@@ -1161,7 +1161,9 @@ impl Room {
             let mut txn = self.doc.transact_mut();
             let was_pending =
                 txn.store().pending_update().is_some() || txn.store().pending_ds().is_some();
-            if txn.apply_update(update).is_err() {
+            // Not `txn.apply_update`: yrs 0.28.2 can strand a pending update for good
+            // (oc_model::sync).
+            if oc_model::sync::apply_update(&mut txn, update).is_err() {
                 drop(txn);
                 return self.deny(conn, "update could not be applied");
             }
@@ -1413,7 +1415,7 @@ impl Room {
         })?;
         let changed = {
             let mut txn = self.doc.transact_mut_with(origin);
-            if let Err(e) = txn.apply_update(decoded) {
+            if let Err(e) = oc_model::sync::apply_update(&mut txn, decoded) {
                 return Err(PatchFailure::Invalid(oc_model::patch::PatchError::Request(
                     e.to_string(),
                 )));
