@@ -553,7 +553,9 @@ async fn check_file_info_sets_role_user_perms_and_expiry() {
     assert_eq!(s["role"], "comment");
     assert_eq!(
         s["perms"],
-        json!({"export": false, "download": false, "comment": true, "print": false})
+        // History is editors-only by default (docs/30 §10, decision 1).
+        json!({"export": false, "download": false, "comment": true, "print": false,
+               "history": false, "restore": false, "commitMessage": false})
     );
     let (_, exp) = state.store.session(&ticket).await.unwrap().unwrap();
     assert!(
