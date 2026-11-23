@@ -127,7 +127,7 @@ pub async fn launch_get(
 }
 
 fn rejected(state: &SharedState, status: StatusCode, code: &'static str, msg: String) -> ApiError {
-    Metrics::inc(&state.metrics.launches_rejected_total);
+    state.metrics.launch_rejected(code);
     tracing::info!(reason = %msg, "launch rejected");
     ApiError::new(status, code, msg)
 }

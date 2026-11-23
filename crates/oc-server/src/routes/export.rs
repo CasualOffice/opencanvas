@@ -246,8 +246,25 @@ async fn images(
     images
 }
 
-/// Renders `doc` as `fmt`: (body, content type, file extension).
+/// Renders `doc` as `fmt`: (body, content type, file extension). Counted in
+/// `oc_exports_total{format,result}` and timed in `oc_export_seconds{format}`.
 pub(super) async fn render(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    doc: &Doc,
+    fmt: &str,
+    req: RenderReq<'_>,
+) -> Result<(Body, &'static str, &'static str), ApiError> {
+    let started = std::time::Instant::now();
+    let out = render_once(state, host, doc, fmt, req).await;
+    // Unknown formats are not labels (a client could make up any number of them).
+    if let Some(format) = FORMATS.split(", ").find(|f| *f == fmt) {
+        state.metrics.export(format, out.is_ok(), started.elapsed());
+    }
+    out
+}
+
+async fn render_once(
     state: &SharedState,
     host: &Arc<HostConfig>,
     doc: &Doc,

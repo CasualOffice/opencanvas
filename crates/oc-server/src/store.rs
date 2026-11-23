@@ -693,6 +693,18 @@ impl Store {
             .rfind(|r| r.status == "pending"))
     }
 
+    /// Number of commits waiting for the host, across the whole store (`/metrics`).
+    pub async fn outbox_pending_count(&self) -> anyhow::Result<usize> {
+        if let Some(kv) = &self.kv {
+            return kv.outbox_pending_count().await;
+        }
+        let n: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM commit_outbox WHERE status = 'pending'")
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(usize::try_from(n).unwrap_or(0))
+    }
+
     /// Every pending commit (startup sweeper), oldest first. Unreadable rows are skipped.
     pub async fn outbox_all_pending(&self) -> anyhow::Result<Vec<OutboxRow>> {
         if let Some(kv) = &self.kv {

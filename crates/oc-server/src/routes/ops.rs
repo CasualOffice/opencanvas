@@ -48,9 +48,16 @@ pub async fn metrics(State(state): State<SharedState>, headers: HeaderMap) -> Re
             return (StatusCode::UNAUTHORIZED, "metrics need the bearer token").into_response();
         }
     }
+    let db = state.store.ping().await;
+    let draining = state.rooms.draining();
+    let scrape = crate::metrics::Scrape {
+        ready: db && !draining,
+        draining,
+        outbox_pending: state.store.outbox_pending_count().await.ok(),
+    };
     (
         [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],
-        state.metrics.render(),
+        state.metrics.render_with(&scrape),
     )
         .into_response()
 }

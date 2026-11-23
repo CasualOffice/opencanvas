@@ -59,10 +59,26 @@ jobs:
         working-directory: deploy/helm
         run: |
           set -e
-          for v in sqlite cluster gotenberg; do
+          for v in sqlite cluster gotenberg monitoring; do
             helm lint opencanvas --strict -f opencanvas/ci/$v-values.yaml
             helm template oc opencanvas -f opencanvas/ci/$v-values.yaml > /dev/null
           done
+          # OPS-01: the dashboard, ServiceMonitor and PrometheusRule render (and only when asked).
+          helm template oc opencanvas -f opencanvas/ci/monitoring-values.yaml > /tmp/mon.yaml
+          for k in ServiceMonitor PrometheusRule; do grep -q "^kind: $k" /tmp/mon.yaml; done
+          grep -q 'grafana_dashboard: "1"' /tmp/mon.yaml
+          if helm template oc opencanvas -f opencanvas/ci/sqlite-values.yaml | grep -q "^kind: PrometheusRule"; then
+            echo "monitoring objects must be off by default"; exit 1
+          fi
+      - name: dashboard is generated + alert rules (promtool)
+        run: |
+          set -e
+          python3 deploy/monitoring/build-dashboard.py
+          git diff --exit-code deploy/helm/opencanvas/files/opencanvas-dashboard.json
+          docker run --rm -v "$PWD/deploy":/w -w /w/monitoring --entrypoint promtool prom/prometheus:v3.5.0 \
+            check rules ../helm/opencanvas/files/opencanvas-alerts.yml
+          docker run --rm -v "$PWD/deploy":/w -w /w/monitoring --entrypoint promtool prom/prometheus:v3.5.0 \
+            test rules alerts-test.yml
           helm template oc opencanvas --set gotenberg.enabled=true --set gotenberg.mode=sidecar --set dev=true > /dev/null
           if helm template oc opencanvas --set dev=true --set replicaCount=2 > /dev/null 2>&1; then
             echo "SQLite with 2 replicas must be refused"; exit 1

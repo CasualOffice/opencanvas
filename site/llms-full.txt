@@ -2869,22 +2869,99 @@ Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_tota
 ## Health & metrics
 - `/healthz` — process alive. `/readyz` — DB reachable, (cluster) Redis reachable, not draining;
   its body also carries `"ai": "on" | "off (<reason>)"`, the server-wide AI switch.
-- `/metrics` (Prometheus): `oc_rooms_live`, `oc_connections{role}`,
-  `oc_updates_total`, `oc_update_apply_seconds`, `oc_fanout_bytes_total`,
-  `oc_commit_total{result}`, `oc_commit_seconds`, `oc_host_callback_seconds{op,status}`,
-  `oc_wal_bytes`, `oc_room_doc_bytes` (histogram), `oc_relay_frames_total`.
-- **Implemented today**: `oc_rooms_active`, `oc_connections_active`, `oc_launches_total`,
-  `oc_launches_rejected_total`, `oc_updates_total`, `oc_updates_rejected_total`, `oc_saves_total`,
-  `oc_save_errors_total`, `oc_save_conflicts_total`, and **`oc_wal_append_seconds`**: a
-  histogram (buckets 1 ms … 5 s, plus `_sum` and `_count`) of the time to append one room's
-  batch of updates to the WAL, deadlock retries included, success or failure, and
-  `oc_wal_batches_total` / `oc_wal_rows_total` (their ratio is the mean batch size). Every
-  accepted edit waits for its batch before it is fanned out, so its p95 is the floor of edit
-  latency; alert when
-  `histogram_quantile(0.95, rate(oc_wal_append_seconds_bucket[5m]))` stays above 50 ms (a slow
-  or contended database; docs/22 §8 weaknesses 2 and 6). The other names above are planned.
+- `/metrics` (Prometheus text; `OC_METRICS_TOKEN` makes it need `Authorization: Bearer`).
+  Every series it exports (OPS-01; histograms have buckets 1 ms … 5 s plus `_sum`/`_count`):
+
+| Series | Type | Labels | Meaning |
+|---|---|---|---|
+| `oc_rooms_active` | gauge | | Rooms open on this node |
+| `oc_connections_active` | gauge | | WebSocket connections on this node |
+| `oc_ready` | gauge | | 1 when `/readyz` would answer 200 (DB reachable, not draining) |
+| `oc_draining` | gauge | | 1 while draining after SIGTERM |
+| `oc_commit_outbox_pending` | gauge | | Commits waiting for the host, whole store (same on every cluster node: use `max`) |
+| `oc_http_responses_total` | counter | `code` (`1xx`…`5xx`) | HTTP responses; WebSocket upgrades are `1xx` |
+| `oc_launches_total` | counter | | Sessions started |
+| `oc_launches_rejected_total` | counter | `code` (`TOKEN_INVALID`, `TOKEN_EXPIRED`, …) | Launches refused |
+| `oc_updates_total` / `oc_updates_rejected_total` | counter | | Edits accepted / refused (role, malformed) |
+| `oc_wal_append_seconds` | histogram | | One room batch appended to the WAL (retries included); every accepted edit waits for it before fan-out, so it is the floor of sync latency |
+| `oc_wal_batches_total` / `oc_wal_rows_total` | counter | | WAL batches and the updates in them (ratio = mean batch size) |
+| `oc_saves_total` / `oc_save_errors_total` / `oc_save_conflicts_total` | counter | | Host acknowledged a save / a save failed (retried with backoff) / host answered 409/412 (conflict policy ran) |
+| `oc_host_callback_seconds` | histogram | `host`, `op` | One call to the host (callbacks or WOPI); `op` = `load`, `save`, `copy`, `access`, `members`, `notify` |
+| `oc_host_callbacks_total` | counter | `host`, `op`, `result` | `result` = `ok`, `conflict`, `4xx`, `5xx`, `unreachable`, `error` |
+| `oc_export_seconds` | histogram | `format` | One export render (PDF includes Gotenberg) |
+| `oc_exports_total` | counter | `format`, `result` (`ok`, `error`) | Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`) |
+| `oc_awareness_broadcasts_total` / `oc_awareness_coalesced_total` | counter | | Presence frames fanned out / parked on a full room inbox |
+| `oc_schema_warnings_total` | counter | | Unknown content kept on read/write |
+| `oc_ai_requests_total` | counter | `host`, `provider`, `model`, `outcome` | AI model calls (AI on only) |
+| `oc_ai_tokens_total` | counter | `direction` | AI tokens in/out |
+| `oc_ai_runs_total` / `oc_ai_run_seconds` | counter / histogram | `outcome` / – | Agent runs |
+| `process_start_time_seconds` | gauge | | Process start (every OS) |
+| `process_cpu_seconds_total`, `process_resident_memory_bytes`, `process_virtual_memory_bytes`, `process_threads`, `process_open_fds`, `process_max_fds` | counter / gauges | | From `/proc`: **Linux only** (the image); absent on macOS dev builds |
+
 - Logs: JSON, request id, room id, host id; never content.
 - Traces: OTLP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` set.
+
+## Dashboards and alerts (OPS-01)
+
+Files: the Grafana dashboard `deploy/helm/opencanvas/files/opencanvas-dashboard.json` (generated
+by `python3 deploy/monitoring/build-dashboard.py`; edit the script, not the JSON) and the alert
+rules `deploy/helm/opencanvas/files/opencanvas-alerts.yml` (plain Prometheus rules; unit tests in
+`deploy/monitoring/alerts-test.yml`). Dashboard variables: data source, job, namespace,
+instance, host id. Rows: traffic and health, collaboration, persistence, host callbacks,
+exports, process, security signals, cluster/Redis (text: no series yet), AI (collapsed).
+
+**Kubernetes** (all off by default):
+```sh
+helm upgrade --install oc deploy/helm/opencanvas ... \
+  --set grafanaDashboard.enabled=true \
+  --set serviceMonitor.enabled=true --set serviceMonitor.labels.release=kube-prometheus-stack \
+  --set prometheusRule.enabled=true --set prometheusRule.labels.release=kube-prometheus-stack \
+  --set prometheusRule.memoryLimitBytes=1073741824
+```
+`grafanaDashboard` creates a ConfigMap labelled `grafana_dashboard: "1"` (the Grafana sidecar
+convention); keep `memoryLimitBytes` equal to `resources.limits.memory`.
+With `OC_METRICS_TOKEN` set, point `serviceMonitor.bearerTokenSecret` at the Secret and key that
+hold it. ServiceMonitor and PrometheusRule need the prometheus-operator CRDs. Example values:
+`deploy/helm/opencanvas/ci/monitoring-values.yaml`.
+
+**Local quick-start** (Docker for Prometheus and Grafana; OpenCanvas built from the checkout):
+```sh
+cargo build -p oc-server -p oc-bench
+docker compose -f deploy/monitoring/docker-compose.yml up -d   # Prometheus :9391, Grafana :3391
+deploy/monitoring/demo-load.sh 600   # server :8791 (SQLite), 2 editors in one room via oc-bench
+                                     # (saves to its mock host), host `broken` whose saves get 500,
+                                     # md/docx/pdf exports, refused launches
+open http://localhost:3391/d/opencanvas-ops     # anonymous viewer; admin/admin to edit
+open http://localhost:9391/alerts
+docker compose -f deploy/monitoring/docker-compose.yml down -v
+```
+Checks: `promtool check rules deploy/helm/opencanvas/files/opencanvas-alerts.yml` and
+`(cd deploy/monitoring && promtool test rules alerts-test.yml)`; CI runs both in the `helm` job
+through the `prom/prometheus` image.
+
+### Alerts and runbook
+
+| Alert | Fires when | Do this |
+|---|---|---|
+| **OpenCanvasDown** (critical) | `up == 0` for 2 min | Pod/container status and logs (`kubectl describe`, OOMKilled?). Clients reconnect to another node in a cluster; on one node editing stops until it is back (no edits lost while clients keep their tabs open). |
+| **OpenCanvasNotReady** (critical) | `oc_ready == 0` and not draining for 5 min | The database (or Redis) is unreachable: check `DATABASE_URL`/`REDIS_URL`, the DB's health and connection limits; `/readyz` shows `"db": false`. |
+| **OpenCanvasRestarting** (warning) | ≥ 2 process starts in 30 min | Crash loop: logs before the restart, `OOMKilled` (see memory), panics. Restarts lose at most `OC_DB_SYNC_MS` of edits in memory mode (see Durability mode). |
+| **OpenCanvasMemoryNearLimit** (warning) | RSS > 85 % of `prometheusRule.memoryLimitBytes` for 10 min | Compare `oc_rooms_active`/connections with the Sizing table; raise the limit or add nodes (cluster). Memory ≈ 50 MB + 0.25 MB/user + 5–14× doc per room. |
+| **OpenCanvasFileDescriptorsNearLimit** (warning) | open fds > 80 % of the limit | Raise `nofile`; each WebSocket holds one fd. |
+| **OpenCanvasSavesFailing** (critical) | > 20 % of saves fail for 10 min | Dashboard "Host callbacks": which host, which result. `5xx`/`unreachable`: the host's save endpoint is down (edits stay in the outbox and are retried; nothing is lost while the DB holds them). `4xx`: callback token expired or rejected, check the host's signature secret. |
+| **OpenCanvasOutboxGrowing** (warning) | outbox ≥ 5 and still growing for 15 min | Same as saves failing; also check the host's rate limits. Outbox rows survive restarts and are resent at start-up. |
+| **OpenCanvasOutboxStuck** (warning) | outbox > 0 for a whole hour | One file's save keeps failing (look for `save failed` with its room id in logs); a 412/409 loop means a conflict the host keeps refusing. |
+| **OpenCanvasHighSyncLatency** (warning) | WAL append p95 > 50 ms for 10 min | Slow or contended database (docs/22 §8 weaknesses 2 and 6): DB CPU/IO, SQLite on network storage, MySQL lock waits; consider the Redis hot WAL (ADR-028). |
+| **OpenCanvasHostCallbackErrors** (warning) | > 5 % of one host's calls fail (5xx, unreachable, error) for 10 min | Tell that host's operators; `op` shows which callback. Loads failing means users cannot open files. |
+| **OpenCanvasHostCallbackSlow** (warning) | one host's callback p95 > 2 s for 15 min | The host is slow; opens and saves feel it. Check its latency from inside the cluster. |
+| **OpenCanvasPdfExportsFailing** (warning) | ≥ 3 PDF export errors in 15 min | Gotenberg down or erroring (`OC_PDF_RENDERER`), or unset (501). Check the Gotenberg pod/sidecar logs. |
+
+### What has no metric yet (gaps)
+End-to-end edit/sync latency (only the WAL append floor), connections by role, sessions alive,
+snapshot/compaction counts and WAL bytes, outbox retry attempts, document sizes, cluster relay
+frames, lease moves and Redis latency (use redis_exporter), rate-limited requests (MCP, launch),
+role changes/revocations through `/v1/files/{id}/role`, Gotenberg health on its own (only via
+PDF export errors). Gotenberg itself and the database are not scraped by this dashboard.
 
 ## Graceful shutdown / deploys
 SIGTERM → refuse new rooms → commit all dirty rooms (≤ 20 s each, in parallel) →

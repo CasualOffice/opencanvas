@@ -279,6 +279,22 @@ pub fn router(state: SharedState) -> Router {
                 }
             },
         ))
+        .layer({
+            // OPS-01: `oc_http_responses_total{code}` by status class.
+            let m = state.metrics.clone();
+            axum::middleware::from_fn(
+                move |req: Request<axum::body::Body>, next: axum::middleware::Next| {
+                    let m = m.clone();
+                    async move {
+                        let res = next.run(req).await;
+                        let class = crate::metrics::status_class(res.status().as_u16());
+                        m.http_responses
+                            .inc(crate::metrics::labels(&[("code", class)]));
+                        res
+                    }
+                },
+            )
+        })
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<_>| {
             tracing::info_span!("http", method = %req.method(), path = %redacted_path(req.uri().path()))
         }))
