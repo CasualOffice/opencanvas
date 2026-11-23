@@ -8,10 +8,10 @@
 // shapes; a product we ship no logo for gets Add your own icon and generic alternatives.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as RKE, type ReactNode } from "react";
 import {
-  Boxes, ChevronRight, GitBranch, GitFork, History, LayoutTemplate, Library as LibraryIcon, ListTree, Network, PanelLeftClose, PanelLeftOpen, Search, Shapes as ShapesIcon, Square, Table, Upload, Users, Workflow, X, type LucideIcon,
+  Boxes, ChartColumn, ChevronRight, GitBranch, House, MoveRight, Server, TriangleAlert, Zap, GitFork, History, LayoutTemplate, Library as LibraryIcon, ListTree, Network, PanelLeftClose, PanelLeftOpen, Search, Shapes as ShapesIcon, Square, Table, Upload, Users, Workflow, X, type LucideIcon,
 } from "lucide-react";
 import { HEADS } from "../heads";
-import { KIND_MIME } from "../libraries";
+import { KIND_MIME, LIBRARIES } from "../libraries";
 import { librariesVersion, loadLibrary, panelLibraries, PRESET, presetOf, subscribeLibraries, type PanelLibrary } from "../panel";
 import { descriptorOf, type ResolvedDescriptor } from "../registry";
 import { GENERIC_ICONS, ICON_CATEGORIES, ICON_KIND, ICON_MIME, iconById, searchIcons, suggestIcons, toneOf, type GenericIcon, type IconHit } from "../icons";
@@ -23,6 +23,7 @@ const SW = 1.75;
 const ICONS: Record<string, LucideIcon> = {
   workflow: Workflow, boxes: Boxes, network: Network, table: Table, "git-fork": GitFork, shapes: ShapesIcon, square: Square,
   "layout-template": LayoutTemplate, "git-branch": GitBranch, users: Users,
+  "move-right": MoveRight, "triangle-alert": TriangleAlert, house: House, zap: Zap, server: Server, "chart-column": ChartColumn,
 };
 const HIDDEN_KEY = "oc-diagram-libraries-hidden";
 const OPEN_KEY = "oc-diagram-libraries-open";
@@ -61,7 +62,8 @@ function save(key: string, v: unknown) {
 
 /** The libraries this person sees: BPMN only when the host's flag is on. */
 /** The libraries this person may use: BPMN only when the host's flag is on (2f). */
-export const availableLibraries = (flags: PanelFlags = {}) => panelLibraries().filter((l) => !l.flag || flags[l.flag]);
+export const availableLibraries = (flags: PanelFlags = {}) =>
+  panelLibraries().filter((l) => !l.flag || flags[l.flag] || LIBRARIES.some((x) => x.id === l.id));
 /** Those, minus the ones this person hid with the Libraries chooser. */
 export const shownLibraries = (flags: PanelFlags = {}, hidden: readonly string[] = []) => availableLibraries(flags).filter((l) => !hidden.includes(l.id));
 

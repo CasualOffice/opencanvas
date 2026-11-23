@@ -7,7 +7,7 @@
 // Data only; nothing here draws.
 import type { Shape } from "./model";
 import { CONTAINER } from "./kinds";
-import { LIBRARIES, type Library } from "./libraries";
+import { ALL_LIBRARIES, toLibrary, type Library } from "./libraries";
 import type { ShapeDescriptor } from "./registry";
 
 /** A preset's tile id prefix: `preset:<id>` (never a registered kind). */
@@ -103,9 +103,11 @@ export function loadLibrary(l: PanelLibrary): Promise<void> {
 
 /** Every library in panel order, with its presets and flags. */
 export function panelLibraries(): PanelLibrary[] {
-  const out: PanelLibrary[] = (LIBRARIES as readonly PanelLibrary[]).map((l) => ({
-    ...(l.id === "bpmn" ? { flag: "bpmn" as const, beta: true } : {}),
-    ...l,
+  // Every library, flagged ones included (BPMN): the panel decides what to show from the host's
+  // flag or the code switch (`setLibraryEnabled`), see `availableLibraries`.
+  const out: PanelLibrary[] = ALL_LIBRARIES.map((d) => ({
+    ...(d.flag ? { flag: "bpmn" as const, beta: true } : {}),
+    ...toLibrary(d),
   }));
   for (const { lib, before } of extra) {
     const i = before ? out.findIndex((x) => x.id === before) : -1;

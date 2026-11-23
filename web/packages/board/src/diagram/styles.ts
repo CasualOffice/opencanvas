@@ -113,7 +113,7 @@ export const DIAGRAM_CSS = `
 .ocdg-chk input{margin:0;accent-color:var(--accent)}
 .ocdg-beta-s{margin-left:auto}
 .ocdg-pad{padding:.5rem .75rem}
-.ocdg-rail{width:3rem;align-items:center;gap:.125rem;padding:.5rem 0;position:relative;overflow:visible}
+.ocdg-left.ocdg-rail{width:3rem;align-items:center;gap:.125rem;padding:.5rem 0;position:relative;overflow:visible}
 .ocdg-rsep{width:1.5rem;height:1px;background:var(--line);margin:.25rem 0}
 .ocdg-fly{position:absolute;left:calc(100% + .375rem);top:.5rem;width:16rem;max-height:calc(100% - 1rem);display:flex;flex-direction:column;background:var(--pop);border-radius:.75rem;box-shadow:var(--sh-pop);z-index:6;overflow:hidden}
 .ocdg-flyh{margin:0;padding:.75rem .75rem 0;font-size:.8125rem;font-weight:600}

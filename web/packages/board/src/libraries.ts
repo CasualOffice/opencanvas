@@ -43,7 +43,8 @@ export const ALL_LIBRARIES: readonly LibraryData[] = [
   BASIC, FLOWCHART, UML, ERD, NETWORK, BPMN, MINDMAP, ORG, WIREFRAME, MOCKUP, ARROWS, SIGNS, FLOORPLAN, ELECTRICAL, RACK, CHARTS,
 ];
 
-const toLibrary = (l: LibraryData): Library => ({ id: l.id, name: l.name, icon: l.icon, kinds: l.items.map((i) => `${l.id}:${i.name}`) });
+/** A library as the panel reads it (kind ids). */
+export const toLibrary = (l: LibraryData): Library => ({ id: l.id, name: l.name, icon: l.icon, kinds: l.items.map((i) => `${l.id}:${i.name}`) });
 
 /** Libraries off by default (BPMN): their kinds still draw, but the panel lists them only when on. */
 export const FLAGGED_LIBRARIES: readonly string[] = ALL_LIBRARIES.filter((l) => l.flag).map((l) => l.id);
