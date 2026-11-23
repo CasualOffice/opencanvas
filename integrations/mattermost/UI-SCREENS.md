@@ -8,6 +8,12 @@ renders plain placeholders. This lists every screen and state, with its content 
 Constraints: Lucide icons only, no emoji, autosave only (no Save button), Mattermost light and
 dark themes (follow the user's theme), and keyboard access for everything.
 
+**Seen in the real-host run (2026-11-24, Mattermost 12.1.0):** the placeholder card and panel
+work end to end, so these screens only need design, not new behaviour. Two things the run
+showed: on a new canvas the panel shows OpenCanvas's own template picker (already approved UI)
+inside the narrow panel, and Mattermost's first-run "Welcome" checklist overlaps the bottom-left
+of the post list, where the card's Open button sits on narrow windows.
+
 Mattermost places: channel header buttons, post list (custom post type), right-hand sidebar
 (RHS, about 400 px wide, can be expanded), and the Desktop app (same webapp). Mobile apps do not
 run plugin UI.

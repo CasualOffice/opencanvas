@@ -107,6 +107,7 @@ DOC_DESCRIPTIONS = {
     "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
     "jitsi": "Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.",
+    "mattermost": "Create canvases and meeting notes in Mattermost channels, opened in the right-hand panel; the plugin is the host, files stay in Mattermost, access follows channel membership.",
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
@@ -123,6 +124,8 @@ def _md_body(source: str) -> tuple[str, str]:
     """(file, markdown) for a DOCS source, with the title heading removed."""
     file, _, section = source.partition("#")
     text = (ROOT / file).read_text(encoding="utf8")
+    # Leading HTML comments (the SPDX header) would show as text and hide the title heading.
+    text = re.sub(r"\A(?:\s*<!--.*?-->)+\s*", "", text, flags=re.S)
     if file == "README.md":
         # The project page's own sections; the site has its own Documentation and Contributing.
         text = re.sub(r"^# .*\n", "", text, count=1)

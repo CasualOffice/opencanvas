@@ -183,6 +183,11 @@ later step can add a link that opens the canvas in the system browser through a 
    and only host-wide. Meeting notes therefore use a Markdown first load, which loses rich
    template features (databases, callouts). Proposal: an optional `file.template` claim applied
    once when the host answers `404` on first load.
+2a. **Query re-encoding.** *Found in the real-host run, fixed in the plugin:* Mattermost
+   re-encodes the query (`url.Values.Encode`, keys sorted) before `ServeHTTP`, so the members
+   callback, signed as `?q=&limit=500`, arrived as `?limit=500&q=` and failed v2. The plugin now
+   accepts any order of the same pairs (at most 4 pairs). An OpenCanvas-side option would be to
+   sign the query in sorted order (a v3), not done.
 3. **Asset URLs for the browser.** The asset `url` we return is the signed callback URL; the
    editor fetches it through OpenCanvas (`/v1/assets/fetch`, signed). To confirm in a live run
    that inline images display without a Mattermost cookie.

@@ -56,7 +56,9 @@ export function CanvasPanel() {
         };
     }, [fileId]);
 
-    const frame = `opencanvas-${fileId || 'none'}`;
+    // One stable frame name: a name that changed with the canvas made the form submit before
+    // React had renamed the iframe, so switching canvases opened nothing (found in the e2e run).
+    const frame = 'opencanvas-frame';
     return (
         <div style={{height: '100%'}}>
             {!fileId && <p>No canvas selected.</p>}

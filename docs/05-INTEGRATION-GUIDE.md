@@ -475,6 +475,39 @@ storage = "ephemeral"          # default "host"
 
 **Your users must export to keep anything.** Tell them so in your UI.
 
+## 8b. Mattermost (plugin as the host)
+
+`integrations/mattermost/` is a Mattermost plugin (`com.casualoffice.opencanvas`) that is a full
+JWT-mode host: canvases live in channels (`/canvas new`, `/canvas notes`, a card in the channel,
+the editor in the right-hand panel), files go to Mattermost's file store, access follows channel
+membership, and leaving a channel calls the role API with `none`. Install and settings:
+[integrations/mattermost/README.md](../integrations/mattermost/README.md).
+
+```toml
+[[host]]
+id              = "mattermost"
+name            = "Mattermost"
+mode            = "jwt"
+jwt_alg         = "HS256"
+jwt_secret      = "env:MM_OC_SECRET"
+api_key         = "env:MM_OC_API_KEY"
+callback_base   = "https://chat.acme.example/plugins/com.casualoffice.opencanvas/oc"
+allowed_origins = ["https://chat.acme.example"]
+```
+
+What a plugin host must know about Mattermost:
+
+- `ServeHTTP` receives the path without `{subpath}/plugins/{id}`, but `v2` signs the full path:
+  the plugin puts the prefix back before checking.
+- Mattermost removes `Authorization` before a plugin sees the request: read the callback token
+  from `X-OpenCanvas-Callback-Token` (§5).
+- Mattermost re-encodes the query string (keys sorted), so the `members` call arrives as
+  `?limit=…&q=…` although `?q=…&limit=…` was signed: the plugin accepts the same pairs in any
+  order.
+- Mattermost sends no `frame-src`, so the canvas frame needs no CSP change there.
+
+Tested end to end against Mattermost 12.1.0 (README "Status").
+
 ## 9. Checklist for integrators
 
 - [ ] Register host, share secret/API key out of band.

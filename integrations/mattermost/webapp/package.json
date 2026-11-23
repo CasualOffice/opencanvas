@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "esbuild src/index.tsx --bundle --format=iife --outfile=dist/main.js --external:react --external:react-dom --define:process.env.NODE_ENV=\\\"production\\\" --minify",
-    "check": "tsc --noEmit"
+    "build": "esbuild src/index.tsx --bundle --format=iife --outfile=dist/main.js --alias:react=./src/shims/react.js --define:process.env.NODE_ENV=\\\"production\\\" --minify",
+    "check": "tsc --noEmit",
+    "test": "node test/bundle-check.mjs"
   },
   "dependencies": {
     "lucide-react": "0.460.0"

@@ -66,12 +66,33 @@ func (s *Service) signedPaths(r *http.Request) []string {
 	if u, err := url.Parse(s.SiteURL); err == nil {
 		sub = strings.TrimRight(u.Path, "/")
 	}
-	p := r.URL.EscapedPath()
-	full := sub + "/plugins/" + PluginID + p
-	if r.URL.RawQuery != "" {
-		full += "?" + r.URL.RawQuery
+	base := sub + "/plugins/" + PluginID + r.URL.EscapedPath()
+	if r.URL.RawQuery == "" {
+		return []string{base}
 	}
-	return []string{full}
+	// Mattermost re-encodes the query before ServeHTTP (it drops access_token and sorts the
+	// keys with url.Values.Encode), so the order OpenCanvas signed is lost. Try every order of
+	// the same pairs: the method, path and every value stay bound. At most 4 pairs (24 orders);
+	// our callbacks send 2.
+	pairs := strings.Split(r.URL.RawQuery, "&")
+	if len(pairs) > 4 {
+		return []string{base + "?" + r.URL.RawQuery}
+	}
+	var out []string
+	permute(pairs, 0, func(p []string) { out = append(out, base+"?"+strings.Join(p, "&")) })
+	return out
+}
+
+func permute(a []string, k int, f func([]string)) {
+	if k == len(a) {
+		f(a)
+		return
+	}
+	for i := k; i < len(a); i++ {
+		a[k], a[i] = a[i], a[k]
+		permute(a, k+1, f)
+		a[k], a[i] = a[i], a[k]
+	}
 }
 
 // ServeHTTP routes a request whose /plugins/<id> prefix Mattermost already removed.

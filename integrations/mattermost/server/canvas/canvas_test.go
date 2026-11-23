@@ -524,6 +524,29 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
+// Mattermost re-encodes the query before ServeHTTP (it deletes access_token and calls
+// url.Values.Encode, which sorts keys): OpenCanvas signs "?q=&limit=500", the plugin sees
+// "?limit=500&q=". Seen in a real Mattermost 12.1 run (members callback 401).
+func TestSignatureSurvivesQueryReordering(t *testing.T) {
+	svc, _ := newSvc()
+	rec := mustCreate(t, svc, "")
+	p := "/oc/files/" + rec.ID + "/members"
+	r := httptest.NewRequest("GET", p+"?limit=500&q=", nil)
+	ts := t0.Unix()
+	r.Header.Set("X-OpenCanvas-Signature", fmt.Sprintf("t=%d,v2=%s", ts,
+		SignV2(svc.Cfg.CallbackKey(), ts, "GET", "/plugins/"+PluginID+p+"?q=&limit=500", nil)))
+	if w := do(svc, r); w.Code != 200 {
+		t.Fatalf("reordered query: %d", w.Code)
+	}
+	// A different value is still refused.
+	r = httptest.NewRequest("GET", p+"?limit=1&q=", nil)
+	r.Header.Set("X-OpenCanvas-Signature", fmt.Sprintf("t=%d,v2=%s", ts,
+		SignV2(svc.Cfg.CallbackKey(), ts, "GET", "/plugins/"+PluginID+p+"?q=&limit=500", nil)))
+	if w := do(svc, r); w.Code != 401 {
+		t.Fatalf("changed query value: %d", w.Code)
+	}
+}
+
 func TestCallbackTokenHeaderVerifiedWhenPresent(t *testing.T) {
 	svc, _ := newSvc()
 	a := mustCreate(t, svc, "")
