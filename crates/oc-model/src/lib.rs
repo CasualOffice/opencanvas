@@ -13,6 +13,7 @@ pub mod import;
 pub mod ocanvas;
 pub mod patch;
 pub mod people;
+pub mod preview;
 pub mod templates;
 pub mod validate;
 

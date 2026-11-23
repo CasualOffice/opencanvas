@@ -52,6 +52,8 @@ pub struct AppState {
     pub members: Arc<people::Members>,
     /// The server-wide AI switch as `"on"` or `"off (<reason>)"` (`/readyz`).
     pub ai_status: String,
+    /// RND-01: rendered previews per room version (`GET /v1/preview`).
+    pub previews: routes::preview::PreviewCache,
 }
 
 #[derive(Clone, Copy)]
@@ -140,6 +142,7 @@ impl AppState {
             tickets: Mutex::default(),
             members,
             ai_status,
+            previews: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
