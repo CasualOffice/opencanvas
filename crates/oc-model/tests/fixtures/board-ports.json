@@ -1,0 +1,16 @@
+{
+  "order": ["n1", "n2", "n3", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"],
+  "shapes": {
+    "n1": {"type": "rect", "x": 0, "y": 0, "w": 200, "h": 100, "text": "Service", "ports": [{"id": "out", "side": "right", "x": 1, "y": 0.25}, {"id": "in", "side": "left", "x": 0, "y": 0.75}, {"id": "s", "x": 0.5, "y": 0.95}, {"id": "top", "x": 0.2, "y": 0}, {"id": "out", "x": 0, "y": 0}, {"id": "q", "x": 0.1, "y": 0.1}, {"id": "far", "x": 7, "y": -3}]},
+    "n2": {"type": "ellipse", "kind": "network:cloud", "x": 400, "y": 200, "w": 160, "h": 90, "text": "Cloud", "ports": [{"id": "a", "side": "top", "x": 0.25, "y": 0}, {"id": "b", "x": 1, "y": 0.5}]},
+    "n3": {"type": "diamond", "x": 100, "y": 300, "w": 120, "h": 120, "text": "?"},
+    "e1": {"type": "arrow", "pts": [[200, 50], [440, 200]], "start": {"shapeId": "n1", "anchor": "right", "port": "out"}, "end": {"shapeId": "n2", "anchor": "top", "port": "a"}},
+    "e2": {"type": "arrow", "pts": [[0, 50], [560, 245]], "start": {"shapeId": "n1", "anchor": "left", "port": "in"}, "end": {"shapeId": "n2", "anchor": "right", "port": "b"}, "route": "elbow"},
+    "e3": {"type": "arrow", "pts": [[100, 100], [160, 360]], "start": {"shapeId": "n1", "anchor": "bottom", "port": "s"}, "end": {"shapeId": "n3", "anchor": "center"}, "route": "elbow", "text": "maybe"},
+    "e4": {"type": "arrow", "pts": [[200, 50], [480, 245]], "start": {"shapeId": "n1", "anchor": "right", "port": "missing"}, "end": {"shapeId": "n2", "anchor": "center"}},
+    "e5": {"type": "arrow", "pts": [[20, 10], [440, 200]], "start": {"shapeId": "n1", "anchor": "top", "port": "q"}, "end": {"shapeId": "n2", "anchor": "top", "port": "a"}, "route": "elbow", "via": [[300, -60]]},
+    "e6": {"type": "arrow", "pts": [[160, 420], [480, 290]], "start": {"shapeId": "n3", "anchor": "bottom", "port": "nope"}, "end": {"shapeId": "n2", "anchor": "bottom"}},
+    "e7": {"type": "arrow", "pts": [[100, 0], [400, 245]], "start": {"shapeId": "n1", "anchor": "top", "port": "left"}, "end": {"shapeId": "n2", "anchor": "left", "port": ""}, "route": "elbow"},
+    "e8": {"type": "arrow", "pts": [[200, 25], [560, 245]], "start": {"shapeId": "n1", "anchor": "right", "port": "far"}, "end": {"shapeId": "n2", "anchor": "right", "port": "b"}, "via": [[620, 120]]}
+  }
+}

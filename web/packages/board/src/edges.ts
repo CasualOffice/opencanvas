@@ -13,7 +13,7 @@
 // bind) keeps its binding, so undo or a late sync can restore the link, and draws from its
 // stored `pts` end, as `resolveArrow` always has. `orphanEnds` lists such ends.
 import type { Pt, Shape } from "./model";
-import { isBinding, resolveArrow, viaOf, type Binding } from "./connectors";
+import { isBinding, resolveArrow, samePts, syncsPts, viaOf, type Binding } from "./connectors";
 import { bindingPort, isLegacyPort, anchorFor } from "./ports";
 
 export interface EdgeEnd {
@@ -134,6 +134,13 @@ export interface ArrowResolver {
   (raw: Shape[]): Shape[];
   /** `resolved`: connectors resolved so far (re-used ones are not counted). */
   readonly stats: { resolved: number };
+  /** Node → connectors of the last input. */
+  readonly edges: EdgeIndex;
+  /**
+   * Connectors of the last input whose stored `pts` differ from their resolved points (the
+   * ones `syncBoundArrows` would rewrite), so a commit can refresh them without a board scan.
+   */
+  readonly stale: ReadonlySet<string>;
 }
 
 /**
@@ -150,6 +157,11 @@ export function createArrowResolver(): ArrowResolver {
   let prevIn: Shape[] | null = null;
   let prevOut: Shape[] = [];
   const stats = { resolved: 0 };
+  const stale = new Set<string>();
+  const drop = (id: string) => {
+    cache.delete(id);
+    stale.delete(id);
+  };
   const needs = (s: Shape) => s.type === "arrow" && !!(s.start || s.end || s.route || s.via);
   /** The resolved form of `s`: the cached one while it and its bound shapes are unchanged. */
   const one = (s: Shape): Shape => {
@@ -160,6 +172,8 @@ export function createArrowResolver(): ArrowResolver {
     stats.resolved++;
     const out = { ...s, pts: resolveArrow(s, byId) };
     cache.set(s.id, { s, a, b, out });
+    if (syncsPts(s) && out.pts.length >= 2 && !samePts(s.pts, out.pts)) stale.add(s.id);
+    else stale.delete(s.id);
     return out;
   };
   const full = (raw: Shape[]): Shape[] => {
@@ -172,7 +186,7 @@ export function createArrowResolver(): ArrowResolver {
       live.add(s.id);
       return one(s);
     });
-    for (const k of cache.keys()) if (!live.has(k)) cache.delete(k);
+    for (const k of [...cache.keys()]) if (!live.has(k)) drop(k);
     return out;
   };
   /** Same ids in the same places, some shapes replaced: touch only those and their connectors. */
@@ -195,12 +209,12 @@ export function createArrowResolver(): ArrowResolver {
       const i = pos.get(id)!;
       const s = raw[i];
       if (!needs(s)) {
-        cache.delete(id);
+        drop(id);
         continue;
       }
       out[i] = one(s);
     }
-    for (const i of changed) if (!needs(raw[i])) cache.delete(raw[i].id);
+    for (const i of changed) if (!needs(raw[i])) drop(raw[i].id);
     // Connectors that just stopped needing resolution are plain again; ones that started are new.
     for (const i of changed) if (needs(raw[i])) out[i] = one(raw[i]);
     return out;
@@ -213,5 +227,5 @@ export function createArrowResolver(): ArrowResolver {
     prevOut = out;
     return out;
   };
-  return Object.assign(run, { stats });
+  return Object.assign(run, { stats, edges, stale: stale as ReadonlySet<string> });
 }

@@ -7,7 +7,8 @@ const { readFileSync, writeFileSync } = (await import(/* @vite-ignore */ ["node"
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { exportBoardSvg, shapesToSvg } from "./export";
-import type { Shape } from "./model";
+import { getBoardMap, readShapes, type Shape } from "./model";
+import { withResolvedArrows } from "./connectors";
 
 // Shared with the Rust renderer (`crates/oc-model/tests/board.rs`): both must produce
 // `board.web.svg` byte for byte from `board.json`. Regenerate with OC_UPDATE_FIXTURE=1.
@@ -42,6 +43,28 @@ describe("board export: shared fixture", () => {
     const svg = exportBoardSvg(fixtureDoc(), "b1").replace(/ocbd-x-clip-\d+/g, "ocbd-x-clip-1");
     if (UPDATE) writeFileSync(FIX + "board.web.svg", svg);
     expect(svg).toBe(readFileSync(FIX + "board.web.svg", "utf8"));
+  });
+});
+
+describe("board export: ports (DGM-12)", () => {
+  // `board-ports.resolved.json` is every connector's resolved points; the Rust resolver must give
+  // the same (`crates/oc-model/tests/diagram.rs`), and both exporters the same SVG.
+  it("resolves port bindings as the Rust renderer does, and exports the same SVG", () => {
+    const doc = fixtureDoc("board-ports.json");
+    const shapes = withResolvedArrows(readShapes(getBoardMap(doc, "b1")!));
+    const pts = Object.fromEntries(shapes.filter((s) => s.type === "arrow").map((s) => [s.id, s.pts]));
+    const json = JSON.stringify(pts, null, 1) + "\n";
+    const svg = exportBoardSvg(doc, "b1").replace(/ocbd-x-clip-\d+/g, "ocbd-x-clip-1");
+    if (UPDATE) {
+      writeFileSync(FIX + "board-ports.resolved.json", json);
+      writeFileSync(FIX + "board-ports.web.svg", svg);
+    }
+    // Spot checks of the fixture's cases.
+    expect(pts.e1).toEqual([[200, 25], [440, 200]]);
+    expect(pts.e4![0]).toEqual([200, 50]);
+    expect(pts.e7![0]).toEqual([100, 0]);
+    expect(json).toBe(readFileSync(FIX + "board-ports.resolved.json", "utf8"));
+    expect(svg).toBe(readFileSync(FIX + "board-ports.web.svg", "utf8"));
   });
 });
 

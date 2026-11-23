@@ -105,11 +105,15 @@ export function descriptorOf(s: Partial<Shape> & Pick<Shape, "type">): ResolvedD
 
 /**
  * Fields for a new shape of a registered kind (core kinds give a plain legacy shape). `props` is
- * given as a plain object; `addShape` stores it as a per-field Y.Map (ADR-045).
+ * given as a plain object; `addShape` stores it as a per-field Y.Map (ADR-045). The kind's
+ * default ports are written into `ports` unless `init` gives its own.
  */
 export function makeNode(kind: string, init: Partial<Omit<Shape, "id" | "type" | "kind" | "kindVersion">>): Omit<Shape, "id"> {
   const d = registry.get(kind);
   if (!d) throw new Error(`unknown kind ${kind}`);
   if (kind.startsWith("core:")) return { type: d.base, ...init };
-  return { type: d.base, kind: d.kind, kindVersion: d.version, ...init };
+  // The kind's default ports are stored on the shape, so every renderer (the Rust one has no
+  // registry) draws bindings to them at the port (DGM-12). Given `ports` replace them.
+  const ports = d.ports?.length && !("ports" in init) ? { ports: d.ports.map((p) => ({ ...p })) } : {};
+  return { type: d.base, kind: d.kind, kindVersion: d.version, ...ports, ...init };
 }

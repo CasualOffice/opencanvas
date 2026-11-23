@@ -101,6 +101,31 @@ describe("ports", () => {
     expect(nearestPort(s, [101, 80]).id).toBe("in");
   });
 
+  it("draws a port binding at the port, on the port's side (DGM-12)", () => {
+    const n1: Shape = { id: "n1", type: "rect", x: 0, y: 0, w: 200, h: 100, ports: [{ id: "out", side: "right", x: 1, y: 0.25 }, { id: "s", x: 0.5, y: 0.95 }] };
+    const n2: Shape = { id: "n2", type: "ellipse", x: 400, y: 200, w: 160, h: 90, ports: [{ id: "a", side: "top", x: 0.25, y: 0 }] };
+    const n3: Shape = { id: "n3", type: "diamond", x: 100, y: 300, w: 120, h: 120 };
+    const byId = new Map([n1, n2, n3].map((s) => [s.id, s]));
+    const arrow = (start: Shape["start"], end: Shape["end"], route?: "elbow"): Shape => ({ id: "e", type: "arrow", pts: [[0, 0], [1, 1]], start, end, ...(route ? { route } : {}) });
+    // Straight, port to port.
+    expect(resolveArrow(arrow({ shapeId: "n1", anchor: "right", port: "out" }, { shapeId: "n2", anchor: "top", port: "a" }), byId)).toEqual([[200, 25], [440, 200]]);
+    // Elbow from a port without a side: it leaves from the nearest side (bottom).
+    expect(resolveArrow(arrow({ shapeId: "n1", anchor: "bottom", port: "s" }, { shapeId: "n3", anchor: "center" }, "elbow"), byId)).toEqual([[100, 95], [100, 197.5], [160, 197.5], [160, 300]]);
+    // A port the shape doesn't have, or a legacy id in `port`: drawn at `anchor`, as 0.1.x does.
+    expect(resolveArrow(arrow({ shapeId: "n1", anchor: "right", port: "missing" }, { shapeId: "n2", anchor: "top", port: "a" }), byId)[0]).toEqual([200, 50]);
+    expect(resolveArrow(arrow({ shapeId: "n1", anchor: "top", port: "left" }, { shapeId: "n2", anchor: "top", port: "a" }), byId)[0]).toEqual([100, 0]);
+    // A kind's default port that isn't stored on the shape: the renderers can't see it, so `anchor`.
+    registerShape({ kind: "network:hub", base: "rect", version: 1, ports: [{ id: "p1", side: "bottom", x: 0.25, y: 1 }] });
+    const hub: Shape = { id: "h", type: "rect", kind: "network:hub", x: 0, y: 0, w: 100, h: 40 };
+    expect(resolveArrow(arrow({ shapeId: "h", anchor: "bottom", port: "p1" }, { shapeId: "n3", anchor: "top" }), new Map([["h", hub], ["n3", n3]]))[0]).toEqual([50, 40]);
+    // ...which is why makeNode stores a kind's default ports on the new shape.
+    const made = makeNode("network:hub", { x: 0, y: 0, w: 100, h: 40 });
+    expect(made.ports).toEqual([{ id: "p1", side: "bottom", x: 0.25, y: 1 }]);
+    expect(resolveArrow(arrow({ shapeId: "h", anchor: "bottom", port: "p1" }, { shapeId: "n3", anchor: "top" }), new Map([["h", { ...made, id: "h" } as Shape], ["n3", n3]]))[0]).toEqual([25, 40]);
+    // Own ports win over the kind's (same id), and stay as given.
+    expect(makeNode("network:hub", { ports: [{ id: "p1", side: "top", x: 0.5, y: 0 }] }).ports).toEqual([{ id: "p1", side: "top", x: 0.5, y: 0 }]);
+  });
+
   it("uses a registered kind's default ports", () => {
     registerShape({ kind: "network:switch", base: "rect", version: 1, ports: [{ id: "p1", side: "bottom", x: 0.25, y: 1 }] });
     const s: Shape = { ...box, kind: "network:switch" };

@@ -41,22 +41,60 @@ fn svg_matches_web_export_for_diagram_fields() {
 
 #[test]
 fn a_kind_draws_exactly_as_its_base_type() {
+    // Ports and port bindings are not part of the kind: they stay (DGM-12 draws them).
     let mut plain = board();
     for s in plain["shapes"].as_object_mut().unwrap().values_mut() {
         let o = s.as_object_mut().unwrap();
-        for k in ["kind", "kindVersion", "props", "ports", "edgeStyle"] {
+        for k in ["kind", "kindVersion", "props", "edgeStyle"] {
             o.remove(k);
-        }
-        for end in ["start", "end"] {
-            if let Some(b) = o.get_mut(end).and_then(Value::as_object_mut) {
-                b.remove("port");
-            }
         }
     }
     assert_eq!(
         oc_model::board::to_svg(&doc_with(board()), "b1"),
         oc_model::board::to_svg(&doc_with(plain), "b1")
     );
+}
+
+fn ports_board() -> Value {
+    serde_json::from_str(include_str!("fixtures/board-ports.json")).expect("fixture json")
+}
+
+#[test]
+fn port_bindings_resolve_as_the_web_resolver_does() {
+    // DGM-12: `board-ports.resolved.json` is the web `withResolvedArrows` output for
+    // `board-ports.json` (web/packages/board/src/export.test.ts regenerates it): a binding to a
+    // port the shape stores attaches there and leaves from the port's side; anything else
+    // (missing port, a legacy id in `port`, an empty one) draws at `anchor`.
+    let expected: std::collections::BTreeMap<String, Vec<[f64; 2]>> =
+        serde_json::from_str(include_str!("fixtures/board-ports.resolved.json")).unwrap();
+    let got: std::collections::BTreeMap<String, Vec<[f64; 2]>> =
+        oc_model::board::resolved_points(&doc_with(ports_board()), "b1")
+            .into_iter()
+            .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn port_bindings_export_the_same_svg_as_the_web() {
+    let expected = include_str!("fixtures/board-ports.web.svg");
+    let svg = oc_model::board::to_svg(&doc_with(ports_board()), "b1");
+    assert_eq!(svg.replace("ocbd-b1-", "ocbd-x-"), expected);
+}
+
+#[test]
+fn without_the_port_field_an_end_draws_at_its_anchor() {
+    // What a 0.1.x client sees (and what its paste writes): `{shapeId, anchor}`.
+    let mut plain = ports_board();
+    for s in plain["shapes"].as_object_mut().unwrap().values_mut() {
+        for end in ["start", "end"] {
+            if let Some(b) = s.get_mut(end).and_then(Value::as_object_mut) {
+                b.remove("port");
+            }
+        }
+    }
+    let pts = oc_model::board::resolved_points(&doc_with(plain), "b1");
+    let e1 = &pts.iter().find(|(id, _)| id == "e1").unwrap().1;
+    assert_eq!(e1, &vec![[200.0, 50.0], [480.0, 200.0]]);
 }
 
 #[test]
