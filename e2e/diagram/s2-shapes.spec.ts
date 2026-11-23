@@ -16,7 +16,10 @@ test("S2: search, click and drag shapes onto the canvas; the panel passes axe", 
   const dg = page.getByRole("dialog", { name: /^Diagram: / });
   await expect(dg).toBeVisible();
   const panel = dg.getByRole("complementary", { name: "Shapes" });
-  await expect(panel.getByRole("button", { name: "Add Process" })).toBeVisible();
+  // Basic shapes is open first; open Flowchart (16 libraries now).
+  const flow = panel.locator('[data-library="flowchart"] .ocdg-lh button');
+  if ((await panel.getByRole("button", { name: "Add Process" }).count()) === 0) await flow.click();
+  await expect(panel.getByRole("button", { name: "Add Process" }).first()).toBeVisible();
   const count = async () => Number(/(\d+) shapes?/.exec((await dg.locator(".ocbd").getAttribute("aria-label")) ?? "")?.[1] ?? -1);
   const n0 = await count();
 
@@ -82,11 +85,13 @@ test("S2: connector presets, the rail with flyouts, and the Shapes / Outline tab
   // The rail: a library as a flyout; adding closes it.
   await dg.getByRole("button", { name: "Collapse shapes panel" }).click();
   const rail = dg.locator("aside.ocdg-rail");
+  // Collapsing must actually narrow the panel (owner report: the rail stayed 16rem wide).
+  expect((await rail.boundingBox())!.width).toBeLessThan(60);
   await rail.getByRole("button", { name: "Network" }).click();
   const fly = dg.getByRole("dialog", { name: "Network" });
   await expect(fly).toBeVisible();
   await axe(".ocdg-left");
-  await fly.getByRole("button", { name: "Add Cache" }).click();
+  await fly.getByRole("button", { name: "Add Cache" }).first().click();
   await expect(fly).toBeHidden();
   await expect.poll(count).toBe(n0 + 2);
   await rail.getByRole("button", { name: "Expand shapes panel" }).click();
