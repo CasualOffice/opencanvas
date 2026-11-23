@@ -458,8 +458,10 @@ The effective permission is `min(scope, role)`: `canvas:write` does not let a `v
 and a `canvas:read` token does not let an editor write. A request without a valid token gets
 `401` with `WWW-Authenticate: Bearer resource_metadata="https://<opencanvas>/.well-known/oauth-protected-resource/mcp/{hostId}"`;
 that RFC 9728 document names your `mcp_issuer` as the authorization server. Tokens are never
-forwarded to you; callbacks stay HMAC-signed. Each token gets 120 requests/min (burst 240,
-`[host.ai] mcp_rate_per_min`), then `429`.
+forwarded to you; callbacks stay HMAC-signed. MCP calls take from the same per-user bucket as
+the headless API (§7b; default 10 requests/s, burst 30, `[host.api] rate_per_sec` / `burst`;
+`[host.ai] mcp_rate_per_min` still sets the rate when `[host.api]` does not), then `429` with
+`Retry-After`.
 
 **Tools** (each takes `fileId`): `canvas_read`, `canvas_find`, `db_describe`, `db_query`,
 `board_read`, `comment_list`, `members_list` (read); `comment_add` (comment);
@@ -546,6 +548,23 @@ Writes land in the live room as one Yjs transaction, broadcast to editors and au
 like any edit (open the file with `POST …/commit` when you need it saved now). Changes to
 existing blocks land directly unless the call sends `"mode": "suggest"` or the host sets
 `[host.api] default_mode = "suggest"`. Deleting more than 5 blocks needs `"confirm": true`.
+
+**Paging.** `GET …/blocks` (≤ 100 per page) and `GET …/databases/{dbId}/rows` (≤ 200) answer
+`{…, has_more, next_cursor}` and, when more follow, `Link: <…?cursor=…&limit=…>; rel="next"`.
+Cursors are opaque and signed: pass them back unchanged. They are bound to the file (and, for
+rows, the database, `filter`, `sort` and `fields`) and last an hour (`410 CURSOR_EXPIRED`;
+anything else wrong is `400 CURSOR_INVALID`). A block cursor is a Yjs relative position after
+the last block returned, so paging survives concurrent edits: a block inserted or deleted
+before it does not shift the next page, and if that last block is deleted the next page starts
+at its successor. Every block that exists for the whole walk is returned exactly once.
+
+**Rate limits.** One token bucket per caller (the host key, or a token's `sub`), shared with
+MCP: default 10 requests/s, burst 30; and one per file for writes (POST/DELETE): default 5/s,
+burst 10. Every answer carries `RateLimit-Policy: "subject";q=30;w=3` (plus
+`"file-writes";q=10;w=2` on writes) and `RateLimit: "<bucket>";r=<remaining>;t=<seconds to
+full>`; an empty bucket answers `429 RATE_LIMITED` with `Retry-After`. Set them per host in
+`[host.api]`: `rate_per_sec`, `burst`, `file_writes_per_sec`, `file_burst`. With Redis (cluster,
+hot WAL or Redis-only storage) the buckets are shared by every node.
 
 **Idempotency.** Every `POST /api/v1/files/…` accepts `Idempotency-Key: <1-255 visible ASCII>`.
 The key is yours per user (host key + `X-OpenCanvas-Author`, or the token's `sub`). A repeat of

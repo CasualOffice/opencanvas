@@ -131,6 +131,24 @@
                     "true"
                   ]
                 }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "<…?cursor=…&limit=…>; rel=\"next\" when more follow",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -190,7 +208,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor from next_cursor",
+            "description": "Opaque, signed cursor from next_cursor (bound to this file and query, valid 1 h)",
             "schema": {
               "type": "string"
             }
@@ -221,6 +239,24 @@
                     "true"
                   ]
                 }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "<…?cursor=…&limit=…>; rel=\"next\" when more follow",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -238,6 +274,12 @@
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
           }
         },
         "x-opencanvas-scope": "canvas:read"
@@ -299,6 +341,24 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "<…?cursor=…&limit=…>; rel=\"next\" when more follow",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -379,6 +439,20 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -462,6 +536,24 @@
                     "true"
                   ]
                 }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "<…?cursor=…&limit=…>; rel=\"next\" when more follow",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -542,6 +634,20 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "401": {
@@ -605,6 +711,18 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -686,6 +804,20 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -780,7 +912,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor",
+            "description": "Opaque, signed cursor from next_cursor (bound to this database, filter, sort and fields, valid 1 h)",
             "schema": {
               "type": "string"
             }
@@ -792,7 +924,41 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "<…?cursor=…&limit=…>; rel=\"next\" when more follow",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -811,6 +977,12 @@
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
           }
         },
         "x-opencanvas-scope": "canvas:read"
@@ -869,6 +1041,18 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -977,6 +1161,18 @@
                     "true"
                   ]
                 }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -1077,6 +1273,20 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "401": {
@@ -1149,6 +1359,18 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1251,6 +1473,20 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "401": {
@@ -1314,6 +1550,18 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1423,6 +1671,20 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "401": {
@@ -1492,6 +1754,20 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1601,6 +1877,18 @@
                     "true"
                   ]
                 }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -1691,6 +1979,18 @@
                     "true"
                   ]
                 }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -1770,6 +2070,18 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1859,6 +2171,20 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "401": {
@@ -1921,6 +2247,18 @@
                   "enum": [
                     "true"
                   ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1993,6 +2331,20 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -2574,7 +2926,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "BAD_INPUT, PATCH_INVALID, …",
+        "description": "BAD_INPUT, PATCH_INVALID, CURSOR_INVALID, IDEMPOTENCY_KEY_INVALID, …",
         "content": {
           "application/problem+json": {
             "schema": {
@@ -2654,7 +3006,17 @@
         }
       },
       "TooManyRequests": {
-        "description": "RATE_LIMITED, with Retry-After",
+        "description": "RATE_LIMITED, with Retry-After, RateLimit-Policy and RateLimit",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "CURSOR_EXPIRED: cursors last an hour; start again without one",
         "content": {
           "application/problem+json": {
             "schema": {

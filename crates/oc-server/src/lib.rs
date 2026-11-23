@@ -20,6 +20,7 @@ pub mod notify;
 pub mod pdf;
 pub mod people;
 pub mod proof;
+pub mod ratelimit;
 pub mod redis_store;
 pub mod redis_wal;
 pub mod room;
@@ -64,6 +65,8 @@ pub struct AppState {
     pub previews: routes::preview::PreviewCache,
     /// API bookkeeping time (idempotency, rate limits, cursors); tests pin it.
     pub clock: Arc<clock::Clock>,
+    /// One limiter for the API and MCP (HAPI-04); in Redis when there is one.
+    pub limiter: ratelimit::Limiter,
 }
 
 #[derive(Clone, Copy)]
@@ -150,6 +153,8 @@ impl AppState {
             );
         }
         let unfurl = unfurl::Unfurler::new(cfg.unfurl.clone());
+        let clock: Arc<clock::Clock> = Default::default();
+        let limiter = ratelimit::Limiter::new(clock.clone(), store.redis_wal().map(|w| w.conn()));
         let state = Arc::new(Self {
             unfurl,
             cfg,
@@ -164,7 +169,8 @@ impl AppState {
             ai_status,
             team_templates: Default::default(),
             previews: Default::default(),
-            clock: Default::default(),
+            clock,
+            limiter,
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

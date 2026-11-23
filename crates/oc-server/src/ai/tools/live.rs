@@ -227,6 +227,8 @@ impl CanvasTools for LiveTools {
 
 /// The server's own CSV import step (`POST /v1/import`), never offered to models or MCP.
 const IMPORT_CSV: &str = "import_csv";
+/// The API's block paging step (HAPI-04), never offered to models or MCP.
+pub const BLOCKS_PAGE: &str = "blocks_page";
 
 fn import_spec() -> ToolSpec {
     ToolSpec {
@@ -238,7 +240,23 @@ fn import_spec() -> ToolSpec {
     }
 }
 
+fn page_spec() -> ToolSpec {
+    ToolSpec {
+        name: BLOCKS_PAGE,
+        description: "",
+        input_schema: json!({}),
+        scope: Scope::Read,
+        read_only: true,
+    }
+}
+
 impl LiveTools {
+    /// One page of top-level blocks (HAPI-04): the same checks and cluster forwarding as a
+    /// tool call.
+    pub async fn blocks_page(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, BLOCKS_PAGE, input, true, true).await
+    }
+
     /// A call another node forwarded here (docs/24 §5.6): the same checks, never forwarded again.
     pub async fn call_owned(
         &self,
@@ -266,6 +284,7 @@ impl LiveTools {
         let spec = phase1_specs()
             .into_iter()
             .chain(internal.then(import_spec))
+            .chain(internal.then(page_spec))
             .find(|s| s.name == name)
             .ok_or_else(|| ToolError::NotFound(format!("unknown tool {name:?}")))?;
         if !input.is_object() && !input.is_null() {
@@ -343,6 +362,7 @@ impl LiveTools {
             "db_upsert_rows" => Box::new(move |d| write::db_upsert_rows(d, &i)),
             "db_create" => Box::new(move |d| write::db_create(d, &i)),
             IMPORT_CSV => Box::new(move |d| write::import_csv(d, &i)),
+            BLOCKS_PAGE => Box::new(move |d| Ok((None, read::blocks_page(d, &i)?))),
             "db_add_field" => Box::new(move |d| write::db_add_field(d, &i)),
             "board_add_shapes" => Box::new(move |d| write::board_add_shapes(d, &i)),
             "comment_add" => Box::new(move |d| write::comment_add(d, &i, &w)),
