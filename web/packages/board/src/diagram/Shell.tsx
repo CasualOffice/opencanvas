@@ -12,6 +12,7 @@ import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
 import type { DiagramPrefs } from "../BoardBlock";
 export { Rulers } from "./Rulers";
+import { ShapesPanel } from "./ShapesPanel";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
@@ -46,6 +47,8 @@ export interface DiagramShellProps {
   onMenu: () => void;
   /** Transaction origin of this view (undo). */
   origin: unknown;
+  /** Adds a shape of this kind in the middle of the view (shapes panel). */
+  onAddShape: (kind: string) => void;
   prefs: DiagramPrefs;
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
@@ -194,6 +197,10 @@ export default function DiagramShell(p: DiagramShellProps) {
         {cv && outline ? (
           <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Outline">
             <Outline doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} onSay={say} />
+          </aside>
+        ) : edit ? (
+          <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Shapes">
+            <ShapesPanel onAdd={p.onAddShape} />
           </aside>
         ) : null}
         <main className="ocdg-mid">

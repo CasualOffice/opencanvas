@@ -25,7 +25,8 @@ import { SceneIndex } from "./scene";
 import { AvoidRouter, RouteScheduler } from "./routing";
 import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
 import { CONTAINER, isContainer } from "./kinds";
-import { makeNode } from "./registry";
+import { descriptorOf, makeNode } from "./registry";
+import { KIND_MIME } from "./libraries";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 // Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
 type ShellModule = typeof import("./diagram/Shell");
@@ -628,13 +629,46 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setSel([sid]);
     }
   };
+  /** Adds a shape of a registered kind centred on `at` (the view's centre by default): S2. */
+  const addKind = (kind: string, at: Pt = viewCenter()) => {
+    if (!S.current.edit) return;
+    const d = descriptorOf({ type: "rect", kind });
+    if (d.kind !== kind) return;
+    const w = d.look?.w ?? 140, h = d.look?.h ?? 70;
+    let x = Math.round(at[0] - w / 2), y = Math.round(at[1] - h / 2);
+    if (S.current.dgm && S.current.dp.snapGrid) {
+      const g = S.current.dp.gridSize;
+      x = Math.round(x / g) * g;
+      y = Math.round(y / g) * g;
+    }
+    um?.stopCapturing();
+    const id = addShape(doc, boardId, makeNode(kind, { x, y, w, h, text: d.look?.text ?? d.label ?? "", ...(d.look?.tone ? { fill: d.look.tone } : {}) }), origin);
+    setSel([id]);
+    setLive(`${d.label ?? "Shape"} added`);
+    return id;
+  };
   const onDragOver = (e: React.DragEvent) => {
-    if (!S.current.edit || ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+    const types = [...(e.dataTransfer?.types ?? [])];
+    if (S.current.edit && types.includes(KIND_MIME)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      return;
+    }
+    if (!S.current.edit || !types.includes("Files")) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   };
   const onDrop = (e: React.DragEvent) => {
     if (!S.current.edit) return;
+    // Only a shapes-panel tile carries a kind; files and other drops go on as before.
+    const dt = e.dataTransfer;
+    const kind = dt && [...(dt.types ?? [])].includes(KIND_MIME) && typeof dt.getData === "function" ? dt.getData(KIND_MIME) : "";
+    if (kind) {
+      e.preventDefault();
+      e.stopPropagation();
+      addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter());
+      return;
+    }
     const files = imageFiles(e.dataTransfer);
     if (!files.length) return;
     e.preventDefault();
@@ -2015,6 +2049,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             menuOpen={menu}
             onMenu={() => setMenu((m) => !m)}
             origin={origin}
+            onAddShape={(kind) => addKind(kind)}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
             canvas={{ shapes, sel, select: setSel }}
@@ -2203,6 +2238,16 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       );
     case "rect": {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
+      // A library kind with an outline (DGM-14 S2): its path, stretched to the box.
+      const path = s.kind ? descriptorOf(s).look?.path : undefined;
+      if (path) {
+        return (
+          <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
+            <path d={path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+            {text ? <Lines text={text} x={x + w / 2} y={centered(s, lh, size, Math.max(20, w - 16))} lh={lh} anchor size={size} wrap={Math.max(20, w - 16)} /> : null}
+          </g>
+        );
+      }
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
           <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (tone?.stroke ?? stroke)} strokeWidth={1.5} strokeDasharray={s.dashed ? "6 5" : undefined} />

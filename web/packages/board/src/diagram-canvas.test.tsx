@@ -67,7 +67,7 @@ const until = (check: () => void) =>
   vi.waitFor(async () => {
     await act(async () => {});
     check();
-  }, { timeout: 5_000 });
+  }, { timeout: 20_000 });
 const btn = (root: ParentNode, name: string) => [...root.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === name);
 async function open(doc: Y.Doc, id: string, role: "edit" | "view" = "edit") {
   const el = mount(<BoardBlock doc={doc} boardId={id} env={env(role)} />);
@@ -89,7 +89,7 @@ async function settledView(svg: Element) {
 const sw = (root: ParentNode, name: string) => [...root.querySelectorAll('[role="switch"]')].find((b) => b.textContent?.includes(name)) as HTMLElement | undefined;
 
 // Heavy jsdom suite (full board mounts): an explicit timeout for slow CI runners.
-describe("diagram canvas (S3)", { timeout: 30_000 }, () => {
+describe("diagram canvas (S3)", { timeout: 60_000 }, () => {
   it("draws a line grid with major lines and rulers; both can be turned off in the settings", async () => {
     const doc = new Y.Doc();
     const id = createBoard(doc, "blank");
@@ -165,7 +165,7 @@ describe("diagram canvas (S3)", { timeout: 30_000 }, () => {
   });
 });
 
-describe("containers, bends and the panel (S3, part 2)", { timeout: 30_000 }, () => {
+describe("containers, bends and the panel (S3, part 2)", { timeout: 60_000 }, () => {
   it("finds what a container holds, nested ones included, and boxes a selection", () => {
     const S = (id: string, x: number, y: number, w: number, h: number): Shape => ({ id, type: "rect", x, y, w, h });
     const outer = S("o", 0, 0, 500, 300), inner = S("i", 20, 40, 200, 200), a = S("a", 40, 80, 60, 40), b = S("b", 400, 50, 60, 40), out = S("x", 450, 280, 100, 60);

@@ -559,6 +559,12 @@ nine board types, named ports and semantic edges. Boards are blocks inside a doc
    types, stencil kinds on a box base type. Lookup: registered kind → the base type's descriptor
    (plugin missing: raw fields kept, `missing` reported) → `core:unknown`, a bindable box with the
    five legacy ports, for a `type` this client doesn't know. Documents never carry code.
+   *(DGM-14 S2, 2026-11-24, agreed by the owner via the coordinator)* A descriptor may carry a
+   `look` (`path`: SVG path data in a 100 × 100 box, only path letters, digits, spaces, commas,
+   dots and minus signs; `w`/`h`: default size; `tone`: a tone name; `text`: default text), a
+   `library` id and search `keywords`. Still data only: `registerShape` rejects anything else, and
+   descriptors and looks are frozen. The editor draws the path stretched to the shape; the
+   exporters and 0.1.x clients keep drawing the base type.
 4. *Unknown-field preservation.* Readers keep every key; writers set only the keys they change
    (Y.Map key level, never a whole-shape rewrite) and keep every field of a binding they re-point.
    Nested Y types written by another client survive edits; copies write them as plain JSON, which
