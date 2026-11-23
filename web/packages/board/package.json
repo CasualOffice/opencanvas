@@ -12,6 +12,7 @@
     "bench": "vitest run --config bench/vitest.config.ts"
   },
   "dependencies": {
+    "@dagrejs/dagre": "1.1.4",
     "@opencanvas/ui": "workspace:*",
     "lucide-react": "^1.77.0",
     "react-dom": "^19",
