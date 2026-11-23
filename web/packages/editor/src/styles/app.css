@@ -6,6 +6,7 @@
 
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
+html,body{overscroll-behavior-x:none} /* a sideways swipe never turns into browser Back */
 html,body{background:var(--app);color:var(--fg);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 /* ADR-050: the root keeps the reader's default font size (1rem); never set font-size on html. */
 body{font-size:.875rem}

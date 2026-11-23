@@ -1183,6 +1183,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       } else if (big) {
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
+      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // A sideways swipe pans the board; left to the browser it becomes Back at the page edge.
+        e.preventDefault();
+        setView((v) => ({ ...v, tx: v.tx - e.deltaX }));
       }
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
