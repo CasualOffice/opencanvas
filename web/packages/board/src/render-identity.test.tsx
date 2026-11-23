@@ -88,7 +88,7 @@ describe("incremental board rendering", { timeout: 240_000 }, () => {
       live.root.unmount();
       fresh.root.unmount();
     });
-  });
+  }, 240_000); // heavy: big board, two mounts; runs at background priority
 
   it("draws the same as a fresh mount after local and remote edits", async () => {
     const fx = makeFixture({ nodes: 120, seed: 21 });
@@ -120,5 +120,5 @@ describe("incremental board rendering", { timeout: 240_000 }, () => {
       live.root.unmount();
       fresh.root.unmount();
     });
-  });
+  }, 240_000); // heavy: big board, two mounts; runs at background priority
 });

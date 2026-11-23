@@ -15,6 +15,8 @@ export { Rulers } from "./Rulers";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
+import type { Shape } from "../model";
+import { Properties } from "./props/Properties";
 
 const SW = 1.75;
 
@@ -49,6 +51,9 @@ export interface DiagramShellProps {
   inspector?: ReactNode;
   /** The canvas's shapes and shared selection (S5: outline, commands, keyboard connector). */
   canvas?: DiagramCanvas;
+  /** The selected shapes and every shape of the board: the properties panel (S4). */
+  selected?: Shape[];
+  shapes?: Shape[];
   children: ReactNode;
 }
 
@@ -191,7 +196,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           {cv && keys.conn ? <ConnectHint canvas={cv} conn={keys.conn} /> : null}
         </main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
-          {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
+          {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
         </aside>
       </div>
       {cv && keys.palette ? <Commands root={ref.current} canvas={cv} edit={edit} onSay={say} onClose={() => keys.setPalette(false)} onOutline={() => setOutline(true)} onShortcuts={() => keys.setSheet(true)} /> : null}
