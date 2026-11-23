@@ -64,7 +64,8 @@ async function edits(fx: ReturnType<typeof makeFixture>, n: number, spread: numb
   }
 }
 
-describe("incremental board rendering", () => {
+// Heavy (a 1,200-shape board, 90 edits, two mounts in jsdom): the 5 s default is too short on CI runners.
+describe("incremental board rendering", { timeout: 60_000 }, () => {
   it("with culling (DGM-11): draws the same as a fresh mount at the same view", async () => {
     // A 900 × 700 board: above 300 shapes only those in or near the view are drawn.
     Object.defineProperty(SVGElement.prototype, "clientWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-svg") ? 900 : 0; } });
