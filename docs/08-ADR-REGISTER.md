@@ -49,6 +49,8 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props` (a per-field map: concurrent edits of different properties merge), `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Accepted (owner, 2026-11-24; condition: `props` merges per field) |
 | ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Accepted (owner, 2026-11-24) |
 | ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Accepted (owner, 2026-11-24) |
+| ADR-048 | Skip the start screen: optional launch-token claim `"start": "page"` opens a new canvas straight into the page without the template picker; it travels as `&start=page` after the ticket in the app fragment (other values ignored). The editor also tells the host a session closed (`Error {code: "SESSION_CLOSED"}`) so host chrome can offer Reopen (MM-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
+| ADR-049 | Temporary-canvas wording per host: `[host.flags] temporary_wording`, "meeting" (default, Jitsi) or "room" (Matrix); the session carries `wording`; room wording adds "Start a new canvas" on the ended screen, which posts `UI_StartNew` to the host (MX-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -597,3 +599,33 @@ avoidance is the main Phase 2 routing feature; layout (ELK/Dagre) is Phase 3.
    outside the 300 KB initial budget (ADR-019). Phase 1 adds no dependency.
 **Consequences.** + Mixed-version rooms draw something sensible; + no new persisted geometry; − the
 Rust export of an `avoid` connector may fall back to a plain elbow when `pts` is stale.
+
+### ADR-048 — Skip the start screen with a launch claim (Accepted, owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24)
+**Context.** The Mattermost plugin asks for the kind of canvas (blank or meeting notes) in its own
+create dialog (MM S3). The editor then showed its template picker on first open, in a 400 px
+panel, asking the same question again (MM S2e). The owner approved opening new canvases straight
+into the page (S2f).
+**Decision.** An optional launch-token claim `"start": "page"`. The server appends `&start=page`
+after the ticket in the redirect fragment (`/app/#t=<ticket>&start=page`), like `&block=`; any
+other value or type is ignored and the launch is unchanged. The editor skips the template picker
+for that open (`showsGallery`); templates stay in the editor. The JSON launch answer (ADR-036)
+returns the bare ticket. A claim, not a host flag, because the host decides per launch (a host
+can keep the picker for canvases it did not ask about) and no `hosts.toml` change is needed.
+Also: when the editor shows a closed session it posts `Error {code: "SESSION_CLOSED", message:
+"revoked" | "host" | "other"}`, so a host panel can offer Reopen (MM S2j). Both are additive.
+**Consequences.** + no double question; + older servers ignore the claim (the picker shows, as
+before); − the option is in the fragment, so a person can edit it; it only hides a picker.
+
+### ADR-049 — Host wording for temporary canvases (Accepted, owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24)
+**Context.** ADR-043 temporary canvases were worded for a meeting ("deleted when the meeting
+ends", "ended with the meeting"). In a Matrix room that is wrong; the owner approved room wording
+(MX S5, S5 tooltip, S6a, S7a, S7b) and "Start a new canvas" on the ended screen.
+**Decision.** `[host.flags] temporary_wording = "meeting" | "room"`, default `"meeting"`; any
+other value stops the server at start-up. `GET /v1/sessions/:ticket` carries `"wording"`. The
+editor takes every temporary-canvas sentence from one table (`lib/wording.ts`). Room wording also
+changes the view-only line and the access-removed screen, and adds "Start a new canvas" to the
+ended screen; the button posts `UI_StartNew` to the host, which opens a fresh canvas (the Matrix
+widget reloads itself). The server's close reason stays "This canvas ended with the meeting".
+**Consequences.** + Jitsi and every existing host keep their wording (tested); + room wording
+with one line of config; − a host that sets `room` must handle `UI_StartNew` or the button does
+nothing.

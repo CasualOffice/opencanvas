@@ -32,6 +32,7 @@ import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
+import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
 import type { Template } from "./templates";
 import { applyTeamTemplate, loadTeamTemplates, teamEnabled, undoTeamTemplate, type TeamItem, type TeamState } from "./lib/teamtemplates";
 
@@ -202,6 +203,11 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [conflict, setConflict] = useState<{ policy: "copy" | "reload" | null; fileId?: string; url?: string; open: boolean } | null>(null);
   const [tempNote, setTempNote] = useState(() => !tempNoteHidden(session.room));
   const [closed, setClosed] = useState<{ kind: "revoked" | "host" | "other"; reason: string } | null>(null);
+  // ADR-048: tell the host the session is over, so its own chrome can offer to reopen (MM S2j).
+  const closedKind = closed?.kind ?? null;
+  useEffect(() => {
+    if (closedKind) postToHost("Error", { code: "SESSION_CLOSED", message: closedKind });
+  }, [closedKind]);
   const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [screen, setScreen] = useState<"editor" | "gallery">("editor");
@@ -501,8 +507,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     }
     if (role === "edit" && !meta.title && session.file.name) setMeta(doc, { title: session.file.name }, null);
     // A temporary canvas (a meeting's shared document) opens blank: people join it mid-meeting
-    // and expect to type at once. Templates stay one click away on the blank page.
-    if (session.isNew && role === "edit" && editor.isEmpty && session.storage !== "ephemeral") setScreen("gallery");
+    // and expect to type at once. A host that already asked for the kind launches with
+    // `"start": "page"` (ADR-048). Templates stay one click away on the blank page.
+    if (showsGallery({ isNew: session.isNew, storage: session.storage, role, empty: editor.isEmpty, hash: window.location.hash })) setScreen("gallery");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
@@ -866,6 +873,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // ---------- derived ----------
   // ADR-043: nothing is saved in a temporary canvas, so never say "Saved".
   const temporary = session.storage === "ephemeral";
+  // ADR-049: the host's wording for a temporary canvas (meeting by default, room for Matrix).
+  const words = temporaryWording(wordingOf(session.wording));
   const shownSave: SaveState =
     access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : temporary && save.kind !== "readonly" ? { kind: "temporary" } : save;
   // A temporary (meeting) canvas has no place in the host to name: no breadcrumb parent.
@@ -905,7 +914,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     banners.push(
       <div key="temporary" role="note" className="banner temp">
         <Ic name="info" />
-        <span>This canvas is not saved anywhere. It is deleted when the meeting ends; download a copy to keep it.</span>
+        <span>{words.note}</span>
         <button
           className="ib sm"
           aria-label="Hide this note"
@@ -943,7 +952,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     banners.push(
       <div key="view" className="banner info">
         <Ic name="eye" />
-        <span>{forcedReadOnly ? "This canvas is read-only right now." : `You can view this canvas. Ask in ${hostName} for edit access.`}</span>
+        <span>{forcedReadOnly ? "This canvas is read-only right now." : temporary && words.viewOnly ? words.viewOnly : `You can view this canvas. Ask in ${hostName} for edit access.`}</span>
       </div>,
     );
   if (effectiveRole === "comment")
@@ -1006,6 +1015,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           ) : null}
           <div className={screen === "gallery" ? "hidden" : "wsp"}>
             <TopBar
+              temporaryTitle={words.pill}
               meta={meta}
               parent={parent}
               hostName={hostName}
@@ -1176,14 +1186,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           {closed !== null ? (
             <Modal onClose={() => undefined} dismissable={false} label="Canvas closed">
               {closed.kind === "revoked" ? (
-                <ModalHead title="Your access to this canvas changed" sub={`${hostName} no longer lets you open this canvas. Ask the owner if you need it.`} icon="lock" tone="gray" />
+                temporary && words.revokedTitle ? (
+                  <ModalHead title={words.revokedTitle} sub={words.revokedSub ?? ""} icon="lock" tone="gray" />
+                ) : (
+                  <ModalHead title="Your access to this canvas changed" sub={`${hostName} no longer lets you open this canvas. Ask the owner if you need it.`} icon="lock" tone="gray" />
+                )
               ) : temporary ? (
-                <ModalHead
-                  title="This canvas ended with the meeting"
-                  sub="It has been deleted and cannot be reopened. Copies you downloaded are yours to keep."
-                  icon="trash-2"
-                  tone="gray"
-                />
+                <ModalHead title={words.endedTitle} sub={words.endedSub} icon="trash-2" tone="gray" />
               ) : (
                 <ModalHead
                   title={`${hostName} closed this canvas`}
@@ -1192,7 +1201,17 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                   tone="gray"
                 />
               )}
-              {temporary ? null : (
+              {temporary ? (
+                closed.kind !== "revoked" && words.startNew ? (
+                  <div className="mft" style={{ paddingTop: 18 }}>
+                    {/* MX S6a: the host opens a fresh canvas (the Matrix widget reloads itself). */}
+                    <button className="btn primary" onClick={() => postToHost("UI_StartNew", {})}>
+                      <Ic name="plus" size={15} />
+                      {words.startNew}
+                    </button>
+                  </div>
+                ) : null
+              ) : (
                 <div className="mft" style={{ paddingTop: 18 }}>
                   <button className="btn primary" onClick={() => postToHost("UI_Close", {})}>
                     Back to {hostName}

@@ -79,9 +79,18 @@ pub struct LaunchClaims {
     /// docs/21 revision 2: the people with access to this canvas; read leniently, at most 500.
     #[serde(default)]
     members: Option<Value>,
+    /// ADR-048: `"page"` opens a new canvas straight into the page, without the template
+    /// picker. Any other value is ignored. Read leniently: a non-string never fails a launch.
+    #[serde(default)]
+    start: Option<Value>,
 }
 
 impl LaunchClaims {
+    /// ADR-048: whether the host asked to skip the start screen (`"start": "page"`).
+    pub fn start_page(&self) -> bool {
+        self.start.as_ref().and_then(Value::as_str) == Some("page")
+    }
+
     pub fn into_grant(self) -> Grant {
         let version = self.file.version.and_then(|v| match v {
             Value::String(s) => Some(s),

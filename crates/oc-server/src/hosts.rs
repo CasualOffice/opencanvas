@@ -159,6 +159,16 @@ impl HostConfig {
             && !self.wopi_only()
     }
 
+    /// `[host.flags] temporary_wording = "meeting" | "room"` (ADR-049): how the editor talks
+    /// about a temporary canvas. Default "meeting" (a meeting app such as Jitsi); "room" for a
+    /// chat room (the Matrix widget).
+    pub fn temporary_wording(&self) -> &'static str {
+        match self.flags.get("temporary_wording").and_then(|v| v.as_str()) {
+            Some("room") => "room",
+            _ => "meeting",
+        }
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
@@ -237,6 +247,15 @@ impl Hosts {
                         IMPORT_FORMATS
                     );
                 }
+            }
+            if h.flags
+                .get("temporary_wording")
+                .is_some_and(|v| !matches!(v.as_str(), Some("meeting" | "room")))
+            {
+                bail!(
+                    "host {}: [host.flags] temporary_wording takes \"meeting\" or \"room\"",
+                    h.id
+                );
             }
             if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] unfurl takes true or false", h.id);
