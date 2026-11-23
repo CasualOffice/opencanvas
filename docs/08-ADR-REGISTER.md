@@ -46,6 +46,9 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-041 | Headless API v1: `/api/v1`, OpenAPI 3.1, RFC 9457 errors, `Idempotency-Key`, signed cursors, `RateLimit` headers, host key or host-minted user tokens, one operation layer shared with MCP (docs/27 §4) | Accepted (2026-11-23) |
 | ADR-042 | `.ocanvas` stays format version 1 through v0.2: additive nodes, roots and manifest fields only; a 0.1.x round trip is a release gate (docs/27 §3.3, §5) | Accepted (2026-11-23) |
 | ADR-044 | Per-host embed origins: optional `frame_ancestors`; such hosts launch to `/app/?h=<host id>` and only that page carries them (MX-01) | Accepted (owner, 2026-11-24) |
+| ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props`, `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Proposed (DGM, 2026-11-24) |
+| ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Proposed (DGM, 2026-11-24) |
+| ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Proposed (DGM, 2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -513,3 +516,81 @@ credentials, its session is the ticket.
 **Consequences.** + nested embeds (Matrix widgets) work without widening every host's framing;
 − anyone can load `/app/?h=<that host>` under that host's ancestors, which exposes an editor
 with no session; a session still needs a ticket.
+
+### ADR-045 — Diagram schema, shape registry and compatibility (Proposed, DGM 2026-11-24)
+**Context.** Structured diagramming (owner design, 2026-11-24; docs/29) needs shape kinds beyond the
+nine board types, named ports and semantic edges. Boards are blocks inside a document (one Yjs doc,
+`max_doc_bytes`), rendered by the web editor and, server side, by `oc-model` (`board.rs` for SVG/PNG,
+`export.rs`, `preview.rs`). 0.1.x clients are deployed and will share rooms with newer ones.
+**Decision.**
+1. *Additive fields only* (docs/15 §4): `kind` (`<namespace>:<name>`, lowercase), `kindVersion`,
+   `props` (plain JSON), `ports` (`[{id, side?, x?, y?, kind?}]`, fractions of the box), and `port`
+   inside a `start`/`end` binding. `type` stays one of the nine legacy types: the kind's *base*,
+   which 0.1.x clients and the exporters draw. No new Y roots, no format version change (ADR-042).
+2. *Bindings keep `anchor`.* A port binding is `{shapeId, anchor, port}`; `anchor` is the side the
+   port degrades to and is where every renderer draws the end until the web and Rust resolvers learn
+   ports together (Phase 2, parity fixture). Reason, found by the mixed-version test: v0.1.1's paste
+   rebuilds bindings as `{shapeId, anchor}`, so a 0.1.1 user who copies a diagram drops `port`; with
+   `anchor` kept the copy still connects to the same side.
+3. *Registry.* Declarative descriptors only (no functions, frozen): `core:<type>` for the legacy
+   types, stencil kinds on a box base type. Lookup: registered kind → the base type's descriptor
+   (plugin missing: raw fields kept, `missing` reported) → `core:unknown`, a bindable box with the
+   five legacy ports, for a `type` this client doesn't know. Documents never carry code.
+4. *Unknown-field preservation.* Readers keep every key; writers set only the keys they change
+   (Y.Map key level, never a whole-shape rewrite) and keep every field of a binding they re-point.
+   Nested Y types written by another client survive edits; copies write them as plain JSON, which
+   readers accept. Tested against the v0.1.1 mutation paths (`compat.test.ts`) and the `.ocanvas`
+   round trip, `ydoc.bin` and `document.json`-only (`oc-model/tests/diagram.rs`).
+5. *Server rendering.* A kind renders as its base type (byte-identical output). An unknown `type`
+   with a box and no points renders as a `rect` with its text, label and fill in both exporters
+   (shared fixture `board-diagram.{json,web.svg}`); otherwise nothing. The editor canvas does not draw
+   unknown types yet; its placeholder is UI and waits for a prototype (ADR-011).
+6. *Orphan edges.* An end bound to a missing node keeps its binding (undo or a late sync may restore
+   the node) and draws from its stored `pts` end, as today.
+7. *Size.* A board is a block, not a file. Budget: one board up to 25 % of `max_doc_bytes` (5 MB at
+   20 MB), measured to hold 10,000 nodes + 15,000 edges with short labels (4.44 MB). Enforcement
+   (a warning near the budget) is Phase 2 UI.
+8. *Diagram mode is per board* (a board opening full screen as a diagram), not an editor-wide mode.
+9. *Projection.* The editor projects a board incrementally (`BoardProjection`): only shapes a
+   transaction touched are re-read; output equal to `readShapes`.
+**Consequences.** + Every 0.1.x client and export keeps working and keeps new data; + no migration;
+− 0.1.x clients show kinds as plain base shapes and port bindings at the nearest side; − a paste in
+0.1.x drops `port` (kept `anchor`); − `props` is last-writer-wins per shape (concurrent edits of two
+props of one shape keep one); a nested Y.Map for `props` is allowed later if that matters.
+
+### ADR-046 — Board renderer: keep SVG, profile first (Proposed, DGM 2026-11-24)
+**Context.** The design proposes profiling SVG against Canvas2D before any renderer change. Phase 0
+measured (docs/29 §2): before DGM-05 a remote move at 5,000 nodes cost ~81 ms of React work in jsdom,
+mostly re-projection and re-resolving every connector; after it, ~21 ms, the rest being React walking
+the full shape list (culling off in jsdom). The projection now costs 0.01-0.07 ms per edit at 1k-10k.
+**Decision.** Keep the SVG renderer with React and memoised shape views (ADR-008). Next steps, in
+order, each measured in a browser (Playwright trace, fixed machine, DGM-10): viewport culling through
+`SpatialIndex`; a scene layer separate from the React chrome so a move re-renders only its shapes;
+cached text metrics. Canvas2D or WebGL only when a trace shows paint or DOM size, not projection or
+reconciliation, keeps 1,000 nodes / 1,500 edges from 60 fps pan and drag. Exports stay in Rust and
+on the web SVG exporter, unaffected by the screen renderer.
+**Consequences.** + No rewrite risk, accessibility (SVG + DOM) kept; − large boards depend on culling
+and a scene split landing in Phase 2/4.
+
+### ADR-047 — Connector routing and layout (Proposed, DGM 2026-11-24)
+**Context.** Connectors store intent (bindings, `route`, `via`); `pts` is a resolved snapshot kept for
+readers that ignore bindings. Web and Rust resolve bound connectors identically today. Obstacle
+avoidance is the main Phase 2 routing feature; layout (ELK/Dagre) is Phase 3.
+**Decision.**
+1. Straight and elbow routing stay the baseline, the fallback and what 0.1.x clients draw.
+2. Obstacle-aware routing is stored as `route: "elbow"` plus an optional `routing: "avoid"` (the
+   base-plus-refinement pattern of ADR-045), so older clients and the Rust exporter draw a plain
+   elbow. The route is a deterministic function of the connector, its bound shapes and the obstacle
+   boxes (orthogonal visibility graph + A* with a bend penalty and fixed tie-breaking; chosen by
+   measured cost). User waypoints (`via`) stay separate from generated bends. Generated points are
+   never the source of truth; writers refresh `pts` on commit as `syncBoundArrows` does.
+3. The Rust exporter uses the stored `pts` for an `avoid` connector when its ends still match the
+   resolved anchors, else a plain elbow; porting the router to Rust is decided after it exists.
+4. Invalidation: only connectors whose bound shapes changed (`EdgeIndex`) or whose cached route box
+   meets a changed obstacle (`SpatialIndex`). Throttle during drag, recompute at drag end. A worker
+   with cancellation only if the measured main-thread cost at 1k nodes needs it.
+5. Layout is an explicit user action, previewed, applied in one transaction. Dagre (MIT) first. ELK
+   (EPL-2.0) only after a licence review for an Apache-2.0 distribution, as a lazy worker chunk
+   outside the 300 KB initial budget (ADR-019). Phase 1 adds no dependency.
+**Consequences.** + Mixed-version rooms draw something sensible; + no new persisted geometry; − the
+Rust export of an `avoid` connector may fall back to a plain elbow when `pts` is stale.

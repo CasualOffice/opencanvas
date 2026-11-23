@@ -1081,6 +1081,14 @@ fn shape_svg(
                 smooth(&s.pts)
             )
         }
+        // A type this build doesn't know (a newer client, a missing plugin; ADR-045): a shape
+        // with a box and no points draws as a rect with its text and label, as the web exporter
+        // does, so its content is not silently left out. Anything else draws nothing.
+        _ if s.pts.is_empty() && s.w > 0.0 && s.h > 0.0 => {
+            let mut r = s.clone();
+            r.kind = "rect".into();
+            shape_svg(&r, ids, images, inline_only)
+        }
         _ => String::new(),
     }
 }

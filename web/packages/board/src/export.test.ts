@@ -14,8 +14,8 @@ import type { Shape } from "./model";
 const FIX = decodeURIComponent(new URL("../../../../crates/oc-model/tests/fixtures/", import.meta.url).pathname);
 const UPDATE = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.OC_UPDATE_FIXTURE;
 
-function fixtureDoc(): Y.Doc {
-  const board = JSON.parse(readFileSync(FIX + "board.json", "utf8")) as { order: string[]; shapes: Record<string, Record<string, unknown>> };
+function fixtureDoc(file = "board.json"): Y.Doc {
+  const board = JSON.parse(readFileSync(FIX + file, "utf8")) as { order: string[]; shapes: Record<string, Record<string, unknown>> };
   const doc = new Y.Doc();
   doc.transact(() => {
     const m = new Y.Map<unknown>();
@@ -42,6 +42,22 @@ describe("board export: shared fixture", () => {
     const svg = exportBoardSvg(fixtureDoc(), "b1").replace(/ocbd-x-clip-\d+/g, "ocbd-x-clip-1");
     if (UPDATE) writeFileSync(FIX + "board.web.svg", svg);
     expect(svg).toBe(readFileSync(FIX + "board.web.svg", "utf8"));
+  });
+});
+
+describe("board export: diagram fields (ADR-045, DGM-08)", () => {
+  it("matches the shared diagram fixture the Rust renderer is checked against", () => {
+    const svg = exportBoardSvg(fixtureDoc("board-diagram.json"), "b1").replace(/ocbd-x-clip-\d+/g, "ocbd-x-clip-1");
+    if (UPDATE) writeFileSync(FIX + "board-diagram.web.svg", svg);
+    expect(svg).toBe(readFileSync(FIX + "board-diagram.web.svg", "utf8"));
+  });
+
+  it("draws an unknown type with a box as a rect with its text; a kind as its base type", () => {
+    const unknown = svgOf({ type: "bpmn:task" as Shape["type"], x: 0, y: 0, w: 160, h: 80, text: "Review", label: "task" });
+    expect(unknown).toBe(svgOf({ type: "rect", x: 0, y: 0, w: 160, h: 80, text: "Review", label: "task" }));
+    expect(texts(unknown)).toEqual(["TASK", "Review"]);
+    expect(svgOf({ type: "mystery" as Shape["type"], pts: [[0, 0], [5, 5]] })).not.toContain("<g>");
+    expect(svgOf({ type: "ellipse", kind: "network:cloud", props: { a: 1 }, x: 0, y: 0, w: 10, h: 10, text: "x" })).toBe(svgOf({ type: "ellipse", x: 0, y: 0, w: 10, h: 10, text: "x" }));
   });
 });
 

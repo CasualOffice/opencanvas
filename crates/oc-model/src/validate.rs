@@ -878,7 +878,7 @@ fn shape(r: &mut Report, p: &str, sh: &Value) {
         Some(t) if SHAPE_TYPES.contains(&t) => {}
         Some(t) => r.warn(
             &format!("{p}/type"),
-            format!("unknown shape type {t:?} (kept, not drawn)"),
+            format!("unknown shape type {t:?} (kept; exports draw its box as a rect)"),
         ),
         None => r.err(&format!("{p}/type"), "a shape needs a string type"),
     }

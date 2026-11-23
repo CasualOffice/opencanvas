@@ -3,6 +3,7 @@
 
 import * as Y from "yjs";
 import type { ArrowRoute, Binding } from "./connectors";
+import type { Port } from "./ports";
 
 export type ShapeType = "sticky" | "rect" | "ellipse" | "diamond" | "text" | "arrow" | "pen" | "swatch" | "image";
 export type StickyFill = "y" | "p" | "b" | "g";
@@ -45,6 +46,19 @@ export interface Shape {
   src?: string;
   /** image: alt text / file name */
   alt?: string;
+  /*
+   * Diagram fields (ADR-045, Proposed). All optional and additive: 0.1.x clients ignore them and
+   * keep them when they edit the shape (compat.test.ts). `type` stays one of the nine legacy
+   * types (the kind's base), so older clients and the Rust exporter draw the base shape.
+   */
+  /** Namespaced shape kind refining `type`, e.g. `uml:class` (see registry.ts). */
+  kind?: string;
+  /** Schema version of `kind`'s `props`. */
+  kindVersion?: number;
+  /** Kind-specific properties, kept as written (never dropped by readers that don't know them). */
+  props?: Record<string, unknown>;
+  /** Named connection points in addition to the five legacy anchors (see ports.ts). */
+  ports?: Port[];
 }
 
 export type BoardPreset = "blank" | "flow" | "brainstorm" | "mindmap" | "journey" | "moodboard" | "flowchart";

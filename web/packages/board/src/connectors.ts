@@ -14,7 +14,10 @@ export type Anchor = "top" | "right" | "bottom" | "left" | "center";
 export const ANCHORS: Anchor[] = ["top", "right", "bottom", "left", "center"];
 export interface Binding {
   shapeId: string;
+  /** Always set, also next to `port`: 0.1.x clients and the Rust exporter draw the end here. */
   anchor: Anchor;
+  /** Optional named port (ADR-045). A legacy anchor id is never written here. */
+  port?: string;
 }
 export type ArrowRoute = "straight" | "elbow";
 

@@ -1,0 +1,12 @@
+{
+  "order": ["n1", "n2", "u1", "u2", "e1", "e2", "e3"],
+  "shapes": {
+    "n1": {"type": "rect", "kind": "uml:class", "kindVersion": 2, "x": 0, "y": 0, "w": 180, "h": 100, "text": "Order", "fill": "blue", "props": {"stereotype": "entity", "attrs": [{"name": "id", "pk": true}]}, "ports": [{"id": "out", "side": "right", "x": 1, "y": 0.75}]},
+    "n2": {"type": "ellipse", "kind": "network:cloud", "x": 320, "y": 0, "w": 160, "h": 90, "text": "Internet"},
+    "u1": {"type": "bpmn:task", "x": 0, "y": 200, "w": 160, "h": 80, "text": "Review the claim", "label": "task", "props": {"assignee": "ops"}},
+    "u2": {"type": "mystery", "pts": [[400, 220], [450, 260]]},
+    "e1": {"type": "arrow", "pts": [[180, 75], [320, 45]], "start": {"shapeId": "n1", "anchor": "right", "port": "out"}, "end": {"shapeId": "n2", "anchor": "left"}, "route": "elbow", "text": "calls", "edgeStyle": {"dash": "4 2"}},
+    "e2": {"type": "arrow", "pts": [[90, 100], [80, 200]], "start": {"shapeId": "n1", "anchor": "bottom"}, "end": {"shapeId": "u1", "anchor": "top"}},
+    "e3": {"type": "arrow", "pts": [[160, 240], [400, 90]], "start": {"shapeId": "u1", "anchor": "center"}, "end": {"shapeId": "gone", "anchor": "left"}}
+  }
+}

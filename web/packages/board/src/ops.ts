@@ -109,7 +109,8 @@ export function cloneShapes(shapes: Shape[], dx: number, dy: number): Shape[] {
     if (n.group) n.group = groups.get(n.group) ?? (groups.set(n.group, nid("g")), groups.get(n.group)!);
     for (const k of ["start", "end"] as const) {
       const b = n[k];
-      if (b && ids.has(b.shapeId)) n[k] = { shapeId: ids.get(b.shapeId)!, anchor: b.anchor };
+      // Keep every field of the binding (a `port`, or one a newer client added); only re-point it.
+      if (b && ids.has(b.shapeId)) n[k] = { ...b, shapeId: ids.get(b.shapeId)! };
       else delete n[k];
     }
     return { ...n, ...movePatch(n, dx, dy) };

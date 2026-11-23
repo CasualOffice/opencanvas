@@ -1,0 +1,132 @@
+{
+  "env": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "darwin 25.3.0",
+    "node": "v24.22.1",
+    "date": "2026-11-23"
+  },
+  "rows": [
+    {
+      "nodes": 1000,
+      "edges": 1500,
+      "mountMs": 210,
+      "workload": "move one node",
+      "edits": 40,
+      "commitsPerEdit": 1,
+      "reactMsPerEdit": 8.24,
+      "wallMs": {
+        "mean": 10.291,
+        "p50": 5.239,
+        "p95": 52.165,
+        "max": 52.397
+      }
+    },
+    {
+      "nodes": 1000,
+      "edges": 1500,
+      "mountMs": 210,
+      "workload": "rewrite a node's text with the same value",
+      "edits": 40,
+      "commitsPerEdit": 0,
+      "reactMsPerEdit": 0,
+      "wallMs": {
+        "mean": 0.04,
+        "p50": 0.036,
+        "p95": 0.087,
+        "max": 0.109
+      }
+    },
+    {
+      "nodes": 1000,
+      "edges": 1500,
+      "mountMs": 210,
+      "workload": "edit another board",
+      "edits": 40,
+      "commitsPerEdit": 0,
+      "reactMsPerEdit": 0,
+      "wallMs": {
+        "mean": 0.046,
+        "p50": 0.032,
+        "p95": 0.195,
+        "max": 0.222
+      }
+    },
+    {
+      "nodes": 1000,
+      "edges": 1500,
+      "mountMs": 210,
+      "workload": "edit document text",
+      "edits": 40,
+      "commitsPerEdit": 0,
+      "reactMsPerEdit": 0,
+      "wallMs": {
+        "mean": 0.041,
+        "p50": 0.029,
+        "p95": 0.079,
+        "max": 0.391
+      }
+    },
+    {
+      "nodes": 5000,
+      "edges": 7500,
+      "mountMs": 500,
+      "workload": "move one node",
+      "edits": 40,
+      "commitsPerEdit": 1,
+      "reactMsPerEdit": 25.47,
+      "wallMs": {
+        "mean": 31.806,
+        "p50": 23.997,
+        "p95": 183.617,
+        "max": 200.468
+      }
+    },
+    {
+      "nodes": 5000,
+      "edges": 7500,
+      "mountMs": 500,
+      "workload": "rewrite a node's text with the same value",
+      "edits": 40,
+      "commitsPerEdit": 0,
+      "reactMsPerEdit": 0,
+      "wallMs": {
+        "mean": 0.04,
+        "p50": 0.037,
+        "p95": 0.054,
+        "max": 0.113
+      }
+    },
+    {
+      "nodes": 5000,
+      "edges": 7500,
+      "mountMs": 500,
+      "workload": "edit another board",
+      "edits": 40,
+      "commitsPerEdit": 0,
+      "reactMsPerEdit": 0,
+      "wallMs": {
+        "mean": 0.031,
+        "p50": 0.028,
+        "p95": 0.042,
+        "max": 0.072
+      }
+    },
+    {
+      "nodes": 5000,
+      "edges": 7500,
+      "mountMs": 500,
+      "workload": "edit document text",
+      "edits": 40,
+      "commitsPerEdit": 0,
+      "reactMsPerEdit": 0,
+      "wallMs": {
+        "mean": 0.027,
+        "p50": 0.024,
+        "p95": 0.059,
+        "max": 0.062
+      }
+    }
+  ]
+}

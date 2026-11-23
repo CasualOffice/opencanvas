@@ -241,6 +241,19 @@ missing from `order` by id.
 | `route` | arrow | `"elbow"` orthogonal route, `"straight"`/unset a line |
 | `via` | arrow | *(open items, ADR-025)* manual waypoints `[[x,y],…]`, in order. The path runs end → waypoints → end; a `center`-bound end aims at the nearest waypoint (straight: outline toward it; elbow: the side facing it). Elbow with waypoints: each leg is an L (one corner), the first leaves along the start side's axis (else the leg's longer axis), each next leg leaves at a right angle to how the previous arrived, the last enters along the end side's axis (two corners at the leg's midpoint when an L can't). Entries that aren't arrays of ≥ 2 read as missing; non-numbers read as 0. Writers keep `pts` = the resolved path. Moving a connector with both bound shapes moves its waypoints too |
 | `src`, `alt` | image | URL or `data:` URL; alt text |
+| `kind` | any box | *(diagrams, ADR-045 Proposed)* namespaced shape kind `<namespace>:<name>` (lowercase, e.g. `uml:class`) refining `type`; `type` stays the kind's legacy base, which is what 0.1.x clients and the exporters draw |
+| `kindVersion` | with `kind` | *(ADR-045)* schema version of the kind's `props` (positive integer) |
+| `props` | with `kind` | *(ADR-045)* kind-specific properties (plain JSON object); kept as written by every reader and writer |
+| `ports` | any box | *(ADR-045)* named connection points `[{id, side?, x?, y?, kind?}]` added to the five legacy anchors; `x`/`y` are fractions of the box (0..1), `side` `top right bottom left`; ids must not be a legacy anchor name |
+| `start.port`, `end.port` | arrow | *(ADR-045)* the port an end is bound to. `anchor` is always written next to it (the side the port degrades to) and is where 0.1.x clients and both exporters draw the end until the renderers learn ports |
+
+Diagram fields *(ADR-045 Proposed, DGM-03/04/08)*: every key above is optional and additive. Readers
+keep keys they do not know; writers set only the keys they change (never rewrite a shape's map),
+and keep every field of a binding they re-point (copy/paste). A shape whose `type` is not one of
+the nine above is kept; both exporters draw it as a `rect` (with its `text`, `label`, `fill`) when it
+has a box (`w > 0`, `h > 0`, no `pts`) and draw nothing otherwise (shared fixture
+`crates/oc-model/tests/fixtures/board-diagram.{json,web.svg}`); the editor canvas does not draw it yet
+(placeholder UI awaits a prototype, ADR-011).
 
 Text wrapping *(UX pass)*: sticky, rect, ellipse and diamond text wraps greedily at whitespace to
 `w − 28` (sticky, 14 px), `max(20, w − 16)` (rect), `max(20, w × 0.72)` (ellipse), `max(20, w × 0.6)`
