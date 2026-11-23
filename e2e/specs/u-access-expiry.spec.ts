@@ -9,11 +9,33 @@
 import path from "node:path";
 import { ROOT } from "../env";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
-import { applyTemplate, createFile, editor, person, openFile } from "../helpers";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { applyTemplate, createFile, editor, person, openFile, shots } from "../helpers";
 
 const TTL = 600_000;
 const expiring = (page: Page) => page.evaluate(() => Number(document.body.dataset.tokenExpiring || 0));
+
+/** At 390 px (a phone) the bar's text takes the full width, the buttons go under it, every
+ *  target is at least 24 px and nothing scrolls sideways; review shots in light and dark. */
+async function onPhone(page: Page, bar: Locator, name: string) {
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: 390, height: 844 });
+  const f = page.frameLocator('iframe[name="oc"]');
+  await expect(f.locator(".app.compact")).toBeVisible();
+  const text = (await bar.locator(":scope > span").boundingBox())!;
+  const barBox = (await bar.boundingBox())!;
+  expect(text.width, "the message uses the bar's width").toBeGreaterThan(barBox.width - 80);
+  for (const b of await bar.getByRole("button").all()) {
+    const r = (await b.boundingBox())!;
+    expect(r.y, "buttons sit under the message").toBeGreaterThanOrEqual(text.y + text.height - 1);
+    expect(r.height).toBeGreaterThanOrEqual(24);
+    expect(r.width).toBeGreaterThanOrEqual(24);
+  }
+  expect(await f.locator("body").evaluate(() => document.scrollingElement!.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await shots(page, `1-access-${name}-390`, { frame: "oc" });
+  await page.setViewportSize(size);
+  await expect(f.locator(".app.compact")).toHaveCount(0);
+}
 
 async function axe(page: Page) {
   const f = page.frame({ name: "oc" })!;
@@ -70,6 +92,8 @@ test("PERM-07: no renewal → amber bar, then the red read-only bar; edits kept;
   await expect(warn).toContainText("We asked Sample host to renew it. Nothing you type is lost either way.");
   await axe(priya.page);
   await priya.page.screenshot({ path: path.join(ROOT, "target/fix-shots/perm07-ending-soon.png") });
+  await shots(priya.page, "1-access-ending-soon", { frame: "oc" });
+  await onPhone(priya.page, warn, "ending-soon");
   await warn.getByRole("button", { name: "Renew now" }).click();
   await expect.poll(() => expiring(priya.page)).toBe(2);
 
@@ -89,6 +113,8 @@ test("PERM-07: no renewal → amber bar, then the red read-only bar; edits kept;
   await expect(ended.getByRole("button", { name: "Reconnect" })).toHaveCSS("color", "rgb(255, 255, 255)");
   await axe(priya.page);
   await priya.page.screenshot({ path: path.join(ROOT, "target/fix-shots/perm07-ended.png") });
+  await shots(priya.page, "1-access-ended", { frame: "oc" });
+  await onPhone(priya.page, ended, "ended");
 
   await priya.page.evaluate(() => ((window as unknown as { ocHoldRefresh: boolean }).ocHoldRefresh = false));
   await ended.getByRole("button", { name: "Reconnect" }).click();

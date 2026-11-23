@@ -147,3 +147,19 @@ export const storedDocumentHas = (fileId: string, text: string, host = HOST) => 
 
 /** 1×1 PNG, for paste tests. */
 export const PNG_1PX = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/** Review screenshots in light and dark: `<OC_SHOTS or target/fix-shots>/<name>-light.png` and
+ *  `-dark.png`. The theme is forced on the editor's document (the iframe, when there is one). */
+export async function shots(page: Page, name: string, opts: { frame?: string } = {}) {
+  const dir = process.env.OC_SHOTS || path.join(path.dirname(new URL(import.meta.url).pathname), "..", "target", "fix-shots");
+  fs.mkdirSync(dir, { recursive: true });
+  const f = opts.frame ? page.frame({ name: opts.frame })! : page.mainFrame();
+  for (const theme of ["light", "dark"]) {
+    await f.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+    await page.waitForTimeout(150);
+    const file = path.join(dir, `${name}-${theme}.png`);
+    if (opts.frame) await page.locator(`iframe[name="${opts.frame}"]`).screenshot({ path: file });
+    else await page.screenshot({ path: file });
+  }
+  await f.evaluate(() => delete document.documentElement.dataset.theme);
+}

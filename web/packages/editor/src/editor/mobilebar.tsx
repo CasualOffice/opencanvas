@@ -91,7 +91,14 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
             {b("image", "Image", () => editor.chain().focus().insertContent([{ type: "image", attrs: { src: "" } }, { type: "paragraph" }]).run())}
             {b("at-sign", "Mention someone", () => editor.chain().focus().insertContent("@").run())}
             <span className="sp" />
-            {b("keyboard", "Done editing", () => editor.commands.blur())}
+            {/* Prototypes ToolbarClosed/ToolbarOpen: with the keyboard open the last button hides
+                it; with it closed it comments on the block with the caret. */}
+            {kb
+              ? b("chevron-down", "Hide keyboard", () => editor.commands.blur())
+              : b("message-square-plus", "Comment", () => {
+                  const t = topBlockAt(editor.state, editor.state.selection.from);
+                  startComment(editor, role, onComment, t ? { from: t.pos + 1, to: t.pos + t.node.nodeSize - 1 } : undefined);
+                })}
           </>
         ) : null}
       </div>

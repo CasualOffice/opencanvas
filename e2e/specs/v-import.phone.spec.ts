@@ -7,6 +7,7 @@ import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { OC, ROOT } from "../env";
+import { shots } from "../helpers";
 
 const CSV = "Task,Owner,Due,Done\nFinish embed SDK docs,Ravi,2026-12-04,false\nReview mention list,Priya,2026-12-06,true\nFix PDF zoom on iPhone,Sam,,false\n";
 
@@ -37,8 +38,10 @@ test("FC-10 phone: Import… from the menu, CSV preview fits, done", async ({ pa
   expect(box.x + box.width).toBeLessThanOrEqual(vw + 1);
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.screenshot({ path: path.join(ROOT, `target/fix-shots/import-phone-${test.info().project.name}.png`) });
+  await shots(page, "4-import-csv-390");
   await axe(page);
   await dlg.getByRole("button", { name: "Import 3 rows" }).tap();
   await expect(dlg.getByRole("status")).toContainText("Imported a database with 3 rows");
+  await shots(page, "4-import-done-390");
   await axe(page);
 });

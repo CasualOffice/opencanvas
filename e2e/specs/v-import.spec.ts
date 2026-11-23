@@ -9,7 +9,7 @@ import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type FrameLocator, type Page } from "@playwright/test";
 import { HOST_RELOAD, OC, ROOT } from "../env";
-import { applyTemplate, createFile, editor, openFile, person } from "../helpers";
+import { applyTemplate, createFile, editor, openFile, person, shots } from "../helpers";
 
 const CSV = "Task,Owner,Due,Done\nFinish embed SDK docs,Ravi,2026-12-04,false\nReview mention list,Priya,2026-12-06,true\nFix PDF zoom on iPhone,Sam,,false\n";
 const csvFile = { name: "tasks-export.csv", mimeType: "text/csv", buffer: Buffer.from(CSV) };
@@ -46,6 +46,10 @@ test("FC-10 demo: /import → CSV preview with changeable types → done; axe li
   await expect(dlg).toBeVisible();
   await expect(dlg).toContainText("Demo: parsed in this browser, no import server");
   await expect(dlg.getByRole("button", { name: /Drop a file here, or choose one/ })).toBeVisible();
+  // Prototype: a 640 px dialog, its content filling it (no empty strip beside it).
+  await expect.poll(async () => Math.round((await dlg.boundingBox())!.width)).toBe(640);
+  expect(Math.round((await dlg.locator(".imp").boundingBox())!.width)).toBe(640);
+  await shots(page, "4-import-pick");
   await axe(page);
   await dlg.getByLabel("Choose a file to import").setInputFiles(csvFile);
   await expect(dlg).toContainText("tasks-export.csv");
@@ -54,12 +58,14 @@ test("FC-10 demo: /import → CSV preview with changeable types → done; axe li
   await expect(dlg.getByLabel("Type of Done")).toHaveValue("checkbox");
   await expect(dlg.getByLabel("Where to insert")).toBeVisible();
   await page.screenshot({ path: path.join(ROOT, "target/fix-shots/import-csv-preview.png") });
+  await shots(page, "4-import-csv");
   await axe(page);
   await dlg.getByLabel("Type of Due").selectOption("text");
   await dlg.getByRole("button", { name: "Import 3 rows" }).click();
   await expect(dlg.getByRole("status")).toContainText("Imported a database with 3 rows");
   await expect(dlg).toContainText("like any edit.");
   await page.screenshot({ path: path.join(ROOT, "target/fix-shots/import-done.png") });
+  await shots(page, "4-import-done");
   await axe(page);
   await dlg.getByRole("button", { name: "Close" }).click();
   // Inserted at the end (the caret's paragraph held only "/import"): scroll there as a reader would.

@@ -17,6 +17,7 @@
   --sh-card:0 1px 2px rgba(20,20,30,.04), 0 8px 24px -12px rgba(20,20,30,.12);
   --sh-pop:0 0 0 1px rgba(24,24,32,.07), 0 16px 40px -12px rgba(20,20,30,.22), 0 4px 10px -4px rgba(20,20,30,.08);
   --sh-frame:0 0 0 1px rgba(24,24,32,.06), 0 30px 80px -40px rgba(20,20,30,.35);
+  --sh-edge:6px 0 8px -6px rgba(20,20,30,.18);
   --font:"Geist", ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono:"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --ease:cubic-bezier(.32,.72,0,1);
@@ -37,6 +38,7 @@
   --sh-card:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
   --sh-pop:0 0 0 1px rgba(255,255,255,.08), 0 18px 44px -12px rgba(0,0,0,.7);
   --sh-frame:0 0 0 1px rgba(255,255,255,.07), 0 30px 80px -40px rgba(0,0,0,.8);
+  --sh-edge:6px 0 10px -6px rgba(0,0,0,.75);
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --page:#0b0b0d; --app:#141417; --panel:#18181c; --sunk:#1d1d22; --pop:#1f1f24;
@@ -53,6 +55,7 @@
   --sh-card:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
   --sh-pop:0 0 0 1px rgba(255,255,255,.08), 0 18px 44px -12px rgba(0,0,0,.7);
   --sh-frame:0 0 0 1px rgba(255,255,255,.07), 0 30px 80px -40px rgba(0,0,0,.8);
+  --sh-edge:6px 0 10px -6px rgba(0,0,0,.75);
   color-scheme:dark}
 
 
