@@ -17,7 +17,7 @@ import { describe, loadConfig } from "./config.mjs";
 import { AuthError, verifyOpenId } from "./openid.mjs";
 import { botStateReader, checkRoomAccess, validRoomId, validWidgetId } from "./room.mjs";
 import { launchClaims, signHs256 } from "./launch.mjs";
-import { startAutojoin } from "./bot.mjs";
+import { startBot } from "./bot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, "..", "public");
@@ -159,5 +159,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   http.createServer(createHandler(cfg)).listen(cfg.port, () => {
     console.log(`matrix-opencanvas bridge listening ${JSON.stringify(describe(cfg))}`);
   });
-  if (cfg.botAutojoin) startAutojoin(cfg);
+  if (cfg.botAutojoin || cfg.apiKey) startBot(cfg);
 }

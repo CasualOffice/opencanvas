@@ -341,6 +341,7 @@ pub fn host_config(base: &str) -> HostConfig {
         callback_base: base.into(),
         wopi_allowlist: vec![],
         allowed_origins: vec!["http://localhost:4000".into()],
+        frame_ancestors: vec![],
         asset_origins: vec![],
         original_callback_base: None,
         storage: "host".into(),

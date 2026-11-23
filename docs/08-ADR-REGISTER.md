@@ -45,6 +45,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-040 | Block SDK: one generic `extBlock` node and an `ext` root; JSON Schema manifests validated server-side by MOD-01; declarative export templates; no third-party code on the server; sandboxed iframe renderers on a separate origin (docs/27 §3) | Accepted (2026-11-23) |
 | ADR-041 | Headless API v1: `/api/v1`, OpenAPI 3.1, RFC 9457 errors, `Idempotency-Key`, signed cursors, `RateLimit` headers, host key or host-minted user tokens, one operation layer shared with MCP (docs/27 §4) | Accepted (2026-11-23) |
 | ADR-042 | `.ocanvas` stays format version 1 through v0.2: additive nodes, roots and manifest fields only; a 0.1.x round trip is a release gate (docs/27 §3.3, §5) | Accepted (2026-11-23) |
+| ADR-044 | Per-host embed origins: optional `frame_ancestors`; such hosts launch to `/app/?h=<host id>` and only that page carries them (MX-01) | Proposed (2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -497,3 +498,18 @@ other host; this is the only exception, and it keeps nothing beyond the room's l
 **Consequences.** + meeting hosts integrate with a JWT secret only; − work not exported is gone
 when the meeting ends, and a node crash during the meeting recovers from the WAL only until the
 room closes.
+
+### ADR-044 — Per-host embed origins (`frame_ancestors`) (Proposed, MX-01, 2026-11-24)
+**Context.** The editor's CSP `frame-ancestors` was one list for the whole server (every host's
+`allowed_origins`). A Matrix widget nests the editor inside the bridge page inside any Matrix
+client, and `frame-ancestors` checks every ancestor, so each client origin would have had to be
+allowed for every host on the server. The editor URL carries the session only in the fragment,
+which the server never sees, so it cannot tell which host a page belongs to.
+**Decision.** Optional host setting `frame_ancestors = [origins]`. Launches for such a host
+redirect to `/app/?h=<host id>#t=<ticket>` and that page gets the server-wide list plus the
+host's own. Everything else, and hosts without the setting, are unchanged (`/app/#t=…`). The
+`h` parameter selects a policy and grants nothing: the editor has no cookies or ambient
+credentials, its session is the ticket.
+**Consequences.** + nested embeds (Matrix widgets) work without widening every host's framing;
+− anyone can load `/app/?h=<that host>` under that host's ancestors, which exposes an editor
+with no session; a session still needs a ticket.

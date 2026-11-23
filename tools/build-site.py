@@ -106,6 +106,7 @@ DOC_DESCRIPTIONS = {
     "release": "OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.",
     "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
+    "matrix": "Add a shared canvas to Matrix rooms as an Element widget: identity checked with the user's homeserver (OpenID), room members only, roles from power levels, temporary canvases.",
     "jitsi": "Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.",
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",

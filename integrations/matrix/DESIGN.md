@@ -3,7 +3,7 @@
 
 # OpenCanvas in Matrix rooms: design
 
-**Status:** draft, 2026-11-24 (tracker MX-01). Owner request: "Add an OpenCanvas widget to
+**Status:** draft, 2026-11-24 (tracker MX-01); verified in Element Web, see README. Owner request: "Add an OpenCanvas widget to
 Matrix rooms, similar to how collaborative Etherpad and Jitsi widgets are embedded today."
 
 ## 1. Research summary (sources checked 2026-11-24)
@@ -147,9 +147,12 @@ Client-Server API:
 
 - the bot's own `m.room.member`: must be `join`. Found end to end: Synapse still answers state
   reads for a bot that **left** (state as of its leave), which would trust stale membership;
+- `m.room.member` of the verified user: must be `join` (invite, knock, leave, ban refused).
+  Checked before the widget, so a non-member learns nothing about the room's widgets (found in
+  Element: a forged widget in another room naming this room got `WIDGET_UNKNOWN` first);
 - `im.vector.modular.widgets` (or `m.widget`) with the widget id: must exist and its `url`
-  must be this bridge's `/widget`;
-- `m.room.member` of the verified user: must be `join` (invite, knock, leave, ban refused);
+  must be this bridge's `/widget`. The widget page sends our `wid` template parameter as the
+  canvas id; Element's own `widgetId` parameter is used only for widget API messages;
 - `m.room.power_levels` and `m.room.create`: role = `edit` when the user's level ≥
   `state_default` (default 50), or the user is a room creator in room version 12+ (MSC4289:
   creators sit outside `users`); everyone else gets `MX_MEMBER_ROLE` (`edit` default, or
@@ -163,9 +166,11 @@ that hosts rooms; it is phase 2.
 Without a bot there is no way to check membership for rooms on other servers; we do **not**
 offer an "insecure" mode that trusts `$matrix_room_id`.
 
-**Role changes.** Tokens last 10 minutes and the role is decided at launch; a user kicked or
-demoted keeps their open session until it ends (docs/05 §8). Phase 2: the bot watches
-membership and power-level changes and calls the role API (`POST /v1/files/{id}/role`).
+**Leaving the room.** The bot's `/sync` loop (with `OC_API_KEY`) sees `leave` and `ban`
+membership events and calls `POST /v1/files/{fileId}/role {"userId","role":"none"}` for every
+canvas widget of the room, so an open editor (also a popped-out one) closes at once.
+Verified in Element: 1 live connection closed. **Power-level changes** apply at the next
+launch (tokens last 10 minutes); phase 2: the bot maps them to the role API too.
 
 ## 6. Storage decision
 
@@ -204,13 +209,15 @@ bridge, `If-Match` versions from the state event, and an `on_conflict` policy.
 
 ## 8. OpenCanvas gaps (no server change made)
 
-1. **`frame-ancestors` is one list for the whole server.** The editor frame is nested inside
-   the bridge page inside the Matrix client, and CSP `frame-ancestors` checks every ancestor.
-   So `allowed_origins` must list the bridge origin **and every Matrix client origin** that
-   will show the widget (your Element, `https://app.element.io`, …). Users on other clients
-   see a blocked frame. `"*"` would work but applies to every host on the server. Wanted: a
-   per-host `frame_ancestors` (or `"*"` scoped to one host).
-2. **No room-close signal from Matrix.** Removing the widget does not end the canvas; it ends
+1. **`frame-ancestors` was one list for the whole server** (closed in MX-01). The editor frame
+   is nested inside the bridge page inside the Matrix client, and CSP `frame-ancestors` checks
+   every ancestor, so every Matrix client origin had to be added to the server-wide list.
+   Now a host may set `frame_ancestors`: its launches redirect to `/app/?h=<host id>`, and only
+   that page carries the extra origins (`crates/oc-server/tests/embed_origins.rs`, seen
+   failing first). The `h` parameter grants nothing: the editor holds no cookies and its
+   session is the ticket in the fragment. Hosts without the setting are unchanged. Verified in
+   Element: without it the editor frame is blocked, with it the canvas loads.
+2. **No room-close signal from Matrix** (still open). Removing the widget does not end the canvas; it ends
    at idle. Phase 2: the bot sees the widget state event removed and calls
    `DELETE /v1/files/{fileId}/session`.
 3. **Token refresh** (`Token_Expiring` / `Action_RefreshToken`) is documented but not

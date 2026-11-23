@@ -24,7 +24,15 @@ list for the lead to prototype. Each screen must work in Element's narrow right 
 | S4f | `error` | Page opened outside a Matrix client | "Open this page as a widget in a Matrix room." | |
 | S5 | `open` | Canvas loaded, `storage = "ephemeral"` | "Temporary canvas: export to keep a copy." (outer page, under the frame) | **Temporary-canvas notice**: the editor already shows "Not saved · temporary"; decide whether the widget adds a first-open notice and where (a chat room is long-lived, so this matters more than in a meeting) |
 | S6 | (editor) | Canvas ended: everyone left and the idle grace passed, or the session was closed | OpenCanvas editor's closed message | Wording for Matrix ("This canvas ended when everyone left. Open the widget again to start a new one.") and whether the widget offers "Start a new canvas" |
+| S7b | (editor) | Left, kicked or banned while the canvas is popped out: the bot revokes access | Editor's "Your access to this canvas changed" | Matrix wording ("You left the room, so this canvas is closed") |
 | S7 | (editor) | View-only member (`MX_MEMBER_ROLE=view`, power below `state_default`) | Editor read-only state | A line saying who can edit (room moderators) |
 | S8 | (Element) | Adding the widget | `/addwidget <url>` or the add-widget script | Optional: an "Add canvas" entry point is Element's UI, not ours; document only |
+
+Found in the Element run (2026-11-24, screenshots in `evidence/`): the editor's temporary
+banner reads "This canvas is not saved anywhere. It is deleted when the meeting ends" and its
+closed screen "This canvas ended with the meeting": meeting wording inside a chat room (S5, S6).
+When someone leaves the room, Element removes the widget itself, so the editor's "Your access to
+this canvas changed" screen is only seen in a popped-out widget (S7b). Wording changes in the
+editor are UI changes: they wait for the prototype.
 
 Not in v1: persistent canvas states (saving, saved, conflict) for phase 2 storage.

@@ -9,8 +9,10 @@
 (() => {
   const qs = new URLSearchParams(location.search);
   const roomId = qs.get("roomId") || "";
-  // Element adds `widgetId` itself; `wid` is our template parameter ($matrix_widget_id).
+  // Element adds `widgetId` itself: the id widget API messages must carry. `wid` is our
+  // template parameter ($matrix_widget_id): which canvas is asked for (the bridge checks it).
   const widgetId = qs.get("widgetId") || qs.get("wid") || "";
+  const canvasWidgetId = qs.get("wid") || widgetId;
   let parentOrigin = null;
   try {
     parentOrigin = qs.get("parentUrl") ? new URL(qs.get("parentUrl")).origin : null;
@@ -83,7 +85,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roomId,
-          widgetId,
+          widgetId: canvasWidgetId,
           openid: { access_token: c.access_token, matrix_server_name: c.matrix_server_name },
         }),
       });

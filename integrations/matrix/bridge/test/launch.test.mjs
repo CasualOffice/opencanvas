@@ -118,6 +118,11 @@ test("membership denied: invited, left, banned or absent", async () => {
   }
 });
 
+test("a non-member asking for a forged widget id is told NOT_MEMBER, nothing about widgets", async () => {
+  // Found in Element: a widget in another room naming this room and a made-up widget id.
+  await assert.rejects(access(roomState({ membership: null, widgetUrl: "https://evil.example/widget" })), (e) => e.code === "NOT_MEMBER");
+});
+
 test("a widget that is not ours, or not in the room, is refused", async () => {
   await assert.rejects(access(roomState({ widgetUrl: "https://evil.example/widget" })), (e) => e.code === "WIDGET_UNKNOWN");
   await assert.rejects(access(async (_r, type) => (type === "m.room.member" ? { membership: "join" } : null)), (e) => e.code === "WIDGET_UNKNOWN");

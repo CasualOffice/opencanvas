@@ -30,6 +30,7 @@ jwt_secret      = "env:ACME_OC_SECRET"
 api_key         = "env:ACME_OC_API_KEY"    # for server→server REST calls to us
 callback_base   = "https://api.acme.example/opencanvas"
 allowed_origins = ["https://app.acme.example"]
+# frame_ancestors = ["https://chat.example"] # optional: extra origins that may frame THIS host's editor (§4)
 asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports (unsigned GET);
                                            # your callback_base origin is always allowed
 [host.flags]
@@ -117,6 +118,14 @@ exchanged for a session ticket on open).
 
 The SDK is served with CORS for the host's `allowed_origins` only, and the canvas sets
 `frame-ancestors` to the same list: register every origin your pages embed from.
+
+**Nested embeds (`frame_ancestors`).** CSP `frame-ancestors` checks every ancestor, so when
+your page is itself framed by another app (a Matrix widget inside a chat client, §8b), that
+app's origins must be allowed too. List them in the host's `frame_ancestors`. They are not added
+to the server-wide list: launches for this host redirect to `/app/?h=<host id>#t=…`, and only
+that page is served with `frame-ancestors 'self' <every host's allowed_origins> <this host's
+frame_ancestors>`. Hosts without the setting keep `/app/#t=…` and the shared list. The `h`
+parameter only selects the policy; the session is still the ticket.
 
 ### postMessage API (iframe ↔ host page)
 Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
@@ -472,6 +481,27 @@ storage = "ephemeral"          # default "host"
 - Mentions and the members callback are used only when `callback_base` is set.
 
 **Your users must export to keep anything.** Tell them so in your UI.
+
+## 8b. Matrix rooms (Element widget)
+
+`integrations/matrix/` adds a canvas to Matrix rooms as a room widget, like Etherpad or Jitsi
+widgets. A small bridge (Node 24, no dependencies) is the host:
+
+- The widget asks the Matrix client for an OpenID token (`get_openid`), and the bridge
+  verifies it with the user's homeserver (`/_matrix/federation/v1/openid/userinfo`). The
+  homeserver is resolved by the Matrix server-name rules, and any private address is refused.
+  URL template variables such as `$matrix_user_id` are never trusted.
+- A bot account checks that the user is joined to the room and that the widget points at the
+  bridge. Power level ≥ `state_default` gives `edit`; everyone else gets a configurable role.
+- It mints a launch token (§3) for an `ephemeral` host (§8a): one canvas per widget. The canvas
+  id is a hash of the room and widget ids. The user id is the Matrix id; the name is the room
+  display name.
+- When someone leaves or is banned, the bot calls the role API (§7, `role: "none"`).
+- The host sets `frame_ancestors` to the Matrix client origins (§4).
+
+Verified in Element Web against Synapse: OpenID, membership, a non-member refused, two people
+co-editing, Matrix names, access closed on leave. Install, configuration and limits (not
+end-to-end encrypted, temporary only): [integrations/matrix/README.md](../integrations/matrix/README.md).
 
 ## 9. Checklist for integrators
 

@@ -83,17 +83,18 @@ export async function checkRoomAccess({ roomId, widgetId, userId }, cfg, getStat
     throw new AuthError("BOT_NOT_IN_ROOM", 403, "the canvas bot is not in this room");
   }
 
+  // Membership first: a non-member learns nothing about the room's widgets.
+  const member = await getState(roomId, "m.room.member", userId);
+  if (!member || member.membership !== "join") {
+    throw new AuthError("NOT_MEMBER", 403, "you are not a member of this room");
+  }
+
   const widget =
     (await getState(roomId, "im.vector.modular.widgets", widgetId)) ||
     (await getState(roomId, "m.widget", widgetId));
   const prefix = `${cfg.publicUrl}/widget`;
   if (!widget || typeof widget.url !== "string" || !(widget.url === prefix || widget.url.startsWith(`${prefix}?`))) {
     throw new AuthError("WIDGET_UNKNOWN", 404, "this canvas widget is not in the room");
-  }
-
-  const member = await getState(roomId, "m.room.member", userId);
-  if (!member || member.membership !== "join") {
-    throw new AuthError("NOT_MEMBER", 403, "you are not a member of this room");
   }
 
   // Role: creator (room v12+) or power level >= state_default edits; others get memberRole.
