@@ -328,6 +328,28 @@ and `.ocanvas` exports include them too.
 **Mentions.** The member list is the users who have opened the file (from CheckFileInfo, with
 their `detail`) and the saved `people` map: the no-source case of §5 "People". Mention notifications (`POST /mentions`, §5) are not sent in WOPI mode.
 
+## 6a. Nextcloud (the `opencanvas` app)
+
+`integrations/nextcloud/opencanvas/` is a Nextcloud app (Nextcloud 30–32) that makes Nextcloud
+the WOPI host of §6, the way Nextcloud Office does for Collabora. Install, configuration,
+limits and what has been verified are in
+[integrations/nextcloud/README.md](../integrations/nextcloud/README.md); the design and the
+choice of WOPI over JWT are in [integrations/nextcloud/DESIGN.md](../integrations/nextcloud/DESIGN.md).
+
+- **WOPISrc:** `{nextcloud}/index.php/apps/opencanvas/wopi/files/{fileId}`. Register
+  `wopi_allowlist = ["{nextcloud}/index.php/apps/opencanvas/wopi"]` and give the host an
+  `api_key`. Proof keys are required: the app refuses calls without a valid proof.
+- **Roles:** "Can edit" maps to `edit` and read-only shares map to `view`. Without "Allow
+  download" (or with a public link's "Hide download"), export, download and print are off.
+- **Saves and versions:** every save is a normal Nextcloud write, so it shows in Versions under
+  the editor's name. A file changed outside the canvas gets a `(conflict copy)` next to it.
+- **Share changes:** the app re-checks access on every WOPI call. When a share is removed or
+  changed, it also calls `POST /v1/files/{fileId}/role` (§7), so open canvases switch to
+  read-only or close at once.
+- **Limits:** WOPI mode only. The @mention list is the people who opened the canvas, and
+  mentions send no notifications. The Nextcloud-side screens (New menu, Viewer, guests, Talk)
+  wait for approved prototypes.
+
 ## 7. Server-to-server REST (you → us)
 
 Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
