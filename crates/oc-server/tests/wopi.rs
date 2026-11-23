@@ -535,7 +535,9 @@ async fn check_file_info_sets_role_user_perms_and_expiry() {
     assert_eq!(s["file"]["id"], src);
     assert_eq!(
         s["perms"],
-        json!({"export": true, "download": true, "comment": true, "print": true})
+        // VH-01a (ADR-051): an editor also gets history, restore and named versions.
+        json!({"export": true, "download": true, "comment": true, "print": true,
+               "history": true, "restore": true, "commitMessage": true})
     );
     assert_eq!(s["isNew"], true, "an empty WOPI file is a new canvas");
     let (_, exp) = state.store.session(&ticket).await.unwrap().unwrap();
