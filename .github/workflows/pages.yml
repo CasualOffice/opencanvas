@@ -47,6 +47,8 @@ jobs:
           OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build
       # Regenerated here, so the docs, roadmap and changelog follow README.md and docs/
       # even when site/ was not rebuilt in the commit.
+      - name: Markdown renderer tests
+        run: python3 -I tools/test_sitelib.py
       - name: Build the generated pages
         run: python3 -I tools/build-site.py
       - name: Every internal link resolves

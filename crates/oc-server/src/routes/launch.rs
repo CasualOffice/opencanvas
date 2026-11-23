@@ -293,7 +293,22 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
     {
         return Err(reject("TOKEN_REUSED", "launch token already used".into()));
     }
-    let grant = claims.into_grant();
+    let iat = claims.iat;
+    let mut grant = claims.into_grant();
+    if let Some(iat) = iat {
+        match state.members.role_since(&grant.room, &grant.user.id, iat) {
+            Some(Some(role)) => grant.role = role,
+            Some(None) => {
+                return Err(rejected(
+                    state,
+                    StatusCode::FORBIDDEN,
+                    "ROLE_REVOKED",
+                    "the host removed this person's access after the token was issued".into(),
+                ));
+            }
+            None => {}
+        }
+    }
     let ticket = ulid::Ulid::new().to_string();
     state
         .store

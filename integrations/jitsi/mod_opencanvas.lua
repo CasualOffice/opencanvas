@@ -138,6 +138,7 @@ local jid_bare = require "util.jid".bare
 local hashes = require "util.hashes"
 local uuid = require "util.uuid".generate
 local http = require "net.http"
+local json = require "util.json"
 
 local base_url = module:get_option_string("opencanvas_url", ""):gsub("/+$", "")
 -- Where Prosody itself reaches OpenCanvas (the room-end DELETE). Defaults to opencanvas_url;
@@ -210,6 +211,29 @@ local function user_of(occupant, full_jid)
     }
 end
 
+-- A role that changes after the person got their link (Jicofo grants moderator a moment after
+-- the join; a moderator promotes or demotes someone) is pushed to OpenCanvas, which switches the
+-- open canvas at once (docs/05 §7). Jitsi keeps the first <etherpad> URL it receives, so the
+-- token alone would keep the old role until a reload.
+local function sync_role(room, user_id, role)
+    if api_key == "" then return end
+    http.request(api_url .. "/v1/files/" .. room_file_id(room) .. "/role", {
+        method = "POST",
+        headers = {
+            ["Content-Type"] = "application/json",
+            ["X-OpenCanvas-Host"] = host_id,
+            ["X-OpenCanvas-Key"] = api_key,
+        },
+        body = json.encode({ userId = user_id, role = role }),
+    }, function(_, code)
+        if type(code) == "number" and code >= 200 and code < 300 then
+            module:log("info", "OpenCanvas role for a participant in %s is now %s", room.jid, role)
+        else
+            module:log("warn", "OpenCanvas role change in %s failed (%s)", room.jid, tostring(code))
+        end
+    end)
+end
+
 local function token_for(room, occupant, full_jid)
     local role = M.role_for(occupant.role, room:get_affiliation(occupant.bare_jid), guest_role)
     local per_room = cache[room.jid]
@@ -218,11 +242,13 @@ local function token_for(room, occupant, full_jid)
     local hit = per_room[full_jid]
     if hit and hit.role == role and now < hit.refresh_at then return hit.token end
 
+    local user = user_of(occupant, full_jid)
+    if hit and hit.role ~= role then sync_role(room, user.id, role) end
     local room_name = jid_split(room.jid)
     local token, err = sign(M.build_claims {
         host_id = host_id, now = now, ttl = token_ttl, jti = uuid(),
         file_id = room_file_id(room), file_name = room_name,
-        user = user_of(occupant, full_jid), role = role,
+        user = user, role = role,
     })
     if not token then
         module:log("error", "could not sign an OpenCanvas token for %s: %s", room.jid, tostring(err))

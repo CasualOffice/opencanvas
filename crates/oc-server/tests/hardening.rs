@@ -7,6 +7,7 @@ mod common;
 use std::time::Duration;
 
 use common::*;
+use jsonwebtoken::{EncodingKey, Header, encode};
 use oc_server::config::RoomConfig;
 use oc_server::grant::Role;
 use serde_json::{Value, json};
@@ -345,6 +346,81 @@ async fn role_api_downgrades_a_live_session() {
     assert_eq!(v.closed, Some(1008));
     assert!(state.store.session(ticket).await.unwrap().is_none());
     assert!(a.closed.is_none(), "other users are untouched");
+}
+
+/// A launch token minted for `user` with `role`, issued at `iat` (Unix seconds).
+fn launch_token(user: &str, role: &str, iat: i64) -> String {
+    let claims = json!({
+        "iss": "sample", "aud": "opencanvas", "iat": iat, "exp": iat + 600,
+        "jti": ulid::Ulid::new().to_string(),
+        "file": {"id": FILE, "name": "Notes"}, "user": {"id": user, "name": user},
+        "role": role, "callbackToken": format!("cb-{user}")
+    });
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+/// `POST /v1/launch`: the session's role, or the error code.
+async fn launched_role(addr: &str, token: String) -> Result<String, String> {
+    let c = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let res = c
+        .post(format!("http://{addr}/v1/launch"))
+        .form(&[("token", token)])
+        .send()
+        .await
+        .unwrap();
+    if res.status() != 303 {
+        let v: Value = res.json().await.unwrap_or(Value::Null);
+        return Err(v["error"]["code"].as_str().unwrap_or("?").to_string());
+    }
+    let ticket = res.headers()["location"]
+        .to_str()
+        .unwrap()
+        .trim_start_matches("/app/#t=")
+        .to_string();
+    let v: Value = c
+        .get(format!("http://{addr}/v1/sessions/{ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    Ok(v["role"].as_str().unwrap_or("?").to_string())
+}
+
+/// A role the host sets with the role API wins over launch tokens issued before it (Jitsi:
+/// the link a person got before Jicofo made them a moderator carries the old role). Tokens
+/// issued after it carry the host's newer decision; tokens without `iat` are unchanged.
+#[tokio::test]
+async fn role_api_wins_over_older_launch_tokens() {
+    let (base, _host) = mock_host().await;
+    let state = app_custom(&base, room_cfg(), &temp_db(), with_key).await;
+    let addr = serve_state(state.clone()).await;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let old = launch_token("u_p", "view", now - 30);
+    assert_eq!(set_role(&addr, API_KEY, "u_p", "edit").await.status(), 200);
+    assert_eq!(launched_role(&addr, old).await.as_deref(), Ok("edit"));
+    // A token issued after the change is the host's newer decision.
+    let newer = launch_token("u_p", "comment", now + 5);
+    assert_eq!(launched_role(&addr, newer).await.as_deref(), Ok("comment"));
+    // Revoked: an older token cannot open the canvas.
+    assert_eq!(set_role(&addr, API_KEY, "u_x", "none").await.status(), 200);
+    let r = launched_role(&addr, launch_token("u_x", "edit", now - 30)).await;
+    assert_eq!(r, Err("ROLE_REVOKED".to_string()));
+    // Other people are untouched.
+    let other = launch_token("u_o", "view", now - 30);
+    assert_eq!(launched_role(&addr, other).await.as_deref(), Ok("view"));
 }
 
 #[tokio::test]

@@ -32,6 +32,15 @@ pub enum MembersEvent {
     Revoke { room: String, user: String },
     /// `user` has access to `room` again.
     Restore { room: String, user: String },
+    /// The host set `user`'s role on `room` at `at` (Unix seconds); `role` absent = revoked.
+    /// Launch tokens issued before `at` take this role instead of their own.
+    Role {
+        room: String,
+        user: String,
+        #[serde(default)]
+        role: Option<String>,
+        at: i64,
+    },
 }
 
 impl MembersEvent {
@@ -41,6 +50,17 @@ impl MembersEvent {
             Self::Invalidate { room } => m.invalidate(room),
             Self::Revoke { room, user } => m.revoke(room, user),
             Self::Restore { room, user } => m.restore(room, user),
+            Self::Role {
+                room,
+                user,
+                role,
+                at,
+            } => m.set_role(
+                room,
+                user,
+                role.as_deref().and_then(crate::grant::Role::parse),
+                *at,
+            ),
         }
     }
 }

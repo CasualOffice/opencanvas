@@ -65,6 +65,9 @@ struct UserClaim {
 pub struct LaunchClaims {
     pub iss: String,
     pub exp: i64,
+    /// Issued at (Unix seconds); a host role call made after it overrides `role`.
+    #[serde(default)]
+    pub iat: Option<i64>,
     pub jti: String,
     file: FileClaim,
     user: UserClaim,

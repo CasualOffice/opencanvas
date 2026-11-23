@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
-use crate::grant::{Grant, User, derive_color, is_hex_color};
+use crate::grant::{Grant, Role, User, derive_color, is_hex_color};
 use crate::host_client::{HostClient, SaveTarget};
 use crate::hosts::HostConfig;
 
@@ -199,12 +199,17 @@ pub struct Members {
     cache: Mutex<HashMap<CacheKey, CacheEntry>>,
     /// (room, user) the host revoked while the room was open.
     revoked: Mutex<HashSet<(String, String)>>,
+    /// (room, user) -> the role the host last set with the role API (`None` = revoked) and
+    /// when (Unix seconds). It wins over launch tokens issued before it.
+    roles: Mutex<HashMap<CacheKey, HostRole>>,
 }
 
 /// (room, query).
 type CacheKey = (String, String);
 /// (fetched at, answer).
 type CacheEntry = (Instant, Option<Vec<User>>);
+/// (role the host set, `None` = revoked; when it was set, Unix seconds).
+type HostRole = (Option<Role>, i64);
 
 impl Members {
     /// The host's members for `q` (cached 60 s per room and query); `None` when the host has
@@ -283,6 +288,25 @@ impl Members {
             .lock()
             .expect("members")
             .remove(&(room.to_string(), user.to_string()));
+    }
+
+    /// The host set `user`'s role on `room` at `at` (Unix seconds) with the role API.
+    pub fn set_role(&self, room: &str, user: &str, role: Option<Role>, at: i64) {
+        let mut r = self.roles.lock().expect("members");
+        if r.len() > MAX_CACHE_ENTRIES {
+            r.clear();
+        }
+        r.insert((room.to_string(), user.to_string()), (role, at));
+    }
+
+    /// The role the host set for `user` on `room` after `iat`, if any: a launch token issued
+    /// before the host's last role call carries an outdated role. `Some(None)` = revoked.
+    pub fn role_since(&self, room: &str, user: &str, iat: i64) -> Option<Option<Role>> {
+        let r = self.roles.lock().expect("members");
+        match r.get(&(room.to_string(), user.to_string())) {
+            Some((role, at)) if *at >= iat => Some(*role),
+            _ => None,
+        }
     }
 
     /// Leaves out people revoked on `room`.

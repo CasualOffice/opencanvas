@@ -29,6 +29,13 @@ slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus 
 - `file.id` = `jitsi-` + SHA-256 of room JID (includes the tenant) and `meetingId`
   (`mod_muc_meeting_id`): a new meeting with the same name gets a fresh canvas.
 - Role: `edit` for moderators and owners, `opencanvas_guest_role` for everyone else.
+  A role that changes later (Jicofo grants moderator a moment after the join, or a moderator
+  promotes someone) is sent to OpenCanvas's role API: the open canvas switches at once, and a
+  link minted before the change opens with the new role (docs/05 §7).
+- With Jitsi's own JWT sign-in, Jicofo makes every signed-in user a moderator, so signed-in
+  people edit and guests (joining without a token, `ENABLE_GUESTS=1`) get
+  `opencanvas_guest_role`. With `token_affiliation` and `ENABLE_AUTO_OWNER=0`, the token's
+  `moderator` claim decides.
 - User: `id`, `name`, `avatar` from the Jitsi JWT context (`session.jitsi_meet_context_user`),
   else the presence nick and an opaque hash of the JID.
 - One token per XMPP session and role, re-minted after half its TTL; a reload or rejoin is a new
@@ -132,5 +139,10 @@ Also covered by tests: token minting and claim shape (`test/mint_test.lua`, Lua 
 plugin-minted token verified by OpenCanvas's own `jwt::verify`
 (`crates/oc-server/tests/jitsi_plugin.rs`, skips without Lua 5.3+; set `OC_LUA`).
 
-Not tested yet: Debian-package installs, Jitsi with its own JWT auth enabled (moderator vs
-guest roles from the Jitsi token), and multi-shard deployments.
+Jitsi's own JWT sign-in, tested 2026-11-24 (`ENABLE_AUTH=1`, `AUTH_TYPE=jwt`,
+`ENABLE_GUESTS=1`, `opencanvas_guest_role="view"`): the signed-in moderator edits and the canvas
+shows their name from the Jitsi token; a guest without a token gets view with the view-only
+notice and sees the moderator's text live. Before the role push the moderator opened as view,
+because their link was sent before Jicofo made them a moderator (fixed; see Role above).
+
+Not tested yet: Debian-package installs and multi-shard deployments.

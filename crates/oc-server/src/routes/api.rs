@@ -91,6 +91,16 @@ pub async fn set_role(
             MembersEvent::Restore { room: room_s, user }
         })
         .await;
+    // Launch tokens issued before this call carry an outdated role (Jitsi: the link sent before
+    // Jicofo made someone a moderator); they take this one instead (docs/05 §7).
+    state
+        .members_event(MembersEvent::Role {
+            room: room.clone(),
+            user: body.user_id.clone(),
+            role: role.map(|r| r.as_str().to_string()),
+            at: crate::util::now_secs(),
+        })
+        .await;
     let connections = state.rooms.set_role(&room, &body.user_id, role).await;
     tracing::info!(host = %host.id, room = %room, role = %body.role, connections, sessions, "role API");
     Ok(Json(

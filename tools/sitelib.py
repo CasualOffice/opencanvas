@@ -494,6 +494,7 @@ def markdown(text: str, shift: int = 0, from_file: str = "", root: str = "../") 
     """Headings, paragraphs, nested '-' and numbered lists, task boxes, tables, block
     quotes and fenced code: what README.md and docs/*.md use."""
     out: list[str] = []
+    blocks: list[str] = []  # fenced code held out of list items' inline rendering
     lines = text.splitlines()
     i = 0
     inl = lambda x: md_inline(x, from_file, root)  # noqa: E731
@@ -555,6 +556,23 @@ def markdown(text: str, shift: int = 0, from_file: str = "", root: str = "../") 
             j = i
             while j < len(lines):
                 lm = is_list(lines[j])
+                fence = re.match(r"^(\s+)```(.*)$", lines[j])
+                if fence and items:
+                    # Fenced code inside an item (install steps): keep its lines, dedented
+                    # by the fence's indent, and hold it as a placeholder that survives
+                    # the item's inline rendering.
+                    pad, lang = len(fence.group(1)), fence.group(2).strip()
+                    k = j + 1
+                    code = []
+                    while k < len(lines) and not lines[k].strip().startswith("```"):
+                        code.append(lines[k][pad:] if lines[k][:pad].strip() == "" else lines[k].lstrip())
+                        k += 1
+                    cls = f' class="language-{_esc(lang)}"' if lang else ""
+                    blocks.append(f"<pre><code{cls}>{html.escape(chr(10).join(code))}</code></pre>")
+                    ind, mk, tx = items[-1]
+                    items[-1] = (ind, mk, tx + f" \x00{len(blocks) - 1}\x00")
+                    j = k + 1
+                    continue
                 if lm:
                     items.append((len(lm.group(1)), lm.group(2), lm.group(3)))
                 elif lines[j].startswith("  ") and lines[j].strip() and items:
@@ -563,7 +581,9 @@ def markdown(text: str, shift: int = 0, from_file: str = "", root: str = "../") 
                 else:
                     break
                 j += 1
-            out.append(_render_list(items, inl))
+            rendered = _render_list(items, inl)
+            rendered = re.sub(r" ?\x00(\d+)\x00", lambda m: blocks[int(m.group(1))], rendered)
+            out.append(rendered)
             i = j
             continue
         if not line.strip():

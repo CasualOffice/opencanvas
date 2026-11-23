@@ -334,7 +334,10 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   user's open session switches to read-only immediately (or is closed with
   `"role":"none"`). Roles: `view | comment | edit | none`. Answers
   `200 {"connections":1,"sessions":2}` (live connections switched, tickets updated);
-  `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`. `"role":"none"` also takes
+  `401 API_KEY_INVALID` for a wrong host/key, `400 ROLE_INVALID`. The role also applies to launch tokens
+  issued before the call (by their `iat`): an older token opens with this role, and with
+  `"role":"none"` it is refused with `403 ROLE_REVOKED`. Tokens issued after it, or without
+  `iat`, use their own role. `"role":"none"` also takes
   the user out of the canvas's member list at once (the cached members answer is dropped, open
   editors refetch it, and an older token's `members` no longer counts for them) until you grant
   access again or they open the canvas with a new token.
