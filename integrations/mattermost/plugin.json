@@ -1,0 +1,87 @@
+{
+  "id": "com.casualoffice.opencanvas",
+  "name": "OpenCanvas",
+  "description": "Collaborative canvases in channels: notes, databases and whiteboards, edited live. Files are stored in Mattermost.",
+  "homepage_url": "https://github.com/casualoffice/opencanvas",
+  "support_url": "https://github.com/casualoffice/opencanvas/issues",
+  "version": "0.1.0",
+  "min_server_version": "9.11.0",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "linux-arm64": "server/dist/plugin-linux-arm64",
+      "darwin-amd64": "server/dist/plugin-darwin-amd64",
+      "darwin-arm64": "server/dist/plugin-darwin-arm64",
+      "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+    }
+  },
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js"
+  },
+  "settings_schema": {
+    "header": "Connect Mattermost to an OpenCanvas server. Register this server in OpenCanvas hosts.toml with the same host id, shared secret and API key (see the plugin README).",
+    "settings": [
+      {
+        "key": "OpenCanvasURL",
+        "display_name": "OpenCanvas URL",
+        "type": "text",
+        "help_text": "Public address of the OpenCanvas server that browsers open, for example https://canvas.example.com",
+        "placeholder": "https://canvas.example.com"
+      },
+      {
+        "key": "OpenCanvasAPIURL",
+        "display_name": "OpenCanvas API URL (optional)",
+        "type": "text",
+        "help_text": "Where the Mattermost server calls OpenCanvas (access changes). Leave empty to use the OpenCanvas URL."
+      },
+      {
+        "key": "HostID",
+        "display_name": "Host id",
+        "type": "text",
+        "help_text": "The id of this server's [[host]] entry in OpenCanvas hosts.toml.",
+        "default": "mattermost"
+      },
+      {
+        "key": "SharedSecret",
+        "display_name": "Shared secret",
+        "type": "text",
+        "secret": true,
+        "help_text": "HS256 secret for launch tokens and for verifying OpenCanvas callbacks (hosts.toml jwt_secret). At least 32 characters, for example the output of: openssl rand -hex 32"
+      },
+      {
+        "key": "CallbackSecret",
+        "display_name": "Callback secret (optional)",
+        "type": "text",
+        "secret": true,
+        "help_text": "Only if hosts.toml sets a separate callback_secret. Leave empty to verify callbacks with the shared secret."
+      },
+      {
+        "key": "APIKey",
+        "display_name": "API key",
+        "type": "text",
+        "secret": true,
+        "help_text": "hosts.toml api_key. Used to end a person's access at once when they leave a channel."
+      },
+      {
+        "key": "GuestRole",
+        "display_name": "Guest access",
+        "type": "dropdown",
+        "default": "none",
+        "help_text": "What guest accounts that are members of a channel may do in its canvases.",
+        "options": [
+          { "display_name": "No access", "value": "none" },
+          { "display_name": "View", "value": "view" },
+          { "display_name": "Comment", "value": "comment" },
+          { "display_name": "Edit", "value": "edit" }
+        ]
+      },
+      {
+        "key": "TokenTTLMinutes",
+        "display_name": "Launch token lifetime (minutes)",
+        "type": "number",
+        "default": 10,
+        "help_text": "How long a launch token stays valid before it is exchanged for a session (1 to 60)."
+      }
+    ]
+  }
+}
