@@ -35,16 +35,191 @@ impl Histogram {
 
     fn render(&self, name: &str, help: &str) -> String {
         let mut out = format!("# HELP {name} {help}\n# TYPE {name} histogram\n");
+        self.render_series(name, "", &mut out);
+        out
+    }
+
+    /// One series (`labels` is `k="v",…` or empty) without the HELP/TYPE header.
+    fn render_series(&self, name: &str, labels: &str, out: &mut String) {
+        let sep = if labels.is_empty() { "" } else { "," };
+        let set = if labels.is_empty() {
+            String::new()
+        } else {
+            format!("{{{labels}}}")
+        };
         let mut total = 0;
         for (i, c) in self.counts.iter().enumerate() {
             total += c.load(Ordering::Relaxed);
             let le = BUCKETS.get(i).map_or("+Inf".to_string(), |b| b.to_string());
-            out.push_str(&format!("{name}_bucket{{le=\"{le}\"}} {total}\n"));
+            out.push_str(&format!(
+                "{name}_bucket{{{labels}{sep}le=\"{le}\"}} {total}\n"
+            ));
         }
         let sum = self.sum_micros.load(Ordering::Relaxed) as f64 / 1e6;
-        out.push_str(&format!("{name}_sum {sum}\n{name}_count {total}\n"));
-        out
+        out.push_str(&format!(
+            "{name}_sum{set} {sum}\n{name}_count{set} {total}\n"
+        ));
     }
+}
+
+/// Escapes a Prometheus label value.
+fn esc(v: &str) -> String {
+    v.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+}
+
+/// `k="v",…` from label pairs (values escaped).
+pub fn labels(pairs: &[(&str, &str)]) -> String {
+    pairs
+        .iter()
+        .map(|(k, v)| format!("{k}=\"{}\"", esc(v)))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// Histograms keyed by their rendered label set.
+#[derive(Default)]
+pub struct HistogramVec(Mutex<BTreeMap<String, Histogram>>);
+
+impl HistogramVec {
+    pub fn observe(&self, labels: String, d: Duration) {
+        if let Ok(mut m) = self.0.lock() {
+            m.entry(labels).or_default().observe(d);
+        }
+    }
+
+    fn render(&self, name: &str, help: &str, out: &mut String) {
+        out.push_str(&format!("# HELP {name} {help}\n# TYPE {name} histogram\n"));
+        if let Ok(m) = self.0.lock() {
+            for (labels, h) in m.iter() {
+                h.render_series(name, labels, out);
+            }
+        }
+    }
+}
+
+/// Counters keyed by their rendered label set.
+#[derive(Default)]
+pub struct CounterVec(Mutex<BTreeMap<String, i64>>);
+
+impl CounterVec {
+    pub fn inc(&self, labels: String) {
+        if let Ok(mut m) = self.0.lock() {
+            *m.entry(labels).or_default() += 1;
+        }
+    }
+
+    fn render(&self, name: &str, help: &str, out: &mut String) {
+        out.push_str(&format!("# HELP {name} {help}\n# TYPE {name} counter\n"));
+        if let Ok(m) = self.0.lock() {
+            for (labels, n) in m.iter() {
+                out.push_str(&format!("{name}{{{labels}}} {n}\n"));
+            }
+        }
+    }
+}
+
+/// Values read when `/metrics` is scraped (not kept in [`Metrics`]).
+#[derive(Default)]
+pub struct Scrape {
+    /// `/readyz` would answer 200.
+    pub ready: bool,
+    pub draining: bool,
+    /// Commit outbox rows still waiting for the host; `None` when the store could not say.
+    pub outbox_pending: Option<usize>,
+}
+
+/// Status class of an HTTP status code: `1xx` … `5xx`.
+pub fn status_class(code: u16) -> &'static str {
+    match code {
+        100..=199 => "1xx",
+        200..=299 => "2xx",
+        300..=399 => "3xx",
+        400..=499 => "4xx",
+        _ => "5xx",
+    }
+}
+
+/// Process metrics under the standard Prometheus client names. Start time everywhere; CPU,
+/// memory, threads and file descriptors from `/proc` on Linux (the container image).
+pub fn process_metrics() -> String {
+    #[allow(unused_mut)]
+    let mut out = format!(
+        "# HELP process_start_time_seconds Start time of the process since the Unix epoch.\n# TYPE process_start_time_seconds gauge\nprocess_start_time_seconds {}\n",
+        *START_TIME
+    );
+    #[cfg(target_os = "linux")]
+    {
+        // USER_HZ is 100 and pages are 4 KiB on every Linux the image targets.
+        if let Ok(stat) = std::fs::read_to_string("/proc/self/stat")
+            && let Some(p) = parse_proc_stat(&stat, 100.0, 4096)
+        {
+            out.push_str(&format!(
+                "# TYPE process_cpu_seconds_total counter\nprocess_cpu_seconds_total {}\n# TYPE process_resident_memory_bytes gauge\nprocess_resident_memory_bytes {}\n# TYPE process_virtual_memory_bytes gauge\nprocess_virtual_memory_bytes {}\n# TYPE process_threads gauge\nprocess_threads {}\n",
+                p.cpu_seconds, p.rss_bytes, p.vsize_bytes, p.threads
+            ));
+        }
+        if let Ok(dir) = std::fs::read_dir("/proc/self/fd") {
+            out.push_str(&format!(
+                "# TYPE process_open_fds gauge\nprocess_open_fds {}\n",
+                dir.count()
+            ));
+        }
+        if let Ok(limits) = std::fs::read_to_string("/proc/self/limits")
+            && let Some(max) = parse_max_fds(&limits)
+        {
+            out.push_str(&format!(
+                "# TYPE process_max_fds gauge\nprocess_max_fds {max}\n"
+            ));
+        }
+    }
+    out
+}
+
+static START_TIME: std::sync::LazyLock<u64> = std::sync::LazyLock::new(|| {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+});
+
+/// Fixes the start time at process start, not at the first scrape.
+pub fn mark_start() {
+    let _ = *START_TIME;
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ProcStat {
+    pub cpu_seconds: f64,
+    pub vsize_bytes: u64,
+    pub rss_bytes: u64,
+    pub threads: u64,
+}
+
+/// Parses `/proc/<pid>/stat` (`man 5 proc`): utime 14, stime 15, num_threads 20, vsize 23,
+/// rss 24 (pages). The command name (field 2) may hold spaces, so split after its `)`.
+pub fn parse_proc_stat(stat: &str, ticks_per_sec: f64, page_size: u64) -> Option<ProcStat> {
+    let rest = &stat[stat.rfind(')')? + 1..];
+    let f: Vec<&str> = rest.split_whitespace().collect();
+    // `f[0]` is field 3 (state), so field n is `f[n - 3]`.
+    let num = |n: usize| f.get(n - 3)?.parse::<u64>().ok();
+    Some(ProcStat {
+        cpu_seconds: (num(14)? + num(15)?) as f64 / ticks_per_sec,
+        threads: num(20)?,
+        vsize_bytes: num(23)?,
+        rss_bytes: num(24)? * page_size,
+    })
+}
+
+/// The soft `Max open files` limit from `/proc/<pid>/limits`.
+pub fn parse_max_fds(limits: &str) -> Option<u64> {
+    limits
+        .lines()
+        .find(|l| l.starts_with("Max open files"))?
+        .split_whitespace()
+        .nth(3)?
+        .parse()
+        .ok()
 }
 
 #[derive(Default)]
@@ -76,6 +251,16 @@ pub struct Metrics {
     /// Agent runs by outcome (`done`, `cancelled`, `limit`, `error`, `refused`).
     pub ai_runs: Mutex<BTreeMap<String, i64>>,
     pub ai_run_seconds: Histogram,
+    /// Launches refused, by error code (`oc_launches_rejected_total{code}`).
+    pub launches_rejected: CounterVec,
+    /// Calls to the host (callbacks or WOPI) by `(host, op)`, and by `(host, op, result)`.
+    pub host_callback_seconds: HistogramVec,
+    pub host_callbacks: CounterVec,
+    /// Exports by `format`, and by `(format, result)`.
+    pub export_seconds: HistogramVec,
+    pub exports: CounterVec,
+    /// HTTP responses by status class.
+    pub http_responses: CounterVec,
 }
 
 impl Metrics {
@@ -87,18 +272,52 @@ impl Metrics {
         c.fetch_sub(1, Ordering::Relaxed);
     }
 
+    /// Records one host call: `op` is `load`, `save`, `copy`, `access`, `members` or `notify`;
+    /// `result` is `ok`, `conflict`, `4xx`, `5xx`, `unreachable` or `error`.
+    pub fn host_call(&self, host: &str, op: &str, result: &str, took: Duration) {
+        self.host_callback_seconds
+            .observe(labels(&[("host", host), ("op", op)]), took);
+        self.host_callbacks
+            .inc(labels(&[("host", host), ("op", op), ("result", result)]));
+    }
+
+    pub fn export(&self, format: &str, ok: bool, took: Duration) {
+        self.export_seconds
+            .observe(labels(&[("format", format)]), took);
+        let result = if ok { "ok" } else { "error" };
+        self.exports
+            .inc(labels(&[("format", format), ("result", result)]));
+    }
+
+    pub fn launch_rejected(&self, code: &str) {
+        Self::inc(&self.launches_rejected_total);
+        self.launches_rejected.inc(labels(&[("code", code)]));
+    }
+
+    /// The `/metrics` text, with the values read at scrape time.
+    pub fn render_with(&self, scrape: &Scrape) -> String {
+        let mut out = self.render();
+        out.push_str(&format!(
+            "# HELP oc_ready 1 when /readyz answers 200 (database reachable, not draining).\n# TYPE oc_ready gauge\noc_ready {}\n# HELP oc_draining 1 while the node drains after SIGTERM.\n# TYPE oc_draining gauge\noc_draining {}\n",
+            u8::from(scrape.ready),
+            u8::from(scrape.draining)
+        ));
+        if let Some(n) = scrape.outbox_pending {
+            out.push_str(&format!(
+                "# HELP oc_commit_outbox_pending Commits waiting for the host (whole store: every node of a cluster reports the same value).\n# TYPE oc_commit_outbox_pending gauge\noc_commit_outbox_pending {n}\n"
+            ));
+        }
+        out.push_str(&process_metrics());
+        out
+    }
+
     pub fn render(&self) -> String {
-        let rows: [(&str, &str, &AtomicI64); 13] = [
+        let rows: [(&str, &str, &AtomicI64); 12] = [
             ("oc_wal_batches_total", "counter", &self.wal_batches_total),
             ("oc_wal_rows_total", "counter", &self.wal_rows_total),
             ("oc_rooms_active", "gauge", &self.rooms_active),
             ("oc_connections_active", "gauge", &self.connections_active),
             ("oc_launches_total", "counter", &self.launches_total),
-            (
-                "oc_launches_rejected_total",
-                "counter",
-                &self.launches_rejected_total,
-            ),
             ("oc_updates_total", "counter", &self.updates_total),
             (
                 "oc_updates_rejected_total",
@@ -160,6 +379,36 @@ impl Metrics {
             "oc_wal_append_seconds",
             "Time to append one batch of updates to the room WAL.",
         ));
+        self.launches_rejected.render(
+            "oc_launches_rejected_total",
+            "Launches refused, by error code.",
+            &mut out,
+        );
+        self.host_callback_seconds.render(
+            "oc_host_callback_seconds",
+            "Time of one call to the host (callbacks or WOPI), by host and operation.",
+            &mut out,
+        );
+        self.host_callbacks.render(
+            "oc_host_callbacks_total",
+            "Calls to the host by host, operation and result.",
+            &mut out,
+        );
+        self.export_seconds.render(
+            "oc_export_seconds",
+            "Time to render one export, by format.",
+            &mut out,
+        );
+        self.exports.render(
+            "oc_exports_total",
+            "Exports by format and result (ok, error).",
+            &mut out,
+        );
+        self.http_responses.render(
+            "oc_http_responses_total",
+            "HTTP responses by status class (WebSocket upgrades count as 1xx).",
+            &mut out,
+        );
         // MOD-01: unknown nodes, marks, attributes, field or shape types seen when reading a
         // .ocanvas or taking a patch/import/MCP write (kept, not refused).
         out.push_str(&format!(
@@ -188,6 +437,40 @@ mod tests {
             "{text}"
         );
         assert!(text.contains("\noc_schema_warnings_total "), "{text}");
+    }
+
+    #[test]
+    fn proc_stat_is_parsed_past_a_command_with_spaces() {
+        let stat = "42 (oc server) S 1 42 42 0 -1 4194560 100 0 0 0 250 50 0 0 20 0 7 0 1234 104857600 2560 18446744073709551615";
+        let p = parse_proc_stat(stat, 100.0, 4096).unwrap();
+        assert_eq!(
+            p,
+            ProcStat {
+                cpu_seconds: 3.0,
+                vsize_bytes: 104_857_600,
+                rss_bytes: 2560 * 4096,
+                threads: 7
+            }
+        );
+        assert_eq!(parse_proc_stat("garbage", 100.0, 4096), None);
+        let limits = "Limit                     Soft Limit           Hard Limit           Units\nMax open files            1048576              1048576              files\n";
+        assert_eq!(parse_max_fds(limits), Some(1_048_576));
+    }
+
+    #[test]
+    fn labelled_series_render_and_escape() {
+        let m = Metrics::default();
+        m.host_call("a\"b", "save", "ok", Duration::from_millis(3));
+        let mut out = String::new();
+        m.host_callback_seconds.render("h", "help", &mut out);
+        assert!(
+            out.contains("h_bucket{host=\"a\\\"b\",op=\"save\",le=\"0.005\"} 1\n"),
+            "{out}"
+        );
+        assert!(
+            out.contains("h_count{host=\"a\\\"b\",op=\"save\"} 1\n"),
+            "{out}"
+        );
     }
 
     #[test]

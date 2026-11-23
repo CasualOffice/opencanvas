@@ -1,0 +1,71 @@
+{{- /*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 CasualOffice
+
+OPS-01: Grafana dashboard ConfigMap (sidecar label), ServiceMonitor and PrometheusRule.
+All three are off by default; the dashboard and the rules come from files/ (single source with
+deploy/monitoring/).
+*/ -}}
+{{- if .Values.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opencanvas.fullname" . }}-dashboard
+  namespace: {{ default .Release.Namespace .Values.grafanaDashboard.namespace }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+    {{ .Values.grafanaDashboard.label }}: {{ .Values.grafanaDashboard.labelValue | quote }}
+  {{- with .Values.grafanaDashboard.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  opencanvas-dashboard.json: |-
+    {{- .Files.Get "files/opencanvas-dashboard.json" | nindent 4 }}
+{{- end }}
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "opencanvas.fullname" . }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "opencanvas.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames: [{{ .Release.Namespace | quote }}]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+      {{- with .Values.serviceMonitor.bearerTokenSecret }}
+      {{- if .name }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ .name }}
+          key: {{ .key }}
+      {{- end }}
+      {{- end }}
+{{- end }}
+{{- if .Values.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "opencanvas.fullname" . }}
+  labels:
+    {{- include "opencanvas.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- .Files.Get "files/opencanvas-alerts.yml" | replace "1073741824" (printf "%d" (int64 .Values.prometheusRule.memoryLimitBytes)) | nindent 2 }}
+{{- end }}

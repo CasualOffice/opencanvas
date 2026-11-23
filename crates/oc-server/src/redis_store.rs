@@ -554,6 +554,14 @@ impl RedisStore {
         self.outbox_read(&ids).await
     }
 
+    /// Number of pending rows (`/metrics`).
+    pub async fn outbox_pending_count(&self) -> anyhow::Result<usize> {
+        Ok(redis::cmd("ZCARD")
+            .arg(OB_PENDING)
+            .query_async(&mut self.c())
+            .await?)
+    }
+
     /// Every pending row, oldest first (tokens sealed).
     pub async fn outbox_all_pending(&self) -> anyhow::Result<Vec<OutboxRow>> {
         let ids: Vec<String> = redis::cmd("ZRANGE")

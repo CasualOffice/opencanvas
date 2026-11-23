@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+#
+# promtool test rules deploy/monitoring/alerts-test.yml   (from deploy/monitoring/)
+# Synthetic series; no timing on a real clock.
+rule_files:
+  - ../helm/opencanvas/files/opencanvas-alerts.yml
+evaluation_interval: 1m
+tests:
+  # Saves fail: 1 error/min and no successes for 30 min.
+  - interval: 1m
+    input_series:
+      - series: 'oc_save_errors_total{namespace="ns",job="opencanvas",instance="a"}'
+        values: '0+1x30'
+      - series: 'oc_saves_total{namespace="ns",job="opencanvas",instance="a"}'
+        values: '5+0x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: OpenCanvasSavesFailing
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: OpenCanvasSavesFailing
+        exp_alerts:
+          - exp_labels: { severity: critical, namespace: ns, job: opencanvas }
+            exp_annotations:
+              summary: "100% of OpenCanvas saves to the host fail"
+              runbook: "docs/13 Dashboards and alerts: OpenCanvasSavesFailing"
+  # Healthy saves do not alert.
+  - interval: 1m
+    input_series:
+      - series: 'oc_save_errors_total{namespace="ns",job="opencanvas",instance="a"}'
+        values: '0+0x30'
+      - series: 'oc_saves_total{namespace="ns",job="opencanvas",instance="a"}'
+        values: '0+3x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: OpenCanvasSavesFailing
+        exp_alerts: []
+  # Outbox grows by one commit a minute.
+  - interval: 1m
+    input_series:
+      - series: 'oc_commit_outbox_pending{namespace="ns",job="opencanvas",instance="a"}'
+        values: '0+1x60'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: OpenCanvasOutboxGrowing
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: OpenCanvasOutboxGrowing
+        exp_alerts:
+          - exp_labels: { severity: warning, namespace: ns, job: opencanvas }
+            exp_annotations:
+              summary: "40 commits wait for the host and the queue keeps growing"
+              runbook: "docs/13 Dashboards and alerts: OpenCanvasOutboxGrowing"
+  # One host's callbacks fail (5xx), the other's work.
+  - interval: 1m
+    input_series:
+      - series: 'oc_host_callbacks_total{namespace="ns",job="opencanvas",instance="a",host="broken",op="save",result="5xx"}'
+        values: '0+2x40'
+      - series: 'oc_host_callbacks_total{namespace="ns",job="opencanvas",instance="a",host="good",op="save",result="ok"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: OpenCanvasHostCallbackErrors
+        exp_alerts:
+          - exp_labels: { severity: warning, namespace: ns, job: opencanvas, host: broken }
+            exp_annotations:
+              summary: "Host broken: 100% of callbacks fail"
+              runbook: "docs/13 Dashboards and alerts: OpenCanvasHostCallbackErrors"
+  # Not ready while not draining fires; draining does not.
+  - interval: 1m
+    input_series:
+      - series: 'oc_ready{namespace="ns",job="opencanvas",instance="a"}'
+        values: '0x10'
+      - series: 'oc_draining{namespace="ns",job="opencanvas",instance="a"}'
+        values: '0x10'
+      - series: 'oc_ready{namespace="ns",job="opencanvas",instance="b"}'
+        values: '0x10'
+      - series: 'oc_draining{namespace="ns",job="opencanvas",instance="b"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: OpenCanvasNotReady
+        exp_alerts:
+          - exp_labels: { severity: critical, namespace: ns, job: opencanvas, instance: a }
+            exp_annotations:
+              summary: "OpenCanvas a is not ready (database unreachable)"
+              runbook: "docs/13 Dashboards and alerts: OpenCanvasNotReady"
+  # Memory over 85 % of 1 GiB for 10 min.
+  - interval: 1m
+    input_series:
+      - series: 'process_resident_memory_bytes{namespace="ns",job="opencanvas",instance="a"}'
+        values: '950000000x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: OpenCanvasMemoryNearLimit
+        exp_alerts:
+          - exp_labels: { severity: warning, namespace: ns, job: opencanvas, instance: a }
+            exp_annotations:
+              summary: "OpenCanvas a uses 906MiB, over 85 % of its memory limit"
+              runbook: "docs/13 Dashboards and alerts: OpenCanvasMemoryNearLimit"
+  # Slow WAL appends: every append in the 0.1 s bucket.
+  - interval: 1m
+    input_series:
+      - series: 'oc_wal_append_seconds_bucket{namespace="ns",job="opencanvas",instance="a",le="0.05"}'
+        values: '0+0x30'
+      - series: 'oc_wal_append_seconds_bucket{namespace="ns",job="opencanvas",instance="a",le="0.1"}'
+        values: '0+100x30'
+      - series: 'oc_wal_append_seconds_bucket{namespace="ns",job="opencanvas",instance="a",le="+Inf"}'
+        values: '0+100x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: OpenCanvasHighSyncLatency
+        exp_alerts:
+          - exp_labels: { severity: warning, namespace: ns, job: opencanvas }
+            exp_annotations:
+              summary: "OpenCanvas WAL append p95 is 97.5ms (edit latency floor; budget 50 ms)"
+              runbook: "docs/13 Dashboards and alerts: OpenCanvasHighSyncLatency"
