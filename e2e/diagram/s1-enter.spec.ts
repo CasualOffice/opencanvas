@@ -35,7 +35,8 @@ test("S1: the Diagram button opens the board full screen; Back to document retur
   await expect(dialog.getByRole("complementary", { name: "Properties" })).toBeVisible();
 
   // Accessibility of the diagram window (WCAG 2.2 AA rules).
-  await page.waitForTimeout(300);
+  // Let the open transition finish (wait for it, not a fixed time).
+  await page.evaluate(() => Promise.all(document.querySelector(".ocdg")!.getAnimations({ subtree: true }).filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
   const r = await new AxeBuilder({ page }).include(".ocdg").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 

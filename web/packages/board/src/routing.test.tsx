@@ -9,7 +9,7 @@
 // the model API only (no UI sets it).
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { BlockEnv } from "@opencanvas/ui";
 import { BoardBlock } from "./index";
@@ -41,7 +41,8 @@ function crosses(p: Pt, q: Pt, b: Box): boolean {
   return p[0] > x0 && p[0] < x1 && Math.max(p[1], q[1]) > y0 && Math.min(p[1], q[1]) < y1;
 }
 
-describe("router", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("router", { timeout: 60_000 }, () => {
   it("goes around a shape between the two ends", () => {
     const A: Box = [0, 0, 100, 60], B: Box = [400, 0, 500, 60], C: Box = [200, -40, 260, 100];
     const r = routeOrthogonal({ p: [100, 30], side: "right" }, { p: [400, 30], side: "left" }, query([A, B, C]));
@@ -129,7 +130,8 @@ function edit(list: Shape[], r: () => number, next: { n: number }): Shape[] {
 const fresh = (resolved: Shape[]) => new AvoidRouter().apply(resolved);
 const pts = (list: Shape[]) => list.filter((s) => s.type === "arrow").map((s) => [s.id, s.pts]);
 
-describe("AvoidRouter", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("AvoidRouter", { timeout: 60_000 }, () => {
   it("draws avoid connectors with their route and every other shape untouched", () => {
     const r = rng(7);
     const raw = board(r);
@@ -210,9 +212,11 @@ describe("AvoidRouter", () => {
     raw = edit(raw, r, { n: 0 });
     router.apply(resolver(raw), 0);
     s.run();
-    await new Promise((res) => setTimeout(res, 50));
-    expect(router.pending.size).toBe(0);
-    expect(landed).toBeGreaterThan(0);
+    // Chunks run on timers: wait for the work to finish, not a fixed time.
+    await vi.waitFor(() => {
+      expect(router.pending.size).toBe(0);
+      expect(landed).toBeGreaterThan(0);
+    }, { timeout: 30_000 });
     expect(pts(router.apply(resolver(raw), 0))).toEqual(pts(fresh(resolver(raw))));
     s.cancel();
   });
@@ -238,7 +242,8 @@ function routed() {
   return { doc, id, a, b, c, e };
 }
 
-describe("routing on the board (model API only)", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("routing on the board (model API only)", { timeout: 60_000 }, () => {
   it("the board draws an avoid connector along its route; the commit stores that route", async () => {
     const { doc, id, a, e } = routed();
     const host = document.createElement("div");

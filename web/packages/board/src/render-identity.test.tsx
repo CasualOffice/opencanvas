@@ -24,8 +24,8 @@ async function mount(doc: Y.Doc, boardId: string) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => root.render(<BoardBlock doc={doc} boardId={boardId} env={env} />));
-  // The board measures itself (and fits) in a frame.
-  await act(async () => void (await new Promise((r) => setTimeout(r, 40))));
+  // Wait for the frames the board measures in (rAF callbacks run in order), not a fixed time.
+  await act(async () => void (await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))));
   return { host, root };
 }
 
@@ -64,7 +64,8 @@ async function edits(fx: ReturnType<typeof makeFixture>, n: number, spread: numb
   }
 }
 
-describe("incremental board rendering", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("incremental board rendering", { timeout: 60_000 }, () => {
   it("with culling (DGM-11): draws the same as a fresh mount at the same view", async () => {
     // A 900 × 700 board: above 300 shapes only those in or near the view are drawn.
     Object.defineProperty(SVGElement.prototype, "clientWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-svg") ? 900 : 0; } });

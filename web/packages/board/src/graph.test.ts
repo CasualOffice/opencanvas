@@ -181,7 +181,8 @@ describe("semantic edges", () => {
   });
 });
 
-describe("arrow resolver", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("arrow resolver", { timeout: 60_000 }, () => {
   it("equals withResolvedArrows and only re-resolves connectors touching a change", () => {
     const { doc, boardId, nodeIds } = makeFixture({ nodes: 400, seed: 11 });
     const p = new BoardProjection(doc, boardId);
@@ -251,7 +252,8 @@ describe("arrow resolver", () => {
   });
 });
 
-describe("spatial index", () => {
+// Heavy suite (fuzz / full board mounts): an explicit timeout for slow CI runners.
+describe("spatial index", { timeout: 60_000 }, () => {
   type Box4 = [number, number, number, number];
   const hits = (boxes: Map<string, Box4>, q: Box4) =>
     [...boxes].filter(([, b]) => b[0] <= q[2] && b[2] >= q[0] && b[1] <= q[3] && b[3] >= q[1]).map(([id]) => id).sort();

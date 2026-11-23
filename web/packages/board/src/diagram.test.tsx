@@ -36,15 +36,18 @@ function mount(node: React.ReactNode, into: HTMLElement = document.body) {
 const key = (el: Element, k: string, o: KeyboardEventInit = {}) => act(() => void el.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...o })));
 const click = async (el: Element | null | undefined) => {
   expect(el).toBeTruthy();
-  await act(async () => {
-    (el as HTMLElement).click();
-    // The diagram chunk loads lazily: give the dynamic import a moment the first time.
-    for (let i = 0; i < 50 && (el as HTMLElement).textContent?.trim() === "Diagram" && !document.querySelector(".ocdg"); i++) await new Promise((r) => setTimeout(r, 5));
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  act(() => (el as HTMLElement).click());
 };
-const settle = () => act(async () => void (await new Promise((r) => setTimeout(r, 0))));
 const shell = () => document.querySelector<HTMLElement>(".ocdg");
+// The diagram chunk loads lazily and leaving runs a transition: wait for the state, never a fixed time.
+// Each poll flushes React's pending work inside act, then checks.
+const until = (check: () => void) =>
+  vi.waitFor(async () => {
+    await act(async () => {});
+    check();
+  }, { timeout: 5_000 });
+const opened = () => until(() => expect(shell()).toBeTruthy());
+const closed = () => until(() => expect(shell()).toBeNull());
 const btn = (root: ParentNode, name: string) => [...root.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === name);
 
 function fixture() {
@@ -54,7 +57,8 @@ function fixture() {
   return { doc, id, a };
 }
 
-describe("diagram mode: entering and leaving (S1)", () => {
+// Heavy jsdom suite (full board mounts): an explicit timeout for slow CI runners.
+describe("diagram mode: entering and leaving (S1)", { timeout: 30_000 }, () => {
   it("the block's top cluster has a labelled Diagram button between Redo and Options", () => {
     const { doc, id } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
@@ -69,6 +73,7 @@ describe("diagram mode: entering and leaving (S1)", () => {
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     const before = Y.encodeStateAsUpdate(doc);
     await click(btn(el, "Diagram"));
+    await opened();
     expect(shell()).toBeTruthy();
     expect(shell()!.getAttribute("role")).toBe("dialog");
     // The board itself moved into the diagram window; the document keeps a placeholder.
@@ -76,6 +81,7 @@ describe("diagram mode: entering and leaving (S1)", () => {
     expect(el.querySelector(".ocbd-ph")).toBeTruthy();
     expect(document.activeElement?.closest(".ocdg")).toBeTruthy();
     await click(btn(shell()!, "Back to document"));
+    await closed();
     expect(shell()).toBeNull();
     expect(document.activeElement).toBe(btn(el, "Diagram"));
     expect(toasts).toEqual(["Back in the document"]);
@@ -90,29 +96,29 @@ describe("diagram mode: entering and leaving (S1)", () => {
     const item = [...el.querySelectorAll('[role="menuitem"]')].find((m) => m.textContent?.includes("Open as diagram"));
     expect(item?.textContent).toContain("⇧D");
     await click(item);
-    expect(shell()).toBeTruthy();
+    await opened();
     await click(btn(shell()!, "Back to document"));
+    await closed();
     key(el.querySelector(".ocbd")!, "D", { shiftKey: true });
-    await settle();
-    expect(shell()).toBeTruthy();
+    await opened();
   });
 
   it("Esc deselects first, then leaves diagram mode (5d)", async () => {
     const { doc, id } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     await click(btn(el, "Diagram"));
+    await opened();
     const board = shell()!.querySelector<HTMLElement>(".ocbd")!;
     key(board, "Tab"); // selects the first shape
     key(board, "Escape");
     expect(shell()).toBeTruthy();
     key(board, "Escape");
-    await settle();
-    expect(shell()).toBeNull();
+    await closed();
     // Esc from the top bar leaves too.
     await click(btn(el, "Diagram"));
+    await opened();
     key(btn(shell()!, "Back to document")!, "Escape");
-    await settle();
-    expect(shell()).toBeNull();
+    await closed();
   });
 
   it("is per person: another view of the same board keeps the ordinary whiteboard", async () => {
@@ -120,6 +126,7 @@ describe("diagram mode: entering and leaving (S1)", () => {
     const mine = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     const lea = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     await click(btn(mine, "Diagram"));
+    await opened();
     expect(document.querySelectorAll(".ocdg")).toHaveLength(1);
     expect(lea.querySelector(".ocbd .ocbd-tool")).toBeTruthy();
     expect(lea.querySelector(".ocbd-ph")).toBeNull();
@@ -130,6 +137,7 @@ describe("diagram mode: entering and leaving (S1)", () => {
     const { doc, id } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env("view")} />);
     await click(btn(el, "Diagram"));
+    await opened();
     expect(btn(shell()!.querySelector("header")!, "Undo")).toBeUndefined();
     expect(btn(shell()!.querySelector("header")!, "Back to document")).toBeTruthy();
   });
@@ -142,6 +150,7 @@ describe("diagram mode: entering and leaving (S1)", () => {
     document.body.appendChild(page);
     mount(<BoardBlock doc={doc} boardId={id} env={env()} />, page);
     await click(btn(page, "Diagram"));
+    await opened();
     expect(shell()!.querySelector(".ocdg-crumb")!.textContent).toBe("Checkout platform/Service map");
     expect(shell()!.getAttribute("aria-label")).toBe("Diagram: Service map");
     const input = shell()!.querySelector<HTMLInputElement>(".ocdg-right input")!;
@@ -162,24 +171,27 @@ describe("diagram mode: entering and leaving (S1)", () => {
     (HTMLElement.prototype as { animate?: unknown }).animate = function (k: Keyframe[]) {
       calls.push(k);
       const a = { cancel() {}, onfinish: null as null | (() => void) };
-      setTimeout(() => a.onfinish?.(), 0);
+      queueMicrotask(() => a.onfinish?.());
       return a;
     };
     try {
       const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
       await click(btn(el, "Diagram"));
+      await opened();
       expect(calls[0]?.[0]).toHaveProperty("clipPath");
       calls.length = 0;
       await click(btn(shell()!, "Back to document"));
-      await settle();
+      await closed();
       expect(calls[0]?.[1]).toHaveProperty("clipPath");
       expect(shell()).toBeNull();
 
       calls.length = 0;
       vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce"), media: q, addEventListener() {}, removeEventListener() {} }));
       await click(btn(el, "Diagram"));
+      await opened();
       expect(shell()).toBeTruthy();
       await click(btn(shell()!, "Back to document"));
+      await closed();
       expect(shell()).toBeNull();
       expect(calls).toHaveLength(0);
     } finally {
