@@ -8,10 +8,12 @@ pub mod diagram_export;
 pub mod diagram_import;
 pub mod diff;
 pub mod doc;
+pub mod doc_icons;
 pub mod docx;
 pub mod export;
 pub mod fonts;
 pub mod html;
+pub mod icon_clean;
 pub mod icons;
 pub mod import;
 pub mod ocanvas;
@@ -36,5 +38,7 @@ pub mod roots {
     pub const ASSETS: &str = "assets";
     /// docs/21 tier 0: who opened the file, `{id → {id, name, detail?, avatar?, lastSeen}}`.
     pub const PEOPLE: &str = "people";
+    /// DGM-17 (ADR-057): icons people added, written by the server only (`doc_icons`).
+    pub const ICONS: &str = "icons";
     pub const MAPS: [&str; 6] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE];
 }

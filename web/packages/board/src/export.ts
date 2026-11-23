@@ -9,7 +9,7 @@ import * as Y from "yjs";
 import { withResolvedArrows } from "./connectors";
 import { contentBounds, getBoardMap, readShapes, smooth, type Pt, type Shape } from "./model";
 import { STICKY_TEXT, stickyHeight, wrapText } from "./ops";
-import { ICON_LABEL, iconGlyphBox, iconLabelLayout, iconPathsOf } from "./icons";
+import { DOC_PREFIX, ICON_KIND, ICON_LABEL, docIconUrls, iconGlyphBox, iconLabelLayout, iconPathsOf, iconProps } from "./icons";
 
 export const EXPORT_PALETTE = {
   bg: "#ffffff",
@@ -103,6 +103,15 @@ function labelBox(s: Shape): { ls: string[]; mx: number; box: [number, number, n
 }
 
 let clipSeq = 0;
+/** `data:` URLs of the icons added to the document being exported (DGM-17), by id. */
+let docIcons: ReadonlyMap<string, string> = new Map();
+/** An icon shape that draws a document icon: its `data:` URL. */
+function docIconOf(s: Shape): string | undefined {
+  if (s.type !== "rect" || s.kind !== ICON_KIND) return undefined;
+  const id = iconProps(s).icon;
+  return id?.startsWith(DOC_PREFIX) ? docIcons.get(id.slice(DOC_PREFIX.length)) : undefined;
+}
+
 function shapeSvg(s: Shape): string {
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = s.h ?? 0;
   const text = s.text ?? "";
@@ -119,6 +128,16 @@ function shapeSvg(s: Shape): string {
         { size: STICKY_TEXT.size, fill: P.stickyFg },
       )}</g>`;
     case "rect": {
+      // An icon added to the document (DGM-17): the tile and the cleaned file as an <image> with a
+      // data: URL (never inline markup), the label outside. As oc-model's `doc_icon_svg`.
+      const url = docIconOf(s);
+      if (url) {
+        const size = Math.min(w, h) * 0.72;
+        const lb = iconLabelLayout(s);
+        return `<g><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="12" fill="${bg}"/><image href="${esc(url)}" x="${n(x + (w - size) / 2)}" y="${n(y + (h - size) / 2)}" width="${n(size)}" height="${n(size)}" preserveAspectRatio="xMidYMid meet"/>${
+          lb ? lines(lb.lines, lb.x, lb.y, ICON_LABEL.lh, { anchor: lb.middle, size: ICON_LABEL.size, weight: 600, fill: P.fg }) : ""
+        }</g>`;
+      }
       // An icon shape (DGM-17): tinted tile, the glyph as inline paths, the label outside.
       const icon = iconPathsOf(s);
       if (icon) {
@@ -194,7 +213,7 @@ function boundsOf(list: Shape[]): [number, number, number, number] {
   const b = contentBounds(list);
   if (!b) return [0, 0, 320, 200];
   for (const s of list) {
-    const box = labelBox(s)?.box ?? (iconPathsOf(s) ? iconLabelLayout(s)?.box : undefined);
+    const box = labelBox(s)?.box ?? (iconPathsOf(s) || docIconOf(s) ? iconLabelLayout(s)?.box : undefined);
     if (!box) continue;
     b[0] = Math.min(b[0], box[0]);
     b[1] = Math.min(b[1], box[1]);
@@ -210,7 +229,8 @@ export function exportBounds(shapes: Shape[]): [number, number, number, number] 
 }
 
 /** Render shapes to a standalone SVG document string. */
-export function shapesToSvg(shapes: Shape[]): string {
+export function shapesToSvg(shapes: Shape[], icons: ReadonlyMap<string, string> = new Map()): string {
+  docIcons = icons;
   const list = prepared(shapes);
   const [x0, y0, x1, y1] = boundsOf(list);
   const W = Math.max(1, Math.ceil(x1 - x0)), H = Math.max(1, Math.ceil(y1 - y0));
@@ -226,7 +246,7 @@ export function shapesToSvg(shapes: Shape[]): string {
 /** Export a board as an SVG string, fitted to its content, in the light palette. */
 export function exportBoardSvg(doc: Y.Doc, boardId: string): string {
   const m = getBoardMap(doc, boardId);
-  return shapesToSvg(m ? readShapes(m) : []);
+  return shapesToSvg(m ? readShapes(m) : [], docIconUrls(doc));
 }
 
 async function inlineImages(shapes: Shape[]): Promise<Shape[]> {

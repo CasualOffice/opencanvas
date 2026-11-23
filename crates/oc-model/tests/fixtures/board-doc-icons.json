@@ -1,0 +1,91 @@
+{
+ "board": {
+  "order": [
+   "d1",
+   "d2",
+   "d4"
+  ],
+  "shapes": {
+   "d1": {
+    "type": "rect",
+    "kind": "icon:node",
+    "kindVersion": 1,
+    "x": 0,
+    "y": 0,
+    "w": 52,
+    "h": 52,
+    "text": "Jitsi Meet",
+    "props": {
+     "icon": "doc:jitsi",
+     "labelPos": "below"
+    }
+   },
+   "d2": {
+    "type": "rect",
+    "kind": "icon:node",
+    "kindVersion": 1,
+    "x": 200,
+    "y": 0,
+    "w": 52,
+    "h": 52,
+    "text": "Acme SSO",
+    "props": {
+     "icon": "doc:acme",
+     "labelPos": "right"
+    }
+   },
+   "d4": {
+    "type": "rect",
+    "kind": "icon:node",
+    "kindVersion": 1,
+    "x": 600,
+    "y": 0,
+    "w": 52,
+    "h": 52,
+    "text": "Removed icon",
+    "props": {
+     "icon": "doc:gone",
+     "labelPos": "below"
+    }
+   }
+  }
+ },
+ "icons": {
+  "jitsi": {
+   "name": "Jitsi Meet",
+   "keywords": [],
+   "format": "svg",
+   "data": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBkPSJNMiAySDIyVjIySDJaIiBmaWxsPSIjMmE1YWQ3Ii8+PC9zdmc+",
+   "width": 24,
+   "height": 24,
+   "bytes": 129,
+   "by": "u1",
+   "byName": "Lea",
+   "at": "2026-11-24T10:00:00Z"
+  },
+  "acme": {
+   "name": "Acme SSO",
+   "keywords": [],
+   "format": "png",
+   "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAEklEQVR4nGPQirr+Hx9mGBkKAEALloGIwrh5AAAAAElFTkSuQmCC",
+   "width": 24,
+   "height": 24,
+   "bytes": 75,
+   "by": "u1",
+   "byName": "Lea",
+   "at": "2026-11-24T10:00:00Z"
+  },
+  "forged": {
+   "name": "Forged",
+   "keywords": [],
+   "format": "svg",
+   "data": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=",
+   "width": 24,
+   "height": 24,
+   "bytes": 71,
+   "by": "u1",
+   "byName": "Lea",
+   "at": "2026-11-24T10:00:00Z"
+  }
+ }
+}
