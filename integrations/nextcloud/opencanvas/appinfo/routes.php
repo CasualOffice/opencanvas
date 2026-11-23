@@ -12,6 +12,8 @@ return [
 		['name' => 'wopi#postFile', 'url' => '/wopi/files/{fileId}', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'wopi#getFile', 'url' => '/wopi/files/{fileId}/contents', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'wopi#putFile', 'url' => '/wopi/files/{fileId}/contents', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],
+		['name' => 'wopi#versions', 'url' => '/wopi/files/{fileId}/versions', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
+		['name' => 'wopi#versionContents', 'url' => '/wopi/files/{fileId}/versions/{version}/contents', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+', 'version' => '\d+']],
 
 		['name' => 'launch#open', 'url' => '/open/{fileId}', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'launch#token', 'url' => '/api/v1/token/{fileId}', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],

@@ -262,6 +262,19 @@ postMessage bridge, admin validation, guest names, file icon).
   up to 100 MB.
 - **Comment role.** Read-only shares get view, not comment, unless an admin turns on the comment
   role (DESIGN.md §5).
-- **Versions.** Each autosave is a version. Nextcloud's version expiry thins them out. Named
-  versions are not supported yet (G3).
+- **Versions (VH-01c).** Each autosave is a version; Nextcloud's expiry thins them out. The app
+  advertises `OpenCanvas_SupportsVersions` and answers `GET {WOPISrc}/versions` and
+  `{WOPISrc}/versions/{v}/contents` over `files_versions` (editors only), so the OpenCanvas history
+  panel lists, previews, compares and restores them. A named or restore save (`X-COOL-WOPI-IsAutosave:
+  false` + `X-OpenCanvas-Commit-Message`) sets the version's Nextcloud **label** and our metadata
+  `opencanvas_kind` / `opencanvas_restored_from` (Nextcloud 29+, `IMetadataVersionBackend`; older
+  servers keep the name only in the file's manifest). Authors are Nextcloud's own `author` metadata
+  (the save runs as the editor). In-file history is off for this host by default (`[host.versions]
+  file = false`, docs/05 §2).
+- **Do labelled versions survive expiry?** Read from Nextcloud 31 `apps/files_versions/lib/Storage.php`
+  (2026-11-24): labelled versions are skipped by the max-age expiry (`expireOlderThanMaxForUser`)
+  and by the quota expiry loop in `expire()`, but **not** by its low-space fallback (oldest
+  versions deleted until the quota fits, no label check), nor when a version has no database row.
+  So named versions are kept in normal operation and can still go when a user runs out of space.
+  Not yet confirmed in a running Nextcloud (the real-host pass for VH-01c is pending).
 - **Locks.** None. An outside change to an open file produces a conflict copy.

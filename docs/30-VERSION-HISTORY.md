@@ -104,7 +104,7 @@ OpenCanvas DB (`room_snapshots` history), is rejected by rule 5.
 | Name a version | `PUT` with `X-OpenCanvas-Autosave: 0` + `X-OpenCanvas-Commit-Message` | Same headers are sent; the host may ignore them. The name is also in the file's manifest | PutFile with `X-COOL-WOPI-IsAutosave: false` + `X-OpenCanvas-Commit-Message`; the app sets the Nextcloud version label (closes G3) | Same PutFile headers; the name is in the manifest | Not offered |
 | Automatic versions | Every save, flagged `X-OpenCanvas-Autosave: 1`; the host collapses or prunes | Same | Every PutFile; Nextcloud's expiry thins them | Host's rule | None |
 | Restore | In the room (§5) | Not offered in OpenCanvas; the host's own restore causes a conflict copy if the canvas is open | In the room (§5). Restoring from Nextcloud's Versions tab while the canvas is open still produces a conflict copy (§10 decision 7) | Host's own UI | — |
-| Retention | Host | Host | Nextcloud expiry; labelled versions are kept by it (to verify on NC 30–32) | Host | Destroyed with the room |
+| Retention | Host | Host | Nextcloud expiry; labelled versions are skipped by its max-age and quota expiry, not by its low-space fallback (NC 31 source, VH-01c) | Host | Destroyed with the room |
 | Diff | Yes | — | Yes | — | — |
 | Who edited | `authors` from the list response, else the version's manifest | — | The app stores authors as version metadata | — | — |
 

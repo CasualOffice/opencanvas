@@ -281,7 +281,7 @@ revoke without this, and switched (read-only / closed) with it.
 |---|---|---|
 | G1 | WOPI mode has no member list or mention notifications | Either call the docs/05 §5 `members`/`mentions` callbacks for WOPI hosts that set `callback_base` (signed like JWT-mode callbacks, keyed by the WOPISrc file id), or read a CheckFileInfo extension `OpenCanvas_MembersUrl`/`OpenCanvas_MentionsUrl` that is proof-signed like other WOPI calls. |
 | G2 | No way to start an empty WOPI file as a database or board | Not needed: the app writes `document.json` starters. A `start=` launch hint would let "New database" create an empty file instead. |
-| G3 | PutFile has no named-version signal (`X-COOL-WOPI-IsAutosave` is always `true`) | Send `X-COOL-WOPI-IsAutosave: false` and `X-OpenCanvas-Commit-Message` on explicit "Save version", so the app can label a Nextcloud version. |
+| G3 | PutFile has no named-version signal (`X-COOL-WOPI-IsAutosave` is always `true`) | Send `X-COOL-WOPI-IsAutosave: false` and `X-OpenCanvas-Commit-Message` on explicit "Save version", so the app can label a Nextcloud version. **Closed 2026-11-24 (VH-01c):** OpenCanvas sends both; the app labels the version. |
 | G4 | Token refresh is a full relaunch | Acceptable (10 h). An `Action_RefreshToken` flow for WOPI hosts would avoid the reload. |
 | G5 | Comment-only sessions cannot save without an editor | Product decision. Either accept, or let the host write commenter saves as the file owner (safe only because proofs show OpenCanvas enforced the role). |
 | G6 | Nextcloud 36 removes `LoadViewer` | Front-end work in the app (listen to `HttpBeforeTemplateRenderedEvent`), not a server gap. |
