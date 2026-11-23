@@ -2,8 +2,10 @@
 // Copyright 2026 CasualOffice
 
 import { Extension, type Editor } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
+import { Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { ySyncPluginKey } from "@tiptap/y-tiptap";
 
 /** Highlights one block for a moment (deep links, the host's Action_ScrollToBlock). A
  *  decoration, not a DOM class: ProseMirror would drop a class on its next render. */
@@ -16,16 +18,121 @@ export const BLOCK_ID_TYPES = [
   "database", "board", "bookmark", "embed", "fileAttachment", "columns",
 ];
 
+const assignKey = new PluginKey("blockIdAssign");
+const ID_TYPES = new Set(BLOCK_ID_TYPES);
+
+/** True when `doc` is the placeholder of a fragment that has not loaded yet (one empty block). */
+function isBlank(doc: PMNode): boolean {
+  const f = doc.firstChild;
+  return doc.childCount === 1 && !!f && f.isTextblock && f.content.size === 0 && !f.attrs.blockId;
+}
+
 /**
- * Keeps the optional `blockId` attribute the host REST API addresses blocks by
- * (`POST /v1/files/:id/patch`). Without a schema attribute ProseMirror drops it on the
- * first local edit. Ids are never copied onto the second half of a split block, so a
- * split cannot create duplicates; the editor does not invent ids itself.
+ * Sets a fresh `blockId` on every block that has none, and on every later copy of an id that is
+ * already used (document order: the first keeps it). Null when nothing needs one. Textblocks'
+ * inline content is never walked, so this stays cheap on every keystroke.
+ */
+export function assignBlockIds(state: EditorState): Transaction | null {
+  if (isBlank(state.doc)) return null;
+  const seen = new Set<string>();
+  const fix: { pos: number; node: PMNode }[] = [];
+  state.doc.descendants((node, pos) => {
+    if (ID_TYPES.has(node.type.name)) {
+      const id = node.attrs.blockId as string | null;
+      if (!id || seen.has(id)) fix.push({ pos, node });
+      else seen.add(id);
+    }
+    return !node.isTextblock && !node.isAtom;
+  });
+  if (!fix.length) return null;
+  const tr = state.tr;
+  for (const { pos, node } of fix) tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: newBlockId() }, node.marks);
+  return tr.setMeta(assignKey, true);
+}
+
+/** A transaction y-prosemirror made from a Yjs change (load, a remote edit, Yjs undo), or one
+ *  another plugin appended to such a transaction. */
+function fromYjs(tr: Transaction): boolean {
+  const root = (tr.getMeta("appendedTransaction") as Transaction | undefined) ?? tr;
+  return !!(root.getMeta(ySyncPluginKey) as { isChangeOrigin?: boolean } | undefined)?.isChangeOrigin;
+}
+
+/** Drops the `blockId`s of a pasted slice that are still in the document (a copy), keeping the
+ *  ones that are not (a cut and paste, or a drag that moves the block, keeps its id). */
+function stripUsedIds(slice: Slice, used: Set<string>): Slice {
+  const map = (f: Fragment): Fragment => {
+    const out: PMNode[] = [];
+    let changed = false;
+    f.forEach((n) => {
+      const id = n.attrs?.blockId as string | null | undefined;
+      const content = n.isTextblock ? n.content : map(n.content);
+      const attrs = id && used.has(id) ? { ...n.attrs, blockId: null } : n.attrs;
+      if (attrs === n.attrs && content === n.content) out.push(n);
+      else {
+        changed = true;
+        out.push(n.type.create(attrs, content, n.marks));
+      }
+    });
+    return changed ? Fragment.from(out) : f;
+  };
+  return new Slice(map(slice.content), slice.openStart, slice.openEnd);
+}
+
+/**
+ * Stable block ids (docs/15 §4, VH-00). Keeps the optional `blockId` attribute the host REST API
+ * (`POST /v1/files/:id/patch`) and version diffs (docs/30 §6) address blocks by: without a schema
+ * attribute ProseMirror would drop it on the first local edit. An editable editor gives every
+ * block without one an id (older documents get theirs on load), a split keeps the id on the first
+ * half only, and a pasted copy of a block that is still in the document gets a new one. Read-only
+ * editors never write. Two editors assigning ids to the same block at once converge (Yjs keeps one
+ * attribute value).
  */
 export const BlockId = Extension.create({
   name: "blockId",
   addProseMirrorPlugins() {
+    const editor = this.editor;
     return [
+      new Plugin({
+        key: assignKey,
+        // A local edit: the ids join the same transaction (and the same undo step). A batch that
+        // started from Yjs is left to `later` (y-prosemirror would not write what is appended to
+        // it, even by another plugin such as the trailing paragraph).
+        appendTransaction: (trs, _old, state) =>
+          editor.isEditable && !trs.some(fromYjs) && trs.some((t) => t.docChanged && !t.getMeta(assignKey)) ? assignBlockIds(state) : null,
+        view: (view) => {
+          // The loaded document and remote changes (a block an older client inserted) arrive from
+          // Yjs; y-prosemirror does not write back what is appended to those, so the ids follow
+          // as their own transaction, outside the undo history.
+          let queued = false;
+          const later = () => {
+            if (queued) return;
+            queued = true;
+            queueMicrotask(() => {
+              queued = false;
+              if (view.isDestroyed || !editor.isEditable) return;
+              const tr = assignBlockIds(view.state);
+              if (tr) view.dispatch(tr.setMeta("addToHistory", false));
+            });
+          };
+          later();
+          return {
+            update: (v, prev) => {
+              if (v.state.doc !== prev.doc && editor.isEditable) later();
+            },
+          };
+        },
+        props: {
+          transformPasted: (slice, view) => {
+            if (view.dragging?.move) return slice;
+            const used = new Set<string>();
+            view.state.doc.descendants((n) => {
+              if (n.attrs.blockId) used.add(n.attrs.blockId as string);
+              return !n.isTextblock;
+            });
+            return used.size ? stripUsedIds(slice, used) : slice;
+          },
+        },
+      }),
       new Plugin<DecorationSet>({
         key: flashKey,
         state: {
