@@ -66,6 +66,25 @@ class ConfigService {
 		return ($p['scheme'] ?? 'https') . '://' . ($p['host'] ?? '') . (isset($p['port']) ? ':' . $p['port'] : '');
 	}
 
+	/** OpenCanvas's browser origin (postMessage target and source check), e.g. https://canvas.example.com. */
+	public function publicOrigin(): string {
+		$p = parse_url($this->publicUrl());
+		if (!is_array($p) || !isset($p['host'])) {
+			return '';
+		}
+		return ($p['scheme'] ?? 'https') . '://' . $p['host'] . (isset($p['port']) ? ':' . $p['port'] : '');
+	}
+
+	/** Lets a page frame OpenCanvas and form-POST the launch into the frame. */
+	public function frameCsp(): \OCP\AppFramework\Http\ContentSecurityPolicy {
+		$csp = new \OCP\AppFramework\Http\ContentSecurityPolicy();
+		if ($this->publicOrigin() !== '') {
+			$csp->addAllowedFrameDomain($this->publicOrigin());
+			$csp->addAllowedFormActionDomain($this->publicOrigin());
+		}
+		return $csp;
+	}
+
 	public function allowPublicLinks(): bool {
 		return $this->appConfig->getValueBool(Application::APP_ID, 'allow_public_links', true);
 	}
@@ -84,6 +103,10 @@ class ConfigService {
 	/** The host's OpenCanvas `api_key` (sensitive; set with occ … --sensitive). Empty = off. */
 	public function apiKey(): string {
 		return $this->appConfig->getValueString(Application::APP_ID, 'opencanvas_api_key', '', true);
+	}
+
+	public function setApiKey(string $key): void {
+		$this->appConfig->setValueString(Application::APP_ID, 'opencanvas_api_key', trim($key), false, true);
 	}
 
 	public function tokenTtl(): int {
@@ -112,6 +135,8 @@ class ConfigService {
 			'wopi_base' => $this->wopiBase(),
 			'allow_public_links' => $this->allowPublicLinks(),
 			'allow_comment_role' => $this->allowCommentRole(),
+			'wopi_base_custom' => $this->appConfig->getValueString(Application::APP_ID, 'wopi_base') !== '',
+			'api_key_set' => $this->apiKey() !== '',
 		];
 	}
 

@@ -15,6 +15,8 @@ return [
 
 		['name' => 'launch#open', 'url' => '/open/{fileId}', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'launch#token', 'url' => '/api/v1/token/{fileId}', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],
+		['name' => 'launch#publicInfo', 'url' => '/api/v1/share/{shareToken}/info', 'verb' => 'GET'],
+		['name' => 'launch#diagnose', 'url' => '/api/v1/diagnose', 'verb' => 'GET'],
 		['name' => 'launch#publicToken', 'url' => '/api/v1/share/{shareToken}/token/{fileId}', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'launch#create', 'url' => '/api/v1/create', 'verb' => 'POST'],
 

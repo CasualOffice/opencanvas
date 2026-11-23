@@ -11,13 +11,14 @@ versions. OpenCanvas does the editing and stores no documents.
 - Nextcloud is a **WOPI host** for OpenCanvas, the same way it is one for Collabora through
   Nextcloud Office.
 - Design and decisions: [DESIGN.md](DESIGN.md).
-- Screens waiting for prototypes: [UI-SCREENS.md](UI-SCREENS.md).
+- Screens: [UI-SCREENS.md](UI-SCREENS.md); approved prototype in
+  `docs/prototypes/nextcloud-approved/`, with screenshots of the built app in its `screenshots/`.
 
 **Status: alpha.**
-- The backend works end to end in a real Nextcloud 31 with real browsers (see "Verified").
-- Every Nextcloud-side screen is an **unstyled placeholder** until its prototype is approved:
-  New-menu entries, file icon, Viewer handler, guest page, Talk, admin page.
-- The front-end sources in `src/` are not built yet.
+- The backend and the approved screens S1-S8, S12 and S13 work end to end in a real Nextcloud 31
+  with real browsers (see "Verified").
+- Talk screens (S9-S11) are not built: canvases shared into Talk open through the Viewer handler,
+  with no Talk-specific card or message action yet.
 
 ## How it works
 
@@ -50,11 +51,21 @@ versions. OpenCanvas does the editing and stores no documents.
 | Share removed | the open canvas closes; opening again is refused |
 | Share changed to read-only | the open canvas switches to read-only |
 
-**New files:**
-- "New canvas" in the Files **+ New** menu creates an empty file. OpenCanvas opens it on its own
-  start screen: blank, database, board, templates, import.
-- `POST /apps/opencanvas/api/v1/create` with `kind = blank | database | whiteboard` creates a
-  starter file. The "New database" and "New whiteboard" menu entries in `src/files.js` call it.
+**In Files:**
+- Clicking a canvas opens it in Nextcloud's **Viewer**; the row's "…" menu has **Open in full
+  page** (`/apps/opencanvas/open/{id}`, with a bar back to the folder, Share and Download).
+- The **+ New** menu has, after a separator: **New canvas** (Nextcloud's own name dialog and
+  template picker; OpenCanvas opens it on its start screen), **New database canvas** and **New
+  whiteboard canvas** (our name dialog, then `POST api/v1/create` with `kind`). The file opens as
+  soon as it is created.
+- `.ocanvas` files show the indigo canvas icon.
+- The Sharing tab shows what each share level means in a canvas. With the admin's comment switch
+  on, a view-only share's advanced settings get **Can comment in OpenCanvas**.
+- **Public links** to a canvas open it under Nextcloud's public header. Guests on edit links give
+  a name first (kept in the browser); view-only guests open at once as "Guest".
+- When a canvas can't open (not set up, OpenCanvas down, proof rejected, over 100 MB, no access,
+  not found, links turned off) a Nextcloud screen says what happened and what to do; admins get
+  the fix.
 
 ## Install
 
@@ -117,19 +128,26 @@ occ config:app:set opencanvas opencanvas_host_id --value=nextcloud
   `occ config:system:set allow_local_remote_servers --value=true --type=boolean`. Otherwise
   Nextcloud refuses to fetch discovery from OpenCanvas.
 
-**4. Check the connection.** As an admin, run:
+**4. Check the connection.** Open **Administration > OpenCanvas**: enter the address (and the
+internal address and API key), save, copy the WOPI base into `wopi_allowlist`, and the
+connection check runs its four steps (OpenCanvas answers, opens `.ocanvas`, publishes a proof
+key, accepts this Nextcloud) with the fix for any failing one. Or, from a shell:
 
 ```sh
 curl -u admin -X POST -H 'OCS-APIREQUEST: true' https://cloud.example.com/index.php/apps/opencanvas/settings/check
 ```
 
-It should answer
-`{"discovery":true,"ocanvasAction":true,"proofKey":true,"wopiBase":"…"}`.
-Put the `wopiBase` it shows into OpenCanvas's `wopi_allowlist`.
+It should answer `{"ok":true,"steps":[…],"discovery":true,"ocanvasAction":true,"proofKey":true,
+"accepts":true,"wopiBase":"…"}`. Put the `wopiBase` it shows into OpenCanvas's `wopi_allowlist`.
 
-**5. Front end:** bundle `src/files.js` and `src/viewer.js` to `js/opencanvas-files.js` and
-`js/opencanvas-viewer.js`. This waits for the approved UI. Until then, open a canvas at
-`/index.php/apps/opencanvas/open/{fileId}` (an unstyled page holding the editor iframe).
+**5. Front end.** The app's screens are built with Nextcloud's standard tooling
+(`@nextcloud/vite-config`, Vue 2.7, `@nextcloud/vue` 8, `@nextcloud/files` 3). Build before
+installing from git; `js/` is not committed, as for other app-store apps:
+
+```sh
+cd opencanvas && npm ci && npm run build   # writes js/opencanvas-{files,viewer,fullpage,public,admin}.mjs
+npm test                                   # JS unit tests (vitest)
+```
 
 ## Verified
 
@@ -181,17 +199,61 @@ again (no `opencanvas_api_key`) brings back both failures.
   app's core classes: PutFile, 409 then conflict copy, starters round-trip, unsigned call
   refused.
 
+**The screens (NC-02), 2026-11-24.** Same setup, the front end built with `npm run build`.
+`tests/browser/nextcloud-ui.e2e.mjs` drives them from the Files list in light and dark and saves
+screenshots to `docs/prototypes/nextcloud-approved/screenshots/<frame>-<theme>.png`:
+
+| Step | Result |
+|---|---|
+| Files list (S2b) | `.ocanvas` rows show the canvas icon |
+| + New (S1a) | "New canvas", "New database canvas", "New whiteboard canvas" last, after a separator |
+| Name dialog (S1c-S1e) | default name selected without the extension; a clash and a "/" are refused in plain words, Create disabled; creating opens the canvas in the Viewer |
+| "New canvas" | Nextcloud's own dialog creates the file and it opens in the Viewer |
+| Click a canvas (S4a, S4b) | spinner, then OpenCanvas in the Viewer; an edit lands in the Nextcloud file |
+| Row "…" (S6b) -> full page (S5a, S5e) | tab "Q1 launch plan - OpenCanvas - Nextcloud", "Files" back to the folder; phone layout moves Share into "…" |
+| Full page "Share" (S5c, S8a) | opens the Files sidebar on Sharing, with "What this means in a canvas" |
+| Unknown id (S5d) | "This canvas isn't available", tab "Canvas not found - OpenCanvas - Nextcloud" |
+| 101 MB file (S13f) | "too large … this one is 101 MB", Download |
+| OpenCanvas unreachable (S4g) | "Can't reach OpenCanvas", Try again |
+| Not set up (S4h, S4i, S12a) | users: calm message; admins: "Open admin settings"; admin page: "Not connected yet" |
+| Admin page (S12h, S12i, S12b) | an address without a scheme is refused before saving; Save, toast, check runs: 4 steps OK |
+| Check failures (S12f, S12c) | WOPI base not on the allow-list: step 4 fails with the `wopi_allowlist` line; internal address dead: step 1 fails, the rest skipped |
+| End all sessions (S12g) | asks first |
+| "Can comment" (S8b) | with the admin switch on, the checkbox is in a view-only share's advanced settings and saves `opencanvas`/`comment` = true |
+| Edit link (S7b, S7c) | name prompt, then the guest edits; the name is remembered on reload |
+| View-only link (S7d) | no prompt, read only |
+| Password link (S7a) | Nextcloud's password page, then the canvas. Before this change the app read an old session key (`public_link_authenticated_token`) and refused every unlocked link; Nextcloud 31 stores `public_link_authenticated_frontend` |
+| Links turned off (S7f) | "This canvas can't be opened from a link … Ask alice to share it" |
+
+```sh
+npm run build
+THEMES=light,dark PLAYWRIGHT=<e2e/node_modules/playwright> NC=http://localhost:8090 \
+  NC_PASS_ADMIN=… NC_PASS_ALICE=… NC_PASS_BOB=… OC_PUBLIC=http://localhost:8480 \
+  OC_INTERNAL=http://host.docker.internal:8480 node opencanvas/tests/browser/nextcloud-ui.e2e.mjs
+```
+
+Unit tests: `php tests/run-without-phpunit.php` 40 passed (adds launch errors, the public-link
+password check and the connection-check report); `npm test` 51 passed (names, error screens,
+postMessage bridge, admin validation, guest names, file icon).
+
 ## Not yet tested
 
 | What | Why |
 |---|---|
-| Opening from the Files list, Viewer modal, "+ New" menu entries, file icon | Their UI is not approved yet (UI-SCREENS S1–S6). `src/*.js` is not built, so tests open `/apps/opencanvas/open/{id}` directly. |
-| Public link guests (incl. password-protected links) | Needs the guest page (S7). The token API exists but has not run in a browser. |
-| Talk (share into a conversation, open beside the call) | Needs S9–S11. Talk was not installed in the test container. |
+| Talk (S9-S11: file card, link card, open beside the call, new canvas in a conversation) | Not built. Talk was not installed in the test container. |
+| Proof rejected (S13d/e), access removed / deleted / conflict while open (S4e, S4f, S4l), session ending (S4j/k) | The Nextcloud side is unit-tested; these states were not driven in this run |
+| Template picker with `.ocanvas` templates (S3) | Stock Nextcloud; without templates it skips the picker (S3c moot), as checked in Nextcloud 31's code |
 | Group shares, folder shares, federated shares; MySQL/PostgreSQL Nextcloud; Nextcloud 30, 32, 36 | Not run |
 | Members list from share recipients, @mention notifications | Not built: OpenCanvas WOPI mode has neither (gap G1 in DESIGN.md) |
 
 ## Limits
+
+- **Viewer header.** Nextcloud's Viewer "…" menu can't take app entries, so "Open in full page" is
+  in the Files row menu only; "View only"/"Download off" badges are in OpenCanvas's own bar.
+- **File icon.** Nextcloud only resolves file-type icons from `core/img/filetypes`. The app shows
+  its icon in the browser (Files, Viewer, public pages) without writing into core; places Nextcloud
+  renders on the server (emails, activity) show the generic document icon.
+- **Full page Share.** It opens the Files sidebar in Files (not beside the full-page canvas).
 
 - **Mentions.** The @mention list is the people who have opened the canvas, not everyone it is
   shared with, and mentions send no Nextcloud notifications (OpenCanvas WOPI mode; DESIGN.md G1).

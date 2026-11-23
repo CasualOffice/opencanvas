@@ -196,6 +196,7 @@ class WopiController extends Controller {
 		}
 		if ($why !== null) {
 			$this->logger->warning('OpenCanvas WOPI proof rejected: {why}', ['app' => 'opencanvas', 'why' => $why]);
+			$this->discovery->markProofFailure();
 			return [null, new JSONResponse([], Http::STATUS_INTERNAL_SERVER_ERROR)];
 		}
 		$claims = $this->tokens->check($token, $fileId);
