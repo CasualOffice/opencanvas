@@ -2015,6 +2015,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             origin={origin}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
+            canvas={{ shapes, sel, select: setSel }}
           >
             {content}
           </Shell>,
