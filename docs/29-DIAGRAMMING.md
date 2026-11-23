@@ -252,3 +252,30 @@ shuffled obstacle order with no obstacle crossed; 10-seed × 15-edit incremental
 (about half the routes recomputed); deferred results with stale versions dropped; the scheduler; the
 board draws and commits the route (seen failing first: drew `M100 30 L400 30`). Readers without a
 router (0.1.x, both exporters) draw the plain elbow.
+
+## 7. Diagram editing UI (DGM-14, built to the approved prototype)
+
+Prototype: `docs/prototypes/diagram-approved/DiagramScreens.html` (approved 2026-11-24, recommended
+options). Code: `web/packages/board/src/diagram/` (its own lazy chunk `diagram`, loaded the first time
+someone opens a board as a diagram; nothing in the initial bundle). Browser specs:
+`e2e/diagram/` (own config, production build in `#demo`, no server stack:
+`cd e2e && npx playwright test -c diagram/playwright.config.ts`).
+
+### 7.1 Entering and leaving (S1, DGM-14.1)
+
+- The block's top cluster gets a labelled **Diagram** button between Redo and Options; under 560 px
+  of board width it folds into the options menu. The menu always has **Open as diagram ⇧D**, and
+  ⇧D works while the board has focus.
+- The diagram window grows from the block's rectangle to the full window in 220 ms (`clip-path`
+  animation), the side panels slide in last; with `prefers-reduced-motion: reduce` it switches at
+  once. Leaving runs it in reverse. The document stays mounted under it (the block keeps a placeholder
+  of its own height), so the scroll position is unchanged.
+- Top bar: Back to document, the document title (its first heading 1) and the board name, people
+  on this board, Undo, Redo, the board options menu. Esc with nothing selected leaves (5d); the canvas
+  deselects first. Leaving puts focus back on the Diagram button and shows "Back in the document".
+- Per person: diagram mode is React state in one view. Nothing about it is written to the document
+  (`diagram.test.tsx` compares the encoded state before and after); other views of the same board
+  keep the ordinary whiteboard.
+- Board names (1d): optional `name` string on the board map (`boards/<id>.name`), set in the
+  diagram's settings panel; additive, ignored by older clients and the exporters. Without a name
+  the bar uses the heading above the block.

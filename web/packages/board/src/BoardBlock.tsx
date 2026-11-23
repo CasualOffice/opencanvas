@@ -9,7 +9,7 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Ellipsis, FileCode2, FileImage, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
-  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, type LucideIcon,
+  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
@@ -24,6 +24,10 @@ import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
 import { AvoidRouter, RouteScheduler } from "./routing";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
+// Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
+type ShellModule = typeof import("./diagram/Shell");
+let shellModule: Promise<ShellModule> | null = null;
+const loadShell = () => (shellModule ??= import("./diagram/Shell"));
 import {
   alignMoves, cloneShapes, distributeMoves, insertShapes, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
   stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
@@ -171,6 +175,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [size, setSize] = useState<[number, number]>([0, 0]);
   const [full, setFull] = useState(false);
   const [active, setActive] = useState(false);
+  // Diagram mode (DGM-14 S1): per person, per board; React state only, never in the document.
+  const [dgm, setDgm] = useState<null | "open" | "closing">(null);
+  const big = full || dgm !== null;
+  const dgmBtn = useRef<HTMLButtonElement>(null);
+  const phRef = useRef<HTMLDivElement>(null);
+  const [phH, setPhH] = useState(0);
+  const [place, setPlace] = useState({ heading: "", title: "" });
+  const refocus = useRef(false);
+  const [Shell, setShell] = useState<ShellModule["default"] | null>(null);
+  const mode = dgm ? "dgm" : full ? "full" : "inline";
   const [draft, setDraftState] = useState<Shape | null>(null);
   const [editing, setEditingState] = useState<{ id: string; text: string } | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
@@ -304,7 +318,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(svg);
     return () => ro?.disconnect();
-  }, [full]);
+  }, [mode]);
   useLayoutEffect(() => {
     if (fitted.current) return;
     const svg = svgRef.current;
@@ -1026,14 +1040,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         zoomAt(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
-      } else if (full) {
+      } else if (big) {
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
       }
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [full]);
+  }, [mode]);
 
   /* ---- keyboard ---- */
   const nudge = (dx: number, dy: number) => {
@@ -1078,7 +1092,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       else if (S.current.sel.length) {
         setSel([]);
         announceSel([]);
-      } else if (full) exitFull();
+      } else if (dgm) closeDiagram();
+      else if (full) exitFull();
+      return;
+    }
+    // Shift+D: open this board as a diagram (1b).
+    if (e.shiftKey && !mod && !e.altKey && k === "d" && !dgm) {
+      e.preventDefault();
+      void openDiagram();
       return;
     }
     if (mod && (e.key === "=" || e.key === "+")) {
@@ -1263,10 +1284,48 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setFull(false);
     if (compact) setActive(false);
   };
+
+  /* ---- diagram mode (DGM-14 S1) ---- */
+  const openDiagram = async () => {
+    setMenu(false);
+    const m = await loadShell();
+    const el = rootRef.current;
+    setPhH(el?.offsetHeight ?? 0);
+    setPlace({ heading: m.headingAbove(el), title: m.documentTitle(el) });
+    setShell(() => m.default);
+    setFull(false);
+    setActive(true);
+    setDgm("open");
+  };
+  const closeDiagram = () => {
+    setMenu(false);
+    setDgm((d) => (d ? "closing" : d));
+  };
+  const diagramClosed = () => {
+    refocus.current = true;
+    setDgm(null);
+    if (compact) setActive(false);
+    env.toast("Back in the document");
+  };
+  // Focus returns to the Diagram button (or the board) so keyboard users land where they started (1e).
   useEffect(() => {
-    if (!full) return;
+    if (dgm === "open") rootRef.current?.focus({ preventScroll: true });
+    if (dgm === null && refocus.current) {
+      refocus.current = false;
+      (dgmBtn.current ?? rootRef.current)?.focus({ preventScroll: true });
+    }
+  }, [dgm]);
+
+  useEffect(() => {
+    if (!full && !dgm) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !editRef.current && !S.current.sel.length) exitFull();
+      if (e.key !== "Escape" || e.defaultPrevented || editRef.current || S.current.sel.length) return;
+      // The canvas handles its own Escape (deselect first); fields keep theirs.
+      const t = e.target as Node | null;
+      if (t && rootRef.current?.contains(t)) return;
+      if (t instanceof HTMLElement && t.closest("input,textarea,select,[contenteditable='true'],[role=menu],[role=listbox]")) return;
+      if (dgm) closeDiagram();
+      else exitFull();
     };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -1275,7 +1334,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [full]);
+  }, [mode]);
 
   // Refit when entering / leaving full screen (the viewport size changes a lot).
   const firstFull = useRef(true);
@@ -1286,7 +1345,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
     const id = requestAnimationFrame(() => fit());
     return () => cancelAnimationFrame(id);
-  }, [full]);
+  }, [mode]);
 
   // Drop selected shapes that disappear (remote delete, undo).
   useEffect(() => {
@@ -1649,6 +1708,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             </button>
           </>
         ) : null}
+        {W >= 560 || !W ? (
+          <button ref={dgmBtn} className="ocbd-dbtn" title="Open as a diagram (Shift+D). Full screen, with shape libraries, ports and auto-layout" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
+            <Workflow size={15} strokeWidth={SW} />
+            Diagram
+          </button>
+        ) : null}
         <button className="ocbd-ib" title="Board options" aria-label="Board options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
           <Ellipsis size={16} strokeWidth={SW} />
         </button>
@@ -1661,6 +1726,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <>
           <div className="ocbd-scrim" onPointerDown={() => setMenu(false)} />
           <div className="ocbd-menu" role="menu" aria-label="Board options">
+            {!dgm ? (
+              <button role="menuitem" className="ocbd-mi" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
+                <Workflow size={16} strokeWidth={SW} />
+                Open as diagram
+                <kbd className="ocbd-kbd" aria-hidden="true">⇧D</kbd>
+              </button>
+            ) : null}
+            {!dgm ? <span className="ocbd-msep" /> : null}
             {edit ? (
               <button role="menuitem" className="ocbd-mi" onClick={() => { setMenu(false); fileRef.current?.click(); }}>
                 <ImagePlus size={16} strokeWidth={SW} />
@@ -1742,6 +1815,34 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     </div>
   );
 
+  if (dgm && Shell && typeof document !== "undefined") {
+    return (
+      <>
+        <div ref={phRef} className="ocbd-ph" style={{ height: phH || (compact ? 300 : 440) }}>Open as a diagram</div>
+        {createPortal(
+          <Shell
+            doc={doc}
+            boardId={boardId}
+            env={env}
+            anchor={() => phRef.current}
+            place={place}
+            closing={dgm === "closing"}
+            onClosed={diagramClosed}
+            onBack={closeDiagram}
+            peers={peers}
+            undo={{ can: !!um?.undoStack.length, run: () => undo() }}
+            redo={{ can: !!um?.redoStack.length, run: () => undo(true) }}
+            menuOpen={menu}
+            onMenu={() => setMenu((m) => !m)}
+            origin={origin}
+          >
+            {content}
+          </Shell>,
+          document.body,
+        )}
+      </>
+    );
+  }
   if (full && typeof document !== "undefined") {
     return (
       <>
