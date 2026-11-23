@@ -187,7 +187,7 @@ fn read_ports(v: &Value) -> Vec<Port> {
             q.get(k)
                 .and_then(Value::as_f64)
                 .filter(|f| f.is_finite())
-                .map(|f| f.max(0.0).min(1.0))
+                .map(|f| f.clamp(0.0, 1.0))
         };
         out.push(Port {
             id: id.to_string(),

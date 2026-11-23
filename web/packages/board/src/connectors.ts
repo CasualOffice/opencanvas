@@ -168,8 +168,18 @@ const r1 = (p: Pt): Pt => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 1
 /** Shapes by id: a `Map`, or anything with its `get`. */
 export type ShapeLookup = { get(id: string): Shape | undefined };
 
+/**
+ * Draws an elbow connector without waypoints between ends `a` and `b` (rounded, as the elbow
+ * gets them) leaving from sides `sa`/`sb` (none for a free end); `null` = the plain elbow.
+ * The obstacle router plugs in here (routing.ts).
+ */
+export type ElbowHook = (a: Pt, sa: Exclude<Anchor, "center"> | undefined, b: Pt, sb: Exclude<Anchor, "center"> | undefined) => Pt[] | null;
+
+/** A connector stored as obstacle-avoiding (ADR-047: `route: "elbow"` + `routing: "avoid"`). */
+export const isAvoid = (s: Shape) => s.type === "arrow" && s.route === "elbow" && s.routing === "avoid";
+
 /** The points an arrow is drawn with, following any bound shapes. */
-export function resolveArrow(s: Shape, byId: ShapeLookup): Pt[] {
+export function resolveArrow(s: Shape, byId: ShapeLookup, onElbow?: ElbowHook): Pt[] {
   const pts = s.pts ?? [];
   if (pts.length < 2 && !(s.start && s.end)) return pts;
   const bs = isBinding(s.start) ? byId.get(s.start.shapeId) : undefined;
@@ -217,7 +227,8 @@ export function resolveArrow(s: Shape, byId: ShapeLookup): Pt[] {
       ab = facing(be, a);
       b = anchorPoint(be, ab);
     }
-    return elbow(r1(a), r1(b), aa, ab);
+    const ra = r1(a), rb = r1(b);
+    return onElbow?.(ra, aa as Exclude<Anchor, "center"> | undefined, rb, ab as Exclude<Anchor, "center"> | undefined) ?? elbow(ra, rb, aa, ab);
   }
   if (bs && aa === "center") a = boundaryToward(bs, rawB);
   if (be && ab === "center") b = boundaryToward(be, rawA);
@@ -290,3 +301,4 @@ export function syncArrows(doc: Y.Doc, boardId: string, ids: Iterable<string>, o
   if (moves.length) moveShapes(doc, boardId, moves, origin);
   return read.size;
 }
+

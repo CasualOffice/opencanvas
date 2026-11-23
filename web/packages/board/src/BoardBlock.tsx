@@ -22,6 +22,7 @@ import { exportBoardPng, exportBoardSvg } from "./export";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
+import { AvoidRouter, RouteScheduler } from "./routing";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 import {
   alignMoves, cloneShapes, distributeMoves, insertShapes, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
@@ -142,11 +143,23 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   // The drawn shapes in a spatial index, updated shape by shape (DGM-11): culling, marquee and
   // connector snapping query it instead of scanning the board. `byId` is its map, kept in place.
   const scene = useMemo(() => new SceneIndex(), []);
+  // Connectors stored with `routing: "avoid"` are drawn along their obstacle-free route (DGM-13);
+  // while dragging they draw as the plain elbow and are re-routed in the background (throttled).
+  const router = useMemo(() => new AvoidRouter(), []);
+  const routes = useMemo(() => new RouteScheduler(router), [router]);
+  const [routeTick, setRouteTick] = useState(0);
+  useEffect(() => router.subscribe(() => setRouteTick((t) => t + 1)), [router]);
+  useEffect(() => () => routes.cancel(), [routes]);
+  const [dragging, setDragging] = useState(false);
   const shapes = useMemo(() => {
-    const out = resolveArrows(raw);
+    const out = router.apply(resolveArrows(raw), dragging ? 0 : 64);
     scene.update(out);
     return out;
-  }, [raw, resolveArrows, scene]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raw, resolveArrows, scene, router, routeTick, dragging]);
+  useEffect(() => {
+    if (router.pending.size) routes.schedule(dragging ? 100 : 0);
+  }, [shapes, router, routes, dragging]);
   const byId = scene.byId;
   const edit = env.role === "edit";
   const compact = env.compact;
@@ -174,7 +187,6 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     editRef.current = v;
     setEditingState(v);
   };
-  const [dragging, setDragging] = useState(false);
   /** Shape + anchor an arrow end would attach to (shown while dragging an end). */
   const [hint, setHint] = useState<Binding | null>(null);
   const [menu, setMenu] = useState(false);
@@ -360,7 +372,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const cand = new Set<string>(list);
     for (const e of resolveArrows.edges.affectedBy(list)) cand.add(e);
     for (const e of resolveArrows.stale) cand.add(e);
-    syncArrows(doc, boardId, cand, origin);
+    let hook;
+    if (router.connectors.size) {
+      // Avoid connectors are routed against the committed state of the changed shapes. All of
+      // them are checked (syncArrows writes only those whose stored pts differ): a cost in the
+      // number of avoid connectors, not the board; narrowing it to `router.affected(fresh)` plus
+      // a stale set is Phase 3.
+      const ys = getBoardMap(doc, boardId)?.get("shapes");
+      const fresh = new Map<string, Shape | undefined>();
+      for (const id of list) {
+        const y = ys instanceof Y.Map ? ys.get(id) : undefined;
+        fresh.set(id, y instanceof Y.Map ? ({ ...(y.toJSON() as Shape), id } as Shape) : undefined);
+      }
+      for (const e of router.connectors) cand.add(e);
+      hook = router.hook(fresh);
+    }
+    syncArrows(doc, boardId, cand, origin, hook);
   };
   const applyMoves = (moves: { id: string; patch: Partial<Shape> }[]) => {
     if (!moves.length) return;

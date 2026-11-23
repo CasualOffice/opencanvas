@@ -38,6 +38,12 @@ export interface Shape {
   /** arrow: "elbow" for an orthogonal route; "straight" (or unset with a binding) for a line */
   route?: ArrowRoute;
   /**
+   * arrow with `route: "elbow"`: "avoid" routes around other shapes (ADR-047, router.ts). Stored
+   * intent only; the route is derived. Older clients and the exporters draw the plain elbow (the
+   * exporters use the stored `pts` while their ends still match).
+   */
+  routing?: "avoid";
+  /**
    * arrow: manual waypoints `[[x,y],…]` the connector passes through, in order. Ends still come
    * from bindings or `pts`; `pts` keeps the resolved path for readers that ignore `via`.
    */
