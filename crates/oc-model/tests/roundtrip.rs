@@ -48,7 +48,6 @@ fn web_block_ids_round_trip_through_document_json_and_ocanvas() {
             id: "c1".into(),
             authors: vec![],
             at: "2026-11-24T00:00:00Z".into(),
-            ..Default::default()
         },
     )
     .unwrap();

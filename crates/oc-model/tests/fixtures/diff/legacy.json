@@ -1,0 +1,213 @@
+{
+  "about": "Blocks without ids (files saved before VH-00): matched by Myers over signatures, then by word similarity. Shared with the web renderer.",
+  "expected": {
+    "blocks": [
+      {
+        "changes": [
+          "text"
+        ],
+        "op": "changed",
+        "path": "/content/1",
+        "text": [
+          [
+            "eq",
+            "We will ship the "
+          ],
+          [
+            "ins",
+            "new "
+          ],
+          [
+            "eq",
+            "editor on "
+          ],
+          [
+            "del",
+            "Friday"
+          ],
+          [
+            "ins",
+            "Monday"
+          ],
+          [
+            "eq",
+            "."
+          ]
+        ],
+        "type": "paragraph"
+      },
+      {
+        "after": {
+          "path": "/content/1"
+        },
+        "node": {
+          "content": [
+            {
+              "text": "Blocked on the design review.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        "op": "removed",
+        "path": "/content/2",
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "taskItem.checked": {
+            "new": true,
+            "old": false
+          }
+        },
+        "changes": [
+          "attrs"
+        ],
+        "op": "changed",
+        "path": "/content/2/content/0/content/0",
+        "type": "paragraph"
+      },
+      {
+        "op": "added",
+        "path": "/content/3",
+        "type": "paragraph"
+      }
+    ],
+    "boards": [],
+    "databases": [],
+    "meta": [],
+    "summary": {
+      "added": 1,
+      "changed": 2,
+      "moved": 0,
+      "removed": 1
+    },
+    "truncated": false
+  },
+  "new": {
+    "boards": {},
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "Standup",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      {
+        "content": [
+          {
+            "text": "We will ship the new editor on Monday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "content": [
+          {
+            "attrs": {
+              "checked": true
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Fix the login bug",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "taskItem"
+          }
+        ],
+        "type": "taskList"
+      },
+      {
+        "content": [
+          {
+            "text": "Next standup on Tuesday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      }
+    ],
+    "databases": {},
+    "meta": {
+      "title": "Standup"
+    },
+    "type": "doc"
+  },
+  "old": {
+    "boards": {},
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "Standup",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      {
+        "content": [
+          {
+            "text": "We will ship the editor on Friday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "content": [
+          {
+            "text": "Blocked on the design review.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "content": [
+          {
+            "attrs": {
+              "checked": false
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Fix the login bug",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "taskItem"
+          }
+        ],
+        "type": "taskList"
+      }
+    ],
+    "databases": {},
+    "meta": {
+      "title": "Standup"
+    },
+    "type": "doc"
+  }
+}
