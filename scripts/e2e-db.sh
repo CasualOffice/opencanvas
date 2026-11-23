@@ -48,7 +48,8 @@ env -u OC_DEV DATABASE_URL="$DBURL" OC_KEK="$(openssl rand -base64 32)" OC_WOPI_
   OC_CALLBACK_BASE_OVERRIDE=$HOST/api/opencanvas \
   OC_AUTOSAVE_DEBOUNCE_MS=500 "$BIN" > "$WORK/oc.log" 2>&1 &
 PIDS+=("$!")
-for _ in $(seq 1 60); do curl -sf "$OC/readyz" >/dev/null && curl -sf "$HOST/healthz" >/dev/null && break; sleep 0.5; done
+# Up to 120 s: a fresh MySQL/MariaDB on a loaded CI runner can take over 30 s to run the migrations.
+for _ in $(seq 1 240); do curl -sf "$OC/readyz" >/dev/null && curl -sf "$HOST/healthz" >/dev/null && break; sleep 0.5; done
 
 fail() { echo "FAIL [$LABEL]: $*"; sed -n '1,40p' "$WORK/oc.log"; exit 1; }
 api() { curl -s -H 'x-opencanvas-host: sample' -H 'x-opencanvas-key: dev-api-key-change-me' "$@"; }

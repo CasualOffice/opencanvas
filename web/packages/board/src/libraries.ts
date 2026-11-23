@@ -20,6 +20,10 @@ import { WIREFRAME } from "./libraries/wireframe";
 import { MOCKUP } from "./libraries/mockup";
 import { ARROWS } from "./libraries/arrows";
 import { SIGNS } from "./libraries/signs";
+import { FLOORPLAN } from "./libraries/floorplan";
+import { ELECTRICAL } from "./libraries/electrical";
+import { RACK } from "./libraries/rack";
+import { CHARTS } from "./libraries/charts";
 
 export type { ConnectorPreset } from "./libraries/geo";
 
@@ -36,7 +40,7 @@ export interface Library {
 
 /** Every bundled library, in panel order, including flagged ones. */
 export const ALL_LIBRARIES: readonly LibraryData[] = [
-  BASIC, FLOWCHART, UML, ERD, NETWORK, BPMN, MINDMAP, ORG, WIREFRAME, MOCKUP, ARROWS, SIGNS,
+  BASIC, FLOWCHART, UML, ERD, NETWORK, BPMN, MINDMAP, ORG, WIREFRAME, MOCKUP, ARROWS, SIGNS, FLOORPLAN, ELECTRICAL, RACK, CHARTS,
 ];
 
 const toLibrary = (l: LibraryData): Library => ({ id: l.id, name: l.name, icon: l.icon, kinds: l.items.map((i) => `${l.id}:${i.name}`) });
