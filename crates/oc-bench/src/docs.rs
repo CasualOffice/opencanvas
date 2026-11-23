@@ -262,6 +262,7 @@ pub fn ocanvas(kind: DocKind) -> anyhow::Result<Option<Vec<u8>>> {
         id: "seed".into(),
         authors: vec![],
         at: "2026-11-21T00:00:00Z".into(),
+        ..Default::default()
     };
     Ok(Some(write_ocanvas(&doc, &commit)?))
 }

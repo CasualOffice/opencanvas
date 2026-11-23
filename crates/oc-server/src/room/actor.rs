@@ -23,7 +23,7 @@ use super::{
     Rooms, filter, presence, protocol,
 };
 use crate::grant::{Grant, Role};
-use crate::host_client::{Fetched, HostError, PutOutcome, PutRequest};
+use crate::host_client::{Fetched, HostError, PutOutcome, PutRequest, SaveMeta};
 use crate::hosts::{ConflictPolicy, HostConfig};
 use crate::metrics::Metrics;
 use crate::people;
@@ -69,15 +69,18 @@ struct Pending {
     if_match: Option<String>,
     authors: Vec<String>,
     token: String,
+    meta: SaveMeta,
 }
 
 impl From<OutboxRow> for Pending {
     fn from(r: OutboxRow) -> Self {
+        let meta = SaveMeta::from_ocanvas(&r.payload);
         Self {
             id: r.id,
             seq: r.seq,
             body: Arc::new(r.payload),
             if_match: r.base_version,
+            meta,
             authors: r.authors,
             token: r.token,
         }
@@ -132,6 +135,11 @@ struct Room {
     seq: i64,
     compacted_seq: i64,
     last_compact: Instant,
+    /// When the last checkpoint save started (docs/30 §4: a save is a checkpoint again after
+    /// `checkpoint_every` of editing).
+    last_checkpoint: Instant,
+    /// What the next commit is, when someone asked for more than an autosave (VH-01b).
+    next_meta: Option<SaveMeta>,
     /// Upper bound of the encoded doc size (exact after load and compaction).
     doc_bytes: usize,
     save: SaveState,
@@ -482,6 +490,8 @@ impl Room {
             seq,
             compacted_seq: seq,
             last_compact: Instant::now(),
+            last_checkpoint: Instant::now(),
+            next_meta: None,
             save: SaveState {
                 pending,
                 ..SaveState::default()
@@ -1724,10 +1734,23 @@ impl Room {
         }
         let id = ulid::Ulid::new().to_string();
         let authors: Vec<String> = self.contributors.iter().cloned().collect();
+        let mut meta = self.next_meta.take().unwrap_or_default();
+        // docs/30 §4: the last save of a room, the first after `checkpoint_every` of editing,
+        // and every named or restore save are checkpoints.
+        meta.checkpoint = meta.checkpoint
+            || meta.kind != oc_model::ocanvas::CommitKind::Auto
+            || self.peers.is_empty()
+            || self.last_checkpoint.elapsed() >= self.ctx.cfg.checkpoint_every;
+        if meta.checkpoint {
+            self.last_checkpoint = Instant::now();
+        }
         let commit = oc_model::CommitInfo {
             id: id.clone(),
             authors: authors.clone(),
             at: rfc3339(now_ms()),
+            kind: meta.kind,
+            message: meta.message.clone(),
+            restored_from: meta.restored_from.clone(),
         };
         let body = oc_model::write_ocanvas(&self.doc, &commit).map_err(|e| e.to_string())?;
         let row = OutboxRow {
@@ -1760,7 +1783,8 @@ impl Room {
             }
             return Err(format!("writing the commit outbox failed: {e}"));
         }
-        let pending = Pending::from(row);
+        let mut pending = Pending::from(row);
+        pending.meta = meta;
         self.save.pending = Some(pending.clone());
         Ok(pending)
     }
@@ -1813,6 +1837,7 @@ impl Room {
             key: p.id.clone(),
             authors: p.authors.clone(),
             body: p.body.clone(),
+            meta: p.meta.clone(),
         }
     }
 
@@ -1917,6 +1942,7 @@ impl Room {
                     id: key.clone(),
                     authors: self.contributors.iter().cloned().collect(),
                     at: rfc3339(now_ms()),
+                    ..Default::default()
                 };
                 match oc_model::write_ocanvas(&self.doc, &commit) {
                     Ok(b) => Some(b),
@@ -2155,6 +2181,7 @@ struct PutPayload {
     key: String,
     authors: Vec<String>,
     body: Arc<Vec<u8>>,
+    meta: SaveMeta,
 }
 
 impl PutPayload {
@@ -2167,6 +2194,7 @@ impl PutPayload {
                 if_match: self.if_match.as_deref(),
                 idempotency_key: &self.key,
                 authors: &self.authors,
+                meta: &self.meta,
             };
             match ctx.host.put_file(&self.host, token, req).await {
                 Err(HostError::Status(s))

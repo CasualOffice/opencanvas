@@ -454,16 +454,72 @@ pub enum PutResult {
 
 /// The headers of a PutFile (besides the body): `X-WOPI-Override: PUT`, the timestamp the
 /// session started from, and the Collabora autosave flags.
-pub fn put_headers(timestamp: Option<&str>) -> Vec<(&'static str, String)> {
+pub fn put_headers(
+    timestamp: Option<&str>,
+    meta: &crate::host_client::SaveMeta,
+) -> Vec<(&'static str, String)> {
+    let auto = meta.kind == oc_model::ocanvas::CommitKind::Auto;
     let mut h = vec![
         ("X-WOPI-Override", "PUT".to_string()),
-        ("X-COOL-WOPI-IsAutosave", "true".to_string()),
+        // A named or restore save is not an autosave (docs/30 §3.2; closes Nextcloud G3).
+        ("X-COOL-WOPI-IsAutosave", auto.to_string()),
         ("X-COOL-WOPI-IsModifiedByUser", "true".to_string()),
     ];
     if let Some(t) = timestamp.filter(|t| !t.starts_with(VERSION_PREFIX)) {
         h.push(("X-COOL-WOPI-Timestamp", t.to_string()));
     }
+    for (k, v) in meta.jwt_headers() {
+        if k != "X-OpenCanvas-Autosave" {
+            h.push((k, v));
+        }
+    }
     h
+}
+
+/// `{WOPISrc}/<segments…>?access_token=` (the OpenCanvas version extensions, docs/30 §3.2).
+fn ext_url(src: &Url, segments: &[&str], token: &str) -> Url {
+    let mut u = src.clone();
+    if let Ok(mut segs) = u.path_segments_mut() {
+        segs.pop_if_empty().extend(segments);
+    }
+    u.query_pairs_mut().append_pair("access_token", token);
+    u
+}
+
+/// Extension `GET {WOPISrc}/versions?access_token=[&cursor=]`: the host's version list.
+pub async fn list_versions(
+    http: &reqwest::Client,
+    proof: Option<&ProofKeys>,
+    src: &Url,
+    token: &str,
+    cursor: Option<&str>,
+) -> Result<Value, HostError> {
+    let mut url = ext_url(src, &["versions"], token);
+    if let Some(c) = cursor {
+        url.query_pairs_mut().append_pair("cursor", c);
+    }
+    let res = send(http.get(url.clone()), proof, &url, token).await?;
+    if !res.status().is_success() {
+        return Err(HostError::Status(res.status()));
+    }
+    let bytes = body(res, 1024 * 1024).await?;
+    serde_json::from_slice(&bytes).map_err(|_| HostError::Body("version list is not JSON".into()))
+}
+
+/// Extension `GET {WOPISrc}/versions/{v}/contents?access_token=`: one version's bytes.
+pub async fn get_version(
+    http: &reqwest::Client,
+    proof: Option<&ProofKeys>,
+    src: &Url,
+    token: &str,
+    version: &str,
+) -> Result<Bytes, HostError> {
+    let url = ext_url(src, &["versions", version, "contents"], token);
+    let res = send(http.get(url.clone()), proof, &url, token).await?;
+    if !res.status().is_success() {
+        return Err(HostError::Status(res.status()));
+    }
+    body(res, crate::host_client::MAX_VERSION_BYTES).await
 }
 
 /// `POST {WOPISrc}/contents?access_token=` with `X-WOPI-Override: PUT` → PutFile.
@@ -474,12 +530,13 @@ pub async fn put_contents(
     token: &str,
     body_bytes: Vec<u8>,
     timestamp: Option<&str>,
+    meta: &crate::host_client::SaveMeta,
 ) -> Result<PutResult, HostError> {
     let url = with_token(src, true, token);
     let mut rb = http
         .post(url.clone())
         .header(header::CONTENT_TYPE, "application/octet-stream");
-    for (k, v) in put_headers(timestamp) {
+    for (k, v) in put_headers(timestamp, meta) {
         rb = rb.header(k, v);
     }
     let res = send(rb.body(body_bytes), proof, &url, token).await?;
@@ -715,7 +772,7 @@ mod tests {
         let i = with(json!({"Version": "9"}));
         assert_eq!(i.stamp().as_deref(), Some("v:9"));
         assert!(
-            put_headers(i.stamp().as_deref())
+            put_headers(i.stamp().as_deref(), &Default::default())
                 .iter()
                 .all(|(k, _)| *k != "X-COOL-WOPI-Timestamp")
         );
@@ -749,13 +806,13 @@ mod tests {
 
     #[test]
     fn put_headers_carry_the_cool_flags() {
-        let h = put_headers(Some("2026-11-21T10:00:00Z"));
+        let h = put_headers(Some("2026-11-21T10:00:00Z"), &Default::default());
         let get = |k: &str| h.iter().find(|(n, _)| *n == k).map(|(_, v)| v.as_str());
         assert_eq!(get("X-WOPI-Override"), Some("PUT"));
         assert_eq!(get("X-COOL-WOPI-Timestamp"), Some("2026-11-21T10:00:00Z"));
         assert_eq!(get("X-COOL-WOPI-IsAutosave"), Some("true"));
         assert_eq!(get("X-COOL-WOPI-IsModifiedByUser"), Some("true"));
-        assert_eq!(put_headers(None).len(), 3);
+        assert_eq!(put_headers(None, &Default::default()).len(), 3);
     }
 
     #[test]

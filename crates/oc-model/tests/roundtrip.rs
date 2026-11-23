@@ -20,6 +20,47 @@ fn block_ids(v: &serde_json::Value) -> Vec<String> {
     out
 }
 
+/// VH-01a: a save describes itself in its manifest (docs/30 §2 c2), additively.
+#[test]
+fn manifest_carries_commit_kind_name_and_restored_from() {
+    use oc_model::ocanvas::{CommitKind, read_manifest};
+    let doc = new_doc();
+    apply_document_json(&doc, &sample());
+    let named = write_ocanvas(
+        &doc,
+        &CommitInfo {
+            id: "c2".into(),
+            authors: vec!["u_1".into()],
+            at: "2026-11-24T10:00:00Z".into(),
+            kind: CommitKind::Named,
+            message: Some("Board review ready".into()),
+            restored_from: None,
+        },
+    )
+    .unwrap();
+    let m = read_manifest(&named).unwrap();
+    assert_eq!(m["commit"]["kind"], "named");
+    assert_eq!(m["commit"]["message"], "Board review ready");
+    assert!(m["commit"].get("restoredFrom").is_none());
+    let restore = write_ocanvas(
+        &doc,
+        &CommitInfo {
+            kind: CommitKind::Restore,
+            message: Some("Restored from Nov 21, 10:14".into()),
+            restored_from: Some("18".into()),
+            ..CommitInfo::default()
+        },
+    )
+    .unwrap();
+    let m = read_manifest(&restore).unwrap();
+    assert_eq!(m["commit"]["kind"], "restore");
+    assert_eq!(m["commit"]["restoredFrom"], "18");
+    // Automatic saves say so; readers that do not know the fields still load the file.
+    let auto = write_ocanvas(&doc, &CommitInfo::default()).unwrap();
+    assert_eq!(read_manifest(&auto).unwrap()["commit"]["kind"], "auto");
+    assert_eq!(doc_to_json(&read_ocanvas(&auto).unwrap().doc), doc_to_json(&doc));
+}
+
 /// VH-00: block ids as the web editor writes them (shared fixture, made by
 /// `web/packages/editor/scripts/blockids-fixture.mjs` and read by `blockId.test.ts`) survive
 /// Yjs → `document.json` → `.ocanvas` → Yjs, and `document.json` alone.
@@ -48,6 +89,7 @@ fn web_block_ids_round_trip_through_document_json_and_ocanvas() {
             id: "c1".into(),
             authors: vec![],
             at: "2026-11-24T00:00:00Z".into(),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -93,6 +135,7 @@ fn ocanvas_round_trip_preserves_doc_and_crdt_state() {
             id: "c1".into(),
             authors: vec!["u_1".into()],
             at: "2026-11-21T00:00:00Z".into(),
+            ..Default::default()
         },
     )
     .unwrap();
