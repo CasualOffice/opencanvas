@@ -211,6 +211,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   /** Equal-gap marks while moving (3a). */
   const [gaps, setGaps] = useState<GapMark[] | null>(null);
   const mode = dgm ? "dgm" : full ? "full" : "inline";
+  const asDiagram = raw.some((s) => !!s.kind) || !!getBoardMap(doc, boardId)?.get("name");
   const [draft, setDraftState] = useState<Shape | null>(null);
   const [editing, setEditingState] = useState<{ id: string; text: string } | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
@@ -392,6 +393,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setView({ z, tx: (W - bw * z) / 2 - b[0] * z, ty: pad + (H - pad - bottom - bh * z) / 2 - b[1] * z });
   };
   const fit = () => fitBox(contentBounds(S.current.shapes));
+  /** Diagram Go to (S5): the shape in the middle of the view, zoom unchanged. */
+  const revealShape = (id: string) => {
+    const s = S.current.byId.get(id), svg = svgRef.current;
+    if (!s || !svg) return;
+    const [x0, y0, x1, y1] = bbox(s);
+    setView((v) => ({ ...v, tx: svg.clientWidth / 2 - ((x0 + x1) / 2) * v.z, ty: svg.clientHeight / 2 - ((y0 + y1) / 2) * v.z }));
+  };
 
   /* ---- writes (batched per frame, one transaction) ---- */
   const flush = () => {
@@ -1238,6 +1246,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       } else if (big) {
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
+      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // A sideways swipe pans the board; left to the browser it becomes Back at the page edge.
+        e.preventDefault();
+        setView((v) => ({ ...v, tx: v.tx - e.deltaX }));
       }
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
@@ -1509,6 +1521,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setDgm((d) => (d ? "closing" : d));
   };
   const diagramClosed = () => {
+    // Only a close that is still in progress ends diagram mode: a late "closed" from an earlier
+    // close must not shut a diagram reopened in the meantime.
+    if (S.current.dgm !== "closing") return;
     refocus.current = true;
     setDgm(null);
     if (compact) setActive(false);
@@ -2095,13 +2110,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <button
           className="ocbd-cover"
           onClick={() => {
+            // 11a: a board made as a diagram (a named board, or diagram kinds in it) opens as one.
+            if (asDiagram) return void openDiagram();
             setActive(true);
             setFull(true);
           }}
         >
           <span>
-            <Pencil size={14} strokeWidth={SW} />
-            {edit ? "Tap to open board" : "Tap to view board"}
+            {asDiagram ? <Maximize2 size={14} strokeWidth={SW} /> : <Pencil size={14} strokeWidth={SW} />}
+            {asDiagram ? "Open diagram" : edit ? "Tap to open board" : "Tap to view board"}
           </span>
         </button>
       ) : null}
@@ -2134,7 +2151,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             onAddShape={(kind) => (kind.startsWith(PRESET) ? usePreset(kind) : addKind(kind))}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
-            canvas={{ shapes, sel, select: setSel }}
+            canvas={{ shapes, sel, select: setSel, reveal: revealShape }}
             view={view}
             selection={sel}
           >

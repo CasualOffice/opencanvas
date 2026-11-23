@@ -4,6 +4,7 @@
 // Diagram keyboard and outline logic (DGM-14 S5, prototype 5a-5d). Pure, no rendering.
 import { bbox, type Shape } from "../model";
 import { BINDABLE, type Binding } from "../connectors";
+import { isContainer } from "../kinds";
 
 const TYPE: Record<string, string> = { sticky: "Sticky note", rect: "Rectangle", ellipse: "Ellipse", diamond: "Diamond", text: "Text", arrow: "Connector", pen: "Drawing", swatch: "Colour swatch", image: "Image" };
 
@@ -14,7 +15,7 @@ export const shapeName = (s: Shape) => {
 export const kindName = (s: Shape) => TYPE[s.type] ?? "Shape";
 
 /** A container is a frame-like rectangle (has a corner label, or is dashed) that holds other shapes. */
-const isFrame = (s: Shape) => s.type === "rect" && (!!s.label || !!s.dashed);
+const isFrame = (s: Shape) => isContainer(s) || (s.type === "rect" && (!!s.label || !!s.dashed));
 const inside = (a: Shape, b: Shape) => {
   const [ax0, ay0, ax1, ay1] = bbox(a), [bx0, by0, bx1, by1] = bbox(b);
   return a !== b && ax0 >= bx0 && ay0 >= by0 && ax1 <= bx1 && ay1 <= by1;
