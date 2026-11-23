@@ -79,8 +79,8 @@ jobs:
             check rules ../helm/opencanvas/files/opencanvas-alerts.yml
           docker run --rm -v "$PWD/deploy":/w -w /w/monitoring --entrypoint promtool prom/prometheus:v3.5.0 \
             test rules alerts-test.yml
-          helm template oc opencanvas --set gotenberg.enabled=true --set gotenberg.mode=sidecar --set dev=true > /dev/null
-          if helm template oc opencanvas --set dev=true --set replicaCount=2 > /dev/null 2>&1; then
+          helm template oc deploy/helm/opencanvas --set gotenberg.enabled=true --set gotenberg.mode=sidecar --set dev=true > /dev/null
+          if helm template oc deploy/helm/opencanvas --set dev=true --set replicaCount=2 > /dev/null 2>&1; then
             echo "SQLite with 2 replicas must be refused"; exit 1
           fi
 
