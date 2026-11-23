@@ -15,6 +15,7 @@ use serde_json::json;
 
 use super::{ApiError, session};
 use crate::host_client::HostError;
+use crate::hosts::HostConfig;
 use crate::metrics::Metrics;
 use crate::util::{now_ms, now_secs};
 use crate::wopi;
@@ -130,11 +131,26 @@ fn rejected(state: &SharedState, status: StatusCode, code: &'static str, msg: St
     ApiError::new(status, code, msg)
 }
 
-fn redirect_to_app(ticket: &str) -> Response {
+/// `/app/#t=<ticket>`, or `/app/?h=<host id>#t=<ticket>` for a host with its own
+/// `frame_ancestors`, so that page is served with them (routes/mod.rs `security_headers`).
+fn redirect_to_app(host: &HostConfig, ticket: &str) -> Response {
+    let page = if host.frame_ancestors.is_empty() {
+        "/app/".to_string()
+    } else {
+        let mut h = String::new();
+        for b in host.id.bytes() {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+                h.push(b as char);
+            } else {
+                h.push_str(&format!("%{b:02X}"));
+            }
+        }
+        format!("/app/?h={h}")
+    };
     (
         StatusCode::SEE_OTHER,
         [
-            (header::LOCATION, format!("/app/#t={ticket}")),
+            (header::LOCATION, format!("{page}#t={ticket}")),
             (header::CACHE_CONTROL, "no-store".into()),
         ],
     )
@@ -226,7 +242,7 @@ async fn launch_wopi(
         .map_err(ApiError::internal)?;
     Metrics::inc(&state.metrics.launches_total);
     tracing::info!(host = %host.id, room = %grant.room, role = grant.role.as_str(), "WOPI launch accepted");
-    Ok(redirect_to_app(&ticket))
+    Ok(redirect_to_app(&host, &ticket))
 }
 
 /// `GET /hosting/discovery` (WOPI discovery XML).
@@ -317,7 +333,7 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
         .map_err(ApiError::internal)?;
     Metrics::inc(&state.metrics.launches_total);
     tracing::info!(host = %host.id, room = %grant.room, role = grant.role.as_str(), "launch accepted");
-    Ok(redirect_to_app(&ticket))
+    Ok(redirect_to_app(&host, &ticket))
 }
 
 fn ws_url(state: &SharedState, headers: &HeaderMap) -> String {

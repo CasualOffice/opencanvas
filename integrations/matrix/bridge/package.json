@@ -1,0 +1,13 @@
+{
+  "name": "opencanvas-matrix-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "OpenCanvas host for Matrix rooms: widget page, OpenID verification, launch tokens",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

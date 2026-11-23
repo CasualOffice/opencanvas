@@ -46,6 +46,13 @@ pub struct HostConfig {
     pub wopi_allowlist: Vec<String>,
     #[serde(default)]
     pub allowed_origins: Vec<String>,
+    /// Extra origins that may frame **this host's** editor (CSP `frame-ancestors`), on top of
+    /// every host's `allowed_origins`. Unlike `allowed_origins` they are not server-wide: the
+    /// launch then redirects to `/app/?h=<host id>` and only that page carries them. For hosts
+    /// whose editor is nested in pages of many origins (a Matrix widget inside any client).
+    /// Empty (default): today's behaviour.
+    #[serde(default)]
+    pub frame_ancestors: Vec<String>,
     /// Origins exports may fetch images from (e.g. a CDN), besides the `callback_base` origin,
     /// which is always allowed. Requests to these extra origins are not signed and carry no
     /// callback token.

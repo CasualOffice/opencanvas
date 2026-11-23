@@ -17,6 +17,7 @@ pub mod unfurl;
 
 pub use collab::write_frames;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Router;
@@ -144,6 +145,27 @@ fn default_csp(frame_ancestors: &str) -> String {
     )
 }
 
+/// The `h` query parameter of an editor URL (percent-decoded), naming the launching host.
+/// It only selects the frame-ancestors policy configured for that host and grants nothing:
+/// the editor holds no cookies, its session is the ticket in the fragment.
+fn app_host(query: Option<&str>) -> Option<String> {
+    let raw = query?.split('&').find_map(|p| p.strip_prefix("h="))?;
+    let b = raw.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            let hex = std::str::from_utf8(&b[i + 1..i + 3]).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 /// Baseline headers (SEC-01). A handler's own CSP (sandboxed assets and exports) is kept and
 /// only gets `frame-ancestors` appended; everything else gets [`default_csp`].
 async fn security_headers(
@@ -178,6 +200,21 @@ pub fn router(state: SharedState) -> Router {
     let fa: Arc<str> = frame_ancestors(&origins).into();
     let default = HeaderValue::from_str(&default_csp(&fa))
         .unwrap_or_else(|_| HeaderValue::from_static("frame-ancestors 'self'"));
+    // Hosts with their own `frame_ancestors`: the editor page `/app/?h=<id>` gets the
+    // server-wide list plus theirs (MX-01). Nothing else changes for anyone.
+    let per_host: Arc<HashMap<String, HeaderValue>> = Arc::new(
+        state
+            .hosts
+            .iter()
+            .filter(|h| !h.frame_ancestors.is_empty())
+            .filter_map(|h| {
+                let mut o = origins.clone();
+                o.extend(h.frame_ancestors.iter().cloned());
+                let v = HeaderValue::from_str(&default_csp(&frame_ancestors(&o))).ok()?;
+                Some((h.id.clone(), v))
+            })
+            .collect(),
+    );
     // Patch / convert bodies: up to the document cap (at least 1 MB).
     let body_limit = state.cfg.rooms.max_doc_bytes.max(1024 * 1024);
     let web = &state.cfg.web_dir;
@@ -228,9 +265,20 @@ pub fn router(state: SharedState) -> Router {
         // Host pages load the embed SDK from here (docs/05 §4).
         .route_service("/sdk/embed.js", ServeFile::new(web.join("sdk/embed.js")))
         .layer(cors)
-        .layer(axum::middleware::map_response(move |res: Response| {
-            security_headers(fa.clone(), default.clone(), res)
-        }))
+        .layer(axum::middleware::from_fn(
+            move |req: Request<axum::body::Body>, next: axum::middleware::Next| {
+                let (fa, default, per_host) = (fa.clone(), default.clone(), per_host.clone());
+                async move {
+                    let own = if req.uri().path().starts_with("/app/") {
+                        app_host(req.uri().query()).and_then(|h| per_host.get(&h).cloned())
+                    } else {
+                        None
+                    };
+                    let res = next.run(req).await;
+                    security_headers(fa, own.unwrap_or(default), res).await
+                }
+            },
+        ))
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<_>| {
             tracing::info_span!("http", method = %req.method(), path = %redacted_path(req.uri().path()))
         }))

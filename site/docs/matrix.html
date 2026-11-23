@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Element / Matrix | OpenCanvas</title>
+<meta name="description" content="Add a shared canvas to Matrix rooms as an Element widget: identity checked with the user&#x27;s homeserver (OpenID), room members only, roles from power levels, temporary canvases.">
+<link rel="canonical" href="https://canvas.casualoffice.org/docs/matrix.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Element / Matrix | OpenCanvas">
+<meta property="og:description" content="Add a shared canvas to Matrix rooms as an Element widget: identity checked with the user&#x27;s homeserver (OpenID), room members only, roles from power levels, temporary canvases.">
+<meta property="og:url" content="https://canvas.casualoffice.org/docs/matrix.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html">Nextcloud</a></li><li><a href="matrix.html" aria-current="page">Element / Matrix</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html">Nextcloud</a></li><li><a href="matrix.html" aria-current="page">Element / Matrix</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Element / Matrix</h1>
+
+<p>&lt;!-- SPDX-License-Identifier: Apache-2.0 --&gt; &lt;!-- Copyright 2026 CasualOffice --&gt;</p>
+<h1>OpenCanvas in Matrix rooms (Element)</h1>
+<p>The canvas is a room widget, like Etherpad or Jitsi in Element. Everyone in the room opens the same canvas from the widget bar and edits it live. A small bridge service is the OpenCanvas host for Matrix.</p>
+<ul><li><strong>Identity is checked, not taken from the URL.</strong> The widget asks the Matrix client for an OpenID token, and the bridge confirms it with the user's own homeserver.</li><li><strong>Only room members can open it.</strong> A bot account reads the room's membership and power levels. Moderators (power level ≥ <code>state_default</code>) edit; everyone else gets <code>MX_MEMBER_ROLE</code> (default <code>edit</code>).</li><li><strong>Leaving the room ends access.</strong> When someone leaves, is kicked or is banned, the bot closes their open canvas right away through the OpenCanvas role API.</li><li><strong>Names come from Matrix.</strong> People appear under their room display names; the Matrix user id is the second line that tells two people with the same name apart.</li><li><strong>The canvas is temporary.</strong> It is deleted once everyone has left it and the idle grace has passed. People download or export it (PDF, Word, Markdown, <code>.ocanvas</code>) to keep it. Canvases stored in Matrix are planned for phase 2.</li><li><strong>It is not end-to-end encrypted</strong>, even in encrypted rooms (see Limits).</li></ul>
+<p>!<a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/matrix/evidence/element-coedit-asha.png">Two people co-editing a canvas inside Element</a></p>
+<h2 id="how-it-works">How it works</h2>
+<ol><li>A room admin adds a widget state event (<code>im.vector.modular.widgets</code>) whose URL points at the bridge: <code>https://canvas-bridge.acme.example/widget?roomId=$matrix_room_id&amp;wid=$matrix_widget_id</code>.</li><li>Element shows its own prompts: first "Widget added by …" consent for widgets added by someone else, then "Allow this widget to verify your identity".</li><li>The widget page (<code>bridge/public/</code>) answers Element's widget API handshake (it asks for no capabilities), requests an OpenID token (<code>get_openid</code>), and posts it to the bridge.</li><li>The bridge finds the user's homeserver by the Matrix server-name rules (<code>.well-known</code>, SRV, port 8448). It refuses any route that leads to a private, loopback or link-local address. It then calls <code>GET /_matrix/federation/v1/openid/userinfo</code> and accepts the answer only if the user belongs to that server.</li><li>The bot checks four things: it is still joined itself, the user is joined, the widget is in the room and points at this bridge, and the user's power level (which sets the role).</li><li>The bridge signs a 10-minute, single-use OpenCanvas launch token (HS256, <code>aud=&quot;opencanvas&quot;</code>, <code>jti</code>). The canvas id is an opaque hash of room id and widget id, so OpenCanvas never sees the room id. The widget posts the token into a nested frame, so it never appears in a URL.</li><li>OpenCanvas opens the editor at <code>/app/?h=&lt;host id&gt;</code>. That page is allowed to be framed by the host's <code>frame_ancestors</code> (the Matrix client origins) and the bridge origin.</li></ol>
+<p>Design and research, with sources: <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/matrix/DESIGN.md">DESIGN.md</a>. Screens still waiting for a prototype: <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/matrix/UI-SCREENS.md">UI-SCREENS.md</a>.</p>
+<h2 id="install">Install</h2>
+<p>You need OpenCanvas 0.1.1 or later with per-host <code>frame_ancestors</code>, Node 24 for the bridge, and a Matrix bot account.</p>
+<ol><li><strong>Bot account</strong> on your homeserver, for example <code>@canvasbot:acme.example</code>. Log in once to get its access token and keep the token secret. The bot only reads room state; it never sends messages.</li><li><strong>OpenCanvas</strong> <code>hosts.toml</code>:<pre><code class="language-toml">[[host]]
+id              = &quot;acme-matrix&quot;
+name            = &quot;Matrix&quot;
+mode            = &quot;jwt&quot;
+jwt_alg         = &quot;HS256&quot;
+jwt_secret      = &quot;env:ACME_MATRIX_OC_SECRET&quot;     # openssl rand -hex 32
+api_key         = &quot;env:ACME_MATRIX_OC_API_KEY&quot;    # openssl rand -hex 32
+storage         = &quot;ephemeral&quot;
+allowed_origins = [&quot;https://canvas-bridge.acme.example&quot;]
+# Every Matrix client origin your users open the widget from. They apply to this host&#x27;s
+# editor only, not to the rest of the server.
+frame_ancestors = [&quot;https://element.acme.example&quot;, &quot;https://app.element.io&quot;]
+[host.flags]
+export_formats  = [&quot;md&quot;, &quot;html&quot;, &quot;docx&quot;, &quot;pdf&quot;, &quot;ocanvas&quot;, &quot;png&quot;]</code></pre></li><li><strong>Bridge</strong>: run it behind TLS, on its own origin.<pre><code class="language-sh">cd integrations/matrix/bridge
+PORT=8090 \
+MX_PUBLIC_URL=https://canvas-bridge.acme.example \
+OC_URL=https://canvas.acme.example \
+OC_HOST_ID=acme-matrix \
+OC_JWT_SECRET=&lt;jwt_secret&gt; \
+OC_API_KEY=&lt;api_key&gt; \
+MX_BOT_HOMESERVER_URL=https://matrix.acme.example \
+MX_BOT_ACCESS_TOKEN=&lt;bot token&gt; \
+MX_ALLOWED_SERVERS=acme.example \
+MX_BOT_AUTOJOIN=1 \
+node src/server.mjs</code></pre></li></ol>
+<h2 id="configure">Configure</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Variable</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>PORT</code></td><td>listen port (default 8090)</td></tr><tr><td><code>MX_PUBLIC_URL</code></td><td>the bridge's public URL; widget URLs must be <code>&lt;MX_PUBLIC_URL&gt;/widget?…</code></td></tr><tr><td><code>OC_URL</code></td><td>OpenCanvas as browsers reach it</td></tr><tr><td><code>OC_API_URL</code></td><td>OpenCanvas as the bridge reaches it (default <code>OC_URL</code>)</td></tr><tr><td><code>OC_HOST_ID</code>, <code>OC_JWT_SECRET</code></td><td>the host <code>id</code> and <code>jwt_secret</code> (at least 32 characters)</td></tr><tr><td><code>OC_API_KEY</code></td><td>the host <code>api_key</code>; turns on closing access when people leave a room</td></tr><tr><td><code>OC_TOKEN_TTL</code></td><td>launch token lifetime, 60 to 3600 s (default 600)</td></tr><tr><td><code>MX_BOT_HOMESERVER_URL</code>, <code>MX_BOT_ACCESS_TOKEN</code></td><td>the bot's homeserver (Client-Server API base URL) and token</td></tr><tr><td><code>MX_BOT_USER_ID</code></td><td>optional; read with <code>whoami</code> when unset</td></tr><tr><td><code>MX_BOT_AUTOJOIN=1</code></td><td>join invites from allowed homeservers, leave the others</td></tr><tr><td><code>MX_ALLOWED_SERVERS</code></td><td>comma-separated homeservers whose users may open canvases; empty means any</td></tr><tr><td><code>MX_PRIVATE_ALLOWED</code></td><td>server names that may resolve to private addresses (an intranet homeserver)</td></tr><tr><td><code>MX_FEDERATION_OVERRIDES</code></td><td>JSON <code>{&quot;server.name&quot;: &quot;https://fixed-url&quot;}</code>; operator-trusted, skips resolution</td></tr><tr><td><code>MX_MEMBER_ROLE</code></td><td>role for members below <code>state_default</code>: <code>edit</code> (default), <code>comment</code> or <code>view</code></td></tr></tbody></table></div>
+<p>Logs carry error codes only. Tokens and secrets are never printed.</p>
+<h2 id="add-the-canvas-to-a-room">Add the canvas to a room</h2>
+<p>Each widget id is its own canvas. Use any of these three ways:</p>
+<ul><li><strong>In Element</strong>: <code>/addwidget https://canvas-bridge.acme.example/widget?roomId=$matrix_room_id&amp;wid=$matrix_widget_id</code>, then <code>/invite @canvasbot:acme.example</code>, unless <code>MX_BOT_AUTOJOIN</code> is on and the bot was invited already.</li><li><strong>Script</strong>: this also invites the bot.<pre><code class="language-sh">MX_HOMESERVER_URL=https://matrix.acme.example MX_ACCESS_TOKEN=&lt;your token&gt; \
+MX_PUBLIC_URL=https://canvas-bridge.acme.example MX_BOT_USER_ID=@canvasbot:acme.example \
+node scripts/add-widget.mjs &#x27;!abc:acme.example&#x27; &quot;Planning canvas&quot;</code></pre></li><li><strong>By hand</strong>: in Element, open <code>/devtools</code>, choose "Send custom state event", and send:<pre><code class="language-json">{
+  &quot;type&quot;: &quot;im.vector.modular.widgets&quot;,
+  &quot;state_key&quot;: &quot;opencanvas_1a2b3c&quot;,
+  &quot;content&quot;: {
+    &quot;type&quot;: &quot;m.custom&quot;,
+    &quot;name&quot;: &quot;Planning canvas&quot;,
+    &quot;url&quot;: &quot;https://canvas-bridge.acme.example/widget?roomId=$matrix_room_id&amp;wid=$matrix_widget_id&quot;,
+    &quot;data&quot;: { &quot;title&quot;: &quot;Temporary canvas: export to keep a copy&quot; },
+    &quot;waitForIframeLoad&quot;: true
+  }
+}</code></pre> To pin it above the timeline for everyone, also send <code>io.element.widgets.layout</code> (empty state key) with <code>{&quot;widgets&quot;: {&quot;opencanvas_1a2b3c&quot;: {&quot;container&quot;: &quot;top&quot;, &quot;index&quot;: 0, &quot;width&quot;: 100, &quot;height&quot;: 80}}}</code>.</li></ul>
+<p>**Element <code>config.json</code>:** nothing to add. Element has no setting that registers a widget type or pre-trusts a widget URL.</p>
+<h2 id="errors-post-apilaunch">Errors (<code>POST /api/launch</code>)</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Code</th><th scope="col">Status</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>BAD_REQUEST</code></td><td>400</td><td>missing or malformed room id, widget id or token</td></tr><tr><td><code>OPENID_INVALID</code></td><td>401</td><td>the homeserver did not vouch for the token, or vouched for someone on another server</td></tr><tr><td><code>SERVER_NOT_ALLOWED</code></td><td>403</td><td>homeserver not in <code>MX_ALLOWED_SERVERS</code>, or it resolves to a private address</td></tr><tr><td><code>NOT_MEMBER</code></td><td>403</td><td>not joined to the room (checked before anything about the room's widgets)</td></tr><tr><td><code>BOT_NOT_IN_ROOM</code></td><td>403</td><td>the bot is not joined; invite it</td></tr><tr><td><code>WIDGET_UNKNOWN</code></td><td>404</td><td>no such canvas widget in the room</td></tr><tr><td><code>RATE_LIMITED</code></td><td>429</td><td>over 30 launches per minute from one address</td></tr><tr><td><code>HOMESERVER_UNREACHABLE</code></td><td>502</td><td>the user's or the bot's homeserver did not answer</td></tr></tbody></table></div>
+<h2 id="limits">Limits</h2>
+<ul><li><strong>Not end-to-end encrypted.</strong> Canvas content goes over TLS to the OpenCanvas server, which keeps it while the canvas is open. The widget state event is room state, and Matrix never encrypts room state. Element warns about this in encrypted rooms.</li><li><strong>Temporary only (v1).</strong> A chat room lives much longer than a meeting. Tell people to export. Removing the widget does not end the canvas; it ends when idle.</li><li><strong>Role changes</strong> (power levels) apply at the next launch, at most 10 minutes later. Leaving, kicks and bans apply at once.</li><li><strong>Every Matrix client origin must be listed</strong> in <code>frame_ancestors</code>. A user whose client is not listed sees a blocked frame.</li><li><strong>Avatars</strong> are not passed to OpenCanvas: Matrix avatars are <code>mxc://</code> URLs behind authenticated media.</li><li>Element X and the mobile apps do not show room widgets like this today.</li><li>The widget page is functional but not yet designed. The editor's temporary-canvas notice says "deleted when the meeting ends"; a Matrix wording is listed in UI-SCREENS.md.</li></ul>
+<h2 id="status-verified-vs-not-yet-tested">Status: verified vs not yet tested</h2>
+<p><strong>Verified on 2026-11-24, in a real Element Web with Synapse and OpenCanvas.</strong> <code>e2e/element-e2e.mjs</code> passed 17/17 in two consecutive runs. The setup was <code>vectorim/element-web:latest</code> and <code>matrixdotorg/synapse:latest</code> in Docker, OpenCanvas 0.1.1 from this branch (<code>storage = &quot;ephemeral&quot;</code>, <code>frame_ancestors</code> set), and three Playwright browser contexts:</p>
+<ul><li>Asha Rao (room owner) opens the room in Element. Element sends the OpenID token, the bridge verifies it against Synapse's <code>openid/userinfo</code>, and the editor loads inside the widget.</li><li>Ravi Menon (member) sees Element's "Widget added by Asha Rao" consent and the "Allow this widget to verify your identity" dialog, accepts both, and opens the same canvas.</li><li>Text typed by each appears live for the other. The editors show "Asha Rao" and "Ravi Menon" (Matrix display names), not Matrix ids.</li><li>Lena Ortiz (not in the room) adds a forged widget in her own room that names Asha's room and widget. The widget is refused with "Only members of this room can open the canvas." and no editor frame is created.</li><li>Ravi leaves the room. The bot closes his live canvas connection (role API, 1 connection), Element removes the widget, and a fresh launch with his real OpenID token is refused (<code>NOT_MEMBER</code>). Asha's canvas stays open.</li><li>Control run without <code>frame_ancestors</code>: the token is accepted but the editor frame is blocked (<code>frame-ancestors</code>), so the per-host setting is what makes the widget work.</li></ul>
+<p>Screenshots are in <code>evidence/</code>. Also verified:</p>
+<ul><li><code>cd bridge &amp;&amp; npm test</code>: 21 unit tests (<code>node --test</code>). They cover the address guard, server-name resolution, OpenID success and failure, the allow-list, membership (including a bot that left, and a non-member asking for a forged widget), roles, launch claims, and the revoke on leave.</li><li><code>bridge/scripts/e2e-synapse.mjs</code>: the bridge's server side against Synapse and OpenCanvas, 11/11.</li></ul>
+<p>To run the Element check yourself:</p>
+<pre><code class="language-sh">docker run --rm -v $PWD/hs:/data -e SYNAPSE_SERVER_NAME=hs.local -e SYNAPSE_REPORT_STATS=no matrixdotorg/synapse generate
+docker run -d --name hs -v $PWD/hs:/data -p 127.0.0.1:8008:8008 matrixdotorg/synapse
+# element.json: {&quot;default_server_config&quot;: {&quot;m.homeserver&quot;: {&quot;base_url&quot;: &quot;http://localhost:8008&quot;, &quot;server_name&quot;: &quot;hs.local&quot;}}}
+docker run -d --name element -v $PWD/element.json:/app/config.json:ro -p 127.0.0.1:8081:80 vectorim/element-web
+# OpenCanvas on :18080 with the host above (allowed_origins [&quot;http://localhost:8090&quot;],
+# frame_ancestors [&quot;http://localhost:8081&quot;]), then:
+PLAYWRIGHT=&lt;path to playwright/index.mjs&gt; REG_SECRET=&lt;registration_shared_secret&gt; \
+OC_JWT_SECRET=&lt;jwt_secret&gt; OC_API_KEY=&lt;api_key&gt; node e2e/element-e2e.mjs</code></pre>
+<p><strong>Not tested yet:</strong></p>
+<ul><li>Real federation: users on a second homeserver, live <code>.well-known</code> and SRV lookups, and TLS on port 8448. Only the unit tests (with stubbed DNS) cover these.</li><li>Encrypted rooms, popped-out widgets, and Element Desktop.</li><li>Other Matrix clients and the mobile apps.</li><li><code>MX_BOT_AUTOJOIN</code> against a live server (the runs joined the bot through the API), and <code>scripts/add-widget.mjs</code> against a live server.</li><li>Power-level changes during a session; they apply at the next launch.</li></ul>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/matrix/README.md">integrations/matrix/README.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="nextcloud.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Nextcloud</span></a><a class="pn pn-next" href="protocol.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Protocol and build contract</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#how-it-works">How it works</a></li><li><a href="#install">Install</a></li><li><a href="#configure">Configure</a></li><li><a href="#add-the-canvas-to-a-room">Add the canvas to a room</a></li><li><a href="#errors-post-apilaunch">Errors (POST /api/launch)</a></li><li><a href="#limits">Limits</a></li><li><a href="#status-verified-vs-not-yet-tested">Status: verified vs not yet tested</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>
