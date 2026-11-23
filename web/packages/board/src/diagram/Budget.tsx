@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { Gauge, X } from "lucide-react";
-import { bbox, getBoardMap, readShapes, type Shape } from "../model";
+import { bbox, getBoardMap, readShapes } from "../model";
 
 export const DEFAULT_MAX_DOC_BYTES = 20 * 1024 * 1024;
 export const BOARD_SHARE = 0.25;
