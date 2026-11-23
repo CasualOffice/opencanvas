@@ -761,12 +761,28 @@ mod tests {
     /// Release audit (docs/18 SEC-30): each raw-text tag lowercased a copy of the rest of the
     /// input, so many `<style>` tags were quadratic.
     #[test]
+    ///
+    /// Measured as growth, not against a wall-clock budget (which failed on slow or busy CI
+    /// runners): 4x the input must take well under the 16x a quadratic parse would. Each size
+    /// takes its best of three runs, so a pause in one run does not count.
     fn many_raw_text_tags_are_linear() {
-        let src = "<style></style>".repeat(200_000) + "<p>end</p>";
-        let t = std::time::Instant::now();
-        let v = html_to_json(&src);
-        assert!(v.to_string().contains("end"));
-        assert!(t.elapsed().as_secs_f64() < 2.0, "took {:?}", t.elapsed());
+        let best = |n: usize| {
+            let src = "<style></style>".repeat(n) + "<p>end</p>";
+            (0..3)
+                .map(|_| {
+                    let t = std::time::Instant::now();
+                    let v = html_to_json(&src);
+                    assert!(v.to_string().contains("end"));
+                    t.elapsed().as_secs_f64()
+                })
+                .fold(f64::MAX, f64::min)
+        };
+        let (small, large) = (best(25_000), best(100_000));
+        assert!(
+            large < small * 8.0 + 0.05,
+            "4x the tags took {:.1}x the time ({small:.3}s -> {large:.3}s)",
+            large / small
+        );
     }
 
     /// Markdown import goes through the same kind of tree walk; deep quotes and lists too.
