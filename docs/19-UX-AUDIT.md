@@ -118,6 +118,32 @@ Besides #39–#45 above:
   phones stack columns with a separator. `after-columns-hover.png`,
   `after-columns-phone-dark.png` · `o-columns` (incl. axe in light and dark), `inline.test`.
 
+## Scaling: rem units, zoom and large text (SCALE-01, 2026-11-24)
+
+ADR-050 (Proposed). Type, spacing, control sizes, radii and chrome widths are rem; breakpoints are
+em (CSS and the JS compact breakpoint, 45em); the root keeps the reader's default font size.
+At 16 px and 100 % the UI is pixel-identical to before (SCALE-01 pixel suite: 14 screens × desktop
+1280 and phone 390, light, three runs, 0 px). Codemod `tools/px-to-rem.mjs`, guard
+`tools/check-px.mjs` (CI).
+
+One check on `#demo` at 200 % zoom (640×450 CSS px at DPR 2), a 24 px default font (Chromium
+`Page.setFontSizes`, 1280×900) and 320 px wide; axe (WCAG 2.2 AA tags) at each. What breaks — not
+fixed in SCALE-01, these are the follow-up (SCALE-02):
+
+| # | Setting | Problem | Likely fix |
+|---|---|---|---|
+| S1 | 24 px font | Lucide icons keep their `size={n}` px, so icons look small beside 1.5× text (top bar, database toolbar and tabs, menus, board toolbar) | an icon size in em (`width:1em` on `svg.lucide` inside chrome, or a `size` in rem) — changes nothing at 16 px if mapped 1:1 |
+| S2 | 24 px font | Database column widths are px stored in the document, so cells truncate early ("Launch-token …"); status pills clip without an ellipsis ("In progres") | scale stored widths by root font/16 at render; ellipsis on pills |
+| S3 | 24 px font, side panel open | Board block narrows; its tool bar (rem) and the zoom pill (rem) overlap at the bottom | let the tool bar wrap or collapse tools into a menu below a width (UI change: prototype) |
+| S4 | 24 px font | Board-space text (stickies, labels) stays its board size: board geometry, by design (ADR-050); readers zoom the board instead | none, or a "larger board text" preference later |
+| S5 | 24 px font, side panel open | Comments panel is 1.5× wider (rem) and the document column gets narrow at 1280 px; the compact switch only happens below 1080 px | consider a panel `max-width` in % (UI change) |
+| S6 | 200 % zoom | The document scroller scrolls sideways by 5 px: a collaborator's caret label at the right edge overflows | clip caret labels to the column, or `overflow-x:clip` on the scroller |
+| S7 | all | axe `aria-allowed-attr` (1): `aria-multiselectable` on the database `<table>` — also at 100 %, not caused by scaling | move it to a `grid` role or drop it |
+| S8 | not run | WCAG 1.4.12 text-spacing overrides; 400 % zoom; the reflow Playwright checks (no sideways scroll, key controls clickable) at 200 % / 24 px / 320 px | SCALE-02 |
+
+At 320 px wide and at 200 % the top bar keeps every control visible and clickable (compact layout);
+the more menu and comments open as sheets.
+
 ## Bundle
 
 Initial JS 271.7 KB gz (budget 300; UX-01 was 263.3). pdf.js (98 KB gz) and its worker, the file

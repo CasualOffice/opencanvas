@@ -438,7 +438,7 @@ function SuggestMenu({ editor }: { editor: Editor }) {
       <Popover anchor={s.rect} onClose={close} title="Mention" minWidth={240} kind="listbox">
         <div ref={listRef} onMouseDown={hold}>
           {!people ? (
-            <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: 13 }}>
+            <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: ".8125rem" }}>
               No one matches “{s.query}”
             </div>
           ) : null}
@@ -524,7 +524,7 @@ function SuggestMenu({ editor }: { editor: Editor }) {
             );
           })
         ) : (
-          <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: 13 }}>
+          <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: ".8125rem" }}>
             No matching blocks
           </div>
         )}

@@ -69,7 +69,7 @@ export function UrlPrompt({ kind, onClose, onUrl }: { kind: "bookmark" | "embed"
           </div>
         ) : null}
         {err ? (
-          <p id="url-err" role="alert" style={{ color: "var(--red-fg)", fontSize: 12.5, margin: "8px 2px 0" }}>
+          <p id="url-err" role="alert" style={{ color: "var(--red-fg)", fontSize: ".7813rem", margin: ".5rem 2px 0" }}>
             {err}
           </p>
         ) : null}
@@ -124,7 +124,7 @@ export function ImportDialog({ onClose, onImport, onPasteCsv }: { onClose(): voi
           <span>.md · .html · .csv, up to 5 MB</span>
         </button>
         <input ref={input} type="file" hidden accept=".md,.markdown,.txt,.html,.htm,.csv,text/markdown,text/html,text/csv" onChange={(e) => void take(e.target.files?.[0])} />
-        {err ? <p style={{ color: "var(--red-fg)", fontSize: 12.5, margin: "10px 2px 0" }}>{err}</p> : null}
+        {err ? <p style={{ color: "var(--red-fg)", fontSize: ".7813rem", margin: ".625rem 2px 0" }}>{err}</p> : null}
       </div>
       <div className="mft">
         <button className="btn ghost" onClick={() => (onClose(), onPasteCsv())}>
