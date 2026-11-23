@@ -52,6 +52,8 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-048 | Skip the start screen: optional launch-token claim `"start": "page"` opens a new canvas straight into the page without the template picker; it travels as `&start=page` after the ticket in the app fragment (other values ignored). The editor also tells the host a session closed (`Error {code: "SESSION_CLOSED"}`) so host chrome can offer Reopen (MM-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-049 | Temporary-canvas wording per host: `[host.flags] temporary_wording`, "meeting" (default, Jitsi) or "room" (Matrix); the session carries `wording`; room wording adds "Start a new canvas" on the ended screen, which posts `UI_StartNew` to the host (MX-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-050 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Accepted (owner, 2026-11-24) |
+| ADR-051 | Version history lives with the host: optional JWT callbacks and WOPI extensions (or a host version-page link); named versions are saves with a commit message; restore is a live-room edit; OpenCanvas stores no versions (VH-01, docs/30) | Accepted (owner, 2026-11-24) |
+| ADR-052 | Version diff is structural and computed on the server in `oc-model` over `document.json` (blocks, text, databases, boards); one implementation for UI, API, MCP and webhooks (VH-02, docs/30) | Accepted (owner, 2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -676,3 +678,9 @@ pixel suite, 28 screens, 3 runs, 0 px). + A reader's larger default font enlarge
 text together, and switches to the phone layout sooner. − Icons, board text and database column
 widths do not follow the font size yet (follow-ups in docs/19 §Scaling). − Hosts that embed the
 editor without an iframe would now inherit their page's root size (the editor is an iframe today).
+
+### ADR-051 — Version history lives with the host (Accepted by the owner 2026-11-24, VH-01)
+See [docs/30 §11](30-VERSION-HISTORY.md) for the full text: context, decision, rejected options.
+
+### ADR-052 — Version diff is structural and computed on the server (Accepted by the owner 2026-11-24, VH-02)
+See [docs/30 §11](30-VERSION-HISTORY.md).
