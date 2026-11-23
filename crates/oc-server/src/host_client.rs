@@ -96,7 +96,12 @@ impl SaveMeta {
         use oc_model::ocanvas::CommitKind;
         let mut h = vec![(
             "X-OpenCanvas-Autosave",
-            if self.kind == CommitKind::Auto { "1" } else { "0" }.to_string(),
+            if self.kind == CommitKind::Auto {
+                "1"
+            } else {
+                "0"
+            }
+            .to_string(),
         )];
         if let Some(m) = &self.message {
             h.push(("X-OpenCanvas-Commit-Message", percent_encode(m)));
@@ -183,7 +188,11 @@ pub fn normalize_versions(v: &serde_json::Value) -> Result<serde_json::Value, Ho
         out.push(row);
     }
     let mut res = json!({"versions": out});
-    if let Some(n) = v.get("next").and_then(Value::as_str).filter(|n| !n.is_empty() && n.len() <= 500) {
+    if let Some(n) = v
+        .get("next")
+        .and_then(Value::as_str)
+        .filter(|n| !n.is_empty() && n.len() <= 500)
+    {
         res["next"] = json!(n);
     }
     Ok(res)
@@ -748,7 +757,8 @@ impl HostClient {
         version: &str,
     ) -> Result<Bytes, HostError> {
         if let SaveTarget::Wopi(src) = SaveTarget::of(host, file_id)? {
-            return wopi::get_version(&self.assets, self.proof.as_ref(), &src, token, version).await;
+            return wopi::get_version(&self.assets, self.proof.as_ref(), &src, token, version)
+                .await;
         }
         let url = Self::url(host, &["files", file_id, "versions", version])?;
         let res = self

@@ -209,7 +209,23 @@ function checkFileInfo(id, userId) {
     HideExportOption: false,
     SupportsUpdate: true,
     SupportsLocks: false,
+    // Version history extensions (docs/05 §6, docs/30 §3.2): GET {WOPISrc}/versions and
+    // {WOPISrc}/versions/{v}/contents.
+    OpenCanvas_SupportsVersions: true,
   };
+}
+
+// Every PutFile is a version; X-COOL-WOPI-IsAutosave false + X-OpenCanvas-Commit-Message = named.
+const versionFile = (id, v) => path.join(DATA, "versions", id.replace(/[^\w-]/g, ""), String(v).replace(/\D/g, ""));
+function keepVersion(id, f, body, userId, h) {
+  const dec = v => { try { return v ? decodeURIComponent(String(v)) : undefined; } catch { return undefined; } };
+  const name = dec(h["x-opencanvas-commit-message"]);
+  const restoredFrom = dec(h["x-opencanvas-restored-from"]);
+  const kind = h["x-cool-wopi-isautosave"] === "false" ? (restoredFrom ? "restore" : "named") : "auto";
+  fs.mkdirSync(path.dirname(versionFile(id, f.version)), { recursive: true });
+  fs.writeFileSync(versionFile(id, f.version), body);
+  f.versions = [...(f.versions || []), { version: String(f.version), at: new Date().toISOString(), authors: [userId], kind, size: body.length,
+    ...(name ? { name: name.slice(0, 120) } : {}), ...(restoredFrom ? { restoredFrom } : {}) }];
 }
 
 function pageList() {
@@ -265,6 +281,19 @@ http
         return send(res, 200, { LastModifiedTime: f.lastModified });
       }
 
+      const vm = url.pathname.match(/^\/wopi\/files\/([\w-]+)\/versions(?:\/(\d+)\/contents)?$/);
+      if (vm && req.method === "GET") {
+        const vf = meta.files[vm[1]];
+        const who = checkToken(vm[1], url.searchParams.get("access_token"));
+        if (!vf) return send(res, 404, {});
+        if (!who) return send(res, 401, {});
+        const badProof = await checkProof(req, url.searchParams.get("access_token"));
+        if (badProof) return send(res, 500, { error: "proof" });
+        const list = [...(vf.versions || [])].reverse();
+        if (!vm[2]) return send(res, 200, { versions: list.slice(0, 100) });
+        if (!list.some(x => x.version === vm[2]) || !fs.existsSync(versionFile(vm[1], vm[2]))) return send(res, 410, {});
+        return send(res, 200, fs.readFileSync(versionFile(vm[1], vm[2])));
+      }
       const m = url.pathname.match(/^\/wopi\/files\/([\w-]+)(\/contents)?$/);
       if (!m) return send(res, 404, { error: "not found" });
       const [, id, contents] = m;
@@ -301,6 +330,7 @@ http
         fs.writeFileSync(fileOf(id), body);
         f.version += 1;
         f.lastModified = nowStamp(f.lastModified);
+        keepVersion(id, f, body, userId, req.headers);
         saveMeta();
         const auto = req.headers["x-cool-wopi-isautosave"] === "true" ? " (autosave)" : "";
         console.log(`saved ${id} v${f.version} ${body.length} bytes by ${userId}${auto}`);

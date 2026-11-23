@@ -105,6 +105,15 @@ pub fn encode_state(doc: &Doc) -> Vec<u8> {
 }
 
 pub fn write_ocanvas(doc: &Doc, commit: &CommitInfo) -> Result<Vec<u8>, Error> {
+    write_ocanvas_with(doc, commit, None)
+}
+
+/// Like [`write_ocanvas`], with in-file history (ADR-055) as `history/` entries.
+pub fn write_ocanvas_with(
+    doc: &Doc,
+    commit: &CommitInfo,
+    history: Option<&crate::history::FileHistory>,
+) -> Result<Vec<u8>, Error> {
     let document = doc_to_json(doc);
     let title = document["meta"]["title"]
         .as_str()
@@ -129,6 +138,18 @@ pub fn write_ocanvas(doc: &Doc, commit: &CommitInfo) -> Result<Vec<u8>, Error> {
         SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
     )?;
     zip.write_all(&encode_state(doc))?;
+    if let Some(h) = history.filter(|h| !h.entries.is_empty()) {
+        let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        for (name, bytes) in h.to_files() {
+            let opts = if name == crate::history::INDEX {
+                deflate
+            } else {
+                stored
+            };
+            zip.start_file(name, opts)?;
+            zip.write_all(&bytes)?;
+        }
+    }
     Ok(zip.finish()?.into_inner())
 }
 
@@ -139,6 +160,8 @@ pub fn is_zip(bytes: &[u8]) -> bool {
 pub struct Loaded {
     pub doc: Doc,
     pub manifest: Value,
+    /// In-file history (ADR-055); empty when the file has none.
+    pub history: crate::history::FileHistory,
 }
 
 /// Applies a Yjs update, v1 or v2. A v2 update starts with a 0 feature byte, which a v1
@@ -200,7 +223,9 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
         if matches!(
             name.as_str(),
             "manifest.json" | "document.json" | "ydoc.bin"
-        ) {
+        ) || name == crate::history::INDEX
+            || (name.starts_with(crate::history::PREFIX) && name.ends_with(".deflate"))
+        {
             let sizes = (entry.size(), entry.compressed_size());
             let buf = read_capped(entry, sizes, &mut total)?;
             files.insert(name, buf);
@@ -226,7 +251,15 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
     if let Some(e) = report.first_error() {
         return Err(Error::Invalid(e));
     }
-    Ok(Loaded { doc, manifest })
+    let history = match files.get(crate::history::INDEX) {
+        Some(index) => crate::history::FileHistory::from_files(index, |n| files.get(n).cloned()),
+        None => Default::default(),
+    };
+    Ok(Loaded {
+        doc,
+        manifest,
+        history,
+    })
 }
 
 /// An image or file stored inside the `.ocanvas` zip as `assets/<id>` (WOPI mode, where the

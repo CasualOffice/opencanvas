@@ -20,6 +20,14 @@ export_formats = ["md", "html", "json", "docx", "pdf", "ocanvas", "svg", "png"]
 on_conflict    = "copy"                        # copy | reload (on a 409 from PUT /files/{id})
 team_templates = true                         # TPL-01: GET /templates feeds the gallery's "From your team"
 api_v1         = true                         # HAPI-01: headless API under /api/v1 (docs/05 §7b)
+history        = true                         # VH-01: GET /files/{id}/versions and /versions/{v} exist (docs/05 §5)
+
+# Version history sources (docs/05 §2, ADR-055). In-file history is on by default for JWT hosts.
+[host.versions]
+file              = true                       # bounded history inside the .ocanvas
+file_max_kb       = 1024
+file_max_versions = 50
+prefer_host       = true                       # the host's list comes first; in-file is "recent changes"
 
 # WOPI-compatible host (docs/05 §6): examples/wopi-host/server.mjs. No JWT; OpenCanvas calls
 # CheckFileInfo / GetFile / PutFile on WOPISrc, which must match wopi_allowlist.

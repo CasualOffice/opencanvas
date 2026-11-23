@@ -34,12 +34,16 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "user": {"id":"u_123","name":"Asha Rao","color":"#7a45f0","avatar":null},
      "file": {"id":"doc_8812","name":"Sprint 42 notes"},
      "host": {"id":"acme","name":"Acme"},
-     "perms": {"export":true,"download":true,"comment":true,"print":true},
+     "perms": {"export":true,"download":true,"comment":true,"print":true,"history":true,"restore":true,"commitMessage":true},
+     "history": "full", "historySource": "host", "historyHostName": "Acme",
      "isNew": true,
      "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
      "import": {"formats":["md","html","csv"]},
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
+   *(VH-01a)*: `history` `full` | `link` | `none`, `historySource` `host` | `file` (the list shown
+   first), `historyHostName`, and in link mode `historyUrl` + `historyPostMessage` (docs/05 §5a).
+   `perms.history`, `perms.restore`, `perms.commitMessage` are effective (the role included).
    `ai` (AI-02): `enabled` when `[host.ai] enabled = true` and the role is not `view`; `modes` are
    the run modes the server accepts for the role (`edit`: `edit`, `comment`, `answer`; `comment`:
    `answer`, `comment`; `view`: none); `mcp` mirrors `[host.ai] mcp`. The editor shows the

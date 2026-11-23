@@ -473,6 +473,7 @@ struct Harness {
 
 fn grant(role: Role, user: &str) -> Grant {
     Grant {
+        wopi_history: None,
         host_id: "acme".into(),
         room: "r_1".into(),
         role,

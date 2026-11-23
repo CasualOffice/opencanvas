@@ -1,8 +1,7 @@
 # 30 — Version history and visual diff (VH-01, VH-02)
 
-**Status:** Proposed, 2026-11-24. Owner review pending. ADR-051 and ADR-052 below are
-**Proposed** and are not in the register ([docs/08](08-ADR-REGISTER.md)) until the owner accepts
-them. No UI is built (ADR-011): the prototype frames listed in §9 must be approved first.
+**Status:** Accepted by the owner 2026-11-24 (ADR-051, ADR-052; screens approved). Amended the same
+day by the owner: two sources of versions, host and in-file (§13, ADR-055).
 **Scope:** [docs/27](27-ROADMAP-v0.2.md) §0 asks for "its own short design (where versions live,
 given the host owns files) and a prototype before UI work". Tracker rows VH-01 and VH-02 in
 [docs/10](10-EXECUTION-TRACKER.md).
@@ -372,3 +371,47 @@ second implementation).
 | VH-02a | `oc-model` diff (blocks, text, databases, boards) with fixtures shared with the web renderer | M |
 | VH-01d / VH-02b | Editor UI after the prototype is approved: panel, preview, diff decorations, restore, phone | L |
 | — | Block ids in the web editor (docs/15 §4, still to do) are a prerequisite for stable block matching | S |
+
+## 13. Two sources (amendment, owner decision 2026-11-24; ADR-055)
+
+The owner amended §2 by message on 2026-11-24: history has **two sources**, chosen per host.
+Option (b) above was rejected for full copies; this is a bounded store of **diffs** instead.
+
+1. **Host versions** (ADR-051, §3): for hosts such as Nextcloud that keep every save.
+2. **In-file history** (ADR-055): a bounded history inside the `.ocanvas`, for real-time hosts
+   that want it fast and self-contained.
+   - Each kept version is the **reverse structural diff** (newer → older, over the
+     `document.json` projection: top-level blocks by a Myers sequence diff, `meta`, `databases`
+     and `boards` as object diffs) plus `kind`, name, authors, time. The current document and the
+     chain of reverse diffs rebuild any kept version. Never full copies; Yjs GC stays on.
+   - Comments and people are not history (as in §5: a restore keeps them).
+   - Layout, additive to format 1: `history/index.json` (oldest first) and
+     `history/<id>.deflate` (raw deflate, stored). Readers that do not know it ignore it; our
+     writers keep it, including the WOPI asset rewrite. OpenCanvas servers older than VH-01 drop
+     it when they save (known limitation).
+   - What is kept: every checkpoint save (§4: the last save of a room, the first after 30
+     minutes, named, restore) becomes a version once a newer save replaces it; ordinary
+     autosaves in between are folded into the next one, so 50 versions span sessions, not
+     seconds. The state a room loaded is always kept.
+   - Bounds: `file_max_kb` (default 1024, compressed) and `file_max_versions` (50). Over either,
+     the oldest automatic version goes first (its older neighbour is re-diffed against its newer
+     one, so the chain stays whole); named and restore versions are kept until only they remain,
+     then the oldest of them.
+   - Privacy: reverse diffs carry deleted text, so a host can turn it off (`file = false`).
+   - Temporary canvases: none.
+3. **Host config** (docs/05 §2):
+
+   ```toml
+   [host.versions]
+   file = true              # default true for JWT hosts, false for WOPI hosts
+   file_max_kb = 1024
+   file_max_versions = 50
+   prefer_host = true       # with host versions too: the host list is primary, in-file is
+                            # "recent changes"; on restore or conflict the host version wins
+   ```
+
+4. **Rule 5 still holds.** The history lives in the host's file. The server keeps it in memory
+   while a room is open (with the state of the previous save); a room rebuilt from its WAL after a
+   crash reads it back from the host's file before its first save.
+5. **UI.** The only change from the approved frames is a small source label in the history panel
+   footer: "Kept in this file" or "Kept by <host name>" (deviation listed for the owner).

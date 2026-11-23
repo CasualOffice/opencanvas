@@ -58,7 +58,10 @@ fn manifest_carries_commit_kind_name_and_restored_from() {
     // Automatic saves say so; readers that do not know the fields still load the file.
     let auto = write_ocanvas(&doc, &CommitInfo::default()).unwrap();
     assert_eq!(read_manifest(&auto).unwrap()["commit"]["kind"], "auto");
-    assert_eq!(doc_to_json(&read_ocanvas(&auto).unwrap().doc), doc_to_json(&doc));
+    assert_eq!(
+        doc_to_json(&read_ocanvas(&auto).unwrap().doc),
+        doc_to_json(&doc)
+    );
 }
 
 /// VH-00: block ids as the web editor writes them (shared fixture, made by

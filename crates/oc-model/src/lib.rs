@@ -10,6 +10,7 @@ pub mod doc;
 pub mod docx;
 pub mod export;
 pub mod fonts;
+pub mod history;
 pub mod html;
 pub mod import;
 pub mod ocanvas;

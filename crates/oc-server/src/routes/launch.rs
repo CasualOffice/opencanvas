@@ -402,7 +402,8 @@ pub async fn session_info(
         (true, crate::grant::Role::Comment) => &["answer", "comment"],
         (true, crate::grant::Role::Edit) => &["edit", "comment", "answer"],
     };
-    let body = json!({
+    let history = crate::history::Sources::of(&host, &grant).session_json(&host);
+    let mut body = json!({
         "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": super::mcp::mcp_enabled(&state, &host)},
         // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
         "import": {"formats": super::import::formats(&state, &host, grant.role)},
@@ -416,7 +417,13 @@ pub async fn session_info(
         "user": grant.user,
         "file": {"id": grant.file.id, "name": grant.file.name},
         "host": {"id": host.id, "name": host.name},
-        "perms": grant.perms,
+        // docs/30 §7: what this person may do with history (effective, role included).
+        "perms": {
+            "export": grant.perms.export, "download": grant.perms.download,
+            "comment": grant.perms.comment, "print": grant.perms.print,
+            "history": grant.can_see_history(), "restore": grant.can_restore(),
+            "commitMessage": grant.can_name_version(),
+        },
         // ADR-043: "ephemeral" = nothing is saved; users export to keep anything.
         "storage": if host.ephemeral() { "ephemeral" } else { "host" },
         // ADR-049: the wording of a temporary canvas ("meeting" | "room").
@@ -425,5 +432,8 @@ pub async fn session_info(
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,
     });
+    if let (Some(b), Some(h)) = (body.as_object_mut(), history.as_object()) {
+        b.extend(h.clone());
+    }
     Ok(([(header::CACHE_CONTROL, "no-store")], Json(body)).into_response())
 }

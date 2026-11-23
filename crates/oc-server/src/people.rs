@@ -426,6 +426,7 @@ mod tests {
     #[test]
     fn people_entries_have_no_email() {
         let g = Grant {
+            wopi_history: None,
             host_id: "h".into(),
             room: "r".into(),
             role: crate::grant::Role::Edit,

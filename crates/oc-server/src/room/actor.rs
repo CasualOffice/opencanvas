@@ -140,6 +140,8 @@ struct Room {
     last_checkpoint: Instant,
     /// What the next commit is, when someone asked for more than an autosave (VH-01b).
     next_meta: Option<SaveMeta>,
+    /// In-file history (ADR-055) while the room is open; `None` until known.
+    file_hist: Option<FileHist>,
     /// Upper bound of the encoded doc size (exact after load and compaction).
     doc_bytes: usize,
     save: SaveState,
@@ -326,8 +328,58 @@ enum End {
     Shutdown(bool, tokio::sync::oneshot::Sender<()>),
 }
 
-/// Builds a doc from what the host's `GET /files/{id}` returned.
-fn doc_from_host(room: &str, fetched: Fetched) -> anyhow::Result<(Doc, Option<String>)> {
+/// In-file history (ADR-055) as the room keeps it between saves: the kept versions and the
+/// previous save's content, which becomes a version when it was a checkpoint.
+#[derive(Clone)]
+struct FileHist {
+    history: oc_model::history::FileHistory,
+    prev: Value,
+    prev_meta: oc_model::history::VersionMeta,
+    keep_prev: bool,
+}
+
+impl FileHist {
+    /// Starts from what the host's file holds (or a new canvas).
+    fn from_file(doc: &Doc, loaded: Option<(oc_model::history::FileHistory, Value)>) -> Self {
+        let prev = oc_model::doc_to_json(doc);
+        match loaded {
+            // The state a room loads is always kept once something newer is saved.
+            Some((history, manifest)) => Self {
+                history,
+                prev,
+                prev_meta: oc_model::history::VersionMeta::from_manifest(&manifest),
+                keep_prev: true,
+            },
+            None => Self {
+                history: Default::default(),
+                prev,
+                prev_meta: Default::default(),
+                keep_prev: false,
+            },
+        }
+    }
+}
+
+/// Builds a doc from what the host's `GET /files/{id}` returned, with the file's in-file
+/// history (ADR-055).
+fn loaded_from_host(
+    room: &str,
+    fetched: Fetched,
+) -> anyhow::Result<(Doc, Option<String>, FileHist)> {
+    if let Fetched::Found { bytes, etag, .. } = &fetched
+        && !bytes.starts_with(crate::hosts::TEMPLATE_JSON_TAG)
+        && oc_model::ocanvas::is_zip(bytes)
+    {
+        let loaded = oc_model::read_ocanvas(bytes)?;
+        let hist = FileHist::from_file(&loaded.doc, Some((loaded.history, loaded.manifest)));
+        return Ok((loaded.doc, etag.clone(), hist));
+    }
+    let (doc, etag) = doc_from_host_inner(room, fetched)?;
+    let hist = FileHist::from_file(&doc, None);
+    Ok((doc, etag, hist))
+}
+
+fn doc_from_host_inner(room: &str, fetched: Fetched) -> anyhow::Result<(Doc, Option<String>)> {
     match fetched {
         Fetched::Missing => Ok((oc_model::new_doc(), None)),
         Fetched::Found {
@@ -379,6 +431,8 @@ impl Room {
         let mut host_version = seed.file.version.clone();
         let mut dirty_since = None;
         let mut seq = 0;
+        // ADR-055: unknown (None) after a WAL recovery; read back from the host before a save.
+        let mut file_hist: Option<FileHist> = None;
         let wal = match &row {
             Some(r) if r.dirty => Some(ctx.store.load_wal(&id).await?).filter(|w| !w.is_empty()),
             _ => None,
@@ -396,9 +450,12 @@ impl Room {
             tracing::info!(room = %id, seq, "recovered unsaved room state from WAL");
         } else if let Some(p) = &outbox {
             // No WAL, but a commit never reached the host: its payload is the latest state.
-            doc = oc_model::read_ocanvas(&p.payload)
-                .context("outbox payload")?
-                .doc;
+            let loaded = oc_model::read_ocanvas(&p.payload).context("outbox payload")?;
+            file_hist = Some(FileHist::from_file(
+                &loaded.doc,
+                Some((loaded.history, loaded.manifest)),
+            ));
+            doc = loaded.doc;
             seq = p.seq;
             host_version = p.base_version.clone();
             dirty_since = Some(Instant::now());
@@ -431,7 +488,8 @@ impl Room {
                     .get_file(&host, &seed.callback_token, &seed.file.id)
                     .await?
             };
-            let (loaded, etag) = doc_from_host(&id, fetched)?;
+            let (loaded, etag, hist) = loaded_from_host(&id, fetched)?;
+            file_hist = Some(hist);
             doc = loaded;
             host_version = etag.or(host_version);
             ctx.store
@@ -492,6 +550,7 @@ impl Room {
             last_compact: Instant::now(),
             last_checkpoint: Instant::now(),
             next_meta: None,
+            file_hist,
             save: SaveState {
                 pending,
                 ..SaveState::default()
@@ -1716,6 +1775,61 @@ impl Room {
         self.last_compact = Instant::now();
     }
 
+    /// ADR-055: moves in-file history forward to the state about to be saved and returns it.
+    /// After a WAL recovery the history is first read back from the host's file (one load);
+    /// when that fails the room starts a new history rather than block the save.
+    async fn advance_file_history(
+        &mut self,
+        commit: &oc_model::CommitInfo,
+        meta: &SaveMeta,
+        limits: crate::hosts::FileHistoryLimits,
+    ) -> oc_model::history::FileHistory {
+        let cur = oc_model::doc_to_json(&self.doc);
+        if self.file_hist.is_none() {
+            let token = self
+                .save_tokens(None)
+                .into_iter()
+                .next()
+                .unwrap_or_default();
+            let read = self
+                .ctx
+                .host
+                .get_file(&self.host, &token, &self.file_id)
+                .await
+                .map_err(anyhow::Error::from)
+                .and_then(|f| loaded_from_host(&self.id, f));
+            self.file_hist = Some(match read {
+                Ok((_, _, h)) => h,
+                Err(e) => {
+                    tracing::warn!(room = %self.id, error = %e, "in-file history not recovered; starting a new one");
+                    FileHist::from_file(&self.doc, None)
+                }
+            });
+        }
+        let fh = self.file_hist.as_mut().expect("set above");
+        fh.history.advance(
+            &fh.prev,
+            &fh.prev_meta,
+            fh.keep_prev,
+            &cur,
+            oc_model::history::Limits {
+                max_bytes: limits.max_bytes,
+                max_versions: limits.max_versions,
+            },
+        );
+        fh.prev = cur;
+        fh.prev_meta = oc_model::history::VersionMeta {
+            id: commit.id.clone(),
+            kind: commit.kind,
+            name: commit.message.clone(),
+            authors: commit.authors.clone(),
+            at: commit.at.clone(),
+            restored_from: commit.restored_from.clone(),
+        };
+        fh.keep_prev = meta.checkpoint;
+        fh.history.clone()
+    }
+
     /// The commit to send: the pending outbox row when it still matches the doc, else a new
     /// one, written to `commit_outbox` before anything goes to the host.
     async fn prepare_save(&mut self) -> Result<Pending, String> {
@@ -1752,7 +1866,14 @@ impl Room {
             message: meta.message.clone(),
             restored_from: meta.restored_from.clone(),
         };
-        let body = oc_model::write_ocanvas(&self.doc, &commit).map_err(|e| e.to_string())?;
+        let body = match self.host.file_history() {
+            Some(limits) => {
+                let fh = self.advance_file_history(&commit, &meta, limits).await;
+                oc_model::ocanvas::write_ocanvas_with(&self.doc, &commit, Some(&fh))
+            }
+            None => oc_model::write_ocanvas(&self.doc, &commit),
+        }
+        .map_err(|e| e.to_string())?;
         let row = OutboxRow {
             id: id.clone(),
             room_id: self.id.clone(),
@@ -2014,8 +2135,11 @@ impl Room {
                 );
             }
             ConflictOutcome::Reloaded(fetched) => {
-                let (doc, etag) = match doc_from_host(&self.id, fetched) {
-                    Ok(v) => v,
+                let (doc, etag) = match loaded_from_host(&self.id, fetched) {
+                    Ok((d, e, h)) => {
+                        self.file_hist = Some(h);
+                        (d, e)
+                    }
                     Err(e) => {
                         let delay = backoff(c.attempt);
                         c.attempt += 1;

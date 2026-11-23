@@ -145,6 +145,15 @@ pub struct FileInfo {
     pub disable_export: bool,
     pub disable_print: bool,
     pub hide_export_option: bool,
+    /// Extension `OpenCanvas_SupportsVersions` (docs/30 §3.2): the version calls exist.
+    pub supports_versions: bool,
+    /// `FileVersionUrl`: the host's own version page (http(s) only).
+    pub file_version_url: Option<String>,
+    pub file_version_post_message: bool,
+    /// Extension `OpenCanvas_UserCanSeeHistory` when present.
+    pub user_can_see_history: Option<bool>,
+    /// Extension `OpenCanvas_DisableRestore`.
+    pub disable_restore: bool,
 }
 
 fn text(v: &Value, k: &str) -> Option<String> {
@@ -192,6 +201,14 @@ impl FileInfo {
             disable_export: flag(v, "DisableExport"),
             disable_print: flag(v, "DisablePrint"),
             hide_export_option: flag(v, "HideExportOption"),
+            supports_versions: flag(v, "OpenCanvas_SupportsVersions"),
+            file_version_url: text(v, "FileVersionUrl")
+                .filter(|u| Url::parse(u).is_ok_and(|u| matches!(u.scheme(), "http" | "https"))),
+            file_version_post_message: flag(v, "FileVersionPostMessage"),
+            user_can_see_history: v
+                .get("OpenCanvas_UserCanSeeHistory")
+                .map(|_| flag(v, "OpenCanvas_UserCanSeeHistory")),
+            disable_restore: flag(v, "OpenCanvas_DisableRestore"),
         })
     }
 
@@ -211,6 +228,10 @@ impl FileInfo {
     /// `DisablePrint` → no print (PDF). Comments follow the role.
     pub fn perms(&self) -> Perms {
         Perms {
+            // docs/30 §7: viewers see history only when the host says so.
+            history: self.user_can_see_history,
+            restore: !self.disable_restore,
+            commit_message: true,
             export: !(self.disable_export || self.hide_export_option),
             download: !self.disable_export,
             comment: self.role() != Role::View,
@@ -232,6 +253,11 @@ impl FileInfo {
     pub fn grant(&self, host_id: &str, src: &Url, access_token: &str) -> Grant {
         let role = self.role();
         Grant {
+            wopi_history: Some(crate::grant::WopiHistory {
+                supports: self.supports_versions,
+                url: self.file_version_url.clone(),
+                post_message: self.file_version_post_message,
+            }),
             host_id: host_id.to_string(),
             room: room_id(host_id, src.as_str()),
             role,
@@ -701,6 +727,47 @@ mod tests {
 
     fn info(v: Value) -> FileInfo {
         FileInfo::from_json(&v).unwrap()
+    }
+
+    #[test]
+    fn check_file_info_maps_version_history() {
+        let src = Url::parse("https://cloud.example/wopi/files/1").unwrap();
+        let base = json!({"BaseFileName": "a.ocanvas", "UserId": "u", "UserCanWrite": true});
+        let mut v = base.clone();
+        v["OpenCanvas_SupportsVersions"] = json!(true);
+        v["FileVersionUrl"] = json!("https://cloud.example/f/1?versions");
+        v["FileVersionPostMessage"] = json!(true);
+        v["OpenCanvas_DisableRestore"] = json!(true);
+        let g = info(v).grant("nc", &src, "t");
+        let h = g.wopi_history.clone().unwrap();
+        assert!(h.supports && h.post_message);
+        assert_eq!(h.url.as_deref(), Some("https://cloud.example/f/1?versions"));
+        assert!(g.can_see_history());
+        assert!(!g.can_restore());
+        // Viewers see history only with OpenCanvas_UserCanSeeHistory; script URLs are dropped.
+        let mut v = json!({"BaseFileName": "a.ocanvas", "UserId": "u", "FileVersionUrl": "javascript:alert(1)"});
+        let g = info(v.clone()).grant("nc", &src, "t");
+        assert!(!g.can_see_history());
+        assert_eq!(g.wopi_history.unwrap().url, None);
+        v["OpenCanvas_UserCanSeeHistory"] = json!(true);
+        assert!(info(v).grant("nc", &src, "t").can_see_history());
+        let _ = base;
+    }
+
+    #[test]
+    fn named_put_file_is_not_an_autosave() {
+        let meta = crate::host_client::SaveMeta {
+            kind: oc_model::ocanvas::CommitKind::Named,
+            message: Some("Ready".into()),
+            restored_from: None,
+            checkpoint: true,
+        };
+        let h = put_headers(None, &meta);
+        let get = |k: &str| h.iter().find(|(n, _)| *n == k).map(|(_, v)| v.as_str());
+        assert_eq!(get("X-COOL-WOPI-IsAutosave"), Some("false"));
+        assert_eq!(get("X-OpenCanvas-Commit-Message"), Some("Ready"));
+        assert_eq!(get("X-OpenCanvas-Checkpoint"), Some("1"));
+        assert_eq!(get("X-OpenCanvas-Autosave"), None);
     }
 
     #[test]

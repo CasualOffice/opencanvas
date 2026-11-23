@@ -64,6 +64,15 @@ pub struct Perms {
     /// PDF export / print (WOPI `DisablePrint`; JWT `perms.print`).
     #[serde(default = "yes")]
     pub print: bool,
+    /// docs/30 §7: see history, previews and diffs. Absent: editors yes, others no.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history: Option<bool>,
+    /// docs/30 §5: restore a version (with the edit role). Default true.
+    #[serde(default = "yes")]
+    pub restore: bool,
+    /// docs/30 §4: name a version (with the edit role). Default true.
+    #[serde(default = "yes", rename = "commitMessage")]
+    pub commit_message: bool,
 }
 
 fn yes() -> bool {
@@ -83,6 +92,19 @@ pub struct Grant {
     /// (`members[]`, at most 500).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<User>,
+    /// WOPI launches: what CheckFileInfo said about version history (docs/30 §3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wopi_history: Option<WopiHistory>,
+}
+
+/// CheckFileInfo `OpenCanvas_SupportsVersions`, `FileVersionUrl`, `FileVersionPostMessage`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WopiHistory {
+    pub supports: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub post_message: bool,
 }
 
 /// Like the derived `Debug`, with the callback bearer (WOPI: the access token) redacted, so
@@ -111,6 +133,22 @@ impl Grant {
 
     pub fn can_write(&self) -> bool {
         self.role != Role::View
+    }
+
+    /// docs/30 §7: history, previews and diffs. Editors by default; others only with
+    /// `perms.history` (WOPI `OpenCanvas_UserCanSeeHistory`).
+    pub fn can_see_history(&self) -> bool {
+        self.perms.history.unwrap_or(self.role == Role::Edit)
+    }
+
+    /// docs/30 §5: restore needs the edit role, `perms.restore` and history access.
+    pub fn can_restore(&self) -> bool {
+        self.role == Role::Edit && self.perms.restore && self.can_see_history()
+    }
+
+    /// docs/30 §4: naming a version needs the edit role and `perms.commitMessage`.
+    pub fn can_name_version(&self) -> bool {
+        self.role == Role::Edit && self.perms.commit_message
     }
 
     /// The `user` object stamped into awareness states.
@@ -163,6 +201,7 @@ mod tests {
     #[test]
     fn debug_output_redacts_the_callback_token() {
         let g = super::Grant {
+            wopi_history: None,
             host_id: "h".into(),
             room: "r".into(),
             role: super::Role::Edit,

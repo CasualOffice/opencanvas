@@ -145,10 +145,26 @@ impl Cx {
 // ---------- Myers ----------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Op {
+pub(crate) enum Op {
     Eq(usize, usize),
     Del(usize),
     Ins(usize),
+}
+
+/// Myers without the per-diff time limit (in-file history, ADR-055).
+pub(crate) fn myers_unbounded<T: PartialEq>(a: &[T], b: &[T]) -> Vec<Op> {
+    let cx = Cx {
+        deadline: Instant::now() + Duration::from_secs(3600),
+        zero: false,
+        left: 0,
+        truncated: false,
+        sum: Summary::default(),
+    };
+    myers(a, b, &cx).unwrap_or_else(|_| {
+        let mut out: Vec<Op> = (0..a.len()).map(Op::Del).collect();
+        out.extend((0..b.len()).map(Op::Ins));
+        out
+    })
 }
 
 /// Myers' O(ND) diff of `a` and `b`. Past [`MAX_EDITS`] the middle is a plain delete + insert.

@@ -11,6 +11,7 @@ pub mod cluster;
 pub mod config;
 pub mod crypto;
 pub mod grant;
+pub mod history;
 pub mod host_client;
 pub mod hosts;
 pub mod jwt;
@@ -228,6 +229,7 @@ impl AppState {
                 continue;
             };
             let grant = grant::Grant {
+                wopi_history: None,
                 host_id: row.host_id.clone(),
                 room: row.room_id.clone(),
                 role: grant::Role::Edit,
