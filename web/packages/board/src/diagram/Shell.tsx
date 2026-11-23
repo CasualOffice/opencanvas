@@ -21,6 +21,7 @@ import type { Shape } from "../model";
 import { Properties } from "./props/Properties";
 import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
 import { useBudget } from "./Budget";
+import ExportDialog from "./export/ExportDialog";
 
 const SW = 1.75;
 
@@ -65,6 +66,9 @@ export interface DiagramShellProps {
   selection?: string[];
   /** The document limit (`max_doc_bytes`) when the session carries it; else 20 MB (S9). */
   maxDocBytes?: number;
+  /** The export dialog (7f/7g), opened from the board options menu. */
+  exporting?: boolean;
+  onExportClose?: () => void;
   children: ReactNode;
 }
 
@@ -227,6 +231,7 @@ export default function DiagramShell(p: DiagramShellProps) {
       {budget.dialog}
       {keys.sheet ? <Shortcuts onClose={() => keys.setSheet(false)} /> : null}
       <div className="ocdg-sr ocdg-live" role="status" aria-live="polite">{said}</div>
+      {p.exporting ? <ExportDialog doc={doc} boardId={boardId} env={env} name={shown} selection={p.selection ?? []} onClose={() => p.onExportClose?.()} /> : null}
     </div>
   );
 }

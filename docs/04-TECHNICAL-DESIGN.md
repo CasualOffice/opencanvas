@@ -287,6 +287,7 @@ All JSON; errors `{ "error": { "code": "…", "message": "…" } }`.
 | `GET  /v1/preview` `?token=` | JWT/WOPI | read-only HTML |
 | `GET  /v1/export/{fmt}` `?ticket=` | ticket + `export` perm (`download` for ocanvas) | md/html/json/docx/pdf/ocanvas |
 | `GET  /v1/export/board/{boardId}.{svg,png}` `?ticket=` | ticket + `export` perm | one board, fitted to content |
+| `GET  /v1/export/board/{boardId}.{drawio,mmd}` `?ticket=[&ids=a,b][&report=1]` | ticket + `export` perm (+ host `export_formats`) | one board (or the listed shapes) as draw.io or Mermaid (DGM-14.6, `oc_model::diagram_export`); `report=1` answers `{text, report}` |
 | `POST /v1/assets` (multipart) | ticket, edit | proxies upload to host asset callback |
 | `GET  /v1/assets/{id}` | ticket | proxies/redirects to host asset URL |
 | `GET  /v1/unfurl?url=` | ticket | link preview |

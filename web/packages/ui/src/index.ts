@@ -59,6 +59,21 @@ export interface BlockEnv {
    * shows the BPMN shape library (off by default, 2f). BPMN shapes in a document always draw.
    */
   diagram?: { bpmn?: boolean };
+  /**
+   * Optional (DGM-14.6): a board as draw.io or Mermaid, converted by the server
+   * (`GET /v1/export/board/:id.:ext?report=1`), with the "what changes" report. `ids` limits it to
+   * a selection. Absent without a server (`#demo`): those formats are not offered.
+   */
+  exportBoard?: (boardId: string, format: "drawio" | "mmd", ids: string[] | null) => Promise<{ text: string; report: DiagramExportReport }>;
+  /** Optional (DGM-14.6): opens the import dialog adding a diagram file to this board. */
+  importToBoard?: (boardId: string) => void;
+}
+
+/** The server's diagram export report (`oc_model::diagram_export`). */
+export interface DiagramExportReport {
+  format: "drawio" | "mermaid";
+  counts: { shapes: number; connectors: number; containers: number; needLook: number };
+  items: { level: "warn" | "gray" | "ok"; code: string; title: string; detail?: string; count: number; examples: string[] }[];
 }
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];

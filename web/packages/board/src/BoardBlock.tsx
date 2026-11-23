@@ -8,7 +8,7 @@ import type { Awareness } from "y-protocols/awareness";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
-  Ellipsis, FileCode2, FileImage, Frame, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
+  Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
   Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
@@ -231,6 +231,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   /** Shape + anchor an arrow end would attach to (shown while dragging an end). */
   const [hint, setHint] = useState<Binding | null>(null);
   const [menu, setMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [route, setRoute] = useState<ArrowRoute>("straight");
   const fileRef = useRef<HTMLInputElement>(null);
   const peers = usePeers(awareness, boardId);
@@ -2049,6 +2050,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               </button>
             ) : null}
             {edit ? <span className="ocbd-msep" /> : null}
+            {dgm && edit && env.importToBoard ? (
+              <button role="menuitem" className="ocbd-mi" onClick={() => { setMenu(false); env.importToBoard!(boardId); }}>
+                <FileUp size={16} strokeWidth={SW} />
+                Import…
+              </button>
+            ) : null}
+            {dgm ? (
+              <button role="menuitem" className="ocbd-mi" onClick={() => { setMenu(false); setExporting(true); }}>
+                <Download size={16} strokeWidth={SW} />
+                Export…
+              </button>
+            ) : null}
+            {dgm ? <span className="ocbd-msep" /> : null}
             <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("png")}>
               <FileImage size={16} strokeWidth={SW} />
               Export as PNG
@@ -2154,6 +2168,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             canvas={{ shapes, sel, select: setSel, reveal: revealShape }}
             view={view}
             selection={sel}
+            exporting={exporting}
+            onExportClose={() => setExporting(false)}
           >
             {content}
           </Shell>,
