@@ -630,6 +630,7 @@ widget reloads itself). The server's close reason stays "This canvas ended with 
 **Consequences.** + Jitsi and every existing host keep their wording (tested); + room wording
 with one line of config; − a host that sets `room` must handle `UI_StartNew` or the button does
 nothing.
+
 ### ADR-050 — UI units: rem for type and spacing, em for breakpoints (Proposed 2026-11-24, owner signs)
 
 **Context.** The owner asked (2026-11-24) that the UI not become unusable when zoom or resolution
