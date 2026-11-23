@@ -28,6 +28,7 @@ import { CONTAINER, isContainer } from "./kinds";
 import { descriptorOf, makeNode } from "./registry";
 import { KIND_MIME } from "./libraries";
 import { KindMarks, UnknownShape } from "./diagram/Placeholder";
+import { OrphanLayer } from "./diagram/Presence";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 // Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
 type ShellModule = typeof import("./diagram/Shell");
@@ -1862,6 +1863,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ))}
           <KindMarks shapes={visible} />
           {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
+          {dgm ? <OrphanLayer boardId={boardId} shapes={shapes} z={z} /> : null}
           {peerSel}
           {selection}
           {hintDots}
@@ -2044,6 +2046,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             onClosed={diagramClosed}
             onBack={closeDiagram}
             peers={peers}
+            maxDocBytes={env.maxDocBytes}
             selected={sel.map((id) => byId.get(id)).filter((s): s is Shape => !!s)}
             shapes={shapes}
             undo={{ can: !!um?.undoStack.length, run: () => undo() }}

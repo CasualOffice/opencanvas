@@ -54,6 +54,8 @@ export interface BlockEnv {
    * The block never destroys it.
    */
   undoManager?: import("yjs").UndoManager;
+  /** The document limit from the session (`maxDocBytes`); boards budget 25 % of it (DGM-14 S9). */
+  maxDocBytes?: number;
 }
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];

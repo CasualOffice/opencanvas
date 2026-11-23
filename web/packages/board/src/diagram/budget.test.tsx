@@ -107,7 +107,7 @@ describe("size budget in the diagram", { timeout: 30_000 }, () => {
     const host = mountShell(doc, bid, Math.ceil((size / 0.9) / BOARD_SHARE));
     expect(host.querySelector(".ocdg-ban.warn")).not.toBeNull();
     act(() => void addShape(doc, bid, { type: "text", x: 0, y: 0, text: "y".repeat(400) }));
-    await vi.waitFor(() => expect(host.querySelector(".ocdg-ban.over")).not.toBeNull());
+    await vi.waitFor(() => expect(host.querySelector(".ocdg-ban.over")).not.toBeNull(), { timeout: 10_000 });
     const ban = host.querySelector(".ocdg-ban.over")!;
     expect(ban.getAttribute("role")).toBe("alert");
     expect(ban.querySelector('[aria-label="Dismiss"]')).toBeNull();

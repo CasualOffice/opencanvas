@@ -169,3 +169,21 @@ fn temporary_wording_takes_meeting_or_room() {
     assert!(Hosts::parse(&src("temporary_wording = \"chat\""), None).is_err());
     assert!(Hosts::parse(&src("temporary_wording = true"), None).is_err());
 }
+
+/// DGM-14 S9: the session tells the editor the document limit (`[rooms] max_doc_bytes`), so the
+/// diagram's size budget (25 % of it) matches the server instead of assuming 20 MB.
+#[tokio::test]
+async fn session_carries_the_document_size_limit() {
+    let (base, _host) = mock_host().await;
+    let cfg = oc_server::config::RoomConfig {
+        max_doc_bytes: 8 * 1024 * 1024,
+        ..room_cfg()
+    };
+    let state = app_custom(&base, cfg, &temp_db(), |_| {}).await;
+    let addr = serve_state(state).await;
+    let loc = location(&addr, token(json!({}))).await;
+    let ticket = loc.strip_prefix("/app/#t=").unwrap();
+    let (status, s) = session(&addr, ticket).await;
+    assert_eq!(status, 200);
+    assert_eq!(s["maxDocBytes"], 8 * 1024 * 1024);
+}

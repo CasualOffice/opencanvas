@@ -3,6 +3,7 @@
 
 // Properties panel styles (DGM-14 S4, S8). Tokens only; rem for UI (ADR-050).
 import { PLACEHOLDER_CSS } from "../Placeholder";
+import { PRESENCE_CSS } from "../Presence";
 export const PROPS_CSS = `
 .ocpp-h{display:flex;flex-direction:column;gap:.125rem}
 .ocpp-kind{font-size:.6875rem;font-weight:500;color:var(--fg-2)}
@@ -26,8 +27,8 @@ export const PROPS_CSS = `
 .ocpp-sub{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center;width:100%;padding-left:2.25rem}
 .ocpp-sub:empty{display:none}
 .ocpp-cb{display:inline-flex;align-items:center;gap:.25rem;font-size:.75rem;color:var(--fg-2)}
-.ocpp-add{display:inline-flex;align-items:center;gap:.375rem;margin-top:.375rem;height:1.75rem;padding:0 .5rem;border:0;border-radius:.375rem;background:none;color:var(--accent);font-size:.8125rem}
-.ocpp-add:hover{background:var(--hover)}
+.ocpp-add,.ocpp-copy{display:inline-flex;align-items:center;gap:.375rem;margin-top:.375rem;height:1.75rem;padding:0 .5rem;border:0;border-radius:.375rem;background:none;color:var(--accent);font-size:.8125rem}
+.ocpp-add:hover,.ocpp-copy:hover{background:var(--hover)}
 .ocpp-list{list-style:none;margin:0;padding:0}
 .ocpp-list li{display:flex;justify-content:space-between;gap:.5rem;padding:.25rem 0;font-size:.8125rem}
 .ocpp-dim{color:var(--fg-2);font-size:.75rem}
@@ -46,6 +47,6 @@ export function ensurePropsStyles() {
   if (document.querySelector("style[data-ocpp]")) return;
   const s = document.createElement("style");
   s.setAttribute("data-ocpp", "");
-  s.textContent = PROPS_CSS + PLACEHOLDER_CSS;
+  s.textContent = PROPS_CSS + PLACEHOLDER_CSS + PRESENCE_CSS;
   document.head.appendChild(s);
 }

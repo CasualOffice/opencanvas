@@ -421,6 +421,8 @@ pub async fn session_info(
         "storage": if host.ephemeral() { "ephemeral" } else { "host" },
         // ADR-049: the wording of a temporary canvas ("meeting" | "room").
         "wording": host.temporary_wording(),
+        // DGM-14 S9: the document limit; a diagram warns at 80 % of a quarter of it.
+        "maxDocBytes": state.cfg.rooms.max_doc_bytes,
         "isNew": info.is_new,
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,

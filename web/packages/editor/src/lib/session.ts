@@ -22,6 +22,8 @@ export interface Session {
   storage?: "host" | "ephemeral";
   /** ADR-049: wording of a temporary canvas, from `[host.flags] temporary_wording`. */
   wording?: "meeting" | "room";
+  /** `[rooms] max_doc_bytes`: the document size limit (DGM-14 S9 size budget). */
+  maxDocBytes?: number;
   wsUrl: string;
   /** Local-only review mode (`#demo`). No server, no host. */
   demo?: boolean;

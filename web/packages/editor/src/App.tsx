@@ -635,8 +635,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // and board blocks add their edits to it, so ⌘Z / ⌘⇧Z step through text, cells and shapes in order.
   const undoManager = useMemo(() => (editor ? yUndoPluginKey.getState(editor.state)?.undoManager : undefined), [editor]);
   const env: BlockEnv = useMemo(
-    () => ({ role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager }),
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager],
+    () => ({ role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager, maxDocBytes: session.maxDocBytes }),
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.maxDocBytes],
   );
 
   const openThread = useCallback((id: string) => {
