@@ -48,7 +48,7 @@ export interface DiagramShellProps {
   /** Transaction origin of this view (undo). */
   origin: unknown;
   /** Adds a shape of this kind in the middle of the view (shapes panel). */
-  onAddShape: (kind: string) => void;
+  onAddShape?: (kind: string) => void;
   prefs: DiagramPrefs;
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
@@ -198,7 +198,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Outline">
             <Outline doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} onSay={say} />
           </aside>
-        ) : edit ? (
+        ) : edit && p.onAddShape ? (
           <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Shapes">
             <ShapesPanel onAdd={p.onAddShape} />
           </aside>
