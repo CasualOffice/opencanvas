@@ -76,6 +76,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Saving | Autosave only, with no save button. Saves go through a durable outbox. Conflicts are handled by either saving a copy or reloading. |
 | Templates | 40 templates in 9 categories, plus blank canvas, database, whiteboard and import |
 | Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
+| Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
 | Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only. **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
@@ -112,6 +113,15 @@ in [docs/13](docs/13-OPERATIONS-AND-DEPLOYMENT.md).
 The host contract (token claims, callbacks, postMessage events and REST) is in
 [docs/05](docs/05-INTEGRATION-GUIDE.md). [docs/15](docs/15-BUILD-CONTRACT.md) has
 the exact wire formats.
+
+Other ways in:
+
+- **WOPI:** open it from an existing WOPI host such as Nextcloud ([docs/05 §6](docs/05-INTEGRATION-GUIDE.md)).
+- **Jitsi Meet:** add `integrations/jitsi/mod_opencanvas.lua` to Prosody and a few `.env` lines;
+  everyone in a meeting gets the same temporary canvas under **Shared document**
+  ([guide](integrations/jitsi/README.md)).
+- **No file storage of your own:** `storage = "ephemeral"` gives temporary canvases that are
+  deleted when the session ends ([docs/05 §8a](docs/05-INTEGRATION-GUIDE.md)).
 
 ## Assistant and MCP (experimental)
 

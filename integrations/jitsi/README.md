@@ -6,13 +6,21 @@
 `mod_opencanvas.lua` opens an OpenCanvas canvas in a Jitsi Meet call, in the shared-document
 slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus `.env` lines.
 
+- Everyone in the meeting opens the same canvas from **Shared document** and edits it live.
+- The canvas is **temporary**: nothing is stored by Jitsi or by your host. It is deleted when
+  the meeting ends; people download or export (PDF, Word, Markdown, `.ocanvas`) to keep it.
+- It starts blank, or from a template you choose (`template = "meeting"`).
+- A reload, a dropped network or an OpenCanvas restart rejoins the same canvas.
+
 ## How it works
 
 - Jitsi's client opens the `<etherpad>` value of a presence it receives in the shared-document
   iframe, if it resolves to the same origin as `config.etherpad_base`
   (`react/features/etherpad/middleware.ts`).
 - The plugin, loaded on the MUC component, rewrites every presence the room delivers so
-  `<etherpad>` is `https://canvas.example.com/v1/launch?token=<JWT>`, minted for that recipient
+  `<etherpad>` is `https://canvas.example.com/v1/launch?token=<JWT>&ep=`, minted for that recipient.
+  Jitsi appends its Etherpad options with `?` as if the URL had no query; `&ep=` gives them a
+  parameter of their own so the token stays intact
   (docs/05 §3). Other `<etherpad>` elements (Jicofo, clients) are removed.
 - Hook: it shadows `room:route_stanza()` per room (on `muc-room-created`). In Prosody's
   `plugins/muc/muc.lib.lua` that is the only per-recipient step: `muc-broadcast-presence` and
@@ -26,7 +34,8 @@ slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus 
 - One token per XMPP session and role, re-minted after half its TTL; a reload or rejoin is a new
   session and gets a new `jti`. Presence is resent on every mute, so per-delivery tokens would
   churn the document URL.
-- Signing: HS256 with Jitsi's bundled `luajwtjitsi`; fallback to Prosody's `util.hashes`.
+- Signing: HS256 with Prosody's `util.hashes`. Jitsi's bundled `luajwtjitsi` is not used: in
+  stable-11509-1 its signature segment is not standard base64url, so tokens fail to verify.
 - Room destroyed: `DELETE /v1/files/{fileId}/session` with `X-OpenCanvas-Host` /
   `X-OpenCanvas-Key`, async; failures are logged and the idle timeout ends the canvas anyway.
 - Tokens and secrets are never logged.
@@ -42,30 +51,34 @@ slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus 
 3. Add to `.env` (values must not contain commas; `XMPP_MUC_CONFIGURATION` is split on them):
    ```sh
    XMPP_MUC_MODULES=opencanvas
-   XMPP_MUC_CONFIGURATION=opencanvas_url="https://canvas.example.com",opencanvas_host_id="acme-meet",opencanvas_secret="<hex1>",opencanvas_api_key="<hex2>",opencanvas_guest_role="edit",opencanvas_token_ttl=3600
+   XMPP_MUC_CONFIGURATION=opencanvas_url="https://canvas.example.com",opencanvas_api_url="https://canvas.example.com",opencanvas_host_id="acme-meet",opencanvas_secret="<hex1>",opencanvas_api_key="<hex2>",opencanvas_guest_role="edit",opencanvas_token_ttl=3600
    ETHERPAD_PUBLIC_URL=https://canvas.example.com/
    ```
    If `XMPP_MUC_MODULES` already has values, append `,opencanvas`.
    Optional: `opencanvas_enabled_rooms="^canvas%-"` (a Lua pattern on the room name; default all).
+   `opencanvas_api_url` is where Prosody calls OpenCanvas when a meeting ends; set it when
+   Prosody reaches OpenCanvas at another address than browsers do (default: `opencanvas_url`).
 4. Restart: `docker compose up -d --force-recreate prosody web`
    (`web` picks up `ETHERPAD_PUBLIC_URL`).
 5. OpenCanvas `hosts.toml`:
    ```toml
    [[host]]
    id              = "acme-meet"
-   name            = "Acme Meet"
+   name            = "Meeting"
    mode            = "jwt"
    jwt_alg         = "HS256"
    jwt_secret      = "env:ACME_MEET_OC_SECRET"     # <hex1>
    api_key         = "env:ACME_MEET_OC_API_KEY"    # <hex2>
-   storage         = "ephemeral"                    # no host storage; ends with the room
+   storage         = "ephemeral"                    # no host storage; ends with the meeting
+   # template      = "meeting"                      # optional: a built-in template; unset = blank
    allowed_origins = ["https://meet.acme.example"]
 
    [host.flags]
-   export_formats  = ["md", "html", "pdf", "png"]
+   export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"]
    ```
-   `storage = "ephemeral"` is being added in parallel; until it lands the host needs a
-   `callback_base`.
+   Template ids: `meeting`, `standup`, `retro`, `oneonone`, `brainstorm`, `allhands`, and the
+   other built-in templates (an unknown id stops OpenCanvas at startup and lists them all).
+   See docs/05 §8a.
 
 ## Debian packages (jitsi-meet-prosody)
 
@@ -79,6 +92,7 @@ Component "conference.meet.example.com" "muc"
         "opencanvas";
     }
     opencanvas_url = "https://canvas.example.com"
+    opencanvas_api_url = "https://canvas.example.com"
     opencanvas_host_id = "acme-meet"
     opencanvas_secret = "<hex1>"
     opencanvas_api_key = "<hex2>"
@@ -91,7 +105,7 @@ Then `systemctl restart prosody`.
 
 ## Test checklist
 
-- [ ] Prosody log shows `signing launch tokens with luajwtjitsi (HS256)`, no errors.
+- [ ] Prosody log shows `signing launch tokens with util.hashes (HS256)`, no errors.
 - [ ] Two browsers join a room; the shared-document button appears; both open the same canvas.
 - [ ] Moderator can edit; a guest gets `opencanvas_guest_role`.
 - [ ] Reload one browser and open the document again: it opens (fresh `jti`).
@@ -99,17 +113,24 @@ Then `systemctl restart prosody`.
 - [ ] Prosody log shows `OpenCanvas session for … ended (2xx)` when the last person leaves.
 - [ ] `grep -i token` in the Prosody log shows no JWT.
 
-## Status: verified vs not yet tested
+## Status: verified
 
-Verified here:
-- Token minting and claim shape: `test/mint_test.lua` (27 checks, Lua 5.4) and
-  `crates/oc-server/tests/jitsi_plugin.rs`, which verifies a plugin-minted token with
-  OpenCanvas's own `jwt::verify` (and rejects it under a wrong secret). The Rust test skips
-  when no Lua 5.3+ is installed; set `OC_LUA` to the interpreter.
-- Hook choice read from Prosody 0.12 `plugins/muc/muc.lib.lua`, `core/stanza_router.lua`,
-  `plugins/muc/mod_muc.lua`, and jitsi-meet `mod_short_lived_token.lua`,
-  `mod_muc_meeting_id.lua`, `react/features/etherpad/middleware.ts`.
+Tested end to end on 2026-11-23 against a stock docker-jitsi-meet `stable-11509-1` (web,
+prosody, jicofo, jvb) with only the plugin file and the `.env` lines above, and OpenCanvas
+0.1.x with `storage = "ephemeral"`, driven by two separate browsers (Playwright):
 
-Not yet tested against a running Jitsi: the Prosody part (route_stanza shadowing, presence
-rewriting, `luajwtjitsi` loading from the custom plugin dir, the room-end DELETE). Whether
-Jitsi reloads the iframe when the `<etherpad>` value changes is also unconfirmed.
+- Prosody loads the module on the MUC component; `config.js` gets `etherpad_base`.
+- Each person gets their own token; both open the same canvas from **Shared document**.
+- The canvas opens blank (no template picker, no host name), says "Not saved · temporary".
+- Text typed by one person appears for the other, both ways.
+- A reload rejoins the same canvas with a fresh `jti`.
+- When the meeting ends Prosody calls `DELETE …/session` (200) and OpenCanvas deletes the canvas:
+  no rows left in the database.
+- Restarting OpenCanvas mid-meeting keeps the canvas (`tests/ephemeral.rs`).
+
+Also covered by tests: token minting and claim shape (`test/mint_test.lua`, Lua 5.4), a
+plugin-minted token verified by OpenCanvas's own `jwt::verify`
+(`crates/oc-server/tests/jitsi_plugin.rs`, skips without Lua 5.3+; set `OC_LUA`).
+
+Not tested yet: Debian-package installs, Jitsi with its own JWT auth enabled (moderator vs
+guest roles from the Jitsi token), and multi-shard deployments.

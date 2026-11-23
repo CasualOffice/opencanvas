@@ -40,7 +40,9 @@ export function Gutter({ editor }: { editor: Editor }) {
         return dx < 0 ? { x: x + dx } : {};
       },
     };
-    return { placement: "left-start" as const, strategy: "absolute" as const, middleware: [offset({ mainAxis: 6, crossAxis: 3 }), atWideEdge] };
+    // mainAxis 0: the handle touches the text; its 6px spacing is padding inside `.gut`, so the
+    // pointer never crosses a gap that counts as leaving the editor (which hides the handle).
+    return { placement: "left-start" as const, strategy: "absolute" as const, middleware: [offset({ mainAxis: 0, crossAxis: 3 }), atWideEdge] };
   }, [editor]);
   const menu = useStore(blockMenuStore);
   // Keep the handle on its block while the menu is open; release it after.

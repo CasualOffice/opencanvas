@@ -7,9 +7,41 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
+## [0.1.1] - 2026-11-23
 
-Prepared from `main`; not yet tagged. The first final release: v0.1.0-alpha.1 plus the alpha.2
+Jitsi Meet integration and temporary canvases. No upgrade steps: existing hosts behave as before.
+
+### Added
+
+- **Jitsi Meet** (`integrations/jitsi/`, JIT-02): `mod_opencanvas.lua` gives every meeting a
+  shared canvas in Jitsi's Shared document slot, like Etherpad. One Prosody plugin plus `.env`
+  lines, no Docker image or compose changes. Per-person launch tokens, a fresh token on reload,
+  the meeting end closes the canvas. Tested end to end against a stock docker-jitsi-meet
+  (stable-11509-1) with two browsers; guide in `integrations/jitsi/README.md`.
+- **Temporary canvases** (`storage = "ephemeral"`, ADR-043, JIT-01) for hosts with no file
+  storage: no load or save callbacks; everything is deleted when the room closes (idle grace or
+  `DELETE /v1/files/{id}/session`). A server restart or deploy keeps the canvas for the reconnect.
+- `template` for temporary canvases: a built-in template id (`meeting`, `standup`, `retro`, …)
+  or an `.ocanvas`/Markdown file, applied once by the server. Unset: blank.
+- Editor: a temporary canvas says "Not saved · temporary", opens without the template picker,
+  shows no host name, and its ended screen says it was deleted.
+
+### Fixed
+
+- The block handle (+ and drag grip) disappeared when the pointer crossed the gap between the
+  text and the handle, so it could not be clicked or dragged.
+- Plugin: tokens signed with Jitsi's `luajwtjitsi` did not verify (non-standard signature
+  encoding); the plugin now signs with Prosody's own HMAC. Jitsi appends its Etherpad options
+  with `?`, which broke the token; the launch URL now ends in `&ep=`.
+
+### Changed
+
+- The template button in the top bar of an open canvas is gone; new canvases still start from
+  the template picker (or blank, for a temporary canvas).
+
+## [0.1.0] - 2026-11-23
+
+The first final release: v0.1.0-alpha.1 plus the alpha.2
 security fixes and the three release blockers (scope: [docs/26](docs/26-RELEASE-v0.1.0-SCOPE.md)).
 Support is best effort with no SLA. Release notes, upgrade notes and known limitations:
 [docs/28](docs/28-RELEASE-v0.1.0.md).

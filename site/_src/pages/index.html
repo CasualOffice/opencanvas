@@ -38,6 +38,7 @@
       <li>{{icon:git-branch:16}}Yjs CRDT</li>
       <li>{{icon:key-round:16}}JWT: HS256, RS256, EdDSA, JWKS</li>
       <li>{{icon:plug:16}}WOPI-compatible</li>
+      <li>{{icon:video:16}}Jitsi Meet plugin</li>
       <li>{{icon:braces:16}}postMessage, Collabora-style</li>
       <li>{{icon:database:16}}SQLite, MySQL, MariaDB</li>
       <li>{{icon:container:16}}Docker and Helm</li>
@@ -85,9 +86,8 @@
         <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
         <li><strong>Memory grows with the documents you keep open.</strong> While people type, a room's document takes many times its saved size in memory; memory is given back after rooms close. Size from the <a href="docs/capacity.html">sizing guide</a>.</li>
         <li><strong>Durability depends on the mode.</strong> Without Redis the default keeps rooms in memory and dumps them every two seconds: after a crash, the latest edits come back only from clients that reconnect. Use <code>wal</code> mode, or a Redis WAL with append-only persistence, when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>
-        <li>WOPI mode has no proof keys yet, so it is not for WOPI hosts that require proof-key validation.</li>
         <li><strong>Single node first.</strong> Cluster mode passes the crash and chaos runs, but scale-out across machines has not been demonstrated. A single SQLite server with a thousand busy rooms of nonstop typing in <code>wal</code> mode still falls behind by over a second.</li>
-        <li>The block schema is not validated on the server yet: unknown blocks are kept, not checked. Only the import and export formats in the release notes are tested.</li>
+        <li>Only the import and export formats in the release notes are tested.</li>
         <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet. The Helm chart is linted and rendered in CI but not yet installed in a real cluster.</li>
         <li><strong>The assistant and MCP are experimental and off by default.</strong> They are phase 1 and await the owner's review. When an operator turns them on, canvas content is sent to the configured model server.</li>
       </ul>
@@ -294,7 +294,7 @@ allowed_origins = ["https://app.acme.example"]</code></pre>
       <li>{{icon:copy:18}}<span><b>POST /files/{fileId}/copies</b>Save a copy when the file changed elsewhere</span></li>
       <li>{{icon:fingerprint:18}}<span><b>X-OpenCanvas-Signature</b>HMAC-SHA256 on every call, so you know it is us</span></li>
     </ul>
-    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/integration.html">Integration guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/wopi.html">Already a WOPI host?<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/integration.html">Integration guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/wopi.html">Already a WOPI host?<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/jitsi.html">Running Jitsi Meet?<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
   </div>
 </section>
 
@@ -420,6 +420,7 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
       <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div><p>OpenCanvas is open source under the Apache License 2.0. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products. When you redistribute it, keep the NOTICE file. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
       <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
       <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
+      <details><summary>Can we use it in Jitsi Meet, like Etherpad?{{icon:chevron-down}}</summary><div><p>Yes. Add one Prosody plugin and a few <code>.env</code> lines to your Jitsi deployment, with no Docker image or compose changes. Everyone in the meeting opens the same canvas from Shared document. The canvas is temporary: it starts blank or from a template you choose, nothing is stored, and it is deleted when the meeting ends, so people download what they want to keep. See <a href="docs/jitsi.html">Jitsi Meet</a>.</p></div></details>
       <details><summary>We already use Collabora through WOPI. Can we reuse that?{{icon:chevron-down}}</summary><div><p>Yes. OpenCanvas speaks WOPI as a client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc it will call. See <a href="docs/wopi.html">WOPI mode</a>.</p></div></details>
       <details><summary>What can it export?{{icon:chevron-down}}</summary><div><p>Markdown, HTML, JSON, its native <code>.ocanvas</code>, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG.</p></div></details>
     </div>

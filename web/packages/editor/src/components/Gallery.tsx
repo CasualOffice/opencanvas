@@ -182,8 +182,12 @@ export function Gallery(props: {
           </button>
         ) : null}
         <div className="crumbs" style={{ paddingLeft: props.canBack ? 0 : 6 }}>
-          <span className="cparent">{props.parent}</span>
-          <span className="sep">/</span>
+          {props.parent ? (
+            <>
+              <span className="cparent">{props.parent}</span>
+              <span className="sep">/</span>
+            </>
+          ) : null}
           <span className="cname">New canvas</span>
         </div>
       </div>

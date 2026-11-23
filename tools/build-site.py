@@ -106,6 +106,7 @@ DOC_DESCRIPTIONS = {
     "release": "OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.",
     "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
+    "jitsi": "Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.",
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
@@ -185,7 +186,7 @@ def jsonld() -> dict:
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Collaborative editor",
         "operatingSystem": "Linux (Docker image); the editor runs in a web browser",
-        "softwareVersion": "0.1.0",
+        "softwareVersion": "0.1.1",
         "license": sitelib.BLOB + "LICENSE",
         "isAccessibleForFree": True,
         "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"},
@@ -266,8 +267,10 @@ def changelog() -> str:
   <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.1.1</h2>
+<p>Jitsi Meet integration and temporary canvases. One Prosody plugin and config give every Jitsi meeting a shared canvas under Shared document, like Etherpad, with no Docker changes; tested against a stock docker-jitsi-meet with two browsers. Hosts without file storage can set <code>storage = "ephemeral"</code>: canvases start blank or from a built-in template, survive a server restart, and are deleted when the meeting ends. Also: the block handle no longer disappears before you reach it, and the template button inside an open canvas is gone. See <a href="docs/jitsi.html">Jitsi Meet</a> and <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Release 0.1.0</h2>
-<p>Prepared from main; not yet tagged. The first release: 0.1.0-alpha.1 plus the SEC-33, SEC-34 and SEC-35 security fixes, WOPI proof keys, block schema validation and the template load test, with best-effort support and no SLA. WOPI hosts now need proof keys and MCP needs a public URL: read the <a href="docs/release.html#upgrade-notes">upgrade notes</a> before upgrading.</p>
+<p>The first release: 0.1.0-alpha.1 plus the SEC-33, SEC-34 and SEC-35 security fixes, WOPI proof keys, block schema validation and the template load test, with best-effort support and no SLA. WOPI hosts now need proof keys and MCP needs a public URL: read the <a href="docs/release.html#upgrade-notes">upgrade notes</a> before upgrading.</p>
 <h2>Release 0.1.0-alpha.1</h2>
 <p><strong>Embeddable collaborative workspace canvas.</strong> The first alpha, for evaluation, with no production SLA: rich text, databases, whiteboards, templates and collaboration; a standalone SQLite deployment and the host SDK; import and export for the tested formats. The AI assistant and MCP endpoint are experimental and off by default. Read the <a href="{sitelib.BLOB}docs/25-RELEASE-v0.1.0-alpha.1.md">alpha release notes</a> for the acceptance evidence, the known limitations, and backup and recovery; the summary is in <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Integration log</h2>

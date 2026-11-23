@@ -64,7 +64,8 @@ fn plugin_token_passes_the_opencanvas_verifier() {
     )
     .unwrap();
 
-    let (host, claims) = oc_server::jwt::verify(&token, &hosts, now).expect("plugin token verifies");
+    let (host, claims) =
+        oc_server::jwt::verify(&token, &hosts, now).expect("plugin token verifies");
     assert_eq!(host.id, "acme-jitsi");
     assert_eq!(claims.exp - now, 36000, "TTL capped at 10 h");
     let grant = claims.into_grant();

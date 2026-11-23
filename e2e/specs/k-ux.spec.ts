@@ -180,10 +180,11 @@ test("SEC-20: script and HTML URLs from the document never reach href or src", a
 
 test("a blank canvas invites a start; a conflict shows autosave as paused", async ({ page }) => {
   await demo(page);
-  await page.getByRole("button", { name: "Templates" }).first().click();
-  await page.locator("button").filter({ hasText: "Blank canvas" }).first().click();
-  await expect(page.getByRole("dialog", { name: "Replace canvas" }).getByRole("button", { name: "Cancel" })).toBeFocused();
-  await page.getByRole("button", { name: "Replace content" }).click();
+  // Inside a canvas there is no template button: templates are offered when a canvas is new.
+  await expect(page.locator(".top").getByRole("button", { name: "Templates" })).toHaveCount(0);
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
   const invite = page.getByRole("group", { name: "Start this canvas" });
   await expect(invite.getByRole("button", { name: "Database" })).toBeVisible();
   // The new canvas takes the caret, so typing just works.

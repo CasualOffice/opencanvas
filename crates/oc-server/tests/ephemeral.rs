@@ -365,6 +365,87 @@ async fn reconnect_within_grace_keeps_the_canvas_and_new_rooms_use_the_template(
     assert!(server_json(&state).await.to_string().contains("Agenda"));
 }
 
+/// `template = "meeting"` names a built-in template: every new canvas starts from it, applied
+/// once by the server (two people joining at once never get it twice). Unknown names fail at
+/// startup and list the valid ones.
+#[tokio::test]
+async fn a_builtin_template_by_name_seeds_each_new_canvas() {
+    let src = |t: &str| {
+        format!(
+            "[[host]]\nid = \"jitsi\"\nname = \"Meet\"\njwt_secret = \"0123456789abcdef0123456789abcdef\"\nstorage = \"ephemeral\"\ntemplate = {t:?}\n"
+        )
+    };
+    let err = Hosts::parse(&src("nosuch"), None).unwrap_err().to_string();
+    assert!(
+        err.contains("unknown template") && err.contains("meeting"),
+        "{err}"
+    );
+    let hosts = Hosts::parse(&src("meeting"), None).unwrap();
+    let bytes = hosts.get("jitsi").unwrap().template_bytes.clone();
+    let state = eph_app(
+        "",
+        Duration::from_millis(1500),
+        |_| {},
+        move |h| {
+            h.template_bytes = bytes.clone();
+        },
+    )
+    .await;
+    let mut a = Peer::join(&state, grant("u_1", Role::Edit)).await;
+    let mut b = Peer::join(&state, grant("u_2", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    let tpl = oc_model::templates::builtin("meeting").unwrap();
+    let blocks = server_json(&state).await["content"]
+        .as_array()
+        .unwrap()
+        .len();
+    assert_eq!(
+        blocks,
+        tpl["content"].as_array().unwrap().len(),
+        "applied exactly once"
+    );
+}
+
+/// A restart or deploy (drain) is not the end of the meeting: the canvas survives it and
+/// reopens as it was; only the idle close or the host's close destroys it.
+#[tokio::test]
+async fn a_drain_keeps_the_canvas_for_the_reconnect() {
+    let db = temp_db();
+    let node = || {
+        app_full(
+            "",
+            rooms(Duration::from_millis(1500)),
+            &db,
+            |h| {
+                h.storage = "ephemeral".into();
+                h.api_key = Some(API_KEY.into());
+            },
+            |_| {},
+        )
+    };
+    let first = node().await;
+    let mut a = Peer::join(&first, grant("u_1", Role::Edit)).await;
+    a.settle().await;
+    type_text(&a, "kept across a restart");
+    a.settle().await;
+    first.rooms.shutdown_all().await;
+    assert_ne!(
+        leftovers(&first).await,
+        vec![],
+        "the canvas is kept for the reconnect"
+    );
+    // The restarted server opens the same canvas.
+    let second = node().await;
+    let mut b = Peer::join(&second, grant("u_1", Role::Edit)).await;
+    b.settle().await;
+    let text = b.doc.get_or_insert_text("scratch");
+    assert_eq!(text.get_string(&b.doc.transact()), "kept across a restart");
+    b.leave();
+    wait_closed(&second).await;
+    assert_eq!(leftovers(&second).await, vec![]);
+}
+
 /// The default storage is unchanged: the room loads from the host and says so.
 #[tokio::test]
 async fn host_storage_is_unchanged() {

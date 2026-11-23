@@ -38,7 +38,7 @@
 --   It is a room_mt method, so we shadow it on each room instance (muc-room-created), clone
 --   the stanza (it is shared), and pass the copy to the previous route_stanza.
 --
--- Signing: HS256 with Jitsi's bundled luajwtjitsi (module:require "luajwtjitsi", as
+-- Signing: HS256 with Prosody's util.hashes (see the note at `local sign`; not luajwtjitsi, as
 -- mod_short_lived_token and token/util.lib.lua do). If it cannot be loaded, the module falls
 -- back to Prosody's util.hashes.hmac_sha256 + util.json + base64 (encode_hs256 below).
 --
@@ -118,7 +118,9 @@ function M.encode_hs256(claims, secret, prim)
 end
 
 function M.launch_url(base, token)
-    return base .. "/v1/launch?token=" .. token
+    -- Jitsi's document pane appends its Etherpad options with "?" (it assumes the URL has no
+    -- query yet): "...&ep=" gives them a parameter of their own, so the token stays intact.
+    return base .. "/v1/launch?token=" .. token .. "&ep="
 end
 
 -- Outside Prosody (unit tests) only the pure functions above are loaded.
@@ -159,23 +161,21 @@ end
 
 local function sha256_hex(s) return hashes.sha256(s, true) end
 
+-- Signing: HS256 with Prosody's own util.hashes + util.json + base64url (encode_hs256 above).
+-- Jitsi's bundled luajwtjitsi is NOT used: its HS256 signature segment is not the standard
+-- 43-character base64url form (tested against stable-11509-1: 61 characters with "?" and "="),
+-- so OpenCanvas rejects those tokens.
 local sign
 do
-    local ok, jwt = pcall(module.require, module, "luajwtjitsi")
-    if ok and jwt and jwt.encode then
-        sign = function(claims) return jwt.encode(claims, secret, "HS256") end
-        module:log("info", "signing launch tokens with luajwtjitsi (HS256)")
-    else
-        local json = require "util.json"
-        local base64 = require "util.encodings".base64
-        local prim = {
-            json_encode = json.encode,
-            hmac_sha256 = function(k, d) return hashes.hmac_sha256(k, d) end,
-            base64_encode = base64.encode,
-        }
-        sign = function(claims) return M.encode_hs256(claims, secret, prim) end
-        module:log("info", "luajwtjitsi not found; signing with util.hashes (HS256)")
-    end
+    local json = require "util.json"
+    local base64 = require "util.encodings".base64
+    local prim = {
+        json_encode = json.encode,
+        hmac_sha256 = function(k, d) return hashes.hmac_sha256(k, d) end,
+        base64_encode = base64.encode,
+    }
+    sign = function(claims) return M.encode_hs256(claims, secret, prim) end
+    module:log("info", "signing launch tokens with util.hashes (HS256)")
 end
 
 -- room.jid -> { [recipient full jid] = { token, role, refresh_at } }

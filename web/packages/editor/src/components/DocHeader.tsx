@@ -15,6 +15,8 @@ export function DocHeader(props: {
   meta: Meta;
   editable: boolean;
   hostName: string;
+  /** ADR-043: nothing is stored; the canvas is deleted when the meeting ends. */
+  temporary?: boolean;
   lastEdit: number | null;
   lastEditBy: string | null;
   peopleHere: number;
@@ -76,10 +78,17 @@ export function DocHeader(props: {
             {props.peopleHere} people here now
           </span>
         ) : null}
-        <span>
-          <Ic name="shield-check" size={14} />
-          Stored in {props.hostName}
-        </span>
+        {props.temporary ? (
+          <span>
+            <Ic name="clock" size={14} />
+            Temporary: deleted when the meeting ends. Download a copy to keep it.
+          </span>
+        ) : (
+          <span>
+            <Ic name="shield-check" size={14} />
+            Stored in {props.hostName}
+          </span>
+        )}
       </div>
       {pick ? (
         <Popover anchor={pick} onClose={() => setPick(null)} title="Icon" minWidth={280} kind="dialog">

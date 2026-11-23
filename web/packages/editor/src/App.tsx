@@ -482,7 +482,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       return;
     }
     if (role === "edit" && !meta.title && session.file.name) setMeta(doc, { title: session.file.name }, null);
-    if (session.isNew && role === "edit" && editor.isEmpty) setScreen("gallery");
+    // A temporary canvas (a meeting's shared document) opens blank: people join it mid-meeting
+    // and expect to type at once. Templates stay one click away on the blank page.
+    if (session.isNew && role === "edit" && editor.isEmpty && session.storage !== "ephemeral") setScreen("gallery");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
@@ -807,9 +809,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   );
 
   // ---------- derived ----------
+  // ADR-043: nothing is saved in a temporary canvas, so never say "Saved".
+  const temporary = session.storage === "ephemeral";
   const shownSave: SaveState =
-    access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : save;
-  const parent = session.demo ? "Engineering" : hostName;
+    access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : temporary && save.kind !== "readonly" ? { kind: "temporary" } : save;
+  // A temporary (meeting) canvas has no place in the host to name: no breadcrumb parent.
+  const parent = session.demo ? "Engineering" : session.storage === "ephemeral" ? "" : hostName;
 
   const banners: React.ReactNode[] = [];
   if (access === "warn")
@@ -932,7 +937,6 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               wide={wide}
               canExport={session.perms.export !== false}
               canDownload={session.perms.download !== false}
-              onGallery={() => setScreen("gallery")}
               onFollow={follow}
               onComments={() => (side ? closeSide() : setSide("comments"))}
               onImportInto={impFormats.length ? openImport : undefined}
@@ -964,6 +968,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     meta={meta}
                     editable={effectiveRole === "edit"}
                     hostName={hostName}
+                    temporary={temporary}
                     lastEdit={lastEdit ?? (save.kind === "saved" ? save.at : null)}
                     lastEditBy={lastEditBy}
                     peopleHere={peers.length}
@@ -1089,6 +1094,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             <Modal onClose={() => undefined} dismissable={false} label="Canvas closed">
               {closed.kind === "revoked" ? (
                 <ModalHead title="Your access to this canvas changed" sub={`${hostName} no longer lets you open this canvas. Ask the owner if you need it.`} icon="lock" tone="gray" />
+              ) : temporary ? (
+                <ModalHead
+                  title="This canvas ended with the meeting"
+                  sub="It has been deleted and cannot be reopened. Copies you downloaded are yours to keep."
+                  icon="trash-2"
+                  tone="gray"
+                />
               ) : (
                 <ModalHead
                   title={`${hostName} closed this canvas`}
@@ -1097,11 +1109,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                   tone="gray"
                 />
               )}
-              <div className="mft" style={{ paddingTop: 18 }}>
-                <button className="btn primary" onClick={() => postToHost("UI_Close", {})}>
-                  Back to {hostName}
-                </button>
-              </div>
+              {temporary ? null : (
+                <div className="mft" style={{ paddingTop: 18 }}>
+                  <button className="btn primary" onClick={() => postToHost("UI_Close", {})}>
+                    Back to {hostName}
+                  </button>
+                </div>
+              )}
             </Modal>
           ) : null}
         </div>

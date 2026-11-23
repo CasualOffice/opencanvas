@@ -18,6 +18,8 @@ export interface Session {
   host: { id: string; name: string };
   perms: { export?: boolean; download?: boolean; comment?: boolean; commitMessage?: boolean; mention?: boolean };
   isNew: boolean;
+  /** docs/05 §8a: "ephemeral" = a temporary canvas (no host storage, deleted when the room closes). */
+  storage?: "host" | "ephemeral";
   wsUrl: string;
   /** Local-only review mode (`#demo`). No server, no host. */
   demo?: boolean;

@@ -138,7 +138,7 @@ check("non-http avatar dropped", claims.user.avatar == nil)
 check("role", claims.role == "edit")
 check("callbackToken", type(claims.callbackToken) == "string")
 check("launch url", M.launch_url("https://canvas.example.com", "x.y.z")
-    == "https://canvas.example.com/v1/launch?token=x.y.z")
+    == "https://canvas.example.com/v1/launch?token=x.y.z&ep=")
 
 local token = M.encode_hs256(claims, secret,
     { json_encode = json, hmac_sha256 = hmac_sha256, base64_encode = base64 })

@@ -10,6 +10,9 @@ use std::sync::Arc;
 use anyhow::{Context, bail};
 use serde::Deserialize;
 
+/// Prefix of `template_bytes` that holds a built-in template's document JSON (not a file).
+pub const TEMPLATE_JSON_TAG: &[u8] = b"\0oc-template-json\0";
+
 /// What `POST /v1/import` reads (docs/23 FC-10).
 pub const IMPORT_FORMATS: [&str; 3] = ["md", "html", "csv"];
 
@@ -56,7 +59,8 @@ pub struct HostConfig {
     /// (ADR-043): no load, no save, the canvas is destroyed when its room closes.
     #[serde(default = "default_storage")]
     pub storage: String,
-    /// Ephemeral storage: an `.ocanvas` or Markdown file every new canvas starts from.
+    /// Ephemeral storage: what every new canvas starts from. A built-in template id
+    /// (`"meeting"`, `"standup"`, …) or the path of an `.ocanvas` or Markdown file. Unset: blank.
     #[serde(default)]
     pub template: Option<String>,
     /// The bytes of `template`, read once at startup.
@@ -241,10 +245,22 @@ impl Hosts {
                             h.id
                         );
                     }
-                    if let Some(path) = &h.template {
-                        let bytes = std::fs::read(path).with_context(|| {
-                            format!("host {}: cannot read template {path}", h.id)
-                        })?;
+                    if let Some(t) = &h.template {
+                        let bytes = if let Some(json) = oc_model::templates::builtin(t) {
+                            let mut b = TEMPLATE_JSON_TAG.to_vec();
+                            b.extend(serde_json::to_vec(json)?);
+                            b
+                        } else if t.contains('/') || t.contains('.') {
+                            std::fs::read(t).with_context(|| {
+                                format!("host {}: cannot read template {t}", h.id)
+                            })?
+                        } else {
+                            bail!(
+                                "host {}: unknown template {t:?} (a file path or one of: {})",
+                                h.id,
+                                oc_model::templates::ids().join(", ")
+                            );
+                        };
                         h.template_bytes = Some(Arc::new(bytes));
                     }
                 }

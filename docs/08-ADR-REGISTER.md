@@ -489,7 +489,9 @@ finds no loss is a v0.2 release gate.
 (Jitsi Meet) has no file storage at all.
 **Decision.** Opt-in `storage = "ephemeral"` per host. No load or save callback, no
 `callback_base` required. Canvases are temporary: the room is destroyed (every row and key)
-when it closes after the idle grace, on drain, or on `DELETE /v1/files/{id}/session`. Uploads
+when it closes after the idle grace or on `DELETE /v1/files/{id}/session`; a drain (restart,
+deploy) keeps it for the reconnect (revised 2026-11-23 after the Jitsi test). A `template` is a
+built-in template id or a file, applied once by the server. Uploads
 live with the room. Users keep work by exporting during the meeting. ADR-001 stands for every
 other host; this is the only exception, and it keeps nothing beyond the room's life.
 **Consequences.** + meeting hosts integrate with a JWT secret only; − work not exported is gone

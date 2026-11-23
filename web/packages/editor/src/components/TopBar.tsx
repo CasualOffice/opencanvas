@@ -26,7 +26,9 @@ export type SaveState =
   /** docs/23 PERM-07: access ended; read only until it is renewed. */
   | { kind: "ended" }
   /** Conflict or session closed: nothing is being saved from this tab any more. */
-  | { kind: "paused" };
+  | { kind: "paused" }
+  /** ADR-043: a temporary canvas; nothing is saved, it is deleted when the room closes. */
+  | { kind: "temporary" };
 
 export function TopBar(props: {
   meta: Meta;
@@ -41,7 +43,6 @@ export function TopBar(props: {
   wide: boolean;
   canExport: boolean;
   canDownload: boolean;
-  onGallery(): void;
   /** Click toggles following; a long press (touch) always starts it. */
   onFollow(p: Peer, start?: boolean): void;
   onComments(): void;
@@ -71,14 +72,13 @@ export function TopBar(props: {
 
   return (
     <div className="top">
-      {props.role === "edit" ? (
-        <button className="ib" onClick={props.onGallery} title="New canvas from a template" aria-label="Templates">
-          <Ic name="layout-template" />
-        </button>
-      ) : null}
       <div className="crumbs">
-        <span className="cparent">{props.parent}</span>
-        <span className="sep">/</span>
+        {props.parent ? (
+          <>
+            <span className="cparent">{props.parent}</span>
+            <span className="sep">/</span>
+          </>
+        ) : null}
         <span className={`ctile tone-${meta.tone}`}>
           <Ic name={meta.icon} size={14} />
         </span>
@@ -303,6 +303,8 @@ function statusLook(save: SaveState): { cls: string; icon: string; label: string
       return { cls: "warn", icon: "circle-pause", label: "Autosave paused" };
     case "saved":
       return { cls: "ok", icon: "circle-check", label: "Saved" };
+    case "temporary":
+      return { cls: "", icon: "clock", label: "Not saved · temporary" };
   }
 }
 

@@ -13,6 +13,7 @@ pub mod import;
 pub mod ocanvas;
 pub mod patch;
 pub mod people;
+pub mod templates;
 pub mod validate;
 
 pub use doc::{doc_to_json, ensure_roots, is_empty, new_doc};

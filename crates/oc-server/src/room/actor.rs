@@ -327,7 +327,12 @@ fn doc_from_host(room: &str, fetched: Fetched) -> anyhow::Result<(Doc, Option<St
             content_type,
             etag,
         } => {
-            let doc = if oc_model::ocanvas::is_zip(&bytes) {
+            let doc = if let Some(json) = bytes.strip_prefix(crate::hosts::TEMPLATE_JSON_TAG) {
+                // ADR-043: a built-in template named in the host's config.
+                let doc = oc_model::new_doc();
+                oc_model::import::apply_document_json(&doc, &serde_json::from_slice(json)?);
+                doc
+            } else if oc_model::ocanvas::is_zip(&bytes) {
                 oc_model::read_ocanvas(&bytes)?.doc
             } else {
                 if !content_type.starts_with("text/") && !content_type.is_empty() {
@@ -2032,8 +2037,18 @@ impl Room {
     /// SIGTERM or host close: wait for an in-flight save, make a final one if still dirty,
     /// then close peers.
     async fn shutdown(&mut self, rx: &mut mpsc::UnboundedReceiver<Cmd>, by_host: bool) {
+        if self.ephemeral && !by_host {
+            // ADR-043: a drain (restart, deploy) is not the end of the meeting. The edits are
+            // in the WAL and the row is dirty, so the canvas reopens as it was when people
+            // reconnect; the idle close or the host's close destroys it as usual.
+            if self.seq > self.compacted_seq {
+                self.compact().await;
+            }
+            self.tell_reconnect("server restarting");
+            return;
+        }
         if self.ephemeral {
-            // ADR-043: host close or drain ends the canvas; nothing to save, nothing kept.
+            // ADR-043: the host closed the session (the meeting ended): nothing is kept.
             self.flush_mentions().await;
             let closed = Bytes::from(protocol::control(
                 &json!({"t": "closed", "reason": EPHEMERAL_CLOSED}),

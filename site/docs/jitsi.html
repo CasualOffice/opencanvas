@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Jitsi Meet | OpenCanvas</title>
+<meta name="description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.">
+<link rel="canonical" href="https://canvas.casualoffice.org/docs/jitsi.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Jitsi Meet | OpenCanvas">
+<meta property="og:description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.">
+<meta property="og:url" content="https://canvas.casualoffice.org/docs/jitsi.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html" aria-current="page">Jitsi Meet</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html" aria-current="page">Jitsi Meet</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Jitsi Meet</h1>
+
+<p>&lt;!-- SPDX-License-Identifier: Apache-2.0 --&gt; &lt;!-- Copyright 2026 CasualOffice --&gt;</p>
+<h1>OpenCanvas in Jitsi Meet</h1>
+<p><code>mod_opencanvas.lua</code> opens an OpenCanvas canvas in a Jitsi Meet call, in the shared-document slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus <code>.env</code> lines.</p>
+<ul><li>Everyone in the meeting opens the same canvas from <strong>Shared document</strong> and edits it live.</li><li>The canvas is <strong>temporary</strong>: nothing is stored by Jitsi or by your host. It is deleted when the meeting ends; people download or export (PDF, Word, Markdown, <code>.ocanvas</code>) to keep it.</li><li>It starts blank, or from a template you choose (<code>template = &quot;meeting&quot;</code>).</li><li>A reload, a dropped network or an OpenCanvas restart rejoins the same canvas.</li></ul>
+<h2 id="how-it-works">How it works</h2>
+<ul><li>Jitsi's client opens the <code>&lt;etherpad&gt;</code> value of a presence it receives in the shared-document iframe, if it resolves to the same origin as <code>config.etherpad_base</code> (<code>react/features/etherpad/middleware.ts</code>).</li><li>The plugin, loaded on the MUC component, rewrites every presence the room delivers so <code>&lt;etherpad&gt;</code> is <code>https://canvas.example.com/v1/launch?token=&lt;JWT&gt;&amp;ep=</code>, minted for that recipient. Jitsi appends its Etherpad options with <code>?</code> as if the URL had no query; <code>&amp;ep=</code> gives them a parameter of their own so the token stays intact (docs/05 §3). Other <code>&lt;etherpad&gt;</code> elements (Jicofo, clients) are removed.</li><li>Hook: it shadows <code>room:route_stanza()</code> per room (on <code>muc-room-created</code>). In Prosody's <code>plugins/muc/muc.lib.lua</code> that is the only per-recipient step: <code>muc-broadcast-presence</code> and <code>muc-build-occupant-presence</code> fire once per broadcast, and <code>pre-presence/full</code> only fires for stanzas from c2s sessions (<code>core/stanza_router.lua</code>). See the comment at the top of the file.</li><li><code>file.id</code> = <code>jitsi-</code> + SHA-256 of room JID (includes the tenant) and <code>meetingId</code> (<code>mod_muc_meeting_id</code>): a new meeting with the same name gets a fresh canvas.</li><li>Role: <code>edit</code> for moderators and owners, <code>opencanvas_guest_role</code> for everyone else.</li><li>User: <code>id</code>, <code>name</code>, <code>avatar</code> from the Jitsi JWT context (<code>session.jitsi_meet_context_user</code>), else the presence nick and an opaque hash of the JID.</li><li>One token per XMPP session and role, re-minted after half its TTL; a reload or rejoin is a new session and gets a new <code>jti</code>. Presence is resent on every mute, so per-delivery tokens would churn the document URL.</li><li>Signing: HS256 with Prosody's <code>util.hashes</code>. Jitsi's bundled <code>luajwtjitsi</code> is not used: in stable-11509-1 its signature segment is not standard base64url, so tokens fail to verify.</li><li>Room destroyed: <code>DELETE /v1/files/{fileId}/session</code> with <code>X-OpenCanvas-Host</code> / <code>X-OpenCanvas-Key</code>, async; failures are logged and the idle timeout ends the canvas anyway.</li><li>Tokens and secrets are never logged.</li></ul>
+<h2 id="install-docker-jitsi-meet">Install (docker-jitsi-meet)</h2>
+<ol><li>Copy the plugin: <code>sh mkdir -p ${CONFIG}/prosody/prosody-plugins-custom cp mod_opencanvas.lua ${CONFIG}/prosody/prosody-plugins-custom/</code></li><li>Generate comma-free hex secrets: <code>openssl rand -hex 32</code> (twice).</li><li>Add to <code>.env</code> (values must not contain commas; <code>XMPP_MUC_CONFIGURATION</code> is split on them): <code>sh XMPP_MUC_MODULES=opencanvas XMPP_MUC_CONFIGURATION=opencanvas_url=&quot;https://canvas.example.com&quot;,opencanvas_api_url=&quot;https://canvas.example.com&quot;,opencanvas_host_id=&quot;acme-meet&quot;,opencanvas_secret=&quot;&lt;hex1&gt;&quot;,opencanvas_api_key=&quot;&lt;hex2&gt;&quot;,opencanvas_guest_role=&quot;edit&quot;,opencanvas_token_ttl=3600 ETHERPAD_PUBLIC_URL=https://canvas.example.com/</code> If <code>XMPP_MUC_MODULES</code> already has values, append <code>,opencanvas</code>. Optional: <code>opencanvas_enabled_rooms=&quot;^canvas%-&quot;</code> (a Lua pattern on the room name; default all). <code>opencanvas_api_url</code> is where Prosody calls OpenCanvas when a meeting ends; set it when Prosody reaches OpenCanvas at another address than browsers do (default: <code>opencanvas_url</code>).</li><li>Restart: <code>docker compose up -d --force-recreate prosody web</code> (<code>web</code> picks up <code>ETHERPAD_PUBLIC_URL</code>).</li><li>OpenCanvas <code>hosts.toml</code>: <code>`</code>toml [[host]] id              = "acme-meet" name            = "Meeting" mode            = "jwt" jwt_alg         = "HS256" jwt_secret      = "env:ACME_MEET_OC_SECRET"     # &lt;hex1&gt; api_key         = "env:ACME_MEET_OC_API_KEY"    # &lt;hex2&gt; storage         = "ephemeral"                    # no host storage; ends with the meeting # template      = "meeting"                      # optional: a built-in template; unset = blank allowed_origins = ["https://meet.acme.example"]</li></ol>
+<p>[host.flags] export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"] <code>`</code> Template ids: <code>meeting</code>, <code>standup</code>, <code>retro</code>, <code>oneonone</code>, <code>brainstorm</code>, <code>allhands</code>, and the other built-in templates (an unknown id stops OpenCanvas at startup and lists them all). See docs/05 §8a.</p>
+<h2 id="debian-packages-jitsi-meet-prosody">Debian packages (jitsi-meet-prosody)</h2>
+<p>Put the file in a plugin path (for example <code>/usr/share/jitsi-meet/prosody-plugins/</code> or a directory added to <code>plugin_paths</code>) and edit <code>/etc/prosody/conf.d/meet.example.com.cfg.lua</code>:</p>
+<pre><code class="language-lua">Component &quot;conference.meet.example.com&quot; &quot;muc&quot;
+    modules_enabled = {
+        -- ... existing modules ...
+        &quot;opencanvas&quot;;
+    }
+    opencanvas_url = &quot;https://canvas.example.com&quot;
+    opencanvas_api_url = &quot;https://canvas.example.com&quot;
+    opencanvas_host_id = &quot;acme-meet&quot;
+    opencanvas_secret = &quot;&lt;hex1&gt;&quot;
+    opencanvas_api_key = &quot;&lt;hex2&gt;&quot;
+    opencanvas_guest_role = &quot;edit&quot;
+    opencanvas_token_ttl = 3600</code></pre>
+<p>and in <code>/etc/jitsi/meet/meet.example.com-config.js</code>: <code>config.etherpad_base = &#x27;https://canvas.example.com/&#x27;;</code> Then <code>systemctl restart prosody</code>.</p>
+<h2 id="test-checklist">Test checklist</h2>
+<ul><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span>Prosody log shows <code>signing launch tokens with util.hashes (HS256)</code>, no errors.</span></li><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span>Two browsers join a room; the shared-document button appears; both open the same canvas.</span></li><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span>Moderator can edit; a guest gets <code>opencanvas_guest_role</code>.</span></li><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span>Reload one browser and open the document again: it opens (fresh <code>jti</code>).</span></li><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span>Leave and rejoin under the same room name after the room closed: a new, empty canvas.</span></li><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span>Prosody log shows <code>OpenCanvas session for … ended (2xx)</code> when the last person leaves.</span></li><li class="task task-open"><span class="task-box" aria-hidden="true"></span><span><code>grep -i token</code> in the Prosody log shows no JWT.</span></li></ul>
+<h2 id="status-verified">Status: verified</h2>
+<p>Tested end to end on 2026-11-23 against a stock docker-jitsi-meet <code>stable-11509-1</code> (web, prosody, jicofo, jvb) with only the plugin file and the <code>.env</code> lines above, and OpenCanvas 0.1.x with <code>storage = &quot;ephemeral&quot;</code>, driven by two separate browsers (Playwright):</p>
+<ul><li>Prosody loads the module on the MUC component; <code>config.js</code> gets <code>etherpad_base</code>.</li><li>Each person gets their own token; both open the same canvas from <strong>Shared document</strong>.</li><li>The canvas opens blank (no template picker, no host name), says "Not saved · temporary".</li><li>Text typed by one person appears for the other, both ways.</li><li>A reload rejoins the same canvas with a fresh <code>jti</code>.</li><li>When the meeting ends Prosody calls <code>DELETE …/session</code> (200) and OpenCanvas deletes the canvas: no rows left in the database.</li><li>Restarting OpenCanvas mid-meeting keeps the canvas (<code>tests/ephemeral.rs</code>).</li></ul>
+<p>Also covered by tests: token minting and claim shape (<code>test/mint_test.lua</code>, Lua 5.4), a plugin-minted token verified by OpenCanvas's own <code>jwt::verify</code> (<code>crates/oc-server/tests/jitsi_plugin.rs</code>, skips without Lua 5.3+; set <code>OC_LUA</code>).</p>
+<p>Not tested yet: Debian-package installs, Jitsi with its own JWT auth enabled (moderator vs guest roles from the Jitsi token), and multi-shard deployments.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/jitsi/README.md">integrations/jitsi/README.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="wopi.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">WOPI mode</span></a><a class="pn pn-next" href="protocol.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Protocol and build contract</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#how-it-works">How it works</a></li><li><a href="#install-docker-jitsi-meet">Install (docker-jitsi-meet)</a></li><li><a href="#debian-packages-jitsi-meet-prosody">Debian packages (jitsi-meet-prosody)</a></li><li><a href="#test-checklist">Test checklist</a></li><li><a href="#status-verified">Status: verified</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

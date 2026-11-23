@@ -444,20 +444,27 @@ name = "Meeting"
 jwt_secret = "env:MEET_JWT_SECRET"
 api_key = "env:MEET_API_KEY"
 storage = "ephemeral"          # default "host"
-# template = "/etc/opencanvas/agenda.md"   # optional: .ocanvas or Markdown every canvas starts from
+# template = "meeting"        # optional: a built-in template id, or a path to an .ocanvas or Markdown file
+                               # unset: every canvas starts blank
 # callback_base = "https://meet.example/api/opencanvas"   # optional: mentions and members only
 ```
 
-- **No load and no save.** The room starts as a new canvas (or the template); no
+- **No load and no save.** The room starts blank, or from `template`, applied once by the server
+  (people joining together never get it twice); no
   `GET`/`PUT /files/{id}`, no commit outbox. The editor gets `session.storage = "ephemeral"` and
-  the save status `{"t": "temporary"}` ("Not saved: temporary"). The commit API answers `clean`.
-- **Destroyed when the room closes**: the last person leaves and `OC_ROOM_IDLE_MS` passes, the
-  node drains, or you call `DELETE /v1/files/{fileId}/session`. The server then deletes the WAL,
+  the save status `{"t": "temporary"}`. The editor shows "Not saved · temporary", skips the
+  template picker and shows no host name. The commit API answers `clean`.
+- `template` ids: the 40 built-in templates (`meeting`, `standup`, `retro`, `oneonone`,
+  `brainstorm`, `allhands`, …). An unknown id stops the server at startup and lists the valid ones.
+- **Destroyed when the room closes**: the last person leaves and `OC_ROOM_IDLE_MS` passes, or
+  you call `DELETE /v1/files/{fileId}/session`. The server then deletes the WAL,
   snapshots, outbox and notification rows, sessions, uploads, the epoch row and the Redis keys of
   the room. Nothing is kept. Tickets stop working.
 - `DELETE /v1/files/{fileId}/session` closes the room at once: clients get
   `{"t": "closed", "reason": "This canvas ended with the meeting"}` and close 1000. Call it when
   the meeting ends.
+- **A restart or deploy keeps it.** A draining node tells clients to reconnect and leaves the
+  canvas in storage; it reopens as it was.
 - A short reconnect **inside the idle grace** (a dropped network, a page reload) finds the
   canvas as it was. After the grace, launching the same `fileId` starts a new canvas.
 - Uploads are kept with the room (as in WOPI mode) and destroyed with it.
