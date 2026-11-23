@@ -161,6 +161,10 @@ function shapeSvg(s: Shape): string {
       if (!s.pts?.length) return "";
       return `<path d="${smooth(s.pts)}" stroke="${stroke}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
+  // A type this client doesn't know (a newer client, a missing plugin; ADR-045): a shape with a
+  // box and no points draws as a rect with its text and label, as the Rust exporter does, so its
+  // content is not silently left out of exports. Anything else draws nothing.
+  if (!s.pts?.length && w > 0 && h > 0) return shapeSvg({ ...s, type: "rect" });
   return "";
 }
 

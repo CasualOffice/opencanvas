@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
@@ -13,12 +13,14 @@ import {
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
-  addShape, bbox, boardsRoot, contentBounds, deleteShape, getBoardMap, readShapes, simplify, smooth, updateShape,
+  addShape, bbox, contentBounds, deleteShape, getBoardMap, simplify, smooth, updateShape,
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
-import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, viaOf, withResolvedArrows, type Anchor, type ArrowRoute, type Binding } from "./connectors";
+import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { exportBoardPng, exportBoardSvg } from "./export";
+import { createArrowResolver } from "./edges";
+import { BoardProjection } from "./projection";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 import {
   alignMoves, cloneShapes, distributeMoves, insertShapes, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
@@ -66,61 +68,13 @@ const CLIP_ATTR = "data-oc-board";
 
 /* ------------------------------------------------------------- store */
 
+/**
+ * The board's shapes, re-read incrementally: a transaction re-reads only the shapes it touched,
+ * and unchanged shapes (and an unchanged list) stay the same objects (DGM-05, projection.ts).
+ */
 function useShapes(doc: Y.Doc, boardId: string): Shape[] | null {
-  const cache = useRef<{ ver: number; at: number; val: Shape[] | null; key: string; byId: Map<string, { j: string; s: Shape }> }>({ ver: 0, at: -1, val: null, key: boardId, byId: new Map() });
-  if (cache.current.key !== boardId) cache.current = { ver: 0, at: -1, val: null, key: boardId, byId: new Map() };
-  const subscribe = useCallback(
-    (cb: () => void) => {
-      const root = boardsRoot(doc);
-      let inner: Y.Map<unknown> | null = null;
-      const bump = () => {
-        cache.current.ver++;
-        cb();
-      };
-      const attach = () => {
-        const m = getBoardMap(doc, boardId);
-        if (m === inner) return;
-        inner?.unobserveDeep(bump);
-        inner = m;
-        inner?.observeDeep(bump);
-      };
-      const onRoot = (e: Y.YMapEvent<Y.Map<unknown>>) => {
-        if (e.keysChanged.has(boardId)) {
-          attach();
-          bump();
-        }
-      };
-      root.observe(onRoot);
-      attach();
-      return () => {
-        root.unobserve(onRoot);
-        inner?.unobserveDeep(bump);
-      };
-    },
-    [doc, boardId],
-  );
-  const get = useCallback(() => {
-    const c = cache.current;
-    if (c.at !== c.ver) {
-      const m = getBoardMap(doc, boardId);
-      const list = m ? readShapes(m) : null;
-      // Keep unchanged shapes as the same objects so memoised shapes skip re-rendering.
-      if (list) {
-        const next = new Map<string, { j: string; s: Shape }>();
-        c.val = list.map((s) => {
-          const j = JSON.stringify(s);
-          const old = c.byId.get(s.id);
-          const keep = old && old.j === j ? old.s : s;
-          next.set(s.id, { j, s: keep });
-          return keep;
-        });
-        c.byId = next;
-      } else c.val = null;
-      c.at = c.ver;
-    }
-    return c.val;
-  }, [doc, boardId]);
-  return useSyncExternalStore(subscribe, get, get);
+  const proj = useMemo(() => new BoardProjection(doc, boardId), [doc, boardId]);
+  return useSyncExternalStore(proj.subscribe, proj.get, proj.get);
 }
 
 function usePeers(awareness: Awareness | undefined, boardId: string): Peer[] {
@@ -182,7 +136,9 @@ const describeShape = (s: Shape) => {
 
 function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boardId: string; env: BlockEnv; awareness?: Awareness; shapes: Shape[] }) {
   // Arrows bound to shapes are drawn (and hit-tested, moved, exported) from their resolved points.
-  const shapes = useMemo(() => withResolvedArrows(raw), [raw]);
+  // Only connectors whose own shape or bound shapes changed are resolved again (edges.ts).
+  const resolveArrows = useMemo(() => createArrowResolver(), []);
+  const shapes = useMemo(() => resolveArrows(raw), [raw, resolveArrows]);
   const byId = useMemo(() => new Map(shapes.map((s) => [s.id, s])), [shapes]);
   const edit = env.role === "edit";
   const compact = env.compact;

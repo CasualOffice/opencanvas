@@ -1,0 +1,254 @@
+{
+  "env": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "darwin 25.3.0",
+    "node": "v24.22.1",
+    "date": "2026-11-23"
+  },
+  "edits": 200,
+  "workload": "remote transactions, each moving one random node by 10 px",
+  "rows": [
+    {
+      "nodes": 1000,
+      "edges": 1500,
+      "yjsBytes": 401904,
+      "jsonBytes": 340428,
+      "bytesPerShape": 161,
+      "shareOfDocLimit": 0.019,
+      "updateBytesPerMove": {
+        "mean": 28.35,
+        "p50": 28,
+        "p95": 29,
+        "max": 31
+      },
+      "docHeapMB": 6.2,
+      "projectionHeapMB": {
+        "before": 1.4,
+        "after": 2.2
+      },
+      "firstProjectionMs": {
+        "before": 2.39,
+        "after": 2.67
+      },
+      "perEditProjectionMs": {
+        "before": {
+          "mean": 1.459,
+          "p50": 1.357,
+          "p95": 2.239,
+          "max": 3.49
+        },
+        "after": {
+          "mean": 0.004,
+          "p50": 0.003,
+          "p95": 0.007,
+          "max": 0.021
+        }
+      },
+      "perEditArrowResolveMs": {
+        "before": {
+          "mean": 0.475,
+          "p50": 0.439,
+          "p95": 0.73,
+          "max": 1.123
+        },
+        "after": {
+          "mean": 0.015,
+          "p50": 0.012,
+          "p95": 0.026,
+          "max": 0.177
+        }
+      },
+      "shapesReReadPerEdit": {
+        "before": 2500,
+        "after": 1
+      },
+      "arrowsResolvedPerEdit": {
+        "before": 1500,
+        "after": 2.715
+      },
+      "spatial": {
+        "buildMs": 3.16,
+        "viewportLinearMs": {
+          "mean": 0.212,
+          "p50": 0.203,
+          "p95": 0.239,
+          "max": 1.05
+        },
+        "viewportIndexMs": {
+          "mean": 0.047,
+          "p50": 0.046,
+          "p95": 0.093,
+          "max": 0.133
+        },
+        "moveUpdateMs": {
+          "mean": 0.003,
+          "p50": 0.002,
+          "p95": 0.008,
+          "max": 0.037
+        }
+      }
+    },
+    {
+      "nodes": 5000,
+      "edges": 7500,
+      "yjsBytes": 2164257,
+      "jsonBytes": 1723604,
+      "bytesPerShape": 173,
+      "shareOfDocLimit": 0.103,
+      "updateBytesPerMove": {
+        "mean": 31.895,
+        "p50": 32,
+        "p95": 34,
+        "max": 34
+      },
+      "docHeapMB": 29.2,
+      "projectionHeapMB": {
+        "before": 6.2,
+        "after": 10.4
+      },
+      "firstProjectionMs": {
+        "before": 11.13,
+        "after": 11.39
+      },
+      "perEditProjectionMs": {
+        "before": {
+          "mean": 8.744,
+          "p50": 8.315,
+          "p95": 10.323,
+          "max": 31.358
+        },
+        "after": {
+          "mean": 0.03,
+          "p50": 0.012,
+          "p95": 0.02,
+          "max": 2.033
+        }
+      },
+      "perEditArrowResolveMs": {
+        "before": {
+          "mean": 3.199,
+          "p50": 2.885,
+          "p95": 4.743,
+          "max": 5.759
+        },
+        "after": {
+          "mean": 0.127,
+          "p50": 0.116,
+          "p95": 0.161,
+          "max": 0.827
+        }
+      },
+      "shapesReReadPerEdit": {
+        "before": 12500,
+        "after": 1
+      },
+      "arrowsResolvedPerEdit": {
+        "before": 7500,
+        "after": 2.64
+      },
+      "spatial": {
+        "buildMs": 13.78,
+        "viewportLinearMs": {
+          "mean": 1.163,
+          "p50": 1.165,
+          "p95": 1.275,
+          "max": 2.597
+        },
+        "viewportIndexMs": {
+          "mean": 0.107,
+          "p50": 0.103,
+          "p95": 0.196,
+          "max": 0.23
+        },
+        "moveUpdateMs": {
+          "mean": 0.004,
+          "p50": 0.002,
+          "p95": 0.014,
+          "max": 0.065
+        }
+      }
+    },
+    {
+      "nodes": 10000,
+      "edges": 15000,
+      "yjsBytes": 4443778,
+      "jsonBytes": 3554319,
+      "bytesPerShape": 178,
+      "shareOfDocLimit": 0.212,
+      "updateBytesPerMove": {
+        "mean": 32.52,
+        "p50": 33,
+        "p95": 34,
+        "max": 34
+      },
+      "docHeapMB": 57.8,
+      "projectionHeapMB": {
+        "before": 10.9,
+        "after": 20.8
+      },
+      "firstProjectionMs": {
+        "before": 22.04,
+        "after": 24.42
+      },
+      "perEditProjectionMs": {
+        "before": {
+          "mean": 19.696,
+          "p50": 18.582,
+          "p95": 23.735,
+          "max": 70.847
+        },
+        "after": {
+          "mean": 0.069,
+          "p50": 0.065,
+          "p95": 0.109,
+          "max": 0.285
+        }
+      },
+      "perEditArrowResolveMs": {
+        "before": {
+          "mean": 6.897,
+          "p50": 6.073,
+          "p95": 10.075,
+          "max": 13.115
+        },
+        "after": {
+          "mean": 0.289,
+          "p50": 0.268,
+          "p95": 0.347,
+          "max": 1.939
+        }
+      },
+      "shapesReReadPerEdit": {
+        "before": 25000,
+        "after": 1
+      },
+      "arrowsResolvedPerEdit": {
+        "before": 15000,
+        "after": 2.91
+      },
+      "spatial": {
+        "buildMs": 31.31,
+        "viewportLinearMs": {
+          "mean": 2.157,
+          "p50": 2.087,
+          "p95": 2.543,
+          "max": 5.978
+        },
+        "viewportIndexMs": {
+          "mean": 0.143,
+          "p50": 0.124,
+          "p95": 0.275,
+          "max": 1.098
+        },
+        "moveUpdateMs": {
+          "mean": 0.005,
+          "p50": 0.002,
+          "p95": 0.009,
+          "max": 0.102
+        }
+      }
+    }
+  ]
+}
