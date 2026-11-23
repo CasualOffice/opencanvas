@@ -555,5 +555,8 @@ fn openapi_documents_idempotency_on_every_file_write() {
         }
     }
     assert!(n >= 10, "{n}");
-    assert_eq!(doc["components"]["parameters"]["IdempotencyKey"]["in"], "header");
+    assert_eq!(
+        doc["components"]["parameters"]["IdempotencyKey"]["in"],
+        "header"
+    );
 }
