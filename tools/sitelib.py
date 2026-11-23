@@ -143,6 +143,7 @@ DOCS = [
     ("integration", "Integration guide", "Integrate", "docs/05-INTEGRATION-GUIDE.md"),
     ("wopi", "WOPI mode", "Integrate", "docs/05-INTEGRATION-GUIDE.md#6"),
     ("jitsi", "Jitsi Meet", "Integrate", "integrations/jitsi/README.md"),
+    ("nextcloud", "Nextcloud", "Integrate", "integrations/nextcloud/README.md"),
     ("protocol", "Protocol and build contract", "Integrate", "docs/15-BUILD-CONTRACT.md"),
     ("operations", "Operations and deployment", "Operate", "docs/13-OPERATIONS-AND-DEPLOYMENT.md"),
     ("security", "Security and limits", "Operate", "docs/07-SECURITY-AND-LIMITS.md"),
@@ -223,7 +224,7 @@ def footer(root: str) -> str:
       <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
     </div>
     {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
-    {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Operations", "docs/operations.html")])}
+    {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
     {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>

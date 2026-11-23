@@ -75,6 +75,17 @@ class ConfigService {
 		return $this->appConfig->getValueBool(Application::APP_ID, 'allow_comment_role', false);
 	}
 
+	/** OpenCanvas host id for the REST API (`X-OpenCanvas-Host`); default `nextcloud`. */
+	public function hostId(): string {
+		$v = $this->appConfig->getValueString(Application::APP_ID, 'opencanvas_host_id');
+		return $v !== '' ? $v : 'nextcloud';
+	}
+
+	/** The host's OpenCanvas `api_key` (sensitive; set with occ … --sensitive). Empty = off. */
+	public function apiKey(): string {
+		return $this->appConfig->getValueString(Application::APP_ID, 'opencanvas_api_key', '', true);
+	}
+
 	public function tokenTtl(): int {
 		return 36000; // OpenCanvas's cap for a WOPI session (docs/05 §6)
 	}

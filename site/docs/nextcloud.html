@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Nextcloud | OpenCanvas</title>
+<meta name="description" content="Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps files, shares and versions as a WOPI host; read-only shares open view-only and share changes reach open canvases at once.">
+<link rel="canonical" href="https://canvas.casualoffice.org/docs/nextcloud.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Nextcloud | OpenCanvas">
+<meta property="og:description" content="Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps files, shares and versions as a WOPI host; read-only shares open view-only and share changes reach open canvases at once.">
+<meta property="og:url" content="https://canvas.casualoffice.org/docs/nextcloud.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html" aria-current="page">Nextcloud</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html" aria-current="page">Nextcloud</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Nextcloud</h1>
+
+<p>&lt;!-- SPDX-License-Identifier: Apache-2.0 --&gt; &lt;!-- Copyright 2026 CasualOffice --&gt;</p>
+<h1>OpenCanvas in Nextcloud</h1>
+<p><code>opencanvas/</code> is a Nextcloud app (app id <code>opencanvas</code>, Nextcloud 30–32, PHP 8.1+). It lets people create <code>.ocanvas</code> files in Files and edit them together in OpenCanvas: rich text, databases and whiteboards in one file. Nextcloud keeps the files, sharing, permissions and versions. OpenCanvas does the editing and stores no documents.</p>
+<ul><li>Nextcloud is a <strong>WOPI host</strong> for OpenCanvas, the same way it is one for Collabora through Nextcloud Office.</li><li>Design and decisions: <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/nextcloud/DESIGN.md">DESIGN.md</a>.</li><li>Screens waiting for prototypes: <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/nextcloud/UI-SCREENS.md">UI-SCREENS.md</a>.</li></ul>
+<p><strong>Status: alpha.</strong></p>
+<ul><li>The backend works end to end in a real Nextcloud 31 with real browsers (see "Verified").</li><li>Every Nextcloud-side screen is an <strong>unstyled placeholder</strong> until its prototype is approved: New-menu entries, file icon, Viewer handler, guest page, Talk, admin page.</li><li>The front-end sources in <code>src/</code> are not built yet.</li></ul>
+<h2 id="how-it-works">How it works</h2>
+<ol><li><strong>Open.</strong> Someone opens an <code>.ocanvas</code> file. Nextcloud mints a short-lived access token for that person and file, and the page form-POSTs it into an iframe at <code>{opencanvas}/v1/launch?WOPISrc={nextcloud}/index.php/apps/opencanvas/wopi/files/{fileId}</code>.</li><li><strong>Load.</strong> OpenCanvas calls the app's WOPI endpoints:<ul><li>CheckFileInfo returns who the person is and what they may do.</li><li>GetFile returns the file.</li></ul></li><li><strong>Save.</strong> Saves are PutFile calls. Each save is a normal Nextcloud write, so it shows in <strong>Versions</strong> and in Activity under the editor's name.</li><li><strong>Conflicts.</strong> If the file changed outside the canvas, OpenCanvas saves a "(conflict copy)" next to it (PUT_RELATIVE).</li><li><strong>Proof keys.</strong> Every WOPI call carries an RSA proof signed by OpenCanvas. The app checks it against OpenCanvas's discovery, so only your OpenCanvas server can read or write files through these endpoints. Calls without a valid proof get <code>500</code>.</li><li><strong>Access checks.</strong> Every call checks access live. When a share is removed or changed, the app also calls OpenCanvas's role API, so an open canvas switches to read-only or closes at once.</li><li><strong>One room per file.</strong> Everyone who opens the same file edits the same live canvas: the room id is the WOPISrc.</li></ol>
+<p><strong>Permissions:</strong></p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Nextcloud</th><th scope="col">In the canvas</th></tr></thead><tbody><tr><td>Owner, or a share with "Can edit"</td><td>edit</td></tr><tr><td>Read-only share</td><td>view (read-only, no typing)</td></tr><tr><td>Share without "Allow download", or a public link with "Hide download"</td><td>editing as above, but no export, download or print</td></tr><tr><td>Share removed</td><td>the open canvas closes; opening again is refused</td></tr><tr><td>Share changed to read-only</td><td>the open canvas switches to read-only</td></tr></tbody></table></div>
+<p><strong>New files:</strong></p>
+<ul><li>"New canvas" in the Files <strong>+ New</strong> menu creates an empty file. OpenCanvas opens it on its own start screen: blank, database, board, templates, import.</li><li><code>POST /apps/opencanvas/api/v1/create</code> with <code>kind = blank | database | whiteboard</code> creates a starter file. The "New database" and "New whiteboard" menu entries in <code>src/files.js</code> call it.</li></ul>
+<h2 id="install">Install</h2>
+<p>You need a running OpenCanvas server. See <a href="../docs/operations.html">Operations</a>.</p>
+<p><strong>1. OpenCanvas: register Nextcloud as a WOPI host</strong> in <code>opencanvas.hosts.toml</code>:</p>
+<pre><code class="language-toml">[[host]]
+id              = &quot;nextcloud&quot;
+name            = &quot;Nextcloud&quot;
+mode            = &quot;wopi&quot;
+wopi_allowlist  = [&quot;https://cloud.example.com/index.php/apps/opencanvas/wopi&quot;]
+allowed_origins = [&quot;https://cloud.example.com&quot;]
+api_key         = &quot;env:NC_OC_API_KEY&quot;      # lets Nextcloud switch open canvases when shares change
+[host.flags]
+on_conflict     = &quot;copy&quot;</code></pre>
+<p>Start OpenCanvas with a proof key. It refuses a WOPI host without one:</p>
+<pre><code class="language-sh">openssl genrsa -out proof.pem 2048
+OC_WOPI_PROOF_KEY=/path/to/proof.pem NC_OC_API_KEY=$(openssl rand -hex 24) opencanvas</code></pre>
+<p><strong>2. Nextcloud: install and enable the app.</strong></p>
+<pre><code class="language-sh">cp -r opencanvas /var/www/nextcloud/custom_apps/   # or apps/
+chown -R www-data: /var/www/nextcloud/custom_apps/opencanvas
+occ app:enable opencanvas                 # registers .ocanvas (config/mimetypemapping.json)
+occ maintenance:mimetype:update-js        # so the browser knows the type too</code></pre>
+<p><strong>3. Configure the app.</strong></p>
+<pre><code class="language-sh">occ config:app:set opencanvas opencanvas_url --value=https://canvas.example.com
+occ config:app:set opencanvas opencanvas_api_key --value=&lt;same as NC_OC_API_KEY&gt; --sensitive
+# optional
+occ config:app:set opencanvas opencanvas_internal_url --value=http://opencanvas:8080
+occ config:app:set opencanvas wopi_base --value=https://cloud.example.com/index.php/apps/opencanvas/wopi
+occ config:app:set opencanvas opencanvas_host_id --value=nextcloud</code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Key</th><th scope="col">Meaning</th><th scope="col">Default</th></tr></thead><tbody><tr><td><code>opencanvas_url</code></td><td>Where browsers reach OpenCanvas</td><td>required</td></tr><tr><td><code>opencanvas_internal_url</code></td><td>Where Nextcloud reaches OpenCanvas (discovery, role API)</td><td><code>opencanvas_url</code></td></tr><tr><td><code>wopi_base</code></td><td>The WOPI base OpenCanvas calls. It must be reachable from OpenCanvas and match its <code>wopi_allowlist</code>.</td><td><code>{overwrite.cli.url}/index.php/apps/opencanvas/wopi</code></td></tr><tr><td><code>opencanvas_api_key</code> (sensitive)</td><td>The host's <code>api_key</code> in OpenCanvas. Without it, share changes take effect only at the next WOPI call or reopen.</td><td>empty</td></tr><tr><td><code>opencanvas_host_id</code></td><td>The host <code>id</code> in OpenCanvas</td><td><code>nextcloud</code></td></tr><tr><td><code>allow_public_links</code></td><td>Guests on public link shares</td><td><code>true</code></td></tr><tr><td><code>allow_comment_role</code></td><td>Read-only shares with the <code>opencanvas</code>/<code>comment</code> share attribute get the comment role</td><td><code>false</code></td></tr></tbody></table></div>
+<ul><li>The token secret is generated on first use and stored as a sensitive value.</li><li>If Nextcloud runs on a private address (Docker, LAN), also set <code>occ config:system:set allow_local_remote_servers --value=true --type=boolean</code>. Otherwise Nextcloud refuses to fetch discovery from OpenCanvas.</li></ul>
+<p><strong>4. Check the connection.</strong> As an admin, run:</p>
+<pre><code class="language-sh">curl -u admin -X POST -H &#x27;OCS-APIREQUEST: true&#x27; https://cloud.example.com/index.php/apps/opencanvas/settings/check</code></pre>
+<p>It should answer <code>{&quot;discovery&quot;:true,&quot;ocanvasAction&quot;:true,&quot;proofKey&quot;:true,&quot;wopiBase&quot;:&quot;…&quot;}</code>. Put the <code>wopiBase</code> it shows into OpenCanvas's <code>wopi_allowlist</code>.</p>
+<p><strong>5. Front end:</strong> bundle <code>src/files.js</code> and <code>src/viewer.js</code> to <code>js/opencanvas-files.js</code> and <code>js/opencanvas-viewer.js</code>. This waits for the approved UI. Until then, open a canvas at <code>/index.php/apps/opencanvas/open/{fileId}</code> (an unstyled page holding the editor iframe).</p>
+<h2 id="verified">Verified</h2>
+<p>All runs on 2026-11-24.</p>
+<p><strong>Real Nextcloud.</strong> Setup:</p>
+<ul><li>Nextcloud: official image <code>nextcloud:31-apache</code> (31.0.14) on SQLite in Docker, with this app mounted in <code>custom_apps</code>.</li><li>OpenCanvas: built from this branch (<code>cargo build --release -p oc-server</code>) with a proof key, run on the host.</li><li>Browsers: headless Chromium through Playwright, <code>tests/browser/nextcloud.e2e.mjs</code>.</li></ul>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Step</th><th scope="col">Result</th></tr></thead><tbody><tr><td><code>occ app:enable opencanvas</code></td><td>enabled. The repair step wrote <code>ocanvas</code> → <code>application/vnd.opencanvas+zip</code>, and WebDAV reports that type for new files.</td></tr><tr><td>Admin connection check</td><td><code>{&quot;discovery&quot;:true,&quot;ocanvasAction&quot;:true,&quot;proofKey&quot;:true}</code></td></tr><tr><td><code>api/v1/create</code> blank / database / whiteboard</td><td><code>201</code>, files created in the user's Files</td></tr><tr><td>Open an <code>.ocanvas</code> from Nextcloud (logged-in user, <code>/apps/opencanvas/open/{id}</code>)</td><td>editor loads. CheckFileInfo and GetFile pass the proof check.</td></tr><tr><td>Edit as the owner</td><td>edits</td></tr><tr><td>Save</td><td>autosave writes the <code>.ocanvas</code> into Nextcloud (the edit is in the file). The next save adds a Nextcloud version (versions listed 2 → 3).</td></tr><tr><td>Read-only user share (permissions 1)</td><td>opens view-only (<code>contenteditable=false</code>)</td></tr><tr><td>Second user with an edit share</td><td>co-edits live: the text reached the owner and the read-only viewer in about 100 ms</td></tr><tr><td>Share downgraded to read-only while open</td><td>the open editor switches to read-only</td></tr><tr><td>Share removed while open</td><td>the open editor loses access. Opening again is refused (<code>404</code>).</td></tr><tr><td>File changed outside the canvas (WebDAV PUT), then a save (<code>tests/browser/conflict-copy.sh</code>)</td><td>the save answers <code>409</code>, and OpenCanvas writes <code>&lt;name&gt; (conflict copy).ocanvas</code> into Nextcloud with the edit (PUT_RELATIVE)</td></tr></tbody></table></div>
+<p>Commands, with the containers and OpenCanvas running as above:</p>
+<pre><code class="language-sh">PLAYWRIGHT=&lt;e2e/node_modules/playwright&gt; NC=http://localhost:8090 NC_PASS_ALICE=… NC_PASS_BOB=… NC_PASS_CAROL=… \
+  node opencanvas/tests/browser/nextcloud.e2e.mjs        # RESULT: PASS (3 runs)
+NC_PASS_ALICE=… NC_OC_API_KEY=… opencanvas/tests/browser/conflict-copy.sh   # PASS</code></pre>
+<p>Before the run, setup creates the users <code>alice</code>, <code>bob</code> and <code>carol</code> (<code>occ user:add</code>) and turns off the first-run wizard (<code>occ app:disable firstrunwizard</code>). The test then logs in through Nextcloud's own login page and makes shares through the files_sharing OCS API.</p>
+<p>The downgrade and revoke rows failed before the role sync was added (<code>ShareDeletedEvent</code> listener plus the <code>post_update_permissions</code> hook, which call <code>POST /v1/files/{WOPISrc}/role</code>): "still editable 10 s after the downgrade" and "… after the revoke". They pass with it. Turning the sync off again (no <code>opencanvas_api_key</code>) brings back both failures.</p>
+<p><strong>Without Nextcloud:</strong></p>
+<ul><li><code>php tests/run-without-phpunit.php</code>: 22 passed. Covers tokens, permission mapping, proof verification, UTF-7 conflict names and starter files. PHPUnit is not installed here; the same classes run under <code>phpunit -c phpunit.xml</code>.</li><li><code>OC_BIN=… tests/e2e/run.sh</code>: PASS. Runs a real OpenCanvas against a <code>php -S</code> harness of the app's core classes: PutFile, 409 then conflict copy, starters round-trip, unsigned call refused.</li></ul>
+<h2 id="not-yet-tested">Not yet tested</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">What</th><th scope="col">Why</th></tr></thead><tbody><tr><td>Opening from the Files list, Viewer modal, "+ New" menu entries, file icon</td><td>Their UI is not approved yet (UI-SCREENS S1–S6). <code>src/*.js</code> is not built, so tests open <code>/apps/opencanvas/open/{id}</code> directly.</td></tr><tr><td>Public link guests (incl. password-protected links)</td><td>Needs the guest page (S7). The token API exists but has not run in a browser.</td></tr><tr><td>Talk (share into a conversation, open beside the call)</td><td>Needs S9–S11. Talk was not installed in the test container.</td></tr><tr><td>Group shares, folder shares, federated shares; MySQL/PostgreSQL Nextcloud; Nextcloud 30, 32, 36</td><td>Not run</td></tr><tr><td>Members list from share recipients, @mention notifications</td><td>Not built: OpenCanvas WOPI mode has neither (gap G1 in DESIGN.md)</td></tr></tbody></table></div>
+<h2 id="limits">Limits</h2>
+<ul><li><strong>Mentions.</strong> The @mention list is the people who have opened the canvas, not everyone it is shared with, and mentions send no Nextcloud notifications (OpenCanvas WOPI mode; DESIGN.md G1).</li><li><strong>Sessions.</strong> They last at most 10 h, then the canvas relaunches.</li><li><strong>Images.</strong> Pictures are stored inside the <code>.ocanvas</code>: 10 MB per image, 50 MB per file, files up to 100 MB.</li><li><strong>Comment role.</strong> Read-only shares get view, not comment, unless an admin turns on the comment role (DESIGN.md §5).</li><li><strong>Versions.</strong> Each autosave is a version. Nextcloud's version expiry thins them out. Named versions are not supported yet (G3).</li><li><strong>Locks.</strong> None. An outside change to an open file produces a conflict copy.</li></ul>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/nextcloud/README.md">integrations/nextcloud/README.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="jitsi.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Jitsi Meet</span></a><a class="pn pn-next" href="protocol.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Protocol and build contract</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#how-it-works">How it works</a></li><li><a href="#install">Install</a></li><li><a href="#verified">Verified</a></li><li><a href="#not-yet-tested">Not yet tested</a></li><li><a href="#limits">Limits</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

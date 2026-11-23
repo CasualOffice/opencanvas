@@ -194,10 +194,23 @@ a commenter's (PERM-05). If only commenters are connected, the PutFile is refuse
 comments wait in OpenCanvas's outbox until an editor's session saves. The UI for setting the
 share attribute is not designed either (UI-SCREENS S8). Gap G5.
 
-**Live changes.** A downgraded or removed share takes effect at the next WOPI call. To switch an
-open session to read-only at once, the app should call `POST /v1/files/{WOPISrc}/role` (docs/05
-§7, needs `api_key`) from `ShareUpdatedEvent`/`ShareDeletedEvent` listeners. This is designed,
-not built.
+**Live changes (built, verified in Nextcloud 31).** A downgraded or removed share always takes
+effect at the next WOPI call. To make it immediate, `RoleSyncService` calls OpenCanvas's role API,
+`POST /v1/files/{WOPISrc}/role` (docs/05 §7, needs `opencanvas_api_key`), with each affected
+person's new live role. The role is computed again from all their shares, so losing one share
+while still holding another does not lock them out.
+
+It is triggered by two things:
+- `ShareDeletedEvent`
+- the legacy `OCP\Share` `post_update_permissions` hook. Nextcloud 30–32 have no typed "share
+  updated" event.
+
+Scope:
+- Handled: user and group shares (groups capped at 500 members).
+- Not handled yet: folder shares, Talk room shares and link shares.
+
+The real-Nextcloud browser test showed an open editor still editable 10 s after a downgrade or a
+revoke without this, and switched (read-only / closed) with it.
 
 ## 6. Creating, opening, Talk
 
