@@ -574,6 +574,11 @@ nine board types, named ports and semantic edges. Boards are blocks inside a doc
    20 MB), measured to hold 10,000 nodes + 15,000 edges with short labels (4.44 MB). Enforcement
    (a warning near the budget) is Phase 2 UI.
 8. *Diagram mode is per board* (a board opening full screen as a diagram), not an editor-wide mode.
+   It is per person and never stored in the document. *(DGM-14, 2026-11-24, with the prototype
+   approval, 1d)* The one document field it adds is the board's optional name, `boards/<id>.name`
+   (a plain string beside `shapes` and `order`; additive, same rules as §1 and §4; kept by import,
+   validation and `.ocanvas` round trips, not drawn by the exporters: `oc-model/tests/diagram.rs`
+   `a_board_name_survives_import_validation_and_ocanvas_round_trips`).
 9. *Projection.* The editor projects a board incrementally (`BoardProjection`): only shapes a
    transaction touched are re-read; output equal to `readShapes`.
 **Consequences.** + Every 0.1.x client and export keeps working and keeps new data; + no migration;

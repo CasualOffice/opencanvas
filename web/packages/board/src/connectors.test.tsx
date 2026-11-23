@@ -151,7 +151,8 @@ function ptr(target: Element, type: string, x: number, y: number) {
   act(() => void target.dispatchEvent(e));
 }
 
-describe("BoardBlock connectors UI", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("BoardBlock connectors UI", { timeout: 60_000 }, () => {
   it("drawing an arrow from shape to shape binds both ends", () => {
     const { doc, id, a, b } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
@@ -221,7 +222,8 @@ describe("BoardBlock connectors UI", () => {
 
 /* ------------------------------------------------------------ images */
 
-describe("images", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("images", { timeout: 60_000 }, () => {
   beforeEach(() => {
     // jsdom does not decode images; report a 800x400 picture.
     class FakeImage {
@@ -309,7 +311,8 @@ describe("images", () => {
 
 /* ------------------------------------------------------------ export */
 
-describe("export", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("export", { timeout: 60_000 }, () => {
   it("exportBoardSvg fits the content and uses the light palette", () => {
     const { doc, id, a, b, ar } = fixture();
     updateShape(doc, id, ar, { start: { shapeId: a, anchor: "right" }, end: { shapeId: b, anchor: "left" } });

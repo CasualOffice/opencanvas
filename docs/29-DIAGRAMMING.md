@@ -376,3 +376,11 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
   `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
   people get no ports (10c).
+- Containers (3f, 3g): `diagram:container`, registered in `src/kinds.ts` (base `rect`, title in
+  `label`, so 0.1.x clients and both exporters draw a frame). "Container" in the selection's action
+  bar wraps the selection with a 24 px margin (36 on top for the title) and places it just behind
+  the lowest selected shape. In diagram mode, moving a container moves every shape whose box is
+  fully inside it, nested containers and their contents included (`containedIn`); membership is
+  geometric, so nothing new is stored. The ordinary whiteboard moves a container on its own.
+- Bends (3e): your own bends (`via`) are drawn as diamonds in diagram mode. Dragging a segment's
+  handle still inserts one bend; moving the whole segment is left.

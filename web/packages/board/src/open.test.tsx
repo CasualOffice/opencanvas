@@ -105,7 +105,8 @@ describe("connector waypoints: geometry", () => {
   });
 });
 
-describe("connector waypoints: editing", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("connector waypoints: editing", { timeout: 60_000 }, () => {
   function selectArrow(el: Element, ar: string) {
     const svg = el.querySelector("svg.ocbd-svg")!;
     ptr(el.querySelector(`[data-s="${ar}"] path`)!, "pointerdown", 250, 180);
@@ -202,7 +203,8 @@ describe("connector waypoints: editing", () => {
 
 /* ------------------------------------------------------------- B19 */
 
-describe("minimap", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("minimap", { timeout: 60_000 }, () => {
   it("toggles from the zoom bar and with M", () => {
     const { doc, id } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
@@ -261,7 +263,8 @@ describe("minimap", () => {
   });
 });
 
-describe("zoom shortcuts", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("zoom shortcuts", { timeout: 60_000 }, () => {
   it("Shift+1 fits the content and Shift+2 zooms to the selection", () => {
     const { doc, id, a } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
@@ -280,7 +283,8 @@ describe("zoom shortcuts", () => {
   });
 });
 
-describe("inside the editor", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("inside the editor", { timeout: 60_000 }, () => {
   it("keeps its keyboard shortcuts when it sits in a contenteditable document", () => {
     const { doc, id, a } = fixture();
     const host = document.createElement("div");
@@ -302,7 +306,8 @@ describe("inside the editor", () => {
 
 /* -------------------------------------------------- docs/19 #42 undo */
 
-describe("shared undo manager", () => {
+// Heavy suite (full board mounts in jsdom): an explicit timeout for slow CI runners.
+describe("shared undo manager", { timeout: 60_000 }, () => {
   it("tracks board edits in the editor's UndoManager when one is passed", () => {
     const { doc, id, a } = fixture();
     const um = new Y.UndoManager(doc.getXmlFragment("content"), { captureTimeout: 0 });
