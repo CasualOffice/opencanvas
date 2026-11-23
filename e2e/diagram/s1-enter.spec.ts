@@ -48,19 +48,32 @@ test("S1: the Diagram button opens the board full screen; Back to document retur
 
 test("S1: Shift+D and Esc; the transition runs, and not with reduced motion", async ({ page }) => {
   const board = await openDemo(page, srv.url);
+  // Count animations started with the Web Animations API instead of asking which are running:
+  // on a loaded CI runner the 220 ms transition can finish before the check.
+  await page.evaluate(() => {
+    const w = window as unknown as { __anims: number };
+    w.__anims = 0;
+    const orig = Element.prototype.animate;
+    Element.prototype.animate = function (...a: Parameters<Element["animate"]>) {
+      if ((this as Element).closest(".ocdg")) w.__anims++;
+      return orig.apply(this, a);
+    };
+  });
+  const started = () => page.evaluate(() => (window as unknown as { __anims: number }).__anims);
   await board.click({ position: { x: 40, y: 40 } });
   await page.keyboard.press("Escape");
   await page.keyboard.press("Shift+D");
   const dialog = page.getByRole("dialog", { name: /^Diagram: / });
   await expect(dialog).toBeVisible();
-  expect(await page.evaluate(() => document.querySelector(".ocdg")!.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSAnimation || a instanceof CSSTransition)).length)).toBeGreaterThan(0);
+  expect(await started()).toBeGreaterThan(0);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.evaluate(() => void ((window as unknown as { __anims: number }).__anims = 0));
   await board.getByRole("button", { name: "Diagram", exact: true }).click();
   await expect(dialog).toBeVisible();
-  expect(await page.evaluate(() => document.querySelector(".ocdg")!.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSAnimation || a instanceof CSSTransition)).length)).toBe(0);
+  expect(await started()).toBe(0);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 });

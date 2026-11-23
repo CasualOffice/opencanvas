@@ -189,7 +189,8 @@ export default function DiagramShell(p: DiagramShellProps) {
         </ul>
         {edit ? (
           <>
-            <AutoLayout doc={doc} boardId={boardId} env={env} origin={p.origin} view={p.view} selection={p.selection} undo={p.undo.run} />
+            {/* On a phone auto-layout waits for a larger screen (11e); the options sheet says so. */}
+            {phone ? null : <AutoLayout doc={doc} boardId={boardId} env={env} origin={p.origin} view={p.view} selection={p.selection} undo={p.undo.run} />}
             <button type="button" className="ocdg-ib" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!p.undo.can} onClick={p.undo.run}>
               <Undo2 size={16} strokeWidth={SW} />
             </button>

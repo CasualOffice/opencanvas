@@ -1460,6 +1460,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setDgm((d) => (d ? "closing" : d));
   };
   const diagramClosed = () => {
+    // Only a close that is still in progress ends diagram mode: a late "closed" from an earlier
+    // close must not shut a diagram reopened in the meantime.
+    if (S.current.dgm !== "closing") return;
     refocus.current = true;
     setDgm(null);
     if (compact) setActive(false);
