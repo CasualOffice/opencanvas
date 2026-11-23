@@ -471,6 +471,15 @@ if any lacks a matching operation.
   (§9 decision 8). No `OpenCanvas-Version` header (§9 decision 6). Host key only in this step;
   host-key calls may name the acting user with `X-OpenCanvas-Author`. Cursor paging is HAPI-04:
   `GET …/blocks` returns `next_cursor: null` until then.
+- **HAPI-02 (2026-11-24, Review).** User-scoped bearer tokens, host-minted as ADR-032 Flow B
+  (no token exchange, no token store: OpenCanvas only verifies). `crate::authz::Principal` is
+  the one check for the API and MCP: host key or token → scope ceiling → `files` → host role
+  (`/access` or the `role` claim) → `min`. Token binding: `iss` names the host (`[host.api]
+  issuer`, default the host id), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1` (never
+  from request headers), `exp` ≤ 15 min, verified by the MCP token code (which now reports
+  `TOKEN_EXPIRED` separately). `canvas:admin` is honoured only with `[host.api] token_admin`.
+  `[host.api] all_files` mirrors `mcp_all_files`. Moving MCP onto the shared check fixed a bug:
+  MCP grants had `Perms::default()` (comments off), so `comment_add` was always refused.
 
 ---
 

@@ -429,7 +429,9 @@ start-up warning; the audience is never taken from the request's `Host` header. 
 `POST /mcp/{hostId}` (streamable HTTP, stateless, one JSON-RPC message per POST, JSON answers;
 MCP `2026-07-28`, and `2025-11-25` by version negotiation). Methods: `initialize`
 (`server/discover`), `ping`, `tools/list`, `tools/call`, `resources/templates/list`,
-`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON).
+`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON). MCP and the
+headless API (§7b) share one auth check: the same scope ceiling, `files` rule, `/access` role and
+revocation; a `canvas:comment` token may comment.
 
 **Tokens are yours.** OpenCanvas runs no OAuth server. You mint an access token (JWT) with the
 same keys as launch tokens (HS256 secret, PEM or JWKS):
@@ -479,10 +481,48 @@ per host with `[host.flags] api_v1 = true` (off by default in 0.2.0-alpha; other
 `/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
 `v1` changes are additive.
 
-**Auth.** Server to server with the host key, as in §7: `X-OpenCanvas-Host` +
-`X-OpenCanvas-Key` (full access to your files, admin operations included). Optional
-`X-OpenCanvas-Author: <userId>` attributes changes to that user (edit origin `api:<userId>`;
-default `svc:<hostId>`); `X-OpenCanvas-Callback-Token` is passed on callbacks as in §7.
+**Auth, two kinds, one check** (shared with MCP, §7a):
+
+1. **Host key**, server to server, as in §7: `X-OpenCanvas-Host` + `X-OpenCanvas-Key` (full
+   access to your files, admin operations included). Optional `X-OpenCanvas-Author: <userId>`
+   attributes changes to that user (edit origin `api:<userId>`; default `svc:<hostId>`);
+   `X-OpenCanvas-Callback-Token` is passed on callbacks as in §7.
+2. **User-scoped bearer token** (`Authorization: Bearer <jwt>`) for code acting for one of your
+   users. **You mint it**; OpenCanvas never issues user tokens. Same keys as launch tokens
+   (HS256 secret, PEM or JWKS), same claims as MCP tokens:
+
+   | claim | value |
+   |---|---|
+   | `iss` | your host id, or `[host.api] issuer` (must be unique among hosts) |
+   | `aud` | `{[host.api] audience or OC_PUBLIC_URL}/api/v1`. An MCP token (`…/mcp/{hostId}`) or a launch token is refused here, and an API token is refused by MCP |
+   | `sub` | the user id (`svc:<name>` for a backend job) |
+   | `exp` | at most 15 minutes ahead (`nbf` honoured) |
+   | `scope` | space-separated `canvas:read`, `canvas:comment`, `canvas:write` (`canvas:write:direct` counts as write), `canvas:admin` |
+   | `role`, `files` | as for MCP: the role on the listed files when you do not implement `POST /access` |
+   | `name` | optional display name |
+
+   Without a public base URL (`OC_PUBLIC_URL` or `[host.api] audience`) user tokens are off for
+   the host (`401 TOKEN_INVALID`); the audience is never taken from the request.
+   The effective permission is `min(scope, role)`, the role coming from your `POST /access`
+   callback when you implement it (cached 30 s, dropped by the role API), else from the token's
+   `role` claim, but only for the files in its `files` claim (`403 FILES_REQUIRED` otherwise,
+   unless `[host.api] all_files = true`). Writes re-check revocation: after
+   `POST …/role {"role":"none"}` the user's next call is refused. `canvas:admin` only works when
+   `[host.api] token_admin = true`; by default the admin operations are the host key's.
+   Errors: `401 UNAUTHENTICATED` (no credentials), `401 TOKEN_INVALID` (signature, issuer,
+   audience, lifetime over 15 min, not yet valid), `401 TOKEN_EXPIRED`, `403 SCOPE_REQUIRED`
+   (the operation needs a scope the token lacks), `403 ROLE_FORBIDDEN` (the host role is lower,
+   or the file is not in `files`). The OpenAPI document marks each operation's scope
+   (`x-opencanvas-scope`).
+
+```toml
+[host.api]
+issuer       = "acme"                        # default: the host id
+audience     = "https://canvas.example.com"  # default: OC_PUBLIC_URL
+default_mode = "direct"                      # or "suggest" for changes to existing blocks
+all_files    = false                         # true: without /access, a token with no `files` covers every file
+token_admin  = false                         # true: tokens with canvas:admin may commit, set roles, close sessions
+```
 
 **Operations** (all under `/api/v1/files/{fileId}` unless noted; each is a thin adapter over the
 same tool layer as MCP, §7a):

@@ -190,6 +190,27 @@ impl From<AuthError> for Problem {
                 Problem::new(StatusCode::UNAUTHORIZED, "UNAUTHENTICATED", m)
                     .header(header::WWW_AUTHENTICATE, "Bearer realm=\"opencanvas\"")
             }
+            AuthError::TokenInvalid(m) => Problem::new(StatusCode::UNAUTHORIZED, "TOKEN_INVALID", m)
+                .header(
+                    header::WWW_AUTHENTICATE,
+                    "Bearer realm=\"opencanvas\", error=\"invalid_token\"",
+                ),
+            AuthError::TokenExpired => {
+                Problem::new(StatusCode::UNAUTHORIZED, "TOKEN_EXPIRED", "the token has expired")
+                    .header(
+                        header::WWW_AUTHENTICATE,
+                        "Bearer realm=\"opencanvas\", error=\"invalid_token\", error_description=\"expired\"",
+                    )
+            }
+            AuthError::InsufficientScope => Problem::new(
+                StatusCode::FORBIDDEN,
+                "SCOPE_REQUIRED",
+                "the token carries no canvas:* scope",
+            )
+            .header(
+                header::WWW_AUTHENTICATE,
+                "Bearer realm=\"opencanvas\", error=\"insufficient_scope\", scope=\"canvas:read\"",
+            ),
         }
     }
 }
@@ -229,6 +250,11 @@ async fn tool(
 ) -> Result<Value, Problem> {
     check_file(file_id)?;
     input["fileId"] = json!(file_id);
+    let spec = crate::ai::tools::phase1_specs()
+        .into_iter()
+        .find(|s| s.name == name)
+        .ok_or_else(|| Problem::not_found("NOT_FOUND", "unknown operation"))?;
+    p.scope_ok(spec.scope, name)?;
     let ctx = p.tool_ctx(state, file_id).await?;
     let out = LiveTools::new(state.clone())
         .call(&ctx, name, input)
@@ -673,6 +699,7 @@ async fn import_file(
 ) -> Answer {
     let p = caller(&state, &headers).await?;
     check_file(&file_id)?;
+    p.scope_ok(crate::ai::tools::Scope::Write, "import")?;
     import::check_format(&state, &p.host, &q.format)?;
     let grant = p.grant(&state, &file_id).await?;
     if grant.role != Role::Edit {

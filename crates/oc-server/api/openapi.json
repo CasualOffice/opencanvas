@@ -80,6 +80,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -150,6 +155,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -226,6 +236,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -291,6 +306,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -366,6 +386,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
           }
         ],
         "parameters": [
@@ -454,6 +479,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -500,6 +530,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
           }
         ],
         "parameters": [
@@ -561,6 +596,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -618,6 +658,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -720,6 +765,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
           }
         ],
         "parameters": [
@@ -802,6 +852,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
           }
         ],
         "parameters": [
@@ -890,6 +945,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -945,6 +1005,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
           }
         ],
         "parameters": [
@@ -1034,6 +1099,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -1089,6 +1159,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:comment"
+            ]
           }
         ],
         "parameters": [
@@ -1167,6 +1242,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -1233,6 +1313,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -1299,6 +1384,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
           }
         ],
         "parameters": [
@@ -1405,6 +1495,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
           }
         ],
         "parameters": [
@@ -1463,6 +1558,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
           }
         ],
         "parameters": [
@@ -1539,6 +1639,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
           }
         ],
         "parameters": [
@@ -1584,6 +1689,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
           }
         ],
         "parameters": [
@@ -1629,6 +1739,11 @@
           {
             "hostKey": [],
             "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
           }
         ],
         "parameters": [
@@ -2365,6 +2480,12 @@
         "in": "header",
         "name": "X-OpenCanvas-Host",
         "description": "The host id"
+      },
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "A user-scoped token the host mints (docs/05 §7b): iss = host id or [host.api] issuer, aud = {[host.api] audience or OC_PUBLIC_URL}/api/v1, sub, scope, exp at most 15 min ahead, optional role and files. Effective permission = min(scope, host role)."
       }
     }
   }
