@@ -502,6 +502,59 @@ renderer work; the panel writes the fields.
 - Bends (3e): on a routed elbow without bends, its inner segments get a handle; dragging one moves
   the segment and its corners become your bends (`via`, diamonds).
 
+- Still to come (step 2): Recent, the collapsed rail, the Icons library slot (DGM-17), drawing the
+  connector presets' end markers.
+
+#### 8.3.1 Shape libraries (DGM-14.7)
+
+One data module per library in `src/libraries/` (`geo.ts` holds the outline helpers); 408 kinds in
+16 libraries. **Every outline is our own drawing.** No vendor or brand shapes (no AWS, Azure, GCP
+or logos), and no draw.io stencils, whose licence forbids derivatives: nothing was converted, traced
+or copied from them. Flowchart, UML, BPMN, ERD and electrical shapes follow the public notations
+(ISO 5807, OMG UML and BPMN 2.0, Chen and crow's foot, IEC/ANSI symbols).
+
+| Library (id) | Kinds | Contents |
+|---|---:|---|
+| Basic shapes (`basic`) | 45 | rectangles, ellipse, circle, triangles, diamond, parallelogram, trapezoid, pentagon, hexagon, octagon, stars, cross, cylinder, cube, cloud, heart, lightning, moon, document, folded corner, callouts (rectangle, rounded, thought), block arrows, chevron, step, brackets and braces, frame, plaque, donut, block arc, pie, tape, half circle, line |
+| Flowchart (`flowchart`) | 30 | the standard set: process, alternate process, decision, data, predefined process, internal storage, document, multiple documents, terminator, preparation, manual input, manual operation, connector, off-page connector, card, punched tape, summing junction, or, collate, sort, extract, merge, stored data, delay, sequential, magnetic disk and direct access storage, display, loop limit and loop end |
+| UML (`uml`) | 29 | class, abstract class, interface, enumeration, object, package, component, node, artifact, actor, use case, system boundary, note, lifeline, activation, state, initial and final state, choice, fork or join, history, action, decision or merge, swimlane, frames (sd, alt, loop), send and receive signal |
+| Entity relationship (`erd`) | 10 + 8 presets | entity, weak entity, table with rows, attribute, key, multivalued and derived attribute, relationship, identifying relationship, associative entity; crow's-foot and Chen connector presets |
+| Network and cloud (`network`) | 39 | the nine step-1 boxes plus generic glyphs: rack, storage, object storage, firewall, router, switch, hub, access point, internet, laptop, desktop, phone, tablet, printer, user, users, gateway, API, message queue, cache node, CDN, DNS, VPN, container, pod, cluster, function, monitoring, mail server, secrets |
+| BPMN (`bpmn`, **off by default**) | 19 + 3 presets | task, sub-process, start / intermediate / end events (plain, message, timer), exclusive, parallel, inclusive and event-based gateways, data object, data store, pool, lane, group; sequence flow, message flow, association |
+| Mind map (`mindmap`) | 6 + 3 presets | central, main, sub and floating topic, idea cloud, callout; branch, elbow branch, relation |
+| Org chart (`org`) | 6 + 2 presets | person card, role, team, assistant, open position, department; reports-to, dotted line |
+| Wireframe (`wireframe`) | 15 | browser window, phone and tablet frames, button, text field, checkbox, radio, toggle, dropdown, slider, image placeholder, navigation bar, tab bar, card, modal |
+| UI controls (`mockup`) | 26 | status bar, list item, search bar, segmented control, stepper, badge, avatar, toast, tooltip, scrollbar, breadcrumb, pagination, table header and row, sidebar, menu, chip, text area, date picker, icon button, floating action button, accordion, alert banner, progress bar, spinner, divider |
+| Arrows (`arrows`) | 49 | block, slim, notched, striped, chevron, callout and triangle arrows in four directions; pentagon, left-right, up-down, four-way, three-way, bent, bent-up, U-turn, circular, curved, return, diagonal, split, merge, zigzag, trend, two circular, dashed, line |
+| Signs and symbols (`signs`) | 38 | warning, information, question, check, cross, stop, no entry, prohibited, flag, pin, bulb, gear, lock, unlocked, key, clock, calendar, mail, phone, home, search, star, heart, thumbs up and down, bell, bookmark, tag, shield, eye, chat, add, remove, download, upload, trophy, wi-fi, power |
+| Floor plan (`floorplan`) | 25 | wall, wall corner, door, double and sliding door, window, opening, stairs, room, single and double bed, table, round table, chair, sofa, armchair, desk, sink, toilet, bath, shower, stove, fridge, wardrobe, plant |
+| Electrical (`electrical`) | 22 | resistor, capacitor (plain, polarised), inductor, diode, LED, battery, voltage source, ground, switch, push button, lamp, fuse, NPN transistor, op-amp, AND, NAND, OR, NOR, XOR, NOT, buffer (gates have input and output ports) |
+| Server rack (`rack`) | 12 | rack cabinet (a container), 1U/2U/4U servers, switch, patch panel, storage shelf, UPS, PDU, console drawer, blank panel, cable manager (240 wide, 24 per U) |
+| Charts and infographics (`charts`) | 19 | column, bar, stacked column, line, area, scatter, pie, donut, gauge, progress bar, rating, timeline marker, numbered step, funnel, pyramid, Venn, KPI card, Harvey ball, sparkline |
+
+- **Descriptor additions** (registry, still data only): `look.box` `[x, y, w, h]` in the 100 × 100
+  box is where the text goes (wrapped to its width, centred in it; default the whole shape): the
+  class name in the top compartment, an actor's name under the figure, a glyph's label under the
+  glyph. `container: true` makes a kind behave like `diagram:container` (moving it moves what lies
+  inside): pool, lane, group, swimlane, UML frames, system boundary, browser, phone, tablet, modal,
+  room, rack cabinet, department. A container added from the panel goes behind everything.
+- Outlines now draw for any box base (rect, ellipse, diamond), so events and gateways fall back to a
+  circle or diamond in the exporters and 0.1.x clients. Each kind's text is drawn in every renderer;
+  the outline only by clients that have the library (ADR-045 §5). Shared fixture
+  `board-libraries.json` (two kinds from each library): web and Rust export it byte for byte, and
+  identically to the same board with `kind` removed (`libraries.test.tsx`, `oc-model/tests/diagram.rs`).
+- Outlines use a non-scaling 1.5 px stroke and the tone's fill and stroke tokens, so they follow both
+  themes. Bare lines (wires, chart lines, wifi arcs) are drawn out and back so they enclose no fill.
+- BPMN is listed only after `setLibraryEnabled("bpmn", true)` (host or admin setting; the kinds
+  always draw). `LIBRARIES` is the list the panel reads, updated in place; `ALL_LIBRARIES` has them all.
+- Connector presets (`CONNECTOR_PRESETS`, by library id) are data: route, dash and named end markers
+  (`one`, `many`, `zero-or-one`, …). Drawing the markers is still to come; until then a preset draws
+  as a plain connector with the same route and dash.
+- Size: the library data is about 26 KB gzip in the lazy board chunk, not in the editor's initial
+  JS (281.3 KB / 300 after this change, unchanged).
+- The properties panel uses the same namespaces as the libraries (`network:`; `erd:table` opens the
+  columns panel like `erd:entity`).
+
 ### 8.8 Shapes this app can't draw (S8, DGM-14.4)
 
 Code: `diagram/Placeholder.tsx`. `unknownOf(shape)` says why a shape can't be drawn as itself:
