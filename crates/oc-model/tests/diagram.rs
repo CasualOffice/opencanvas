@@ -161,6 +161,7 @@ fn diagram_fields_survive_ocanvas_save_and_load() {
         id: "c1".into(),
         authors: vec![],
         at: "2026-11-24T00:00:00Z".into(),
+        ..Default::default()
     };
     let bytes = oc_model::ocanvas::write_ocanvas(&y, &commit).expect("write");
     let loaded = oc_model::ocanvas::read_ocanvas(&bytes).expect("read");

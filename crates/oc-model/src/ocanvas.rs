@@ -43,11 +43,60 @@ pub enum Error {
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitInfo {
     pub id: String,
     pub authors: Vec<String>,
     /// RFC 3339 timestamp.
     pub at: String,
+    /// What this save is (docs/30 §2 c2, ADR-051): `auto`, `named` or `restore`.
+    pub kind: CommitKind,
+    /// The version's name (named and restore saves), at most 120 characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Restore saves: the version that was restored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restored_from: Option<String>,
+}
+
+/// The kind of a save (manifest `commit.kind`, docs/30 §4).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommitKind {
+    #[default]
+    Auto,
+    Named,
+    Restore,
+}
+
+impl CommitKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Named => "named",
+            Self::Restore => "restore",
+        }
+    }
+    /// Unknown or missing kinds read as `auto`.
+    pub fn parse(s: Option<&str>) -> Self {
+        match s {
+            Some("named") => Self::Named,
+            Some("restore") => Self::Restore,
+            _ => Self::Auto,
+        }
+    }
+}
+
+/// `manifest.json` of a `.ocanvas` alone (no document decoding); `None` when absent or broken.
+pub fn read_manifest(bytes: &[u8]) -> Option<Value> {
+    let mut zip = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let entry = zip.by_name("manifest.json").ok()?;
+    if entry.size() > 1024 * 1024 {
+        return None;
+    }
+    let mut buf = Vec::new();
+    entry.take(1024 * 1024).read_to_end(&mut buf).ok()?;
+    serde_json::from_slice(&buf).ok()
 }
 
 pub fn encode_state(doc: &Doc) -> Vec<u8> {

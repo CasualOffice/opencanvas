@@ -168,6 +168,7 @@ fn commit() -> CommitInfo {
         id: "01ACC".into(),
         authors: vec!["u_asha".into()],
         at: "2026-11-22T00:00:00Z".into(),
+        ..Default::default()
     }
 }
 

@@ -95,6 +95,9 @@ pub struct RoomConfig {
     /// Control `{"t":"ping"}` to every connection this often, so clients can tell a silent
     /// network drop from a quiet room (docs/15 §3; `OC_HEARTBEAT_MS`, default 10 s).
     pub heartbeat: Duration,
+    /// docs/30 §4: after this much editing since the last checkpoint, the next save is one again
+    /// (`X-OpenCanvas-Checkpoint`; `OC_CHECKPOINT_MINUTES`, default 30).
+    pub checkpoint_every: Duration,
 }
 
 impl Default for RoomConfig {
@@ -110,6 +113,7 @@ impl Default for RoomConfig {
             compact_interval: Duration::from_secs(30),
             tick: Duration::from_millis(250),
             heartbeat: Duration::from_secs(10),
+            checkpoint_every: Duration::from_secs(30 * 60),
         }
     }
 }
