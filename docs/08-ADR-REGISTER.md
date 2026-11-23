@@ -52,7 +52,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-048 | Skip the start screen: optional launch-token claim `"start": "page"` opens a new canvas straight into the page without the template picker; it travels as `&start=page` after the ticket in the app fragment (other values ignored). The editor also tells the host a session closed (`Error {code: "SESSION_CLOSED"}`) so host chrome can offer Reopen (MM-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-049 | Temporary-canvas wording per host: `[host.flags] temporary_wording`, "meeting" (default, Jitsi) or "room" (Matrix); the session carries `wording`; room wording adds "Start a new canvas" on the ended screen, which posts `UI_StartNew` to the host (MX-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-050 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Accepted (owner, 2026-11-24) |
-| ADR-051 | Headless API v1 boundary details (HAPI-01/02): `/api/v1` behind `[host.flags] api_v1`; RFC 9457 types `urn:opencanvas:problem:<code>`; 0.1 host routes kept as aliases with `Deprecation` (RFC 9745) and `Link: rel="successor-version"`; user tokens host-minted (no exchange, no token store), `iss` → one host (`[host.api] issuer`), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, ≤ 15 min; one `authz::Principal` check shared with MCP; `canvas:admin` for tokens only with `[host.api] token_admin` (docs/27 §4.4) | Proposed (2026-11-24) |
+| ADR-054 | Headless API v1 boundary details (HAPI-01/02): `/api/v1` behind `[host.flags] api_v1`; RFC 9457 types `urn:opencanvas:problem:<code>`; 0.1 host routes kept as aliases with `Deprecation` (RFC 9745) and `Link: rel="successor-version"`; user tokens host-minted (no exchange, no token store), `iss` → one host (`[host.api] issuer`), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, ≤ 15 min; one `authz::Principal` check shared with MCP; `canvas:admin` for tokens only with `[host.api] token_admin` (docs/27 §4.4) | Proposed (2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -485,7 +485,7 @@ The 0.1 host routes stay as aliases.
 **Consequences.** + one contract for programs and agents; − a new store table and more surface
 to audit and keep compatible.
 
-### ADR-051 — Headless API v1 boundary details (Proposed, 2026-11-24)
+### ADR-054 — Headless API v1 boundary details (Proposed, 2026-11-24)
 **Context.** ADR-041 fixed the API's shape; HAPI-01/02 had to pin the details a host codes
 against: the gate, the error type URIs, how the 0.1 routes announce their successor, and how a
 user token names its host and audience without OpenCanvas issuing tokens (ADR-001).
