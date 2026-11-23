@@ -43,9 +43,10 @@ describe("swipe back", () => {
     act(() => root.render(<BoardBlock doc={doc} boardId={id} env={env()} />));
     cleanup = () => act(() => root.unmount());
     const svg = el.querySelector("svg.ocbd-svg")!;
-    expect(wheel(svg, -40, 2).defaultPrevented).toBe(true);
-    // A vertical scroll still scrolls the document.
+    // A vertical scroll still scrolls the document...
     expect(wheel(svg, 0, 40).defaultPrevented).toBe(false);
+    // ...and a sideways swipe never reaches the browser (one gesture keeps its axis, UX-DGM-01).
+    expect(wheel(svg, -40, 2).defaultPrevented).toBe(true);
   });
 
   it("one trackpad gesture keeps its axis: a sideways pan that drifts down does not start scrolling the page (UX-DGM-01)", () => {
