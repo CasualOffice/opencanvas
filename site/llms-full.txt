@@ -75,7 +75,9 @@ The terms these pages use.
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
-> **v0.1.0.** The first release; best-effort support with no SLA. Read the
+> **v0.1.1: Jitsi Meet integration.** Every Jitsi meeting can get a shared, temporary canvas
+> with one Prosody plugin and config ([guide](integrations/jitsi/README.md), [changes](CHANGELOG.md)).
+> Best-effort support with no SLA. Before you deploy, read the 0.1.x
 > [release notes](docs/28-RELEASE-v0.1.0.md), its
 > [upgrade notes](docs/28-RELEASE-v0.1.0.md#upgrade-notes) (WOPI proof keys are now required) and
 > [known limitations](docs/28-RELEASE-v0.1.0.md#known-limitations) (memory, durability modes,

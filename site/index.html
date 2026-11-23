@@ -53,7 +53,7 @@
 <section class="hero" aria-labelledby="hero-h">
   <div class="wrap">
     <div class="hero-copy">
-      <a class="release-pill" href="changelog.html"><b>0.1.0</b><span>First release, best-effort support</span><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+      <a class="release-pill" href="changelog.html"><b>0.1.1</b><span>Now in Jitsi Meet</span><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
       <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
       <p class="lede">OpenCanvas is a collaborative canvas you embed, the way apps embed Collabora: rich text, databases and whiteboards, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
       <div class="cta-row">
@@ -130,7 +130,7 @@
     <div class="limits reveal" data-testid="limits">
       <h2 id="limits-h"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Alpha: what it is not yet</h2>
       <ul>
-        <li><strong>Early release, with no SLA.</strong> Release 0.1.0 has best-effort support, no production SLA, and fixes only on the 0.1.x line. The <a href="docs/release.html">release notes</a> list every limit, with backup and recovery.</li>
+        <li><strong>Early release, with no SLA.</strong> Release 0.1.1 has best-effort support, no production SLA, and fixes only on the 0.1.x line. The <a href="docs/release.html">release notes</a> list every limit, with backup and recovery.</li>
         <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
         <li><strong>Memory grows with the documents you keep open.</strong> While people type, a room's document takes many times its saved size in memory; memory is given back after rooms close. Size from the <a href="docs/capacity.html">sizing guide</a>.</li>
         <li><strong>Durability depends on the mode.</strong> Without Redis the default keeps rooms in memory and dumps them every two seconds: after a crash, the latest edits come back only from clients that reconnect. Use <code>wal</code> mode, or a Redis WAL with append-only persistence, when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>

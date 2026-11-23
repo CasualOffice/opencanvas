@@ -1,7 +1,7 @@
 # OpenCanvas
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0-7a45f0)](docs/28-RELEASE-v0.1.0.md)
+[![Release](https://img.shields.io/badge/release-v0.1.1-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.1)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 
 **An embeddable, real-time collaborative canvas for your app.** Rich text, databases and
@@ -11,7 +11,8 @@ office documents.
 
 [Website](https://canvas.casualoffice.org) ·
 [Try the demo](https://canvas.casualoffice.org/app/#demo) ·
-[Release notes](docs/28-RELEASE-v0.1.0.md) ·
+[Release notes](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.1) ·
+[Jitsi Meet](integrations/jitsi/README.md) ·
 [Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
 [Documentation](docs/00-README.md)
 
@@ -20,7 +21,9 @@ office documents.
   <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
 </picture>
 
-> **v0.1.0.** The first release; best-effort support with no SLA. Read the
+> **v0.1.1: Jitsi Meet integration.** Every Jitsi meeting can get a shared, temporary canvas
+> with one Prosody plugin and config ([guide](integrations/jitsi/README.md), [changes](CHANGELOG.md)).
+> Best-effort support with no SLA. Before you deploy, read the 0.1.x
 > [release notes](docs/28-RELEASE-v0.1.0.md), its
 > [upgrade notes](docs/28-RELEASE-v0.1.0.md#upgrade-notes) (WOPI proof keys are now required) and
 > [known limitations](docs/28-RELEASE-v0.1.0.md#known-limitations) (memory, durability modes,
