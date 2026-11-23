@@ -59,4 +59,28 @@ describe("diagram window", { timeout: 30_000 }, () => {
     const css = [...document.head.querySelectorAll("style")].map((s) => s.textContent).join("\n");
     expect(css).toContain(".ocdg-cmdk{");
   });
+
+  it("closing Commands with Esc gives focus back to the canvas, so Esc and shortcuts keep working", async () => {
+    await openDiagram();
+    const cv = shell()!.querySelector<HTMLElement>(".ocbd")!;
+    act(() => cv.focus());
+    key(cv, "k", { ctrlKey: true });
+    const input = await vi.waitFor(() => document.querySelector<HTMLInputElement>('[aria-label="Commands"] input')!);
+    expect(document.activeElement).toBe(input);
+    key(input, "Escape");
+    await until(() => expect(document.querySelector('[aria-label="Commands"]')).toBeNull());
+    expect(document.activeElement).toBe(cv);
+  });
+
+  it("closing the shortcuts sheet gives focus back to where it was", async () => {
+    await openDiagram();
+    const cv = shell()!.querySelector<HTMLElement>(".ocbd")!;
+    act(() => cv.focus());
+    key(cv, "?");
+    const close = await vi.waitFor(() => document.querySelector<HTMLButtonElement>('[aria-labelledby="ocdg-ks-t"] button[aria-label="Close"]')!);
+    expect(document.activeElement).toBe(close);
+    act(() => close.click());
+    await until(() => expect(document.querySelector('[aria-labelledby="ocdg-ks-t"]')).toBeNull());
+    expect(document.activeElement).toBe(cv);
+  });
 });
