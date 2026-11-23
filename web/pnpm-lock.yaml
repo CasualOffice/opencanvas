@@ -32,6 +32,9 @@ importers:
 
   packages/board:
     dependencies:
+      '@dagrejs/dagre':
+        specifier: 1.1.4
+        version: 1.1.4
       '@opencanvas/ui':
         specifier: workspace:*
         version: link:../ui
@@ -372,6 +375,13 @@ packages:
   '@babel/types@7.29.15':
     resolution: {integrity: sha512-/XKpKDakL//LZ66bq1XsZOswuqeI5MZqPLDu18o3XdkU1fNJ7bdPtzgnc4ZNS+bBGHV0FJG8jjb8SwcC3nNVQQ==}
     engines: {node: '>=6.9.0'}
+
+  '@dagrejs/dagre@1.1.4':
+    resolution: {integrity: sha512-QUTc54Cg/wvmlEUxB+uvoPVKFazM1H18kVHBQNmK2NbrDR5ihOCR6CXLnDSZzMcSQKJtabPUWridBOlJM3WkDg==}
+
+  '@dagrejs/graphlib@2.2.4':
+    resolution: {integrity: sha512-mepCf/e9+SKYy1d02/UkvSy6+6MoyXhVxP8lLDfA7BPE1X1d4dR0sZznmbM8/XVJ1GPM+Svnx7Xj6ZweByWUkw==}
+    engines: {node: '>17.0.0'}
 
   '@emnapi/core@2.0.0-beta.2':
     resolution: {integrity: sha512-MzCVoWtcg4Pm2B3je5mMvYMvj3MmBKw+fU7vbsJc9/iT8ip6/eYIHo/Dsm/mr+wsHB6SEyJDuxB09Yy6r/8+4A==}
@@ -1954,6 +1964,12 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.15
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@dagrejs/dagre@1.1.4':
+    dependencies:
+      '@dagrejs/graphlib': 2.2.4
+
+  '@dagrejs/graphlib@2.2.4': {}
 
   '@emnapi/core@2.0.0-beta.2':
     dependencies:

@@ -376,3 +376,19 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
   `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
   people get no ports (10c).
+
+### 8.6 Auto-layout (S6, DGM-14.6, engine built; dialog and preview to come)
+
+- Engine: Dagre (`@dagrejs/dagre` 1.1.4, MIT, ADR-047 §5), loaded by dynamic import the first time
+  Auto-layout opens (`diagram/layout/load.ts`), inside the lazy diagram chunk.
+- `computeLayout(dagre, shapes, options)` is pure: direction (down, right), spacing (compact 24/40,
+  normal 48/72, roomy 80/120: gap between shapes / between layers), scope (the whole diagram, the
+  selected shapes, inside a container), keep containers (a container is a Dagre compound node and is
+  resized around its children, 24 padding plus room for its label), keep your bends (off by
+  default). Nodes, parents and edges are given to Dagre sorted by id, so the same board gives the
+  same layout whatever the order of its shapes. Shapes keep their sizes; the arranged group keeps
+  its top-left corner. Connectors bound at both ends to arranged shapes rank the layers.
+- `applyLayout` writes every position, clears the bends of those connectors (unless kept) and
+  refreshes their `pts` in one Yjs transaction: one Undo restores all of it.
+- Tests: `web/packages/board/src/diagram-layout.test.ts`.
+
