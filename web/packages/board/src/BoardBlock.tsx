@@ -2018,6 +2018,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
             canvas={{ shapes, sel, select: setSel }}
+            view={view}
+            selection={sel}
           >
             {content}
           </Shell>,

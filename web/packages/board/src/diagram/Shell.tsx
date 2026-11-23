@@ -17,6 +17,7 @@ export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
 import type { Shape } from "../model";
 import { Properties } from "./props/Properties";
+import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
 
 const SW = 1.75;
 
@@ -54,6 +55,9 @@ export interface DiagramShellProps {
   /** The selected shapes and every shape of the board: the properties panel (S4). */
   selected?: Shape[];
   shapes?: Shape[];
+  /** Canvas viewport and selection (auto-layout preview and scope, S6). */
+  view?: LayoutView;
+  selection?: string[];
   children: ReactNode;
 }
 
@@ -173,6 +177,7 @@ export default function DiagramShell(p: DiagramShellProps) {
         </ul>
         {edit ? (
           <>
+            <AutoLayout doc={doc} boardId={boardId} env={env} origin={p.origin} view={p.view} selection={p.selection} undo={p.undo.run} />
             <button type="button" className="ocdg-ib" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!p.undo.can} onClick={p.undo.run}>
               <Undo2 size={16} strokeWidth={SW} />
             </button>
