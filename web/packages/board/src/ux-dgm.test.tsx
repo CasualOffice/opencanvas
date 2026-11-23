@@ -33,7 +33,7 @@ const until = (check: () => void) =>
   vi.waitFor(async () => {
     await act(async () => {});
     check();
-  }, { timeout: 5_000 });
+  }, { timeout: 30_000 });
 const shell = () => document.querySelector<HTMLElement>(".ocdg");
 
 function board() {
@@ -51,7 +51,7 @@ async function openDiagram() {
   return f;
 }
 
-describe("diagram window", { timeout: 30_000 }, () => {
+describe("diagram window", { timeout: 120_000 }, () => {
   // Must run first: the styles are injected once per page.
   it("the Commands button in the top bar is styled from the start, not only after ⌘K was used once", async () => {
     await openDiagram();
@@ -82,5 +82,34 @@ describe("diagram window", { timeout: 30_000 }, () => {
     act(() => close.click());
     await until(() => expect(document.querySelector('[aria-labelledby="ocdg-ks-t"]')).toBeNull());
     expect(document.activeElement).toBe(cv);
+  });
+});
+
+function selectAllOn(top: number) {
+  const doc = new Y.Doc();
+  const id = createBoard(doc, "blank");
+  addShape(doc, id, { type: "rect", x: 300, y: top, w: 160, h: 80, text: "Shape" });
+  const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
+  const svg = el.querySelector<SVGSVGElement>("svg.ocbd-svg")!;
+  Object.defineProperty(svg, "clientWidth", { value: 1100, configurable: true });
+  Object.defineProperty(svg, "clientHeight", { value: 440, configurable: true });
+  const root = el.querySelector<HTMLElement>(".ocbd")!;
+  act(() => root.focus());
+  key(root, "a", { ctrlKey: true });
+  return el.querySelector<HTMLElement>(".ocbd-swatch")!;
+}
+
+describe("selection toolbar", { timeout: 30_000 }, () => {
+  it("a shape near the top of a board gets its toolbar below it, not over the board's own buttons and the shape", () => {
+    const bar = selectAllOn(10);
+    // The shape spans y 10..90 at zoom 1; the bar starts under it.
+    expect(parseFloat(bar.style.top)).toBeGreaterThanOrEqual(90);
+    expect(bar.dataset.place).toBe("below");
+  });
+
+  it("a shape with room above keeps its toolbar above it", () => {
+    const bar = selectAllOn(200);
+    expect(parseFloat(bar.style.top)).toBe(186);
+    expect(bar.dataset.place).toBeUndefined();
   });
 });

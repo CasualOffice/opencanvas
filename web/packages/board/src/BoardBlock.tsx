@@ -1697,8 +1697,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const Wd = svgRef.current?.clientWidth ?? 600;
     const half = selList.length > 1 ? 200 : 150;
     const sx = Math.max(Math.min(half, Wd / 2), Math.min(Wd - Math.min(half, Wd / 2), ((u[0] + u[2]) / 2) * z + tx));
-    // Above the selection; when there's no room, pinned under the board's top edge.
-    const sy = Math.max(compact ? 64 : 56, u[1] * z + ty - 14);
+    // Above the selection. Without room there it would sit on the board's own buttons and over the
+    // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
+    const minTop = compact ? 64 : 56;
+    const above = u[1] * z + ty - 14, below = u[3] * z + ty + 14;
+    const Hd = svgRef.current?.clientHeight ?? 0;
+    const flip = above < minTop && below + (compact ? 56 : 44) <= Hd;
+    const sy = flip ? below : Math.max(minTop, above);
     const s1 = selShape;
     const rawSel = s1 ? raw.find((q) => q.id === s1.id) : undefined;
     const btn = (label: string, I: LucideIcon, run: () => void, opts: { pressed?: boolean; disabled?: boolean; keys?: string } = {}) => (
@@ -1777,7 +1782,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
     items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
     swatch = (
-      <div className="ocbd-swatch" style={{ left: sx, top: sy }} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
+      <div className="ocbd-swatch" style={{ left: sx, top: sy }} data-place={flip ? "below" : undefined} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
         {items}
       </div>
     );
