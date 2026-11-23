@@ -54,6 +54,11 @@ export interface BlockEnv {
    * The block never destroys it.
    */
   undoManager?: import("yjs").UndoManager;
+  /**
+   * Optional: diagram-mode switches the host or its administrator controls (DGM-14). `bpmn`
+   * shows the BPMN shape library (off by default, 2f). BPMN shapes in a document always draw.
+   */
+  diagram?: { bpmn?: boolean };
 }
 
 export const USER_PALETTE = ["#2a5ad7", "#7a45f0", "#e5602a", "#0e9a78", "#d63f78", "#b7791f", "#0b7fa6", "#6b7280"];

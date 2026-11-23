@@ -13,7 +13,7 @@ import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
 import type { DiagramPrefs } from "../BoardBlock";
 export { Rulers } from "./Rulers";
-import { ShapesPanel } from "./ShapesPanel";
+import { LeftPanel } from "./ShapesPanel";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
@@ -205,15 +205,15 @@ export default function DiagramShell(p: DiagramShellProps) {
       </header>
       {budget.banner}
       <div className="ocdg-body">
-        {cv && outline ? (
-          <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Outline">
-            <Outline doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} onSay={say} />
-          </aside>
-        ) : edit && p.onAddShape ? (
-          <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Shapes">
-            <ShapesPanel onAdd={p.onAddShape} />
-          </aside>
-        ) : null}
+        {/* Left: Shapes and Outline tabs for editors; the outline alone for view-only people (10c). */}
+        <LeftPanel
+          tab={outline ? "outline" : "shapes"}
+          onTab={(t) => setOutline(t === "outline")}
+          shapes={edit && !!p.onAddShape}
+          outline={cv && (outline || (edit && !!p.onAddShape)) ? <Outline doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} onSay={say} /> : null}
+          onAdd={(k) => p.onAddShape?.(k)}
+          flags={env.diagram}
+        />
         <main className="ocdg-mid">
           {p.children}
           {cv && keys.conn ? <ConnectHint canvas={cv} conn={keys.conn} /> : null}
