@@ -227,15 +227,20 @@ impl CanvasTools for LiveTools {
 
 /// The server's own CSV import step (`POST /v1/import`), never offered to models or MCP.
 const IMPORT_CSV: &str = "import_csv";
+/// The server's own diagram import step (DGM-15), never offered to models or MCP.
+const IMPORT_BOARD: &str = "import_board";
 
-fn import_spec() -> ToolSpec {
-    ToolSpec {
-        name: IMPORT_CSV,
-        description: "",
-        input_schema: json!({}),
-        scope: Scope::Write,
-        read_only: false,
-    }
+fn import_specs() -> Vec<ToolSpec> {
+    [IMPORT_CSV, IMPORT_BOARD]
+        .into_iter()
+        .map(|name| ToolSpec {
+            name,
+            description: "",
+            input_schema: json!({}),
+            scope: Scope::Write,
+            read_only: false,
+        })
+        .collect()
 }
 
 impl LiveTools {
@@ -255,6 +260,11 @@ impl LiveTools {
         self.run(ctx, IMPORT_CSV, input, true, true).await
     }
 
+    /// A diagram import (DGM-15): converted shapes onto a new board block or an open board.
+    pub async fn import_board(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, IMPORT_BOARD, input, true, true).await
+    }
+
     async fn run(
         &self,
         ctx: &ToolCtx,
@@ -265,7 +275,7 @@ impl LiveTools {
     ) -> Result<Value, ToolError> {
         let spec = phase1_specs()
             .into_iter()
-            .chain(internal.then(import_spec))
+            .chain(internal.then(import_specs).into_iter().flatten())
             .find(|s| s.name == name)
             .ok_or_else(|| ToolError::NotFound(format!("unknown tool {name:?}")))?;
         if !input.is_object() && !input.is_null() {
@@ -343,6 +353,7 @@ impl LiveTools {
             "db_upsert_rows" => Box::new(move |d| write::db_upsert_rows(d, &i)),
             "db_create" => Box::new(move |d| write::db_create(d, &i)),
             IMPORT_CSV => Box::new(move |d| write::import_csv(d, &i)),
+            IMPORT_BOARD => Box::new(move |d| write::import_board(d, &i)),
             "db_add_field" => Box::new(move |d| write::db_add_field(d, &i)),
             "board_add_shapes" => Box::new(move |d| write::board_add_shapes(d, &i)),
             "comment_add" => Box::new(move |d| write::comment_add(d, &i, &w)),

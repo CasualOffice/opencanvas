@@ -14,7 +14,7 @@ use serde::Deserialize;
 pub const TEMPLATE_JSON_TAG: &[u8] = b"\0oc-template-json\0";
 
 /// What `POST /v1/import` reads (docs/23 FC-10).
-pub const IMPORT_FORMATS: [&str; 3] = ["md", "html", "csv"];
+pub const IMPORT_FORMATS: [&str; 5] = ["md", "html", "csv", "drawio", "excalidraw"];
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct HostConfig {
