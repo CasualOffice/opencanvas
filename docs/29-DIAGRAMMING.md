@@ -402,3 +402,42 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   to N shapes. Undo puts them all back." with Undo; ⌘Z does the same.
 - Bundle: Dagre is its own chunk (14 KB gz), imported by the diagram chunk when the options open.
 
+### 8.7 Export and import entries (S7, DGM-14.6)
+
+- **Entries.** In diagram mode the board options menu gains **Import…** (editors, when the host
+  allows a diagram import format) and **Export…**. Import opens the approved FC-10 dialog titled
+  "Import into this diagram", diagram files only, and adds to the open board (`boardId`); its
+  "Undo import" removes the added shapes in one transaction. Editor toasts and dialogs show above
+  diagram mode.
+- **Export dialog (7f, 7g).** PNG and SVG are the existing browser exports (a selection exports
+  the selected shapes and the connectors between them). draw.io and Mermaid are converted by the
+  server: `GET /v1/export/board/{boardId}.{drawio,mmd}?ticket=[&ids=][&report=1]`
+  (`crates/oc-model/src/diagram_export/`); the dialog asks for `report=1` and lists "What changes
+  in …", and shows the Mermaid text with Copy text. Without a server (`#demo`) draw.io and Mermaid
+  are shown as "Needs the canvas server".
+- **draw.io mapping** (the inverse of §7.1 on its subset; cell ids are the board's shape ids, so
+  re-importing keeps them as `props.sourceId`): `rect` → `rounded=0` vertex (or `shape=<props.shape>`
+  for imported outline shapes), `ellipse` → `ellipse`, `diamond` → `rhombus`, `text` → `text` with
+  `fontSize`; tones → the draw.io fills that import back to the same tone (`#dae8fc` blue,
+  `#d5e8d4` green, `#fff2cc` amber, `#f8cecc` red, `#e1d5e7` purple, `#f5f5f5` gray, `#fcc2d7`
+  pink); containers (`props.parent`) → `container=1;dashed=1` cells holding their children with
+  relative geometry; board groups → `group;ocGroup=1` cells (the importer turns these back into
+  `group`; other draw.io groups still become containers); connectors keep bound ends,
+  `exitX/entryX` from the side anchor, `via` → waypoints, `route: "elbow"` →
+  `orthogonalEdgeStyle`, labels; free ends → `sourcePoint`/`targetPoint`. Reported: `avoid`
+  (routes around shapes saved as fixed bends), `ports` (named ports → nearest side), `kind`
+  (shapes from a library → plain boxes), `sticky` (→ boxes in their tone), `image_stored`
+  (images stored with the canvas → dashed boxes; `data:` images are kept), `pen`, `swatch` (left
+  out); `kept`, `containers`, `groups`.
+- **Mermaid mapping:** `flowchart TB`; nodes named by their text's first line (`rect` `["…"]`,
+  `ellipse` `(["…"])`, `diamond` `{"…"}`), ids from the shape ids (`[A-Za-z0-9_]`, `n_` before a
+  digit or keyword, made unique); containers → nested `subgraph`; connectors bound at both ends →
+  `-->` with `|"label"|`; tones → `classDef`. Reported: `positions`, `detail` (second lines,
+  icons), `groups_lost`, `unbound`, `images_named`, `pen`, `swatch`; `containers`, `labels`,
+  `colours`.
+- **Tests:** `crates/oc-model/tests/diagram_export.rs` (golden round trip draw.io → import keeps
+  ids, connectors, anchors, labels, waypoints, containers, groups, positions and tones; selection;
+  `data:` images; Mermaid golden text and safe ids), `crates/oc-server/tests/exports.rs` (the
+  endpoint), `web/packages/board/src/diagram-export.test.tsx` (dialog, report, preview, entries),
+  `e2e/diagram/s6-layout.spec.ts` (S6 in the production build, axe light and dark).
+

@@ -318,6 +318,10 @@ export const LAYOUT_CSS = `
 .ocdg-pbt{display:flex;flex-direction:column;min-width:0;margin-right:.5rem}
 .ocdg-pbt span{color:var(--fg-2);font-size:.75rem}
 .ocdg-pbt .ocdg-pnote{color:var(--accent)}
+/* Editor toasts and dialogs show above diagram mode (the toast's Undo, Import into this diagram). */
+body:has(>.ocdg) .toasts{position:fixed;z-index:1010}
+body:has(>.ocdg) .scrim{position:fixed;z-index:1005}
+body:has(>.ocdg) .modal{position:fixed;z-index:1006}
 @media (max-width:45em){.ocdg-lbt{display:none}.ocdg-pop{right:.5rem}.ocdg-pbar{left:.5rem;right:.5rem;transform:none;flex-wrap:wrap}}
 `;
 
@@ -330,3 +334,6 @@ export function ensureLayoutStyles() {
   s.textContent = LAYOUT_CSS;
   document.head.appendChild(s);
 }
+
+// Injected when the diagram chunk loads, so toasts show above diagram mode for every role.
+ensureLayoutStyles();

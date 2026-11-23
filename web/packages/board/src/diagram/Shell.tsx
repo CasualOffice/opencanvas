@@ -15,6 +15,7 @@ import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
 import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
+import ExportDialog from "./export/ExportDialog";
 
 const SW = 1.75;
 
@@ -50,6 +51,9 @@ export interface DiagramShellProps {
   /** Canvas viewport and selection (auto-layout preview and scope, S6). */
   view?: LayoutView;
   selection?: string[];
+  /** The export dialog (7f/7g), opened from the board options menu. */
+  exporting?: boolean;
+  onExportClose?: () => void;
   children: ReactNode;
 }
 
@@ -169,6 +173,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
         </aside>
       </div>
+      {p.exporting ? <ExportDialog doc={doc} boardId={boardId} env={env} name={shown} selection={p.selection ?? []} onClose={() => p.onExportClose?.()} /> : null}
     </div>
   );
 }
