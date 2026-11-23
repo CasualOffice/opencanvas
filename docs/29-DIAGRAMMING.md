@@ -377,7 +377,7 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
   people get no ports (10c).
 
-### 8.6 Auto-layout (S6, DGM-14.6, engine built; dialog and preview to come)
+### 8.6 Auto-layout (S6, DGM-14.6)
 
 - Engine: Dagre (`@dagrejs/dagre` 1.1.4, MIT, ADR-047 §5), loaded by dynamic import the first time
   Auto-layout opens (`diagram/layout/load.ts`), inside the lazy diagram chunk.
@@ -391,4 +391,14 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
 - `applyLayout` writes every position, clears the bends of those connectors (unless kept) and
   refreshes their `pts` in one Yjs transaction: one Undo restores all of it.
 - Tests: `web/packages/board/src/diagram-layout.test.ts`.
+- UI (`diagram/layout/AutoLayout.tsx`, frames 6a–6c): an **Auto-layout** button in the top bar
+  (editors only) and ⇧L open the options (Direction Down / Right, Spacing, Arrange: the whole
+  diagram / selected shapes, two or more / inside a container, Keep shapes in their containers on,
+  Keep your bends off). **Preview** draws dashed outlines where shapes are now and the proposed
+  boxes in accent over the canvas, with a bar ("Preview · top to bottom", "3 shapes move, 1
+  container resizes.", Cancel, Apply). Nothing is written, so others don't see it. Any change to
+  the board during the preview works it out again and the bar says "The board changed. The preview
+  was updated." Esc cancels, Enter applies. Apply writes one transaction and toasts "Layout applied
+  to N shapes. Undo puts them all back." with Undo; ⌘Z does the same.
+- Bundle: Dagre is its own chunk (14 KB gz), imported by the diagram chunk when the options open.
 

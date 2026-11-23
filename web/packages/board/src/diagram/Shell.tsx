@@ -14,6 +14,7 @@ export { Rulers } from "./Rulers";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
+import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
 
 const SW = 1.75;
 
@@ -46,6 +47,9 @@ export interface DiagramShellProps {
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
   inspector?: ReactNode;
+  /** Canvas viewport and selection (auto-layout preview and scope, S6). */
+  view?: LayoutView;
+  selection?: string[];
   children: ReactNode;
 }
 
@@ -146,6 +150,7 @@ export default function DiagramShell(p: DiagramShellProps) {
         </ul>
         {edit ? (
           <>
+            <AutoLayout doc={doc} boardId={boardId} env={env} origin={p.origin} view={p.view} selection={p.selection} undo={p.undo.run} />
             <button type="button" className="ocdg-ib" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!p.undo.can} onClick={p.undo.run}>
               <Undo2 size={16} strokeWidth={SW} />
             </button>
