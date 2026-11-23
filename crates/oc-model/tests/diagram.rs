@@ -272,3 +272,34 @@ fn both_props_forms_read_and_render_the_same() {
         oc_model::preview::render(&jp).html
     );
 }
+
+#[test]
+fn a_board_name_survives_import_validation_and_ocanvas_round_trips() {
+    // DGM-14 (1d): boards get an optional `name` string beside `shapes` and `order`.
+    let mut b = board();
+    b["name"] = json!("Service map");
+    let doc = doc_with(b);
+    let y = ydoc_from(&doc);
+    assert_eq!(
+        oc_model::doc::doc_to_json(&y)["boards"]["b1"]["name"],
+        "Service map"
+    );
+    let report = oc_model::validate::validate(&y);
+    assert!(report.first_error().is_none(), "{:?}", report.first_error());
+    let commit = oc_model::ocanvas::CommitInfo {
+        id: "c1".into(),
+        authors: vec![],
+        at: "2026-11-24T00:00:00Z".into(),
+    };
+    let bytes = oc_model::ocanvas::write_ocanvas(&y, &commit).expect("write");
+    let loaded = oc_model::ocanvas::read_ocanvas(&bytes).expect("read");
+    assert_eq!(
+        oc_model::doc::doc_to_json(&loaded.doc)["boards"],
+        doc["boards"]
+    );
+    // Rendering ignores it: the same SVG with and without a name.
+    assert_eq!(
+        oc_model::board::to_svg(&doc_with(board()), "b1"),
+        oc_model::board::to_svg(&doc, "b1")
+    );
+}
