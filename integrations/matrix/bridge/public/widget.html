@@ -1,17 +1,31 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 CasualOffice -->
-<!-- Functional only, deliberately unstyled: the screens are listed in UI-SCREENS.md and wait
-     for an approved prototype (ADR-011). -->
+<!-- The widget page: screens S1-S4 from the approved prototype
+     (docs/prototypes/matrix-approved, 2026-11-24). widget.js fills #screen. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenCanvas</title>
+<link rel="stylesheet" href="widget.css">
 <script src="widget.js" defer></script>
 </head>
 <body>
-<p id="status" role="status" aria-live="polite">Loading canvas...</p>
+<p id="status" class="sr" role="status" aria-live="polite" data-state="loading">Loading canvas…</p>
+<main id="screen">
+  <div class="skel" aria-hidden="true">
+    <div class="skbar"><span class="sk sq"></span><span class="sk ln"></span><span class="sk pill"></span></div>
+    <div class="skbody">
+      <div class="sk h1"></div>
+      <div class="sk sub"></div>
+      <div class="sk l1"></div>
+      <div class="sk l2"></div>
+      <div class="sk l3"></div>
+      <div class="sk blk"></div>
+    </div>
+  </div>
+</main>
 <form id="launch" method="post" target="canvas" hidden>
   <input type="hidden" name="token" value="">
 </form>

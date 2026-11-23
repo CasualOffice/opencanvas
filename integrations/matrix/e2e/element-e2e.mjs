@@ -152,6 +152,9 @@ try {
   check("Asha: bridge verified her OpenID token and launched the canvas", a.state === "open", a.state);
   const edA = await editorOf(pageA);
   check("Asha: OpenCanvas editor loaded inside the Element widget (frame-ancestors per host)", Boolean(edA));
+  // MX-02: room wording (host flag temporary_wording = "room", OpenCanvas ADR-049).
+  const noteA = edA ? await edA.locator(".banner.temp").innerText().catch(() => "") : "";
+  check("Asha: temporary note in room wording (MX S5)", noteA.includes("It's deleted after everyone has closed it"), noteA);
   await shot(pageA, "asha-3-canvas");
 
   // 2. Ravi, a member, opens the same canvas.
@@ -193,7 +196,7 @@ try {
   pageC = await signIn(lena);
   const c = await openWidget(pageC, lenaRoom, "lena");
   const textC = c.frame ? await c.frame.locator("#status").innerText() : "";
-  check("Lena (non-member) is refused by the bridge", c.state === "error" && /Only members of this room/.test(textC), textC);
+  check("Lena (non-member) is refused by the bridge", c.state === "error" && /Join the room to open this canvas/.test(textC), textC);
   check("Lena gets no canvas frame", !pageC.frames().some((f) => f.url().startsWith(`${OC}/app/`)));
   await shot(pageC, "lena-5-refused");
 

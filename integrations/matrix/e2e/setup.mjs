@@ -43,7 +43,7 @@ export async function roomWithWidget(hs, { owner, members, bot, bridgeUrl, name 
     type: "m.custom",
     name: "Canvas",
     url: `${bridgeUrl}/widget?roomId=$matrix_room_id&wid=$matrix_widget_id`,
-    data: { title: "Temporary canvas: export to keep a copy" },
+    data: { title: "Temporary: download to keep a copy" },
     waitForIframeLoad: true,
   });
   // Pin it to the top of the room for everyone (Element's layout state event).

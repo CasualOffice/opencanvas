@@ -48,7 +48,8 @@ prototype: [UI-SCREENS.md](UI-SCREENS.md).
 
 ## Install
 
-You need OpenCanvas 0.1.1 or later with per-host `frame_ancestors`, Node 24 for the bridge,
+You need OpenCanvas 0.1.1 or later with per-host `frame_ancestors` (releases after 0.1.1 for
+`temporary_wording`; older ones keep meeting wording), Node 24 for the bridge,
 and a Matrix bot account.
 
 1. **Bot account** on your homeserver, for example `@canvasbot:acme.example`. Log in once to
@@ -69,6 +70,7 @@ and a Matrix bot account.
    # editor only, not to the rest of the server.
    frame_ancestors = ["https://element.acme.example", "https://app.element.io"]
    [host.flags]
+   temporary_wording = "room"   # room wording in the editor, "Start a new canvas" when it ends
    export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"]
    ```
 3. **Bridge**: run it behind TLS, on its own origin.
@@ -129,7 +131,7 @@ Each widget id is its own canvas. Use any of these three ways:
       "type": "m.custom",
       "name": "Planning canvas",
       "url": "https://canvas-bridge.acme.example/widget?roomId=$matrix_room_id&wid=$matrix_widget_id",
-      "data": { "title": "Temporary canvas: export to keep a copy" },
+      "data": { "title": "Temporary: download to keep a copy" },
       "waitForIframeLoad": true
     }
   }
@@ -167,8 +169,10 @@ type or pre-trusts a widget URL.
 - **Avatars** are not passed to OpenCanvas: Matrix avatars are `mxc://` URLs behind
   authenticated media.
 - Element X and the mobile apps do not show room widgets like this today.
-- The widget page is functional but not yet designed. The editor's temporary-canvas notice
-  says "deleted when the meeting ends"; a Matrix wording is listed in UI-SCREENS.md.
+- The widget's own screens (loading, the identity explanation, refused identity, errors) follow
+  the approved prototype (MX-02). With `temporary_wording = "room"` the editor says the canvas is
+  deleted after everyone has closed it, and its ended screen offers **Start a new canvas**, which
+  reloads the widget.
 
 ## Status: verified vs not yet tested
 
