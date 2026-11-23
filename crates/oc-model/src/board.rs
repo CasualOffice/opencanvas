@@ -148,6 +148,8 @@ struct Shape {
     icon: String,
     /// `props.labelPos` of an icon shape: `below` (default), `right` or `hidden`.
     label_pos: String,
+    /// A Lucide icon's own path data (`props.paths`), kept only when it is plain path data.
+    icon_paths: Vec<String>,
 }
 
 fn num(v: &Value) -> f64 {
@@ -259,7 +261,30 @@ fn shape(id: &str, v: &Value) -> Shape {
             String::new()
         },
         label_pos: string(&v["props"]["labelPos"]),
+        icon_paths: embedded_paths(&v["props"]["paths"]),
     }
+}
+
+/// Most paths an embedded icon may carry (as the web `MAX_PATHS`).
+const MAX_ICON_PATHS: usize = 32;
+
+/// `props.paths` of a Lucide icon shape: every entry plain path data, 1 to 32 of them; else none.
+fn embedded_paths(v: &Value) -> Vec<String> {
+    let Some(a) = v.as_array() else {
+        return vec![];
+    };
+    if a.is_empty() || a.len() > MAX_ICON_PATHS {
+        return vec![];
+    }
+    let out: Vec<String> = a
+        .iter()
+        .filter_map(|d| {
+            d.as_str()
+                .filter(|d| crate::icons::is_path_data(d))
+                .map(String::from)
+        })
+        .collect();
+    if out.len() == a.len() { out } else { vec![] }
 }
 
 /// The registry kind of an icon shape (DGM-17, `web/packages/board/src/icons.ts`).
@@ -269,12 +294,16 @@ const ICON_LABEL_SIZE: f64 = 13.0;
 const ICON_LABEL_LH: f64 = 17.0;
 const ICON_LABEL_GAP: f64 = 10.0;
 
-/// The path data an icon shape draws: an `icon:node` rect whose icon this build has.
-fn icon_paths(s: &Shape) -> Option<&'static [String]> {
+/// The path data an icon shape draws: an `icon:node` rect whose built-in icon this build has, or
+/// a Lucide icon (`lucide:<name>`) with its own checked path data.
+fn icon_paths(s: &Shape) -> Option<&[String]> {
     if s.kind != "rect" || s.icon.is_empty() {
         return None;
     }
-    crate::icons::get(&s.icon).map(|i| i.paths.as_slice())
+    if let Some(i) = crate::icons::get(&s.icon) {
+        return Some(i.paths.as_slice());
+    }
+    (s.icon.starts_with("lucide:") && !s.icon_paths.is_empty()).then_some(s.icon_paths.as_slice())
 }
 
 struct IconLabel {

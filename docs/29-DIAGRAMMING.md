@@ -637,6 +637,30 @@ taken from, traced from or modelled on draw.io's stencils (their licence forbids
 - Tests: `icons.test.tsx`, `export.test.ts` (shared fixture), `oc-model/tests/diagram.rs`, the
   `oc-model::icons` unit test; browser `e2e/diagram/icons.spec.ts`.
 
+**All icons: the full Lucide set (part 2, owner scope 2026-11-24).**
+
+- Every Lucide icon of the version the editor ships (lucide-react 1.77.0: 2,098 icons in 45
+  categories; Lucide 1.x has no brand logos, and the generator refuses brand names all the same).
+  `tools/build-lucide-icons.py` writes `web/packages/board/src/lucide/index.json` (names, up to ten
+  tags, categories: 42 KB gz) and `lucide/paths/<category>.json` (path data, each icon in its first
+  category's file: 97 KB gz in all). Tags and path nodes come from `lucide-static@1.77.0`; categories
+  only exist in the Lucide repository at the same tag, so the output is generated once and committed;
+  `--check` verifies it matches the lucide-react version.
+- Loading: neither is in the initial bundle nor the board chunk (`vite.config.ts` leaves
+  `board/src/lucide/` out of the manual chunks): the index loads when All icons opens or someone
+  searches; a category's paths load when its tiles scroll into view.
+- Panel: **All icons** under Icons, a Category picker and a virtualised grid (fixed 4.5rem rows,
+  three per row, only the visible rows plus three either side are in the DOM). Search covers the
+  Lucide names (prefix, then anywhere) and tags, shown after shapes and built-in icons (first 30,
+  "30 of N shown"); Enter adds the first Lucide hit when nothing else matches.
+- Placing: `props.icon = "lucide:<name>"` and the icon's path data in `props.paths` (a few hundred
+  bytes), so the Rust export, the preview and other clients draw it without the Lucide data. This is
+  the smaller safe option: putting all of Lucide into `oc-model` would add about 450 KB to the server
+  binary. Every reader checks `props.paths` (path syntax only, 1-32 entries); anything else draws the
+  plain rect with its text (fixture shapes `l1`, `l2` in `board-icons.json`).
+- Tests: `lucide.test.tsx` (the grid and search cases seen failing first), the shared fixture, and
+  the All icons case in `e2e/diagram/icons.spec.ts`.
+
 ### 8.11 Phone (S11, DGM-14.11)
 
 - Phone layout when the window is at most 30em wide (`usePhone`, `phone/Phone.tsx`): the diagram

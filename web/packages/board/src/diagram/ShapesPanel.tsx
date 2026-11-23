@@ -14,10 +14,12 @@ import { HEADS } from "../heads";
 import { KIND_MIME, LIBRARIES } from "../libraries";
 import { librariesVersion, loadLibrary, panelLibraries, PRESET, presetOf, subscribeLibraries, type PanelLibrary } from "../panel";
 import { descriptorOf, type ResolvedDescriptor } from "../registry";
+import { AllIcons, LucideResults, useLucideIndex } from "./AllIcons";
+import { lucidePaths, searchLucide } from "../lucide";
 import { GENERIC_ICONS, ICON_CATEGORIES, ICON_KIND, ICON_MIME, iconById, searchIcons, suggestIcons, toneOf, type GenericIcon, type IconHit } from "../icons";
 
-/** Adds a shape of `kind`; for `icon:node`, `icon` is the built-in icon's id. */
-export type AddShape = (kind: string, icon?: string) => void;
+/** Adds a shape of `kind`; for `icon:node`, `icon` is the icon's id (and a Lucide icon's `paths`). */
+export type AddShape = (kind: string, icon?: string, paths?: readonly string[]) => void;
 
 const SW = 1.75;
 const ICONS: Record<string, LucideIcon> = {
@@ -303,7 +305,10 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
   const index = useMemo(() => searchIndex(libs), [libs]);
   const hits = useMemo(() => searchShapes(q, index), [q, index]);
   const iconHits = useMemo(() => searchIcons(q), [q]);
+  const lucide = useLucideIndex(q.trim().length > 0);
+  const lucideHits = useMemo(() => (lucide ? searchLucide(lucide, q) : []), [lucide, q]);
   const suggested = useMemo(() => (hits.length || iconHits.length ? [] : suggestIcons(q)), [q, hits.length, iconHits.length]);
+  const anyHit = hits.length + iconHits.length > 0 || (lucideHits.length > 0 && !suggested.length);
   // Icons go first when they match at least as well as the best shape (1d), so Enter adds them.
   const iconsFirst = iconHits.length > 0 && (!hits.length || matchClass(iconHits[0].score) <= shapeClass(hits[0].score));
   const iconOpen = (k: string) => open[k] ?? ICON_OPEN[k] ?? false;
@@ -337,6 +342,10 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
   const addFirst = () => {
     if (iconsFirst) onAdd(ICON_KIND, iconHits[0].id);
     else if (hits[0]) add(hits[0].kind);
+    else if (lucideHits[0]) {
+      const name = lucideHits[0].name;
+      void lucidePaths(name).then((p) => p && onAdd(ICON_KIND, `lucide:${name}`, p));
+    }
   };
   const known = (k: string) => (isPreset(k) ? !!presetOf(k) : descOf(k).kind === k) && libs.some((l) => entries(l).includes(k));
   const recentShown = recent.filter(known);
@@ -424,9 +433,10 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
 
   let body: ReactNode;
   if (searching) {
-    body = hits.length || iconHits.length ? (
+    const n = hits.length + iconHits.length + lucideHits.length;
+    body = anyHit ? (
       <>
-        <p className="ocdg-sr" role="status">{`${hits.length + iconHits.length} ${hits.length + iconHits.length === 1 ? "match" : "matches"} found`}</p>
+        <p className="ocdg-sr" role="status">{`${n} ${n === 1 ? "match" : "matches"} found`}</p>
         {iconsFirst ? iconResults : null}
         {/* Groups in the order of their best match, so the first tile is what Enter adds. */}
         {libs
@@ -445,6 +455,7 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
             </section>
           ))}
         {iconHits.length && !iconsFirst ? iconResults : null}
+        {lucide && lucideHits.length ? <LucideResults idx={lucide} hits={lucideHits} onAdd={onAdd} /> : null}
       </>
     ) : suggested.length ? (
       <div className="ocdg-none ocdg-noicon" role="status">
@@ -499,6 +510,7 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
         ) : null}
         {/* In this document (DGM-17 part 3) goes here, above the Icons library. */}
         {iconLibrary}
+        <AllIcons open={!!open.lucide} onToggle={() => setOpen("lucide", !open.lucide)} onAdd={onAdd} />
         {/* Each library in panel order. */}
         {libs.map((l) => {
           const I = ICONS[l.icon] ?? Boxes;
@@ -547,7 +559,7 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
             aria-keyshortcuts="/"
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (hits[0] || iconHits[0])) {
+              if (e.key === "Enter" && (hits[0] || iconHits[0] || lucideHits[0])) {
                 e.preventDefault();
                 addFirst();
               } else if (e.key === "Escape" && q) {
@@ -665,7 +677,7 @@ export function LeftPanel({ tab, onTab, shapes, outline, onAdd, flags }: { tab: 
         {fly ? (
           <div ref={flyRef} className="ocdg-fly" role="dialog" aria-label={flyName}>
             <h2 className="ocdg-flyh">{flyName}</h2>
-            <ShapesPanel key={JSON.stringify(fly)} only={fly} flags={flags} autoFocus onAdd={(k, icon) => (onAdd(k, icon), setFly(null))} />
+            <ShapesPanel key={JSON.stringify(fly)} only={fly} flags={flags} autoFocus onAdd={(k, icon, paths) => (onAdd(k, icon, paths), setFly(null))} />
           </div>
         ) : null}
       </aside>

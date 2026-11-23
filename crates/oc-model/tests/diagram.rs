@@ -81,7 +81,8 @@ fn a_kind_draws_exactly_as_its_base_type() {
 /// its text, byte for byte as the web exporter does, and exactly as the plain base type.
 #[test]
 fn library_kinds_export_as_their_base_type() {
-    let lib: Value = serde_json::from_str(include_str!("fixtures/board-libraries.json")).expect("fixture json");
+    let lib: Value =
+        serde_json::from_str(include_str!("fixtures/board-libraries.json")).expect("fixture json");
     let expected = include_str!("fixtures/board-libraries.web.svg");
     let svg = oc_model::board::to_svg(&doc_with(lib.clone()), "b1");
     assert_eq!(svg.replace("ocbd-b1-", "ocbd-x-"), expected);

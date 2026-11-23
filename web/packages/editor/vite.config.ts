@@ -64,6 +64,9 @@ export default defineConfig({
           if (id.includes("vite/preload-helper")) return "ui";
           // Diagram mode (DGM-14): its own lazy chunk, loaded from the board chunk on open.
           if (/[\\/]packages[\\/]board[\\/]src[\\/]diagram[\\/]/.test(id)) return "diagram";
+          // The full Lucide icon set (DGM-17): its index and per-category path data are their own
+          // lazy chunks, never the board chunk.
+          if (/[\\/]packages[\\/]board[\\/]src[\\/]lucide[\\/]/.test(id)) return undefined;
           if (/[\\/]packages[\\/]board[\\/]src[\\/]/.test(id)) return "board";
           if (!id.includes("node_modules")) return undefined;
           // Loaded lazily: desktop editing chrome (chrome.tsx), table editing (table.ts),
