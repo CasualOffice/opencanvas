@@ -14,6 +14,8 @@ export { Rulers } from "./Rulers";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
+import type { Shape } from "../model";
+import { Properties } from "./props/Properties";
 
 const SW = 1.75;
 
@@ -46,6 +48,9 @@ export interface DiagramShellProps {
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
   inspector?: ReactNode;
+  /** The selected shapes and every shape of the board: the properties panel (S4). */
+  selected?: Shape[];
+  shapes?: Shape[];
   children: ReactNode;
 }
 
@@ -161,7 +166,7 @@ export default function DiagramShell(p: DiagramShellProps) {
       <div className="ocdg-body">
         <main className="ocdg-mid">{p.children}</main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
-          {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
+          {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
         </aside>
       </div>
     </div>

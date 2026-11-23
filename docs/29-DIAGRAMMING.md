@@ -376,3 +376,25 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
   `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
   people get no ports (10c).
+
+### 8.3 Properties panel, something selected (S4, DGM-14.4)
+
+Code: `diagram/props/` (`Properties.tsx`, `fields.ts`, `styles.ts`), in the lazy diagram chunk. The
+shell shows it in the right panel whenever the selection is not empty; with nothing selected the
+diagram's settings stay. Every input writes **one key**: a shape key (`text`, `fill`, `kind`, `route`,
+`routing`, `dashed`) or one `props` key through `updateShape`, which merges `props` per field
+(ADR-045), so two people editing different fields of one shape both keep their change
+(`properties.test.tsx` merges two docs). Text inputs write on blur or Enter; Esc restores.
+
+| Selection | Sections | `props` keys |
+|---|---|---|
+| UML class (`uml:class`, `uml:interface`, `uml:enumeration`) | Class (Name = `text`, Stereotype, Abstract), Attributes, Methods | `stereotype`, `abstract`, `attributes`, `methods` (lists of `{vis, name, type}`) |
+| ERD entity (`erd:entity`) | Entity (Name, Note), Columns (key – / PK / FK, name, type; FK asks for References; Can be empty), Relationships (from the connectors bound to it, "many to one" from their cardinality) | `note`, `columns` (list of `{key, name, type, ref?, nullable?}`) |
+| Network node (`net:*`) | Text (Name, Detail), Shape (Kind, Colour), Connections (in / out) | `detail`; Kind writes only `kind`, so name, colour and connections (bindings by id) stay |
+| Connector | Ends (shape · port), Label, Route (Straight / Elbow, Avoid shapes), Cardinality when an end is an ERD entity, else Line (start/end arrowhead, pattern) | `startCard`, `endCard`; `startArrow`, `endArrow`, `pattern` (also writes `dashed` for older readers) |
+| Several shapes, or other shapes | Text (text size, colour); a value that differs shows "Mixed" and writes to all | — |
+
+Lists reorder by dragging the grip or with ⌥↑ / ⌥↓ on a row (the list is one `props` key). View-only
+people get the same sections read only, without add, remove or grips (10c). Not yet: the canvas
+drawing of the new `props` (compartments, column rows, cardinality marks, arrowheads) is S2/S3's
+renderer work; the panel writes the fields.

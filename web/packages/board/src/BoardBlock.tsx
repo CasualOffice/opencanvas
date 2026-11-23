@@ -1966,6 +1966,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             onClosed={diagramClosed}
             onBack={closeDiagram}
             peers={peers}
+            selected={sel.map((id) => byId.get(id)).filter((s): s is Shape => !!s)}
+            shapes={shapes}
             undo={{ can: !!um?.undoStack.length, run: () => undo() }}
             redo={{ can: !!um?.redoStack.length, run: () => undo(true) }}
             menuOpen={menu}
