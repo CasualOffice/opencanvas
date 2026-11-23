@@ -40,6 +40,9 @@ export const CSS = `
 .ocbd-mi svg{color:var(--fg-2)}
 .ocbd-mi:hover,.ocbd-mi:focus-visible{background:var(--hover)}
 .ocbd-msep{height:1px;background:var(--line);margin:.25rem .375rem}
+.ocbd-kbd{margin-left:auto;padding-left:1rem;font-family:var(--font);font-size:.75rem;color:var(--fg-2)}
+.ocbd-dbtn{height:2rem;display:inline-flex;align-items:center;gap:.375rem;padding:0 .625rem 0 .5rem;border:0;border-radius:.5rem;background:var(--pop);box-shadow:var(--sh-pop);color:var(--fg-2);font-size:.8125rem;font-weight:500;white-space:nowrap;transition:background .2s var(--ease),color .2s var(--ease)}
+.ocbd-dbtn:hover{background:var(--hover);color:var(--fg)}
 .ocbd-scrim{position:absolute;inset:0;z-index:4}
 .ocbd-ep{transition:r .15s var(--ease)}
 .ocbd-cover{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:1rem;z-index:4;background:linear-gradient(to top,color-mix(in srgb,var(--panel) 70%,transparent),transparent 50%);border:0;width:100%;cursor:pointer}

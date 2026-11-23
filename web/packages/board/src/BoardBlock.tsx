@@ -9,7 +9,7 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Ellipsis, FileCode2, FileImage, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
-  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, type LucideIcon,
+  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
@@ -23,9 +23,24 @@ import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
 import { AvoidRouter, RouteScheduler } from "./routing";
+import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
+// Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
+type ShellModule = typeof import("./diagram/Shell");
+let shellModule: Promise<ShellModule> | null = null;
+const loadShell = () => (shellModule ??= import("./diagram/Shell"));
+/** Diagram settings of one person (1d, right panel with nothing selected). Never in the document. */
+export interface DiagramPrefs {
+  grid: boolean;
+  gridSize: number;
+  rulers: boolean;
+  snapGrid: boolean;
+  snapShapes: boolean;
+  connector: "straight" | "elbow" | "avoid";
+}
+const DIAGRAM_PREFS: DiagramPrefs = { grid: true, gridSize: 20, rulers: true, snapGrid: true, snapShapes: true, connector: "elbow" };
 import {
-  alignMoves, cloneShapes, distributeMoves, insertShapes, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
+  alignMoves, cloneShapes, distributeMoves, equalGapOffset, gridOffset, insertShapes, type GapMark, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
   stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
 } from "./ops";
 
@@ -171,6 +186,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [size, setSize] = useState<[number, number]>([0, 0]);
   const [full, setFull] = useState(false);
   const [active, setActive] = useState(false);
+  // Diagram mode (DGM-14 S1): per person, per board; React state only, never in the document.
+  const [dgm, setDgm] = useState<null | "open" | "closing">(null);
+  const big = full || dgm !== null;
+  const dgmBtn = useRef<HTMLButtonElement>(null);
+  const phRef = useRef<HTMLDivElement>(null);
+  const [phH, setPhH] = useState(0);
+  const [place, setPlace] = useState({ heading: "", title: "" });
+  const refocus = useRef(false);
+  const [Dg, setDg] = useState<ShellModule | null>(null);
+  const [dp, setDp] = useState<DiagramPrefs>(DIAGRAM_PREFS);
+  /** Shape whose ports show (diagram mode, pointer over it). */
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const hoverRef = useRef<string | null>(null);
+  /** Equal-gap marks while moving (3a). */
+  const [gaps, setGaps] = useState<GapMark[] | null>(null);
+  const mode = dgm ? "dgm" : full ? "full" : "inline";
   const [draft, setDraftState] = useState<Shape | null>(null);
   const [editing, setEditingState] = useState<{ id: string; text: string } | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
@@ -209,8 +240,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [mini, setMini] = useState(false);
 
   // Always-fresh values for event handlers.
-  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp });
-  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp };
+  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp });
+  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp };
   const setWp = (i: number | null) => {
     S.current.wp = i;
     setWpState(i);
@@ -304,7 +335,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(svg);
     return () => ro?.disconnect();
-  }, [full]);
+  }, [mode]);
   useLayoutEffect(() => {
     if (fitted.current) return;
     const svg = svgRef.current;
@@ -734,6 +765,20 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       cap();
       return;
     }
+    // Diagram mode: dragging from a port draws a connector from that port (3c).
+    const portOf = (e.target as Element).getAttribute?.("data-port-of");
+    if (portOf && S.current.dgm && S.current.edit) {
+      const s0 = S.current.byId.get(portOf);
+      const port = (e.target as Element).getAttribute("data-port")!;
+      if (s0) {
+        um?.stopCapturing();
+        const p0 = portPoint(s0, port) ?? [x, y];
+        setDraft({ id: "draft", type: "arrow", pts: [p0, p0], start: bindingTo(s0, port), ...connectorStyle() });
+        drag.current = { kind: "arrow" };
+        cap();
+        return;
+      }
+    }
     if (t === "select") {
       if (sid) {
         const s = S.current.shapes.find((q) => q.id === sid);
@@ -806,7 +851,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const b0 = scene.snap([x, y], 18 / S.current.view.z);
       const s0 = b0 ? S.current.shapes.find((q) => q.id === b0.shapeId) : undefined;
       const p0: Pt = s0 ? anchorPoint(s0, b0!.anchor) : [x, y];
-      setDraft({ id: "draft", type: "arrow", pts: [p0, p0], ...(b0 ? { start: b0 } : {}), ...(route === "elbow" ? { route } : {}) });
+      setDraft({ id: "draft", type: "arrow", pts: [p0, p0], ...(b0 ? { start: b0 } : {}), ...connectorStyle() });
       setHint(b0);
       drag.current = { kind: "arrow" };
       cap();
@@ -822,7 +867,20 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
     const d = drag.current;
-    if (!d) return;
+    if (!d) {
+      // Diagram mode: pointing at a shape shows its ports (3b); editors only (10c).
+      if (S.current.dgm && S.current.edit && S.current.tool === "select" && e.pointerType !== "touch") {
+        const el = e.target as Element;
+        const keep = el.getAttribute?.("data-port-of");
+        const b = keep ? null : scene.snap(toWorld(e.clientX, e.clientY), 10 / S.current.view.z);
+        const id = keep ?? (b && S.current.byId.get(b.shapeId)?.type !== "arrow" ? b.shapeId : null);
+        if (id !== hoverRef.current) {
+          hoverRef.current = id;
+          setHoverId(id);
+        }
+      }
+      return;
+    }
     if (d.kind === "pinch") {
       const pts = [...pointers.current.values()];
       if (pts.length < 2) return;
@@ -860,11 +918,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (d.kind === "arrow") {
       const p = draftRef.current;
       if (!p?.pts) return;
-      const b = scene.snap([x, y], 18 / S.current.view.z, p.start?.shapeId);
-      const s1 = b ? S.current.shapes.find((q) => q.id === b.shapeId) : undefined;
+      let b = scene.snap([x, y], 18 / S.current.view.z, p.start?.shapeId);
+      const s1 = b ? S.current.shapes.find((q) => q.id === b!.shapeId) : undefined;
+      // Diagram mode: the nearest port of the shape under the pointer (side ports, not the centre).
+      let at: Pt | null = s1 ? anchorPoint(s1, b!.anchor) : null;
+      if (s1 && S.current.dgm) {
+        const q = nearestPort(s1, [x, y]);
+        const id = q.id === "center" ? b!.anchor : q.id;
+        b = bindingTo(s1, id);
+        at = portPoint(s1, id) ?? at;
+      }
       const { end: _drop, ...rest } = p;
       void _drop;
-      setDraft({ ...rest, pts: [p.pts[0], s1 ? anchorPoint(s1, b!.anchor) : snapArrow(p.pts[0], [x, y], e.shiftKey)], ...(b ? { end: b } : {}) });
+      setDraft({ ...rest, pts: [p.pts[0], at ?? snapArrow(p.pts[0], [x, y], e.shiftKey)], ...(b ? { end: b } : {}) });
       setHint(b);
       return;
     }
@@ -914,12 +980,34 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       return;
     }
     // Move: snap the selection's box to other shapes' edges and centres (Alt moves freely).
-    if (d.box && !e.altKey) {
+    if (d.box && !e.altKey && S.current.dgm) {
+      // Diagram mode (3a): other shapes' edges and centres, then equal gaps, then the grid.
+      const P = S.current.dp, tol = 6 / S.current.view.z;
+      const sn = P.snapShapes ? snapOffset(d.box, d.others, dx, dy, tol) : { dx, dy, gx: [] as number[], gy: [] as number[] };
+      dx = sn.dx;
+      dy = sn.dy;
+      const mv: Box = [d.box[0] + dx, d.box[1] + dy, d.box[2] + dx, d.box[3] + dy];
+      const eq = P.snapShapes ? equalGapOffset(mv, d.others, tol, { x: sn.gx.length > 0, y: sn.gy.length > 0 }) : { dx: 0, dy: 0, marks: [] as GapMark[] };
+      dx += eq.dx;
+      dy += eq.dy;
+      if (P.snapGrid) {
+        const [gx, gy] = gridOffset([d.box[0] + dx, d.box[1] + dy, 0, 0], P.gridSize);
+        const xFree = !sn.gx.length && !eq.dx && !eq.marks.some((m) => m.y1 === m.y2);
+        const yFree = !sn.gy.length && !eq.dy && !eq.marks.some((m) => m.x1 === m.x2);
+        if (xFree) dx += gx;
+        if (yFree) dy += gy;
+      }
+      setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
+      setGaps(eq.marks.length ? eq.marks : null);
+    } else if (d.box && !e.altKey) {
       const sn = snapOffset(d.box, d.others, dx, dy, 6 / S.current.view.z);
       dx = sn.dx;
       dy = sn.dy;
       setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
-    } else setGuides(null);
+    } else {
+      setGuides(null);
+      setGaps(null);
+    }
     const set = new Set(d.ids);
     d.orig.forEach((o) => {
       if (o.pts) {
@@ -945,6 +1033,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     drag.current = null;
     setDragging(false);
     setGuides(null);
+    setGaps(null);
     if (!d) return;
     setHint(null);
     if (d.kind === "box") {
@@ -981,6 +1070,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           if (p.start) s.start = p.start;
           if (p.end && p.end.shapeId !== p.start?.shapeId) s.end = p.end;
           if (p.route) s.route = p.route;
+          if (p.routing) s.routing = p.routing;
           setSel([addShape(doc, boardId, s, origin)]);
         }
       }
@@ -1026,14 +1116,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         zoomAt(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
-      } else if (full) {
+      } else if (big) {
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
       }
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [full]);
+  }, [mode]);
 
   /* ---- keyboard ---- */
   const nudge = (dx: number, dy: number) => {
@@ -1078,7 +1168,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       else if (S.current.sel.length) {
         setSel([]);
         announceSel([]);
-      } else if (full) exitFull();
+      } else if (dgm) closeDiagram();
+      else if (full) exitFull();
+      return;
+    }
+    // Shift+D: open this board as a diagram (1b).
+    if (e.shiftKey && !mod && !e.altKey && k === "d" && !dgm) {
+      e.preventDefault();
+      void openDiagram();
       return;
     }
     if (mod && (e.key === "=" || e.key === "+")) {
@@ -1263,10 +1360,54 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setFull(false);
     if (compact) setActive(false);
   };
+
+  /* ---- diagram mode (DGM-14 S1) ---- */
+  /** Route of a new connector: the diagram's "New connectors" style, else the board's toggle. */
+  const connectorStyle = (): Partial<Shape> => {
+    if (!S.current.dgm) return route === "elbow" ? { route } : {};
+    const c = S.current.dp.connector;
+    return c === "straight" ? {} : c === "avoid" ? { route: "elbow", routing: "avoid" } : { route: "elbow" };
+  };
+  const openDiagram = async () => {
+    setMenu(false);
+    const m = await loadShell();
+    const el = rootRef.current;
+    setPhH(el?.offsetHeight ?? 0);
+    setPlace({ heading: m.headingAbove(el), title: m.documentTitle(el) });
+    setDg(m);
+    setFull(false);
+    setActive(true);
+    setDgm("open");
+  };
+  const closeDiagram = () => {
+    setMenu(false);
+    setDgm((d) => (d ? "closing" : d));
+  };
+  const diagramClosed = () => {
+    refocus.current = true;
+    setDgm(null);
+    if (compact) setActive(false);
+    env.toast("Back in the document");
+  };
+  // Focus returns to the Diagram button (or the board) so keyboard users land where they started (1e).
   useEffect(() => {
-    if (!full) return;
+    if (dgm === "open") rootRef.current?.focus({ preventScroll: true });
+    if (dgm === null && refocus.current) {
+      refocus.current = false;
+      (dgmBtn.current ?? rootRef.current)?.focus({ preventScroll: true });
+    }
+  }, [dgm]);
+
+  useEffect(() => {
+    if (!full && !dgm) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !editRef.current && !S.current.sel.length) exitFull();
+      if (e.key !== "Escape" || e.defaultPrevented || editRef.current || S.current.sel.length) return;
+      // The canvas handles its own Escape (deselect first); fields keep theirs.
+      const t = e.target as Node | null;
+      if (t && rootRef.current?.contains(t)) return;
+      if (t instanceof HTMLElement && t.closest("input,textarea,select,[contenteditable='true'],[role=menu],[role=listbox]")) return;
+      if (dgm) closeDiagram();
+      else exitFull();
     };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -1275,7 +1416,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [full]);
+  }, [mode]);
 
   // Refit when entering / leaving full screen (the viewport size changes a lot).
   const firstFull = useRef(true);
@@ -1286,7 +1427,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
     const id = requestAnimationFrame(() => fit());
     return () => cancelAnimationFrame(id);
-  }, [full]);
+  }, [mode]);
 
   // Drop selected shapes that disappear (remote delete, undo).
   useEffect(() => {
@@ -1412,6 +1553,26 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     );
   }
 
+  // Diagram mode: the hovered shape's ports (3b), not while drawing a connector to it.
+  let portDots: ReactNode = null;
+  const portShape = dgm && edit && hoverId && !draft ? byId.get(hoverId) : undefined;
+  if (portShape && portShape.type !== "arrow" && portShape.type !== "pen") {
+    portDots = (
+      <g className="ocbd-ports">
+        {portsOf(portShape)
+          .filter((q) => q.id !== "center")
+          .map((q) => {
+            const at = portPoint(portShape, q.id);
+            if (!at) return null;
+            return (
+              <circle key={q.id} data-port-of={portShape.id} data-port={q.id} cx={at[0]} cy={at[1]} r={5 / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={1.5 / z} style={{ cursor: "crosshair" }}>
+                <title>{`Port: ${q.id}`}</title>
+              </circle>
+            );
+          })}
+      </g>
+    );
+  }
   let hintDots: ReactNode = null;
   const hintShape = hint ? byId.get(hint.shapeId) : undefined;
   if (hint && hintShape) {
@@ -1582,14 +1743,35 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         onContextMenu={(e) => drag.current && e.preventDefault()}
       >
         <defs>
-          <pattern id={dots} width={22 * z} height={22 * z} x={tx % (22 * z)} y={ty % (22 * z)} patternUnits="userSpaceOnUse">
-            <circle cx={z} cy={z} r={Math.max(0.6, z)} className="ocbd-dot" />
-          </pattern>
+          {!dgm ? (
+            <pattern id={dots} width={22 * z} height={22 * z} x={tx % (22 * z)} y={ty % (22 * z)} patternUnits="userSpaceOnUse">
+              <circle cx={z} cy={z} r={Math.max(0.6, z)} className="ocbd-dot" />
+            </pattern>
+          ) : null}
+          {dgm ? (
+            <>
+              <pattern id={`${dots}-g`} width={dp.gridSize * z} height={dp.gridSize * z} x={tx % (dp.gridSize * z)} y={ty % (dp.gridSize * z)} patternUnits="userSpaceOnUse">
+                <path d={`M${dp.gridSize * z} 0V${dp.gridSize * z}H0`} fill="none" stroke="var(--line)" strokeWidth={1} />
+              </pattern>
+              <pattern id={`${dots}-G`} width={100 * z} height={100 * z} x={tx % (100 * z)} y={ty % (100 * z)} patternUnits="userSpaceOnUse">
+                <path d={`M${100 * z} 0V${100 * z}H0`} fill="none" stroke="var(--line-2)" strokeWidth={1} />
+              </pattern>
+            </>
+          ) : null}
           <marker id={ah} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
             <path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="var(--fg-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </marker>
         </defs>
-        <rect width="100%" height="100%" fill={`url(#${dots})`} />
+        {dgm ? (
+          dp.grid ? (
+            <g data-grid="" pointerEvents="none">
+              {dp.gridSize * z >= 6 ? <rect width="100%" height="100%" fill={`url(#${dots}-g)`} /> : null}
+              <rect width="100%" height="100%" fill={`url(#${dots}-G)`} />
+            </g>
+          ) : null
+        ) : (
+          <rect width="100%" height="100%" fill={`url(#${dots})`} />
+        )}
         <g transform={`translate(${tx} ${ty}) scale(${z})`}>
           {visible.map((s) => (
             <ShapeView
@@ -1605,6 +1787,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           {peerSel}
           {selection}
           {hintDots}
+          {portDots}
+          {gaps ? (
+            <g pointerEvents="none" className="ocbd-gaps">
+              {gaps.map((m, i) => (
+                <g key={i}>
+                  <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke="var(--pink-fg)" strokeWidth={1 / z} />
+                  <text x={(m.x1 + m.x2) / 2 + (m.x1 === m.x2 ? 4 / z : 0)} y={(m.y1 + m.y2) / 2 - (m.y1 === m.y2 ? 4 / z : 0)} fontSize={11 / z} fill="var(--pink-fg)" textAnchor={m.x1 === m.x2 ? "start" : "middle"}>{m.gap}</text>
+                </g>
+              ))}
+            </g>
+          ) : null}
           {guides ? (
             <g pointerEvents="none" className="ocbd-guides">
               {guides.gx.map((gx) => <line key={"x" + gx} x1={gx} x2={gx} y1={-ty / z} y2={(H - ty) / z} stroke="var(--pink-fg)" strokeWidth={1 / z} strokeDasharray={`${3 / z} ${3 / z}`} />)}
@@ -1628,6 +1821,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           })}
         </g>
       </svg>
+      {dgm && Dg && dp.rulers ? <Dg.Rulers view={view} size={size} span={sel.length ? unionBox(selShapes()) : null} /> : null}
       <div className="ocbd-sr" role="status" aria-live="polite">{live}</div>
 
       {!shapes.length && !draft ? (
@@ -1649,6 +1843,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             </button>
           </>
         ) : null}
+        {W >= 560 || !W ? (
+          <button ref={dgmBtn} className="ocbd-dbtn" title="Open as a diagram (Shift+D). Full screen, with shape libraries, ports and auto-layout" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
+            <Workflow size={15} strokeWidth={SW} />
+            Diagram
+          </button>
+        ) : null}
         <button className="ocbd-ib" title="Board options" aria-label="Board options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
           <Ellipsis size={16} strokeWidth={SW} />
         </button>
@@ -1661,6 +1861,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <>
           <div className="ocbd-scrim" onPointerDown={() => setMenu(false)} />
           <div className="ocbd-menu" role="menu" aria-label="Board options">
+            {!dgm ? (
+              <button role="menuitem" className="ocbd-mi" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
+                <Workflow size={16} strokeWidth={SW} />
+                Open as diagram
+                <kbd className="ocbd-kbd" aria-hidden="true">⇧D</kbd>
+              </button>
+            ) : null}
+            {!dgm ? <span className="ocbd-msep" /> : null}
             {edit ? (
               <button role="menuitem" className="ocbd-mi" onClick={() => { setMenu(false); fileRef.current?.click(); }}>
                 <ImagePlus size={16} strokeWidth={SW} />
@@ -1742,6 +1950,37 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     </div>
   );
 
+  if (dgm && Dg && typeof document !== "undefined") {
+    const Shell = Dg.default;
+    return (
+      <>
+        <div ref={phRef} className="ocbd-ph" style={{ height: phH || (compact ? 300 : 440) }}>Open as a diagram</div>
+        {createPortal(
+          <Shell
+            doc={doc}
+            boardId={boardId}
+            env={env}
+            anchor={() => phRef.current}
+            place={place}
+            closing={dgm === "closing"}
+            onClosed={diagramClosed}
+            onBack={closeDiagram}
+            peers={peers}
+            undo={{ can: !!um?.undoStack.length, run: () => undo() }}
+            redo={{ can: !!um?.redoStack.length, run: () => undo(true) }}
+            menuOpen={menu}
+            onMenu={() => setMenu((m) => !m)}
+            origin={origin}
+            prefs={dp}
+            onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
+          >
+            {content}
+          </Shell>,
+          document.body,
+        )}
+      </>
+    );
+  }
   if (full && typeof document !== "undefined") {
     return (
       <>

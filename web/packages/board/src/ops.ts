@@ -247,3 +247,51 @@ export function midPoint(pts: Pt[]): Pt {
 
 /** Boxes intersect (touching counts). */
 export const intersects = (a: Box, b: Box) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+
+/** A gap mark drawn while snapping to equal spacing: a segment and the gap's length. */
+export interface GapMark {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  gap: number;
+}
+
+/**
+ * Equal spacing (diagram mode, 3a): when the moving box sits between two neighbours on an axis
+ * (overlapping on the other axis) and the two gaps differ by at most twice `tol`, centre it so both
+ * gaps are equal. Axes in `skip` are left alone (an alignment snap there wins). Returns the extra
+ * offset and the marks for both gaps.
+ */
+export function equalGapOffset(m: Box, others: Box[], tol: number, skip: { x?: boolean; y?: boolean } = {}): { dx: number; dy: number; marks: GapMark[] } {
+  const marks: GapMark[] = [];
+  let dx = 0, dy = 0;
+  const near = (axis: 0 | 1) => {
+    const o0 = axis === 0 ? 1 : 0; // the other axis: neighbours overlap the box on it
+    let lo: Box | null = null, hi: Box | null = null;
+    for (const o of others) {
+      if (o[o0] >= m[o0 + 2] || o[o0 + 2] <= m[o0]) continue;
+      if (o[axis + 2] <= m[axis] + tol && (!lo || o[axis + 2] > lo[axis + 2])) lo = o;
+      if (o[axis] >= m[axis + 2] - tol && (!hi || o[axis] < hi[axis])) hi = o;
+    }
+    if (!lo || !hi) return;
+    const g1 = m[axis] - lo[axis + 2], g2 = hi[axis] - m[axis + 2];
+    if (g1 < 0 || g2 < 0 || Math.abs(g1 - g2) > tol * 2) return;
+    const shift = (g2 - g1) / 2;
+    const gap = Math.round((g1 + g2) / 2);
+    const c = (Math.max(m[o0], lo[o0], hi[o0]) + Math.min(m[o0 + 2], lo[o0 + 2], hi[o0 + 2])) / 2;
+    const seg = (a: number, b: number): GapMark => (axis === 0 ? { x1: a, y1: c, x2: b, y2: c, gap } : { x1: c, y1: a, x2: c, y2: b, gap });
+    marks.push(seg(lo[axis + 2], m[axis] + shift), seg(m[axis + 2] + shift, hi[axis]));
+    if (axis === 0) dx = shift;
+    else dy = shift;
+  };
+  if (!skip.x) near(0);
+  if (!skip.y) near(1);
+  return { dx, dy, marks };
+}
+
+/** Offset that puts the box's top-left corner on the grid (diagram mode "Snap to grid"). */
+export function gridOffset(m: Box, size: number): [number, number] {
+  if (!(size > 0)) return [0, 0];
+  return [Math.round(m[0] / size) * size - m[0], Math.round(m[1] / size) * size - m[1]];
+}

@@ -331,3 +331,48 @@ tests in `diagram_import/mod.rs` (colours, HTML to text), `crates/oc-server/test
 board to the right with new ids; refusals), `e2e/specs/v-import-diagram.spec.ts` (4: each format
 through the dialog to a board, report, Undo import, page choice, compressed file, refusals, axe in
 light and dark). Fixtures were written for these tests; no third-party diagram is copied.
+
+## 8. Diagram editing UI (DGM-14, built to the approved prototype)
+
+Prototype: `docs/prototypes/diagram-approved/DiagramScreens.html` (approved 2026-11-24, recommended
+options). Code: `web/packages/board/src/diagram/` (its own lazy chunk `diagram`, loaded the first time
+someone opens a board as a diagram; nothing in the initial bundle). Browser specs:
+`e2e/diagram/` (own config, production build in `#demo`, no server stack:
+`cd e2e && npx playwright test -c diagram/playwright.config.ts`).
+
+### 8.1 Entering and leaving (S1, DGM-14.1)
+
+- The block's top cluster gets a labelled **Diagram** button between Redo and Options; under 560 px
+  of board width it folds into the options menu. The menu always has **Open as diagram ⇧D**, and
+  ⇧D works while the board has focus.
+- The diagram window grows from the block's rectangle to the full window in 220 ms (`clip-path`
+  animation), the side panels slide in last; with `prefers-reduced-motion: reduce` it switches at
+  once. Leaving runs it in reverse. The document stays mounted under it (the block keeps a placeholder
+  of its own height), so the scroll position is unchanged.
+- Top bar: Back to document, the document title (its first heading 1) and the board name, people
+  on this board, Undo, Redo, the board options menu. Esc with nothing selected leaves (5d); the canvas
+  deselects first. Leaving puts focus back on the Diagram button and shows "Back in the document".
+- Per person: diagram mode is React state in one view. Nothing about it is written to the document
+  (`diagram.test.tsx` compares the encoded state before and after); other views of the same board
+  keep the ordinary whiteboard.
+- Board names (1d): optional `name` string on the board map (`boards/<id>.name`), set in the
+  diagram's settings panel; additive, ignored by older clients and the exporters. Without a name
+  the bar uses the heading above the block.
+
+### 8.2 Canvas (S3, DGM-14.2, part 1)
+
+- Grid: lines every *grid size* (20 by default, hidden when closer than 6 screen px) and major lines
+  every 100 board units, instead of the whiteboard's dots. Rulers along the top and left in board
+  units, labelled every 10/20/50/100/… so labels are at least 60 px apart; the selection's span is
+  highlighted.
+- Settings (right panel with nothing selected; per person, not stored): Show grid, Grid size, Show
+  rulers, Snap to grid, Snap to other shapes ("Shows guides and equal gaps"), New connectors
+  (Straight, Elbow, Avoid shapes).
+- Moving: alignment to other shapes' edges and centres (as on the whiteboard) wins on its axis; then
+  equal spacing between the two neighbours on an axis (`equalGapOffset`, pink marks with the gap);
+  then the grid (`gridOffset`, top-left corner). ⌥ moves freely.
+- Ports: pointing at a shape shows its side ports (`portsOf`: the four sides, the kind's ports and the
+  shape's own). Dragging from one draws a connector; over another shape the nearest side port snaps.
+  The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
+  `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
+  people get no ports (10c).

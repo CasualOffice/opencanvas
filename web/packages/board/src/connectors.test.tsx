@@ -260,9 +260,11 @@ describe("images", () => {
     const file = new File([new Uint8Array(10)], "pic.png", { type: "image/png" });
     const drop = new Event("drop", { bubbles: true, cancelable: true });
     Object.assign(drop, { clientX: 200, clientY: 150, dataTransfer: { files: [file], items: [], types: ["Files"] } });
-    await act(async () => {
-      el.querySelector(".ocbd")!.dispatchEvent(drop);
-      await new Promise((r) => setTimeout(r, 0));
+    act(() => void el.querySelector(".ocbd")!.dispatchEvent(drop));
+    // The upload is async: wait for the image to land, not a fixed time.
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(shapes(doc, id).some((s) => s.type === "image")).toBe(true);
     });
     expect(upload).toHaveBeenCalledWith(file);
     const img = shapes(doc, id).find((s) => s.type === "image")!;
@@ -300,7 +302,6 @@ describe("images", () => {
     Object.assign(drop, { clientX: 1, clientY: 1, dataTransfer: { files: [new File(["x"], "p.png", { type: "image/png" })], items: [], types: ["Files"] } });
     await act(async () => {
       el.querySelector(".ocbd")!.dispatchEvent(drop);
-      await new Promise((r) => setTimeout(r, 0));
     });
     expect(shapes(doc, id)).toHaveLength(0);
   });
@@ -364,11 +365,11 @@ describe("export", () => {
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     act(() => el.querySelector<HTMLButtonElement>('[aria-label="Board options"]')!.click());
     const items = [...el.querySelectorAll(".ocbd-menu [role=menuitem]")].map((b) => b.textContent);
-    expect(items).toEqual(["Insert image", "Export as PNG", "Export as SVG"]);
+    expect(items).toEqual(["Open as diagram⇧D", "Insert image", "Export as PNG", "Export as SVG"]);
     cleanup?.();
     document.body.innerHTML = "";
     const v = mount(<BoardBlock doc={doc} boardId={id} env={env("view")} />);
     act(() => v.querySelector<HTMLButtonElement>('[aria-label="Board options"]')!.click());
-    expect([...v.querySelectorAll(".ocbd-menu [role=menuitem]")].map((b) => b.textContent)).toEqual(["Export as PNG", "Export as SVG"]);
+    expect([...v.querySelectorAll(".ocbd-menu [role=menuitem]")].map((b) => b.textContent)).toEqual(["Open as diagram⇧D", "Export as PNG", "Export as SVG"]);
   });
 });

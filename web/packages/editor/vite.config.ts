@@ -56,6 +56,12 @@ export default defineConfig({
           // into the lazy database chunk as one of its dependencies.
           if (/[\\/]packages[\\/]ui[\\/]src[\\/]/.test(id)) return "ui";
           if (/[\\/]packages[\\/]database[\\/]src[\\/]/.test(id)) return "database";
+          // Vite's preload helper goes with the entry's own chunk: when a lazy package chunk
+          // has a dynamic import of its own (diagram mode), Rollup would otherwise put the
+          // helper there and the entry would load that chunk eagerly.
+          if (id.includes("vite/preload-helper")) return "ui";
+          // Diagram mode (DGM-14): its own lazy chunk, loaded from the board chunk on open.
+          if (/[\\/]packages[\\/]board[\\/]src[\\/]diagram[\\/]/.test(id)) return "diagram";
           if (/[\\/]packages[\\/]board[\\/]src[\\/]/.test(id)) return "board";
           if (!id.includes("node_modules")) return undefined;
           // Loaded lazily: desktop editing chrome (chrome.tsx), table editing (table.ts),
