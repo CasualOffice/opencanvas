@@ -530,3 +530,30 @@ async fn old_routes_still_answer_with_their_shape_and_a_deprecation() {
     let (s, _, _) = call(post(&addr, "/v1/convert?from=md&to=md").body("# x")).await;
     assert_eq!(s, 200);
 }
+
+/// HAPI-03 in the contract: every write under `/api/v1/files` documents `Idempotency-Key` and
+/// its 409/422 answers; `convert` (returns a document) takes no key.
+#[test]
+fn openapi_documents_idempotency_on_every_file_write() {
+    let doc = openapi();
+    let mut n = 0;
+    for (path, item) in doc["paths"].as_object().unwrap() {
+        let Some(op) = item.get("post") else { continue };
+        let has_key = op["parameters"].as_array().is_some_and(|p| {
+            p.iter()
+                .any(|p| p["$ref"] == "#/components/parameters/IdempotencyKey")
+        });
+        if path.starts_with("/api/v1/files/") {
+            n += 1;
+            assert!(has_key, "{path}: Idempotency-Key");
+            assert!(
+                op["responses"]["409"].is_object() && op["responses"]["422"].is_object(),
+                "{path}"
+            );
+        } else {
+            assert!(!has_key, "{path} takes no key");
+        }
+    }
+    assert!(n >= 10, "{n}");
+    assert_eq!(doc["components"]["parameters"]["IdempotencyKey"]["in"], "header");
+}
