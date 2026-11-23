@@ -402,7 +402,7 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
 - Tests: `web/packages/board/src/diagram-layout.test.ts`.
 
 
-### 8.3 Keyboard and accessibility (S5, DGM-14.5)
+### 8.5 Keyboard and accessibility (S5, DGM-14.5)
 
 - Outline (5a): ⌥O or the top-bar Outline button opens it on the left. A tree of containers (frames:
   rectangles with a corner label or a dashed border that hold other shapes entirely; the smallest one
@@ -412,6 +412,8 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   (only that id is re-inserted, so concurrent edits merge). `keyboard.ts` `outlineTree`, `siblingOf`.
 - Announcements go to one polite live region of the diagram window, e.g. "Payments service,
   Rectangle, in VPC, 1 connection, selected. 3 of 5." (`announce`).
+- Go to (Commands, and Enter in the outline) selects the shape and moves the view so it is in the
+  middle, zoom unchanged (`canvas.reveal`, BoardBlock `revealShape`).
 - Commands ⌘K / Ctrl+K (5b): one search for actions (filtered by the selection: Duplicate, Delete,
   Group, Start a connector need an editor and a selection), shapes (Go to) and help. The best match
   is first; typing a shape's name jumps to it. Actions run as the canvas's own shortcuts, dispatched
@@ -420,7 +422,10 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   (Tab, ⇧Tab), arrows pick the target's side, Enter connects in the "New connectors" style, Esc
   cancels. The hint bar sits over the canvas while connecting.
 - Shortcuts sheet (5d): ?; also from Commands.
-- Focus: 2.5 px (`.15625rem`) accent ring with a 2 px offset everywhere in the window.
+- Focus: 2.5 px (`.15625rem`) accent ring with a 2 px offset everywhere in the window, the canvas
+  included (the board's own ring uses `--accent-ring`, 28 % alpha). Chrome draws outline widths in
+  whole device pixels: 2 px at DPR 1, 2.5 px at DPR 2. Browser spec:
+  `e2e/diagram/s5-keyboard.spec.ts` (axe on the outline, Commands, connecting, shortcuts).
 
 
 
@@ -445,3 +450,26 @@ Lists reorder by dragging the grip or with ⌥↑ / ⌥↓ on a row (the list is
 people get the same sections read only, without add, remove or grips (10c). Not yet: the canvas
 drawing of the new `props` (compartments, column rows, cardinality marks, arrowheads) is S2/S3's
 renderer work; the panel writes the fields.
+
+### 8.11 Phone (S11, DGM-14.11)
+
+- Phone layout when the window is at most 30em wide (`usePhone`, `phone/Phone.tsx`): the diagram
+  window gets `.ocdg-phone`: no side panels, rulers or the canvas's own toolbar, zoom and swatch bar;
+  a two-line title (board name over the document title); a bottom bar **Select, Pan, Add, Outline,
+  Undo** above the home indicator (`env(safe-area-inset-bottom)`). Opening fits the diagram (⇧1).
+- 11a: the board block's cover says **Open diagram** and opens diagram mode when the board was made
+  as a diagram (it has a name, or shapes with a diagram `kind`). Plain whiteboards keep "Tap to open
+  board" (full-screen whiteboard with the pen, MOB-05); their options menu still has Open as diagram.
+- 11c: one selected shape gets an action bar: Edit text, Name and colour (a small sheet: name field
+  and the seven tones), Connect (a sheet of the other shapes, nearest first), Duplicate, Delete.
+  The bar sits above the bottom bar rather than above the shape.
+- 11d: Add opens a half-height sheet with search and the basic shapes (Process, Decision, Start or
+  end, Sticky note, Text, Container). With a shape selected, "Connect it to ..." (on by default)
+  places the new shape to its right (stepping past anything there, `placeNextTo`) and connects it.
+- 11e: the options button opens a sheet: Outline, Zoom to fit, Export as PNG / SVG; Auto-layout,
+  Import, Edit connector bends and Edit attributes are listed, disabled, tagged "Larger screen",
+  with the reason below.
+- Every control in the phone bar, action bar, top bar and sheets is at least 44 x 44 px (2.75rem),
+  checked in the browser. Browser spec: `e2e/diagram/s11-phone.phone.spec.ts`, project `phone`
+  (390 x 844, touch) in `e2e/diagram/playwright.config.ts`, axe on each sheet.
+

@@ -8,7 +8,7 @@ export const DIAGRAM_CSS = `
 .ocdg{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;background:var(--app);color:var(--fg);font-family:var(--font);font-size:.875rem;line-height:1.5;-webkit-font-smoothing:antialiased}
 .ocdg *{box-sizing:border-box}
 :where(.ocdg) :where(button){font:inherit;color:inherit;cursor:pointer}
-.ocdg :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ocdg :focus-visible,.ocdg .ocbd :focus-visible{outline:.15625rem solid var(--accent);outline-offset:.125rem}
 .ocdg svg.lucide{flex:none;display:block}
 .ocdg-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .ocdg-top{height:3rem;flex:none;display:flex;align-items:center;gap:.25rem;padding:0 .625rem;border-bottom:1px solid var(--line);background:var(--app);position:relative;z-index:3}
