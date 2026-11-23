@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 CasualOffice */
+
+/* S7: the canvas takes the place of Nextcloud's one-file list on a public canvas link. */
+body.opencanvas-public #content {
+	display: none !important;
+}
+body.opencanvas-public #opencanvas-public,
+body.opencanvas-public .oc-public {
+	position: fixed;
+	inset: var(--header-height, 50px) var(--body-container-margin, 8px) var(--body-container-margin, 8px);
+	border-radius: var(--body-container-radius, 12px);
+	overflow: hidden;
+	background: var(--color-main-background);
+}
+
+/* The public footer would sit over the canvas. */
+body.opencanvas-public footer {
+	display: none !important;
+}

@@ -1,0 +1,14 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 CasualOffice */
+
+/* S5: the page has no app navigation; the canvas fills Nextcloud's content area. */
+#content.app-opencanvas {
+	display: flex;
+}
+#content.app-opencanvas > div,
+#content.app-opencanvas #opencanvas-fullpage {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	overflow: hidden;
+}

@@ -4,11 +4,13 @@
 // Bound connectors: arrows whose ends attach to an anchor of another shape.
 //
 // An arrow keeps `pts` (the last known geometry, so readers that ignore bindings still draw
-// something sensible) plus optional `start` / `end` bindings `{ shapeId, anchor }` and `route`.
+// something sensible) plus optional `start` / `end` bindings `{ shapeId, anchor, port? }` and
+// `route`. A `port` the bound shape stores is where the end attaches; else `anchor` (ports.ts).
 // The rendered geometry is always derived from the bound shapes, so a shape moved by one peer
 // and an arrow re-bound by another converge without anyone rewriting the other's data.
 import * as Y from "yjs";
 import { bbox, getBoardMap, moveShapes, readShapes, type Pt, type Shape, type ShapeType } from "./model";
+import { portEnd } from "./ports";
 
 export type Anchor = "top" | "right" | "bottom" | "left" | "center";
 export const ANCHORS: Anchor[] = ["top", "right", "bottom", "left", "center"];
@@ -61,25 +63,35 @@ export function boundaryToward(s: Shape, to: Pt): Pt {
 }
 
 /**
+ * The binding an arrow end dragged to `p` would make with shape `s`: its anchor closest to `p`,
+ * when `s` is bindable and its box (grown by `pad`) contains `p`; else `null`.
+ */
+export function snapOn(s: Shape, p: Pt, pad = 18): Binding | null {
+  if (!BINDABLE.includes(s.type)) return null;
+  const [x0, y0, x1, y1] = bbox(s);
+  if (p[0] < x0 - pad || p[0] > x1 + pad || p[1] < y0 - pad || p[1] > y1 + pad) return null;
+  let best: Anchor = "center", bd = Infinity;
+  for (const a of ANCHORS) {
+    const q = anchorPoint(s, a);
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (d < bd) {
+      bd = d;
+      best = a;
+    }
+  }
+  return { shapeId: s.id, anchor: best };
+}
+
+/**
  * The binding an arrow end dragged to `p` should snap to: the topmost bindable shape whose box
  * (grown by `pad`) contains `p`, and its anchor closest to `p`. `null` when nothing is near.
+ * (`SceneIndex.snap` gives the same through the spatial index.)
  */
 export function snapTarget(shapes: Shape[], p: Pt, pad = 18, exclude?: string): Binding | null {
   for (let i = shapes.length - 1; i >= 0; i--) {
-    const s = shapes[i];
-    if (s.id === exclude || !BINDABLE.includes(s.type)) continue;
-    const [x0, y0, x1, y1] = bbox(s);
-    if (p[0] < x0 - pad || p[0] > x1 + pad || p[1] < y0 - pad || p[1] > y1 + pad) continue;
-    let best: Anchor = "center", bd = Infinity;
-    for (const a of ANCHORS) {
-      const q = anchorPoint(s, a);
-      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
-      if (d < bd) {
-        bd = d;
-        best = a;
-      }
-    }
-    return { shapeId: s.id, anchor: best };
+    if (shapes[i].id === exclude) continue;
+    const b = snapOn(shapes[i], p, pad);
+    if (b) return b;
   }
   return null;
 }
@@ -153,8 +165,21 @@ export function viaOf(s: Shape): Pt[] {
 
 const r1 = (p: Pt): Pt => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10];
 
+/** Shapes by id: a `Map`, or anything with its `get`. */
+export type ShapeLookup = { get(id: string): Shape | undefined };
+
+/**
+ * Draws an elbow connector without waypoints between ends `a` and `b` (rounded, as the elbow
+ * gets them) leaving from sides `sa`/`sb` (none for a free end); `null` = the plain elbow.
+ * The obstacle router plugs in here (routing.ts).
+ */
+export type ElbowHook = (a: Pt, sa: Exclude<Anchor, "center"> | undefined, b: Pt, sb: Exclude<Anchor, "center"> | undefined) => Pt[] | null;
+
+/** A connector stored as obstacle-avoiding (ADR-047: `route: "elbow"` + `routing: "avoid"`). */
+export const isAvoid = (s: Shape) => s.type === "arrow" && s.route === "elbow" && s.routing === "avoid";
+
 /** The points an arrow is drawn with, following any bound shapes. */
-export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
+export function resolveArrow(s: Shape, byId: ShapeLookup, onElbow?: ElbowHook): Pt[] {
   const pts = s.pts ?? [];
   if (pts.length < 2 && !(s.start && s.end)) return pts;
   const bs = isBinding(s.start) ? byId.get(s.start.shapeId) : undefined;
@@ -166,8 +191,13 @@ export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
   let b: Pt = pts[pts.length - 1] ?? a;
   let aa: Anchor | undefined = bs ? (s.start as Binding).anchor : undefined;
   let ab: Anchor | undefined = be ? (s.end as Binding).anchor : undefined;
-  if (bs && aa !== "center") a = anchorPoint(bs, aa!);
-  if (be && ab !== "center") b = anchorPoint(be, ab!);
+  // A stored custom port (DGM-12): its point, leaving from its side, like a side anchor.
+  const pa = bs ? portEnd(bs, s.start as Binding) : null;
+  const pb = be ? portEnd(be, s.end as Binding) : null;
+  if (pa) [a, aa] = [pa.p, pa.side];
+  else if (bs && aa !== "center") a = anchorPoint(bs, aa!);
+  if (pb) [b, ab] = [pb.p, pb.side];
+  else if (be && ab !== "center") b = anchorPoint(be, ab!);
   const rawA = bs && aa === "center" ? anchorPoint(bs, "center") : a;
   const rawB = be && ab === "center" ? anchorPoint(be, "center") : b;
   if (via.length) {
@@ -197,7 +227,8 @@ export function resolveArrow(s: Shape, byId: Map<string, Shape>): Pt[] {
       ab = facing(be, a);
       b = anchorPoint(be, ab);
     }
-    return elbow(r1(a), r1(b), aa, ab);
+    const ra = r1(a), rb = r1(b);
+    return onElbow?.(ra, aa as Exclude<Anchor, "center"> | undefined, rb, ab as Exclude<Anchor, "center"> | undefined) ?? elbow(ra, rb, aa, ab);
   }
   if (bs && aa === "center") a = boundaryToward(bs, rawB);
   if (be && ab === "center") b = boundaryToward(be, rawA);
@@ -210,11 +241,15 @@ export function withResolvedArrows(shapes: Shape[]): Shape[] {
   return shapes.map((s) => (s.type === "arrow" && (s.start || s.end || s.route || s.via) ? { ...s, pts: resolveArrow(s, byId) } : s));
 }
 
-const samePts = (a: Pt[] | undefined, b: Pt[]) => !!a && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
+export const samePts = (a: Pt[] | undefined, b: Pt[]) => !!a && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
+
+/** A connector whose stored `pts` the commit-time sync keeps in step with its shapes. */
+export const syncsPts = (s: Shape) => s.type === "arrow" && (isBinding(s.start) || isBinding(s.end) || viaOf(s).length > 0);
 
 /**
  * Rewrite the stored `pts` of bound arrows to match their shapes, so readers that ignore bindings
  * (server export, previews) stay close. Only arrows whose geometry changed are written.
+ * Reads the whole board; the editor uses `syncArrows` with the connectors a change can affect.
  */
 export function syncBoundArrows(doc: Y.Doc, boardId: string, origin?: unknown) {
   const m = getBoardMap(doc, boardId);
@@ -223,9 +258,47 @@ export function syncBoundArrows(doc: Y.Doc, boardId: string, origin?: unknown) {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const moves: { id: string; patch: Partial<Shape> }[] = [];
   for (const s of shapes) {
-    if (s.type !== "arrow" || !(isBinding(s.start) || isBinding(s.end) || viaOf(s).length)) continue;
+    if (!syncsPts(s)) continue;
     const pts = resolveArrow(s, byId);
     if (pts.length >= 2 && !samePts(s.pts, pts)) moves.push({ id: s.id, patch: { pts } });
   }
   if (moves.length) moveShapes(doc, boardId, moves, origin);
 }
+
+/** Optional router for connectors with `routing: "avoid"` (routing.ts); `null` falls back to `resolveArrow`. */
+export type RouteHook = (s: Shape, byId: ShapeLookup) => Pt[] | null;
+
+/**
+ * `syncBoundArrows` for the given shapes only (DGM-11): each id that is a connector is resolved
+ * from the current Yjs state (it and the shapes it is bound to are read, nothing else) and its
+ * `pts` rewritten when they differ. Ids of other shapes are ignored, so callers can pass the
+ * changed shapes plus the connectors bound to them (`EdgeIndex.affectedBy`). Returns the number
+ * of shapes read.
+ */
+export function syncArrows(doc: Y.Doc, boardId: string, ids: Iterable<string>, origin?: unknown, route?: RouteHook): number {
+  const m = getBoardMap(doc, boardId);
+  const ys = m?.get("shapes");
+  if (!(ys instanceof Y.Map)) return 0;
+  const read = new Map<string, Shape | undefined>();
+  const get = (id: string): Shape | undefined => {
+    if (read.has(id)) return read.get(id);
+    const y = ys.get(id);
+    const s = y instanceof Y.Map ? ({ ...(y.toJSON() as Shape), id } as Shape) : undefined;
+    read.set(id, s);
+    return s;
+  };
+  const lookup: ShapeLookup = { get };
+  const moves: { id: string; patch: Partial<Shape> }[] = [];
+  const done = new Set<string>();
+  for (const id of ids) {
+    if (done.has(id)) continue;
+    done.add(id);
+    const s = get(id);
+    if (!s || !syncsPts(s)) continue;
+    const pts = route?.(s, lookup) ?? resolveArrow(s, lookup);
+    if (pts.length >= 2 && !samePts(s.pts, pts)) moves.push({ id: s.id, patch: { pts } });
+  }
+  if (moves.length) moveShapes(doc, boardId, moves, origin);
+  return read.size;
+}
+

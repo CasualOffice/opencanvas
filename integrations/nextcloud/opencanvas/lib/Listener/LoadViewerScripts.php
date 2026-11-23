@@ -12,8 +12,8 @@ use OCP\EventDispatcher\IEventListener;
 use OCP\Util;
 
 /**
- * Loads the unstyled Viewer placeholder (js/opencanvas-viewer.js, built from src/viewer.js).
- * Talk loads the Viewer too, so a canvas shared into a conversation opens the same way.
+ * The Viewer handler (S4), built from src/viewer.js. Talk and public share pages load the Viewer
+ * too, so a canvas shared into a conversation or opened from a link folder opens the same way.
  * Nextcloud 36 no longer dispatches LoadViewer (Viewer moved into server); see DESIGN.md §9.
  */
 class LoadViewerScripts implements IEventListener {

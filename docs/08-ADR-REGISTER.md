@@ -51,6 +51,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Accepted (owner, 2026-11-24) |
 | ADR-048 | Skip the start screen: optional launch-token claim `"start": "page"` opens a new canvas straight into the page without the template picker; it travels as `&start=page` after the ticket in the app fragment (other values ignored). The editor also tells the host a session closed (`Error {code: "SESSION_CLOSED"}`) so host chrome can offer Reopen (MM-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
 | ADR-049 | Temporary-canvas wording per host: `[host.flags] temporary_wording`, "meeting" (default, Jitsi) or "room" (Matrix); the session carries `wording`; room wording adds "Start a new canvas" on the ended screen, which posts `UI_StartNew` to the host (MX-02) | Accepted (owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24) |
+| ADR-050 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Proposed (owner signs) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -629,3 +630,48 @@ widget reloads itself). The server's close reason stays "This canvas ended with 
 **Consequences.** + Jitsi and every existing host keep their wording (tested); + room wording
 with one line of config; − a host that sets `room` must handle `UI_StartNew` or the button does
 nothing.
+### ADR-050 — UI units: rem for type and spacing, em for breakpoints (Proposed 2026-11-24, owner signs)
+
+**Context.** The owner asked (2026-11-24) that the UI not become unusable when zoom or resolution
+changes. Browser zoom and high-DPI screens already scale CSS px; what px ignores is the reader's
+default font size (browser setting, OS text size). The editor also set `font-size:14px` on `html`,
+which pinned rem to 14 px for everyone. WCAG 2.2 SC 1.4.4 (Resize Text), 1.4.10 (Reflow at 320 CSS
+px) and 1.4.12 (Text Spacing) are the yardsticks.
+
+**Decision.**
+1. The root keeps the reader's default (`html` has no font-size); the editor's 14 px body text is
+   `body{font-size:.875rem}`. Nothing sets font-size on `html` (the guard fails on it).
+2. In rem (16 px = 1 rem, at most 4 decimals): font sizes, absolute line heights, letter spacing,
+   padding/margin/gap, widths/heights and their min/max (controls, icons boxes, panels, popovers,
+   max-widths), positional offsets (top/right/bottom/left/inset), border radii, flex-basis,
+   grid tracks, scroll margins, and the token scales in `ui/src/tokens.css` (`--r-s`, `--r`, `--r-l`).
+   The wide-block width (`--bw`, 1100 px → 68.75rem) too.
+3. Media queries use em (`max-width:40em`), so they move with the reader's font size. The editor's
+   compact (phone/side-panel) breakpoint, measured in JS with a ResizeObserver, is 45em of the root
+   font size (720 px at 16 px), not a fixed 720 px.
+4. Stays px, and why:
+   - values of 2 px or less in any property: borders, hairlines, 1–2 px nudges. Scaling a hairline
+     with text makes it heavier, not more legible;
+   - borders, outlines, `outline-offset` (focus rings), box/text shadows, filters and
+     backdrop-filters, transforms, `text-underline-offset`, background position/size,
+     multi-value custom properties (the shadow tokens): decoration, not layout; converting the
+     focus-ring offset would change rendering for no reading benefit;
+   - board/whiteboard document geometry: shape coordinates, stroke widths in board space, zoom math
+     (`BoardBlock.tsx`, `connectors.ts`, `projection.ts`, …), and the in-board text editors sized
+     with the zoom (marked `// px-ok`). They are document content, scaled by the board zoom;
+   - export renderers (`crates/oc-model`): output documents, not UI;
+   - image intrinsic sizes and measured values in JS (popover placement from `getBoundingClientRect`,
+     database column widths stored in the document);
+   - Lucide icon `size={n}` props (SVG attributes) — not converted in SCALE-01; see the follow-ups;
+   - the phone safe-area values come from `env(safe-area-inset-*)`, which the OS reports in px;
+     a constant mirroring them would be marked `/* px */` (none in the converted CSS today).
+   A declaration that must stay px for another reason ends with `/* px */`.
+5. Guard: `node tools/check-px.mjs` runs in CI (web job). It fails on any px the codemod would
+   convert in the converted CSS, on a font-size on `html`, and on numeric/px `fontSize` or px
+   padding/margin/gap strings in inline React styles (`// px-ok` allows a line).
+
+**Consequences.** + At the default 16 px root and 100 % zoom the UI renders pixel-identical (SCALE-01
+pixel suite, 28 screens, 3 runs, 0 px). + A reader's larger default font enlarges the chrome and the
+text together, and switches to the phone layout sooner. − Icons, board text and database column
+widths do not follow the font size yet (follow-ups in docs/19 §Scaling). − Hosts that embed the
+editor without an iframe would now inherit their page's root size (the editor is an iframe today).

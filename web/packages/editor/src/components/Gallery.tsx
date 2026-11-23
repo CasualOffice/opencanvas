@@ -238,7 +238,7 @@ export function Gallery(props: {
           ))}
           {team?.s !== "off" ? (
             <>
-              <div className="msep" style={{ margin: "12px 4px" }} />
+              <div className="msep" style={{ margin: ".75rem .25rem" }} />
               <div className="mh">From your team</div>
               <button className={"mi" + (onTeamCat ? " on" : "")} onClick={team ? () => (setCat(TEAM_CAT), setQ("")) : props.onTeam}>
                 <Ic name="users-round" />

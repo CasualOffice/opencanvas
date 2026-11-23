@@ -36,7 +36,7 @@ export interface BlockEnv {
    * with "No longer has access"), for ids that aren't in `users`.
    */
   person?: (id: string) => OcUser | null;
-  /** True below 720px wide (side panel, phone). */
+  /** True below 45em wide (720 px at the default font size; side panel, phone). ADR-050. */
   compact: boolean;
   /** Show a short toast in the editor chrome. */
   toast: (message: string, action?: { label: string; run: () => void }) => void;

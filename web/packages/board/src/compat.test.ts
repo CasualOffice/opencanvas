@@ -125,8 +125,13 @@ describe("an older client keeps fields it does not understand", () => {
     expect(a.start).toEqual({ shapeId: n1, anchor: "right", port: "out" });
     expect(a.end).toMatchObject({ portx: { future: 1 } });
     expect(a.edgeStyle).toEqual({ dash: "4 2" });
-    // Older clients draw a port binding at its legacy anchor: right side of the moved node.
-    expect(a.pts![0]).toEqual([160, 250]);
+    // The resolver draws a stored port at the port (DGM-12): `out` sits at 75 % of the right
+    // side. A 0.1.x resolver ignores `port` and writes the legacy anchor, the right side's middle;
+    // either way the bindings and fields above survive.
+    expect(a.pts![0]).toEqual([160, 275]);
+    const { port: _p, ...legacy } = a.start!;
+    void _p;
+    expect(resolveArrow({ ...a, start: legacy }, new Map(shapesOf(nw, bid).map((q) => [q.id, q])))[0]).toEqual([160, 250]);
   });
 
   it("undo and redo of an older client's edit keep the new fields", () => {

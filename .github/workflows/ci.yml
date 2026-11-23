@@ -40,6 +40,7 @@ jobs:
         with: { node-version: 24, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
+      - run: node ../tools/check-px.mjs   # SCALE-01 / ADR-050: type and spacing in rem, breakpoints in em
       - run: pnpm -r test
       - run: pnpm --filter @opencanvas/editor build
       - uses: actions/upload-artifact@v4

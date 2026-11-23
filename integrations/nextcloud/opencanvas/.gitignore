@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# Built front end (npm run build): shipped in the app-store tarball, not in git, like other app-store apps.
+/js/
+/node_modules/

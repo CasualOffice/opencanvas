@@ -21,7 +21,7 @@
   --font:"Geist", ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono:"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --ease:cubic-bezier(.32,.72,0,1);
-  --r-s:6px; --r:10px; --r-l:14px;
+  --r-s:.375rem; --r:.625rem; --r-l:.875rem;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --page:#0b0b0d; --app:#141417; --panel:#18181c; --sunk:#1d1d22; --pop:#1f1f24;

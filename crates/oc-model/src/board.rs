@@ -103,6 +103,17 @@ impl Anchor {
 struct Binding {
     shape_id: String,
     anchor: Anchor,
+    /// Named port (ADR-045); drawn at the port when the bound shape stores it (DGM-12).
+    port: Option<String>,
+}
+
+/// A custom port stored on a shape (`ports`, as the web `readPorts` reads them).
+#[derive(Debug, Clone)]
+struct Port {
+    id: String,
+    side: Option<Anchor>,
+    x: Option<f64>,
+    y: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -131,6 +142,8 @@ struct Shape {
     /// Manual waypoints the connector passes through.
     via: Vec<Pt>,
     src: String,
+    /// Custom ports (`ports`), read defensively like the web `readPorts`.
+    ports: Vec<Port>,
 }
 
 fn num(v: &Value) -> f64 {
@@ -149,7 +162,41 @@ fn binding(v: &Value) -> Option<Binding> {
     Some(Binding {
         shape_id: v.get("shapeId")?.as_str()?.to_string(),
         anchor: Anchor::parse(v.get("anchor")?.as_str()?)?,
+        port: v.get("port").and_then(Value::as_str).map(String::from),
     })
+}
+
+/// `ports.ts` `readPorts`: entries with a fresh string id (1..=64 UTF-16 units, not a legacy
+/// anchor), `side` one of the four sides, `x`/`y` finite numbers clamped to 0..1.
+fn read_ports(v: &Value) -> Vec<Port> {
+    let mut out: Vec<Port> = Vec::new();
+    for q in v.as_array().map(Vec::as_slice).unwrap_or_default() {
+        let Some(id) = q.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let n = id.encode_utf16().count();
+        if n == 0 || n > 64 || Anchor::parse(id).is_some() || out.iter().any(|p| p.id == id) {
+            continue;
+        }
+        let side = q
+            .get("side")
+            .and_then(Value::as_str)
+            .and_then(Anchor::parse)
+            .filter(|a| *a != Anchor::Center);
+        let frac = |k: &str| {
+            q.get(k)
+                .and_then(Value::as_f64)
+                .filter(|f| f.is_finite())
+                .map(|f| f.clamp(0.0, 1.0))
+        };
+        out.push(Port {
+            id: id.to_string(),
+            side,
+            x: frac("x"),
+            y: frac("y"),
+        });
+    }
+    out
 }
 
 fn truthy(v: &Value) -> bool {
@@ -201,6 +248,7 @@ fn shape(id: &str, v: &Value) -> Shape {
         has_via: truthy(&v["via"]),
         via: points(&v["via"]),
         src: string(&v["src"]),
+        ports: read_ports(&v["ports"]),
     }
 }
 
@@ -375,6 +423,38 @@ fn boundary_toward(s: &Shape, to: Pt) -> Pt {
     [cx + dx * t, cy + dy * t]
 }
 
+/// `ports.ts` `portEnd`: where an end bound to a port the shape stores attaches, and the side it
+/// leaves from (the port's, else the nearest edge; ties top, right, bottom, left). `None` for no
+/// port, a legacy id or a port the shape doesn't store: the end is drawn at `anchor`.
+fn port_end(s: &Shape, b: &Binding) -> Option<(Pt, Anchor)> {
+    let id = b.port.as_deref().filter(|p| !p.is_empty())?;
+    if Anchor::parse(id).is_some() {
+        return None;
+    }
+    let port = s.ports.iter().find(|p| p.id == id)?;
+    let [x0, y0, x1, y1] = bbox(s);
+    let p = [
+        x0 + (x1 - x0) * port.x.unwrap_or(0.5),
+        y0 + (y1 - y0) * port.y.unwrap_or(0.5),
+    ];
+    let side = port.side.unwrap_or_else(|| {
+        let dist = [
+            (Anchor::Top, p[1] - y0),
+            (Anchor::Right, x1 - p[0]),
+            (Anchor::Bottom, y1 - p[1]),
+            (Anchor::Left, p[0] - x0),
+        ];
+        let mut best = dist[0];
+        for d in dist {
+            if d.1 < best.1 {
+                best = d;
+            }
+        }
+        best.0
+    });
+    Some((p, side))
+}
+
 fn facing(s: &Shape, other: Pt) -> Anchor {
     let [x0, y0, x1, y1] = bbox(s);
     let (dx, dy) = (other[0] - (x0 + x1) / 2.0, other[1] - (y0 + y1) / 2.0);
@@ -508,12 +588,21 @@ fn resolve_arrow(s: &Shape, by_id: &HashMap<&str, &Shape>) -> Vec<Pt> {
     let mut b: Pt = pts.last().copied().unwrap_or(a);
     let mut aa = bs.and(s.start.as_ref().map(|x| x.anchor));
     let mut ab = be.and(s.end.as_ref().map(|x| x.anchor));
-    if let (Some(sh), Some(an)) = (bs, aa)
+    // A stored custom port (DGM-12): its point, leaving from its side, like a side anchor.
+    let pa = bs.zip(s.start.as_ref()).and_then(|(sh, x)| port_end(sh, x));
+    let pb = be.zip(s.end.as_ref()).and_then(|(sh, x)| port_end(sh, x));
+    if let Some((p, side)) = pa {
+        a = p;
+        aa = Some(side);
+    } else if let (Some(sh), Some(an)) = (bs, aa)
         && an != Anchor::Center
     {
         a = anchor_point(sh, an);
     }
-    if let (Some(sh), Some(an)) = (be, ab)
+    if let Some((p, side)) = pb {
+        b = p;
+        ab = Some(side);
+    } else if let (Some(sh), Some(an)) = (be, ab)
         && an != Anchor::Center
     {
         b = anchor_point(sh, an);
@@ -591,6 +680,16 @@ fn with_resolved_arrows(shapes: &[Shape]) -> Vec<Shape> {
                 s.clone()
             }
         })
+        .collect()
+}
+
+/// Every connector's resolved points, in paint order (the web `withResolvedArrows` for arrows):
+/// the parity check between the two resolvers (`tests/fixtures/board-ports.resolved.json`).
+pub fn resolved_points(doc: &Value, board_id: &str) -> Vec<(String, Vec<[f64; 2]>)> {
+    with_resolved_arrows(&read_shapes(doc, board_id))
+        .into_iter()
+        .filter(|s| s.kind == "arrow")
+        .map(|s| (s.id, s.pts))
         .collect()
 }
 
