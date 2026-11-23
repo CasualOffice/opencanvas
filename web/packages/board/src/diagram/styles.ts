@@ -44,6 +44,27 @@ export const DIAGRAM_CSS = `
 .ocdg-inp{height:2rem;border:1px solid var(--line-2);border-radius:.5rem;background:var(--app);color:var(--fg);padding:0 .5rem;font:inherit;font-size:.8125rem;width:100%}
 .ocdg-inp:focus{border-color:var(--accent);outline:2px solid var(--accent-ring);outline-offset:0}
 .ocdg-hint{font-size:.75rem;color:var(--fg-2);margin:.375rem 0 0}
+.ocdg-sw{display:flex;align-items:center;justify-content:space-between;gap:.75rem;width:100%;min-height:2.25rem;border:0;background:none;padding:.25rem 0;text-align:left;font-size:.8125rem;color:var(--fg)}
+.ocdg-swt{display:flex;flex-direction:column}
+.ocdg-swt .ocdg-hint{margin:0}
+.ocdg-tgl{width:1.875rem;height:1.125rem;border-radius:1rem;background:var(--line-2);position:relative;flex:none;transition:background .15s}
+.ocdg-tgl::after{content:"";position:absolute;left:2px;top:2px;width:.875rem;height:.875rem;border-radius:50%;background:var(--app);box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.ocdg-sw[aria-checked="true"] .ocdg-tgl{background:var(--accent)}
+.ocdg-sw[aria-checked="true"] .ocdg-tgl::after{transform:translateX(.75rem)}
+.ocdg-row{display:flex;align-items:center;justify-content:space-between;min-height:2.25rem;font-size:.8125rem}
+.ocdg-row .ocdg-lbl{font-size:.8125rem;color:var(--fg)}
+.ocdg-unit{display:inline-flex;align-items:center;gap:.375rem;color:var(--fg-2);font-size:.75rem}
+.ocdg-num{width:4rem;height:1.75rem}
+.ocdg-seg{display:flex;padding:2px;border-radius:.5rem;background:var(--sunk);gap:2px}
+.ocdg-seg button{flex:1;height:1.75rem;border:0;border-radius:.375rem;background:none;font-size:.75rem;color:var(--fg-2);white-space:nowrap;padding:0 .375rem}
+.ocdg-seg button[aria-checked="true"]{background:var(--app);color:var(--fg);box-shadow:var(--sh-1)}
+.ocdg-rulers{position:absolute;inset:0;pointer-events:none;z-index:1}
+.ocdg-rul{position:absolute;background:var(--app);color:var(--fg-2);font-size:.625rem;font-variant-numeric:tabular-nums;overflow:hidden}
+.ocdg-rul.h{left:1.25rem;right:0;top:0;height:1.25rem;border-bottom:1px solid var(--line)}
+.ocdg-rul.v{top:1.25rem;bottom:0;left:0;width:1.25rem;border-right:1px solid var(--line)}
+.ocdg-rul svg{display:block;width:100%;height:100%}
+.ocdg-rul text{fill:var(--fg-2);font-family:var(--font)}
+.ocdg-rc{position:absolute;left:0;top:0;width:1.25rem;height:1.25rem;background:var(--app);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
 @media (max-width:60em){.ocdg-right{width:15rem}.ocdg-doc{display:none}}
 @media (max-width:45em){.ocdg-side{display:none}.ocdg-people{display:none}}
 @media (prefers-reduced-motion:reduce){.ocdg *{animation-duration:.01ms!important;transition-duration:.01ms!important}}

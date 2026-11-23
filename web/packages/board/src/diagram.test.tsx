@@ -198,7 +198,7 @@ describe("diagram mode helpers", () => {
     expect(getBoardMap(doc, id)!.has("name")).toBe(false);
   });
   it("finds the heading above an element", () => {
-    document.body.innerHTML = '<div contenteditable="true"><h2>A</h2><p>x</p><div><div id="b"></div></div></div>';
+    document.body.innerHTML = '<div contenteditable="true"><h2>A</h2><p>x</p><div><div contenteditable="false"><div id="b"></div></div></div></div>';
     expect(headingAbove(document.getElementById("b"))).toBe("A");
   });
   it("clips to a rectangle", () => {

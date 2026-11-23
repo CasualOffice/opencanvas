@@ -29,6 +29,8 @@ test("S1: the Diagram button opens the board full screen; Back to document retur
   expect(box.width).toBe(1280);
   expect(box.height).toBe(900);
   await expect(dialog.getByRole("button", { name: "Back to document" })).toBeVisible();
+  // The bar names the board after the heading above it (the demo board has no name).
+  await expect(dialog.locator(".ocdg-name")).not.toHaveText("Board");
   await expect(dialog.locator(".ocbd svg.ocbd-svg")).toBeVisible();
   await expect(dialog.getByRole("complementary", { name: "Properties" })).toBeVisible();
 

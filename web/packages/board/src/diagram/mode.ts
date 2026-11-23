@@ -36,14 +36,14 @@ export function headingAbove(el: Element | null): string {
       const hs = p.querySelectorAll("h1,h2,h3,h4,h5,h6");
       if (hs.length) return clean(hs[hs.length - 1].textContent);
     }
-    if (node.getAttribute("contenteditable") !== null) break;
+    if (node.getAttribute("contenteditable") === "true") break;
   }
   return "";
 }
 
 /** The document's title as written in it (its first level-1 heading), or "". */
 export function documentTitle(el: Element | null): string {
-  const root = el?.closest("[contenteditable]") ?? null;
+  const root = el?.closest("[contenteditable=\"true\"]") ?? null;
   return clean(root?.querySelector("h1")?.textContent);
 }
 

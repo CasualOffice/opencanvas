@@ -279,3 +279,21 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
 - Board names (1d): optional `name` string on the board map (`boards/<id>.name`), set in the
   diagram's settings panel; additive, ignored by older clients and the exporters. Without a name
   the bar uses the heading above the block.
+
+### 7.2 Canvas (S3, DGM-14.2, part 1)
+
+- Grid: lines every *grid size* (20 by default, hidden when closer than 6 screen px) and major lines
+  every 100 board units, instead of the whiteboard's dots. Rulers along the top and left in board
+  units, labelled every 10/20/50/100/… so labels are at least 60 px apart; the selection's span is
+  highlighted.
+- Settings (right panel with nothing selected; per person, not stored): Show grid, Grid size, Show
+  rulers, Snap to grid, Snap to other shapes ("Shows guides and equal gaps"), New connectors
+  (Straight, Elbow, Avoid shapes).
+- Moving: alignment to other shapes' edges and centres (as on the whiteboard) wins on its axis; then
+  equal spacing between the two neighbours on an axis (`equalGapOffset`, pink marks with the gap);
+  then the grid (`gridOffset`, top-left corner). ⌥ moves freely.
+- Ports: pointing at a shape shows its side ports (`portsOf`: the four sides, the kind's ports and the
+  shape's own). Dragging from one draws a connector; over another shape the nearest side port snaps.
+  The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
+  `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
+  people get no ports (10c).

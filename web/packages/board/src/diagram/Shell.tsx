@@ -9,6 +9,8 @@ import * as Y from "yjs";
 import { ArrowLeft, Ellipsis, Redo2, Undo2 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
+import type { DiagramPrefs } from "../BoardBlock";
+export { Rulers } from "./Rulers";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
@@ -40,6 +42,8 @@ export interface DiagramShellProps {
   onMenu: () => void;
   /** Transaction origin of this view (undo). */
   origin: unknown;
+  prefs: DiagramPrefs;
+  onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
   inspector?: ReactNode;
   children: ReactNode;
@@ -157,14 +161,28 @@ export default function DiagramShell(p: DiagramShellProps) {
       <div className="ocdg-body">
         <main className="ocdg-mid">{p.children}</main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
-          {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} />}
+          {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
         </aside>
       </div>
     </div>
   );
 }
 
-function DiagramSettings({ name, heading, edit, onName }: { name: string; heading: string; edit: boolean; onName: (v: string) => void }) {
+function Switch({ on, label, hint, onChange }: { on: boolean; label: string; hint?: string; onChange: (v: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} className="ocdg-sw" onClick={() => onChange(!on)}>
+      <span className="ocdg-swt">
+        {label}
+        {hint ? <span className="ocdg-hint">{hint}</span> : null}
+      </span>
+      <span className="ocdg-tgl" aria-hidden="true" />
+    </button>
+  );
+}
+
+const CONNECTORS: [DiagramPrefs["connector"], string][] = [["straight", "Straight"], ["elbow", "Elbow"], ["avoid", "Avoid shapes"]];
+
+function DiagramSettings({ name, heading, edit, onName, prefs, onPrefs }: { name: string; heading: string; edit: boolean; onName: (v: string) => void; prefs: DiagramPrefs; onPrefs: (p: Partial<DiagramPrefs>) => void }) {
   const [v, setV] = useState(name);
   useEffect(() => setV(name), [name]);
   return (
@@ -191,6 +209,37 @@ function DiagramSettings({ name, heading, edit, onName }: { name: string; headin
         </label>
         <p className="ocdg-hint">{name ? "Shown in the top bar." : heading ? "Optional. Without a name the heading above the board is used." : "Optional."}</p>
       </section>
+      <section className="ocdg-sec" aria-labelledby="ocdg-s-grid">
+        <h3 className="ocdg-sh" id="ocdg-s-grid">Grid and rulers</h3>
+        <Switch on={prefs.grid} label="Show grid" onChange={(grid) => onPrefs({ grid })} />
+        <label className="ocdg-row">
+          <span className="ocdg-lbl">Grid size</span>
+          <span className="ocdg-unit">
+            <input className="ocdg-inp ocdg-num" type="number" min={5} max={200} step={5} value={prefs.gridSize} onChange={(e) => onPrefs({ gridSize: Math.max(5, Math.min(200, Number(e.target.value) || 20)) })} />
+            px
+          </span>
+        </label>
+        <Switch on={prefs.rulers} label="Show rulers" onChange={(rulers) => onPrefs({ rulers })} />
+      </section>
+      {edit ? (
+        <>
+          <section className="ocdg-sec" aria-labelledby="ocdg-s-snap">
+            <h3 className="ocdg-sh" id="ocdg-s-snap">Snapping</h3>
+            <Switch on={prefs.snapGrid} label="Snap to grid" onChange={(snapGrid) => onPrefs({ snapGrid })} />
+            <Switch on={prefs.snapShapes} label="Snap to other shapes" hint="Shows guides and equal gaps" onChange={(snapShapes) => onPrefs({ snapShapes })} />
+          </section>
+          <section className="ocdg-sec" aria-labelledby="ocdg-s-conn">
+            <h3 className="ocdg-sh" id="ocdg-s-conn">New connectors</h3>
+            <div className="ocdg-seg" role="radiogroup" aria-label="Style">
+              {CONNECTORS.map(([v, l]) => (
+                <button key={v} type="button" role="radio" data-v={v} aria-checked={prefs.connector === v} onClick={() => onPrefs({ connector: v })}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
