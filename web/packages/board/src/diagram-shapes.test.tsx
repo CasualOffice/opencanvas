@@ -10,7 +10,7 @@ import * as Y from "yjs";
 import type { BlockEnv } from "@opencanvas/ui";
 import { BoardBlock, createBoard } from "./index";
 import { addShape, getBoardMap, readShapes } from "./model";
-import { KIND_MIME, LIBRARIES } from "./libraries";
+import { ALL_LIBRARIES, KIND_MIME, LIBRARIES } from "./libraries";
 import { descriptorOf, LEGACY_TYPES, makeNode, registerShape, unregisterShape } from "./registry";
 import { exportBoardSvg } from "./export";
 import { searchShapes } from "./diagram/ShapesPanel";
@@ -59,7 +59,8 @@ const all = (doc: Y.Doc, id: string) => readShapes(getBoardMap(doc, id)!);
 
 describe("shape libraries (registry data)", () => {
   it("registers Flowchart, UML and Network as declarative kinds on a legacy base type", () => {
-    expect(LIBRARIES.map((l) => [l.id, l.kinds.length])).toEqual([["flowchart", 7], ["uml", 5], ["network", 9]]);
+    expect(LIBRARIES.map((l) => l.id)).toEqual(ALL_LIBRARIES.filter((l) => !l.flag).map((l) => l.id));
+    expect(LIBRARIES.slice(0, 5).map((l) => l.id)).toEqual(["basic", "flowchart", "uml", "erd", "network"]);
     for (const l of LIBRARIES) {
       for (const k of l.kinds) {
         const d = descriptorOf({ type: "rect", kind: k });
@@ -117,13 +118,14 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     const panel = dg.querySelector<HTMLElement>('aside[aria-label="Shapes"]')!;
     expect(panel).toBeTruthy();
     const heads = [...panel.querySelectorAll(".ocdg-lh button")].map((b) => b.textContent);
-    expect(heads).toEqual(["Flowchart7", "UML5", "Network9"]);
+    expect(heads).toEqual(LIBRARIES.map((l) => `${l.name}${l.kinds.length}`));
+    expect(heads).not.toContain(expect.stringMatching(/^BPMN/));
     act(() => btn(panel, "Add Process")!.click());
     expect(all(doc, id)).toHaveLength(1);
     expect(all(doc, id)[0]).toMatchObject({ type: "rect", kind: "flowchart:process", text: "Process", w: 140, h: 70 });
     // Network opens on click and remembers it (per person).
     act(() => (panel.querySelector('[data-library="network"] .ocdg-lh button') as HTMLElement).click());
-    expect(panel.querySelectorAll('[data-library="network"] .ocdg-tile')).toHaveLength(9);
+    expect(panel.querySelectorAll('[data-library="network"] .ocdg-tile')).toHaveLength(LIBRARIES.find((l) => l.id === "network")!.kinds.length);
     expect(JSON.parse(localStorage.getItem("oc-diagram-libraries-open")!)).toMatchObject({ network: true });
   });
 
