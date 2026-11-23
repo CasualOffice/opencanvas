@@ -35,5 +35,6 @@ Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and
 	</repair-steps>
 	<settings>
 		<admin>OCA\OpenCanvas\Settings\Admin</admin>
+		<admin-section>OCA\OpenCanvas\Settings\Section</admin-section>
 	</settings>
 </info>

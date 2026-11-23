@@ -9,8 +9,8 @@
 //   PLAYWRIGHT=/path/to/node_modules/playwright NC=http://localhost:8090 OC=http://localhost:8480 \
 //   NC_PASS_ALICE=… NC_PASS_BOB=… NC_PASS_CAROL=… node tests/browser/nextcloud.e2e.mjs
 //
-// Test-only: the app's editor page is an unstyled placeholder (ADR-011), so the test sizes the
-// iframe itself; nothing here ships.
+// It opens canvases on the app's full page (S5); tests/browser/nextcloud-ui.e2e.mjs drives the
+// Files, Viewer, New menu, admin and public-link screens.
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -44,12 +44,11 @@ async function person(browser, user) {
   await page.fill("#user", user);
   await page.fill("#password", pass(user));
   await Promise.all([page.waitForURL(/\/apps\//, { timeout: 30_000 }), page.press("#password", "Enter")]);
-  return { user, ctx, page, oc: page.frameLocator('iframe[name="opencanvas-frame"]') };
+  return { user, ctx, page, oc: page.frameLocator("iframe.oc-frame__iframe") };
 }
 
 async function open(p, fileId) {
   await p.page.goto(`${NC}/index.php/apps/opencanvas/open/${fileId}`);
-  await p.page.addStyleTag({ content: 'iframe[name="opencanvas-frame"]{width:1200px;height:800px;border:0}' });
   await p.oc.locator(".ProseMirror, .tgrid").first().waitFor({ timeout: 20_000 });
 }
 

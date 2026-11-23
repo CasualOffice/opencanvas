@@ -6,7 +6,9 @@ declare(strict_types=1);
 
 namespace OCA\OpenCanvas\AppInfo;
 
+use OCA\OpenCanvas\Listener\AddCsp;
 use OCA\OpenCanvas\Listener\LoadFilesScripts;
+use OCA\OpenCanvas\Listener\LoadPublicScripts;
 use OCA\OpenCanvas\Listener\LoadViewerScripts;
 use OCA\OpenCanvas\Listener\RegisterTemplateCreator;
 use OCA\OpenCanvas\Listener\ShareChangedListener;
@@ -18,6 +20,7 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Files\Template\RegisterTemplateCreatorEvent;
+use OCP\Security\CSP\AddContentSecurityPolicyEvent;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'opencanvas';
@@ -30,10 +33,14 @@ class Application extends App implements IBootstrap {
 	public function register(IRegistrationContext $context): void {
 		// "New canvas" in the Files + menu (server side, like Nextcloud Office and Whiteboard).
 		$context->registerEventListener(RegisterTemplateCreatorEvent::class, RegisterTemplateCreator::class);
-		// Placeholder scripts: Files action and New menu entries, Viewer handler (UI-SCREENS.md).
-		// Class names as strings: the Files and Viewer apps may be disabled.
+		// Front end (UI-SCREENS S1-S8): Files action, New menu, icon and sharing (src/files.js), the
+		// Viewer handler (src/viewer.js), the public link page (src/public.js).
+		// Class names as strings: the Files, Viewer and sharing apps may be disabled.
 		$context->registerEventListener('OCA\Files\Event\LoadAdditionalScriptsEvent', LoadFilesScripts::class);
 		$context->registerEventListener('OCA\Viewer\Event\LoadViewer', LoadViewerScripts::class);
+		$context->registerEventListener('OCA\Files_Sharing\Event\BeforeTemplateRenderedEvent', LoadPublicScripts::class);
+		// Pages that frame OpenCanvas and form-POST the launch into the frame.
+		$context->registerEventListener(AddContentSecurityPolicyEvent::class, AddCsp::class);
 		// Share revoked or changed: switch open canvases at once (docs/05 §7 role API).
 		$context->registerEventListener(ShareDeletedEvent::class, ShareChangedListener::class);
 		// Tokens and the token secret are sensitive: kept out of logged stack traces.

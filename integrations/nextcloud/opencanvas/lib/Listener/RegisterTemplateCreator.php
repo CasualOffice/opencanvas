@@ -14,7 +14,8 @@ use OCP\Files\Template\TemplateFileCreator;
 
 /**
  * Registers "New canvas": an empty .ocanvas, which OpenCanvas opens on its own start screen
- * (blank, database, board, templates, import). Label and icon are placeholders (UI-SCREENS.md).
+ * (blank, database, board, templates, import). Also listed by Talk's "New file" menu (S11a). The
+ * Files front end moves it next to our two other entries, after a separator (S1a, src/files.js).
  *
  * @template-implements IEventListener<RegisterTemplateCreatorEvent>
  */
@@ -26,7 +27,12 @@ class RegisterTemplateCreator implements IEventListener {
 		$event->getTemplateManager()->registerTemplateFileCreator(static function () {
 			$creator = new TemplateFileCreator(Application::APP_ID, 'New canvas', '.ocanvas');
 			$creator->addMimetype(Application::MIME);
-			$creator->setIconClass('icon-filetype-document'); // placeholder until the icon is approved
+			$creator->setIconClass('icon-filetype-document'); // fallback for clients without inline icons
+			$svg = @file_get_contents(__DIR__ . '/../../img/ocanvas.svg');
+			if (is_string($svg) && $svg !== '') {
+				$creator->setIconSvgInline($svg); // the .ocanvas icon (S2)
+			}
+			$creator->setActionLabel('Create');
 			return $creator;
 		});
 	}
