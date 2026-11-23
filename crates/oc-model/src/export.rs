@@ -7,28 +7,28 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-fn s<'a>(v: &'a Value, key: &str) -> &'a str {
+pub(crate) fn s<'a>(v: &'a Value, key: &str) -> &'a str {
     v.get(key).and_then(Value::as_str).unwrap_or_default()
 }
 
-fn attr<'a>(n: &'a Value, key: &str) -> &'a Value {
+pub(crate) fn attr<'a>(n: &'a Value, key: &str) -> &'a Value {
     n.get("attrs")
         .and_then(|a| a.get(key))
         .unwrap_or(&Value::Null)
 }
 
-fn attr_str<'a>(n: &'a Value, key: &str) -> &'a str {
+pub(crate) fn attr_str<'a>(n: &'a Value, key: &str) -> &'a str {
     attr(n, key).as_str().unwrap_or_default()
 }
 
-fn children(n: &Value) -> &[Value] {
+pub(crate) fn children(n: &Value) -> &[Value] {
     n.get("content")
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or_default()
 }
 
-fn plain_text(n: &Value) -> String {
+pub(crate) fn plain_text(n: &Value) -> String {
     if s(n, "type") == "text" {
         return s(n, "text").to_string();
     }
@@ -582,7 +582,7 @@ pub fn escape(t: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn safe_url(u: &str) -> String {
+pub(crate) fn safe_url(u: &str) -> String {
     let lower = u.trim().to_ascii_lowercase();
     let ok = ["http://", "https://", "mailto:", "/", "#"]
         .iter()
@@ -623,7 +623,7 @@ pub fn to_html_with(doc: &Value, opts: &Options) -> String {
     )
 }
 
-fn html_inline(nodes: &[Value]) -> String {
+pub(crate) fn html_inline(nodes: &[Value]) -> String {
     nodes
         .iter()
         .map(|n| match s(n, "type") {

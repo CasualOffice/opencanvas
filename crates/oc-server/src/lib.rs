@@ -58,6 +58,8 @@ pub struct AppState {
     pub ai_status: String,
     /// Link-preview fetcher, cache and rate limits (UNF-01).
     pub unfurl: unfurl::Unfurler,
+    /// RND-01: rendered previews per room version (`GET /v1/preview`).
+    pub previews: routes::preview::PreviewCache,
 }
 
 #[derive(Clone, Copy)]
@@ -157,6 +159,7 @@ impl AppState {
             members,
             ai_status,
             team_templates: Default::default(),
+            previews: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

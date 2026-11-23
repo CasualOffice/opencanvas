@@ -10,6 +10,7 @@ pub mod import;
 mod launch;
 pub mod mcp;
 mod ops;
+pub mod preview;
 mod proxy;
 mod templates;
 pub mod unfurl;
@@ -194,6 +195,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/launch", post(launch::launch_post).get(launch::launch_get))
         .route("/v1/sessions/{ticket}", get(launch::session_info))
         .route("/v1/collab/{room}", get(collab::upgrade))
+        .route("/v1/preview", get(preview::preview))
         .route("/v1/export/{fmt}", get(export::export))
         .route("/v1/export/board/{file}", get(export::export_board))
         .route("/v1/assets", post(proxy::upload_asset).layer(DefaultBodyLimit::max(MAX_ASSET_BYTES)))
