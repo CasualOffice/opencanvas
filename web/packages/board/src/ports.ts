@@ -7,9 +7,9 @@
 // (`x`, `y` in 0..1) and may say which `side` they leave from.
 //
 // A binding to a custom port is written `{shapeId, anchor, port}`: `anchor` is the legacy anchor
-// the port degrades to (its side, else the nearest side), which is where 0.1.x clients and the
-// Rust exporter draw the end. Until the renderers learn ports (Phase 2, with web/Rust parity),
-// every renderer draws at `anchor`, so all of them agree.
+// the port degrades to (its side, else the nearest side), which is where 0.1.x clients draw the
+// end. The web and Rust renderers draw it at the port itself when the shape stores that port
+// (`portEnd`, DGM-12, shared fixture `board-ports.json`), else at `anchor`.
 import { bbox, type Pt, type Shape } from "./model";
 import { anchorPoint, ANCHORS, type Anchor, type Binding } from "./connectors";
 import { descriptorOf } from "./registry";
@@ -80,19 +80,42 @@ export function portPoint(s: Shape, id: string): Pt | null {
   return [x0 + (x1 - x0) * (p.x ?? 0.5), y0 + (y1 - y0) * (p.y ?? 0.5)];
 }
 
+/** The edge of box `b` nearest to point (x, y) (ties: top, right, bottom, left). */
+function nearestSide(b: [number, number, number, number], x: number, y: number): Side {
+  const [x0, y0, x1, y1] = b;
+  const dist: Record<Side, number> = { top: y - y0, right: x1 - x, bottom: y1 - y, left: x - x0 };
+  let best: Side = "top";
+  for (const a of SIDES) if (dist[a] < dist[best]) best = a;
+  return best;
+}
+
 /** The legacy anchor a port degrades to: itself, its side, else the side nearest to it. */
 export function anchorFor(s: Shape, id: string): Anchor {
   if (isLegacyPort(id)) return id;
   const p = findPort(s, id);
   if (!p) return "center";
   if (p.side) return p.side;
-  // The edge the port is closest to (ties: top, right, bottom, left).
-  const [x0, y0, x1, y1] = bbox(s);
   const [x, y] = portPoint(s, id)!;
-  const dist: Record<Side, number> = { top: y - y0, right: x1 - x, bottom: y1 - y, left: x - x0 };
-  let best: Side = "top";
-  for (const a of SIDES) if (dist[a] < dist[best]) best = a;
-  return best;
+  return nearestSide(bbox(s), x, y);
+}
+
+/**
+ * Where a connector end bound with `b` attaches to `s` and which side it leaves from, when the
+ * binding names a custom port stored on the shape itself (`s.ports`; DGM-12). `null` otherwise
+ * (no `port`, a legacy id in it, or a port the shape doesn't store), and the end is drawn at
+ * `anchor` as before. Only stored ports count, not a kind's registry defaults, because the Rust
+ * renderer has no registry: both renderers must agree (`board-ports.json`). `makeNode` stores a
+ * kind's default ports on the shape for that reason.
+ */
+export function portEnd(s: Shape, b: { port?: unknown }): { p: Pt; side: Side } | null {
+  const id = b.port;
+  if (typeof id !== "string" || !id || isLegacyPort(id)) return null;
+  const port = readPorts(s.ports).find((q) => q.id === id);
+  if (!port) return null;
+  const box = bbox(s);
+  const [x0, y0, x1, y1] = box;
+  const p: Pt = [x0 + (x1 - x0) * (port.x ?? 0.5), y0 + (y1 - y0) * (port.y ?? 0.5)];
+  return { p, side: port.side ?? nearestSide(box, p[0], p[1]) };
 }
 
 /** A binding to a port, with the legacy anchor older readers draw. */

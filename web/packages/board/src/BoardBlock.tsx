@@ -17,10 +17,12 @@ import {
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
-import { anchorPoint, ANCHORS, resolveArrow, snapTarget, syncBoundArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
+import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { exportBoardPng, exportBoardSvg } from "./export";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
+import { SceneIndex } from "./scene";
+import { AvoidRouter, RouteScheduler } from "./routing";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 import {
   alignMoves, cloneShapes, distributeMoves, insertShapes, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
@@ -138,8 +140,27 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   // Arrows bound to shapes are drawn (and hit-tested, moved, exported) from their resolved points.
   // Only connectors whose own shape or bound shapes changed are resolved again (edges.ts).
   const resolveArrows = useMemo(() => createArrowResolver(), []);
-  const shapes = useMemo(() => resolveArrows(raw), [raw, resolveArrows]);
-  const byId = useMemo(() => new Map(shapes.map((s) => [s.id, s])), [shapes]);
+  // The drawn shapes in a spatial index, updated shape by shape (DGM-11): culling, marquee and
+  // connector snapping query it instead of scanning the board. `byId` is its map, kept in place.
+  const scene = useMemo(() => new SceneIndex(), []);
+  // Connectors stored with `routing: "avoid"` are drawn along their obstacle-free route (DGM-13);
+  // while dragging they draw as the plain elbow and are re-routed in the background (throttled).
+  const router = useMemo(() => new AvoidRouter(), []);
+  const routes = useMemo(() => new RouteScheduler(router), [router]);
+  const [routeTick, setRouteTick] = useState(0);
+  useEffect(() => router.subscribe(() => setRouteTick((t) => t + 1)), [router]);
+  useEffect(() => () => routes.cancel(), [routes]);
+  const [dragging, setDragging] = useState(false);
+  const shapes = useMemo(() => {
+    const out = router.apply(resolveArrows(raw), dragging ? 0 : 64);
+    scene.update(out);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raw, resolveArrows, scene, router, routeTick, dragging]);
+  useEffect(() => {
+    if (router.pending.size) routes.schedule(dragging ? 100 : 0);
+  }, [shapes, router, routes, dragging]);
+  const byId = scene.byId;
   const edit = env.role === "edit";
   const compact = env.compact;
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -166,7 +187,6 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     editRef.current = v;
     setEditingState(v);
   };
-  const [dragging, setDragging] = useState(false);
   /** Shape + anchor an arrow end would attach to (shown while dragging an end). */
   const [hint, setHint] = useState<Binding | null>(null);
   const [menu, setMenu] = useState(false);
@@ -342,12 +362,39 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     pending.current.set(sid, patch);
     if (!raf.current) raf.current = requestAnimationFrame(flush);
   };
+  /**
+   * Refresh the stored `pts` of the connectors a change to `ids` can affect: those shapes, the
+   * connectors bound to them, and any connector already out of step (DGM-11). Equal to
+   * `syncBoundArrows` while the view is current, without reading the whole board.
+   */
+  const syncAfter = (ids: Iterable<string>) => {
+    const list = [...ids];
+    const cand = new Set<string>(list);
+    for (const e of resolveArrows.edges.affectedBy(list)) cand.add(e);
+    for (const e of resolveArrows.stale) cand.add(e);
+    let hook;
+    if (router.connectors.size) {
+      // Avoid connectors are routed against the committed state of the changed shapes. All of
+      // them are checked (syncArrows writes only those whose stored pts differ): a cost in the
+      // number of avoid connectors, not the board; narrowing it to `router.affected(fresh)` plus
+      // a stale set is Phase 3.
+      const ys = getBoardMap(doc, boardId)?.get("shapes");
+      const fresh = new Map<string, Shape | undefined>();
+      for (const id of list) {
+        const y = ys instanceof Y.Map ? ys.get(id) : undefined;
+        fresh.set(id, y instanceof Y.Map ? ({ ...(y.toJSON() as Shape), id } as Shape) : undefined);
+      }
+      for (const e of router.connectors) cand.add(e);
+      hook = router.hook(fresh);
+    }
+    syncArrows(doc, boardId, cand, origin, hook);
+  };
   const applyMoves = (moves: { id: string; patch: Partial<Shape> }[]) => {
     if (!moves.length) return;
     um?.stopCapturing();
     doc.transact(() => {
       moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin));
-      syncBoundArrows(doc, boardId, origin);
+      syncAfter(moves.map((m) => m.id));
     }, origin);
   };
 
@@ -391,8 +438,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (!src.length) return;
     um?.stopCapturing();
     const copies = cloneShapes(src, dx, dy);
-    setSel(insertShapes(doc, boardId, copies, origin));
-    syncBoundArrows(doc, boardId, origin);
+    const ids = insertShapes(doc, boardId, copies, origin);
+    setSel(ids);
+    syncAfter(ids);
     setLive(copies.length === 1 ? `Pasted ${describeShape(copies[0])}` : `Pasted ${copies.length} shapes`);
   };
   const dupSel = () => paste(selShapes(), 24, 24);
@@ -755,7 +803,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       return;
     }
     if (t === "arrow") {
-      const b0 = snapTarget(S.current.shapes, [x, y], 18 / S.current.view.z);
+      const b0 = scene.snap([x, y], 18 / S.current.view.z);
       const s0 = b0 ? S.current.shapes.find((q) => q.id === b0.shapeId) : undefined;
       const p0: Pt = s0 ? anchorPoint(s0, b0!.anchor) : [x, y];
       setDraft({ id: "draft", type: "arrow", pts: [p0, p0], ...(b0 ? { start: b0 } : {}), ...(route === "elbow" ? { route } : {}) });
@@ -796,7 +844,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const b: Box = [Math.min(d.x0, x), Math.min(d.y0, y), Math.max(d.x0, x), Math.max(d.y0, y)];
       if ((b[2] - b[0]) * S.current.view.z < 3 && (b[3] - b[1]) * S.current.view.z < 3) return;
       setMarquee(b);
-      const hits = withGroups(S.current.shapes, S.current.shapes.filter((s) => intersects(bbox(s), b)).map((s) => s.id));
+      const hits = withGroups(S.current.shapes, scene.inBox(b));
       const next = d.add ? [...d.base, ...hits.filter((h) => !d.base.includes(h))] : hits;
       const cur = S.current.sel;
       if (next.length !== cur.length || next.some((id, i) => id !== cur[i])) setSel(next);
@@ -812,7 +860,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (d.kind === "arrow") {
       const p = draftRef.current;
       if (!p?.pts) return;
-      const b = snapTarget(S.current.shapes, [x, y], 18 / S.current.view.z, p.start?.shapeId);
+      const b = scene.snap([x, y], 18 / S.current.view.z, p.start?.shapeId);
       const s1 = b ? S.current.shapes.find((q) => q.id === b.shapeId) : undefined;
       const { end: _drop, ...rest } = p;
       void _drop;
@@ -840,7 +888,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       d.moved = true;
       const o = d.orig;
       const other = d.which === "start" ? o.end : o.start;
-      const b = snapTarget(S.current.shapes, [x, y], 18 / S.current.view.z, other?.shapeId ?? o.id);
+      const b = scene.snap([x, y], 18 / S.current.view.z, other?.shapeId ?? o.id);
       const target = b ? S.current.shapes.find((q) => q.id === b.shapeId) : undefined;
       const p: Pt = target ? anchorPoint(target, b!.anchor) : [Math.round(x), Math.round(y)];
       const pts = (o.pts ?? []).map((q) => [q[0], q[1]] as Pt);
@@ -911,7 +959,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp") {
       doc.transact(() => {
         flush();
-        if (d.moved) syncBoundArrows(doc, boardId, origin);
+        if (d.moved) syncAfter(d.kind === "move" ? d.ids : [d.sid]);
       }, origin);
     }
     const p = draftRef.current;
@@ -1005,7 +1053,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // One transaction, so one undo step whatever the undo manager's capture window.
     doc.transact(() => {
       moves.forEach((m) => updateShape(doc, boardId, m.id, m.patch, origin));
-      syncBoundArrows(doc, boardId, origin);
+      syncAfter(moves.map((m) => m.id));
     }, origin);
   };
   const onKeyUp = (e: React.KeyboardEvent) => {
@@ -1196,7 +1244,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         if (list.length !== 1 || !SIZED.includes(s.type)) return;
         doc.transact(() => {
           updateShape(doc, boardId, s.id, { w: Math.max(40, (s.w ?? 0) + dx), h: Math.max(30, (s.h ?? 0) + dy) }, origin);
-          syncBoundArrows(doc, boardId, origin);
+          syncAfter([s.id]);
         }, origin);
         setLive(`${Math.round(Math.max(40, (s.w ?? 0) + dx))} by ${Math.round(Math.max(30, (s.h ?? 0) + dy))}`);
         return;
@@ -1244,7 +1292,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   useEffect(() => {
     if (sel.length && sel.some((id) => !byId.has(id))) setSel(sel.filter((id) => byId.has(id)));
     if (editing && !byId.has(editing.id)) setEditing(null);
-  }, [byId, sel, editing]);
+  }, [shapes, sel, editing]);
 
   /* ---- render ---- */
   const selList = sel.map((id) => byId.get(id)).filter((s): s is Shape => !!s);
@@ -1256,12 +1304,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   // Viewport culling for big boards (selected / edited shapes always render).
   const [W, H] = size;
+  // Through the scene index: the same shapes, in the same order, as filtering the board.
   const visible = useMemo(() => {
     if (shapes.length <= CULL_AT || !W) return shapes;
     const m = 200 / z;
     const vb: Box = [-tx / z - m, -ty / z - m, (W - tx) / z + m, (H - ty) / z + m];
-    return shapes.filter((s) => intersects(bbox(s), vb) || sel.includes(s.id) || editing?.id === s.id);
-  }, [shapes, W, H, tx, ty, z, sel, editing]);
+    return scene.visible(vb, editing ? [...sel, editing.id] : sel);
+  }, [shapes, scene, W, H, tx, ty, z, sel, editing]);
 
   let selection: ReactNode = null;
   if (selList.length && !editing) {
@@ -1445,7 +1494,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             setRoute(r);
             doc.transact(() => {
               updateShape(doc, boardId, s1.id, { route: r }, origin);
-              syncBoundArrows(doc, boardId, origin);
+              syncAfter([s1.id]);
             }, origin);
           }, { pressed: (rawSel?.route ?? "straight") === r }),
         ),
