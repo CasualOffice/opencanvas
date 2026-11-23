@@ -401,3 +401,21 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   refreshes their `pts` in one Yjs transaction: one Undo restores all of it.
 - Tests: `web/packages/board/src/diagram-layout.test.ts`.
 
+### 8.3 Shapes panel (S2, DGM-14.4, step 1)
+
+- Libraries are registry data (`src/libraries.ts`, loaded with the board package so every client
+  draws them): Flowchart (process, decision, start or end, document, input or output, stored data,
+  subprocess), UML (class, interface, enumeration, package, note), Network (server, database, load
+  balancer, service, API gateway, cloud, queue, cache, client). A kind is a legacy base type plus an
+  optional `look` (outline path in a 100 × 100 box, default size, tone and text), a `library` and
+  search `keywords` (ADR-045 §3). The canvas draws the outline stretched to the shape; the exporters
+  and 0.1.x clients draw the base type with its text.
+- The left panel (editors only, 10c): a search field (`/` focuses it), then each library as a
+  collapsible section with its count; which are open is remembered per person (localStorage).
+  Click a tile to add the shape in the middle of the view; drag it onto the canvas to drop it there
+  (centred on the pointer, on the grid when Snap to grid is on).
+- Search: label prefix first, then anywhere in the label, then keywords (the matched keyword is
+  shown); results grouped by library in the order of their best match, so Enter adds the first
+  tile. Arrow keys move between tiles. No results: one plain message and Clear search.
+- Still to come (step 2): ERD, Recent, the collapsed rail, BPMN behind an admin flag, the Icons
+  library slot (DGM-17), relations as connector presets.

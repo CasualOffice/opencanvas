@@ -11,6 +11,7 @@ import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
 import type { DiagramPrefs } from "../BoardBlock";
 export { Rulers } from "./Rulers";
+import { ShapesPanel } from "./ShapesPanel";
 import { boardName, clipFor, GROW_MS, reducedMotion, setBoardName } from "./mode";
 export { documentTitle, headingAbove } from "./mode";
 import { ensureDiagramStyles } from "./styles";
@@ -42,6 +43,8 @@ export interface DiagramShellProps {
   onMenu: () => void;
   /** Transaction origin of this view (undo). */
   origin: unknown;
+  /** Adds a shape of this kind in the middle of the view (shapes panel). */
+  onAddShape: (kind: string) => void;
   prefs: DiagramPrefs;
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
@@ -159,6 +162,11 @@ export default function DiagramShell(p: DiagramShellProps) {
         </button>
       </header>
       <div className="ocdg-body">
+        {edit ? (
+          <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Shapes">
+            <ShapesPanel onAdd={p.onAddShape} />
+          </aside>
+        ) : null}
         <main className="ocdg-mid">{p.children}</main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
           {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}

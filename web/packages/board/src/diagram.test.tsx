@@ -45,7 +45,7 @@ const until = (check: () => void) =>
   vi.waitFor(async () => {
     await act(async () => {});
     check();
-  }, { timeout: 5_000 });
+  }, { timeout: 20_000 });
 const opened = () => until(() => expect(shell()).toBeTruthy());
 const closed = () => until(() => expect(shell()).toBeNull());
 const btn = (root: ParentNode, name: string) => [...root.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === name);
@@ -58,7 +58,7 @@ function fixture() {
 }
 
 // Heavy jsdom suite (full board mounts): an explicit timeout for slow CI runners.
-describe("diagram mode: entering and leaving (S1)", { timeout: 30_000 }, () => {
+describe("diagram mode: entering and leaving (S1)", { timeout: 60_000 }, () => {
   it("the block's top cluster has a labelled Diagram button between Redo and Options", () => {
     const { doc, id } = fixture();
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);

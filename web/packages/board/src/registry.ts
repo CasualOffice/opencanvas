@@ -29,6 +29,42 @@ export interface ShapeDescriptor {
   bindable?: boolean;
   /** Ports in addition to the five legacy anchors. */
   ports?: Port[];
+  /**
+   * How the shape looks and its defaults (DGM-14 S2): data only. `path` is SVG path data in a
+   * 100 × 100 box, stretched to the shape (letters, digits, spaces, commas, dots, minus only);
+   * without it the base type is drawn. Exporters and 0.1.x clients draw the base type.
+   */
+  look?: ShapeLook;
+  /** Library the kind belongs to in the shapes panel (e.g. `flowchart`). */
+  library?: string;
+  /** Search words besides the label. */
+  keywords?: string[];
+}
+
+export interface ShapeLook {
+  path?: string;
+  /** Default size of a new shape, board units. */
+  w?: number;
+  h?: number;
+  /** Default fill tone (`blue`, `green`, …). */
+  tone?: string;
+  /** Default text of a new shape (else the label). */
+  text?: string;
+}
+
+const PATH_RE = /^[MLHVCSQTAZmlhvcsqtaz0-9 ,.\-]{1,2000}$/;
+const TONE_RE = /^[a-z]{1,16}$/;
+
+/** A well-formed look, frozen, or an error message. */
+function readLook(v: unknown): Readonly<ShapeLook> | string {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return "look must be an object";
+  const o = v as Record<string, unknown>;
+  for (const k of Object.keys(o)) if (!["path", "w", "h", "tone", "text"].includes(k)) return `unexpected look.${k}`;
+  if (o.path !== undefined && (typeof o.path !== "string" || !PATH_RE.test(o.path))) return "look.path must be SVG path data";
+  for (const k of ["w", "h"] as const) if (o[k] !== undefined && !(typeof o[k] === "number" && o[k] > 0 && o[k] <= 4000)) return `look.${k} must be a size`;
+  if (o.tone !== undefined && (typeof o.tone !== "string" || !TONE_RE.test(o.tone))) return "look.tone must be a tone name";
+  if (o.text !== undefined && (typeof o.text !== "string" || o.text.length > 200)) return "look.text must be a short string";
+  return Object.freeze({ ...o }) as Readonly<ShapeLook>;
 }
 
 /** What `descriptorOf` returns: the descriptor used, and the kind/type it stood in for. */
@@ -66,13 +102,23 @@ export function registerShape(d: ShapeDescriptor): Readonly<ShapeDescriptor> {
   if (registry.has(d.kind)) throw new Error(`kind ${d.kind} is already registered`);
   if (!BOX_TYPES.includes(d.base)) throw new Error(`base must be one of ${BOX_TYPES.join(", ")}`);
   if (!Number.isInteger(d.version) || d.version < 1) throw new Error("version must be a positive integer");
-  const allowed = new Set(["kind", "base", "version", "label", "bindable", "ports"]);
+  const allowed = new Set(["kind", "base", "version", "label", "bindable", "ports", "look", "library", "keywords"]);
   for (const [k, v] of Object.entries(d)) {
     if (!allowed.has(k) || typeof v === "function") throw new Error(`descriptors are declarative: unexpected ${k}`);
   }
   const ports = d.ports === undefined ? undefined : readPorts(d.ports);
   if (d.ports && ports!.length !== d.ports.length) throw new Error("invalid or duplicate ports");
-  const out = freeze({ kind: d.kind, base: d.base, version: d.version, label: d.label, bindable: d.bindable ?? true, ...(ports ? { ports } : {}) });
+  const look = d.look === undefined ? undefined : readLook(d.look);
+  if (typeof look === "string") throw new Error(look);
+  if (d.library !== undefined && !(typeof d.library === "string" && /^[a-z][a-z0-9-]{0,31}$/.test(d.library))) throw new Error("library must be a short lowercase id");
+  if (d.keywords !== undefined && !(Array.isArray(d.keywords) && d.keywords.every((k) => typeof k === "string" && k.length <= 40))) throw new Error("keywords must be short strings");
+  const out = freeze({
+    kind: d.kind, base: d.base, version: d.version, label: d.label, bindable: d.bindable ?? true,
+    ...(ports ? { ports } : {}),
+    ...(look ? { look } : {}),
+    ...(d.library ? { library: d.library } : {}),
+    ...(d.keywords ? { keywords: Object.freeze([...d.keywords]) as string[] } : {}),
+  });
   registry.set(d.kind, out);
   return out;
 }
