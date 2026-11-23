@@ -22,6 +22,7 @@ import { Properties } from "./props/Properties";
 import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
 import { useBudget } from "./Budget";
 import ExportDialog from "./export/ExportDialog";
+import { PeerNotice } from "./Presence";
 
 const SW = 1.75;
 
@@ -29,6 +30,8 @@ export interface DiagramPeer {
   id: number;
   name: string;
   color: string;
+  /** Shapes this person has selected (presence, S10). */
+  sel?: string[];
 }
 
 export interface DiagramShellProps {
@@ -225,7 +228,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           {cv && keys.conn ? <ConnectHint canvas={cv} conn={keys.conn} /> : null}
         </main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
-          {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} extra={budget.section} />}
+          {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} notice={<PeerNotice peers={p.peers} ids={p.selected.map((s) => s.id)} />} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} extra={budget.section} />}
         </aside>
       </div>
       {phone && cv ? <Phone doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} root={() => ref.current} sheet={psheet} setSheet={setPsheet} undo={p.undo} connectorStyle={connectorStyle} onSay={say} /> : null}

@@ -6,7 +6,7 @@
 // View-only people get the same sections read only (10c).
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import * as Y from "yjs";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Plus, Trash2 } from "lucide-react";
 import type { Shape } from "../../model";
 import {
   ARROWS, CARDINALITY, MIXED, NETWORK_KINDS, VIS, VIS_NAME, libraryOf, listOf, moveItem, moveTo, nameOf, panelOf, propOf, relation,
@@ -14,6 +14,7 @@ import {
 } from "./fields";
 import { ensurePropsStyles } from "./styles";
 import { PlaceholderPanel, unknownOf } from "../Placeholder";
+import { OrphanNotice } from "../Presence";
 
 const SW = 1.75;
 
@@ -217,12 +218,29 @@ export function Properties(p: PropertiesProps) {
         <span className="ocpp-title">{title}</span>
       </h2>
       {p.notice}
+      {one?.type === "arrow" ? <OrphanNotice doc={doc} boardId={boardId} c={one} shapes={shapes} edit={edit} origin={origin} /> : null}
       {panel === "connector" ? <ConnectorProps {...p} prop={prop} field={field} byId={byId} /> : null}
       {panel === "uml-class" && one ? <UmlProps s={one} edit={edit} prop={prop} field={field} /> : null}
       {panel === "erd-entity" && one ? <ErdProps s={one} edit={edit} prop={prop} field={field} shapes={shapes} byId={byId} /> : null}
       {panel === "network" ? <NetworkProps sel={selected} edit={edit} prop={prop} field={field} shapes={shapes} byId={byId} /> : null}
       {panel === "shape" || panel === MIXED || ((panel === "uml-class" || panel === "erd-entity") && !one) ? <ShapeProps sel={selected} edit={edit} field={field} /> : null}
+      {!edit ? <CopyText sel={selected} /> : null}
     </div>
+  );
+}
+
+/** View only (10c): copy the selection's text. */
+function CopyText({ sel }: { sel: Shape[] }) {
+  const [done, setDone] = useState(false);
+  const text = sel.map((s) => s.text ?? "").filter(Boolean).join("\n");
+  if (!text) return null;
+  return (
+    <section className="ocdg-sec">
+      <button type="button" className="ocpp-copy" onClick={() => void navigator.clipboard?.writeText(text).then(() => setDone(true), () => {})}>
+        <Copy size={14} strokeWidth={SW} aria-hidden="true" />
+        {done ? "Copied" : "Copy text"}
+      </button>
+    </section>
   );
 }
 

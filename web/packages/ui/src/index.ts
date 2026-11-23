@@ -54,6 +54,8 @@ export interface BlockEnv {
    * The block never destroys it.
    */
   undoManager?: import("yjs").UndoManager;
+  /** The document limit from the session (`maxDocBytes`); boards budget 25 % of it (DGM-14 S9). */
+  maxDocBytes?: number;
   /**
    * Optional: diagram-mode switches the host or its administrator controls (DGM-14). `bpmn`
    * shows the BPMN shape library (off by default, 2f). BPMN shapes in a document always draw.

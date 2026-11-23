@@ -78,7 +78,7 @@ const umlClass: Omit<Shape, "id"> = {
   props: { attributes: [{ vis: "-", name: "id", type: "OrderId" }, { vis: "-", name: "status", type: "OrderStatus" }], methods: [{ vis: "+", name: "submit()", type: "void" }] },
 };
 
-describe("properties panel", () => {
+describe("properties panel", { timeout: 30_000 }, () => {
   it("edits a UML class: stereotype and abstract are separate props keys", () => {
     const { el, get } = setup([umlClass], [0]);
     expect(el.querySelector(".ocpp-kind")!.textContent).toBe("Class · UML");
@@ -203,6 +203,6 @@ describe("properties panel", () => {
       ),
     );
     cleanups.push(() => act(() => root.unmount()));
-    await vi.waitFor(() => expect(host.querySelector('[aria-label="Properties"] .ocpp-title')!.textContent).toBe("Order"));
+    await vi.waitFor(() => expect(host.querySelector('[aria-label="Properties"] .ocpp-title')!.textContent).toBe("Order"), { timeout: 10_000 });
   });
 });

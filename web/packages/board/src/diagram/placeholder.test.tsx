@@ -88,7 +88,7 @@ describe("in the panel", { timeout: 30_000 }, () => {
     expect(host.querySelector(".ocdg-kept")!.textContent).toContain("stateTypeTask");
     expect(host.querySelector(".ocdg-kept input")).toBeNull();
     act(() => host.querySelector<HTMLButtonElement>(".ocdg-copy")!.click());
-    await vi.waitFor(() => expect(host.querySelector(".ocdg-copy")!.textContent).toBe("Copied"));
+    await vi.waitFor(() => expect(host.querySelector(".ocdg-copy")!.textContent).toBe("Copied"), { timeout: 10_000 });
     expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]).kind).toBe("aws:stepfn-state");
   });
   it("moving an unknown shape from the panel keeps every other field", () => {

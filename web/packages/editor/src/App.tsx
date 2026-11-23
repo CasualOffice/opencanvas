@@ -639,11 +639,11 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const undoManager = useMemo(() => (editor ? yUndoPluginKey.getState(editor.state)?.undoManager : undefined), [editor]);
   const env: BlockEnv = useMemo(
     () => ({
-      role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager,
+      role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager, maxDocBytes: session.maxDocBytes,
       exportBoard: session.demo ? undefined : (id, fmt, ids) => exportBoardText(session.ticket, id, fmt, ids),
       importToBoard: impFormats.some((f) => DIAGRAM_FORMATS.includes(f)) ? (id) => (setImportBoard(id), setImportInto(true)) : undefined,
     }),
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats],
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes],
   );
 
   const openThread = useCallback((id: string) => {

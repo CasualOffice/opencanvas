@@ -722,3 +722,26 @@ taken from, traced from or modelled on draw.io's stencils (their licence forbids
   endpoint), `web/packages/board/src/diagram-export.test.tsx` (dialog, report, preview, entries),
   `e2e/diagram/s6-layout.spec.ts` (S6 in the production build, axe light and dark).
 
+
+- The limit: `GET /v1/sessions/{ticket}` answers `maxDocBytes` (`[rooms] max_doc_bytes`); the editor
+  passes it as `BlockEnv.maxDocBytes`, the board to the shell. Without it (an older server, the demo)
+  the shell uses 20 MB.
+
+### 8.10 Working together (S10, DGM-14.4)
+
+Code: `diagram/Presence.tsx`. Presence is awareness only, never document data.
+
+- Others' selections: the board's existing rings in each person's colour, with their name (10a). The
+  shell's peers now carry `sel`; when someone else has a selected shape selected, the panel says
+  "Lea is editing this shape too. If you change different fields, both changes are kept."
+  (`PeerNotice`). Not done: the per-field marker ("Lea" next to the Detail field), which needs the
+  focused field in awareness.
+- Orphan connector (10b): deleting a shape keeps the bindings that point at it (as before), so the
+  end reattaches by itself when the shape comes back (undo; tested). In diagram mode such a
+  connector is drawn red and dashed with a loose-end dot and a faint dashed outline, with the name, of
+  the deleted shape where this view last saw it (`OrphanLayer`; the outline is local memory, not
+  stored). The panel says "<name> was deleted…" with **Reconnect** (binds the loose end to the shape
+  nearest its point, within 120 units; otherwise says to drag the end) and **Delete connector**.
+  Who deleted it is not shown: Yjs doesn't record the deleting client.
+- View only (10c): no Undo/Redo (S1), no ports (S3), properties read only (S4) and **Copy text**.
+  The shapes panel and auto-layout are hidden by their owners' screens.
