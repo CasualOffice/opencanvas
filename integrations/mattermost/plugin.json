@@ -22,20 +22,21 @@
         "key": "OpenCanvasURL",
         "display_name": "OpenCanvas URL",
         "type": "text",
-        "help_text": "Public address of the OpenCanvas server that browsers open, for example https://canvas.example.com",
+        "help_text": "The address people's browsers open, for example https://canvas.example.com.",
         "placeholder": "https://canvas.example.com"
       },
       {
         "key": "OpenCanvasAPIURL",
-        "display_name": "OpenCanvas API URL (optional)",
+        "display_name": "OpenCanvas API URL",
         "type": "text",
-        "help_text": "Where the Mattermost server calls OpenCanvas (access changes). Leave empty to use the OpenCanvas URL."
+        "help_text": "Only if the Mattermost server reaches OpenCanvas at a different address. Leave empty otherwise.",
+        "placeholder": "Same as OpenCanvas URL"
       },
       {
         "key": "HostID",
         "display_name": "Host id",
         "type": "text",
-        "help_text": "The id of this server's [[host]] entry in OpenCanvas hosts.toml.",
+        "help_text": "Must match id in OpenCanvas hosts.toml.",
         "default": "mattermost"
       },
       {
@@ -43,33 +44,46 @@
         "display_name": "Shared secret",
         "type": "text",
         "secret": true,
-        "help_text": "HS256 secret for launch tokens and for verifying OpenCanvas callbacks (hosts.toml jwt_secret). At least 32 characters, for example the output of: openssl rand -hex 32"
+        "help_text": "At least 32 characters; the same value as jwt_secret in hosts.toml. Make one with openssl rand -hex 32."
       },
       {
         "key": "CallbackSecret",
-        "display_name": "Callback secret (optional)",
+        "display_name": "Callback secret",
         "type": "text",
         "secret": true,
-        "help_text": "Only if hosts.toml sets a separate callback_secret. Leave empty to verify callbacks with the shared secret."
+        "help_text": "Only if hosts.toml sets callback_secret. Leave empty otherwise.",
+        "placeholder": "Not set"
       },
       {
         "key": "APIKey",
         "display_name": "API key",
         "type": "text",
         "secret": true,
-        "help_text": "hosts.toml api_key. Used to end a person's access at once when they leave a channel."
+        "help_text": "Same as api_key in hosts.toml. Lets Mattermost close a canvas at once when someone leaves the channel."
       },
       {
         "key": "GuestRole",
         "display_name": "Guest access",
         "type": "dropdown",
         "default": "none",
-        "help_text": "What guest accounts that are members of a channel may do in its canvases.",
+        "help_text": "What guest accounts can do in canvases of channels they are in: No access, View, Comment or Edit.",
         "options": [
-          { "display_name": "No access", "value": "none" },
-          { "display_name": "View", "value": "view" },
-          { "display_name": "Comment", "value": "comment" },
-          { "display_name": "Edit", "value": "edit" }
+          {
+            "display_name": "No access",
+            "value": "none"
+          },
+          {
+            "display_name": "View",
+            "value": "view"
+          },
+          {
+            "display_name": "Comment",
+            "value": "comment"
+          },
+          {
+            "display_name": "Edit",
+            "value": "edit"
+          }
         ]
       },
       {
@@ -77,7 +91,7 @@
         "display_name": "Launch token lifetime (minutes)",
         "type": "number",
         "default": 10,
-        "help_text": "How long a launch token stays valid before it is exchanged for a session (1 to 60)."
+        "help_text": "How long a link to open a canvas stays valid. 1 to 60; 10 is a good default."
       }
     ]
   }

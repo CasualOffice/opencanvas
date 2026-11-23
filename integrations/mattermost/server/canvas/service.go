@@ -104,6 +104,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveCallback(w, r, strings.TrimPrefix(p, "/oc"))
 	case strings.HasPrefix(p, "/api/v1/"):
 		s.serveUserAPI(w, r, strings.TrimPrefix(p, "/api/v1"))
+	case strings.HasPrefix(p, "/open/") && r.Method == http.MethodGet:
+		s.serveOpenPage(w, r, strings.TrimPrefix(p, "/open/"))
 	default:
 		http.NotFound(w, r)
 	}
@@ -252,6 +254,7 @@ func (s *Service) cbSave(w http.ResponseWriter, r *http.Request, rec *Record, ra
 	if idem != "" {
 		_ = s.B.KVSet(keyIdem(rec.ID, idem), []byte(next.VersionString()), 24*time.Hour)
 	}
+	s.announce(&next)
 	writeJSON(w, http.StatusOK, map[string]string{"version": next.VersionString()})
 }
 
@@ -458,6 +461,10 @@ func (s *Service) serveUserAPI(w http.ResponseWriter, r *http.Request, p string)
 		s.listChannel(w, userID, parts[1])
 	case len(parts) == 3 && parts[0] == "canvases" && parts[2] == "launch" && r.Method == http.MethodPost:
 		s.launch(w, userID, parts[1])
+	case len(parts) == 2 && parts[0] == "canvases" && r.Method == http.MethodGet:
+		s.info(w, userID, parts[1])
+	case len(parts) == 2 && parts[0] == "canvases" && r.Method == http.MethodPatch:
+		s.rename(w, r, userID, parts[1])
 	case len(parts) == 4 && parts[0] == "canvases" && parts[2] == "assets" && r.Method == http.MethodGet:
 		// The editor shows images by URL in the browser: a signed-in channel member may read
 		// this canvas's assets with their Mattermost session.
@@ -557,16 +564,18 @@ func (s *Service) createCanvas(channelID, userID, title, template string, initia
 	return rec, nil
 }
 
-func (s *Service) listChannel(w http.ResponseWriter, userID, channelID string) {
+// ChannelList is the channel's canvases, newest first, for someone who may open them.
+func (s *Service) ChannelList(userID, channelID string) ([]*Record, error) {
 	role, _, err := s.RoleFor(&Record{ChannelID: channelID}, userID)
-	if err != nil || role == RoleNone {
-		errJSON(w, http.StatusForbidden, "NO_ACCESS")
-		return
+	if err != nil {
+		return nil, err
+	}
+	if role == RoleNone {
+		return nil, ErrNoAccess
 	}
 	ids, err := s.store().ChannelFiles(channelID)
 	if err != nil {
-		errJSON(w, http.StatusInternalServerError, "INTERNAL")
-		return
+		return nil, err
 	}
 	out := []*Record{}
 	for _, id := range ids {
@@ -575,7 +584,19 @@ func (s *Service) listChannel(w http.ResponseWriter, userID, channelID string) {
 			out = append(out, rec)
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
+}
+
+func (s *Service) listChannel(w http.ResponseWriter, userID, channelID string) {
+	out, err := s.ChannelList(userID, channelID)
+	switch {
+	case errors.Is(err, ErrNoAccess):
+		errJSON(w, http.StatusForbidden, "NO_ACCESS")
+	case err != nil:
+		errJSON(w, http.StatusInternalServerError, "INTERNAL")
+	default:
+		writeJSON(w, http.StatusOK, out)
+	}
 }
 
 // LaunchResponse is what the webapp form-POSTs into its iframe (docs/05 §4 option A).

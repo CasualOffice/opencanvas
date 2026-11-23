@@ -27,7 +27,14 @@ const window = {
         registered = {id, plugin};
     },
 };
-vm.runInNewContext(src, {window, document: {cookie: ''}, console});
+const document = {
+    cookie: '',
+    head: {appendChild: (el) => (styles = el)},
+    getElementById: () => null,
+    createElement: () => ({}),
+};
+let styles;
+vm.runInNewContext(src, {window, document, console});
 assert.equal(registered?.id, 'com.casualoffice.opencanvas');
 
 const registry = new Proxy({}, {
@@ -36,10 +43,16 @@ const registry = new Proxy({}, {
         return name === 'registerRightHandSidebarComponent' ? {id: 'rhs', showRHSPlugin: {type: 'show'}} : 'id';
     },
 });
-registered.plugin.initialize(registry, {dispatch: () => {}});
+registered.plugin.initialize(registry, {dispatch: () => {}, getState: () => ({}), subscribe: () => () => {}});
 assert.deepEqual(calls.sort(), [
-    'registerChannelHeaderButtonAction',
-    'registerPostTypeComponent',
-    'registerRightHandSidebarComponent',
+    'registerChannelHeaderButtonAction', // Create canvas (S3a)
+    'registerChannelHeaderButtonAction', // Channel canvases (S4)
+    'registerPostTypeComponent', // S1 card
+    'registerRightHandSidebarComponent', // S2 panel
+    'registerRootComponent', // S3 dialog, rename, S7a copy fallback
+    'registerSlashCommandWillBePostedHook', // /canvas list opens S4
+    'registerWebSocketEventHandler', // canvas_created
+    'registerWebSocketEventHandler', // canvas_updated
 ]);
+assert.ok(styles && /--center-channel-bg/.test(styles.textContent), 'styles follow the Mattermost theme variables');
 console.log('bundle-check: ok,', calls.length, 'registrations');

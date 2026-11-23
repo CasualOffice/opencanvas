@@ -72,6 +72,9 @@ type LaunchClaims struct {
 	Perms         perms     `json:"perms"`
 	Mode          string    `json:"mode"`
 	CallbackToken string    `json:"callbackToken"`
+	// Start "page": open a new canvas on its first line, not the template picker
+	// (OpenCanvas ADR-048, MM S2f). The create dialog already asked for the kind.
+	Start string `json:"start,omitempty"`
 }
 
 var b64 = base64.RawURLEncoding
@@ -113,6 +116,7 @@ func MintLaunch(cfg Config, in LaunchInput, now time.Time) (string, *LaunchClaim
 		Perms:         perms{Export: true, Download: true, Print: true, CommitMessage: in.Role == RoleEdit, Mention: in.Role != RoleView},
 		Mode:          mode,
 		CallbackToken: MintCallbackToken(cfg, in.File.ID, in.User.ID, now),
+		Start:         "page",
 	}
 	tok, err := signHS256([]byte(cfg.SharedSecret), c)
 	return tok, c, err

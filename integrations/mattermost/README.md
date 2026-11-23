@@ -17,8 +17,10 @@ A Mattermost plugin that adds collaborative canvases to channels:
   access at once, even with the canvas open. Guests get the role you choose (default: none).
 
 > **Status: alpha.** The server plugin is complete and was tested end to end in Mattermost
-> 12.1.0. The card and the panel are plain placeholders until their design is approved; they
-> work, but they are not styled yet. Design and security details: [DESIGN.md](DESIGN.md).
+> 12.1.0. The webapp follows the screens approved on 2026-11-24 (MM-02): the card, the panel and
+> its states, the create dialog and the slash replies; they follow your Mattermost theme. New
+> canvases open on the page, not the template picker (the plugin sends `"start": "page"`).
+> Design and security details: [DESIGN.md](DESIGN.md).
 
 ## How it works
 
@@ -189,6 +191,18 @@ Bugs that run found, now fixed:
 reference vector, membership roles, load/save with `If-Match` and `Idempotency-Key`, assets
 scoped to their canvas, conflict copies, revocation, the callback token header);
 `server` 2 tests; OpenCanvas `callback_token_also_sent_in_its_own_header`.
+
+**MM-02 webapp, verified 2026-11-24** in Mattermost 12.1.0 with two signed-in users in the light
+theme (`e2e/setup.sh`, then `MAIN_ONLY=1 node e2e/mm-e2e.mjs`, 13/13): the App Bar's Create canvas
+opens the dialog (placeholder "Untitled canvas", meeting notes default title, the channel note,
+busy Create); the new canvas opens in the panel on its page with no template picker; the second
+user sees the card (title, "Canvas · Edited …", Open on the title row, the menu with Download
+greyed "Later"), Copy link without clipboard permission shows the link selected, clicking the card
+body opens the panel, the card gets its ring, and the first user's text shows live; the canvas
+follows the Mattermost theme. Screenshots: `docs/prototypes/mattermost-approved/real-host/`.
+Built but not checked in the real host: the dark theme, S2 error states (no access, not set up,
+unreachable, closed + Reopen), expanded view, rename, `/canvas notes` opening the panel, the
+channel canvases list (S4), the System Console help text (S6) and the Desktop app (S7).
 
 **Not yet tested:**
 

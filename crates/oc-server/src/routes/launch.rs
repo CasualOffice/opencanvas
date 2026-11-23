@@ -102,7 +102,8 @@ pub async fn launch_post(
             .get(header::LOCATION)
             .and_then(|v| v.to_str().ok())
             .and_then(|l| l.split_once("#t="))
-            .map(|(_, t)| t.to_owned());
+            // Only the ticket: options such as `&start=page` (ADR-048) follow it.
+            .map(|(_, t)| t.split('&').next().unwrap_or_default().to_owned());
         if let Some(ticket) = ticket {
             return (
                 [(header::CACHE_CONTROL, "no-store")],
@@ -310,6 +311,7 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
         return Err(reject("TOKEN_REUSED", "launch token already used".into()));
     }
     let iat = claims.iat;
+    let start_page = claims.start_page();
     let mut grant = claims.into_grant();
     if let Some(iat) = iat {
         match state.members.role_since(&grant.room, &grant.user.id, iat) {
@@ -333,6 +335,12 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
         .map_err(ApiError::internal)?;
     Metrics::inc(&state.metrics.launches_total);
     tracing::info!(host = %host.id, room = %grant.room, role = grant.role.as_str(), "launch accepted");
+    // ADR-048: the host chose the kind already, so the editor skips its template picker.
+    let ticket = if start_page {
+        format!("{ticket}&start=page")
+    } else {
+        ticket
+    };
     Ok(redirect_to_app(&host, &ticket))
 }
 
@@ -411,6 +419,8 @@ pub async fn session_info(
         "perms": grant.perms,
         // ADR-043: "ephemeral" = nothing is saved; users export to keep anything.
         "storage": if host.ephemeral() { "ephemeral" } else { "host" },
+        // ADR-049: the wording of a temporary canvas ("meeting" | "room").
+        "wording": host.temporary_wording(),
         "isNew": info.is_new,
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,

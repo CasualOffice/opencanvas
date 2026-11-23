@@ -41,6 +41,7 @@ import_formats  = ["md", "html", "csv"]    # formats editors may import (POST /v
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
 team_templates  = true                     # gallery "From your team" from GET /templates (§5, TPL-01); default off
+temporary_wording = "meeting"              # storage = "ephemeral" only (§8a, ADR-049): "meeting" (default) or "room"
 ```
 
 People (docs/21 revision 2): the @mention list is the people with access to the canvas, the same
@@ -83,9 +84,17 @@ exchanged for a session ticket on open).
     "mention": true
   },
   "mode": "edit",                   // edit | view | preview
-  "callbackToken": "opaque-…"       // we send it back on every callback; you validate it
+  "callbackToken": "opaque-…",      // we send it back on every callback; you validate it
+  "start": "page"                   // optional (ADR-048): open a new canvas straight into the page
 }
 ```
+
+**Skipping the start screen (`start`, ADR-048).** A new, empty canvas opens on the template
+picker. When your own UI already asked what kind of canvas it is (a "Blank or Meeting notes"
+dialog), put `"start": "page"` in the token: the canvas opens on its first line instead, and
+templates stay available inside the editor. The server passes it on as `&start=page` after the
+ticket in the editor URL fragment. Any other value is ignored, and servers up to 0.1.1 ignore the
+claim (the picker shows). It changes nothing for a canvas that already has content.
 
 ## 4. Embed in your page
 
@@ -141,7 +150,8 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
 | canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
-| canvas → host | `Error` | `{ code, message }` |
+| canvas → host | `Error` | `{ code, message }`. `code: "SESSION_CLOSED"` (message `revoked`, `host` or `other`) when the editor shows its closed screen, so your chrome can offer to reopen (ADR-048) |
+| canvas → host | `UI_StartNew` | `{}`: "Start a new canvas" on the ended screen of a temporary canvas with room wording (§8a, ADR-049). Open a fresh canvas, for example by reloading your page |
 | host → canvas | `Host_PostmessageReady` | `{}` |
 | host → canvas | `Action_Commit` | `{ message? }` |
 | host → canvas | `Action_SetReadOnly` | `{ readOnly }` |
@@ -509,6 +519,15 @@ storage = "ephemeral"          # default "host"
 - Uploads are kept with the room (as in WOPI mode) and destroyed with it.
 - Export and download stay available, subject to `export_formats` and the token's `perms`.
 - Mentions and the members callback are used only when `callback_base` is set.
+- **Wording** (`[host.flags] temporary_wording`, ADR-049). `"meeting"` (default) says the canvas
+  is deleted when the meeting ends and, at the end, "This canvas ended with the meeting". `"room"`
+  is for a chat room that outlives each canvas: "This canvas isn't saved anywhere. It's deleted
+  after everyone has closed it; download a copy to keep it.", the pill tooltip "Not saved
+  anywhere. Deleted after everyone closes it.", the ended screen "This canvas ended when everyone
+  left" with a **Start a new canvas** button (posts `UI_StartNew`; your page opens a fresh canvas),
+  "You're no longer in this room, so this canvas is closed" when access is removed, and "You can
+  view this canvas. Room moderators can edit." for viewers. The session answer carries
+  `"wording"`. Other values stop the server at start-up.
 
 **Your users must export to keep anything.** Tell them so in your UI.
 
@@ -527,7 +546,8 @@ widgets. A small bridge (Node 24, no dependencies) is the host:
   id is a hash of the room and widget ids. The user id is the Matrix id; the name is the room
   display name.
 - When someone leaves or is banned, the bot calls the role API (§7, `role: "none"`).
-- The host sets `frame_ancestors` to the Matrix client origins (§4).
+- The host sets `frame_ancestors` to the Matrix client origins (§4) and
+  `[host.flags] temporary_wording = "room"` (§8a); the widget page reloads itself on `UI_StartNew`.
 
 Verified in Element Web against Synapse: OpenID, membership, a non-member refused, two people
 co-editing, Matrix names, access closed on leave. Install, configuration and limits (not
@@ -563,6 +583,9 @@ What a plugin host must know about Mattermost:
   `?limit=…&q=…` although `?q=…&limit=…` was signed: the plugin accepts the same pairs in any
   order.
 - Mattermost sends no `frame-src`, so the canvas frame needs no CSP change there.
+- The plugin puts `"start": "page"` in every launch token (§3): its create dialog already asked
+  for the kind, so new canvases open on the page, not the template picker. Its panel listens for
+  `Error` `SESSION_CLOSED` to offer Reopen.
 
 Tested end to end against Mattermost 12.1.0 (README "Status").
 

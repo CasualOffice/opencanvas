@@ -206,7 +206,7 @@ func (b *backend) CreateCanvasPost(rec *canvas.Record, userID string) (string, e
 		ChannelId: rec.ChannelID,
 		Type:      PostType,
 		// Shown where the card component does not run (mobile apps, notifications, search).
-		Message: "Canvas: " + rec.Title + " (open it in Mattermost on the web or desktop)",
+		Message: cardMessage(rec.Title),
 	}
 	post.AddProp("opencanvas_file_id", rec.ID)
 	post.AddProp("opencanvas_title", rec.Title)
@@ -216,6 +216,30 @@ func (b *backend) CreateCanvasPost(rec *canvas.Record, userID string) (string, e
 		return "", err
 	}
 	return created.Id, nil
+}
+
+// cardMessage is the card's text where the card component does not run (mobile apps,
+// notifications, search).
+func cardMessage(title string) string {
+	return "Canvas: " + title + " (open it in Mattermost on the web or desktop)"
+}
+
+func (b *backend) UpdateCanvasPost(rec *canvas.Record) error {
+	post, err := b.api.GetPost(rec.PostID)
+	if err != nil {
+		return err
+	}
+	post.Message = cardMessage(rec.Title)
+	post.AddProp("opencanvas_title", rec.Title)
+	_, err = b.api.UpdatePost(post)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *backend) Publish(channelID, event string, payload map[string]any) {
+	b.api.PublishWebSocketEvent(event, payload, &model.WebsocketBroadcast{ChannelId: channelID})
 }
 
 func (b *backend) PostURL(postID string) string {

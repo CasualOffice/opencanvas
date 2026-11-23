@@ -6,7 +6,7 @@
   "scripts": {
     "build": "esbuild src/index.tsx --bundle --format=iife --outfile=dist/main.js --alias:react=./src/shims/react.js --define:process.env.NODE_ENV=\\\"production\\\" --minify",
     "check": "tsc --noEmit",
-    "test": "node test/bundle-check.mjs"
+    "test": "node test/bundle-check.mjs && node --test test/logic.test.mjs"
   },
   "dependencies": {
     "lucide-react": "0.460.0"

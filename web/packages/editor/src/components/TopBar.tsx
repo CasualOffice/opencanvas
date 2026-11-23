@@ -45,6 +45,8 @@ export function TopBar(props: {
   canDownload: boolean;
   /** ADR-043, prototype 5: a temporary canvas gets a "Temporary" label and a one-click Download. */
   temporary?: boolean;
+  /** ADR-049: tooltip of the "Temporary" pill, in the host's wording. */
+  temporaryTitle?: string;
   /** Click toggles following; a long press (touch) always starts it. */
   onFollow(p: Peer, start?: boolean): void;
   onComments(): void;
@@ -86,7 +88,7 @@ export function TopBar(props: {
         </span>
         <span className="cname">{meta.title || "Untitled"}</span>
         {props.temporary ? (
-          <span className="temp-pill" title="Not saved anywhere. Deleted when the meeting ends.">
+          <span className="temp-pill" title={props.temporaryTitle}>
             <Ic name="clock" size={13} />
             Temporary
           </span>

@@ -29,6 +29,8 @@ type fake struct {
 	users   map[string]*Person
 	members map[string]map[string]bool // channel -> user
 	posts   []*Record
+	updated []Record
+	events  []string
 	seq     int
 }
 

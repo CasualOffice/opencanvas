@@ -20,6 +20,8 @@ export interface Session {
   isNew: boolean;
   /** docs/05 §8a: "ephemeral" = a temporary canvas (no host storage, deleted when the room closes). */
   storage?: "host" | "ephemeral";
+  /** ADR-049: wording of a temporary canvas, from `[host.flags] temporary_wording`. */
+  wording?: "meeting" | "room";
   wsUrl: string;
   /** Local-only review mode (`#demo`). No server, no host. */
   demo?: boolean;

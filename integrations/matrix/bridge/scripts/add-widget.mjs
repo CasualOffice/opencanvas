@@ -26,7 +26,7 @@ const content = {
   name,
   // Template variables are filled in by the client; they are hints, never trusted (DESIGN.md §3).
   url: `${bridge}/widget?roomId=$matrix_room_id&wid=$matrix_widget_id`,
-  data: { title: "Temporary canvas: export to keep a copy" },
+  data: { title: "Temporary: download to keep a copy" },
   waitForIframeLoad: true,
 };
 

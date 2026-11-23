@@ -107,9 +107,11 @@ export function createHandler(cfg, overrides = {}) {
   const allow = limiter(30, 60_000);
   const page = fs.readFileSync(path.join(PUBLIC, "widget.html"));
   const script = fs.readFileSync(path.join(PUBLIC, "widget.js"));
+  const styles = fs.readFileSync(path.join(PUBLIC, "widget.css"));
   const pageCsp = [
     "default-src 'none'",
     "script-src 'self'",
+    "style-src 'self'",
     "connect-src 'self'",
     `frame-src ${cfg.ocUrl}`,
     `form-action ${cfg.ocUrl}`,
@@ -124,6 +126,9 @@ export function createHandler(cfg, overrides = {}) {
       if (req.method === "GET" && url.pathname === "/healthz") return send(res, 200, { ok: true });
       if (req.method === "GET" && url.pathname === "/widget") {
         return send(res, 200, page, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": pageCsp });
+      }
+      if (req.method === "GET" && url.pathname === "/widget.css") {
+        return send(res, 200, styles, { "Content-Type": "text/css; charset=utf-8" });
       }
       if (req.method === "GET" && url.pathname === "/widget.js") {
         return send(res, 200, script, { "Content-Type": "text/javascript; charset=utf-8" });
@@ -142,7 +147,13 @@ export function createHandler(cfg, overrides = {}) {
     } catch (e) {
       if (e instanceof AuthError) {
         console.log(`launch refused: ${e.code}`);
-        return send(res, e.status, { error: e.code, message: e.message });
+        const out = { error: e.code, message: e.message };
+        // S4c: the widget shows the bot's user ID so someone can invite it.
+        if (e.code === "BOT_NOT_IN_ROOM") {
+          const id = deps.getState && deps.getState.botUserId ? await deps.getState.botUserId().catch(() => null) : null;
+          if (id || cfg.botUserId) out.botUserId = id || cfg.botUserId;
+        }
+        return send(res, e.status, out);
       }
       console.error(`internal error: ${e && e.name}`);
       return send(res, 500, { error: "INTERNAL", message: "internal error" });
