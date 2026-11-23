@@ -290,6 +290,29 @@ export function equalGapOffset(m: Box, others: Box[], tol: number, skip: { x?: b
   return { dx, dy, marks };
 }
 
+/**
+ * What a container holds (3g): every shape other than a connector or drawing whose box lies fully
+ * inside one of `containers`, and, through nested containers, what those hold. Membership is
+ * geometric, so it needs no stored field and older clients agree with what they see.
+ */
+export function containedIn(shapes: Shape[], containers: Shape[]): string[] {
+  const out = new Set<string>();
+  const skip = new Set(containers.map((c) => c.id));
+  const boxes = containers.map((c) => bbox(c));
+  for (const s of shapes) {
+    if (skip.has(s.id) || s.type === "arrow" || s.type === "pen") continue;
+    const b = bbox(s);
+    if (boxes.some((c) => b[0] >= c[0] && b[1] >= c[1] && b[2] <= c[2] && b[3] <= c[3])) out.add(s.id);
+  }
+  return [...out];
+}
+
+/** The box of a new container around `shapes`: a margin all round, more on top for its title. */
+export function containerBox(shapes: Shape[], pad = 24, title = 36): Box | null {
+  const u = unionBox(shapes.filter((s) => s.type !== "arrow" && s.type !== "pen"));
+  return u ? [u[0] - pad, u[1] - title, u[2] + pad, u[3] + pad] : null;
+}
+
 /** Offset that puts the box's top-left corner on the grid (diagram mode "Snap to grid"). */
 export function gridOffset(m: Box, size: number): [number, number] {
   if (!(size > 0)) return [0, 0];

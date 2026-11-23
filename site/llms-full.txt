@@ -2273,7 +2273,7 @@ arguments are sent or logged.
 | `content` | XmlFragment | Tiptap/ProseMirror document (`Collaboration` extension, `field: "content"`) |
 | `meta` | Map | `title` string, `icon` lucide name, `tone` Tone, `template` id |
 | `databases` | Map<dbId, Y.Map> | per database: `name`, `icon`, `tone`, `fields` Y.Array<Y.Map{id,name,type,options(JSON array)}>, `order` Y.Array<rowId>, `rows` Y.Map<rowId, Y.Map<fieldId,value>>, `notes` Y.Map<rowId,string>, `view` string, `views` Y.Map (per-view prefs JSON) |
-| `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId> |
+| `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId>; *(DGM-14, optional)* `name` string, the board's own name shown in diagram mode (additive: older clients ignore it, every reader keeps it, the exporters don't draw it) |
 | `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,name,color,text,at,mentions?,labels?}>; *(docs/21)* `labels` = `{userId: "@label as inserted"}`, so the text shows the member's current name in place of the inserted label |
 | `people` | Map<userId, object> | *(docs/21, optional)* who opened the file: `{id, name, detail?, avatar?, lastSeen}` (ms), never an e-mail. Written by the server on join (never makes the room dirty; `lastSeen` refreshed at most hourly). The member list when the host gives neither token `members` nor the members callback; otherwise only fills a missing `detail`/`avatar` |
 

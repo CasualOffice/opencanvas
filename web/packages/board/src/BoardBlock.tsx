@@ -8,7 +8,7 @@ import type { Awareness } from "y-protocols/awareness";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
-  Ellipsis, FileCode2, FileImage, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
+  Ellipsis, FileCode2, FileImage, Frame, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
   Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
@@ -24,6 +24,8 @@ import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
 import { AvoidRouter, RouteScheduler } from "./routing";
 import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
+import { CONTAINER, isContainer } from "./kinds";
+import { makeNode } from "./registry";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 // Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
 type ShellModule = typeof import("./diagram/Shell");
@@ -40,7 +42,7 @@ export interface DiagramPrefs {
 }
 const DIAGRAM_PREFS: DiagramPrefs = { grid: true, gridSize: 20, rulers: true, snapGrid: true, snapShapes: true, connector: "elbow" };
 import {
-  alignMoves, cloneShapes, distributeMoves, equalGapOffset, gridOffset, insertShapes, type GapMark, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
+  alignMoves, cloneShapes, containedIn, containerBox, distributeMoves, equalGapOffset, gridOffset, insertShapes, type GapMark, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
   stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
 } from "./ops";
 
@@ -489,6 +491,30 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setGroup(doc, boardId, ids, on ? "" : null, origin);
     setLive(on ? `Grouped ${ids.length} shapes` : "Ungrouped");
   };
+  /** Diagram mode: put the selection in a new container, drawn behind it (3f, 3g). */
+  const containSel = () => {
+    const list = selShapes();
+    const b = containerBox(list);
+    const m = getBoardMap(doc, boardId);
+    const order = m?.get("order");
+    if (!b || !(order instanceof Y.Array)) return;
+    um?.stopCapturing();
+    let cid = "";
+    doc.transact(() => {
+      cid = addShape(doc, boardId, makeNode(CONTAINER, { x: Math.round(b[0]), y: Math.round(b[1]), w: Math.round(b[2] - b[0]), h: Math.round(b[3] - b[1]), label: "Container" }), origin);
+      // Just behind the lowest selected shape, so it stays above whatever it sits on.
+      const arr = order.toArray() as string[];
+      const set = new Set(list.map((q) => q.id));
+      const first = arr.findIndex((x) => set.has(x));
+      const at = arr.lastIndexOf(cid);
+      if (first >= 0 && at > first) {
+        order.delete(at, 1);
+        order.insert(first, [cid]);
+      }
+    }, origin);
+    setSel([cid]);
+    setLive(`Container around ${list.length} ${list.length === 1 ? "shape" : "shapes"}`);
+  };
   const align = (mode: AlignMode) => applyMoves(alignMoves(selShapes(), mode));
   const distribute = (axis: "h" | "v") => applyMoves(distributeMoves(selShapes(), axis));
   /** Keyboard / single-click alternative to drawing a connector: join two selected shapes. */
@@ -795,7 +821,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           announceSel(next);
           return;
         }
-        const next = cur.includes(sid) ? cur : ids;
+        let next = cur.includes(sid) ? cur : ids;
         if (next !== cur) {
           setSel(next);
           announceSel(next);
@@ -815,6 +841,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           } else if (end === "start" || end === "end") drag.current = { kind: "end", sid, which: end, orig: JSON.parse(JSON.stringify(s)), moved: false };
           else if ((e.target as Element).classList?.contains("ocbd-rz")) drag.current = { kind: "resize", sid, ox: x, oy: y, orig: JSON.parse(JSON.stringify(s)), moved: false };
           else {
+            // Diagram mode: moving a container moves what it holds (3g).
+            const boxes = S.current.dgm ? S.current.shapes.filter((q) => next.includes(q.id) && isContainer(q)) : [];
+            if (boxes.length) next = [...next, ...containedIn(S.current.shapes, boxes).filter((x) => !next.includes(x))];
             const moving = S.current.shapes.filter((q) => next.includes(q.id));
             const set = new Set(next);
             const others = S.current.shapes.length > 1500 ? [] : S.current.shapes.filter((q) => !set.has(q.id) && q.type !== "arrow" && q.type !== "pen").map((q) => bbox(q));
@@ -1519,9 +1548,21 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               }
               way.forEach((q, i) =>
                 out.push(
-                  <circle key={"wp" + i} className={"ocbd-wp" + (wp === i ? " on" : "")} data-s={selShape.id} data-wp={i} cx={q[0]} cy={q[1]} r={((compact ? 9 : 5.5) + (wp === i ? 1 : 0)) / z} fill={wp === i ? "var(--accent)" : "var(--app)"} stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "move" }}>
-                    <title>Drag to move. Double-click or Delete removes it</title>
-                  </circle>,
+                  dgm ? (
+                    // Diagram mode: your own bends are diamonds (3e), apart from the router's corners.
+                    (() => {
+                      const r = ((compact ? 9 : 5.5) + (wp === i ? 1 : 0)) / z;
+                      return (
+                        <rect key={"wp" + i} className={"ocbd-wp" + (wp === i ? " on" : "")} data-s={selShape.id} data-wp={i} x={q[0] - r * 0.8} y={q[1] - r * 0.8} width={r * 1.6} height={r * 1.6} transform={`rotate(45 ${q[0]} ${q[1]})`} fill={wp === i ? "var(--accent)" : "var(--app)"} stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "move" }}>
+                          <title>Your bend. Drag to move. Double-click or Delete removes it</title>
+                        </rect>
+                      );
+                    })()
+                  ) : (
+                    <circle key={"wp" + i} className={"ocbd-wp" + (wp === i ? " on" : "")} data-s={selShape.id} data-wp={i} cx={q[0]} cy={q[1]} r={((compact ? 9 : 5.5) + (wp === i ? 1 : 0)) / z} fill={wp === i ? "var(--accent)" : "var(--app)"} stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "move" }}>
+                      <title>Drag to move. Double-click or Delete removes it</title>
+                    </circle>
+                  ),
                 ),
               );
               return out;
@@ -1691,6 +1732,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const grouped = selList.length > 1 && selList.every((s) => s.group && s.group === selList[0].group);
       items.push(grouped ? btn("Ungroup", Ungroup, () => groupSel(false), { keys: "Ctrl+Shift+G" }) : btn("Group", Group, () => groupSel(true), { keys: "Ctrl+G" }));
     }
+    if (dgm && selList.some((q) => q.type !== "arrow" && q.type !== "pen")) items.push(btn("Container", Frame, containSel));
     items.push(btn("Bring to front", BringToFront, () => zSel("front"), { keys: "Ctrl+Shift+]" }));
     items.push(btn("Send to back", SendToBack, () => zSel("back"), { keys: "Ctrl+Shift+[" }));
     items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));

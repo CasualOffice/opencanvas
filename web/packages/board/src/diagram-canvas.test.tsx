@@ -10,7 +10,8 @@ import * as Y from "yjs";
 import type { BlockEnv } from "@opencanvas/ui";
 import { BoardBlock, createBoard } from "./index";
 import { addShape, getBoardMap, readShapes } from "./model";
-import { equalGapOffset, gridOffset, type Box } from "./ops";
+import { containedIn, containerBox, equalGapOffset, gridOffset, type Box } from "./ops";
+import type { Shape } from "./model";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -161,5 +162,53 @@ describe("diagram canvas (S3)", { timeout: 30_000 }, () => {
     const { sx, sy } = await settledView(svg);
     ptr(svg, "pointermove", sx(60), sy(50));
     expect(dg.querySelectorAll(`[data-port-of="${a}"]`)).toHaveLength(0);
+  });
+});
+
+describe("containers, bends and the panel (S3, part 2)", { timeout: 30_000 }, () => {
+  it("finds what a container holds, nested ones included, and boxes a selection", () => {
+    const S = (id: string, x: number, y: number, w: number, h: number): Shape => ({ id, type: "rect", x, y, w, h });
+    const outer = S("o", 0, 0, 500, 300), inner = S("i", 20, 40, 200, 200), a = S("a", 40, 80, 60, 40), b = S("b", 400, 50, 60, 40), out = S("x", 450, 280, 100, 60);
+    const arrow: Shape = { id: "e", type: "arrow", pts: [[50, 50], [60, 60]] };
+    expect(containedIn([outer, inner, a, b, out, arrow], [outer]).sort()).toEqual(["a", "b", "i"]);
+    expect(containedIn([outer, inner, a, b, out], [inner])).toEqual(["a"]);
+    expect(containerBox([a, b])).toEqual([16, 14, 484, 144]);
+  });
+
+  it("the action bar puts the selection in a container behind it; moving the container moves what it holds", async () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    const a = addShape(doc, id, { type: "rect", x: 100, y: 100, w: 100, h: 60, text: "A" });
+    const b = addShape(doc, id, { type: "rect", x: 300, y: 100, w: 100, h: 60, text: "B" });
+    const dg = await open(doc, id);
+    const board = dg.querySelector<HTMLElement>(".ocbd")!;
+    act(() => void board.dispatchEvent(new KeyboardEvent("keydown", { key: "a", ctrlKey: true, bubbles: true, cancelable: true })));
+    act(() => btn(dg.querySelector(".ocbd-swatch")!, "Container")!.click());
+    const all = () => readShapes(getBoardMap(doc, id)!);
+    const c = all().find((s) => s.kind === "diagram:container")!;
+    expect(c).toMatchObject({ type: "rect", label: "Container", x: 76, y: 64, w: 348, h: 120 });
+    expect(all()[0].id).toBe(c.id); // painted first: behind its contents
+    const svg = dg.querySelector("svg.ocbd-svg")!;
+    const { sx, sy } = await settledView(svg);
+    act(() => void board.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    // Grab the container by its title bar (outside both shapes) and move it 100 right.
+    ptr(dg.querySelector(`[data-s="${c.id}"]`)!, "pointerdown", sx(90), sy(75));
+    ptr(svg, "pointermove", sx(190), sy(75));
+    ptr(svg, "pointerup", sx(190), sy(75));
+    await until(() => expect(all().find((s) => s.id === c.id)!.x).toBe(180)); // 176 snaps to the 20 grid
+    expect(all().find((s) => s.id === a)!.x).toBe(204);
+    expect(all().find((s) => s.id === b)!.x).toBe(404);
+  });
+
+  it("your own bends are drawn as diamonds (3e)", async () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    const e = addShape(doc, id, { type: "arrow", pts: [[0, 0], [200, 100]], via: [[100, 0]], route: "elbow" });
+    const dg = await open(doc, id);
+    const board = dg.querySelector<HTMLElement>(".ocbd")!;
+    act(() => void board.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })));
+    const wp = dg.querySelector(`[data-s="${e}"][data-wp="0"]`)!;
+    expect(wp.tagName.toLowerCase()).toBe("rect");
+    expect(wp.getAttribute("transform")).toContain("rotate(45");
   });
 });
