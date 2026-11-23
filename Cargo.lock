@@ -1747,8 +1747,11 @@ name = "oc-model"
 version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
+ "flate2",
  "fontdb",
+ "percent-encoding",
  "resvg",
+ "roxmltree",
  "serde",
  "serde_json",
  "thiserror",

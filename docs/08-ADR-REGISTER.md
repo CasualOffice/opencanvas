@@ -54,6 +54,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-050 | UI units: type, spacing, control/icon sizes, radii, chrome widths and the token scales in rem (16 px = 1 rem); the root keeps the reader's default font size; media queries and the JS compact breakpoint in em; px kept for ≤ 2 px values, borders/outlines/shadows/transforms, board geometry, export renderers and inline geometry; `tools/px-to-rem.mjs` (idempotent codemod) and `tools/check-px.mjs` (CI guard) (SCALE-01) | Accepted (owner, 2026-11-24) |
 | ADR-051 | Version history lives with the host: optional JWT callbacks and WOPI extensions (or a host version-page link); named versions are saves with a commit message; restore is a live-room edit; OpenCanvas stores no versions (VH-01, docs/30) | Accepted (owner, 2026-11-24) |
 | ADR-052 | Version diff is structural and computed on the server in `oc-model` over `document.json` (blocks, text, databases, boards); one implementation for UI, API, MCP and webhooks (VH-02, docs/30) | Accepted (owner, 2026-11-24) |
+| ADR-053 | Diagram import parsers (DGM-15): `oc-model` gains `roxmltree` 0.21, `flate2` 1 and `percent-encoding` 2 as direct dependencies (all three already in Cargo.lock through resvg/usvg and reqwest; no new crate, no new version). draw.io and Excalidraw are converted on the server only, through FC-10 | Proposed (needs owner sign-off) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -684,3 +685,18 @@ See [docs/30 §11](30-VERSION-HISTORY.md) for the full text: context, decision, 
 
 ### ADR-052 — Version diff is structural and computed on the server (Accepted by the owner 2026-11-24, VH-02)
 See [docs/30 §11](30-VERSION-HISTORY.md).
+
+### ADR-053 — Diagram import parsers (Proposed 2026-11-24, DGM-15)
+
+**Context.** The owner asked for draw.io and Excalidraw import on 2026-11-24, through the FC-10
+pipeline (5 MB, SEC-39, dry run, "Undo import"). draw.io files are XML whose pages are often
+compressed (base64, raw deflate, URL-encoding); Excalidraw files are JSON. Both are untrusted.
+**Decision.** Convert on the server, in `oc-model::diagram_import`, never in the browser (one
+converter, one set of limits, the browser bundle unchanged). Add three direct dependencies to
+`oc-model`, each already compiled into the server through another crate (Cargo.lock gains only
+the three dependency lines of `oc-model`): `roxmltree` 0.21 (used by usvg; DTDs refused by
+default, so no entity expansion and no external entities; node limit), `flate2` 1 (raw inflate
+read through a size cap) and `percent-encoding` 2. `base64` and `serde_json` were already direct.
+**Consequences.** + No new crate or version in the tree; + parser limits are ours to test (depth,
+nodes, inflated size, image bytes); − three more direct dependencies to keep current with usvg.
+

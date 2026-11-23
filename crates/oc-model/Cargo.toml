@@ -20,6 +20,10 @@ tracing.workspace = true
 fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "memmap"] }
 ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
 unicode-script = "0.5"
+# DGM-15 diagram import (ADR-053, Proposed): already in Cargo.lock through resvg/usvg and reqwest.
+roxmltree = "0.21"
+flate2 = "1"
+percent-encoding = "2"
 
 [dev-dependencies]
 zip.workspace = true
