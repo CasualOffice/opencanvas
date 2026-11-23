@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 CasualOffice -->
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>opencanvas</id>
+	<name>OpenCanvas</name>
+	<summary>Collaborative canvases: documents, databases and whiteboards in one file</summary>
+	<description><![CDATA[Create .ocanvas files in Files and edit them together in real time with OpenCanvas.
+One canvas holds rich text, databases (table, board, calendar views) and whiteboards side by side.
+Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and versions.]]></description>
+	<version>0.1.0</version>
+	<licence>apache</licence>
+	<author>CasualOffice</author>
+	<namespace>OpenCanvas</namespace>
+	<category>office</category>
+	<category>integration</category>
+	<bugs>https://github.com/casualoffice/opencanvas/issues</bugs>
+	<dependencies>
+		<php min-version="8.1"/>
+		<lib>zip</lib>
+		<lib>openssl</lib>
+		<nextcloud min-version="30" max-version="32"/>
+	</dependencies>
+	<repair-steps>
+		<install>
+			<step>OCA\OpenCanvas\Migration\RegisterMimeType</step>
+		</install>
+		<post-migration>
+			<step>OCA\OpenCanvas\Migration\RegisterMimeType</step>
+		</post-migration>
+		<uninstall>
+			<step>OCA\OpenCanvas\Migration\UnregisterMimeType</step>
+		</uninstall>
+	</repair-steps>
+	<settings>
+		<admin>OCA\OpenCanvas\Settings\Admin</admin>
+	</settings>
+</info>
