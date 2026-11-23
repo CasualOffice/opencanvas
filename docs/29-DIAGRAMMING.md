@@ -97,10 +97,9 @@ culling and a scene graph separate from React (Phase 2/4, ADR-046) address that,
 
 Not yet wired into culling or hit testing (DGM-11, Phase 2), so no editor behaviour depends on it.
 
-### 2.5 Not measured yet
+### 2.5 Browser frame times
 
-Browser frame times (p50/p95/p99 during pan, zoom and drag) need a Playwright trace on a fixed
-machine: DGM-10. Network bytes per collaboration update are the "update per move" column only
+Measured in Phase 2 (DGM-10): §6. Network bytes per collaboration update are the "update per move" column only
 (one move per transaction); drag throttling is unchanged from v0.1.1.
 
 ## 3. Phase 1: graph core (all in `web/packages/board/src`, non-visual)
@@ -134,10 +133,122 @@ drags grows the state, which is why drags stay throttled.
 
 | Item | Phase |
 |---|---|
-| Renderers learn ports (web `resolveArrow` and Rust `resolve_arrow`, parity fixture); until then every renderer draws a port binding at its `anchor` | 2 |
-| Wire `SpatialIndex` into culling, `snapTarget` and marquee; profile in a browser (DGM-10) | 2 |
-| Obstacle-aware orthogonal routing (ADR-047), worker with cancellation if measured cost needs it | 2 |
-| Per-board budget warning; per-board diagram mode, stencils, inspector, editor placeholder for unknown types: prototypes first (ADR-011) | 2 |
-| `syncBoundArrows` still reads the whole board on each commit; use the projection and `EdgeIndex` | 2 |
+| Renderers learn ports (web `resolveArrow` and Rust `resolve_arrow`, parity fixture) | 2, done (§6.3) |
+| Wire `SpatialIndex` into culling, `snapTarget` and marquee; profile in a browser (DGM-10) | 2, done (§6.1, §6.2) |
+| Obstacle-aware orthogonal routing (ADR-047) | 2, minimal (§6.4); worker, Rust port / stored-`pts` export rule, narrower commit set: 3 |
+| Per-board budget warning; per-board diagram mode, stencils, inspector, editor placeholder for unknown types: prototypes first (ADR-011) | 2 (prototypes in progress elsewhere) |
+| O(n) per change left: projection and resolver copy the full list (10k `drag20` 20 ms); scene layer separate from React and level-of-detail for the fit view (10k pan 68 ms) | 3 |
+| `syncBoundArrows` reads the whole board on each commit; use the projection and `EdgeIndex` | 2, done (`syncArrows`, §6.2) |
 | Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid and draw.io import through FC-10 | 3 |
 | 5k/10k browser stress, multi-client fuzz with diagram fields | 4 |
+
+## 6. Phase 2 (engine only, built 2026-11-24)
+
+No UI change (ADR-011): no new controls; nothing sets `routing: "avoid"` but the model API.
+
+### 6.1 Browser frame times (DGM-10)
+
+**Harness.** `e2e/perf/board-frames.perf.ts`, own config, not in the e2e suite:
+`cd e2e && npx playwright test -c perf/playwright.config.ts` (`E2E_SKIP_BUILD=1` reuses
+`web/packages/editor/dist`; `PERF_DIST=<dir>` serves another build; `PERF_SIZES`, `PERF_LABEL`,
+`PERF_TRACE=1` saves a Chromium trace per scenario). It serves the production editor bundle and opens
+`/app/#demo&sim=quiet` (the real editor with a local Y.Doc, no server), fills the demo board with the
+`bench/fixtures.ts` board in one transaction and opens it full screen (1280 × 900, headless
+Chromium 159). Scenarios: `pan` (120 wheel events, 8 ms apart, 100 % zoom), `zoom` (30 Ctrl+wheel
+steps to ~25 % and back), `drag1` (one node, 120 pointer moves 8 ms apart, release), `drag20` (20
+selected nodes, same), `remote` (another peer's transaction every 16 ms for 2 s, each moving 5 random
+nodes; same doc, foreign origin, so no network), `panFit` / `drag1Fit` (the whole board on screen).
+
+**Metrics.** rAF interval p50/p95/p99; *latency*: each pointermove / wheel (from its `timeStamp`) or
+remote transaction to the first task after the next frame (its work plus the wait for that frame;
+headless Chromium keeps a 60 Hz rAF cadence while input queues, so latency is the number that
+moves); long tasks (PerformanceObserver: none over 50 ms in any run); `release`: pointerup to after
+the next frame (the commit). Heap after a forced GC.
+
+**Machine and load.** Apple M4, 10 cores, 16 GB, macOS 26.3, Node 24.22.1, other agents building on
+the same machine. "Before" = this branch's parent (`frames-before.json`, load average 4.2); "after" =
+with DGM-11 (`frames-after-dgm11.json`, load 2.8). A final run with DGM-12/13 too
+(`frames-after.json`) ran at load 7.0 and is noisier (10k `panFit` p50 146 ms; the other rows agree
+with the table within a few ms); its numbers are not used for comparisons.
+
+Latency in ms (input to the frame after it), before → after DGM-11; release = commit to next frame:
+
+| nodes / edges | scenario | latency p50 / p95 / p99 ms, before → after | rAF p95 / p99 ms, before → after | frames > 25 ms | release (commit) ms |
+|---|---|---|---|---|---|
+| 1,000 / 1,500 | pan | 23.7 / 33.4 / 43.5 → 24.1 / 25.6 / 26.4 | 16.8 / 16.8 → 16.7 / 16.8 | 1 → 0 |  |
+| 1,000 / 1,500 | zoom | 24.6 / 26 / 32.1 → 24.9 / 27 / 40.7 | 16.8 / 16.8 → 16.8 / 16.8 | 0 → 0 |  |
+| 1,000 / 1,500 | drag1 | 5.7 / 14.1 / 18.5 → 6 / 7.5 / 17.6 | 16.8 / 16.8 → 16.8 / 16.8 | 0 → 0 | 5.4 → 4.8 |
+| 1,000 / 1,500 | drag20 | 5.8 / 7.3 / 17.9 → 6.1 / 7.5 / 17.1 | 16.7 / 16.8 → 16.7 / 16.8 | 0 → 0 | 5.4 → 4.5 |
+| 1,000 / 1,500 | remote | 9.3 / 18.1 / 18.8 → 9.7 / 17.7 / 18.4 | 16.7 / 16.8 → 16.7 / 16.8 | 0 → 0 |  |
+| 1,000 / 1,500 | panFit | 21.9 / 25.7 / 26.4 → 23.4 / 25.9 / 33.8 | 16.7 / 16.8 → 16.8 / 16.8 | 0 → 0 |  |
+| 1,000 / 1,500 | drag1Fit | 21.7 / 23.3 / 24.5 → 22.2 / 23.4 / 23.6 | 16.7 / 16.8 → 16.7 / 16.8 | 0 → 0 | 16.4 → 19.1 |
+| 5,000 / 7,500 | pan | 25.6 / 27 / 27.6 → 24.5 / 25.9 / 26.4 | 16.8 / 16.8 → 16.8 / 16.8 | 0 → 0 |  |
+| 5,000 / 7,500 | zoom | 26.1 / 44 / 59.3 → 25.3 / 42.7 / 44.2 | 16.8 / 16.8 → 16.7 / 16.8 | 0 → 0 |  |
+| 5,000 / 7,500 | drag1 | 5.7 / 21.4 / 22.5 → 5.8 / 7.3 / 18.7 | 16.7 / 16.8 → 16.8 / 16.8 | 0 → 0 | 13.6 → 4.3 |
+| 5,000 / 7,500 | drag20 | 22 / 23.1 / 23.9 → 5.9 / 17.8 / 20.3 | 16.7 / 16.8 → 16.8 / 16.8 | 0 → 0 | 16.8 → 3.8 |
+| 5,000 / 7,500 | remote | 9.3 / 21.2 / 22 → 9.9 / 17.9 / 18.7 | 16.7 / 16.8 → 16.8 / 16.8 | 0 → 0 |  |
+| 5,000 / 7,500 | panFit | 23.8 / 48.7 / 62.8 → 23.4 / 48.2 / 62.4 | 16.7 / 16.8 → 16.7 / 16.8 | 0 → 0 |  |
+| 5,000 / 7,500 | drag1Fit | 21.5 / 23.5 / 37.8 → 21.9 / 24 / 25.1 | 16.7 / 16.8 → 16.7 / 16.8 | 0 → 0 | 35.6 → 33.4 |
+| 10,000 / 15,000 | pan | 26.9 / 42.3 / 43.4 → 24.8 / 25.9 / 26.8 | 16.8 / 16.8 → 16.7 / 16.8 | 0 → 0 |  |
+| 10,000 / 15,000 | zoom | 27.8 / 45.2 / 45.8 → 41.4 / 44.2 / 45.4 | 16.8 / 16.8 → 16.8 / 16.8 | 0 → 0 |  |
+| 10,000 / 15,000 | drag1 | 22.1 / 23.6 / 24.2 → 5.5 / 20.7 / 21.8 | 16.8 / 16.8 → 16.8 / 16.8 | 0 → 0 | 24.8 → 5.7 |
+| 10,000 / 15,000 | drag20 | 21.8 / 23.1 / 24.5 → 20 / 21.7 / 22.4 | 16.7 / 16.8 → 16.8 / 16.8 | 0 → 0 | 24.1 → 5.8 |
+| 10,000 / 15,000 | remote | 9.9 / 24.5 / 26 → 9.4 / 18.7 / 19.9 | 16.8 / 16.8 → 16.8 / 16.8 | 0 → 0 |  |
+| 10,000 / 15,000 | panFit | 67.7 / 86.8 / 103.2 → 68.8 / 102.1 / 124 | 16.8 / 16.8 → 16.8 / 33.3 | 3 → 8 |  |
+| 10,000 / 15,000 | drag1Fit | 38.3 / 51.7 / 53.5 → 38.4 / 49.7 / 52.3 | 33.4 / 33.4 → 33.4 / 33.4 | 62 → 90 | 59.9 → 56.8 |
+
+DOM shapes drawn: 339 / 694 / 1,151 at 100 % (1k / 5k / 10k); 2,500 / 12,500 / 16,886 at the fit view.
+Heap after load: 26.6 / 74.6 / 122.5 MB before, 27.6 / 80.1 / 133.7 MB after (scene and route indexes).
+
+**Reading.** At 100 % zoom the board is not renderer-bound at any size: the remaining per-move cost
+at 10k was O(board) work per change (a new `byId` map, the culling filter, a full re-read on commit),
+which DGM-11 removes: drag one node 22 → 5.5 ms p50, commit 24.8 → 5.7 ms. `drag20` at 10k (20 ms)
+is the next O(n) item: the resolver and projection still copy the 25k-entry list per change. With the
+whole 10k board on screen (16,886 DOM shapes) a pan costs ~68 ms and a drag ~38 ms per frame, unchanged
+by DGM-11 (it is DOM and React size). Per ADR-046 the next step is the scene layer separate from React
+chrome and level-of-detail at low zoom; nothing here argues for Canvas2D/WebGL at 1k (every 1k
+scenario is within one frame plus input alignment).
+
+### 6.2 Spatial index wired in (DGM-11)
+
+`src/scene.ts` `SceneIndex`: the drawn shapes (connectors resolved) in a `SpatialIndex`, updated by
+object identity from one shapes array to the next. Culling (`visible`), marquee (`inBox`) and connector
+end snapping (`snap`) query it; each gives exactly what the linear scan gave, in paint order (the index
+is a pre-filter, candidates are checked with the original predicate; non-finite boxes live in a side
+list). `byId` is kept in place. Commit: `syncArrows(doc, board, ids)` reads only the given connectors
+and the shapes they bind; the board passes the changed shapes, `EdgeIndex.affectedBy` of them, and the
+resolver's `stale` set (connectors whose stored `pts` already differ), which equals `syncBoundArrows`
+while the view is current. Tests: `scene.test.tsx` (25-seed fuzz against the scans incl. odd boxes;
+15-seed `syncArrows` vs `syncBoundArrows`; the board calls the index; a nudge on a 1,500-node board
+reads < 100 shapes, was 3,754), `render-identity.test.tsx` (culled board after 90 local and remote edits
+draws the same markup as a fresh mount at the same view).
+
+### 6.3 Ports in both renderers (DGM-12)
+
+A binding `{shapeId, anchor, port}` is drawn at the port when the bound shape *stores* that port
+(`ports`), leaving from the port's side (else its nearest edge; ties top, right, bottom, left); a
+missing port, an empty one or a legacy id in `port` draws at `anchor`, which is what 0.1.x clients
+always do. Registry default ports are not visible to the Rust renderer, so `makeNode` now stores a
+kind's default ports on the shape. Web `portEnd` (ports.ts), Rust `port_end` (board.rs); shared
+fixture `crates/oc-model/tests/fixtures/board-ports.json` with the resolved points
+(`board-ports.resolved.json`, Rust `board::resolved_points`) and the exported SVG
+(`board-ports.web.svg`), both byte-equal. `board-diagram.web.svg` changed for its one port binding.
+
+### 6.4 Obstacle routing (DGM-13, minimal)
+
+Owner scope cut 2026-11-24: a minimal deterministic version, no worker, no Rust port.
+`src/router.ts`: stubs of `CLEARANCE` (16) along each end's side, then A* on a sparse orthogonal grid
+(stub coordinates, region border, obstacle edges grown by the clearance), cost = length + 30 per bend,
+integer arithmetic, tie-break (f, h, state number). Region: stubs' box + 160, then + 640; more than 160
+obstacles or no route gives `null` and the plain elbow. Waypoints (`via`) keep `elbowVia`.
+`src/routing.ts` `AvoidRouter`: replaces the points of `route: "elbow"` + `routing: "avoid"`
+connectors in the resolved list; re-routes only connectors whose ends changed (`EdgeIndex`) or whose
+route region meets a changed obstacle's old or new box (region `SpatialIndex`); `budget` defers the
+rest (plain elbow meanwhile), `RouteScheduler` routes them in main-thread chunks with job versions and
+batch cancellation. `BoardBlock`: budget 64, 0 while dragging (scheduler throttled to 100 ms), a full
+pass when the drag ends; the commit routes avoid connectors against the committed state and stores the
+route in `pts`. Tests (`routing.test.tsx`): a box between two ends is avoided; 150-seed determinism in
+shuffled obstacle order with no obstacle crossed; 10-seed × 15-edit incremental = from-scratch routing
+(about half the routes recomputed); deferred results with stale versions dropped; the scheduler; the
+board draws and commits the route (seen failing first: drew `M100 30 L400 30`). Readers without a
+router (0.1.x, both exporters) draw the plain elbow.
