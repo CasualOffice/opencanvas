@@ -94,6 +94,8 @@ export const CSS = `
 
 @keyframes ocbd-menu{from{opacity:0;transform:translateY(-4px) scale(.98)}}
 @keyframes ocbd-pop{from{opacity:0;transform:translate(-50%,calc(-100% + 4px)) scale(.98)}}
+.ocbd-swatch[data-place="below"]{transform:translate(-50%,0);animation-name:ocbd-pop-below}
+@keyframes ocbd-pop-below{from{opacity:0;transform:translate(-50%,-4px) scale(.98)}}
 @media (prefers-reduced-motion:reduce){.ocbd *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 `;
 

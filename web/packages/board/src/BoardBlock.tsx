@@ -1239,19 +1239,30 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
+    // Inline, one trackpad gesture keeps the axis it started with (events < 200 ms apart): a
+    // sideways pan that drifts down must not start scrolling the page halfway, nor the reverse.
+    let axis: "x" | "y" = "y", last = -Infinity;
     const onWheel = (e: WheelEvent) => {
       const r = svg.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         zoomAt(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
-      } else if (big) {
+        return;
+      }
+      if (big) {
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
-      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        return;
+      }
+      const now = performance.now();
+      const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (now - last > 200) axis = sideways ? "x" : "y";
+      last = now;
+      if (axis === "x") {
         // A sideways swipe pans the board; left to the browser it becomes Back at the page edge.
         e.preventDefault();
         setView((v) => ({ ...v, tx: v.tx - e.deltaX }));
-      }
+      } else if (sideways) e.preventDefault();
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
@@ -1783,8 +1794,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const Wd = svgRef.current?.clientWidth ?? 600;
     const half = selList.length > 1 ? 200 : 150;
     const sx = Math.max(Math.min(half, Wd / 2), Math.min(Wd - Math.min(half, Wd / 2), ((u[0] + u[2]) / 2) * z + tx));
-    // Above the selection; when there's no room, pinned under the board's top edge.
-    const sy = Math.max(compact ? 64 : 56, u[1] * z + ty - 14);
+    // Above the selection. Without room there it would sit on the board's own buttons and over the
+    // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
+    const minTop = compact ? 64 : 56;
+    const above = u[1] * z + ty - 14, below = u[3] * z + ty + 14;
+    const Hd = svgRef.current?.clientHeight ?? 0;
+    const flip = above < minTop && below + (compact ? 56 : 44) <= Hd;
+    const sy = flip ? below : Math.max(minTop, above);
     const s1 = selShape;
     const rawSel = s1 ? raw.find((q) => q.id === s1.id) : undefined;
     const btn = (label: string, I: LucideIcon, run: () => void, opts: { pressed?: boolean; disabled?: boolean; keys?: string } = {}) => (
@@ -1863,7 +1879,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
     items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
     swatch = (
-      <div className="ocbd-swatch" style={{ left: sx, top: sy }} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
+      <div className="ocbd-swatch" style={{ left: sx, top: sy }} data-place={flip ? "below" : undefined} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
         {items}
       </div>
     );

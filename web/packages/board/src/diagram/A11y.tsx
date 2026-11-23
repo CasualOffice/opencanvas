@@ -74,6 +74,18 @@ function ensureA11yStyles() {
   document.head.appendChild(s);
 }
 
+/** A modal gives focus back to what had it when it closes, unless something else took it meanwhile. */
+function useReturnFocus() {
+  const [from] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
+  useEffect(
+    () => () => {
+      const now = document.activeElement;
+      if (from?.isConnected && (!now || now === document.body)) from.focus({ preventScroll: true });
+    },
+    [from],
+  );
+}
+
 const Kbd = ({ k }: { k: string[] }) => (
   <>
     {k.map((x, i) => (
@@ -276,6 +288,7 @@ const ACTIONS: (Command & { icon: typeof Box; run: (root: HTMLElement | null) =>
 
 export function Commands({ root, canvas, edit, onClose, onOutline, onShortcuts, onSay }: { root: HTMLElement | null; canvas: DiagramCanvas; edit: boolean; onClose: () => void; onOutline: () => void; onShortcuts: () => void; onSay: (s: string) => void }) {
   ensureA11yStyles();
+  useReturnFocus();
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   const sel = canvas.shapes.filter((s) => canvas.sel.includes(s.id));
@@ -366,6 +379,7 @@ export function Commands({ root, canvas, edit, onClose, onOutline, onShortcuts, 
 
 export function Shortcuts({ onClose }: { onClose: () => void }) {
   ensureA11yStyles();
+  useReturnFocus();
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => ref.current?.focus(), []);
   return (

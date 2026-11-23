@@ -7,7 +7,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import * as Y from "yjs";
 import { ArrowLeft, Command as CmdIcon, Ellipsis, ListTree, Redo2, Undo2 } from "lucide-react";
-import { Commands, ConnectHint, Outline, Shortcuts, useDiagramKeys, type DiagramCanvas } from "./A11y";
+import { Commands, ConnectHint, ensureA11yStyles, Outline, Shortcuts, useDiagramKeys, type DiagramCanvas } from "./A11y";
 import { Phone, usePhone, type PhoneSheet } from "./phone/Phone";
 import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
@@ -95,6 +95,7 @@ const initials = (n: string) =>
 
 export default function DiagramShell(p: DiagramShellProps) {
   ensureDiagramStyles();
+  ensureA11yStyles();
   const { doc, boardId, env, anchor, closing, place: ctx } = p;
   const ref = useRef<HTMLDivElement>(null);
   const name = useBoardName(doc, boardId);
