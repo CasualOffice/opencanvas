@@ -33,6 +33,8 @@ pub struct Config {
     pub ai: Option<crate::ai::config::AiConfig>,
     /// `OC_IMPORT=off`: import is off for every host, whatever `[host.flags]` says.
     pub import_off: bool,
+    /// `OC_UNFURL=off` and `OC_UNFURL_ALLOW_PRIVATE` (UNF-01).
+    pub unfurl: crate::unfurl::UnfurlConfig,
     /// WOPI proof keys (`OC_WOPI_PROOF_KEY`, `OC_WOPI_PROOF_KEY_OLD`; generated with
     /// `OC_DEV=1`). Required when a host speaks WOPI.
     pub wopi_proof: Option<crate::proof::ProofKeys>,
@@ -188,6 +190,10 @@ impl Config {
             wal_redis_url: wal_redis.clone(),
             ai: None,
             wopi_proof,
+            unfurl: crate::unfurl::UnfurlConfig::parse(
+                var("OC_UNFURL").as_deref(),
+                var("OC_UNFURL_ALLOW_PRIVATE").as_deref(),
+            )?,
             import_off: var("OC_IMPORT").is_some_and(|v| v.trim().eq_ignore_ascii_case("off")),
             rooms: RoomConfig {
                 compact_interval: if memory {

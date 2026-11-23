@@ -134,6 +134,15 @@ impl HostConfig {
             .unwrap_or_default()
     }
 
+    /// `[host.flags] unfurl = true | false`: link cards fetch title, description and image
+    /// through the server (UNF-01). Absent means on; `OC_UNFURL=off` wins.
+    pub fn unfurl_enabled(&self) -> bool {
+        self.flags
+            .get("unfurl")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {
@@ -212,6 +221,9 @@ impl Hosts {
                         IMPORT_FORMATS
                     );
                 }
+            }
+            if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
+                bail!("host {}: [host.flags] unfurl takes true or false", h.id);
             }
             h.jwt_secret = resolve(h.jwt_secret)?;
             h.jwt_public_key = resolve(h.jwt_public_key)?;

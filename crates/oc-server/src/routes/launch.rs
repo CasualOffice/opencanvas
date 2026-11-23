@@ -382,6 +382,8 @@ pub async fn session_info(
         "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": super::mcp::mcp_enabled(&state, &host)},
         // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
         "import": {"formats": super::import::formats(&state, &host, grant.role)},
+        // UNF-01: link cards may ask the server for previews.
+        "unfurl": super::unfurl::enabled(&state, &host),
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,

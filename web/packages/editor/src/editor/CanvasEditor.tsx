@@ -24,6 +24,7 @@ import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
 
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
+import { markPending } from "../lib/unfurl";
 import { createStore, useStore } from "../lib/store";
 import { insertUploads } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
@@ -555,7 +556,10 @@ function PasteMenu({ editor }: { editor: Editor }) {
           <Ic name="link" />
           Link
         </button>
-        <button className="mi" onClick={() => replace(bookmarkNode(o.url))}>
+        <button className="mi" onClick={() => {
+            markPending(o.url);
+            replace(bookmarkNode(o.url));
+          }}>
           <Ic name="panel-top" />
           Link preview
         </button>
