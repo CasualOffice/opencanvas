@@ -665,6 +665,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // Text shapes size themselves; everything else gets the kind's default box.
     const box = d.base === "text" ? { x, y, text: f.text, size: f.size } : { ...f, x, y, w, h };
     const id = addShape(doc, boardId, makeNode(kind, box), origin);
+    // A container kind (pool, lane, frame…) goes behind everything, so it never hides shapes.
+    if (d.container) reorderShapes(doc, boardId, [id], "back", origin);
     setSel([id]);
     setLive(`${d.label ?? "Shape"} added`);
     return id;
@@ -2358,6 +2360,23 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = growH ?? s.h ?? 0;
   const text = hideText ? "" : (s.text ?? "");
   const tone = toneFill(s);
+  // A library kind with an outline (DGM-14 S2): its path, stretched to the box, and its text in
+  // the kind's label box (`look.box`, default the whole shape). Any box base: the exporters and
+  // 0.1.x clients draw the base type instead.
+  const look = s.kind && (s.type === "rect" || s.type === "ellipse" || s.type === "diamond") ? descriptorOf(s).look : undefined;
+  if (look?.path) {
+    const size = s.size ?? 14, lh = Math.round(size * 1.3);
+    const [bx, by, bw, bh] = look.box ?? [0, 0, 100, 100];
+    const wrap = Math.max(20, (w * bw) / 100 - 12);
+    const n = text ? wrapText(text, wrap, size).length : 0;
+    const ty = y + (h * (by + bh / 2)) / 100 + size * 0.36 - ((n - 1) * lh) / 2;
+    return (
+      <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
+        <path d={look.path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray={s.dashed ? "6 5" : undefined} />
+        {text ? <Lines text={text} x={x + (w * (bx + bw / 2)) / 100} y={ty} lh={lh} anchor size={size} wrap={wrap} /> : null}
+      </g>
+    );
+  }
   switch (s.type) {
     case "sticky":
       return (
@@ -2369,16 +2388,6 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       );
     case "rect": {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
-      // A library kind with an outline (DGM-14 S2): its path, stretched to the box.
-      const path = s.kind ? descriptorOf(s).look?.path : undefined;
-      if (path) {
-        return (
-          <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
-            <path d={path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-            {text ? <Lines text={text} x={x + w / 2} y={centered(s, lh, size, Math.max(20, w - 16))} lh={lh} anchor size={size} wrap={Math.max(20, w - 16)} /> : null}
-          </g>
-        );
-      }
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
           <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (tone?.stroke ?? stroke)} strokeWidth={1.5} strokeDasharray={s.dashed ? "6 5" : undefined} />

@@ -59,19 +59,19 @@ export type KeyMark = "" | "pk" | "fk";
 export interface Column { key: KeyMark; name: string; type: string; ref?: string; nullable?: boolean }
 
 export const NETWORK_KINDS: [string, string][] = [
-  ["net:server", "Server"], ["net:database", "Database"], ["net:load-balancer", "Load balancer"], ["net:service", "Service"],
-  ["net:api-gateway", "API gateway"], ["net:cloud", "Cloud"], ["net:queue", "Queue"], ["net:cache", "Cache"],
+  ["network:server", "Server"], ["network:database", "Database"], ["network:load-balancer", "Load balancer"], ["network:service", "Service"],
+  ["network:api-gateway", "API gateway"], ["network:cloud", "Cloud"], ["network:queue", "Queue"], ["network:cache", "Cache"],
 ];
 
-const LIBS: Record<string, string> = { uml: "UML", erd: "Entity relationship", net: "Network", flow: "Flowchart", bpmn: "BPMN", core: "General" };
+const LIBS: Record<string, string> = { uml: "UML", erd: "Entity relationship", network: "Network and cloud", net: "Network", flowchart: "Flowchart", flow: "Flowchart", bpmn: "BPMN", basic: "Basic shapes", mindmap: "Mind map", org: "Org chart", wireframe: "Wireframe", mockup: "UI controls", arrows: "Arrows", signs: "Signs and symbols", floorplan: "Floor plan", electrical: "Electrical", rack: "Server rack", charts: "Charts", diagram: "General", core: "General" };
 export const libraryOf = (kind: string | undefined) => (kind ? LIBS[kind.split(":")[0]!] : undefined);
 
 export type Panel = "uml-class" | "erd-entity" | "network" | "connector" | "shape";
 export function panelOf(s: Shape): Panel {
   if (s.type === "arrow") return "connector";
   if (s.kind === "uml:class" || s.kind === "uml:interface" || s.kind === "uml:enumeration") return "uml-class";
-  if (s.kind === "erd:entity") return "erd-entity";
-  if (s.kind?.startsWith("net:")) return "network";
+  if (s.kind === "erd:entity" || s.kind === "erd:table") return "erd-entity";
+  if (s.kind?.startsWith("network:")) return "network";
   return "shape";
 }
 

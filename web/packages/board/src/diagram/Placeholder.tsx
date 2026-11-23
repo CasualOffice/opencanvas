@@ -17,7 +17,7 @@ import type { Shape } from "../model";
 const SW = 1.75;
 
 /** Namespaces of the libraries that ship with the diagram (drawn by them, not "missing"). */
-export const BUNDLED = new Set(["core", "diagram", "uml", "erd", "net", "flow", "bpmn", "general"]);
+export const BUNDLED = new Set(["core", "diagram", "uml", "erd", "net", "flow", "bpmn", "general", "basic", "flowchart", "network", "mindmap", "org", "wireframe", "mockup", "arrows", "signs", "floorplan", "electrical", "rack", "charts"]);
 
 export type Unknown = { what: "library"; kind: string; library: string } | { what: "type"; type: string };
 

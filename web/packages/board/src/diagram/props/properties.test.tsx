@@ -117,18 +117,18 @@ describe("properties panel", () => {
   it("network node: changing the kind keeps name, colour and connections", () => {
     const { el, get } = setup(
       [
-        { type: "rect", kind: "net:service", x: 0, y: 0, w: 150, h: 56, text: "Payments service", fill: "green", props: { detail: "Java" } },
-        { type: "rect", kind: "net:database", x: 300, y: 0, w: 150, h: 56, text: "payments-db" },
+        { type: "rect", kind: "network:service", x: 0, y: 0, w: 150, h: 56, text: "Payments service", fill: "green", props: { detail: "Java" } },
+        { type: "rect", kind: "network:database", x: 300, y: 0, w: 150, h: 56, text: "payments-db" },
       ],
       [0],
     );
     const sel = el.querySelector<HTMLSelectElement>("select")!;
     act(() => {
-      sel.value = "net:server";
+      sel.value = "network:server";
       sel.dispatchEvent(new Event("change", { bubbles: true }));
     });
     const s = get(0);
-    expect(s.kind).toBe("net:server");
+    expect(s.kind).toBe("network:server");
     expect(s.text).toBe("Payments service");
     expect(s.fill).toBe("green");
     expect(s.props).toEqual({ detail: "Java" });
