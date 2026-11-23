@@ -1563,18 +1563,14 @@ impl Store {
         if let Some(kv) = &self.kv {
             return kv.room_assets_size(room).await;
         }
-        let row = sqlx::query("SELECT COALESCE(SUM(size), 0) FROM room_assets WHERE room_id = ?")
+        // Summed here: SQL SUM is DECIMAL on MySQL/MariaDB, a type the sqlx Any driver cannot
+        // decode at all (the query failed before any `try_get`). A room has few assets.
+        let rows = sqlx::query("SELECT size FROM room_assets WHERE room_id = ?")
             .bind(room)
-            .fetch_one(&self.pool)
+            .fetch_all(&self.pool)
             .await?;
-        // SUM is DECIMAL on MySQL and INTEGER on SQLite.
-        Ok(row
-            .try_get::<i64, _>(0)
-            .or_else(|_| row.try_get::<f64, _>(0).map(|f| f as i64))
-            .or_else(|_| {
-                row.try_get::<String, _>(0)
-                    .map(|s| s.parse::<f64>().unwrap_or(0.0) as i64)
-            })?)
+        rows.iter()
+            .try_fold(0i64, |n, r| Ok(n.saturating_add(r.try_get::<i64, _>(0)?)))
     }
 
     /// Deletes assets of rooms that are gone and have no pending commit, created before
