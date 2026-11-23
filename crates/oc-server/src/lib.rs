@@ -12,6 +12,7 @@ pub mod cluster;
 pub mod config;
 pub mod crypto;
 pub mod grant;
+pub mod history;
 pub mod host_client;
 pub mod hosts;
 pub mod jwt;
@@ -64,6 +65,8 @@ pub struct AppState {
     pub previews: routes::preview::PreviewCache,
     /// API bookkeeping time (idempotency, rate limits, cursors); tests pin it.
     pub clock: Arc<clock::Clock>,
+    /// VH-01b: version history caches (memory only).
+    pub history: history::Caches,
 }
 
 #[derive(Clone, Copy)]
@@ -167,6 +170,7 @@ impl AppState {
             team_templates: Default::default(),
             previews: Default::default(),
             clock: Default::default(),
+            history: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
@@ -232,6 +236,7 @@ impl AppState {
                 continue;
             };
             let grant = grant::Grant {
+                wopi_history: None,
                 host_id: row.host_id.clone(),
                 room: row.room_id.clone(),
                 role: grant::Role::Edit,

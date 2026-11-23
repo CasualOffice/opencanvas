@@ -63,6 +63,28 @@ if (!Object.keys(meta.files).length) {
 // Where the member list comes from (e2e switch; default both the token and the callback).
 const sourceOf = f => f?.memberSource ?? "both";
 const filePath = id => path.join(DATA, "files", id.replace(/[^\w-]/g, "") + ".ocanvas");
+const versionPath = (id, v) => path.join(DATA, "versions", id.replace(/[^\w-]/g, ""), String(v).replace(/\D/g, "") + ".ocanvas");
+
+// Every save is a version (docs/30 §4). The headers say what it is: X-OpenCanvas-Autosave 0 =
+// named or restore (X-OpenCanvas-Commit-Message is its name), X-OpenCanvas-Checkpoint 1 = worth
+// keeping. Like a real host, we prune: automatic non-checkpoint saves beyond the newest 20 go.
+function keepVersion(f, body, h) {
+  const dec = v => { try { return v ? decodeURIComponent(String(v)) : undefined; } catch { return undefined; } };
+  const name = dec(h["x-opencanvas-commit-message"]);
+  const restoredFrom = dec(h["x-opencanvas-restored-from"]);
+  const kind = h["x-opencanvas-autosave"] === "0" ? (restoredFrom ? "restore" : "named") : "auto";
+  const v = { version: String(f.version), at: new Date().toISOString(), authors: f.authors || [], kind, size: body.length,
+    ...(name ? { name: name.slice(0, 120) } : {}), ...(restoredFrom ? { restoredFrom } : {}),
+    checkpoint: h["x-opencanvas-checkpoint"] === "1" };
+  fs.mkdirSync(path.dirname(versionPath(f.id, v.version)), { recursive: true });
+  fs.writeFileSync(versionPath(f.id, v.version), body);
+  f.versions = [...(f.versions || []), v];
+  const loose = f.versions.filter(x => x.kind === "auto" && !x.checkpoint);
+  for (const x of loose.slice(0, Math.max(0, loose.length - 20))) {
+    fs.rmSync(versionPath(f.id, x.version), { force: true });
+    f.versions = f.versions.filter(y => y !== x);
+  }
+}
 
 // ---------- crypto helpers ----------
 const b64u = b => Buffer.from(b).toString("base64url");
@@ -202,6 +224,25 @@ async function callbacks(req, res, url) {
     const limit = Math.min(500, Number(url.searchParams.get("limit")) || 500);
     return send(res, 200, membersOf(f).filter(p => fold(p.name).includes(q) || fold(p.detail || "").includes(q)).slice(0, limit));
   }
+  // Version history (docs/05 §5, docs/30 §3.1): the list, newest first, and one version's bytes.
+  const vl = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)\/versions(?:\/(\d+))?$/);
+  if (vl && req.method === "GET") {
+    const f = meta.files[vl[1]];
+    if (!f) return send(res, 404, { error: "no such file" });
+    const auth = checkCallback(req, f.id, Buffer.alloc(0));
+    if (!auth.ok) return send(res, 401, { error: auth.why });
+    const all = [...(f.versions || [])].reverse();
+    if (vl[2]) {
+      const v = all.find(x => x.version === vl[2]);
+      const p = versionPath(f.id, vl[2]);
+      if (!v || !fs.existsSync(p)) return send(res, 410, { error: "version expired" });
+      return send(res, 200, fs.readFileSync(p), { "content-type": "application/vnd.opencanvas+zip" });
+    }
+    const limit = Math.min(100, Number(url.searchParams.get("limit")) || 50);
+    const from = Number(url.searchParams.get("cursor")) || 0;
+    const page = all.slice(from, from + limit);
+    return send(res, 200, { versions: page, ...(from + limit < all.length ? { next: String(from + limit) } : {}) });
+  }
   const m = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)(\/assets|\/copies)?$/);
   const body = req.method === "GET" ? Buffer.alloc(0) : await readBody(req);
   if (m) {
@@ -222,6 +263,7 @@ async function callbacks(req, res, url) {
       fs.writeFileSync(filePath(fileId), body);
       f.version += 1; f.updatedAt = new Date().toISOString();
       f.authors = JSON.parse(req.headers["x-opencanvas-authors"] || "[]");
+      keepVersion(f, body, req.headers);
       saveMeta();
       console.log(`saved ${fileId} v${f.version} (${body.length} bytes, autosave=${req.headers["x-opencanvas-autosave"] || 0})`);
       return send(res, 200, { version: String(f.version) });

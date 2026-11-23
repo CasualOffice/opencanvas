@@ -101,6 +101,9 @@ impl LaunchClaims {
             other => Some(other.to_string()),
         });
         let mut perms = self.perms.unwrap_or(Perms {
+            history: None,
+            restore: true,
+            commit_message: true,
             export: true,
             download: true,
             comment: true,
@@ -116,6 +119,7 @@ impl LaunchClaims {
         }));
         let members = crate::people::members_from_json(self.members.as_ref());
         Grant {
+            wopi_history: None,
             members,
             room: room_id(&self.iss, &self.file.id),
             host_id: self.iss,

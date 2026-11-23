@@ -75,6 +75,10 @@ pub struct HostConfig {
     pub template_bytes: Option<Arc<Vec<u8>>>,
     #[serde(default)]
     pub flags: toml::Table,
+    /// `[host.versions]` (docs/05 §2, docs/30 §13, ADR-055): in-file history and which source of
+    /// versions comes first.
+    #[serde(default)]
+    pub versions: toml::Table,
     /// `[host.ai]` (docs/24 §7.3): AI and MCP settings (agent and MCP); read through `crate::ai::HostAi`.
     #[serde(default)]
     pub ai: toml::Table,
@@ -94,6 +98,13 @@ fn default_alg() -> String {
     "HS256".into()
 }
 
+/// `[host.versions]` bounds of in-file history (ADR-055).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileHistoryLimits {
+    pub max_bytes: usize,
+    pub max_versions: usize,
+}
+
 /// What happens when the host answers a save with 409 (docs/05 §2, `on_conflict`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConflictPolicy {
@@ -104,6 +115,52 @@ pub enum ConflictPolicy {
 }
 
 impl HostConfig {
+    /// `[host.flags] history = true`: the JWT host implements the version callbacks (docs/30 §3).
+    pub fn host_history(&self) -> bool {
+        !self.ephemeral() && self.flags.get("history").and_then(|v| v.as_bool()) == Some(true)
+    }
+
+    /// `[host.flags] history_url`: a link to the host's own version page, `{fileId}` replaced
+    /// (percent-encoded). http(s) only.
+    pub fn history_url(&self, file_id: &str) -> Option<String> {
+        let t = self.flags.get("history_url")?.as_str()?;
+        let u = t.replace("{fileId}", &crate::host_client::percent_encode(file_id));
+        (u.starts_with("https://") || u.starts_with("http://")).then_some(u)
+    }
+
+    /// In-file bounded history (ADR-055): `[host.versions] file`, default on for JWT hosts and
+    /// off for WOPI-only hosts; never for temporary canvases. `None` when off.
+    pub fn file_history(&self) -> Option<FileHistoryLimits> {
+        if self.ephemeral() {
+            return None;
+        }
+        let on = self
+            .versions
+            .get("file")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(!self.wopi_only());
+        let int = |k: &str, d: i64, lo: i64, hi: i64| {
+            self.versions
+                .get(k)
+                .and_then(|v| v.as_integer())
+                .unwrap_or(d)
+                .clamp(lo, hi)
+        };
+        on.then(|| FileHistoryLimits {
+            max_bytes: int("file_max_kb", 1024, 16, 8192) as usize * 1024,
+            max_versions: int("file_max_versions", 50, 1, 500) as usize,
+        })
+    }
+
+    /// `[host.versions] prefer_host` (default true): when the host keeps versions too, its list
+    /// comes first and in-file history is "recent changes".
+    pub fn prefer_host_versions(&self) -> bool {
+        self.versions
+            .get("prefer_host")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)
+    }
+
     /// `storage = "ephemeral"` (ADR-043): canvases live only while their room is open.
     pub fn ephemeral(&self) -> bool {
         self.storage == "ephemeral"

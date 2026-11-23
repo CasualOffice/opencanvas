@@ -66,6 +66,12 @@ pub struct HostState {
     pub access: Option<HashMap<String, String>>,
     /// (fileId, userId, v2 signature ok) of every access call.
     pub access_calls: Vec<(String, String, bool)>,
+    /// `GET /files/{id}/versions` answer (docs/30 §3.1); `None` = 404 (not implemented).
+    pub versions: Option<Value>,
+    /// `GET /files/{id}/versions/{v}` bodies by version id (absent = 404).
+    pub version_bodies: HashMap<String, Vec<u8>>,
+    /// (path and query, v2 signature ok, bearer) of every version call.
+    pub version_calls: Vec<(String, bool, String)>,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -310,6 +316,62 @@ async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> imp
     }
 }
 
+async fn list_versions(
+    State(s): State<Shared>,
+    Path(id): Path<String>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let mut st = s.lock().unwrap();
+    let pq = uri
+        .path_and_query()
+        .map(|p| p.to_string())
+        .unwrap_or_default();
+    let ok = verify_v2_pq(&headers, "GET", &pq, b"");
+    st.version_calls.push((pq, ok, bearer(&headers)));
+    let _ = id;
+    match &st.versions {
+        Some(v) => (StatusCode::OK, axum::Json(v.clone())),
+        None => (StatusCode::NOT_FOUND, axum::Json(json!({}))),
+    }
+}
+
+async fn get_version(
+    State(s): State<Shared>,
+    Path((_id, v)): Path<(String, String)>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let mut st = s.lock().unwrap();
+    let pq = uri
+        .path_and_query()
+        .map(|p| p.to_string())
+        .unwrap_or_default();
+    let ok = verify_v2_pq(&headers, "GET", &pq, b"");
+    st.version_calls.push((pq, ok, bearer(&headers)));
+    match st.version_bodies.get(&v) {
+        Some(b) => (StatusCode::OK, b.clone()),
+        None => (StatusCode::GONE, Vec::new()),
+    }
+}
+
+/// v2 signature check for any method and path with query.
+fn verify_v2_pq(headers: &HeaderMap, method: &str, pq: &str, body: &[u8]) -> bool {
+    let Some(sig) = headers
+        .get("x-opencanvas-signature")
+        .and_then(|v| v.to_str().ok())
+    else {
+        return false;
+    };
+    let t: i64 = sig
+        .split(',')
+        .find_map(|p| p.strip_prefix("t="))
+        .and_then(|t| t.parse().ok())
+        .unwrap_or(0);
+    let want = oc_server::host_client::signature_header(SECRET.as_bytes(), t, method, pq, body);
+    want == sig
+}
+
 /// Starts the mock host; returns its callback base URL and shared state.
 pub async fn mock_host() -> (String, Shared) {
     let state: Shared = Arc::default();
@@ -317,6 +379,8 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/files/{id}", get(get_file).put(put_file))
         .route("/api/files/{id}/copies", axum::routing::post(post_copy))
         .route("/api/files/{id}/members", get(members))
+        .route("/api/files/{id}/versions", get(list_versions))
+        .route("/api/files/{id}/versions/{v}", get(get_version))
         .route("/api/mentions", axum::routing::post(mentions))
         .route("/api/access", axum::routing::post(access))
         .route("/assets/{id}", get(asset))
@@ -348,6 +412,7 @@ pub fn host_config(base: &str) -> HostConfig {
         template: None,
         template_bytes: None,
         flags: Default::default(),
+        versions: Default::default(),
         ai: Default::default(),
         api: Default::default(),
     }
@@ -449,6 +514,7 @@ pub async fn app_ai(
 
 pub fn grant(user: &str, role: Role) -> Grant {
     Grant {
+        wopi_history: None,
         host_id: "sample".into(),
         room: room_id("sample", FILE),
         role,
@@ -464,6 +530,9 @@ pub fn grant(user: &str, role: Role) -> Grant {
             version: Some("0".into()),
         },
         perms: Perms {
+            history: None,
+            restore: true,
+            commit_message: true,
             export: true,
             download: true,
             comment: true,

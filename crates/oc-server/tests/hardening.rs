@@ -182,6 +182,7 @@ async fn conflict_with_reload_policy_closes_the_room_onto_the_host_version() {
             id: "c".into(),
             authors: vec![],
             at: "2026-11-21T00:00:00Z".into(),
+            ..Default::default()
         };
         oc_model::write_ocanvas(&d, &commit).unwrap()
     };

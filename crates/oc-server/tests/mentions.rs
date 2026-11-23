@@ -167,6 +167,7 @@ async fn existing_mentions_are_not_sent_when_the_room_loads() {
             id: "c1".into(),
             authors: vec![],
             at: "2026-11-21T00:00:00Z".into(),
+            ..Default::default()
         },
     )
     .unwrap();

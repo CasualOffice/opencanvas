@@ -12,6 +12,7 @@ use OCA\OpenCanvas\Service\FileAccessService;
 use OCA\OpenCanvas\Service\TokenService;
 use OCA\OpenCanvas\Wopi\AccessClaims;
 use OCA\OpenCanvas\Wopi\ProofVerifier;
+use OCA\OpenCanvas\Wopi\VersionList;
 use OCA\OpenCanvas\Wopi\WopiUtil;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -80,6 +81,8 @@ class WopiController extends Controller {
 			'PostMessageOrigin' => $this->origin(),
 			'SupportsLocks' => false,
 			'SupportsUpdate' => true,
+			// VH-01c: the version extensions below, over files_versions (docs/30 §3.2).
+			'OpenCanvas_SupportsVersions' => $this->versionManager() !== null,
 		] + $flags;
 		return new JSONResponse($info);
 	}
@@ -134,8 +137,132 @@ class WopiController extends Controller {
 		} catch (LockedException|FilesLockedException) {
 			return new JSONResponse([], Http::STATUS_LOCKED);
 		}
+		// A named or restore save labels the version it just made (closes G3).
+		$labels = VersionList::labelsFor(
+			$this->request->getHeader('X-COOL-WOPI-IsAutosave'),
+			$this->request->getHeader('X-OpenCanvas-Commit-Message'),
+			$this->request->getHeader('X-OpenCanvas-Restored-From'),
+		);
+		if ($labels !== []) {
+			$this->labelVersion($file, $labels);
+		}
 		$this->logger->info('OpenCanvas saved file {fileId}', ['app' => 'opencanvas', 'fileId' => $fileId]);
 		return new JSONResponse(['LastModifiedTime' => WopiUtil::isoTime($file->getMTime())]);
+	}
+
+	/** Extension `GET {WOPISrc}/versions` (VH-01c, docs/30 §3.2): the file's Nextcloud versions. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function versions(int $fileId, string $access_token = ''): Response {
+		[$claims, $err] = $this->authorize($fileId, $access_token, '/versions');
+		if ($claims === null) {
+			return $err;
+		}
+		[$file, $user, $manager] = $this->versionContext($claims);
+		if ($file === null) {
+			return new JSONResponse([], Http::STATUS_NOT_FOUND);
+		}
+		$rows = [];
+		foreach ($manager->getVersionsForFile($user, $file) as $v) {
+			$rows[] = [
+				'revision' => $v->getRevisionId(),
+				'timestamp' => (int)$v->getTimestamp(),
+				'size' => (int)$v->getSize(),
+				'metadata' => method_exists($v, 'getMetadata') ? $v->getMetadata() : [],
+			];
+		}
+		return new JSONResponse(VersionList::map($rows));
+	}
+
+	/** Extension `GET {WOPISrc}/versions/{version}/contents`: one version's bytes (410 when gone). */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function versionContents(int $fileId, string $version, string $access_token = ''): Response {
+		[$claims, $err] = $this->authorize($fileId, $access_token, '/versions/' . $version . '/contents');
+		if ($claims === null) {
+			return $err;
+		}
+		[$file, $user, $manager] = $this->versionContext($claims);
+		if ($file === null) {
+			return new JSONResponse([], Http::STATUS_NOT_FOUND);
+		}
+		foreach ($manager->getVersionsForFile($user, $file) as $v) {
+			if ((string)$v->getRevisionId() !== $version) {
+				continue;
+			}
+			if ((int)$v->getSize() > self::MAX_BODY) {
+				return new JSONResponse([], Http::STATUS_REQUEST_ENTITY_TOO_LARGE);
+			}
+			// The current version is the file itself.
+			$stream = (string)$v->getRevisionId() === (string)$file->getMTime()
+				? $file->fopen('rb')
+				: $v->getBackend()->read($v);
+			if ($stream === false) {
+				break;
+			}
+			$bytes = stream_get_contents($stream, self::MAX_BODY + 1);
+			fclose($stream);
+			if ($bytes === false) {
+				break;
+			}
+			return new DataDownloadResponse($bytes, $file->getName(), 'application/octet-stream');
+		}
+		return new JSONResponse([], Http::STATUS_GONE);
+	}
+
+	/**
+	 * The file, its owner-side user and the version manager for a versions call; nulls when the
+	 * person has no access or files_versions is off. Editors only, unless viewers were granted
+	 * history (docs/30 §7: editors see history by default).
+	 *
+	 * @return array{0: ?File, 1: ?\OCP\IUser, 2: ?object}
+	 */
+	private function versionContext(AccessClaims $claims): array {
+		$r = $this->access->resolve($claims);
+		$manager = $this->versionManager();
+		if ($r === null || $manager === null || $r['flags']['UserCanWrite'] !== true) {
+			return [null, null, null];
+		}
+		$file = $r['file'];
+		$user = $file->getOwner();
+		if ($user === null) {
+			return [null, null, null];
+		}
+		return [$file, $user, $manager];
+	}
+
+	/** files_versions' manager, or null when the app is disabled. */
+	private function versionManager(): ?object {
+		$cls = 'OCA\\Files_Versions\\Versions\\IVersionManager';
+		if (!interface_exists($cls)) {
+			return null;
+		}
+		try {
+			return \OCP\Server::get($cls);
+		} catch (\Throwable) {
+			return null;
+		}
+	}
+
+	/**
+	 * Writes the name (and our kind) on the version the save just made. Nextcloud 29+
+	 * (`IMetadataVersionBackend`); older servers keep the version unlabelled, and the name is
+	 * still in the file's manifest.
+	 *
+	 * @param array<string, string> $labels
+	 */
+	private function labelVersion(File $file, array $labels): void {
+		$manager = $this->versionManager();
+		if ($manager === null || !method_exists($manager, 'setMetadataValue')) {
+			return;
+		}
+		try {
+			foreach ($labels as $k => $v) {
+				$manager->setMetadataValue($file, $file->getMTime(), $k, $v);
+			}
+		} catch (\Throwable $e) {
+			$this->logger->warning('OpenCanvas could not label a version: {e}', ['app' => 'opencanvas', 'e' => $e->getMessage()]);
+		}
 	}
 
 	/** POST {WOPISrc}: only PUT_RELATIVE (conflict copies). No LOCK/UNLOCK: OpenCanvas never sends them. */
@@ -177,8 +304,9 @@ class WopiController extends Controller {
 	 *
 	 * @return array{0: ?AccessClaims, 1: ?Response}
 	 */
-	private function authorize(int $fileId, string $token, bool $contents): array {
-		$url = $this->config->wopiSrc($fileId) . ($contents ? '/contents' : '') . '?access_token=' . rawurlencode($token);
+	private function authorize(int $fileId, string $token, bool|string $contents): array {
+		$suffix = is_string($contents) ? $contents : ($contents ? '/contents' : '');
+		$url = $this->config->wopiSrc($fileId) . $suffix . '?access_token=' . rawurlencode($token);
 		$why = null;
 		foreach ([false, true] as $refresh) {
 			$why = ProofVerifier::check(

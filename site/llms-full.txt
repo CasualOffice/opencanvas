@@ -637,6 +637,16 @@ autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
 team_templates  = true                     # gallery "From your team" from GET /templates (§5, TPL-01); default off
 temporary_wording = "meeting"              # storage = "ephemeral" only (§8a, ADR-049): "meeting" (default) or "room"
+history         = true                     # you implement the version callbacks (§5); default off
+# history_url   = "https://app.acme.example/files/{fileId}/versions"  # else: link to your own version page
+
+[host.versions]                            # version history sources (§5a, docs/30, ADR-051, ADR-055)
+file              = true                   # bounded history inside the .ocanvas: default true for JWT
+                                           # hosts, false for WOPI hosts; never for temporary canvases
+file_max_kb       = 1024                   # its byte budget (compressed)
+file_max_versions = 50                     # and its count
+prefer_host       = true                   # with your versions too: your list first, in-file = "recent changes";
+                                           # on restore or conflict your version wins
 ```
 
 People (docs/21 revision 2): the @mention list is the people with access to the canvas, the same
@@ -675,7 +685,9 @@ exchanged for a session ticket on open).
     "export": true,
     "download": true,
     "print": true,
-    "commitMessage": true,          // may write "Save version" messages
+    "commitMessage": true,          // editors may name a version (default true)
+    "history": true,                // see version history (default: editors yes, others no; docs/30 §7)
+    "restore": true,                // editors may restore a version (default true)
     "mention": true
   },
   "mode": "edit",                   // edit | view | preview
@@ -784,7 +796,7 @@ OpenCanvas:
 | Call | Request | Response |
 |---|---|---|
 | **Load file** `GET /files/{fileId}` | — | `200` body = `.ocanvas` / `.md` / `.html` bytes, headers `Content-Type`, `ETag: "<version>"`. `404` → new empty canvas. |
-| **Save (commit)** `PUT /files/{fileId}` | body `.ocanvas`; headers `If-Match: "<version>"`, `Idempotency-Key: <commitId>`, `X-OpenCanvas-Commit-Message`, `X-OpenCanvas-Authors: <json>`, `X-OpenCanvas-Autosave: 0|1` | `200 {"version":"18"}`; `409 {"version":"19"}` if your file changed outside the session; `413` too large. |
+| **Save (commit)** `PUT /files/{fileId}` | body `.ocanvas`; headers `If-Match: "<version>"`, `Idempotency-Key: <commitId>`, `X-OpenCanvas-Authors: <json>`, `X-OpenCanvas-Autosave: 0|1` (0 = a named or restore save), `X-OpenCanvas-Commit-Message: <name, percent-encoded UTF-8, ≤ 120>` (named and restore saves), `X-OpenCanvas-Restored-From: <version>` (restore saves), `X-OpenCanvas-Checkpoint: 1` (a save worth keeping: the last of a room, the first after 30 min of editing, every named or restore save). The same facts are in the file's manifest `commit {kind, message?, restoredFrom?}` | `200 {"version":"18"}`; `409 {"version":"19"}` if your file changed outside the session; `413` too large. |
 | **Save as copy** `POST /files/{fileId}/copies` (conflict policy `copy`) | body `.ocanvas`; `Idempotency-Key` | `201 {"fileId":"doc_9001","url":"…"}` (create it with the original's ACL) |
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
@@ -792,6 +804,8 @@ OpenCanvas:
 | **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none"}`. Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
 | **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
 | **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
+| **List versions** *(optional, `history = true`, docs/30 §3.1)* `GET /files/{fileId}/versions?cursor=&limit=` | signed like every callback, with the `callbackToken` of whoever opened history; `limit` ≤ 100 | `{"versions":[{"version":"18","at":"2026-11-24T10:14:03Z","authors":["u_123"],"name":"Before the board review","kind":"named","size":182344}],"next":"<opaque>"}`, newest first; `kind` `auto`\|`named`\|`restore`, `name` only for named and restore versions. List only what this user may see. `404`/`405`/`501` = not implemented |
+| **Get version** *(optional)* `GET /files/{fileId}/versions/{version}` | signed | that version's `.ocanvas` bytes (≤ 100 MB). `404`/`410` = gone (expired) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
 
@@ -828,6 +842,31 @@ we call you, so it is retried with the same key even across a restart of OpenCan
 
 With `jwt_jwks_url` we fetch your JWKS (cached 10 min) and pick the key by the token's `kid`;
 the algorithm is still pinned by `jwt_alg`, so a token signed with another algorithm is refused.
+
+## 5a. Version history (VH-01, docs/30, ADR-051, ADR-055)
+
+Two sources, chosen in `[host.versions]` (§2):
+
+- **Your versions.** Every save you receive is a complete `.ocanvas`, so every save is a version.
+  JWT hosts implement **List versions** and **Get version** (§5) and set `[host.flags] history =
+  true`. WOPI hosts advertise `OpenCanvas_SupportsVersions: true` in CheckFileInfo and answer
+  `GET {WOPISrc}/versions?access_token=[&cursor=]` (the JSON of §5) and
+  `GET {WOPISrc}/versions/{v}/contents?access_token=` (bytes), both proof-signed like every WOPI
+  call. Without them we link to your own page (`history_url`, or CheckFileInfo `FileVersionUrl`;
+  with `FileVersionPostMessage: true` we post `UI_FileVersions` to your page instead).
+- **In-file history** (ADR-055): a bounded set of earlier versions kept inside the `.ocanvas`
+  itself, as compressed reverse diffs. On by default for JWT hosts; turn it off when deleted text
+  must not travel with the file. Temporary canvases have none.
+
+Retention is yours: we never delete one of your versions and never ask you to. A named version is
+an ordinary save with `X-OpenCanvas-Autosave: 0` and the name; restore is an edit in the live room
+followed by a save named "Restored from …". We keep nothing in our database: versions are read on
+demand and cached in memory for 5 minutes.
+
+The session answer (docs/15 §2) carries `history` (`full` | `link` | `none`), `historySource`
+(`host` | `file`, the list shown first), `historyHostName` (for "Kept by …"), `historyUrl` and
+`historyPostMessage` (link mode), and the effective `perms.history`, `perms.restore` and
+`perms.commitMessage`.
 
 ## 6. WOPI mode
 
@@ -1069,7 +1108,9 @@ part, operation or `API_OFF`, `409` conflict or confirmation, `412` a stale `ifM
 - **One live room per (host, file).** Users who open the same file join the
   same room — there is no fork. The room loads your file once.
 - **Your file is updated by commits only.** Autosave commits are flagged
-  `X-OpenCanvas-Autosave: 1` so you can collapse them in version history.
+  `X-OpenCanvas-Autosave: 1` so you can collapse them in version history. Checkpoints
+  (`X-OpenCanvas-Checkpoint: 1`) are the saves to keep if you prune; named and restore saves
+  (`X-OpenCanvas-Autosave: 0`) always are.
 - **At-least-once commit** with idempotency key; final commit before room
   close; on graceful shutdown all dirty rooms commit.
 - **Nothing is retained** after the room closes and TTL passes.
@@ -1250,8 +1291,10 @@ the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
   file name is not known). We read `BaseFileName`, `Size`, `Version`, `LastModifiedTime`, `UserId`,
   `UserFriendlyName`, `UserExtraInfo.avatar` (http(s) only), `UserExtraInfo.detail` (the
   person's second line, docs/21), `UserCanWrite`, `ReadOnly`,
-  `UserCanNotWriteRelative`, `DisableExport`, `DisablePrint`, `HideExportOption` and our extension
-  `OpenCanvas_UserCanComment`.
+  `UserCanNotWriteRelative`, `DisableExport`, `DisablePrint`, `HideExportOption`, `FileVersionUrl`
+  and `FileVersionPostMessage` (a link to your own version page; http(s) only), and our extensions
+  `OpenCanvas_UserCanComment`, `OpenCanvas_SupportsVersions` (you implement the two version calls
+  below), `OpenCanvas_UserCanSeeHistory` (viewers may see history) and `OpenCanvas_DisableRestore`.
   Role: `UserCanWrite` and not `ReadOnly` → `edit`; else `OpenCanvas_UserCanComment` → `comment`;
   else `view`. Perms: `DisableExport` → no export, download or print; `HideExportOption` → no
   export; `DisablePrint` → no print (PDF). The tracked version is `LastModifiedTime`
@@ -1260,8 +1303,9 @@ the normalized `WOPISrc`: URL-encode it in `/v1/files/{fileId}/…`.
   `.ocanvas` zip, or Markdown when `BaseFileName` ends in `.md`.
 - `POST {WOPISrc}/contents?access_token=…` → PutFile, body `.ocanvas` (or Markdown for `.md` files —
   lossy for boards and databases), headers `X-WOPI-Override: PUT`,
-  `X-COOL-WOPI-Timestamp: <LastModifiedTime we loaded / last saved>`, `X-COOL-WOPI-IsAutosave: true`,
-  `X-COOL-WOPI-IsModifiedByUser: true`. Answer `200 {"LastModifiedTime":"…"}` (without it we ask
+  `X-COOL-WOPI-Timestamp: <LastModifiedTime we loaded / last saved>`, `X-COOL-WOPI-IsAutosave: true`
+  (`false` for a named or restore save, with `X-OpenCanvas-Commit-Message`, `X-OpenCanvas-Restored-From`),
+  `X-COOL-WOPI-IsModifiedByUser: true`, and `X-OpenCanvas-Checkpoint: 1` as in §5. Answer `200 {"LastModifiedTime":"…"}` (without it we ask
   CheckFileInfo). `409 {"COOLStatusCode":1010}` = the file changed elsewhere → your `on_conflict`
   policy runs (any other 409 is retried like an outage). Saves go through the same outbox,
   retries and autosave rules as JWT mode (docs/15 §7).
@@ -1734,8 +1778,21 @@ postMessage bridge, admin validation, guest names, file icon).
   up to 100 MB.
 - **Comment role.** Read-only shares get view, not comment, unless an admin turns on the comment
   role (DESIGN.md §5).
-- **Versions.** Each autosave is a version. Nextcloud's version expiry thins them out. Named
-  versions are not supported yet (G3).
+- **Versions (VH-01c).** Each autosave is a version; Nextcloud's expiry thins them out. The app
+  advertises `OpenCanvas_SupportsVersions` and answers `GET {WOPISrc}/versions` and
+  `{WOPISrc}/versions/{v}/contents` over `files_versions` (editors only), so the OpenCanvas history
+  panel lists, previews, compares and restores them. A named or restore save (`X-COOL-WOPI-IsAutosave:
+  false` + `X-OpenCanvas-Commit-Message`) sets the version's Nextcloud **label** and our metadata
+  `opencanvas_kind` / `opencanvas_restored_from` (Nextcloud 29+, `IMetadataVersionBackend`; older
+  servers keep the name only in the file's manifest). Authors are Nextcloud's own `author` metadata
+  (the save runs as the editor). In-file history is off for this host by default (`[host.versions]
+  file = false`, docs/05 §2).
+- **Do labelled versions survive expiry?** Read from Nextcloud 31 `apps/files_versions/lib/Storage.php`
+  (2026-11-24): labelled versions are skipped by the max-age expiry (`expireOlderThanMaxForUser`)
+  and by the quota expiry loop in `expire()`, but **not** by its low-space fallback (oldest
+  versions deleted until the quota fits, no label check), nor when a version has no database row.
+  So named versions are kept in normal operation and can still go when a user runs out of space.
+  Not yet confirmed in a running Nextcloud (the real-host pass for VH-01c is pending).
 - **Locks.** None. An outside change to an open file produces a conflict copy.
 
 
@@ -2228,12 +2285,16 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "user": {"id":"u_123","name":"Asha Rao","color":"#7a45f0","avatar":null},
      "file": {"id":"doc_8812","name":"Sprint 42 notes"},
      "host": {"id":"acme","name":"Acme"},
-     "perms": {"export":true,"download":true,"comment":true,"print":true},
+     "perms": {"export":true,"download":true,"comment":true,"print":true,"history":true,"restore":true,"commitMessage":true},
+     "history": "full", "historySource": "host", "historyHostName": "Acme",
      "isNew": true,
      "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
      "import": {"formats":["md","html","csv"]},
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
+   *(VH-01a)*: `history` `full` | `link` | `none`, `historySource` `host` | `file` (the list shown
+   first), `historyHostName`, and in link mode `historyUrl` + `historyPostMessage` (docs/05 §5a).
+   `perms.history`, `perms.restore`, `perms.commitMessage` are effective (the role included).
    `ai` (AI-02): `enabled` when `[host.ai] enabled = true` and the role is not `view`; `modes` are
    the run modes the server accepts for the role (`edit`: `edit`, `comment`, `answer`; `comment`:
    `answer`, `comment`; `view`: none); `mcp` mirrors `[host.ai] mcp`. The editor shows the
@@ -2291,6 +2352,8 @@ drop its local Y.Doc and reconnect, the room now holds the host's version),
 `{"t":"closed","reason":"…"}` (`access revoked` → close 1008; `closed by the host` → close 1000),
 `{"t":"ping"}` (heartbeat every `OC_HEARTBEAT_MS`, default 10 s, on every connection; clients
 treat 15 s without any frame as a lost connection, docs/06 §5; added 2026-11-21, UX-02),
+`{"t":"restored","by","byName","from","name","at","restoreId"}` (VH-01b: someone restored a version; the
+edit itself arrives as an ordinary update, docs/30 §5),
 `{"t":"reconnect"}` (always followed by close **1012**: the client keeps its Y.Doc and
 reconnects; sent on graceful drain and, in cluster mode, when the room moved to another node).
 (Changed 2026-11-21 by the server hardening: `conflict` carries `policy`.)
@@ -2557,6 +2620,14 @@ logged as a warning).
 `GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host; WOPI mode:
 stored with the room, `201 {"assetId","url":"/v1/assets/<id>","mime","size"}`, ≤ 10 MB each, ≤ 50 MB
 per file) · `GET /v1/assets/:id?ticket=` (WOPI mode only, else 404) ·
+*(VH-01b, docs/30 §8; memory caches only)* `GET /v1/history?ticket=[&cursor=]` → `{source, versions, next?, recent?,
+hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the version's Yjs state) ·
+`GET /v1/history/diff?ticket=&from=&to=current|<v>` (ADR-052 JSON; `422 DIFF_TOO_LARGE`) ·
+`POST /v1/history/name?ticket=` `{name}` (edit + `commitMessage`; saves now even when clean) ·
+`POST /v1/history/:v/restore?ticket=` `{label?}` → `{restoreId, name, version, changed}` (edit + `restore`) ·
+`POST /v1/history/restore/undo?ticket=&restoreId=` (the same person, within 30 s; `409 NOTHING_TO_UNDO` /
+`UNDO_EXPIRED`). History routes need `perms.history` (`403 HISTORY_FORBIDDEN`), `404 HISTORY_OFF` without
+a source, `404 VERSION_GONE`, `413 VERSION_TOO_LARGE`. ·
 `GET /v1/members?ticket=&q=` → `{"members":[{id,name,color,detail?,avatar?}]}` (docs/21 revision 2:
 the same list for every viewer; merged by id, members callback > token `members` > the saved `people`
 map, which counts only when the host gave neither; the viewer is always in; people revoked by the

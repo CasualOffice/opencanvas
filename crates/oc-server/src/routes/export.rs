@@ -347,6 +347,7 @@ async fn render_once(
                 id: ulid::Ulid::new().to_string(),
                 authors: vec![req.author.to_string()],
                 at: rfc3339(now_ms()),
+                ..Default::default()
             };
             let mut bytes = oc_model::write_ocanvas(doc, &commit).map_err(ApiError::internal)?;
             if let Some(room) = req.wopi_room {

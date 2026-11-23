@@ -58,6 +58,144 @@ pub struct PutRequest<'a> {
     pub if_match: Option<&'a str>,
     pub idempotency_key: &'a str,
     pub authors: &'a [String],
+    pub meta: &'a SaveMeta,
+}
+
+/// What a save is, for the host (docs/30 §3.1, §4; ADR-051). Hosts that ignore it still get a
+/// correct file: the same facts are in the manifest's `commit`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SaveMeta {
+    pub kind: oc_model::ocanvas::CommitKind,
+    /// The version's name (named and restore saves).
+    pub message: Option<String>,
+    /// Restore saves: the version restored.
+    pub restored_from: Option<String>,
+    /// A save worth keeping for hosts that prune: the last save of a room, the first after 30
+    /// minutes of editing, and every named or restore save.
+    pub checkpoint: bool,
+}
+
+impl SaveMeta {
+    /// Reads the facts back from a saved file's manifest (an outbox row resumed after a
+    /// restart). Named and restore saves are checkpoints; others are not, as the hint is not
+    /// in the file.
+    pub fn from_ocanvas(bytes: &[u8]) -> Self {
+        let m = oc_model::ocanvas::read_manifest(bytes).unwrap_or_default();
+        let c = &m["commit"];
+        let kind = oc_model::ocanvas::CommitKind::parse(c["kind"].as_str());
+        Self {
+            kind,
+            message: c["message"].as_str().map(String::from),
+            restored_from: c["restoredFrom"].as_str().map(String::from),
+            checkpoint: kind != oc_model::ocanvas::CommitKind::Auto,
+        }
+    }
+
+    /// The JWT save headers besides the fixed ones (docs/05 §5).
+    pub fn jwt_headers(&self) -> Vec<(&'static str, String)> {
+        use oc_model::ocanvas::CommitKind;
+        let mut h = vec![(
+            "X-OpenCanvas-Autosave",
+            if self.kind == CommitKind::Auto {
+                "1"
+            } else {
+                "0"
+            }
+            .to_string(),
+        )];
+        if let Some(m) = &self.message {
+            h.push(("X-OpenCanvas-Commit-Message", percent_encode(m)));
+        }
+        if let Some(v) = &self.restored_from {
+            h.push(("X-OpenCanvas-Restored-From", percent_encode(v)));
+        }
+        if self.checkpoint {
+            h.push(("X-OpenCanvas-Checkpoint", "1".to_string()));
+        }
+        h
+    }
+}
+
+/// Percent-encodes UTF-8 for a header value: everything but unreserved ASCII (RFC 3986).
+pub fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// Largest version the host may return (checked like a load).
+pub const MAX_VERSION_BYTES: usize = 100 * 1024 * 1024;
+
+/// Normalizes a host's version list (docs/30 §3.1): `{versions: [{version, at, authors, name?,
+/// kind, size?}], next?}`, at most 100 entries, names clipped to 120 characters.
+pub fn normalize_versions(v: &serde_json::Value) -> Result<serde_json::Value, HostError> {
+    use serde_json::{Value, json};
+    let list = v
+        .get("versions")
+        .and_then(Value::as_array)
+        .ok_or_else(|| HostError::Body("version list without versions".into()))?;
+    let text = |x: &Value| match x {
+        Value::String(s) if !s.is_empty() => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    };
+    let mut out = Vec::new();
+    for e in list.iter().take(100) {
+        let Some(version) = e.get("version").and_then(text) else {
+            continue;
+        };
+        if version.len() > 200 {
+            continue;
+        }
+        let kind = oc_model::ocanvas::CommitKind::parse(e.get("kind").and_then(Value::as_str));
+        let name: Option<String> = e
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|n| n.trim().chars().take(120).collect::<String>())
+            .filter(|n| !n.is_empty());
+        let authors: Vec<String> = e
+            .get("authors")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .take(50)
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut row = json!({
+            "version": version,
+            "at": e.get("at").and_then(Value::as_str).unwrap_or_default(),
+            "authors": authors,
+            "kind": kind.as_str(),
+        });
+        if let Some(n) = name {
+            row["name"] = json!(n);
+        }
+        if let Some(s) = e.get("size").and_then(Value::as_u64) {
+            row["size"] = json!(s);
+        }
+        if let Some(r) = e.get("restoredFrom").and_then(text) {
+            row["restoredFrom"] = json!(r);
+        }
+        out.push(row);
+    }
+    let mut res = json!({"versions": out});
+    if let Some(n) = v
+        .get("next")
+        .and_then(Value::as_str)
+        .filter(|n| !n.is_empty() && n.len() <= 500)
+    {
+        res["next"] = json!(n);
+    }
+    Ok(res)
 }
 
 /// Where a file is loaded from and saved to: the JWT callbacks (docs/05 §5) or the WOPI host
@@ -352,6 +490,7 @@ impl HostClient {
             token,
             body,
             req.if_match,
+            req.meta,
         )
         .await?
         {
@@ -538,11 +677,13 @@ impl HostClient {
             .request(host, token, Method::PUT, url, req.body, 10)
             .header(header::CONTENT_TYPE, "application/vnd.opencanvas+zip")
             .header("Idempotency-Key", req.idempotency_key)
-            .header("X-OpenCanvas-Autosave", "1")
             .header(
                 "X-OpenCanvas-Authors",
                 serde_json::to_string(req.authors).unwrap_or_else(|_| "[]".into()),
             );
+        for (k, v) in req.meta.jwt_headers() {
+            rb = rb.header(k, v);
+        }
         if let Some(v) = req.if_match {
             rb = rb.header(header::IF_MATCH, format!("\"{v}\""));
         }
@@ -568,6 +709,66 @@ impl HostClient {
             }
             s => Err(HostError::Status(s)),
         }
+    }
+
+    /// Version list (docs/30 §3.1, ADR-051): JWT `GET /files/{id}/versions?cursor=&limit=`,
+    /// WOPI extension `GET {WOPISrc}/versions`. Normalized; `404`/`405`/`501` come back as
+    /// `HostError::Status` (not implemented).
+    pub async fn list_versions(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        file_id: &str,
+        cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<serde_json::Value, HostError> {
+        let raw = if let SaveTarget::Wopi(src) = SaveTarget::of(host, file_id)? {
+            wopi::list_versions(&self.assets, self.proof.as_ref(), &src, token, cursor).await?
+        } else {
+            let mut url = Self::url(host, &["files", file_id, "versions"])?;
+            {
+                let mut q = url.query_pairs_mut();
+                if let Some(c) = cursor {
+                    q.append_pair("cursor", c);
+                }
+                q.append_pair("limit", &limit.clamp(1, 100).to_string());
+            }
+            let res = self
+                .request(host, token, Method::GET, url, Vec::new(), 10)
+                .send()
+                .await?;
+            if !res.status().is_success() {
+                return Err(HostError::Status(res.status()));
+            }
+            let bytes = Self::capped(res, 1024 * 1024).await?;
+            serde_json::from_slice(&bytes)
+                .map_err(|_| HostError::Body("version list is not JSON".into()))?
+        };
+        normalize_versions(&raw)
+    }
+
+    /// One version's `.ocanvas` bytes: JWT `GET /files/{id}/versions/{v}`, WOPI extension
+    /// `GET {WOPISrc}/versions/{v}/contents`. At most [`MAX_VERSION_BYTES`]; `404`/`410` = gone.
+    pub async fn get_version(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        file_id: &str,
+        version: &str,
+    ) -> Result<Bytes, HostError> {
+        if let SaveTarget::Wopi(src) = SaveTarget::of(host, file_id)? {
+            return wopi::get_version(&self.assets, self.proof.as_ref(), &src, token, version)
+                .await;
+        }
+        let url = Self::url(host, &["files", file_id, "versions", version])?;
+        let res = self
+            .request(host, token, Method::GET, url, Vec::new(), 30)
+            .send()
+            .await?;
+        if !res.status().is_success() {
+            return Err(HostError::Status(res.status()));
+        }
+        Self::capped(res, MAX_VERSION_BYTES).await
     }
 
     /// Conflict policy `copy`: `POST /files/{id}/copies` with the session's `.ocanvas`.

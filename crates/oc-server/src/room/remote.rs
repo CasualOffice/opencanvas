@@ -40,6 +40,11 @@ pub enum RemoteOp {
         grant: Grant,
         origin: String,
     },
+    /// VH-01b: version history writes.
+    History {
+        grant: Grant,
+        history: super::HistoryOp,
+    },
     CommitLive,
     SetRole {
         user_id: String,
@@ -56,6 +61,7 @@ impl RemoteOp {
             | Self::Patch { grant, .. }
             | Self::Template { grant, .. }
             | Self::TemplateUndo { grant, .. }
+            | Self::History { grant, .. }
             | Self::Commit { grant } => Some(grant),
             Self::CommitLive | Self::SetRole { .. } | Self::Close => None,
         }
@@ -133,6 +139,10 @@ impl Rooms {
                 self.template_undo_at(&need_host()?, &grant, &origin, false)
                     .await?,
             ),
+            RemoteOp::History { grant, history } => {
+                self.history_at(&need_host()?, &grant, history, false)
+                    .await?
+            }
             RemoteOp::Commit { grant } => {
                 json!(self.commit_at(&need_host()?, &grant, false).await?)
             }

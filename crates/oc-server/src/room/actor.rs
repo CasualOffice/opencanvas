@@ -23,7 +23,7 @@ use super::{
     Rooms, filter, presence, protocol,
 };
 use crate::grant::{Grant, Role};
-use crate::host_client::{Fetched, HostError, PutOutcome, PutRequest};
+use crate::host_client::{Fetched, HostError, PutOutcome, PutRequest, SaveMeta};
 use crate::hosts::{ConflictPolicy, HostConfig};
 use crate::metrics::Metrics;
 use crate::people;
@@ -69,15 +69,18 @@ struct Pending {
     if_match: Option<String>,
     authors: Vec<String>,
     token: String,
+    meta: SaveMeta,
 }
 
 impl From<OutboxRow> for Pending {
     fn from(r: OutboxRow) -> Self {
+        let meta = SaveMeta::from_ocanvas(&r.payload);
         Self {
             id: r.id,
             seq: r.seq,
             body: Arc::new(r.payload),
             if_match: r.base_version,
+            meta,
             authors: r.authors,
             token: r.token,
         }
@@ -132,6 +135,15 @@ struct Room {
     seq: i64,
     compacted_seq: i64,
     last_compact: Instant,
+    /// When the last checkpoint save started (docs/30 §4: a save is a checkpoint again after
+    /// `checkpoint_every` of editing).
+    last_checkpoint: Instant,
+    /// What the next commit is, when someone asked for more than an autosave (VH-01b).
+    next_meta: Option<SaveMeta>,
+    /// In-file history (ADR-055) while the room is open; `None` until known.
+    file_hist: Option<FileHist>,
+    /// VH-01b: restore origins and until when their author may undo them.
+    restore_until: HashMap<String, Instant>,
     /// Upper bound of the encoded doc size (exact after load and compaction).
     doc_bytes: usize,
     save: SaveState,
@@ -318,8 +330,58 @@ enum End {
     Shutdown(bool, tokio::sync::oneshot::Sender<()>),
 }
 
-/// Builds a doc from what the host's `GET /files/{id}` returned.
-fn doc_from_host(room: &str, fetched: Fetched) -> anyhow::Result<(Doc, Option<String>)> {
+/// In-file history (ADR-055) as the room keeps it between saves: the kept versions and the
+/// previous save's content, which becomes a version when it was a checkpoint.
+#[derive(Clone)]
+struct FileHist {
+    history: oc_model::history::FileHistory,
+    prev: Value,
+    prev_meta: oc_model::history::VersionMeta,
+    keep_prev: bool,
+}
+
+impl FileHist {
+    /// Starts from what the host's file holds (or a new canvas).
+    fn from_file(doc: &Doc, loaded: Option<(oc_model::history::FileHistory, Value)>) -> Self {
+        let prev = oc_model::doc_to_json(doc);
+        match loaded {
+            // The state a room loads is always kept once something newer is saved.
+            Some((history, manifest)) => Self {
+                history,
+                prev,
+                prev_meta: oc_model::history::VersionMeta::from_manifest(&manifest),
+                keep_prev: true,
+            },
+            None => Self {
+                history: Default::default(),
+                prev,
+                prev_meta: Default::default(),
+                keep_prev: false,
+            },
+        }
+    }
+}
+
+/// Builds a doc from what the host's `GET /files/{id}` returned, with the file's in-file
+/// history (ADR-055).
+fn loaded_from_host(
+    room: &str,
+    fetched: Fetched,
+) -> anyhow::Result<(Doc, Option<String>, FileHist)> {
+    if let Fetched::Found { bytes, etag, .. } = &fetched
+        && !bytes.starts_with(crate::hosts::TEMPLATE_JSON_TAG)
+        && oc_model::ocanvas::is_zip(bytes)
+    {
+        let loaded = oc_model::read_ocanvas(bytes)?;
+        let hist = FileHist::from_file(&loaded.doc, Some((loaded.history, loaded.manifest)));
+        return Ok((loaded.doc, etag.clone(), hist));
+    }
+    let (doc, etag) = doc_from_host_inner(room, fetched)?;
+    let hist = FileHist::from_file(&doc, None);
+    Ok((doc, etag, hist))
+}
+
+fn doc_from_host_inner(room: &str, fetched: Fetched) -> anyhow::Result<(Doc, Option<String>)> {
     match fetched {
         Fetched::Missing => Ok((oc_model::new_doc(), None)),
         Fetched::Found {
@@ -371,6 +433,8 @@ impl Room {
         let mut host_version = seed.file.version.clone();
         let mut dirty_since = None;
         let mut seq = 0;
+        // ADR-055: unknown (None) after a WAL recovery; read back from the host before a save.
+        let mut file_hist: Option<FileHist> = None;
         let wal = match &row {
             Some(r) if r.dirty => Some(ctx.store.load_wal(&id).await?).filter(|w| !w.is_empty()),
             _ => None,
@@ -388,9 +452,12 @@ impl Room {
             tracing::info!(room = %id, seq, "recovered unsaved room state from WAL");
         } else if let Some(p) = &outbox {
             // No WAL, but a commit never reached the host: its payload is the latest state.
-            doc = oc_model::read_ocanvas(&p.payload)
-                .context("outbox payload")?
-                .doc;
+            let loaded = oc_model::read_ocanvas(&p.payload).context("outbox payload")?;
+            file_hist = Some(FileHist::from_file(
+                &loaded.doc,
+                Some((loaded.history, loaded.manifest)),
+            ));
+            doc = loaded.doc;
             seq = p.seq;
             host_version = p.base_version.clone();
             dirty_since = Some(Instant::now());
@@ -423,7 +490,8 @@ impl Room {
                     .get_file(&host, &seed.callback_token, &seed.file.id)
                     .await?
             };
-            let (loaded, etag) = doc_from_host(&id, fetched)?;
+            let (loaded, etag, hist) = loaded_from_host(&id, fetched)?;
+            file_hist = Some(hist);
             doc = loaded;
             host_version = etag.or(host_version);
             ctx.store
@@ -482,6 +550,10 @@ impl Room {
             seq,
             compacted_seq: seq,
             last_compact: Instant::now(),
+            last_checkpoint: Instant::now(),
+            next_meta: None,
+            file_hist,
+            restore_until: HashMap::new(),
             save: SaveState {
                 pending,
                 ..SaveState::default()
@@ -568,6 +640,7 @@ impl Room {
             } => {
                 let _ = reply.send(self.template(&doc, &origin, &author).await);
             }
+            Cmd::History { op, author, reply } => self.history(op, &author, reply).await,
             Cmd::TemplateUndo { origin, reply } => {
                 let r = if self.conflict.is_some() {
                     Err(PatchFailure::Conflict)
@@ -1369,6 +1442,145 @@ impl Room {
         })
     }
 
+    /// Version history writes (VH-01b, docs/30 §4-5).
+    async fn history(
+        &mut self,
+        op: super::HistoryOp,
+        author: &str,
+        reply: tokio::sync::oneshot::Sender<Value>,
+    ) {
+        use oc_model::ocanvas::CommitKind;
+        if self.ephemeral {
+            let _ = reply.send(json!({"error": "HISTORY_OFF"}));
+            return;
+        }
+        if self.conflict.is_some() {
+            let _ = reply.send(json!({"error": "CONFLICT"}));
+            return;
+        }
+        match op {
+            super::HistoryOp::Save { name } => {
+                // "Save first" before a restore: only when there is something to save.
+                if name.is_none() && self.dirty_since.is_none() && !self.save.in_flight {
+                    let _ = reply.send(json!({"version": self.host_version}));
+                    return;
+                }
+                let meta = SaveMeta {
+                    kind: if name.is_some() {
+                        CommitKind::Named
+                    } else {
+                        CommitKind::Auto
+                    },
+                    message: name,
+                    restored_from: None,
+                    checkpoint: true,
+                };
+                self.commit_with(meta, reply, json!({}));
+            }
+            super::HistoryOp::Restore {
+                target,
+                from,
+                name,
+                restore_id,
+                by_name,
+            } => {
+                let update = match oc_model::restore::restore_update(&self.doc, &target) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        tracing::warn!(room = %self.id, error = %e, "restore could not be computed");
+                        let _ = reply.send(json!({"error": "VERSION_INVALID"}));
+                        return;
+                    }
+                };
+                let origin = format!("restore:{restore_id}:{author}");
+                // Only the latest restore per person stays undoable.
+                let mine = format!(":{author}");
+                self.ai_undo
+                    .retain(|o, _| !(o.starts_with("restore:") && o.ends_with(&mine)));
+                self.restore_until
+                    .retain(|o, _| !(o.starts_with("restore:") && o.ends_with(&mine)));
+                self.ai_track(&origin);
+                let changed = match self.apply_server_update(update, &origin, author).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        self.ai_undo.remove(&origin);
+                        let code = match e {
+                            PatchFailure::TooLarge => "DOC_TOO_LARGE",
+                            PatchFailure::Conflict => "CONFLICT",
+                            PatchFailure::Unavailable => "UNAVAILABLE",
+                            PatchFailure::Invalid(_) => "VERSION_INVALID",
+                        };
+                        let _ = reply.send(json!({"error": code}));
+                        return;
+                    }
+                };
+                self.restore_until
+                    .insert(origin, Instant::now() + self.ctx.cfg.restore_undo_window);
+                tracing::info!(room = %self.id, changed, "version restored");
+                let ctl = json!({"t": "restored", "by": author, "byName": by_name, "from": from,
+                    "name": name, "at": now_ms(), "restoreId": restore_id});
+                self.broadcast(protocol::control(&ctl), None);
+                let meta = SaveMeta {
+                    kind: CommitKind::Restore,
+                    message: Some(name),
+                    restored_from: Some(from),
+                    checkpoint: true,
+                };
+                self.commit_with(
+                    meta,
+                    reply,
+                    json!({"changed": changed, "restoreId": restore_id}),
+                );
+            }
+            super::HistoryOp::Undo { restore_id } => {
+                let origin = format!("restore:{restore_id}:{author}");
+                let r = match self.restore_until.remove(&origin) {
+                    Some(t) if Instant::now() <= t && self.ai_undo.contains_key(&origin) => {
+                        match self.ai_undo(&origin).await {
+                            Ok(()) => json!({"undone": true}),
+                            Err(_) => json!({"error": "UNAVAILABLE"}),
+                        }
+                    }
+                    Some(_) => {
+                        self.ai_undo.remove(&origin);
+                        json!({"error": "UNDO_EXPIRED"})
+                    }
+                    None => json!({"error": "NOTHING_TO_UNDO"}),
+                };
+                let _ = reply.send(r);
+            }
+        }
+    }
+
+    /// Saves now with `meta` (also when nothing changed: a named version still reaches the
+    /// host, docs/30 §10 decision 3) and answers `extra` plus `version` once the host has it.
+    fn commit_with(
+        &mut self,
+        meta: SaveMeta,
+        reply: tokio::sync::oneshot::Sender<Value>,
+        extra: Value,
+    ) {
+        self.next_meta = Some(meta);
+        if self.dirty_since.is_none() {
+            self.dirty_since = Some(Instant::now());
+        }
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.commit_waiters.push((self.seq, tx));
+        self.force_save();
+        tokio::spawn(async move {
+            let mut out = extra;
+            match rx.await {
+                Ok(CommitResult::Saved { version } | CommitResult::Clean { version }) => {
+                    out["version"] = json!(version);
+                }
+                Ok(CommitResult::Queued { .. }) => out["queued"] = json!(true),
+                Ok(CommitResult::Conflict) => out["error"] = json!("CONFLICT"),
+                Err(_) => out["error"] = json!("UNAVAILABLE"),
+            }
+            let _ = reply.send(out);
+        });
+    }
+
     /// Team template (TPL-01): replaces the content with `doc` as one transaction with
     /// `origin` (`template:<user>:<applyId>`), tracked for undo. Only the latest template per
     /// user stays undoable.
@@ -1706,11 +1918,67 @@ impl Room {
         self.last_compact = Instant::now();
     }
 
+    /// ADR-055: moves in-file history forward to the state about to be saved and returns it.
+    /// After a WAL recovery the history is first read back from the host's file (one load);
+    /// when that fails the room starts a new history rather than block the save.
+    async fn advance_file_history(
+        &mut self,
+        commit: &oc_model::CommitInfo,
+        meta: &SaveMeta,
+        limits: crate::hosts::FileHistoryLimits,
+    ) -> oc_model::history::FileHistory {
+        let cur = oc_model::doc_to_json(&self.doc);
+        if self.file_hist.is_none() {
+            let token = self
+                .save_tokens(None)
+                .into_iter()
+                .next()
+                .unwrap_or_default();
+            let read = self
+                .ctx
+                .host
+                .get_file(&self.host, &token, &self.file_id)
+                .await
+                .map_err(anyhow::Error::from)
+                .and_then(|f| loaded_from_host(&self.id, f));
+            self.file_hist = Some(match read {
+                Ok((_, _, h)) => h,
+                Err(e) => {
+                    tracing::warn!(room = %self.id, error = %e, "in-file history not recovered; starting a new one");
+                    FileHist::from_file(&self.doc, None)
+                }
+            });
+        }
+        let fh = self.file_hist.as_mut().expect("set above");
+        fh.history.advance(
+            &fh.prev,
+            &fh.prev_meta,
+            fh.keep_prev,
+            &cur,
+            oc_model::history::Limits {
+                max_bytes: limits.max_bytes,
+                max_versions: limits.max_versions,
+            },
+        );
+        fh.prev = cur;
+        fh.prev_meta = oc_model::history::VersionMeta {
+            id: commit.id.clone(),
+            kind: commit.kind,
+            name: commit.message.clone(),
+            authors: commit.authors.clone(),
+            at: commit.at.clone(),
+            restored_from: commit.restored_from.clone(),
+        };
+        fh.keep_prev = meta.checkpoint;
+        fh.history.clone()
+    }
+
     /// The commit to send: the pending outbox row when it still matches the doc, else a new
     /// one, written to `commit_outbox` before anything goes to the host.
     async fn prepare_save(&mut self) -> Result<Pending, String> {
         if let Some(p) = &self.save.pending
             && p.seq == self.seq
+            && self.next_meta.is_none()
         {
             if !self.revoked_tokens.contains(&p.token) {
                 return Ok(p.clone());
@@ -1724,12 +1992,32 @@ impl Room {
         }
         let id = ulid::Ulid::new().to_string();
         let authors: Vec<String> = self.contributors.iter().cloned().collect();
+        let mut meta = self.next_meta.take().unwrap_or_default();
+        // docs/30 §4: the last save of a room, the first after `checkpoint_every` of editing,
+        // and every named or restore save are checkpoints.
+        meta.checkpoint = meta.checkpoint
+            || meta.kind != oc_model::ocanvas::CommitKind::Auto
+            || self.peers.is_empty()
+            || self.last_checkpoint.elapsed() >= self.ctx.cfg.checkpoint_every;
+        if meta.checkpoint {
+            self.last_checkpoint = Instant::now();
+        }
         let commit = oc_model::CommitInfo {
             id: id.clone(),
             authors: authors.clone(),
             at: rfc3339(now_ms()),
+            kind: meta.kind,
+            message: meta.message.clone(),
+            restored_from: meta.restored_from.clone(),
         };
-        let body = oc_model::write_ocanvas(&self.doc, &commit).map_err(|e| e.to_string())?;
+        let body = match self.host.file_history() {
+            Some(limits) => {
+                let fh = self.advance_file_history(&commit, &meta, limits).await;
+                oc_model::ocanvas::write_ocanvas_with(&self.doc, &commit, Some(&fh))
+            }
+            None => oc_model::write_ocanvas(&self.doc, &commit),
+        }
+        .map_err(|e| e.to_string())?;
         let row = OutboxRow {
             id: id.clone(),
             room_id: self.id.clone(),
@@ -1760,7 +2048,8 @@ impl Room {
             }
             return Err(format!("writing the commit outbox failed: {e}"));
         }
-        let pending = Pending::from(row);
+        let mut pending = Pending::from(row);
+        pending.meta = meta;
         self.save.pending = Some(pending.clone());
         Ok(pending)
     }
@@ -1813,6 +2102,7 @@ impl Room {
             key: p.id.clone(),
             authors: p.authors.clone(),
             body: p.body.clone(),
+            meta: p.meta.clone(),
         }
     }
 
@@ -1917,6 +2207,7 @@ impl Room {
                     id: key.clone(),
                     authors: self.contributors.iter().cloned().collect(),
                     at: rfc3339(now_ms()),
+                    ..Default::default()
                 };
                 match oc_model::write_ocanvas(&self.doc, &commit) {
                     Ok(b) => Some(b),
@@ -1988,8 +2279,11 @@ impl Room {
                 );
             }
             ConflictOutcome::Reloaded(fetched) => {
-                let (doc, etag) = match doc_from_host(&self.id, fetched) {
-                    Ok(v) => v,
+                let (doc, etag) = match loaded_from_host(&self.id, fetched) {
+                    Ok((d, e, h)) => {
+                        self.file_hist = Some(h);
+                        (d, e)
+                    }
                     Err(e) => {
                         let delay = backoff(c.attempt);
                         c.attempt += 1;
@@ -2155,6 +2449,7 @@ struct PutPayload {
     key: String,
     authors: Vec<String>,
     body: Arc<Vec<u8>>,
+    meta: SaveMeta,
 }
 
 impl PutPayload {
@@ -2167,6 +2462,7 @@ impl PutPayload {
                 if_match: self.if_match.as_deref(),
                 idempotency_key: &self.key,
                 authors: &self.authors,
+                meta: &self.meta,
             };
             match ctx.host.put_file(&self.host, token, req).await {
                 Err(HostError::Status(s))
