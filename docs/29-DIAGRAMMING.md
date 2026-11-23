@@ -434,7 +434,7 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
 
 
 
-### 8.3 Properties panel, something selected (S4, DGM-14.4)
+### 8.4 Properties panel, something selected (S4, DGM-14.4)
 
 Code: `diagram/props/` (`Properties.tsx`, `fields.ts`, `styles.ts`), in the lazy diagram chunk. The
 shell shows it in the right panel whenever the selection is not empty; with nothing selected the
@@ -474,3 +474,41 @@ renderer work; the panel writes the fields.
   tile. Arrow keys move between tiles. No results: one plain message and Clear search.
 - Still to come (step 2): ERD, Recent, the collapsed rail, BPMN behind an admin flag, the Icons
   library slot (DGM-17), relations as connector presets.
+
+### 8.8 Shapes this app can't draw (S8, DGM-14.4)
+
+Code: `diagram/Placeholder.tsx`. `unknownOf(shape)` says why a shape can't be drawn as itself:
+
+- **Missing library** (8a): a registered-looking kind whose namespace isn't installed and isn't one of
+  the bundled libraries (`core`, `diagram`, `uml`, `erd`, `net`, `flow`, `bpmn`, `general`; those draw
+  through their own panels even before their kinds are registered). Drawn by the normal renderer
+  as its base `type`, with a puzzle marker on the top-right corner (`KindMarks`, one layer after the
+  shapes; no hit area).
+- **Unknown type** (8b): a `type` that isn't one of the nine. `ShapeView` used to draw nothing; it now
+  draws `UnknownShape`: a hatched, dashed box with a puzzle icon, its own first line of text and
+  "Unknown shape". It keeps `data-s`, so it is selected, moved, resized, connected and deleted like a
+  box (bbox from `x/y/w/h`).
+- Panel: "From a library you don’t have" / "Unknown shape", one paragraph, Name, Position and size,
+  "Kept as it is (read only)" (kind and version and each `props` key, or the type, the number of kept
+  fields and each one), and **Copy details** (the shape as JSON, for a support question). Writers set
+  only the keys they change, so every kept field survives (tested by moving an unknown shape).
+
+### 8.9 Size budget (S9, DGM-14.4)
+
+Code: `diagram/Budget.tsx` (`measureBoard`, `useBudget`). A board may use 25 % of `max_doc_bytes`.
+**The session does not carry `max_doc_bytes` today** (server config `OC_MAX_DOC_MB`); the shell takes
+an optional `maxDocBytes` prop and otherwise uses the server default, 20 MB (5 MB per board). Passing
+the real limit needs a session field (server change), not done here.
+
+- Measuring: the board's content (`boards/<id>` as JSON) encoded as one Yjs update in a scratch doc,
+  so history and other boards don't count; re-measured 600 ms after edits settle. Parts (shapes,
+  connectors, text and properties, images) are each part's share of the board's JSON, scaled to the
+  encoded size. The whole document's size is its current state (`encodeStateAsUpdate`), no undo
+  history.
+- From 80 %: an amber banner under the top bar (`role="status"`, dismissible for this session) and an
+  amber chip in the top bar. Over 100 %: a red banner (`role="alert"`, not dismissible) and a red chip.
+  A soft limit: nothing is blocked; only the document limit stops saving.
+- The diagram's settings get a Size section (a meter with `role="meter"`, shapes and connectors).
+- "What uses space" (from the banner, the chip or the Size section): totals by part, the largest
+  containers (rectangles with a label, counting the shapes inside) and images with Select, and the
+  whole document's size.

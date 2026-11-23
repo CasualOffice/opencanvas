@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-// Properties panel styles (DGM-14 S4). Tokens only; rem for UI (ADR-050).
+// Properties panel styles (DGM-14 S4, S8). Tokens only; rem for UI (ADR-050).
+import { PLACEHOLDER_CSS } from "../Placeholder";
 export const PROPS_CSS = `
 .ocpp-h{display:flex;flex-direction:column;gap:.125rem}
 .ocpp-kind{font-size:.6875rem;font-weight:500;color:var(--fg-2)}
@@ -34,6 +35,7 @@ export const PROPS_CSS = `
 .ocpp-ends dt{color:var(--fg-2)}
 .ocpp-ends dd{margin:0}
 .ocpp .ocdg-seg{margin-bottom:.5rem}
+.ocpp-xywh{display:grid;grid-template-columns:1fr 1fr;gap:0 .5rem}
 .ocpp .ocdg-sw:disabled{cursor:default;opacity:.8}
 `;
 
@@ -44,6 +46,6 @@ export function ensurePropsStyles() {
   if (document.querySelector("style[data-ocpp]")) return;
   const s = document.createElement("style");
   s.setAttribute("data-ocpp", "");
-  s.textContent = PROPS_CSS;
+  s.textContent = PROPS_CSS + PLACEHOLDER_CSS;
   document.head.appendChild(s);
 }
