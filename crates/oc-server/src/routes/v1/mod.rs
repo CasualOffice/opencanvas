@@ -14,7 +14,9 @@
 //! kept as aliases with their old answers and error shape, plus `Deprecation` and a
 //! `Link: rel="successor-version"` to the v1 operation (docs/27 §9, decision 8).
 
+pub mod cursor;
 pub mod idempotency;
+pub mod limits;
 pub mod problem;
 
 use axum::Json;
@@ -173,9 +175,10 @@ pub fn router(state: SharedState, body_limit: usize) -> Router<SharedState> {
         .route("/api/v1/{*rest}", axum::routing::any(not_found))
         .layer(DefaultBodyLimit::max(limit))
         .layer(axum::middleware::from_fn_with_state(
-            (state, limit),
+            (state.clone(), limit),
             idempotency::layer,
         ))
+        .layer(axum::middleware::from_fn_with_state(state, limits::layer))
         .layer(axum::middleware::from_fn(problem::ensure_problem));
     let old = aliases()
         .router
@@ -372,23 +375,57 @@ async fn list_blocks(
     headers: HeaderMap,
 ) -> Answer {
     let p = caller(&state, &headers).await?;
-    let limit = q.limit.unwrap_or(100).clamp(1, 100) as usize;
-    let out = tool(
-        &state,
-        &p,
-        &file_id,
-        "canvas_read",
-        json!({"format": "json"}),
-    )
-    .await?;
-    let all = out["blocks"].as_array().cloned().unwrap_or_default();
-    let has_more = all.len() > limit;
-    let blocks: Vec<Value> = all.into_iter().take(limit).collect();
+    check_file(&file_id)?;
+    let limit = q.limit.unwrap_or(100).clamp(1, 100);
+    let qh = cursor::query_hash(&[]);
+    let now = state.clock.now_secs();
+    let mut input = json!({"fileId": file_id, "limit": limit});
+    if let Some(c) = &q.cursor {
+        input["after"] = cursor::open(&p.host, c, "blocks", &file_id, &qh, now)?;
+    }
+    p.scope_ok(crate::ai::tools::Scope::Read, "listBlocks")?;
+    let ctx = p.tool_ctx(&state, &file_id).await?;
+    let out = LiveTools::new(state.clone())
+        .blocks_page(&ctx, input)
+        .await?;
+    let out = out.get("data").cloned().unwrap_or(out);
+    let next = out["next"]
+        .as_str()
+        .map(|pos| cursor::sign(&p.host, "blocks", &file_id, &qh, json!(pos), now));
     let rev = out["rev"].as_str().map(str::to_string);
-    Ok(with_etag(
-        json!({"blocks": blocks, "rev": rev, "has_more": has_more, "next_cursor": Value::Null}),
+    let mut res = with_etag(
+        json!({"blocks": out["blocks"], "rev": rev, "has_more": next.is_some(), "next_cursor": next}),
         rev.as_deref(),
-    ))
+    );
+    if let Some(n) = &next {
+        next_link(
+            &mut res,
+            &format!("/api/v1/files/{}/blocks", urlencode(&file_id)),
+            n,
+            limit,
+        );
+    }
+    Ok(res)
+}
+
+fn urlencode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// `Link: <path?cursor=…&limit=…>; rel="next"` (as Confluence v2; docs/27 §4.2).
+fn next_link(res: &mut Response, path: &str, cursor: &str, limit: u64) {
+    if let Ok(v) = HeaderValue::from_str(&format!(
+        "<{path}?cursor={cursor}&limit={limit}>; rel=\"next\""
+    )) {
+        res.headers_mut().insert(header::LINK, v);
+    }
 }
 
 async fn get_block(
@@ -501,13 +538,49 @@ async fn query_rows(
     if let Some(f) = csv_list(&q.fields) {
         input["fields"] = json!(f);
     }
-    if let Some(l) = q.limit {
-        input["limit"] = json!(l.clamp(1, 200));
+    let limit = q.limit.unwrap_or(50).clamp(1, 200);
+    input["limit"] = json!(limit);
+    // The cursor holds the last row and its offset, bound to this database, filter and sort.
+    let qh = cursor::query_hash(&[
+        &db_id,
+        q.filter.as_deref().unwrap_or(""),
+        q.sort.as_deref().unwrap_or(""),
+        q.fields.as_deref().unwrap_or(""),
+    ]);
+    let now = state.clock.now_secs();
+    if let Some(c) = &q.cursor {
+        let pos = cursor::open(&p.host, c, "rows", &file_id, &qh, now)?;
+        input["afterRow"] = pos["after"].clone();
+        input["cursor"] = pos["o"].clone();
     }
-    if let Some(c) = q.cursor {
-        input["cursor"] = json!(c);
+    let mut out = tool(&state, &p, &file_id, "db_query", input).await?;
+    let next = match (out["lastRow"].as_str(), out["next"].as_str()) {
+        (Some(last), Some(o)) => Some(cursor::sign(
+            &p.host,
+            "rows",
+            &file_id,
+            &qh,
+            json!({"after": last, "o": o}),
+            now,
+        )),
+        _ => None,
+    };
+    if let Some(o) = out.as_object_mut() {
+        o.remove("next");
+        o.remove("lastRow");
+        o.insert("has_more".into(), json!(next.is_some()));
+        o.insert("next_cursor".into(), json!(next));
     }
-    Ok(Json(tool(&state, &p, &file_id, "db_query", input).await?).into_response())
+    let mut res = Json(out).into_response();
+    if let Some(n) = &next {
+        let path = format!(
+            "/api/v1/files/{}/databases/{}/rows",
+            urlencode(&file_id),
+            urlencode(&db_id)
+        );
+        next_link(&mut res, &path, n, limit);
+    }
+    Ok(res)
 }
 
 async fn write_op(

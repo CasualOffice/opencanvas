@@ -6,17 +6,12 @@
 //! RFC 9728 protected-resource metadata per host, `canvas:*` scopes intersected with the
 //! user's host role.
 
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
-use std::time::Instant;
-
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 
 use crate::SharedState;
 use crate::ai::HostAi;
@@ -124,27 +119,6 @@ fn unauthorized(base: &str, host_id: &str, error: Option<&str>) -> Response {
     res
 }
 
-/// Token bucket per token hash: `rate` per minute, burst 2×.
-static BUCKETS: LazyLock<Mutex<HashMap<String, (f64, Instant)>>> = LazyLock::new(Mutex::default);
-
-fn rate_ok(key: &str, rate: u32) -> bool {
-    let mut b = BUCKETS.lock().expect("mcp buckets");
-    if b.len() > 50_000 {
-        b.retain(|_, (_, at)| at.elapsed().as_secs() < 120);
-    }
-    let burst = f64::from(rate) * 2.0;
-    let now = Instant::now();
-    let (tokens, at) = b.entry(key.to_string()).or_insert((burst, now));
-    *tokens = (*tokens + now.duration_since(*at).as_secs_f64() * f64::from(rate) / 60.0).min(burst);
-    *at = now;
-    if *tokens >= 1.0 {
-        *tokens -= 1.0;
-        true
-    } else {
-        false
-    }
-}
-
 fn rpc_result(id: &Value, result: Value) -> Response {
     Json(json!({"jsonrpc": "2.0", "id": id, "result": result})).into_response()
 }
@@ -241,12 +215,20 @@ pub async fn mcp(
         }
         return res;
     };
-    let token_key = hex::encode(Sha256::digest(token.as_bytes()));
-    if !rate_ok(&token_key, ai.mcp_rate_per_min()) {
+    // The same bucket as the caller's headless API calls (HAPI-04).
+    let limit = state
+        .limiter
+        .check(
+            &super::v1::limits::subject_key(&caller),
+            crate::ratelimit::subject_policy(&host),
+        )
+        .await;
+    if !limit.ok {
+        let wait = limit.retry_after.to_string();
         return (
             StatusCode::TOO_MANY_REQUESTS,
-            [(header::RETRY_AFTER, "1")],
-            Json(json!({"error": "RATE_LIMITED", "retryAfterMs": 1000})),
+            [(header::RETRY_AFTER, wait.as_str())],
+            Json(json!({"error": "RATE_LIMITED", "retryAfterMs": limit.retry_after * 1000})),
         )
             .into_response();
     }

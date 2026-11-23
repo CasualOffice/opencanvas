@@ -487,6 +487,15 @@ if any lacks a matching operation.
   Running claims hold a 60 s lease (a crashed node frees the key), answers are kept 24 h; only
   2xx write answers are stored (ids, counts, revisions; never content), failures free the key.
   `crate::clock::Clock` (pinnable) drives expiry so tests never sleep; HAPI-04 reuses it.
+- **HAPI-04 (2026-11-24, Review).** Signed cursors (`routes/v1/cursor.rs`: payload + HMAC with
+  the host's signing secret, bound to kind, file and query hash, 1 h). Block pages run as an
+  internal tool step (`blocks_page`, cluster-forwarded like any tool) that encodes a yrs
+  `StickyIndex` (`Assoc::Before`) after the last block returned; rows resume after the last
+  row id (offset as fallback). `crate::ratelimit::Limiter`: token buckets on the server clock,
+  in Redis (Lua bucket) when the store has a Redis connection, else in process; subject and
+  per-file-write policies from `[host.api]`; `RateLimit-Policy` / `RateLimit` headers on every
+  v1 answer, `429` with `Retry-After`. MCP's own per-token bucket is gone: it takes from the
+  subject bucket the API uses.
 
 ---
 

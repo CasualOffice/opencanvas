@@ -308,7 +308,7 @@ pub fn db_query(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
         .ok_or_else(|| ToolError::BadInput("dbId is required".into()))?;
     let db = database(&d, db_id)?;
     let limit = usize_in(input, "limit", 50, 200);
-    let offset: usize = input["cursor"]
+    let mut offset: usize = input["cursor"]
         .as_str()
         .and_then(|c| c.parse().ok())
         .unwrap_or(0);
@@ -346,6 +346,13 @@ pub fn db_query(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
             if desc { o.reverse() } else { o }
         });
     }
+    // API cursors (HAPI-04) resume after the last row returned, so rows inserted or deleted
+    // before it do not shift the page; a deleted anchor falls back to its old position.
+    if let Some(after) = input["afterRow"].as_str()
+        && let Some(i) = ids.iter().position(|id| id == after)
+    {
+        offset = i + 1;
+    }
     let fields: Option<Vec<String>> = match input["fields"].as_array() {
         Some(a) => Some(
             a.iter()
@@ -370,6 +377,7 @@ pub fn db_query(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
     let mut out = json!({"rows": page});
     if offset + limit < ids.len() {
         out["next"] = json!((offset + limit).to_string());
+        out["lastRow"] = json!(ids[offset + limit - 1]);
     }
     Ok(wrap(out))
 }
@@ -433,4 +441,52 @@ pub fn comment_list(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
         })
         .unwrap_or_default();
     Ok(wrap(json!({"threads": threads})))
+}
+
+/// One page of top-level blocks for `GET /api/v1/files/{id}/blocks` (HAPI-04). `after` is a
+/// Yjs sticky index (v1 encoding, base64url) bound to the end of the last block of the previous
+/// page, so the next page starts right after that block however many blocks were inserted or
+/// deleted before it; a deleted anchor resolves to where it was, i.e. its successor. Answers
+/// the blocks and, when more follow, the sticky index after the last one as `next`.
+pub fn blocks_page(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
+    use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use yrs::updates::decoder::Decode;
+    use yrs::updates::encoder::Encode;
+    use yrs::{Assoc, IndexedSequence, StickyIndex, Transact, XmlFragment};
+
+    let limit = usize_in(input, "limit", 100, 100);
+    let d = doc_json(doc);
+    let blocks = d["content"].as_array().cloned().unwrap_or_default();
+    let fragment = doc.get_or_insert_xml_fragment("content");
+    let txn = doc.transact();
+    // Sticky positions count Yjs children; the JSON has one node per child element.
+    if fragment.len(&txn) as usize != blocks.len() {
+        return Err(ToolError::Internal("block index mismatch".into()));
+    }
+    let start = match input["after"].as_str() {
+        None => 0,
+        Some(a) => {
+            let bytes = URL_SAFE_NO_PAD
+                .decode(a)
+                .map_err(|_| ToolError::BadInput("CURSOR_INVALID: bad position".into()))?;
+            let pos = StickyIndex::decode_v1(&bytes)
+                .map_err(|_| ToolError::BadInput("CURSOR_INVALID: bad position".into()))?;
+            pos.get_offset(&txn)
+                .map_or(blocks.len(), |o| o.index as usize)
+        }
+    }
+    .min(blocks.len());
+    let end = (start + limit).min(blocks.len());
+    let page: Vec<Value> = blocks[start..end]
+        .iter()
+        .map(|b| json!({"blockId": block_id(b), "rev": rev(b), "node": b}))
+        .collect();
+    let next = (end < blocks.len())
+        .then(|| fragment.sticky_index(&txn, end as u32, Assoc::Before))
+        .flatten()
+        .map(|p| URL_SAFE_NO_PAD.encode(p.encode_v1()));
+    Ok(wrap(
+        json!({"blocks": page, "rev": rev(&d["content"]), "next": next}),
+    ))
 }
