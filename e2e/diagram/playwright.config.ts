@@ -19,5 +19,10 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 5_000 },
   reporter: "list",
-  use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 }, trace: "retain-on-failure" },
+  use: { trace: "retain-on-failure" },
+  projects: [
+    { name: "desktop", testIgnore: /\.phone\.spec\.ts$/, use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } } },
+    // S11: a 390 px phone (Chromium with touch, so it runs next to the desktop project without WebKit).
+    { name: "phone", testMatch: /\.phone\.spec\.ts$/, use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true } },
+  ],
 });

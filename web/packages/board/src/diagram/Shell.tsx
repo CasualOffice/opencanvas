@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import * as Y from "yjs";
 import { ArrowLeft, Command as CmdIcon, Ellipsis, ListTree, Redo2, Undo2 } from "lucide-react";
 import { Commands, ConnectHint, Outline, Shortcuts, useDiagramKeys, type DiagramCanvas } from "./A11y";
+import { Phone, usePhone, type PhoneSheet } from "./phone/Phone";
 import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
 import type { DiagramPrefs } from "../BoardBlock";
@@ -137,6 +138,9 @@ export default function DiagramShell(p: DiagramShellProps) {
   // S5: outline, commands, shortcuts and the keyboard connector; announcements go to the live region.
   const [outline, setOutline] = useState(false);
   const [said, say] = useState("");
+  // S11: on a phone the window gets a bottom bar and sheets instead of side panels.
+  const phone = usePhone() && !!p.canvas;
+  const [psheet, setPsheet] = useState<PhoneSheet>(null);
   const cv = p.canvas;
   const connectorStyle = () => (p.prefs.connector === "straight" ? {} : p.prefs.connector === "avoid" ? { route: "elbow" as const, routing: "avoid" as const } : { route: "elbow" as const });
   const keys = useDiagramKeys({ doc, boardId, canvas: cv, edit, origin: p.origin, connectorStyle, onSay: say, onOutline: () => setOutline((v) => !v) });
@@ -145,7 +149,7 @@ export default function DiagramShell(p: DiagramShellProps) {
   const people = [{ id: -1, name: env.me.name, color: env.me.color }, ...p.peers];
 
   return (
-    <div ref={ref} className="ocdg" role="dialog" aria-modal="true" aria-label={`Diagram: ${shown}`} data-board={boardId} onKeyDownCapture={keys.onKeyDownCapture}>
+    <div ref={ref} className={"ocdg" + (phone ? " ocdg-phone" : "")} role="dialog" aria-modal="true" aria-label={`Diagram: ${shown}`} data-board={boardId} onKeyDownCapture={keys.onKeyDownCapture}>
       <header className="ocdg-top">
         <button type="button" className="ocdg-back" onClick={p.onBack} aria-keyshortcuts="Escape">
           <ArrowLeft size={16} strokeWidth={SW} />
@@ -194,7 +198,7 @@ export default function DiagramShell(p: DiagramShellProps) {
             </button>
           </>
         ) : null}
-        <button type="button" className="ocdg-ib" aria-label="Board options" title="Board options" aria-haspopup="menu" aria-expanded={p.menuOpen} onClick={p.onMenu}>
+        <button type="button" className="ocdg-ib" aria-label="Board options" title="Board options" aria-haspopup="menu" aria-expanded={phone ? psheet === "options" : p.menuOpen} onClick={phone ? () => setPsheet("options") : p.onMenu}>
           <Ellipsis size={16} strokeWidth={SW} />
         </button>
       </header>
@@ -217,6 +221,7 @@ export default function DiagramShell(p: DiagramShellProps) {
           {p.inspector ?? (p.selected?.length ? <Properties doc={doc} boardId={boardId} selected={p.selected} shapes={p.shapes ?? []} edit={edit} origin={p.origin} /> : null) ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} extra={budget.section} />}
         </aside>
       </div>
+      {phone && cv ? <Phone doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} root={() => ref.current} sheet={psheet} setSheet={setPsheet} undo={p.undo} connectorStyle={connectorStyle} onSay={say} /> : null}
       {cv && keys.palette ? <Commands root={ref.current} canvas={cv} edit={edit} onSay={say} onClose={() => keys.setPalette(false)} onOutline={() => setOutline(true)} onShortcuts={() => keys.setSheet(true)} /> : null}
       {budget.dialog}
       {keys.sheet ? <Shortcuts onClose={() => keys.setSheet(false)} /> : null}
