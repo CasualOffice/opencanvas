@@ -9,7 +9,7 @@
 // the model API only (no UI sets it).
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { BlockEnv } from "@opencanvas/ui";
 import { BoardBlock } from "./index";
@@ -210,8 +210,8 @@ describe("AvoidRouter", () => {
     raw = edit(raw, r, { n: 0 });
     router.apply(resolver(raw), 0);
     s.run();
-    await new Promise((res) => setTimeout(res, 50));
-    expect(router.pending.size).toBe(0);
+    // Wait for the background chunks to drain rather than a fixed delay: CI runners are slower.
+    await vi.waitFor(() => expect(router.pending.size).toBe(0), { timeout: 5000, interval: 10 });
     expect(landed).toBeGreaterThan(0);
     expect(pts(router.apply(resolver(raw), 0))).toEqual(pts(fresh(resolver(raw))));
     s.cancel();

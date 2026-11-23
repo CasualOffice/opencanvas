@@ -13,6 +13,9 @@ office documents.
 [Try the demo](https://canvas.casualoffice.org/app/#demo) ·
 [Release notes](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.1) ·
 [Jitsi Meet](integrations/jitsi/README.md) ·
+[Nextcloud](integrations/nextcloud/README.md) ·
+[Mattermost](integrations/mattermost/README.md) ·
+[Element / Matrix](integrations/matrix/README.md) ·
 [Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
 [Documentation](docs/00-README.md)
 
@@ -21,6 +24,14 @@ office documents.
   <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
 </picture>
 
+> **On `main`, not yet released:** integrations for [Nextcloud](integrations/nextcloud/README.md)
+> (a WOPI app: files, versions and shares stay in Nextcloud), [Mattermost](integrations/mattermost/README.md)
+> (a plugin: canvases in channels) and [Element / Matrix](integrations/matrix/README.md) (a room
+> widget), each tested end to end in the real host; the groundwork for structured diagramming
+> ([docs/29](docs/29-DIAGRAMMING.md)): faster large boards, ports, connectors that route around
+> shapes; and a UI that follows the reader's text size (rem units, ADR-050). See the
+> [execution tracker](docs/10-EXECUTION-TRACKER.md) for what is done and what is left.
+>
 > **v0.1.1: Jitsi Meet integration.** Every Jitsi meeting can get a shared, temporary canvas
 > with one Prosody plugin and config ([guide](integrations/jitsi/README.md), [changes](CHANGELOG.md)).
 > Best-effort support with no SLA. Before you deploy, read the 0.1.x
