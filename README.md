@@ -82,7 +82,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
-| Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only. **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
+| Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only; draw.io and Excalidraw diagrams into a board after a dry-run report (DGM-15). **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
 | Assistant and MCP | **Experimental, off by default.** Phase 1, in review: plan → approve → act → review → undo run, suggestions for existing text, limits and audit; MCP endpoint with host-issued tokens; Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp) |
 
 ## Run it

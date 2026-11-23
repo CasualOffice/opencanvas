@@ -111,10 +111,16 @@ async fn import_diagram(
         .import_board(&ctx, input)
         .await
         .map_err(tool_error)?;
-    let block: Vec<Value> = v["blockId"].as_str().map(|b| json!(b)).into_iter().collect();
-    Ok(json!({"format": p.format, "boardId": v["boardId"], "blockIds": block,
+    let block: Vec<Value> = v["blockId"]
+        .as_str()
+        .map(|b| json!(b))
+        .into_iter()
+        .collect();
+    Ok(
+        json!({"format": p.format, "boardId": v["boardId"], "blockIds": block,
         "shapeIds": v["shapeIds"], "shapes": c.report["counts"]["shapes"],
-        "connectors": c.report["counts"]["connectors"], "report": c.report}))
+        "connectors": c.report["counts"]["connectors"], "report": c.report}),
+    )
 }
 
 /// Field types a CSV column may be imported as.

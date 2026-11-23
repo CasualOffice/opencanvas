@@ -139,7 +139,7 @@ drags grows the state, which is why drags stay throttled.
 | Per-board budget warning; per-board diagram mode, stencils, inspector, editor placeholder for unknown types: prototypes first (ADR-011) | 2 (prototypes in progress elsewhere) |
 | O(n) per change left: projection and resolver copy the full list (10k `drag20` 20 ms); scene layer separate from React and level-of-detail for the fit view (10k pan 68 ms) | 3 |
 | `syncBoundArrows` reads the whole board on each commit; use the projection and `EdgeIndex` | 2, done (`syncArrows`, §6.2) |
-| Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid and draw.io import through FC-10 | 3 |
+| Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid import through FC-10 | 3 (draw.io and Excalidraw import: done, §7) |
 | 5k/10k browser stress, multi-client fuzz with diagram fields | 4 |
 
 ## 6. Phase 2 (engine only, built 2026-11-24)
@@ -252,3 +252,82 @@ shuffled obstacle order with no obstacle crossed; 10-seed × 15-edit incremental
 (about half the routes recomputed); deferred results with stale versions dropped; the scheduler; the
 board draws and commits the route (seen failing first: drew `M100 30 L400 30`). Readers without a
 router (0.1.x, both exporters) draw the plain elbow.
+
+## 7. Diagram import: draw.io and Excalidraw (DGM-15, built 2026-11-24)
+
+Owner request 2026-11-24. Through the FC-10 pipeline (`POST /v1/import`, 5 MB `MAX_IMPORT_BYTES`,
+SEC-39, host `import_formats`, `OC_IMPORT=off`): a **dry run** first (`dryRun=1`, the report of
+approved frame 7b), then the import, then "Undo import" (7e). Converter:
+`crates/oc-model/src/diagram_import/` (server only; the editor bundle only gains the dialog
+states). Dependencies: ADR-048 (Proposed). Mermaid (frame 7c) is not built yet.
+
+**Result.** From a document: a new board block after the caret block (or at the end), shapes moved
+so the top left is at (40, 40), relative positions kept. With `boardId`: added to that board, to
+the right of its shapes (80 px gap). Every shape gets a new id; bindings, `group` and
+`props.parent` follow. Each shape keeps `props.source` (`drawio`/`excalidraw`) and
+`props.sourceId` (its id in the file); `props` is the per-field map of ADR-045.
+
+**Report.** Counts (shapes, connectors, need a look = warning items), then one row per kind of
+change, warnings first, with up to three examples by name and "and N more". Codes: `stencil`,
+`shape_box`, `image_large`, `image_svg`, `image_type`, `image_link`, `link`, `embed` (warnings);
+`page_other`, `curved`, `colour`, `dashed`, `stroke_width`, `font`, `text_style`, `rough`,
+`fill_style`, `opacity`, `effects`, `rotation`, `arrowheads`, `nested_groups`, `layers`,
+`pen_thinned`, `unbound`, `data` (approximations); `containers`, `groups`, `elbow`, `lines`,
+`images` (kept). Nothing is dropped without a row (AGENTS.md rule 7).
+
+### 7.1 Support matrix
+
+| Source | Becomes | Kept exactly | Approximated (reported) | Not imported (reported) |
+|---|---|---|---|---|
+| draw.io file structure | `mxfile` → `diagram` → `mxGraphModel`, inline or compressed (base64 → raw deflate → URL-decoding); a bare `mxGraphModel` (`.xml`) | One page per import, chosen in the report | Layers are flattened (paint order kept) | Other pages ("Page 2, “Sequence”, is not imported") |
+| draw.io vertex, default / `rounded` / `process` | `rect` | Position (absolute, through parent groups), size, label, colour family | Fill colour → nearest board tone (`#dae8fc → Blue`) | — |
+| `ellipse`, `doubleEllipse` / `rhombus` | `ellipse` / `diamond` | as above | as above | — |
+| `text` | `text` | Text, font size | — | — |
+| Group (`group`), `swimlane`, `container=1`, any vertex with children | Container: dashed `rect` with the name as `label`; children carry `props.parent` | Membership, position, size | Container fill | — |
+| Vendor stencils `mxgraph.*` (AWS, Azure, Google Cloud, Kubernetes, Cisco, …) | Plain `rect` with the label (or the icon's name), `props.stencil` = the stencil id | Size, position, connections, label | — | The icon itself (never fetched or bundled; icons policy) |
+| Other shapes (`cylinder3`, `hexagon`, `cloud`, `note`, …) | `rect` with `props.shape` | Text, size, connections | Outline shape ("Cylinder: orders-db") | — |
+| Embedded image (`shape=image;image=data:…`) | `image` (re-encoded `data:` URL) | Bytes, size, position | — | SVG, non-PNG/JPEG/GIF/WebP bytes, over 2 MB: a dashed box keeps the place |
+| Linked image (`image=https://…`) | Dashed box with the name | Position, size | — | The image (never fetched) |
+| Edge with `source`/`target` | `arrow` bound to both shapes | Ends, label (incl. `edgeLabel` children), waypoints → `via`, exit/entry side → anchor | `curved=1` and other edge styles → elbow | Start arrowheads and arrowhead styles |
+| `edgeStyle=orthogonalEdgeStyle` (and elbow/ER/segment styles) | `route: "elbow"` | Waypoints | — | — |
+| Edge without ends | Free `arrow` from `sourcePoint` to `targetPoint` | Points | Ends to a missing shape → free connector | — |
+| HTML labels (`html=1`) | Plain text; `<br>`, `div`, `p` → line breaks; entities decoded | Text | Bold, italic, colours, alignment | `script`, `style`, `svg`, `iframe` content; links |
+| Style | `fill`, `dashed` (unfilled rects), `size` | — | `strokeWidth`, `fontFamily`, `fontStyle`, `rotation`, opacity, `sketch=1`, shadow/gradient, dashed outlines on filled shapes | — |
+| `UserObject` / `object` | Its `label` and `id` | — | — | `link` (incl. `javascript:`), tooltips and custom data ("custom properties") |
+| Excalidraw file | `{type: "excalidraw", elements, files}`, any version | — | — | `isDeleted` elements (skipped, they are deleted in the source) |
+| `rectangle` / `ellipse` / `diamond` | `rect` / `ellipse` / `diamond` | Position, size, bound label | Background colour, else stroke colour → nearest tone; hachure/cross-hatch → solid | — |
+| `text` with `containerId` | The container's label (shape or arrow) | Text, font size | — | — |
+| `text` | `text` | Text, font size | Font → board font | — |
+| `arrow` (and `line` with bindings) | `arrow`; `startBinding`/`endBinding` → bound ends (`center`) | Points (middle points → `via`), label | `elbowed` → elbow; arrowheads at the end only | — |
+| `line` without bindings, `freedraw` | `pen` | Points (≤ 1,000 per stroke, longer strokes thinned) | Colour → accent | — |
+| `image` (`files[fileId].dataURL`) | `image` | Bytes, size, position | — | SVG, wrong bytes, over 2 MB, missing file: a dashed box keeps the place |
+| `frame` / `magicframe` | Container (dashed `rect`, name as `label`; children `props.parent`) | Membership | — | — |
+| `groupIds` | `group` (the outermost group) | Membership | Groups inside groups become one group | — |
+| `embeddable` / `iframe` | `rect` "Web embed" | Position, size | — | The page (never loaded) |
+| Style | — | — | `roughness` (hand-drawn), `strokeWidth` > 2, `strokeStyle` on shapes that can't be dashed, `opacity`, `angle`, fonts | `link` |
+
+### 7.2 Untrusted input
+
+| Threat | Limit | Test |
+|---|---|---|
+| Large file | 5 MB before parsing (`MAX_IMPORT_BYTES`, browser and server) | `hostile_diagram_files_are_refused_with_a_reason`, e2e refusal |
+| Decompression bomb | Inflated page ≤ 16 MB (`MAX_INFLATED`, read through `take`) | `decompression_bombs_and_node_floods_are_refused` (64 MB of zeros in ~64 KB) |
+| Billion laughs, external entities | `roxmltree` with `allow_dtd: false`: any DTD is refused, entities never expand | `billion_laughs_and_external_entities_are_refused` (< 2 s), server and e2e |
+| Deep nesting | XML depth ≤ 64 (checked without recursion); JSON nesting ≤ 128 (serde_json) | `deep_nesting_is_refused_without_overflowing_the_stack` (50,000 levels) |
+| Node flood | ≤ 200,000 XML nodes; ≤ 20,000 shapes | `decompression_bombs_and_node_floods_are_refused` |
+| Parent cycles | Walks bounded by a visited set | `deep_nesting_…` (cycle case) |
+| Scripts in labels | Tags stripped; `script`, `style`, `svg`, `iframe`, `object` removed with their content | `labels_are_plain_text_and_scripts_links_and_svg_are_removed` |
+| `javascript:` and other links | Never imported, reported | same, `drawio_vendor_stencils_…` |
+| External URLs | Never fetched; linked images become boxes | same |
+| Image data URLs | PNG, JPEG, GIF, WebP by signature (not the declared type), ≤ 2 MB decoded; SVG never | `image_data_urls_are_checked_for_type_and_size` |
+
+### 7.3 Tests
+
+`crates/oc-model/tests/diagram_import.rs` (10, golden on `tests/fixtures/import/`: flowchart,
+architecture with vendor stencils and containers, compressed, bare `.xml`, multi-page, Excalidraw
+with bound arrows, text in shapes, images and a frame; hostile files built in the tests), unit
+tests in `diagram_import/mod.rs` (colours, HTML to text), `crates/oc-server/tests/import.rs`
+(dry run adds nothing; board block with bound connectors placed at (40, 40); adding to an open
+board to the right with new ids; refusals), `e2e/specs/v-import-diagram.spec.ts` (4: each format
+through the dialog to a board, report, Undo import, page choice, compressed file, refusals, axe in
+light and dark). Fixtures were written for these tests; no third-party diagram is copied.

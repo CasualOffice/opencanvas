@@ -99,15 +99,22 @@ impl ImportError {
 
 /// Converts `page` (0-based; Excalidraw has one) of a diagram file.
 pub fn convert(format: Format, bytes: &[u8], page: usize) -> Result<Converted, ImportError> {
-    let text = std::str::from_utf8(bytes)
-        .map_err(|_| ImportError::new("unreadable", "The file isn't text, so it isn't a diagram file."))?;
+    let text = std::str::from_utf8(bytes).map_err(|_| {
+        ImportError::new(
+            "unreadable",
+            "The file isn't text, so it isn't a diagram file.",
+        )
+    })?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut out = Out::default();
     let (pages, page) = match format {
         Format::Drawio => drawio::convert(text, page, &mut out)?,
         Format::Excalidraw => {
             if page != 0 {
-                return Err(ImportError::new("no_page", "Excalidraw files have one page."));
+                return Err(ImportError::new(
+                    "no_page",
+                    "Excalidraw files have one page.",
+                ));
             }
             excalidraw::convert(text, &mut out)?;
             (vec![], 0)
@@ -116,7 +123,10 @@ pub fn convert(format: Format, bytes: &[u8], page: usize) -> Result<Converted, I
     if out.shapes.len() > MAX_SHAPES {
         return Err(ImportError::new(
             "too_large",
-            format!("It has {} shapes, and an import can add up to {MAX_SHAPES}.", out.shapes.len()),
+            format!(
+                "It has {} shapes, and an import can add up to {MAX_SHAPES}.",
+                out.shapes.len()
+            ),
         ));
     }
     let report = out.report(format, &pages, page);
@@ -295,16 +305,26 @@ fn describe(code: &str, n: &Note, vendors: &[String], format: Format) -> (String
                 _ => String::new(),
             };
             (
-                format!("{} become plain boxes with their names", plural(c, &format!("{who}icon"), &format!("{who}icons"))),
+                format!(
+                    "{} become plain boxes with their names",
+                    plural(c, &format!("{who}icon"), &format!("{who}icons"))
+                ),
                 with("They keep size and connections."),
             )
         }
         "shape_box" => (
-            format!("{} with no board equivalent become boxes", plural(c, "shape", "shapes")),
+            if c == 1 {
+                "1 shape with no board equivalent becomes a box".into()
+            } else {
+                format!("{c} shapes with no board equivalent become boxes")
+            },
             with("They keep their text, size and connections."),
         ),
         "image_large" => (
-            format!("{} over 2 MB left out", plural(c, "embedded image is", "embedded images are")),
+            format!(
+                "{} over 2 MB left out",
+                plural(c, "embedded image is", "embedded images are")
+            ),
             with("A box keeps the place. Add a smaller image afterwards with Insert image."),
         ),
         "image_svg" => (
@@ -312,11 +332,21 @@ fn describe(code: &str, n: &Note, vendors: &[String], format: Format) -> (String
             with("SVG can carry scripts. A box keeps the place; add a PNG afterwards."),
         ),
         "image_type" => (
-            format!("{} left out", plural(c, "image that isn't PNG, JPEG, GIF or WebP is", "images that aren't PNG, JPEG, GIF or WebP are")),
+            format!(
+                "{} left out",
+                plural(
+                    c,
+                    "image that isn't PNG, JPEG, GIF or WebP is",
+                    "images that aren't PNG, JPEG, GIF or WebP are"
+                )
+            ),
             with("A box keeps the place. Add it afterwards with Insert image."),
         ),
         "image_link" => (
-            format!("{} not fetched", plural(c, "linked image is", "linked images are")),
+            format!(
+                "{} not fetched",
+                plural(c, "linked image is", "linked images are")
+            ),
             with("Images from other sites are never downloaded. A box keeps the place."),
         ),
         "link" => (
@@ -327,12 +357,12 @@ fn describe(code: &str, n: &Note, vendors: &[String], format: Format) -> (String
             format!("{} become boxes", plural(c, "web embed", "web embeds")),
             with("Embedded pages are not loaded."),
         ),
-        "curved" => (
-            "Curved connectors become elbow connectors".into(),
-            None,
-        ),
+        "curved" => ("Curved connectors become elbow connectors".into(), None),
         "colour" => (
-            format!("{} become the nearest board colour", plural(c, "colour", "colours")),
+            format!(
+                "{} become the nearest board colour",
+                plural(c, "colour", "colours")
+            ),
             with("Boards use a fixed set of colours that work in light and dark."),
         ),
         "dashed" => (
@@ -345,12 +375,18 @@ fn describe(code: &str, n: &Note, vendors: &[String], format: Format) -> (String
             "Text formatting becomes plain text".into(),
             Some("Bold, italic, colours and alignment inside labels are not kept.".into()),
         ),
-        "rough" => ("The hand-drawn style is not kept".into(), Some("Shapes are drawn with clean lines.".into())),
+        "rough" => (
+            "The hand-drawn style is not kept".into(),
+            Some("Shapes are drawn with clean lines.".into()),
+        ),
         "fill_style" => ("Hatched and cross-hatched fills become solid".into(), None),
         "opacity" => ("Transparency is not kept".into(), None),
         "effects" => ("Shadows and gradients are not kept".into(), None),
         "rotation" => (
-            format!("{} drawn upright", plural(c, "rotated shape is", "rotated shapes are")),
+            format!(
+                "{} drawn upright",
+                plural(c, "rotated shape is", "rotated shapes are")
+            ),
             with("Boards don’t rotate shapes."),
         ),
         "arrowheads" => (
@@ -358,14 +394,26 @@ fn describe(code: &str, n: &Note, vendors: &[String], format: Format) -> (String
             Some("Start arrowheads and arrowhead styles are not kept.".into()),
         ),
         "nested_groups" => ("Groups inside groups become one group".into(), None),
-        "layers" => ("Layers are flattened".into(), with("Shapes keep their stacking order.")),
-        "pen_thinned" => ("Long pen strokes are simplified".into(), Some(format!("Strokes keep up to {MAX_PEN_POINTS} points."))),
+        "layers" => (
+            "Layers are flattened".into(),
+            with("Shapes keep their stacking order."),
+        ),
+        "pen_thinned" => (
+            "Long pen strokes are simplified".into(),
+            Some(format!("Strokes keep up to {MAX_PEN_POINTS} points.")),
+        ),
         "unbound" => (
-            format!("{} to a missing shape", plural(c, "connector points", "connectors point")),
+            format!(
+                "{} to a missing shape",
+                plural(c, "connector points", "connectors point")
+            ),
             with("They are kept as free connectors."),
         ),
         "data" => (
-            format!("{} not imported", plural(c, "custom property is", "custom properties are")),
+            format!(
+                "{} not imported",
+                plural(c, "custom property is", "custom properties are")
+            ),
             with("Tooltips and shape data stay in the original file."),
         ),
         "containers" => (
@@ -378,7 +426,10 @@ fn describe(code: &str, n: &Note, vendors: &[String], format: Format) -> (String
         "groups" => ("Groups stay groups".into(), None),
         "elbow" => ("Orthogonal connectors become elbow connectors".into(), None),
         "lines" => ("Lines become pen strokes".into(), None),
-        "images" => (format!("{} imported", plural(c, "image is", "images are")), None),
+        "images" => (
+            format!("{} imported", plural(c, "image is", "images are")),
+            None,
+        ),
         _ => (code.to_string(), None),
     }
 }
@@ -435,11 +486,16 @@ pub(crate) fn tone_of(colour: &str) -> Option<&'static str> {
     let max = r.max(g).max(b);
     let min = r.min(g).min(b);
     let l = (max + min) / 2.0;
-    if l > 0.97 || l < 0.08 {
+    // Near-white and near-black (Excalidraw's #1e1e1e ink) are the default look.
+    if !(0.15..=0.97).contains(&l) {
         return None;
     }
     let d = max - min;
-    let s = if d == 0.0 { 0.0 } else { d / (1.0 - (2.0 * l - 1.0).abs()) };
+    let s = if d == 0.0 {
+        0.0
+    } else {
+        d / (1.0 - (2.0 * l - 1.0).abs())
+    };
     if s < 0.15 || d < 0.04 {
         return Some("gray");
     }
@@ -466,7 +522,10 @@ fn set_fill(out: &mut Out, shape: &mut Value, colour: &str) {
     if let Some(t) = tone_of(colour) {
         shape["fill"] = json!(t);
         let name = TONES.iter().find(|(k, _)| *k == t).map_or(t, |(_, n)| *n);
-        out.note("colour", Some(format!("{} → {name}", colour.trim().to_ascii_lowercase())));
+        out.note(
+            "colour",
+            Some(format!("{} → {name}", colour.trim().to_ascii_lowercase())),
+        );
     }
 }
 
@@ -505,7 +564,12 @@ pub(crate) fn html_to_text(html: &str) -> (String, bool) {
             continue;
         }
         let closing = tag.starts_with('/');
-        if !closing && matches!(name.as_str(), "script" | "style" | "svg" | "math" | "template" | "iframe" | "object" | "noscript") {
+        if !closing
+            && matches!(
+                name.as_str(),
+                "script" | "style" | "svg" | "math" | "template" | "iframe" | "object" | "noscript"
+            )
+        {
             // Skip to the matching close tag (case-insensitive), or the end.
             let lower = rest.to_ascii_lowercase();
             let close = format!("</{name}");
@@ -521,15 +585,12 @@ pub(crate) fn html_to_text(html: &str) -> (String, bool) {
         match name.as_str() {
             "br" => out.push('\n'),
             "div" | "p" | "li" | "tr" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-                if closing || !out.is_empty() {
-                    if !out.ends_with('\n') && !out.is_empty() {
-                        out.push('\n');
-                    }
+                if !out.is_empty() && !out.ends_with('\n') {
+                    out.push('\n');
                 }
             }
-            "span" | "font" | "b" | "strong" | "i" | "em" | "u" | "sup" | "sub" | "strike" | "s" => {
-                styled = true
-            }
+            "span" | "font" | "b" | "strong" | "i" | "em" | "u" | "sup" | "sub" | "strike"
+            | "s" => styled = true,
             _ => {}
         }
     }
@@ -602,13 +663,22 @@ pub(crate) enum ImageRefusal {
 /// JPEG, GIF or WebP (checked by their signature, not the declared type) and ≤ 2 MB.
 pub(crate) fn safe_image(url: &str) -> Result<String, ImageRefusal> {
     let url = url.trim();
-    let Some(rest) = url.get(..5).filter(|p| p.eq_ignore_ascii_case("data:")).map(|_| &url[5..]) else {
+    let Some(rest) = url
+        .get(..5)
+        .filter(|p| p.eq_ignore_ascii_case("data:"))
+        .map(|_| &url[5..])
+    else {
         return Err(ImageRefusal::Link);
     };
     let Some((meta, data)) = rest.split_once(',') else {
         return Err(ImageRefusal::Type);
     };
-    let mime = meta.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    let mime = meta
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
     if mime.contains("svg") {
         return Err(ImageRefusal::Svg);
     }
@@ -617,8 +687,12 @@ pub(crate) fn safe_image(url: &str) -> Result<String, ImageRefusal> {
         return Err(ImageRefusal::Large);
     }
     let clean: String = data.chars().filter(|c| !c.is_whitespace()).collect();
-    let clean = percent_encoding::percent_decode_str(&clean).decode_utf8_lossy().into_owned();
-    let bytes = B64.decode(clean.as_bytes()).map_err(|_| ImageRefusal::Type)?;
+    let clean = percent_encoding::percent_decode_str(&clean)
+        .decode_utf8_lossy()
+        .into_owned();
+    let bytes = B64
+        .decode(clean.as_bytes())
+        .map_err(|_| ImageRefusal::Type)?;
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(ImageRefusal::Large);
     }
@@ -708,7 +782,8 @@ mod tests {
         assert_eq!(tone_of("#1e1e1e"), None);
         assert_eq!(tone_of("#a5d8ff"), Some("blue"));
         assert_eq!(tone_of("#ffc9c9"), Some("red"));
-        assert_eq!(tone_of("#eebefa"), Some("pink"));
+        assert_eq!(tone_of("#eebefa"), Some("purple"), "Excalidraw grape");
+        assert_eq!(tone_of("#fcc2d7"), Some("pink"));
     }
 
     #[test]

@@ -41,7 +41,9 @@ fn parse(text: &str) -> Result<roxmltree::Document<'_>, ImportError> {
             if usize::from(d) > MAX_XML_DEPTH {
                 return Err(ImportError::new(
                     "too_deep",
-                    format!("Its XML is nested more than {MAX_XML_DEPTH} levels deep, which draw.io never writes."),
+                    format!(
+                        "Its XML is nested more than {MAX_XML_DEPTH} levels deep, which draw.io never writes."
+                    ),
                 ));
             }
         }
@@ -51,9 +53,16 @@ fn parse(text: &str) -> Result<roxmltree::Document<'_>, ImportError> {
 
 /// Base64 → raw deflate (≤ [`MAX_INFLATED`]) → URL-decoding.
 fn inflate(data: &str) -> Result<String, ImportError> {
-    let unreadable = || ImportError::new("unreadable", "A compressed page is damaged. Save it again from draw.io.");
+    let unreadable = || {
+        ImportError::new(
+            "unreadable",
+            "A compressed page is damaged. Save it again from draw.io.",
+        )
+    };
     let clean: String = data.chars().filter(|c| !c.is_whitespace()).collect();
-    let raw = super::B64.decode(clean.as_bytes()).map_err(|_| unreadable())?;
+    let raw = super::B64
+        .decode(clean.as_bytes())
+        .map_err(|_| unreadable())?;
     let mut out = Vec::new();
     flate2::read::DeflateDecoder::new(raw.as_slice())
         .take(MAX_INFLATED as u64 + 1)
@@ -62,7 +71,10 @@ fn inflate(data: &str) -> Result<String, ImportError> {
     if out.len() > MAX_INFLATED {
         return Err(ImportError::new(
             "too_large",
-            format!("A compressed page unpacks to more than {} MB. In draw.io, export one page, then try again.", MAX_INFLATED >> 20),
+            format!(
+                "A compressed page unpacks to more than {} MB. In draw.io, export one page, then try again.",
+                MAX_INFLATED >> 20
+            ),
         ));
     }
     let s = String::from_utf8(out).map_err(|_| unreadable())?;
@@ -77,13 +89,20 @@ fn inflate(data: &str) -> Result<String, ImportError> {
     Ok(s)
 }
 
-pub(super) fn convert(text: &str, page: usize, out: &mut Out) -> Result<(Vec<String>, usize), ImportError> {
+pub(super) fn convert(
+    text: &str,
+    page: usize,
+    out: &mut Out,
+) -> Result<(Vec<String>, usize), ImportError> {
     let doc = parse(text)?;
     let root = doc.root_element();
     let (pages, model_text): (Vec<String>, Option<String>) = match root.tag_name().name() {
         "mxGraphModel" => (vec!["Page-1".into()], None),
         "mxfile" => {
-            let diagrams: Vec<roxmltree::Node> = root.children().filter(|n| n.has_tag_name("diagram")).collect();
+            let diagrams: Vec<roxmltree::Node> = root
+                .children()
+                .filter(|n| n.has_tag_name("diagram"))
+                .collect();
             if diagrams.is_empty() {
                 return Err(ImportError::new("not_diagram", "It has no pages."));
             }
@@ -92,13 +111,20 @@ pub(super) fn convert(text: &str, page: usize, out: &mut Out) -> Result<(Vec<Str
                 .enumerate()
                 .map(|(i, d)| {
                     d.attribute("name")
-                        .map(|n| tidy(n))
+                        .map(tidy)
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| format!("Page-{}", i + 1))
                 })
                 .collect();
             let Some(d) = diagrams.get(page) else {
-                return Err(ImportError::new("no_page", format!("It has {} pages; page {} doesn't exist.", names.len(), page + 1)));
+                return Err(ImportError::new(
+                    "no_page",
+                    format!(
+                        "It has {} pages; page {} doesn't exist.",
+                        names.len(),
+                        page + 1
+                    ),
+                ));
             };
             for (i, n) in names.iter().enumerate().filter(|(i, _)| *i != page) {
                 out.other_pages.push((i, n.clone()));
@@ -108,7 +134,11 @@ pub(super) fn convert(text: &str, page: usize, out: &mut Out) -> Result<(Vec<Str
             let model = if inline {
                 None
             } else {
-                let data: String = d.children().filter(|n| n.is_text()).filter_map(|n| n.text()).collect();
+                let data: String = d
+                    .children()
+                    .filter(|n| n.is_text())
+                    .filter_map(|n| n.text())
+                    .collect();
                 if data.trim().is_empty() {
                     return Err(ImportError::new("not_diagram", "The page is empty."));
                 }
@@ -119,7 +149,10 @@ pub(super) fn convert(text: &str, page: usize, out: &mut Out) -> Result<(Vec<Str
         other => {
             return Err(ImportError::new(
                 "not_diagram",
-                format!("It is XML, but not a draw.io diagram (it starts with <{}>).", tidy(other)),
+                format!(
+                    "It is XML, but not a draw.io diagram (it starts with <{}>).",
+                    tidy(other)
+                ),
             ));
         }
     };
@@ -128,7 +161,10 @@ pub(super) fn convert(text: &str, page: usize, out: &mut Out) -> Result<(Vec<Str
             let d = parse(&t)?;
             let m = d.root_element();
             if !m.has_tag_name("mxGraphModel") {
-                return Err(ImportError::new("not_diagram", "A compressed page isn't a draw.io diagram."));
+                return Err(ImportError::new(
+                    "not_diagram",
+                    "A compressed page isn't a draw.io diagram.",
+                ));
             }
             convert_model(m, out);
         }
@@ -136,8 +172,14 @@ pub(super) fn convert(text: &str, page: usize, out: &mut Out) -> Result<(Vec<Str
             let m = if root.has_tag_name("mxGraphModel") {
                 root
             } else {
-                let d = root.children().filter(|n| n.has_tag_name("diagram")).nth(page).expect("checked");
-                d.children().find(|n| n.has_tag_name("mxGraphModel")).expect("checked")
+                let d = root
+                    .children()
+                    .filter(|n| n.has_tag_name("diagram"))
+                    .nth(page)
+                    .expect("checked");
+                d.children()
+                    .find(|n| n.has_tag_name("mxGraphModel"))
+                    .expect("checked")
             };
             convert_model(m, out);
         }
@@ -174,7 +216,11 @@ struct Cell {
 }
 
 fn num(n: &roxmltree::Node, a: &str) -> f64 {
-    finite(n.attribute(a).and_then(|v| v.trim().parse().ok()).unwrap_or(0.0))
+    finite(
+        n.attribute(a)
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(0.0),
+    )
 }
 
 fn point(n: &roxmltree::Node) -> [f64; 2] {
@@ -197,7 +243,11 @@ fn geometry(cell: &roxmltree::Node) -> Geo {
             ("mxPoint", Some("sourcePoint")) => geo.source = Some(point(&c)),
             ("mxPoint", Some("targetPoint")) => geo.target = Some(point(&c)),
             ("Array", Some("points")) => {
-                geo.points = c.children().filter(|n| n.has_tag_name("mxPoint")).map(|p| point(&p)).collect();
+                geo.points = c
+                    .children()
+                    .filter(|n| n.has_tag_name("mxPoint"))
+                    .map(|p| point(&p))
+                    .collect();
             }
             _ => {}
         }
@@ -241,15 +291,25 @@ fn cells(model: roxmltree::Node) -> Vec<Cell> {
             },
             _ => continue,
         };
-        let id = wrapper.and_then(|w| w.attribute("id")).or(cell.attribute("id")).unwrap_or("").to_string();
+        let id = wrapper
+            .and_then(|w| w.attribute("id"))
+            .or(cell.attribute("id"))
+            .unwrap_or("")
+            .to_string();
         let label = wrapper
             .and_then(|w| w.attribute("label"))
             .or(cell.attribute("value"))
             .unwrap_or("")
             .to_string();
         let (style, base) = style_map(cell.attribute("style").unwrap_or(""));
-        let link = wrapper.and_then(|w| w.attribute("link")).map(str::to_string);
-        let data = wrapper.map_or(0, |w| w.attributes().filter(|a| !KNOWN_ATTRS.contains(&a.name())).count());
+        let link = wrapper
+            .and_then(|w| w.attribute("link"))
+            .map(str::to_string);
+        let data = wrapper.map_or(0, |w| {
+            w.attributes()
+                .filter(|a| !KNOWN_ATTRS.contains(&a.name()))
+                .count()
+        });
         v.push(Cell {
             id,
             label,
@@ -269,10 +329,15 @@ fn cells(model: roxmltree::Node) -> Vec<Cell> {
 }
 
 fn label_of(c: &Cell, out: &mut Out) -> String {
-    if c.style.get("html").is_some_and(|v| v == "1") || c.label.contains('<') && c.label.contains('>') {
+    if c.style.get("html").is_some_and(|v| v == "1")
+        || c.label.contains('<') && c.label.contains('>')
+    {
         let (t, styled) = html_to_text(&c.label);
         if styled {
-            out.note("text_style", Some(t.lines().next().unwrap_or("").to_string()));
+            out.note(
+                "text_style",
+                Some(t.lines().next().unwrap_or("").to_string()),
+            );
         }
         t
     } else {
@@ -296,28 +361,52 @@ fn stencil_names(id: &str) -> (String, String) {
         "Cisco".to_string()
     } else {
         let mut c = lib.chars();
-        c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+        c.next()
+            .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
+            .unwrap_or_default()
     };
     let last = parts.last().copied().unwrap_or("").replace(['_', '-'], " ");
+    // Short service names are acronyms: SQS, SNS, EC2, S3.
+    let last = if last.len() <= 3 && !last.contains(' ') {
+        last.to_uppercase()
+    } else {
+        last
+    };
     let mut c = last.chars();
-    let name = c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default();
+    let name = c
+        .next()
+        .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
+        .unwrap_or_default();
     (vendor, name)
 }
 
 fn anchor(style: &HashMap<String, String>, prefix: &str) -> &'static str {
-    let get = |k: &str| style.get(&format!("{prefix}{k}")).and_then(|v| v.parse::<f64>().ok());
+    let get = |k: &str| {
+        style
+            .get(&format!("{prefix}{k}"))
+            .and_then(|v| v.parse::<f64>().ok())
+    };
     let (Some(x), Some(y)) = (get("X"), get("Y")) else {
         return "center";
     };
     // Nearest side of the unit box.
-    let d = [(y, "top"), (1.0 - x, "right"), (1.0 - y, "bottom"), (x, "left")];
+    let d = [
+        (y, "top"),
+        (1.0 - x, "right"),
+        (1.0 - y, "bottom"),
+        (x, "left"),
+    ];
     d.iter()
         .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal))
         .map_or("center", |t| t.1)
 }
 
 /// Absolute origin of a cell's coordinate space (the sum of its vertex ancestors), cycle-safe.
-fn origin_of<'a>(cells: &'a [Cell], by_id: &HashMap<&str, usize>, mut id: Option<&'a str>) -> [f64; 2] {
+fn origin_of<'a>(
+    cells: &'a [Cell],
+    by_id: &HashMap<&str, usize>,
+    mut id: Option<&'a str>,
+) -> [f64; 2] {
     let mut o = [0.0, 0.0];
     let mut seen: HashSet<String> = HashSet::new();
     while let Some(p) = id {
@@ -338,13 +427,31 @@ fn bound<'a>(end: &'a Option<String>, boxes: &HashMap<&str, [f64; 4]>) -> Option
     end.as_deref().filter(|e| boxes.contains_key(e))
 }
 
-const GENERIC: &[&str] = &["", "rounded", "whiteSpace", "label", "html", "process", "rect", "rectangle", "swimlane"];
+const GENERIC: &[&str] = &[
+    "",
+    "rounded",
+    "whiteSpace",
+    "label",
+    "html",
+    "process",
+    "rect",
+    "rectangle",
+    "swimlane",
+];
 
 fn convert_model(model: roxmltree::Node, out: &mut Out) {
     let cells = cells(model);
-    let by_id: HashMap<&str, usize> = cells.iter().enumerate().map(|(i, c)| (c.id.as_str(), i)).collect();
+    let by_id: HashMap<&str, usize> = cells
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (c.id.as_str(), i))
+        .collect();
     // Layers: cells whose parent is the root cell (the one without a parent).
-    let roots: HashSet<&str> = cells.iter().filter(|c| c.parent.is_none()).map(|c| c.id.as_str()).collect();
+    let roots: HashSet<&str> = cells
+        .iter()
+        .filter(|c| c.parent.is_none())
+        .map(|c| c.id.as_str())
+        .collect();
     let layers: HashSet<&str> = cells
         .iter()
         .filter(|c| !c.vertex && !c.edge && c.parent.as_deref().is_some_and(|p| roots.contains(p)))
@@ -358,7 +465,12 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
     // Containers: groups, swimlanes, `container=1`, and any vertex with vertex children.
     let mut containers: HashSet<&str> = cells
         .iter()
-        .filter(|c| c.vertex && (c.base == "group" || c.base == "swimlane" || c.style.get("container").is_some_and(|v| v == "1")))
+        .filter(|c| {
+            c.vertex
+                && (c.base == "group"
+                    || c.base == "swimlane"
+                    || c.style.get("container").is_some_and(|v| v == "1"))
+        })
         .map(|c| c.id.as_str())
         .collect();
     for c in cells.iter().filter(|c| c.vertex) {
@@ -400,7 +512,11 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
         let (x, y, w, h) = (o[0] + c.geo.x, o[1] + c.geo.y, c.geo.w, c.geo.h);
         boxes.insert(c.id.as_str(), [x, y, w, h]);
         let text = label_of(c, out);
-        let shape_name = c.style.get("shape").cloned().unwrap_or_else(|| c.base.clone());
+        let shape_name = c
+            .style
+            .get("shape")
+            .cloned()
+            .unwrap_or_else(|| c.base.clone());
         let mut props = json!({"source": "drawio", "sourceId": c.id});
         if let Some(p) = c.parent.as_deref().filter(|p| containers.contains(p)) {
             props["parent"] = json!(local[p]);
@@ -417,10 +533,19 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
         } else if c.base == "text" || shape_name == "text" {
             s["type"] = json!("text");
             s["text"] = json!(text);
-            s["size"] = json!(c.style.get("fontSize").and_then(|v| v.parse::<f64>().ok()).map_or(14.0, finite));
+            s["size"] = json!(
+                c.style
+                    .get("fontSize")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .map_or(14.0, finite)
+            );
         } else if shape_name == "image" || c.base == "image" {
             let src = c.style.get("image").cloned().unwrap_or_default();
-            let name = if text.is_empty() { "Image".to_string() } else { text.clone() };
+            let name = if text.is_empty() {
+                "Image".to_string()
+            } else {
+                text.clone()
+            };
             match safe_image(&src) {
                 Ok(url) => {
                     out.note("images", None);
@@ -429,7 +554,9 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
                     s["alt"] = json!(name);
                 }
                 Err(why) => {
-                    let why = if matches!(why, ImageRefusal::Type) && !src.trim_start().to_ascii_lowercase().starts_with("data:") {
+                    let why = if matches!(why, ImageRefusal::Type)
+                        && !src.trim_start().to_ascii_lowercase().starts_with("data:")
+                    {
                         ImageRefusal::Link
                     } else {
                         why
@@ -438,12 +565,24 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
                 }
             }
         } else if shape_name.starts_with("mxgraph.") {
-            let id = c.style.get("resIcon").filter(|r| r.starts_with("mxgraph.")).cloned().unwrap_or(shape_name.clone());
+            let id = c
+                .style
+                .get("resIcon")
+                .filter(|r| r.starts_with("mxgraph."))
+                .cloned()
+                .unwrap_or(shape_name.clone());
             let (vendor, name) = stencil_names(&id);
             if !out.vendors.contains(&vendor) {
                 out.vendors.push(vendor);
             }
-            out.note("stencil", Some(if text.is_empty() { name.clone() } else { format!("{name}: {}", text.lines().next().unwrap_or("")) }));
+            out.note(
+                "stencil",
+                Some(if text.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{name}: {}", text.lines().next().unwrap_or(""))
+                }),
+            );
             s["type"] = json!("rect");
             s["text"] = json!(if text.is_empty() { name } else { text.clone() });
             props["stencil"] = json!(id);
@@ -454,9 +593,21 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
                 other => {
                     if !GENERIC.contains(&other) {
                         let mut ch = other.chars();
-                        let nice = ch.next().map(|f| f.to_uppercase().collect::<String>() + ch.as_str()).unwrap_or_default();
-                        let nice = nice.trim_end_matches(|c: char| c.is_ascii_digit()).to_string();
-                        out.note("shape_box", Some(if text.is_empty() { nice } else { format!("{nice}: {}", text.lines().next().unwrap_or("")) }));
+                        let nice = ch
+                            .next()
+                            .map(|f| f.to_uppercase().collect::<String>() + ch.as_str())
+                            .unwrap_or_default();
+                        let nice = nice
+                            .trim_end_matches(|c: char| c.is_ascii_digit())
+                            .to_string();
+                        out.note(
+                            "shape_box",
+                            Some(if text.is_empty() {
+                                nice
+                            } else {
+                                format!("{nice}: {}", text.lines().next().unwrap_or(""))
+                            }),
+                        );
                         props["shape"] = json!(other);
                     }
                     "rect"
@@ -509,7 +660,10 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
         }
         for (end, which) in [(&c.source, "source"), (&c.target, "target")] {
             if end.is_some() && bind(end).is_none() {
-                out.note("unbound", Some(text.lines().next().unwrap_or(&c.id).to_string()));
+                out.note(
+                    "unbound",
+                    Some(text.lines().next().unwrap_or(&c.id).to_string()),
+                );
             }
             let _ = which;
         }
@@ -532,7 +686,13 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
         if c.style.get("curved").is_some_and(|v| v == "1") {
             out.note("curved", None);
             s["route"] = json!("elbow");
-        } else if matches!(edge_style, "orthogonalEdgeStyle" | "elbowEdgeStyle" | "entityRelationEdgeStyle" | "segmentEdgeStyle") {
+        } else if matches!(
+            edge_style,
+            "orthogonalEdgeStyle"
+                | "elbowEdgeStyle"
+                | "entityRelationEdgeStyle"
+                | "segmentEdgeStyle"
+        ) {
             out.note("elbow", None);
             s["route"] = json!("elbow");
         } else if !edge_style.is_empty() && edge_style != "none" {
@@ -551,9 +711,22 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
         s["y"] = json!(y);
         s["w"] = json!(w);
         s["h"] = json!(h);
-        let start_arrow = c.style.get("startArrow").map(String::as_str).unwrap_or("none");
-        let end_arrow = c.style.get("endArrow").map(String::as_str).unwrap_or("classic");
-        if start_arrow != "none" || !matches!(end_arrow, "classic" | "block" | "open" | "classicThin" | "blockThin") {
+        let start_arrow = c
+            .style
+            .get("startArrow")
+            .map(String::as_str)
+            .unwrap_or("none");
+        let end_arrow = c
+            .style
+            .get("endArrow")
+            .map(String::as_str)
+            .unwrap_or("classic");
+        if start_arrow != "none"
+            || !matches!(
+                end_arrow,
+                "classic" | "block" | "open" | "classicThin" | "blockThin"
+            )
+        {
             out.note("arrowheads", None);
         }
         if c.style.get("dashed").is_some_and(|v| v == "1") {
@@ -569,10 +742,8 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
 fn style_notes(c: &Cell, out: &mut Out, text: &str) {
     let name = || Some(text.lines().next().unwrap_or(&c.id).to_string());
     let f = |k: &str| c.style.get(k).and_then(|v| v.parse::<f64>().ok());
-    if let Some(l) = &c.link {
-        if !l.trim().is_empty() {
-            out.note("link", name());
-        }
+    if c.link.as_ref().is_some_and(|l| !l.trim().is_empty()) {
+        out.note("link", name());
     }
     if c.data > 0 {
         out.note("data", name());
@@ -583,7 +754,10 @@ fn style_notes(c: &Cell, out: &mut Out, text: &str) {
     if f("strokeWidth").is_some_and(|w| (w - 1.0).abs() > 0.01) {
         out.note("stroke_width", None);
     }
-    if c.style.get("fontFamily").is_some_and(|v| !v.eq_ignore_ascii_case("helvetica")) {
+    if c.style
+        .get("fontFamily")
+        .is_some_and(|v| !v.eq_ignore_ascii_case("helvetica"))
+    {
         out.note("font", None);
     }
     if f("fontStyle").is_some_and(|v| v != 0.0) {
@@ -592,10 +766,15 @@ fn style_notes(c: &Cell, out: &mut Out, text: &str) {
     if c.style.get("sketch").is_some_and(|v| v == "1") {
         out.note("rough", None);
     }
-    if ["opacity", "fillOpacity", "strokeOpacity", "textOpacity"].iter().any(|k| f(k).is_some_and(|v| v < 100.0)) {
+    if ["opacity", "fillOpacity", "strokeOpacity", "textOpacity"]
+        .iter()
+        .any(|k| f(k).is_some_and(|v| v < 100.0))
+    {
         out.note("opacity", None);
     }
-    if c.style.get("shadow").is_some_and(|v| v == "1") || c.style.get("gradientColor").is_some_and(|v| v != "none") {
+    if c.style.get("shadow").is_some_and(|v| v == "1")
+        || c.style.get("gradientColor").is_some_and(|v| v != "none")
+    {
         out.note("effects", None);
     }
 }

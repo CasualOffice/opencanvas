@@ -754,7 +754,10 @@ pub fn import_board(doc: &Doc, input: &Value) -> Step {
     let extent = |list: &mut dyn Iterator<Item = &Value>| {
         let (mut x0, mut y0, mut x1) = (f64::MAX, f64::MAX, f64::MIN);
         for v in list.filter(|v| v["type"] != "arrow") {
-            let (x, y) = (v["x"].as_f64().unwrap_or(0.0), v["y"].as_f64().unwrap_or(0.0));
+            let (x, y) = (
+                v["x"].as_f64().unwrap_or(0.0),
+                v["y"].as_f64().unwrap_or(0.0),
+            );
             x0 = x0.min(x);
             y0 = y0.min(y);
             x1 = x1.max(x + v["w"].as_f64().unwrap_or(0.0));
@@ -822,7 +825,11 @@ pub fn import_board(doc: &Doc, input: &Value) -> Step {
             let n = groups.entry(g).or_insert_with(|| new_id("g")).clone();
             v["group"] = json!(n);
         }
-        if let Some(p) = v["props"]["parent"].as_str().and_then(|p| ids.get(p)).cloned() {
+        if let Some(p) = v["props"]["parent"]
+            .as_str()
+            .and_then(|p| ids.get(p))
+            .cloned()
+        {
             v["props"]["parent"] = json!(p);
         }
         placed.push((id, v));

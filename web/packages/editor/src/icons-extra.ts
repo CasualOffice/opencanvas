@@ -16,10 +16,13 @@ import {
   Rocket, Route, Scale, ScrollText, Search, Shapes, Siren, Smartphone, Smile, Square, SquareCheck, SquareKanban,
   Strikethrough, Table, TextQuote, Trash2, Type, Underline, Undo2, Upload, UserPlus, UserRound, Users, Workflow,
   Zap, Baseline, CalendarPlus, Minimize2, ZoomIn, ZoomOut, ChevronLeft, MoveVertical, RefreshCw, RectangleHorizontal,
+  CornerDownRight, FileStack, FileX, ImageOff, Puzzle, SquareDashed,
   type LucideIcon,
 } from "lucide-react";
 
 export const EXTRA: Record<string, LucideIcon> = {
+  // Diagram import report (DGM-15, approved frames 7b-7e).
+  "corner-down-right": CornerDownRight, "file-stack": FileStack, "file-x": FileX, "image-off": ImageOff, puzzle: Puzzle, "square-dashed": SquareDashed,
   "align-center": AlignCenter, "align-left": AlignLeft, "align-right": AlignRight,
   "between-horizontal-end": BetweenHorizontalEnd, "between-horizontal-start": BetweenHorizontalStart,
   "between-vertical-end": BetweenVerticalEnd, "between-vertical-start": BetweenVerticalStart, "columns-3": Columns3,

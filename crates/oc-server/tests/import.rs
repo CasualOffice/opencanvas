@@ -428,9 +428,7 @@ async fn hostile_diagram_files_are_refused_with_a_reason() {
         "x".repeat(6 << 20)
     );
     assert_eq!(
-        import(&addr, &t, "format=excalidraw&dryRun=1", big)
-            .await
-            .0,
+        import(&addr, &t, "format=excalidraw&dryRun=1", big).await.0,
         413
     );
     let (s, v) = import(

@@ -49,6 +49,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props` (a per-field map: concurrent edits of different properties merge), `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Accepted (owner, 2026-11-24; condition: `props` merges per field) |
 | ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Accepted (owner, 2026-11-24) |
 | ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Accepted (owner, 2026-11-24) |
+| ADR-048 | Diagram import parsers (DGM-15): `oc-model` gains `roxmltree` 0.21, `flate2` 1 and `percent-encoding` 2 as direct dependencies (all three already in Cargo.lock through resvg/usvg and reqwest; no new crate, no new version). draw.io and Excalidraw are converted on the server only, through FC-10 | Proposed (needs owner sign-off) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -597,3 +598,18 @@ avoidance is the main Phase 2 routing feature; layout (ELK/Dagre) is Phase 3.
    outside the 300 KB initial budget (ADR-019). Phase 1 adds no dependency.
 **Consequences.** + Mixed-version rooms draw something sensible; + no new persisted geometry; − the
 Rust export of an `avoid` connector may fall back to a plain elbow when `pts` is stale.
+
+### ADR-048 — Diagram import parsers (Proposed 2026-11-24, DGM-15)
+
+**Context.** The owner asked for draw.io and Excalidraw import on 2026-11-24, through the FC-10
+pipeline (5 MB, SEC-39, dry run, "Undo import"). draw.io files are XML whose pages are often
+compressed (base64, raw deflate, URL-encoding); Excalidraw files are JSON. Both are untrusted.
+**Decision.** Convert on the server, in `oc-model::diagram_import`, never in the browser (one
+converter, one set of limits, the browser bundle unchanged). Add three direct dependencies to
+`oc-model`, each already compiled into the server through another crate (Cargo.lock gains only
+the three dependency lines of `oc-model`): `roxmltree` 0.21 (used by usvg; DTDs refused by
+default, so no entity expansion and no external entities; node limit), `flate2` 1 (raw inflate
+read through a size cap) and `percent-encoding` 2. `base64` and `serde_json` were already direct.
+**Consequences.** + No new crate or version in the tree; + parser limits are ours to test (depth,
+nodes, inflated size, image bytes); − three more direct dependencies to keep current with usvg.
+

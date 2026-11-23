@@ -8,7 +8,10 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use super::{ImageRefusal, ImportError, Out, bbox, finite, html_to_text, refuse_image, safe_image, set_fill, thin, tone_of};
+use super::{
+    ImageRefusal, ImportError, Out, bbox, finite, html_to_text, refuse_image, safe_image, set_fill,
+    thin, tone_of,
+};
 
 fn f(e: &Value, k: &str) -> f64 {
     finite(e[k].as_f64().unwrap_or(0.0))
@@ -20,21 +23,43 @@ fn points(e: &Value) -> Vec<[f64; 2]> {
         .as_array()
         .map(|a| {
             a.iter()
-                .filter_map(|p| Some([x + finite(p.get(0)?.as_f64()?), y + finite(p.get(1)?.as_f64()?)]))
+                .filter_map(|p| {
+                    Some([
+                        x + finite(p.get(0)?.as_f64()?),
+                        y + finite(p.get(1)?.as_f64()?),
+                    ])
+                })
                 .collect()
         })
         .unwrap_or_default()
 }
 
-const BINDABLE: &[&str] = &["rectangle", "ellipse", "diamond", "text", "image", "frame", "magicframe", "embeddable", "iframe"];
+const BINDABLE: &[&str] = &[
+    "rectangle",
+    "ellipse",
+    "diamond",
+    "text",
+    "image",
+    "frame",
+    "magicframe",
+    "embeddable",
+    "iframe",
+];
 
 pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
     // serde_json refuses nesting deeper than 128, without recursing further.
-    let v: Value = serde_json::from_str(text)
-        .map_err(|_| ImportError::new("unreadable", "It isn't readable JSON. Save it again from Excalidraw."))?;
+    let v: Value = serde_json::from_str(text).map_err(|_| {
+        ImportError::new(
+            "unreadable",
+            "It isn't readable JSON. Save it again from Excalidraw.",
+        )
+    })?;
     let ty = v["type"].as_str().unwrap_or("");
     if !ty.starts_with("excalidraw") || ty == "excalidrawlib" {
-        return Err(ImportError::new("not_diagram", "It isn't an Excalidraw drawing."));
+        return Err(ImportError::new(
+            "not_diagram",
+            "It isn't an Excalidraw drawing.",
+        ));
     }
     let empty = vec![];
     let elements: Vec<&Value> = v["elements"]
@@ -43,24 +68,37 @@ pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
         .iter()
         .filter(|e| e.is_object() && e["isDeleted"] != true && e["id"].is_string())
         .collect();
-    let by_id: HashMap<&str, &Value> = elements.iter().map(|e| (e["id"].as_str().unwrap_or(""), *e)).collect();
+    let by_id: HashMap<&str, &Value> = elements
+        .iter()
+        .map(|e| (e["id"].as_str().unwrap_or(""), *e))
+        .collect();
     // Bound text → label of its container.
     let mut labels: HashMap<&str, (String, Option<f64>)> = HashMap::new();
     let mut bound_text: HashSet<&str> = HashSet::new();
     for e in elements.iter().filter(|e| e["type"] == "text") {
         if let Some(c) = e["containerId"].as_str().filter(|c| by_id.contains_key(c)) {
-            let t = html_to_text(e["text"].as_str().or(e["originalText"].as_str()).unwrap_or("")).0;
+            let t = html_to_text(
+                e["text"]
+                    .as_str()
+                    .or(e["originalText"].as_str())
+                    .unwrap_or(""),
+            )
+            .0;
             labels.insert(c, (t, e["fontSize"].as_f64()));
             bound_text.insert(e["id"].as_str().unwrap_or(""));
             style_notes(e, out);
         }
     }
     // Frames paint below everything (Excalidraw draws them first too).
-    let (frames, rest): (Vec<&Value>, Vec<&Value>) =
-        elements.into_iter().partition(|e| matches!(e["type"].as_str(), Some("frame" | "magicframe")));
+    let (frames, rest): (Vec<&Value>, Vec<&Value>) = elements
+        .into_iter()
+        .partition(|e| matches!(e["type"].as_str(), Some("frame" | "magicframe")));
     let ordered: Vec<&Value> = frames
         .into_iter()
-        .chain(rest.into_iter().filter(|e| !bound_text.contains(e["id"].as_str().unwrap_or(""))))
+        .chain(
+            rest.into_iter()
+                .filter(|e| !bound_text.contains(e["id"].as_str().unwrap_or(""))),
+        )
         .collect();
     let local: HashMap<&str, String> = ordered
         .iter()
@@ -100,14 +138,28 @@ pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
             }
             "text" => {
                 s["type"] = json!("text");
-                s["text"] = json!(html_to_text(e["text"].as_str().or(e["originalText"].as_str()).unwrap_or("")).0);
+                s["text"] = json!(
+                    html_to_text(
+                        e["text"]
+                            .as_str()
+                            .or(e["originalText"].as_str())
+                            .unwrap_or("")
+                    )
+                    .0
+                );
                 s["size"] = json!(e["fontSize"].as_f64().map_or(20.0, finite));
             }
             "frame" | "magicframe" => {
                 out.note("containers", None);
                 s["type"] = json!("rect");
                 s["dashed"] = json!(true);
-                s["label"] = json!(e["name"].as_str().map(|n| html_to_text(n).0).filter(|n| !n.is_empty()).unwrap_or_else(|| "Frame".into()));
+                s["label"] = json!(
+                    e["name"]
+                        .as_str()
+                        .map(|n| html_to_text(n).0)
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or_else(|| "Frame".into())
+                );
             }
             "image" => {
                 let file = e["fileId"].as_str().map(|f| &files[f]);
@@ -135,9 +187,14 @@ pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
             }
             "arrow" | "line" => {
                 let pts = points(e);
-                let bound = |k: &str| e[k]["elementId"].as_str().filter(|b| {
-                    local.contains_key(b) && by_id.get(b).is_some_and(|t| BINDABLE.contains(&t["type"].as_str().unwrap_or("")))
-                });
+                let bound = |k: &str| {
+                    e[k]["elementId"].as_str().filter(|b| {
+                        local.contains_key(b)
+                            && by_id.get(b).is_some_and(|t| {
+                                BINDABLE.contains(&t["type"].as_str().unwrap_or(""))
+                            })
+                    })
+                };
                 let (sb, eb) = (bound("startBinding"), bound("endBinding"));
                 if kind == "line" && sb.is_none() && eb.is_none() {
                     out.note("lines", None);
@@ -162,11 +219,18 @@ pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
                     }
                     let start_head = !e["startArrowhead"].is_null();
                     let end_head = e["endArrowhead"].as_str();
-                    if kind == "line" || start_head || !matches!(end_head, Some("arrow" | "triangle")) {
+                    if kind == "line"
+                        || start_head
+                        || !matches!(end_head, Some("arrow" | "triangle"))
+                    {
                         out.note("arrowheads", None);
                     }
                     let (bx, by, bw, bh) = bbox(&pts);
-                    let pts = if pts.len() >= 2 { pts } else { vec![[x, y], [x, y]] };
+                    let pts = if pts.len() >= 2 {
+                        pts
+                    } else {
+                        vec![[x, y], [x, y]]
+                    };
                     s["pts"] = json!(pts);
                     s["x"] = json!(bx);
                     s["y"] = json!(by);
@@ -175,7 +239,13 @@ pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
                     // Connectors have one colour on a board.
                     let stroke = e["strokeColor"].as_str().unwrap_or("");
                     if tone_of(stroke).is_some() {
-                        out.note("colour", Some(format!("{} → connector colour", stroke.to_ascii_lowercase())));
+                        out.note(
+                            "colour",
+                            Some(format!(
+                                "{} → connector colour",
+                                stroke.to_ascii_lowercase()
+                            )),
+                        );
                     }
                 }
             }
@@ -195,7 +265,11 @@ pub(super) fn convert(text: &str, out: &mut Out) -> Result<(), ImportError> {
                 }
             }
         }
-        if let Some(g) = e["groupIds"].as_array().and_then(|a| a.last()).and_then(Value::as_str) {
+        if let Some(g) = e["groupIds"]
+            .as_array()
+            .and_then(|a| a.last())
+            .and_then(Value::as_str)
+        {
             s["group"] = json!(g);
             out.note("groups", None);
             if e["groupIds"].as_array().is_some_and(|a| a.len() > 1) {
@@ -221,7 +295,10 @@ fn shape_fill(e: &Value, s: &mut Value, out: &mut Out) {
     let bg = e["backgroundColor"].as_str().unwrap_or("transparent");
     if tone_of(bg).is_some() {
         set_fill(out, s, bg);
-        if matches!(e["fillStyle"].as_str(), Some("hachure" | "cross-hatch" | "zigzag")) {
+        if matches!(
+            e["fillStyle"].as_str(),
+            Some("hachure" | "cross-hatch" | "zigzag")
+        ) {
             out.note("fill_style", None);
         }
     } else if let Some(stroke) = e["strokeColor"].as_str() {
@@ -241,7 +318,10 @@ fn pen(e: &Value, s: &mut Value, pts: Vec<[f64; 2]>, out: &mut Out, id: &str) {
     let stroke = e["strokeColor"].as_str().unwrap_or("");
     if tone_of(stroke).is_some() {
         s["stroke"] = json!("accent");
-        out.note("colour", Some(format!("{} → Accent", stroke.to_ascii_lowercase())));
+        out.note(
+            "colour",
+            Some(format!("{} → Accent", stroke.to_ascii_lowercase())),
+        );
     }
 }
 

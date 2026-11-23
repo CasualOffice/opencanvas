@@ -36,7 +36,7 @@ asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
 export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images); omit for all
-import_formats  = ["md", "html", "csv"]    # formats editors may import (POST /v1/import); absent or empty = import OFF;
+import_formats  = ["md", "html", "csv", "drawio", "excalidraw"]  # formats editors may import (POST /v1/import); absent or empty = import OFF;
                                            # any other value is refused at start-up
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
@@ -405,6 +405,16 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   when nobody had the file open (saved straight away, like `patch`). Editors use the same with a
   session: `POST /v1/import?format=&ticket=` (edit role only); the session response carries
   `import.formats` so the editor shows the entry only when allowed.
+- Diagram files (DGM-15, [docs/29 §7](29-DIAGRAMMING.md)): `format=drawio` (`.drawio`, diagrams.net
+  `.xml`, compressed pages too) and `format=excalidraw`, same 5 MB limit and gate. `dryRun=1`
+  converts and answers `{"format","dryRun":true,"report"}` without changing anything; `report` is
+  `{pages, page, counts: {shapes, connectors, images, containers, needLook}, items: [{level:
+  warn|gray|ok, code, title, detail?, count, examples}]}`, most important first. `page=<n>`
+  (0-based) picks a draw.io page. The import adds a board block after `blockId` (or at the end),
+  or adds to an existing board with `boardId=` (to the right of its shapes), and answers
+  `{"boardId","blockIds","shapeIds","shapes","connectors","report"}`. Unreadable, too deep, too
+  large after decompression or entity-declaring files get `400 IMPORT_INVALID` /
+  `413 IMPORT_TOO_LARGE` with a plain-words reason. Nothing is ever fetched from a file.
 - Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`
   with the file as the raw body. DOCX and PDF embed images only from your `callback_base` origin
   (fetched signed) or an `asset_origins` entry (plain GET) — no redirects, ≤ 10 MB, `image/*`

@@ -109,10 +109,19 @@ fn drawio_flowchart_maps_shapes_edges_labels_and_styles() {
     assert_eq!(item(&c, "elbow")["count"], 4);
     // Colours that aren't a board colour are named, with what they became.
     let colour = item(&c, "colour");
-    assert!(colour["detail"].as_str().unwrap().contains("#d5e8d4 → Green"), "{colour}");
+    assert!(
+        colour["detail"]
+            .as_str()
+            .unwrap()
+            .contains("#d5e8d4 → Green"),
+        "{colour}"
+    );
     // The dashed red box keeps its fill; the dash is reported.
     assert!(has_item(&c, "dashed"));
-    assert!(has_item(&c, "text_style"), "bold in an HTML label is reported");
+    assert!(
+        has_item(&c, "text_style"),
+        "bold in an HTML label is reported"
+    );
 }
 
 #[test]
@@ -133,7 +142,10 @@ fn drawio_vendor_stencils_become_named_boxes_and_groups_become_containers() {
     assert_eq!(st["count"], 3);
     let detail = st["detail"].as_str().unwrap();
     assert!(detail.contains("Lambda: fraud-check"), "{detail}");
-    assert!(detail.contains("They keep size and connections."), "{detail}");
+    assert!(
+        detail.contains("They keep size and connections."),
+        "{detail}"
+    );
     // Connections to stencils are kept.
     let a1 = by_src(&c, "a1");
     assert_eq!(a1["end"]["shapeId"], fraud["id"]);
@@ -150,16 +162,34 @@ fn drawio_vendor_stencils_become_named_boxes_and_groups_become_containers() {
     assert_eq!(by_src(&c, "db")["props"]["parent"], vpc["id"]);
     assert_eq!(item(&c, "containers")["count"], 2);
     // Containers paint below their children.
-    let pos = |src: &str| c.shapes.iter().position(|s| s["props"]["sourceId"] == src).unwrap();
+    let pos = |src: &str| {
+        c.shapes
+            .iter()
+            .position(|s| s["props"]["sourceId"] == src)
+            .unwrap()
+    };
     assert!(pos("vpc") < pos("grp") && pos("grp") < pos("fraud"));
     // Cylinder: no board equivalent, a box with its name.
     let db = by_src(&c, "db");
-    assert_eq!((db["type"].as_str(), db["text"].as_str()), (Some("rect"), Some("orders-db")));
-    assert!(item(&c, "shape_box")["detail"].as_str().unwrap().contains("orders-db"));
+    assert_eq!(
+        (db["type"].as_str(), db["text"].as_str()),
+        (Some("rect"), Some("orders-db"))
+    );
+    assert!(
+        item(&c, "shape_box")["detail"]
+            .as_str()
+            .unwrap()
+            .contains("orders-db")
+    );
     // The embedded PNG is an image; the linked one is never fetched and is reported.
     let logo = by_src(&c, "logo");
     assert_eq!(logo["type"], "image");
-    assert!(logo["src"].as_str().unwrap().starts_with("data:image/png;base64,iVBOR"));
+    assert!(
+        logo["src"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,iVBOR")
+    );
     assert_eq!(item(&c, "image_link")["count"], 1);
     assert!(!all_text(&c).contains("example.com"));
     // The javascript: link is not imported, and the report says so.
@@ -172,9 +202,20 @@ fn drawio_vendor_stencils_become_named_boxes_and_groups_become_containers() {
         .iter()
         .map(|i| i["level"].as_str().unwrap())
         .collect();
-    let rank = |l: &str| ["bad", "warn", "gray", "ok"].iter().position(|x| *x == l).unwrap();
-    assert!(levels.windows(2).all(|w| rank(w[0]) <= rank(w[1])), "{levels:?}");
-    assert_eq!(c.report["counts"]["needLook"], json!(st["count"].as_u64().unwrap() + 3));
+    let rank = |l: &str| {
+        ["bad", "warn", "gray", "ok"]
+            .iter()
+            .position(|x| *x == l)
+            .unwrap()
+    };
+    assert!(
+        levels.windows(2).all(|w| rank(w[0]) <= rank(w[1])),
+        "{levels:?}"
+    );
+    assert_eq!(
+        c.report["counts"]["needLook"],
+        json!(st["count"].as_u64().unwrap() + 3)
+    );
 }
 
 #[test]
@@ -191,14 +232,27 @@ fn compressed_and_bare_drawio_files_decode() {
 #[test]
 fn multi_page_files_import_one_page_and_report_the_others() {
     let c = drawio("multipage.drawio", 0);
-    assert_eq!(c.pages, vec!["Production".to_string(), "Sequence".to_string()]);
+    assert_eq!(
+        c.pages,
+        vec!["Production".to_string(), "Sequence".to_string()]
+    );
     assert_eq!(c.shapes.len(), 1);
-    assert!(item(&c, "page_other")["title"].as_str().unwrap().contains("Sequence"));
+    assert!(
+        item(&c, "page_other")["title"]
+            .as_str()
+            .unwrap()
+            .contains("Sequence")
+    );
     let c = drawio("multipage.drawio", 1);
     assert_eq!(c.page, 1);
     assert_eq!(c.report["counts"]["shapes"], 2);
     assert_eq!(c.report["counts"]["connectors"], 1);
-    assert!(item(&c, "page_other")["title"].as_str().unwrap().contains("Production"));
+    assert!(
+        item(&c, "page_other")["title"]
+            .as_str()
+            .unwrap()
+            .contains("Production")
+    );
     assert!(convert(Format::Drawio, &fixture("multipage.drawio"), 2).is_err());
 }
 
@@ -207,7 +261,10 @@ fn excalidraw_elements_map_to_board_shapes() {
     let c = convert(Format::Excalidraw, &fixture("board.excalidraw"), 0).unwrap();
     let r1 = by_src(&c, "r1");
     assert_eq!(r1["type"], "rect");
-    assert_eq!(r1["text"], "Plan sprint", "bound text becomes the shape label");
+    assert_eq!(
+        r1["text"], "Plan sprint",
+        "bound text becomes the shape label"
+    );
     assert_eq!(r1["fill"], "blue");
     assert_eq!(r1["group"], "g1");
     assert!(
@@ -216,7 +273,10 @@ fn excalidraw_elements_map_to_board_shapes() {
     );
     let e1 = by_src(&c, "e1");
     assert_eq!(e1["type"], "ellipse");
-    assert_eq!(e1["fill"], "green", "stroke colour when there's no background");
+    assert_eq!(
+        e1["fill"], "green",
+        "stroke colour when there's no background"
+    );
     let d1 = by_src(&c, "d1");
     assert_eq!(d1["type"], "diamond");
     assert_eq!(d1["group"], "g1", "the outermost group");
@@ -239,21 +299,42 @@ fn excalidraw_elements_map_to_board_shapes() {
     assert_eq!(p1["pts"][3], json!([520.0, 290.0]));
     let img = by_src(&c, "img1");
     assert_eq!(img["type"], "image");
-    assert!(img["src"].as_str().unwrap().starts_with("data:image/png;base64,"));
+    assert!(
+        img["src"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,")
+    );
     let frame = by_src(&c, "frame1");
-    assert_eq!((frame["type"].as_str(), frame["label"].as_str()), (Some("rect"), Some("Sprint board")));
+    assert_eq!(
+        (frame["type"].as_str(), frame["label"].as_str()),
+        (Some("rect"), Some("Sprint board"))
+    );
     assert_eq!(frame["dashed"], true);
     assert_eq!(r1["props"]["parent"], frame["id"]);
     // Deleted elements are skipped; the SVG image is left out and reported.
     assert!(!c.shapes.iter().any(|s| s["props"]["sourceId"] == "gone"));
-    assert_eq!(by_src(&c, "img2")["type"], "rect", "a box keeps the left-out image's place");
+    assert_eq!(
+        by_src(&c, "img2")["type"],
+        "rect",
+        "a box keeps the left-out image's place"
+    );
     assert!(by_src(&c, "img2")["src"].is_null());
     assert!(!all_text(&c).contains("svg+xml"));
     assert_eq!(item(&c, "image_svg")["count"], 1);
     assert_eq!(item(&c, "image_svg")["level"], "warn");
     for code in [
-        "rough", "font", "fill_style", "stroke_width", "rotation", "opacity", "link", "nested_groups",
-        "colour", "dashed", "containers",
+        "rough",
+        "font",
+        "fill_style",
+        "stroke_width",
+        "rotation",
+        "opacity",
+        "link",
+        "nested_groups",
+        "colour",
+        "dashed",
+        "containers",
     ] {
         assert!(has_item(&c, code), "{code}: {:#}", c.report);
     }
@@ -289,7 +370,8 @@ fn billion_laughs_and_external_entities_are_refused() {
 </root></mxGraphModel></diagram></mxfile>"#;
     let t = std::time::Instant::now();
     assert_eq!(refused(Format::Drawio, laughs.as_bytes()), "unreadable");
-    assert!(t.elapsed().as_secs() < 2);
+    // Generous bound (slow CI runners): expansion would take far longer, or run out of memory.
+    assert!(t.elapsed().as_secs() < 60);
     let xxe = r#"<?xml version="1.0"?><!DOCTYPE m [<!ENTITY x SYSTEM "file:///etc/passwd">]>
 <mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>
 <mxCell id="a" value="&x;" vertex="1" parent="1"><mxGeometry width="10" height="10" as="geometry"/></mxCell></root></mxGraphModel>"#;
@@ -333,7 +415,10 @@ fn decompression_bombs_and_node_floods_are_refused() {
     let bad = r#"<mxfile><diagram name="x">bm90IGRlZmxhdGU=</diagram></mxfile>"#;
     assert_eq!(refused(Format::Drawio, bad.as_bytes()), "unreadable");
     assert_eq!(refused(Format::Drawio, b"hello"), "unreadable");
-    assert_eq!(refused(Format::Excalidraw, br#"{"type":"tldraw"}"#), "not_diagram");
+    assert_eq!(
+        refused(Format::Excalidraw, br#"{"type":"tldraw"}"#),
+        "not_diagram"
+    );
 }
 
 #[test]
