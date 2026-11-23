@@ -151,7 +151,9 @@ form, and its Mentions list sends `Action_ScrollToBlock`.
 
 ## 5. Callbacks you implement (JWT mode)
 
-Base: `callback_base`. Every call carries `Authorization: Bearer <callbackToken>` and
+Base: `callback_base`. Every call carries `Authorization: Bearer <callbackToken>` (also sent
+as `X-OpenCanvas-Callback-Token: <callbackToken>`, for hosts behind something that strips
+`Authorization`, such as a Mattermost plugin; neither header is signed) and
 `X-OpenCanvas-Signature: t=<ts>,v1=<hex>,v2=<hex>` so you can verify the call comes from
 OpenCanvas:
 

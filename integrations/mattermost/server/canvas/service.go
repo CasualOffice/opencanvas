@@ -120,6 +120,15 @@ func (s *Service) serveCallback(w http.ResponseWriter, r *http.Request, p string
 	case len(parts) == 1 && parts[0] == "access" && r.Method == http.MethodPost:
 		s.cbAccess(w, body)
 	case len(parts) >= 2 && parts[0] == "files":
+		// OpenCanvas also sends the callback token in X-OpenCanvas-Callback-Token, since
+		// Mattermost strips Authorization. When present it must be ours and for this file;
+		// older OpenCanvas servers send none and are authenticated by the signature alone.
+		if ct := r.Header.Get("X-OpenCanvas-Callback-Token"); ct != "" {
+			if _, err := VerifyCallbackToken(s.Cfg, ct, parts[1], s.now()); err != nil {
+				errJSON(w, http.StatusUnauthorized, "CALLBACK_TOKEN_INVALID")
+				return
+			}
+		}
 		rec, raw, err := s.store().Get(parts[1])
 		if errors.Is(err, ErrNotFound) {
 			errJSON(w, http.StatusNotFound, "FILE_NOT_FOUND")

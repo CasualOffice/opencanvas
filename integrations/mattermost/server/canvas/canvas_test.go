@@ -523,3 +523,28 @@ func TestConfigValidate(t *testing.T) {
 		t.Fatal("error leaks the secret")
 	}
 }
+
+func TestCallbackTokenHeaderVerifiedWhenPresent(t *testing.T) {
+	svc, _ := newSvc()
+	a := mustCreate(t, svc, "")
+	b := mustCreate(t, svc, "")
+	get := func(tok string) int {
+		r := signed(svc, "GET", "/oc/files/"+a.ID, nil, t0)
+		if tok != "" {
+			r.Header.Set("X-OpenCanvas-Callback-Token", tok)
+		}
+		return do(svc, r).Code
+	}
+	if c := get(MintCallbackToken(svc.Cfg, a.ID, "alice", t0)); c != 404 { // valid: empty canvas
+		t.Fatalf("valid token: %d", c)
+	}
+	if c := get(""); c != 404 { // older OpenCanvas: signature only
+		t.Fatalf("no token: %d", c)
+	}
+	if c := get(MintCallbackToken(svc.Cfg, b.ID, "alice", t0)); c != 401 {
+		t.Fatalf("token for another canvas: %d", c)
+	}
+	if c := get("oct1.forged.sig"); c != 401 {
+		t.Fatalf("forged token: %d", c)
+	}
+}

@@ -399,12 +399,19 @@ impl HostClient {
             &path_query,
             &body,
         );
-        client
+        let req = client
             .request(method, url)
             .timeout(Duration::from_secs(timeout))
             .bearer_auth(token)
-            .header("X-OpenCanvas-Signature", sig)
-            .body(body)
+            .header("X-OpenCanvas-Signature", sig);
+        // Also in a header of its own: some hosts never see `Authorization` (Mattermost strips
+        // it before a plugin's ServeHTTP). Not signed, like the bearer (docs/05 §5).
+        let req = if token.is_empty() {
+            req
+        } else {
+            req.header("X-OpenCanvas-Callback-Token", token)
+        };
+        req.body(body)
     }
 
     pub async fn get_file(
@@ -784,6 +791,31 @@ mod tests {
             h.rsplit_once("v2=").unwrap().1,
             other.rsplit_once("v2=").unwrap().1
         );
+    }
+
+    /// Some hosts never see `Authorization` (Mattermost strips it before a plugin's
+    /// `ServeHTTP`), so the callback token also travels in `X-OpenCanvas-Callback-Token`.
+    #[test]
+    fn callback_token_also_sent_in_its_own_header() {
+        let host: crate::hosts::HostConfig = toml::from_str(
+            "id = \"h\"\nname = \"H\"\njwt_secret = \"s\"\ncallback_base = \"https://h.example/cb\"",
+        )
+        .unwrap();
+        let req = super::HostClient::signed(
+            &reqwest::Client::new(),
+            &host,
+            "tok-1",
+            reqwest::Method::PUT,
+            "https://h.example/cb/files/f1".parse().unwrap(),
+            b"{}".to_vec(),
+            5,
+        )
+        .build()
+        .unwrap();
+        assert_eq!(req.headers()["authorization"], "Bearer tok-1");
+        assert_eq!(req.headers()["x-opencanvas-callback-token"], "tok-1");
+        // Signature unchanged: the header is not part of what v1/v2 sign.
+        assert!(req.headers().contains_key("x-opencanvas-signature"));
     }
 
     #[test]

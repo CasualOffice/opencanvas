@@ -172,7 +172,9 @@ later step can add a link that opens the canvas in the system browser through a 
 
 ## 8. Server gaps found (described, not fixed)
 
-1. **Callback auth on hosts that strip `Authorization`.** OpenCanvas sends the callback token
+1. **Callback auth on hosts that strip `Authorization`.** *Fixed in this branch (MM-01):
+   OpenCanvas now also sends `X-OpenCanvas-Callback-Token`; the plugin verifies it when
+   present (file-bound, HMAC) and falls back to the signature alone for older servers.* OpenCanvas sends the callback token
    only as `Authorization: Bearer`. Mattermost removes that header, so per-user binding of
    callbacks is lost and the signature is the only proof. Proposal: also send the token in
    `X-OpenCanvas-Callback-Token` (already the header name the patch API reads, docs/05 §7) and
