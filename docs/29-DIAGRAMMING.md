@@ -259,7 +259,7 @@ Owner request 2026-11-24. Through the FC-10 pipeline (`POST /v1/import`, 5 MB `M
 SEC-39, host `import_formats`, `OC_IMPORT=off`): a **dry run** first (`dryRun=1`, the report of
 approved frame 7b), then the import, then "Undo import" (7e). Converter:
 `crates/oc-model/src/diagram_import/` (server only; the editor bundle only gains the dialog
-states). Dependencies: ADR-048 (Proposed). Mermaid (frame 7c) is not built yet.
+states). Dependencies: ADR-053 (Proposed). Mermaid (frame 7c) is not built yet.
 
 **Result.** From a document: a new board block after the caret block (or at the end), shapes moved
 so the top left is at (40, 40), relative positions kept. With `boardId`: added to that board, to
