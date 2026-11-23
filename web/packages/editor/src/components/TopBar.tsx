@@ -43,6 +43,8 @@ export function TopBar(props: {
   wide: boolean;
   canExport: boolean;
   canDownload: boolean;
+  /** ADR-043, prototype 5: a temporary canvas gets a "Temporary" label and a one-click Download. */
+  temporary?: boolean;
   /** Click toggles following; a long press (touch) always starts it. */
   onFollow(p: Peer, start?: boolean): void;
   onComments(): void;
@@ -58,8 +60,8 @@ export function TopBar(props: {
 }) {
   const { compact } = useShell();
   const pressed = useRef<{ id: number; fired: boolean } | null>(null);
-  const [pop, setPop] = useState<{ kind: "status" | "more" | "people"; anchor: Anchor } | null>(null);
-  const open = (kind: "status" | "more" | "people") => (e: React.MouseEvent) =>
+  const [pop, setPop] = useState<{ kind: "status" | "more" | "people" | "download"; anchor: Anchor } | null>(null);
+  const open = (kind: "status" | "more" | "people" | "download") => (e: React.MouseEvent) =>
     setPop(pop?.kind === kind ? null : { kind, anchor: e.currentTarget as HTMLElement });
   const close = () => setPop(null);
   const { meta, save } = props;
@@ -83,6 +85,12 @@ export function TopBar(props: {
           <Ic name={meta.icon} size={14} />
         </span>
         <span className="cname">{meta.title || "Untitled"}</span>
+        {props.temporary ? (
+          <span className="temp-pill" title="Not saved anywhere. Deleted when the meeting ends.">
+            <Ic name="clock" size={13} />
+            Temporary
+          </span>
+        ) : null}
       </div>
       <StatusButton save={save} hostName={props.hostName} onClick={open("status")} />
       <div className="avs" aria-label="People here">
@@ -172,6 +180,12 @@ export function TopBar(props: {
           </span>
         ) : null}
       </button>
+      {props.temporary && (props.canExport || props.canDownload) ? (
+        <button className={compact ? "ib" : "btn primary sm temp-dl"} onClick={open("download")} aria-haspopup="menu" aria-expanded={pop?.kind === "download"} title="Download a copy to keep" aria-label={compact ? "Download a copy" : undefined}>
+          <Ic name="download" />
+          {compact ? null : "Download"}
+        </button>
+      ) : null}
       <button className="ib" onClick={open("more")} title="More" aria-label="More options">
         <Ic name="ellipsis" />
       </button>
@@ -191,6 +205,32 @@ export function TopBar(props: {
               </span>
             </button>
           ))}
+        </Popover>
+      ) : null}
+      {pop?.kind === "download" ? (
+        <Popover anchor={pop.anchor} onClose={close} title="Download a copy" alignRight minWidth={240} kind="menu">
+          {props.canExport ? (
+            <>
+              <button className="mi" role="menuitem" onClick={() => (close(), props.onExport("pdf"))}>
+                <Ic name="printer" />
+                <span className="ml"><b>PDF</b><span>to read or print</span></span>
+              </button>
+              <button className="mi" role="menuitem" onClick={() => (close(), props.onExport("docx"))}>
+                <Ic name="file-type" />
+                <span className="ml"><b>Word</b><span>to keep editing</span></span>
+              </button>
+              <button className="mi" role="menuitem" onClick={() => (close(), props.onExport("md"))}>
+                <Ic name="file-text" />
+                <span className="ml"><b>Markdown</b><span>plain text</span></span>
+              </button>
+            </>
+          ) : null}
+          {props.canDownload ? (
+            <button className="mi" role="menuitem" onClick={() => (close(), props.onExport("ocanvas"))}>
+              <Ic name="pen-tool" />
+              <span className="ml"><b>.ocanvas</b><span>to reopen it later</span></span>
+            </button>
+          ) : null}
         </Popover>
       ) : null}
       {pop?.kind === "more" ? (

@@ -68,6 +68,10 @@ kbd{font-family:var(--mono);font-size:11px;color:var(--fg-3);border:1px solid va
 .banner.info{background:var(--accent-soft);color:var(--fg)} .banner.info>svg{color:var(--accent)}
 .banner.warn{background:var(--amber-bg);color:var(--amber-fg)}
 .banner.bad{background:var(--red-bg);color:var(--red-fg)}
+.banner.temp{background:var(--app);color:var(--fg-2)} .banner.temp>svg{color:var(--amber-fg)}
+.banner.temp .ib{margin-left:auto;width:26px;height:26px}
+.temp-pill{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:3px 9px;border-radius:999px;background:var(--amber-bg);color:var(--amber-fg);font-size:12px;font-weight:500;white-space:nowrap;flex:none}
+.temp-dl{flex:none}
 
 .body{flex:1;min-height:0;display:flex;position:relative}
 .scroll{flex:1;min-width:0;overflow:auto;overscroll-behavior:contain;position:relative}

@@ -47,6 +47,16 @@ const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ def
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
  *  Workspace shows the banner once (docs/23 PERM-03). Per room, in sessionStorage, so it
  *  survives the restart and a page reload. */
+/** Prototype 5: the temporary-canvas note, once hidden, stays hidden for this room in this tab. */
+const tempNoteKey = (room: string) => `oc:tempnote:${room}`;
+function tempNoteHidden(room: string): boolean {
+  try {
+    return sessionStorage.getItem(tempNoteKey(room)) === "1";
+  } catch {
+    return false;
+  }
+}
+
 const downgradeKey = (room: string) => `oc:downgraded:${room}`;
 function markDowngraded(room: string) {
   try {
@@ -187,6 +197,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [save, setSave] = useState<SaveState>({ kind: "saved", at: null });
   const [conn, setConn] = useState<"connected" | "reconnecting" | "offline">("connected");
   const [conflict, setConflict] = useState<{ policy: "copy" | "reload" | null; fileId?: string; url?: string; open: boolean } | null>(null);
+  const [tempNote, setTempNote] = useState(() => !tempNoteHidden(session.room));
   const [closed, setClosed] = useState<{ kind: "revoked" | "host" | "other"; reason: string } | null>(null);
   const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -846,6 +857,28 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       </div>,
     );
   }
+  if (temporary && tempNote && !closed)
+    banners.push(
+      <div key="temporary" role="note" className="banner temp">
+        <Ic name="info" />
+        <span>This canvas is not saved anywhere. It is deleted when the meeting ends; download a copy to keep it.</span>
+        <button
+          className="ib sm"
+          aria-label="Hide this note"
+          title="Hide this note"
+          onClick={() => {
+            setTempNote(false);
+            try {
+              sessionStorage.setItem(tempNoteKey(session.room), "1");
+            } catch {
+              /* storage blocked: hidden until reload */
+            }
+          }}
+        >
+          <Ic name="x" size={14} />
+        </button>
+      </div>,
+    );
   const copyName = `${meta.title || session.file.name || "Untitled"} (copy)`;
   const openCopy = () => conflict?.url && postToHost("UI_Link_Click", { url: conflict.url, fileId: conflict.fileId ?? null });
   if (conflict)
@@ -937,6 +970,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               wide={wide}
               canExport={session.perms.export !== false}
               canDownload={session.perms.download !== false}
+              temporary={temporary}
               onFollow={follow}
               onComments={() => (side ? closeSide() : setSide("comments"))}
               onImportInto={impFormats.length ? openImport : undefined}

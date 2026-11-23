@@ -78,12 +78,7 @@ export function DocHeader(props: {
             {props.peopleHere} people here now
           </span>
         ) : null}
-        {props.temporary ? (
-          <span>
-            <Ic name="clock" size={14} />
-            Temporary: deleted when the meeting ends. Download a copy to keep it.
-          </span>
-        ) : (
+        {props.temporary ? null : (
           <span>
             <Ic name="shield-check" size={14} />
             Stored in {props.hostName}
