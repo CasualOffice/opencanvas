@@ -42,6 +42,19 @@ pub struct Store {
     kv: Option<crate::redis_store::RedisStore>,
 }
 
+/// What [`Store::idem_begin`] found for an `Idempotency-Key` (docs/27 §4.2, HAPI-03).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdemBegin {
+    /// The key was free: this request runs and must finish or release it.
+    Started,
+    /// The same request already finished: its stored answer.
+    Replay { status: u16, response: String },
+    /// The same request is still running (on any node).
+    InProgress,
+    /// The key was used with a different request.
+    Mismatch,
+}
+
 /// One Yjs update for the WAL, at its own `seq`.
 #[derive(Debug, Clone)]
 pub struct WalRow {
@@ -941,6 +954,121 @@ impl Store {
         })
     }
 
+    /// Claims an idempotency key (`id` = hash of host, subject and key) for a request whose
+    /// hash is `request_hash`, for `lease` seconds; or reports what holds it. Atomic across
+    /// nodes: the primary key (SQL) or `SET NX` (Redis) decides. `now` in seconds.
+    pub async fn idem_begin(
+        &self,
+        id: &str,
+        host: &str,
+        request_hash: &str,
+        now: i64,
+        lease: i64,
+    ) -> anyhow::Result<IdemBegin> {
+        if let Some(kv) = &self.kv {
+            return kv.idem_begin(host, id, request_hash, lease).await;
+        }
+        for _ in 0..4 {
+            let ins = sqlx::query(
+                "INSERT INTO api_idempotency (id, host_id, request_hash, state, status, response, expires_at) \
+                 VALUES (?, ?, ?, 'running', 0, '', ?)",
+            )
+            .bind(id)
+            .bind(host)
+            .bind(request_hash)
+            .bind(now + lease)
+            .execute(&self.pool)
+            .await;
+            match ins {
+                Ok(_) => return Ok(IdemBegin::Started),
+                Err(e)
+                    if e.as_database_error()
+                        .is_some_and(|d| d.is_unique_violation()) => {}
+                Err(e) => return Err(e.into()),
+            }
+            let row = sqlx::query(
+                "SELECT request_hash, state, status, response, expires_at FROM api_idempotency WHERE id = ?",
+            )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+            let Some(row) = row else { continue };
+            let expires: i64 = row.try_get(4)?;
+            if expires < now {
+                // A finished answer past its 24 h, or a running claim whose node died.
+                sqlx::query("DELETE FROM api_idempotency WHERE id = ? AND expires_at < ?")
+                    .bind(id)
+                    .bind(now)
+                    .execute(&self.pool)
+                    .await?;
+                continue;
+            }
+            if row.try_get::<String, _>(0)? != request_hash {
+                return Ok(IdemBegin::Mismatch);
+            }
+            if row.try_get::<String, _>(1)? != "done" {
+                return Ok(IdemBegin::InProgress);
+            }
+            return Ok(IdemBegin::Replay {
+                status: u16::try_from(row.try_get::<i64, _>(2)?).unwrap_or(200),
+                response: row.try_get(3)?,
+            });
+        }
+        anyhow::bail!("idempotency key claim kept racing")
+    }
+
+    /// Stores the answer of a request that [`Store::idem_begin`] started; it is replayed until
+    /// `expires_at` (seconds). Never document content (ADR-001): callers store write answers.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn idem_finish(
+        &self,
+        id: &str,
+        host: &str,
+        request_hash: &str,
+        status: u16,
+        response: &str,
+        ttl: i64,
+        now: i64,
+    ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv
+                .idem_finish(host, id, request_hash, status, response, ttl)
+                .await;
+        }
+        sqlx::query(
+            "UPDATE api_idempotency SET state = 'done', status = ?, response = ?, expires_at = ? \
+             WHERE id = ? AND request_hash = ?",
+        )
+        .bind(i64::from(status))
+        .bind(response)
+        .bind(now + ttl)
+        .bind(id)
+        .bind(request_hash)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Frees a key whose request did not succeed, so a retry runs again.
+    pub async fn idem_release(
+        &self,
+        id: &str,
+        host: &str,
+        request_hash: &str,
+    ) -> anyhow::Result<()> {
+        if let Some(kv) = &self.kv {
+            return kv.idem_release(host, id, request_hash).await;
+        }
+        sqlx::query(
+            "DELETE FROM api_idempotency WHERE id = ? AND request_hash = ? AND state = 'running'",
+        )
+        .bind(id)
+        .bind(request_hash)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn purge_expired(&self, now: i64) -> anyhow::Result<()> {
         if self.kv.is_some() {
             // Sessions, used launch tokens, finished notifications and idle epochs expire
@@ -964,6 +1092,10 @@ impl Store {
             .execute(&self.pool)
             .await?;
         sqlx::query("DELETE FROM launch_jti WHERE expires_at < ?")
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM api_idempotency WHERE expires_at < ?")
             .bind(now)
             .execute(&self.pool)
             .await?;

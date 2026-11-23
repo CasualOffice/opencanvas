@@ -480,6 +480,13 @@ if any lacks a matching operation.
   `TOKEN_EXPIRED` separately). `canvas:admin` is honoured only with `[host.api] token_admin`.
   `[host.api] all_files` mirrors `mcp_all_files`. Moving MCP onto the shared check fixed a bug:
   MCP grants had `Perms::default()` (comments off), so `comment_add` was always refused.
+- **HAPI-03 (2026-11-24, Review).** `Idempotency-Key` middleware on `POST /api/v1/files/…`
+  (`routes/v1/idempotency.rs`), scoped to (host, subject); store methods `idem_begin` /
+  `idem_finish` / `idem_release` on SQLite and MySQL/MariaDB (migration `0008_api_idempotency`,
+  keyed by `sha256(host, subject, key)`) and Redis-only (`SET NX EX`, release by script).
+  Running claims hold a 60 s lease (a crashed node frees the key), answers are kept 24 h; only
+  2xx write answers are stored (ids, counts, revisions; never content), failures free the key.
+  `crate::clock::Clock` (pinnable) drives expiry so tests never sleep; HAPI-04 reuses it.
 
 ---
 

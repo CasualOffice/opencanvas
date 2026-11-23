@@ -256,7 +256,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/mcp/{host_id}", post(mcp::mcp).layer(DefaultBodyLimit::max(body_limit)))
         .route("/.well-known/oauth-protected-resource/mcp/{host_id}", get(mcp::resource_metadata))
         // Headless API v1 and the 0.1 host routes it keeps as aliases (docs/27 §4).
-        .merge(v1::router(body_limit))
+        .merge(v1::router(state.clone(), body_limit))
         .route("/healthz", get(ops::healthz))
         .route("/readyz", get(ops::readyz))
         .route("/metrics", get(ops::metrics))

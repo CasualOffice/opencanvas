@@ -14,6 +14,7 @@
 //! kept as aliases with their old answers and error shape, plus `Deprecation` and a
 //! `Link: rel="successor-version"` to the v1 operation (docs/27 §9, decision 8).
 
+pub mod idempotency;
 pub mod problem;
 
 use axum::Json;
@@ -165,12 +166,16 @@ async fn deprecation(
 }
 
 /// The `/api/v1` router and the 0.1 aliases, ready to merge into the app router.
-pub fn router(body_limit: usize) -> Router<SharedState> {
+pub fn router(state: SharedState, body_limit: usize) -> Router<SharedState> {
     let limit = body_limit.max(import::MAX_IMPORT_BYTES);
     let v1 = table()
         .router
         .route("/api/v1/{*rest}", axum::routing::any(not_found))
         .layer(DefaultBodyLimit::max(limit))
+        .layer(axum::middleware::from_fn_with_state(
+            (state, limit),
+            idempotency::layer,
+        ))
         .layer(axum::middleware::from_fn(problem::ensure_problem));
     let old = aliases()
         .router

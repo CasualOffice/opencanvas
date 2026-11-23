@@ -442,3 +442,97 @@ async fn ai_token_usage_is_counted_per_host_and_month() {
         );
     }
 }
+
+/// HAPI-03: the `Idempotency-Key` store. One claim per key across every caller; replay,
+/// mismatch, in-progress, release, and expiry (by the caller's clock on SQL; Redis expires
+/// the lease by TTL, which this test does not wait for).
+#[tokio::test]
+async fn idempotency_keys_claim_once_replay_and_expire() {
+    use oc_server::store::IdemBegin;
+    for (b, s) in backends().await {
+        let (id, host) = (uid("idem"), "sample");
+        let now = 1_000_000;
+        assert_eq!(
+            s.idem_begin(&id, host, "h1", now, 60).await.unwrap(),
+            IdemBegin::Started,
+            "{b}"
+        );
+        assert_eq!(
+            s.idem_begin(&id, host, "h1", now, 60).await.unwrap(),
+            IdemBegin::InProgress,
+            "{b}"
+        );
+        assert_eq!(
+            s.idem_begin(&id, host, "h2", now, 60).await.unwrap(),
+            IdemBegin::Mismatch,
+            "{b}"
+        );
+        // Concurrent claims of a fresh key: exactly one starts.
+        let fresh = uid("idem");
+        let claims =
+            futures::future::join_all((0..8).map(|_| s.idem_begin(&fresh, host, "h", now, 60)))
+                .await;
+        let started = claims
+            .iter()
+            .filter(|c| matches!(c, Ok(IdemBegin::Started)))
+            .count();
+        assert_eq!(started, 1, "{b}: {claims:?}");
+
+        s.idem_finish(&id, host, "h1", 201, r#"{"ok":1}"#, 86_400, now)
+            .await
+            .unwrap();
+        assert_eq!(
+            s.idem_begin(&id, host, "h1", now + 10, 60).await.unwrap(),
+            IdemBegin::Replay {
+                status: 201,
+                response: r#"{"ok":1}"#.into()
+            },
+            "{b}"
+        );
+        // Release only frees a running claim of the same request.
+        s.idem_release(&id, host, "h1").await.unwrap();
+        assert!(
+            matches!(
+                s.idem_begin(&id, host, "h1", now, 60).await.unwrap(),
+                IdemBegin::Replay { .. }
+            ),
+            "{b}"
+        );
+        s.idem_release(&fresh, host, "other").await.unwrap();
+        assert_eq!(
+            s.idem_begin(&fresh, host, "h", now, 60).await.unwrap(),
+            IdemBegin::InProgress,
+            "{b}"
+        );
+        s.idem_release(&fresh, host, "h").await.unwrap();
+        assert_eq!(
+            s.idem_begin(&fresh, host, "h", now, 60).await.unwrap(),
+            IdemBegin::Started,
+            "{b}"
+        );
+
+        if b != "redis" {
+            // A dead node's claim frees after its lease; a done answer after its TTL.
+            assert_eq!(
+                s.idem_begin(&fresh, host, "h9", now + 61, 60)
+                    .await
+                    .unwrap(),
+                IdemBegin::Started,
+                "{b}"
+            );
+            assert_eq!(
+                s.idem_begin(&id, host, "h2", now + 86_401, 60)
+                    .await
+                    .unwrap(),
+                IdemBegin::Started,
+                "{b}"
+            );
+            s.purge_expired(now + 10 * 86_400).await.unwrap();
+            assert_eq!(
+                s.idem_begin(&id, host, "h3", now, 60).await.unwrap(),
+                IdemBegin::Started,
+                "{b}: purged"
+            );
+        }
+    }
+}

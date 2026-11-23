@@ -7,6 +7,7 @@ pub mod ai;
 pub mod alloc;
 pub mod assets;
 pub mod authz;
+pub mod clock;
 pub mod cluster;
 pub mod config;
 pub mod crypto;
@@ -61,6 +62,8 @@ pub struct AppState {
     pub unfurl: unfurl::Unfurler,
     /// RND-01: rendered previews per room version (`GET /v1/preview`).
     pub previews: routes::preview::PreviewCache,
+    /// API bookkeeping time (idempotency, rate limits, cursors); tests pin it.
+    pub clock: Arc<clock::Clock>,
 }
 
 #[derive(Clone, Copy)]
@@ -161,6 +164,7 @@ impl AppState {
             ai_status,
             team_templates: Default::default(),
             previews: Default::default(),
+            clock: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
