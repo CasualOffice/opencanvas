@@ -7,6 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
 import { OC, ROOT } from "../env";
+import { shots } from "../helpers";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
@@ -89,6 +90,7 @@ test("MOB-11b: the mobile toolbar keeps clear of the home indicator and sits on 
   expect(Math.round(closed.width)).toBe(width);
   expect(Math.round(closed.y + closed.height)).toBe(height);
   await page.screenshot({ path: path.join(ROOT, `target/fix-shots/mob11b-${test.info().project.name}.png`) });
+  if (test.info().project.name === "webkit-phone") await shots(page, "2a-toolbar-closed-390");
   for (const b of await bar.getByRole("button").all()) {
     const r = (await b.boundingBox())!;
     expect(r.height).toBeGreaterThanOrEqual(44);
@@ -102,6 +104,25 @@ test("MOB-11b: the mobile toolbar keeps clear of the home indicator and sits on 
   });
   await expect.poll(async () => Math.round(((await bar.boundingBox())?.y ?? 0) + ((await bar.boundingBox())?.height ?? 0))).toBe(height - 336);
   await expect(bar).toHaveCSS("padding-bottom", "6px");
+  if (test.info().project.name === "webkit-phone") await shots(page, "2b-toolbar-open-390");
+  // ToolbarOpen: on the keyboard the last button hides it (and with it the bar).
+  await expect(bar.getByRole("button").last()).toHaveAccessibleName("Hide keyboard");
+  await expect(bar.getByRole("button", { name: "Comment" })).toHaveCount(0);
+  await bar.getByRole("button", { name: "Hide keyboard" }).tap();
+  await expect(bar).toHaveCount(0);
+});
+
+// Prototype ToolbarClosed: with the keyboard closed the bar ends with Comment, which comments on
+// the block with the caret (no selection needed).
+test("MOB-11b: keyboard closed, the toolbar's last button comments on the caret's block", async ({ page }) => {
+  await demo(page);
+  await para(page).tap();
+  const bar = page.getByRole("toolbar", { name: "Editing tools" });
+  await expect(bar.getByRole("button").last()).toHaveAccessibleName("Comment");
+  await expect(bar.getByRole("button", { name: "Hide keyboard" })).toHaveCount(0);
+  await bar.getByRole("button", { name: "Comment" }).tap();
+  await expect(page.locator("aside.side[aria-label=Comments]")).toContainText("The file stays in the host");
+  await expect(para(page).locator("span.cmt[data-thread]", { hasText: "The file stays" }).first()).toBeVisible();
 });
 
 test("MOB-10/11/12: no sideways page scroll, safe area on the bottom sheet, rotation", async ({ page }) => {
