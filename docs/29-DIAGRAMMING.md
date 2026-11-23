@@ -472,8 +472,30 @@ renderer work; the panel writes the fields.
 - Search: label prefix first, then anywhere in the label, then keywords (the matched keyword is
   shown); results grouped by library in the order of their best match, so Enter adds the first
   tile. Arrow keys move between tiles. No results: one plain message and Clear search.
-- Still to come (step 2): ERD, Recent, the collapsed rail, BPMN behind an admin flag, the Icons
-  library slot (DGM-17), relations as connector presets.
+- Step 2 (DGM-14.5), panel UX for about 200 shapes (the library content is owned separately in
+  `libraries.ts`; `src/panel.ts` adds what the panel needs on top of it):
+  - Libraries are collapsible sections with counts; the first is open until the person chooses.
+    A **Libraries** chooser in the footer shows or hides libraries per person (hidden ones are
+    not searched). A library kept in its own chunk gives `count` and `load` and is loaded the
+    first time it is opened or someone searches.
+  - Search runs over a prebuilt lower-case index (label start, then anywhere in the label, then
+    keywords). Tiles: 3 columns, 32 x 24 previews with non-scaling strokes, two-line labels.
+  - Recent: your last six from any library, newest first (per person).
+  - BPMN shows only when the host sets `BlockEnv.diagram.bpmn`, marked Beta with an explanation
+    on hover or focus. Its kinds are registered regardless, so documents with BPMN draw.
+  - The Icons library (DGM-17) joins with `registerLibrary(lib, before)`.
+  - Rail (2h): the panel folds to a 3rem rail (expand, search, recent, each library, outline); a
+    library opens as a flyout that closes on add, Esc or a click outside.
+  - Shapes / Outline are tabs (arrow keys switch); the top-bar Outline button and Alt+O pick the
+    Outline tab. View-only people get the outline alone.
+- Connector presets: Flow line; UML inheritance, implements, association, aggregation,
+  composition, dependency; ERD one to one, one to many, many to many, zero or many. A preset is
+  plain fields and `props` (`startArrow`/`endArrow`, `startCard`/`endCard`, `pattern` + `dashed`),
+  the keys the properties panel edits. Clicking one connects two selected shapes in that style, or
+  arms the connector tool for the next connector. The canvas draws the ends (`src/heads.ts`) and
+  dashed lines; exporters draw the plain connector.
+- Bends (3e): on a routed elbow without bends, its inner segments get a handle; dragging one moves
+  the segment and its corners become your bends (`via`, diamonds).
 
 ### 8.8 Shapes this app can't draw (S8, DGM-14.4)
 

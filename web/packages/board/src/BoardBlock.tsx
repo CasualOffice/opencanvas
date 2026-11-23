@@ -26,7 +26,9 @@ import { AvoidRouter, RouteScheduler } from "./routing";
 import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
 import { CONTAINER, isContainer } from "./kinds";
 import { descriptorOf, makeNode } from "./registry";
+import { ends, HEADS } from "./heads";
 import { KIND_MIME } from "./libraries";
+import { newShapeFields, PRESET, presetOf, type ConnectorPreset } from "./panel";
 import { KindMarks, UnknownShape } from "./diagram/Placeholder";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
 // Diagram mode (DGM-14): its own lazy chunk, loaded when someone opens a board as a diagram.
@@ -147,7 +149,7 @@ type Drag =
   | { kind: "arrow" }
   | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
   /** Dragging waypoint `i` of a connector; `insert` when it was a segment's midpoint handle. */
-  | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean }
+  | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean; seg?: { pts: Pt[]; horiz: boolean } }
   | { kind: "pinch"; d0: number; c0: [number, number]; v: View };
 
 const describeShape = (s: Shape) => {
@@ -202,6 +204,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [dp, setDp] = useState<DiagramPrefs>(DIAGRAM_PREFS);
   /** Shape whose ports show (diagram mode, pointer over it). */
   const [hoverId, setHoverId] = useState<string | null>(null);
+  /** Connector preset the next connector is drawn with (S2), until the tool changes. */
+  const presetRef = useRef<ConnectorPreset | null>(null);
+  const [, setPresetState] = useState<string | null>(null);
   const hoverRef = useRef<string | null>(null);
   /** Equal-gap marks while moving (3a). */
   const [gaps, setGaps] = useState<GapMark[] | null>(null);
@@ -252,7 +257,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const tool_ = edit ? tool : tool === "hand" ? "hand" : "select";
-  const setTool = (t: Tool) => setToolState(edit || t === "select" || t === "hand" ? t : "select");
+  const setTool = (t: Tool) => {
+    presetRef.current = null;
+    setPresetState(null);
+    setToolState(edit || t === "select" || t === "hand" ? t : "select");
+  };
 
   /* ---- presence: pointer + selection ---- */
   const publishNow = (sel: string[]) => {
@@ -528,7 +537,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const h = Math.abs(dx) >= Math.abs(dy);
     const sa: Anchor = h ? (dx >= 0 ? "right" : "left") : dy >= 0 ? "bottom" : "top";
     const sb: Anchor = h ? (dx >= 0 ? "left" : "right") : dy >= 0 ? "top" : "bottom";
-    const s: Shape = { id: "tmp", type: "arrow", pts: [anchorPoint(a, sa), anchorPoint(b, sb)], start: { shapeId: a.id, anchor: sa }, end: { shapeId: b.id, anchor: sb }, ...(route === "elbow" ? { route } : {}) };
+    const s: Shape = { id: "tmp", type: "arrow", pts: [anchorPoint(a, sa), anchorPoint(b, sb)], start: { shapeId: a.id, anchor: sa }, end: { shapeId: b.id, anchor: sb }, ...connectorStyle() };
     um?.stopCapturing();
     const { id: _tmp, ...rest } = s;
     void _tmp;
@@ -635,7 +644,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (!S.current.edit) return;
     const d = descriptorOf({ type: "rect", kind });
     if (d.kind !== kind) return;
-    const w = d.look?.w ?? 140, h = d.look?.h ?? 70;
+    const f = newShapeFields(kind, d);
+    const w = f.w ?? 140, h = f.h ?? 70;
     let x = Math.round(at[0] - w / 2), y = Math.round(at[1] - h / 2);
     if (S.current.dgm && S.current.dp.snapGrid) {
       const g = S.current.dp.gridSize;
@@ -643,10 +653,32 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       y = Math.round(y / g) * g;
     }
     um?.stopCapturing();
-    const id = addShape(doc, boardId, makeNode(kind, { x, y, w, h, text: d.look?.text ?? d.label ?? "", ...(d.look?.tone ? { fill: d.look.tone } : {}) }), origin);
+    // Text shapes size themselves; everything else gets the kind's default box.
+    const box = d.base === "text" ? { x, y, text: f.text, size: f.size } : { ...f, x, y, w, h };
+    const id = addShape(doc, boardId, makeNode(kind, box), origin);
     setSel([id]);
     setLive(`${d.label ?? "Shape"} added`);
     return id;
+  };
+  /**
+   * A connector preset from the panel (UML relations, ERD cardinalities, flow line): with two
+   * shapes selected it connects them; otherwise the connector tool is armed with that style and
+   * the next connector drawn uses it.
+   */
+  const usePreset = (id: string) => {
+    const pr = presetOf(id);
+    if (!pr || !S.current.edit) return;
+    const two = selShapes().filter((q) => q.type !== "arrow" && q.type !== "pen");
+    if (two.length === 2) {
+      presetRef.current = pr;
+      connectSel();
+      presetRef.current = null;
+      return;
+    }
+    presetRef.current = pr;
+    setPresetState(pr.id);
+    setToolState("arrow");
+    setLive(`${pr.label}: drag from one shape to another. Escape cancels`);
   };
   const onDragOver = (e: React.DragEvent) => {
     const types = [...(e.dataTransfer?.types ?? [])];
@@ -667,7 +699,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (kind) {
       e.preventDefault();
       e.stopPropagation();
-      addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter());
+      if (kind.startsWith(PRESET)) usePreset(kind);
+      else addKind(kind, svgRef.current ? toWorld(e.clientX, e.clientY) : viewCenter());
       return;
     }
     const files = imageFiles(e.dataTransfer);
@@ -845,7 +878,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         const s = S.current.shapes.find((q) => q.id === sid);
         const tEl = e.target as Element;
         const wpAttr = tEl.getAttribute?.("data-wp") ?? null, segAttr = tEl.getAttribute?.("data-seg") ?? null;
-        const handle = tEl.classList?.contains("ocbd-rz") || tEl.getAttribute?.("data-end") || wpAttr !== null || segAttr !== null;
+        const segMove = tEl.getAttribute?.("data-segmove") ?? null;
+        const handle = tEl.classList?.contains("ocbd-rz") || tEl.getAttribute?.("data-end") || wpAttr !== null || segAttr !== null || segMove !== null;
         // A click picks the shape's whole group; Shift adds or removes it.
         const ids = handle ? [sid] : withGroups(S.current.shapes, [sid]);
         const cur = S.current.sel;
@@ -864,7 +898,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         if (s && S.current.edit) {
           um?.stopCapturing();
           const end = (e.target as Element).getAttribute?.("data-end");
-          if (wpAttr !== null || segAttr !== null) {
+          if (segMove !== null && s?.pts) {
+            // Diagram mode (3e): dragging a segment of a routed elbow moves it; its corners become
+            // your bends (`via`), drawn as diamonds.
+            const i = Number(segMove);
+            const pts = s.pts.map((q) => [q[0], q[1]] as Pt);
+            drag.current = { kind: "wp", sid, i, insert: false, orig: [], moved: false, seg: { pts, horiz: Math.abs(pts[i][1] - pts[i + 1][1]) < 0.5 } };
+          } else if (wpAttr !== null || segAttr !== null) {
             const r = rawOf(sid);
             const i = Number(wpAttr ?? segAttr);
             const way = r ? wayOf(r) : [];
@@ -998,6 +1038,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
+    if (d.kind === "wp" && d.seg) {
+      const r = rawOf(d.sid);
+      if (!r) return;
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      const q = d.seg.pts.map((p) => [p[0], p[1]] as Pt);
+      const k = d.seg.horiz ? 1 : 0, v = Math.round(d.seg.horiz ? y : x);
+      q[d.i][k] = v;
+      q[d.i + 1][k] = v;
+      schedule(d.sid, viaPatch(r, q.slice(1, -1)));
+      return;
+    }
     if (d.kind === "wp") {
       const r = rawOf(d.sid);
       if (!r) return;
@@ -1105,7 +1157,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       announceSel(S.current.sel);
       return;
     }
-    if (d.kind === "wp" && d.moved) {
+    if (d.kind === "wp" && d.moved && d.seg) setLive("Segment moved. Its corners are now your bends; Clear waypoints removes them");
+    else if (d.kind === "wp" && d.moved) {
       const n = d.orig.length + (d.insert ? 1 : 0);
       announceWp(d.i, n);
     }
@@ -1135,6 +1188,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           if (p.end && p.end.shapeId !== p.start?.shapeId) s.end = p.end;
           if (p.route) s.route = p.route;
           if (p.routing) s.routing = p.routing;
+          if (p.dashed) s.dashed = true;
+          if (p.props) s.props = { ...p.props };
           setSel([addShape(doc, boardId, s, origin)]);
         }
       }
@@ -1428,6 +1483,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   /* ---- diagram mode (DGM-14 S1) ---- */
   /** Route of a new connector: the diagram's "New connectors" style, else the board's toggle. */
   const connectorStyle = (): Partial<Shape> => {
+    const pr = presetRef.current;
+    if (pr) {
+      const base = pr.fields.route === "elbow" || (S.current.dgm && S.current.dp.connector !== "straight") ? { route: "elbow" as const } : {};
+      const avoid = S.current.dgm && S.current.dp.connector === "avoid" && (base.route || pr.fields.route) ? { routing: "avoid" as const } : {};
+      return { ...base, ...avoid, ...(pr.fields.dashed ? { dashed: true } : {}), props: { ...pr.props } };
+    }
     if (!S.current.dgm) return route === "elbow" ? { route } : {};
     const c = S.current.dp.connector;
     return c === "straight" ? {} : c === "avoid" ? { route: "elbow", routing: "avoid" } : { route: "elbow" };
@@ -1572,6 +1633,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               const out: ReactNode[] = [];
               if (way.length && r.route === "elbow") {
                 out.push(<path key="ctl" d={"M" + c.map((q) => q.join(" ")).join(" L")} fill="none" stroke="var(--accent)" strokeOpacity={0.35} strokeWidth={1 / z} strokeDasharray={`${3 / z} ${3 / z}`} pointerEvents="none" />);
+              }
+              // Diagram mode, a routed elbow without bends yet: handles on its inner segments move them (3e).
+              const sp = selShape.pts;
+              if (dgm && r.route === "elbow" && !way.length && sp.length >= 4) {
+                for (let i = 1; i < sp.length - 2; i++) {
+                  const horiz = Math.abs(sp[i][1] - sp[i + 1][1]) < 0.5;
+                  out.push(
+                    <rect key={"segm" + i} className="ocbd-wpadd" data-s={selShape.id} data-segmove={i} x={(sp[i][0] + sp[i + 1][0]) / 2 - (horiz ? 9 : 3) / z} y={(sp[i][1] + sp[i + 1][1]) / 2 - (horiz ? 3 : 9) / z} width={(horiz ? 18 : 6) / z} height={(horiz ? 6 : 18) / z} rx={3 / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={1.25 / z} style={{ cursor: horiz ? "ns-resize" : "ew-resize" }}>
+                      <title>Drag to move this segment</title>
+                    </rect>,
+                  );
+                }
+                return out;
               }
               for (let i = 0; i < c.length - 1; i++) {
                 if (Math.hypot(c[i + 1][0] - c[i][0], c[i + 1][1] - c[i][1]) * z < (compact ? 56 : 36)) continue;
@@ -1838,6 +1912,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           <marker id={ah} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
             <path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="var(--fg-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </marker>
+          {/* Connector ends from `props` (UML arrows, ERD cardinality): S2 presets, S4 panel. */}
+          {Object.entries(HEADS).map(([name, h]) => (
+            <marker key={name} id={`${ah}-${name}`} viewBox="0 0 20 20" refX={19} refY={10} markerWidth={18} markerHeight={18} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+              <path d={h.d} fill={h.fill ?? "none"} stroke="var(--fg-2)" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+            </marker>
+          ))}
         </defs>
         {dgm ? (
           dp.grid ? (
@@ -2051,7 +2131,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             menuOpen={menu}
             onMenu={() => setMenu((m) => !m)}
             origin={origin}
-            onAddShape={(kind) => addKind(kind)}
+            onAddShape={(kind) => (kind.startsWith(PRESET) ? usePreset(kind) : addKind(kind))}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
             canvas={{ shapes, sel, select: setSel }}
@@ -2333,7 +2413,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       return (
         <g data-s={s.id} style={{ cursor: "move" }}>
           <path d={d} stroke="transparent" strokeWidth={14} fill="none" />
-          <path d={d} stroke="var(--fg-2)" strokeWidth={1.6} fill="none" strokeLinejoin="round" strokeLinecap="round" markerEnd={`url(#${ah})`} />
+          <path d={d} stroke="var(--fg-2)" strokeWidth={1.6} fill="none" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dashed ? "6 5" : undefined} {...ends(s, ah)} />
           {tag}
         </g>
       );
