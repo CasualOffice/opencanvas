@@ -55,6 +55,26 @@ fn a_kind_draws_exactly_as_its_base_type() {
     );
 }
 
+/// DGM-14.7: a sample of two kinds from every shape library (web `libraries.test.tsx` writes
+/// `board-libraries.json` and its web export). The server draws each kind as its base type with
+/// its text, byte for byte as the web exporter does, and exactly as the plain base type.
+#[test]
+fn library_kinds_export_as_their_base_type() {
+    let lib: Value = serde_json::from_str(include_str!("fixtures/board-libraries.json")).expect("fixture json");
+    let expected = include_str!("fixtures/board-libraries.web.svg");
+    let svg = oc_model::board::to_svg(&doc_with(lib.clone()), "b1");
+    assert_eq!(svg.replace("ocbd-b1-", "ocbd-x-"), expected);
+    let mut plain = lib;
+    for s in plain["shapes"].as_object_mut().unwrap().values_mut() {
+        let o = s.as_object_mut().unwrap();
+        for k in ["kind", "kindVersion", "ports"] {
+            o.remove(k);
+        }
+    }
+    assert_eq!(svg, oc_model::board::to_svg(&doc_with(plain), "b1"));
+    assert!(texts(&svg).iter().any(|t| t == "Process"));
+}
+
 fn ports_board() -> Value {
     serde_json::from_str(include_str!("fixtures/board-ports.json")).expect("fixture json")
 }

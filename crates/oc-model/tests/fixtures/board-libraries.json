@@ -1,0 +1,394 @@
+{
+ "order": [
+  "basic-rectangle",
+  "basic-note",
+  "flowchart-process",
+  "flowchart-punched-tape",
+  "uml-class",
+  "uml-activation",
+  "erd-entity",
+  "erd-multivalued",
+  "network-server",
+  "network-desktop",
+  "bpmn-task",
+  "bpmn-end-message",
+  "mindmap-central",
+  "mindmap-floating",
+  "org-person",
+  "org-assistant",
+  "wireframe-browser",
+  "wireframe-toggle",
+  "mockup-status-bar",
+  "mockup-table-row",
+  "arrows-block-right",
+  "arrows-triangle-right",
+  "signs-warning",
+  "signs-home",
+  "floorplan-wall",
+  "floorplan-round-table",
+  "electrical-resistor",
+  "electrical-lamp",
+  "rack-cabinet",
+  "rack-storage",
+  "charts-column",
+  "charts-progress"
+ ],
+ "shapes": {
+  "basic-rectangle": {
+   "type": "rect",
+   "kind": "basic:rectangle",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 0,
+   "w": 140,
+   "h": 80,
+   "text": "Rectangle"
+  },
+  "basic-note": {
+   "type": "rect",
+   "kind": "basic:note",
+   "kindVersion": 1,
+   "x": 180,
+   "y": 0,
+   "w": 120,
+   "h": 100,
+   "text": "Folded corner"
+  },
+  "flowchart-process": {
+   "type": "rect",
+   "kind": "flowchart:process",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 200,
+   "w": 140,
+   "h": 70,
+   "text": "Process"
+  },
+  "flowchart-punched-tape": {
+   "type": "rect",
+   "kind": "flowchart:punched-tape",
+   "kindVersion": 1,
+   "x": 180,
+   "y": 200,
+   "w": 140,
+   "h": 80,
+   "text": "Tape"
+  },
+  "uml-class": {
+   "type": "rect",
+   "kind": "uml:class",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 400,
+   "w": 180,
+   "h": 120,
+   "text": "Class"
+  },
+  "uml-activation": {
+   "type": "rect",
+   "kind": "uml:activation",
+   "kindVersion": 1,
+   "x": 220,
+   "y": 400,
+   "w": 16,
+   "h": 80,
+   "text": "Activation"
+  },
+  "erd-entity": {
+   "type": "rect",
+   "kind": "erd:entity",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 600,
+   "w": 140,
+   "h": 70,
+   "text": "Entity"
+  },
+  "erd-multivalued": {
+   "type": "ellipse",
+   "kind": "erd:multivalued",
+   "kindVersion": 1,
+   "x": 180,
+   "y": 600,
+   "w": 130,
+   "h": 64,
+   "text": "values"
+  },
+  "network-server": {
+   "type": "rect",
+   "kind": "network:server",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 800,
+   "w": 150,
+   "h": 70,
+   "text": "Server"
+  },
+  "network-desktop": {
+   "type": "rect",
+   "kind": "network:desktop",
+   "kindVersion": 1,
+   "x": 190,
+   "y": 800,
+   "w": 96,
+   "h": 96,
+   "text": "Desktop"
+  },
+  "bpmn-task": {
+   "type": "rect",
+   "kind": "bpmn:task",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 1000,
+   "w": 140,
+   "h": 80,
+   "text": "Task"
+  },
+  "bpmn-end-message": {
+   "type": "ellipse",
+   "kind": "bpmn:end-message",
+   "kindVersion": 1,
+   "x": 180,
+   "y": 1000,
+   "w": 44,
+   "h": 44,
+   "text": "Message end event",
+   "fill": "red"
+  },
+  "mindmap-central": {
+   "type": "ellipse",
+   "kind": "mindmap:central",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 1200,
+   "w": 200,
+   "h": 90,
+   "text": "Central topic",
+   "fill": "purple"
+  },
+  "mindmap-floating": {
+   "type": "rect",
+   "kind": "mindmap:floating",
+   "kindVersion": 1,
+   "x": 240,
+   "y": 1200,
+   "w": 140,
+   "h": 50,
+   "text": "Floating topic",
+   "fill": "amber"
+  },
+  "org-person": {
+   "type": "rect",
+   "kind": "org:person",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 1400,
+   "w": 220,
+   "h": 80,
+   "text": "Name\nJob title"
+  },
+  "org-assistant": {
+   "type": "rect",
+   "kind": "org:assistant",
+   "kindVersion": 1,
+   "x": 260,
+   "y": 1400,
+   "w": 180,
+   "h": 70,
+   "text": "Assistant"
+  },
+  "wireframe-browser": {
+   "type": "rect",
+   "kind": "wireframe:browser",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 1600,
+   "w": 480,
+   "h": 320,
+   "text": "example.com"
+  },
+  "wireframe-toggle": {
+   "type": "rect",
+   "kind": "wireframe:toggle",
+   "kindVersion": 1,
+   "x": 440,
+   "y": 1600,
+   "w": 160,
+   "h": 30,
+   "text": "Setting"
+  },
+  "mockup-status-bar": {
+   "type": "rect",
+   "kind": "mockup:status-bar",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 1800,
+   "w": 360,
+   "h": 24,
+   "text": "9:41"
+  },
+  "mockup-table-row": {
+   "type": "rect",
+   "kind": "mockup:table-row",
+   "kindVersion": 1,
+   "x": 400,
+   "y": 1800,
+   "w": 400,
+   "h": 40,
+   "text": "Table row"
+  },
+  "arrows-block-right": {
+   "type": "rect",
+   "kind": "arrows:block-right",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 2000,
+   "w": 140,
+   "h": 80,
+   "text": "Arrow right"
+  },
+  "arrows-triangle-right": {
+   "type": "rect",
+   "kind": "arrows:triangle-right",
+   "kindVersion": 1,
+   "x": 180,
+   "y": 2000,
+   "w": 140,
+   "h": 80,
+   "text": "Triangle arrow right"
+  },
+  "signs-warning": {
+   "type": "rect",
+   "kind": "signs:warning",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 2200,
+   "w": 64,
+   "h": 64,
+   "text": "Warning",
+   "fill": "amber"
+  },
+  "signs-home": {
+   "type": "rect",
+   "kind": "signs:home",
+   "kindVersion": 1,
+   "x": 104,
+   "y": 2200,
+   "w": 64,
+   "h": 64,
+   "text": "Home"
+  },
+  "floorplan-wall": {
+   "type": "rect",
+   "kind": "floorplan:wall",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 2400,
+   "w": 200,
+   "h": 12,
+   "text": "Wall",
+   "fill": "gray"
+  },
+  "floorplan-round-table": {
+   "type": "rect",
+   "kind": "floorplan:round-table",
+   "kindVersion": 1,
+   "x": 240,
+   "y": 2400,
+   "w": 120,
+   "h": 120,
+   "text": "Round table"
+  },
+  "electrical-resistor": {
+   "type": "rect",
+   "kind": "electrical:resistor",
+   "kindVersion": 1,
+   "ports": [
+    {
+     "id": "a",
+     "side": "left",
+     "x": 0,
+     "y": 0.5
+    },
+    {
+     "id": "b",
+     "side": "right",
+     "x": 1,
+     "y": 0.5
+    }
+   ],
+   "x": 0,
+   "y": 2600,
+   "w": 100,
+   "h": 24,
+   "text": "Resistor"
+  },
+  "electrical-lamp": {
+   "type": "rect",
+   "kind": "electrical:lamp",
+   "kindVersion": 1,
+   "ports": [
+    {
+     "id": "a",
+     "side": "left",
+     "x": 0,
+     "y": 0.5
+    },
+    {
+     "id": "b",
+     "side": "right",
+     "x": 1,
+     "y": 0.5
+    }
+   ],
+   "x": 140,
+   "y": 2600,
+   "w": 100,
+   "h": 50,
+   "text": "Lamp"
+  },
+  "rack-cabinet": {
+   "type": "rect",
+   "kind": "rack:cabinet",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 2800,
+   "w": 280,
+   "h": 520,
+   "text": "Rack"
+  },
+  "rack-storage": {
+   "type": "rect",
+   "kind": "rack:storage",
+   "kindVersion": 1,
+   "x": 320,
+   "y": 2800,
+   "w": 240,
+   "h": 48,
+   "text": "Storage shelf",
+   "fill": "green"
+  },
+  "charts-column": {
+   "type": "rect",
+   "kind": "charts:column",
+   "kindVersion": 1,
+   "x": 0,
+   "y": 3000,
+   "w": 160,
+   "h": 110,
+   "text": "Column chart",
+   "fill": "blue"
+  },
+  "charts-progress": {
+   "type": "rect",
+   "kind": "charts:progress",
+   "kindVersion": 1,
+   "x": 200,
+   "y": 3000,
+   "w": 200,
+   "h": 24,
+   "text": "64%",
+   "fill": "blue"
+  }
+ }
+}
