@@ -39,6 +39,7 @@ import_formats  = ["md", "html", "csv"]    # formats editors may import (POST /v
                                            # any other value is refused at start-up
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
+team_templates  = true                     # gallery "From your team" from GET /templates (§5, TPL-01); default off
 ```
 
 People (docs/21 revision 2): the @mention list is the people with access to the canvas, the same
@@ -173,6 +174,8 @@ OpenCanvas:
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
 | **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none"}`. Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
+| **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
+| **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
 

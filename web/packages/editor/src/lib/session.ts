@@ -31,6 +31,8 @@ export interface Session {
   import?: { formats?: string[] } | null;
   /** UNF-01: link cards may ask the server for previews. */
   unfurl?: boolean;
+  /** TPL-01: the host's `team_templates` flag (the gallery's "From your team" section). */
+  templates?: { team?: boolean } | null;
 }
 
 export class SessionError extends Error {

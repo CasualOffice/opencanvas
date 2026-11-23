@@ -26,6 +26,8 @@ pub enum HostError {
     Url,
     #[error("unexpected host answer: {0}")]
     Body(String),
+    #[error("host answer over the size limit")]
+    TooLarge,
 }
 
 /// Errors never carry the URL: it names internal callback hosts and, in WOPI mode, holds the
@@ -752,6 +754,75 @@ impl HostClient {
             }
         }
         Ok((status, buf.into()))
+    }
+
+    /// `GET {callback_base}/templates` (TPL-01): the host's team templates, signed like every
+    /// callback with the asking user's `callbackToken`. `Ok(None)` when the host does not
+    /// implement it (404, 405, 410, 501).
+    pub async fn templates(
+        &self,
+        host: &HostConfig,
+        token: &str,
+    ) -> Result<Option<serde_json::Value>, HostError> {
+        let url = Self::url(host, &["templates"])?;
+        let res = self
+            .request(host, token, Method::GET, url, Vec::new(), 5)
+            .send()
+            .await?;
+        let status = res.status();
+        if matches!(
+            status,
+            StatusCode::NOT_FOUND
+                | StatusCode::METHOD_NOT_ALLOWED
+                | StatusCode::GONE
+                | StatusCode::NOT_IMPLEMENTED
+        ) {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            return Err(HostError::Status(status));
+        }
+        let buf = Self::capped(res, crate::team_templates::MAX_LIST_BYTES).await?;
+        serde_json::from_slice(&buf)
+            .map(Some)
+            .map_err(|e| HostError::Body(e.to_string()))
+    }
+
+    /// `GET {callback_base}/templates/{id}` (TPL-01): the template file (`.ocanvas` or
+    /// Markdown). `Ok(None)` on 404; `TooLarge` past the template limit.
+    pub async fn template_file(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        id: &str,
+    ) -> Result<Option<Bytes>, HostError> {
+        let url = Self::url(host, &["templates", id])?;
+        let res = self
+            .request(host, token, Method::GET, url, Vec::new(), 10)
+            .send()
+            .await?;
+        match res.status() {
+            StatusCode::NOT_FOUND | StatusCode::GONE => Ok(None),
+            s if s.is_success() => Self::capped(res, crate::team_templates::MAX_TEMPLATE_BYTES)
+                .await
+                .map(Some),
+            s => Err(HostError::Status(s)),
+        }
+    }
+
+    /// Reads a body, refusing it once it is over `max` bytes.
+    async fn capped(mut res: reqwest::Response, max: usize) -> Result<Bytes, HostError> {
+        if res.content_length().is_some_and(|n| n as usize > max) {
+            return Err(HostError::TooLarge);
+        }
+        let mut buf = Vec::new();
+        while let Some(chunk) = res.chunk().await? {
+            buf.extend_from_slice(&chunk);
+            if buf.len() > max {
+                return Err(HostError::TooLarge);
+            }
+        }
+        Ok(buf.into())
     }
 
     async fn passthrough(res: reqwest::Response) -> Result<(StatusCode, String, Bytes), HostError> {

@@ -102,6 +102,19 @@ pub(crate) enum Cmd {
         author: String,
         reply: oneshot::Sender<Result<Patched, PatchFailure>>,
     },
+    /// Team template (TPL-01): replace the content with the prepared template as one
+    /// transaction with origin `origin`, tracked so [`Cmd::TemplateUndo`] can revert it.
+    Template {
+        doc: serde_json::Value,
+        origin: String,
+        author: String,
+        reply: oneshot::Sender<Result<Patched, PatchFailure>>,
+    },
+    /// Revert the template applied with `origin` (only by the user who applied it).
+    TemplateUndo {
+        origin: String,
+        reply: oneshot::Sender<Result<Patched, PatchFailure>>,
+    },
     /// Canvas tool call (docs/24 §5): `run` reads the live doc and returns an optional update
     /// (computed on a scratch copy) plus the tool's answer. The update is applied with origin
     /// `origin` as one transaction and handled exactly like a client update.
@@ -786,6 +799,79 @@ impl Rooms {
                 grant: grant.clone(),
                 ops: ops.clone(),
                 author: author.to_string(),
+            },
+            remote::decode_patch,
+        )
+        .await
+    }
+
+    /// Applies a prepared team template (TPL-01) to `grant.room`, opening the room when needed.
+    pub async fn apply_template(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        doc: serde_json::Value,
+        origin: &str,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.template_at(host, grant, doc, origin, true).await
+    }
+
+    pub(super) async fn template_at(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        doc: serde_json::Value,
+        origin: &str,
+        forward: bool,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.ask(
+            host,
+            grant,
+            forward,
+            |reply| Cmd::Template {
+                doc: doc.clone(),
+                origin: origin.to_string(),
+                author: grant.user.id.clone(),
+                reply,
+            },
+            || RemoteOp::Template {
+                grant: grant.clone(),
+                doc: doc.clone(),
+                origin: origin.to_string(),
+            },
+            remote::decode_patch,
+        )
+        .await
+    }
+
+    /// Reverts a team template applied with `origin` (TPL-01).
+    pub async fn undo_template(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        origin: &str,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.template_undo_at(host, grant, origin, true).await
+    }
+
+    pub(super) async fn template_undo_at(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        origin: &str,
+        forward: bool,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.ask(
+            host,
+            grant,
+            forward,
+            |reply| Cmd::TemplateUndo {
+                origin: origin.to_string(),
+                reply,
+            },
+            || RemoteOp::TemplateUndo {
+                grant: grant.clone(),
+                origin: origin.to_string(),
             },
             remote::decode_patch,
         )

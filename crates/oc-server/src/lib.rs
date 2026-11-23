@@ -23,6 +23,7 @@ pub mod redis_wal;
 pub mod room;
 pub mod routes;
 pub mod store;
+pub mod team_templates;
 pub mod unfurl;
 pub mod util;
 pub mod wopi;
@@ -51,6 +52,8 @@ pub struct AppState {
     pub tickets: Mutex<HashMap<String, TicketUse>>,
     /// Members callback answers per room (docs/21 revision 2).
     pub members: Arc<people::Members>,
+    /// Host team-template lists (TPL-01), per host for a minute.
+    pub team_templates: team_templates::ListCache,
     /// The server-wide AI switch as `"on"` or `"off (<reason>)"` (`/readyz`).
     pub ai_status: String,
     /// Link-preview fetcher, cache and rate limits (UNF-01).
@@ -153,6 +156,7 @@ impl AppState {
             tickets: Mutex::default(),
             members,
             ai_status,
+            team_templates: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

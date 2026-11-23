@@ -384,6 +384,8 @@ pub async fn session_info(
         "import": {"formats": super::import::formats(&state, &host, grant.role)},
         // UNF-01: link cards may ask the server for previews.
         "unfurl": super::unfurl::enabled(&state, &host),
+        // TPL-01: whether the gallery shows "From your team" (applying needs the edit role).
+        "templates": {"team": host.team_templates()},
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,

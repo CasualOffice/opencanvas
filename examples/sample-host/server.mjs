@@ -151,8 +151,44 @@ function parseMultipart(buf, ctype) {
   return null;
 }
 
+// Team templates (TPL-01, docs/05 §5): the gallery's "From your team" section. A real host
+// would keep these per team (and may answer `.ocanvas` files); these are Markdown.
+const TEAM_TEMPLATES = [
+  {
+    id: "acme-weekly", name: "Acme weekly sync", description: "Our Monday agenda: wins, metrics, risks and owners.",
+    category: "Meetings", icon: "calendar", tone: "blue", updatedAt: "2026-11-20T09:00:00Z",
+    body: "# Acme weekly sync\n\n> Keep it to 30 minutes. Long topics go to their own canvas.\n\n## Wins\n\n- \n\n## Metrics\n\n| Metric | Last week | This week |\n| --- | --- | --- |\n| Active teams | | |\n| Tickets closed | | |\n\n## Risks\n\n- [ ] \n\n## Owners and next steps\n\n- [ ] \n",
+  },
+  {
+    id: "acme-incident", name: "Acme incident review", description: "Timeline, impact, root cause and follow-ups, the Acme way.",
+    category: "Engineering", icon: "siren", tone: "red", updatedAt: "2026-11-18T14:30:00Z",
+    body: "# Incident review\n\n## Impact\n\nWho was affected, for how long, and was any data lost?\n\n## Timeline (UTC)\n\n| Time | Event |\n| --- | --- |\n| | |\n\n## Root cause\n\n## Follow-ups\n\n- [ ] \n",
+  },
+];
+
+/** Like checkCallback, for calls that are not about one file: the bearer must be a callback
+ *  token we issued to this user for any file. */
+function checkUserCallback(req) {
+  const auth = (req.headers.authorization || "").replace(/^Bearer /, "");
+  const fileId = Object.keys(meta.files).find(id => auth === callbackToken(id, auth.split(".")[0]));
+  return fileId ? checkCallback(req, fileId, Buffer.alloc(0)) : { ok: false, why: "bad callback token" };
+}
+
 // ---------- callbacks: OpenCanvas → host ----------
 async function callbacks(req, res, url) {
+  if (url.pathname === "/api/opencanvas/templates" && req.method === "GET") {
+    const auth = checkUserCallback(req);
+    if (!auth.ok) return send(res, 401, { error: auth.why });
+    return send(res, 200, TEAM_TEMPLATES.map(({ body, ...t }) => t));
+  }
+  const tpl = url.pathname.match(/^\/api\/opencanvas\/templates\/([\w.-]+)$/);
+  if (tpl && req.method === "GET") {
+    const auth = checkUserCallback(req);
+    if (!auth.ok) return send(res, 401, { error: auth.why });
+    const t = TEAM_TEMPLATES.find(x => x.id === tpl[1]);
+    if (!t) return send(res, 404, { error: "no such template" });
+    return send(res, 200, t.body, { "content-type": "text/markdown; charset=utf-8" });
+  }
   if (url.pathname === "/api/opencanvas/mentions" && req.method === "POST") return mentionCallback(req, res);
   // The member list (docs/21 revision 2): everyone with access to this file, filtered by `q`.
   const mem = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)\/members$/);

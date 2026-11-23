@@ -11,6 +11,7 @@ mod launch;
 pub mod mcp;
 mod ops;
 mod proxy;
+mod templates;
 pub mod unfurl;
 
 pub use collab::write_frames;
@@ -210,6 +211,9 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/files/{file_id}/commit", post(api::commit))
         .route("/v1/import", post(import::import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
         .route("/v1/files/{file_id}/import", post(import::host_import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
+        .route("/v1/templates", get(templates::index))
+        .route("/v1/templates/undo", post(templates::undo))
+        .route("/v1/templates/{id}/apply", post(templates::apply))
         .route("/v1/convert", post(api::convert).layer(DefaultBodyLimit::max(body_limit)))
         .route("/mcp/{host_id}", post(mcp::mcp).layer(DefaultBodyLimit::max(body_limit)))
         .route("/.well-known/oauth-protected-resource/mcp/{host_id}", get(mcp::resource_metadata))

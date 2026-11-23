@@ -6,6 +6,7 @@ import { Ic } from "../icons";
 import type { TB } from "../editor/content";
 import { BOARD_THUMB, CATS, DB_INFO, STARTS, TPL, type Template } from "../templates";
 import { Modal } from "./overlay";
+import { TEAM_CAT, teamCard, teamMatches, type TeamItem, type TeamState } from "../lib/teamtemplates";
 
 const FILL: Record<string, string> = {
   y: "var(--sticky-y)", p: "var(--sticky-p)", b: "var(--sticky-b)", g: "var(--sticky-g)",
@@ -161,17 +162,51 @@ export function Gallery(props: {
   onUse(t: Template): void;
   onStart(kind: (typeof STARTS)[number][0]): void;
   onTeam(): void;
+  /** TPL-01: the host's team templates. Absent: the demo's placeholder entry; `off`: no team section. */
+  team?: TeamState;
+  hostName?: string;
+  onTeamUse?(t: TeamItem): void;
+  onTeamRetry?(): void;
 }) {
   const [cat, setCat] = useState("all");
   const [q, setQ] = useState("");
   const [preview, setPreview] = useState<Template | null>(null);
+  const [teamPreview, setTeamPreview] = useState<TeamItem | null>(null);
+  const team = props.team;
+  const teamItems = team?.s === "ready" ? team.items : [];
+  const onTeamCat = cat === TEAM_CAT;
+  const teamList = useMemo(() => teamItems.filter((t) => teamMatches(t, q)), [teamItems, q]);
   const ql = q.trim().toLowerCase();
   const list = useMemo(
     () => TPL.filter((t) => (cat === "all" || t.cat === cat) && (!ql || (t.name + " " + t.desc + " " + tags(t).map((x) => x[1]).join(" ")).toLowerCase().includes(ql))),
     [cat, ql],
   );
   const count = (c: string) => (c === "all" ? TPL.length : TPL.filter((t) => t.cat === c).length);
-  const catName = CATS.find((c) => c[0] === cat)?.[1] ?? "";
+  const catName = onTeamCat ? "From your team" : CATS.find((c) => c[0] === cat)?.[1] ?? "";
+  const card = (t: Template, open: () => void) => (
+    <button key={t.id} className="tcard" onClick={open}>
+      <div className="tshell">
+        <TemplateThumb t={t} />
+      </div>
+      <div className="tinfo">
+        <span className={`ttile tone-${t.tone}`}>
+          <Ic name={t.icon} size={15} />
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <b>{t.name}</b>
+          <span className="td">{t.desc}</span>
+          <div className="ttags">
+            {tags(t).map(([i, l]) => (
+              <span key={l} className="ttag">
+                <Ic name={i} size={11} />
+                {l}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
 
   return (
     <>
@@ -201,12 +236,17 @@ export function Gallery(props: {
               <span className="cnt">{count(id)}</span>
             </button>
           ))}
-          <div className="msep" style={{ margin: "12px 4px" }} />
-          <div className="mh">From your team</div>
-          <button className="mi" onClick={props.onTeam}>
-            <Ic name="users-round" />
-            Your team's templates
-          </button>
+          {team?.s !== "off" ? (
+            <>
+              <div className="msep" style={{ margin: "12px 4px" }} />
+              <div className="mh">From your team</div>
+              <button className={"mi" + (onTeamCat ? " on" : "")} onClick={team ? () => (setCat(TEAM_CAT), setQ("")) : props.onTeam}>
+                <Ic name="users-round" />
+                Your team's templates
+                {team?.s === "ready" ? <span className="cnt">{team.items.length}</span> : null}
+              </button>
+            </>
+          ) : null}
         </nav>
         <div className="tgmain">
           <span className="eyebrow">
@@ -226,6 +266,12 @@ export function Gallery(props: {
                 {name}
               </button>
             ))}
+            {team && team.s !== "off" ? (
+              <button aria-pressed={onTeamCat} onClick={() => (setCat(TEAM_CAT), setQ(""))}>
+                <Ic name="users-round" size={14} />
+                Your team
+              </button>
+            ) : null}
           </div>
           {!ql && cat === "all" ? (
             <>
@@ -243,50 +289,72 @@ export function Gallery(props: {
               </div>
             </>
           ) : null}
+          {onTeamCat ? (
+            <>
+              <div className="tgsec">
+                {ql ? "Results" : catName} {team?.s === "ready" ? <span>{teamList.length}</span> : null}
+              </div>
+              {team?.s === "loading" ? (
+                <div className="empty" role="status">
+                  <Ic name="loader-circle" size={22} className="spin" />
+                  <p>Loading your team's templates…</p>
+                </div>
+              ) : team?.s === "error" ? (
+                <div className="empty" role="alert">
+                  <Ic name="triangle-alert" size={22} />
+                  <p>Your team's templates didn't load. {props.hostName ? `${props.hostName} didn't answer.` : ""}</p>
+                  {props.onTeamRetry ? (
+                    <button className="btn sm" onClick={props.onTeamRetry}>
+                      Try again
+                    </button>
+                  ) : null}
+                </div>
+              ) : teamList.length ? (
+                <div className="tgrid">{teamList.map((t) => card(teamCard(t), () => setTeamPreview(t)))}</div>
+              ) : ql ? (
+                <div className="empty">
+                  <Ic name="search" size={22} />
+                  <p>No team templates match “{q}”.</p>
+                </div>
+              ) : (
+                <div className="empty">
+                  <Ic name="users-round" size={22} />
+                  <p>Your team hasn't added templates yet. Templates your team shares{props.hostName ? ` in ${props.hostName}` : ""} show up here.</p>
+                </div>
+              )}
+            </>
+          ) : null}
+          {onTeamCat ? null : (
+          <>
           <div className="tgsec">
             {ql ? "Results" : catName} <span>{list.length}</span>
           </div>
           {list.length ? (
-            <div className="tgrid">
-              {list.map((t) => (
-                <button key={t.id} className="tcard" onClick={() => setPreview(t)}>
-                  <div className="tshell">
-                    <TemplateThumb t={t} />
-                  </div>
-                  <div className="tinfo">
-                    <span className={`ttile tone-${t.tone}`}>
-                      <Ic name={t.icon} size={15} />
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <b>{t.name}</b>
-                      <span className="td">{t.desc}</span>
-                      <div className="ttags">
-                        {tags(t).map(([i, l]) => (
-                          <span key={l} className="ttag">
-                            <Ic name={i} size={11} />
-                            {l}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <div className="tgrid">{list.map((t) => card(t, () => setPreview(t)))}</div>
           ) : (
             <div className="empty">
               <Ic name="search" size={22} />
               <p>No templates match “{q}”. Try “meeting” or “tracker”.</p>
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
       {preview ? <Preview t={preview} onClose={() => setPreview(null)} onUse={() => (setPreview(null), props.onUse(preview))} /> : null}
+      {teamPreview ? (
+        <Preview
+          t={teamCard(teamPreview)}
+          catLabel={teamPreview.category ?? "From your team"}
+          onClose={() => setTeamPreview(null)}
+          onUse={() => (setTeamPreview(null), props.onTeamUse?.(teamPreview))}
+        />
+      ) : null}
     </>
   );
 }
 
-function Preview({ t, onClose, onUse }: { t: Template; onClose(): void; onUse(): void }) {
+function Preview({ t, catLabel, onClose, onUse }: { t: Template; catLabel?: string; onClose(): void; onUse(): void }) {
   const inside: [string, string][] = [];
   const db = t.blocks.find((b) => b.k === "db");
   if (db && db.k === "db") {
@@ -299,7 +367,7 @@ function Preview({ t, onClose, onUse }: { t: Template; onClose(): void; onUse():
   if (t.blocks.some((b) => b.k === "todo")) inside.push(["list-todo", "Checklist"]);
   if (t.blocks.some((b) => b.k === "table")) inside.push(["table", "Simple table"]);
   if (t.blocks.some((b) => b.k === "callout")) inside.push(["info", "Callout"]);
-  const cat = CATS.find((c) => c[0] === t.cat)?.[1] ?? "";
+  const cat = catLabel ?? CATS.find((c) => c[0] === t.cat)?.[1] ?? "";
   return (
     <Modal onClose={onClose} wide label={t.name}>
       <div className="tprev">
