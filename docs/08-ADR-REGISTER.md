@@ -1,23 +1,23 @@
 # 08 — Architecture Decision Register
 
 Status values: **Proposed** (awaiting approval) · **Accepted** · **Superseded**.
-All entries below are **Proposed** until the user approves the PRD/HLD.
+The owner signed off the design documents and every remaining Proposed entry on 2026-11-24.
 
 | ID | Decision | Status |
 |---|---|---|
-| ADR-001 | Host owns identity, ACL and storage; OpenCanvas owns editing, collaboration, preview, export and commits | Proposed |
-| ADR-002 | CRDT = Yjs on client, yrs on server (y-protocols wire format) | Proposed |
-| ADR-003 | Server in Rust (tokio + axum), single binary | Proposed |
-| ADR-004 | DB via sqlx: SQLite default, MySQL 8 / MariaDB 10.6+ when `DATABASE_URL` set; DB holds transient state only | Proposed |
-| ADR-005 | Two handshakes: signed JWT launch and WOPI-compatible; WS uses a short single-room ticket | Proposed |
+| ADR-001 | Host owns identity, ACL and storage; OpenCanvas owns editing, collaboration, preview, export and commits | Accepted (owner sign-off, 2026-11-24) |
+| ADR-002 | CRDT = Yjs on client, yrs on server (y-protocols wire format) | Accepted (owner sign-off, 2026-11-24) |
+| ADR-003 | Server in Rust (tokio + axum), single binary | Accepted (owner sign-off, 2026-11-24) |
+| ADR-004 | DB via sqlx: SQLite default, MySQL 8 / MariaDB 10.6+ when `DATABASE_URL` set; DB holds transient state only | Accepted (owner sign-off, 2026-11-24) |
+| ADR-005 | Two handshakes: signed JWT launch and WOPI-compatible; WS uses a short single-room ticket | Accepted (owner sign-off, 2026-11-24) |
 | ADR-006 | Cluster: one owner node per room via Redis lease; non-owners relay over an internal HMAC-signed WebSocket | Accepted (implemented CLU-01, chaos-tested CLU-02) |
-| ADR-007 | Editor: Tiptap/ProseMirror + y-prosemirror | Proposed |
-| ADR-008 | Board: native block, custom SVG/Canvas2D renderer on Y.Map shapes | Proposed |
-| ADR-009 | Native format `.ocanvas` zip (document.json + ydoc.bin + manifest) | Proposed |
+| ADR-007 | Editor: Tiptap/ProseMirror + y-prosemirror | Accepted (owner sign-off, 2026-11-24) |
+| ADR-008 | Board: native block, custom SVG/Canvas2D renderer on Y.Map shapes | Accepted (owner sign-off, 2026-11-24) |
+| ADR-009 | Native format `.ocanvas` zip (document.json + ydoc.bin + manifest) | Accepted (owner sign-off, 2026-11-24) |
 | ADR-010 | Exports rendered in Rust (MD/HTML/DOCX, boards via `resvg` with embedded Geist); PDF via optional Gotenberg sidecar (`OC_PDF_RENDERER`), 501 + browser print fallback without it | Accepted |
 | ADR-012 | Autosave only, no manual save or version messages in the UI; version history is the host's | Accepted (user decision 2026-11-21) |
-| ADR-013 | Database block: typed fields + table/board/calendar/gallery views over one row set, stored as a Y.Map in the canvas Doc; CSV import/export | Proposed |
-| ADR-014 | Template gallery: built-in templates are `.ocanvas` files shipped with the server; hosts may add team templates via a `templates` callback | Proposed |
+| ADR-013 | Database block: typed fields + table/board/calendar/gallery views over one row set, stored as a Y.Map in the canvas Doc; CSV import/export | Accepted (owner sign-off, 2026-11-24) |
+| ADR-014 | Template gallery: built-in templates are `.ocanvas` files shipped with the server; hosts may add team templates via a `templates` callback | Accepted (owner sign-off, 2026-11-24) |
 | ADR-015 | Durable saves through `commit_outbox` with idempotency keys; startup sweeper resumes pending saves | Accepted |
 | ADR-016 | Conflict policy per host: `copy` (save mine as a copy via `POST /files/{id}/copies`) or `reload` (close 1012, clients reload host version) | Accepted |
 | ADR-017 | Callback tokens encrypted at rest with AES-256-GCM under `OC_KEK`; server refuses to start without it unless `OC_DEV=1` | Accepted |
@@ -41,7 +41,7 @@ All entries below are **Proposed** until the user approves the PRD/HLD.
 | ADR-036 | Session renewal (docs/23 PERM-07): `GET /v1/sessions/:ticket` returns `exp` (seconds); `POST /v1/launch` with `Accept: application/json` answers `{"ticket"}` instead of the 303, so the editor moves to the ticket for the host's `Action_RefreshToken` token and reconnects without a reload | Accepted (owner prototype Main.dc.html, 2026-11-23) |
 | ADR-037 | Relicense to Apache-2.0: canonical LICENSE, attribution through NOTICE (Apache §4(d)), SPDX identifier and copyright in every source file (checked in CI by `scripts/check-spdx.sh`); supersedes the earlier BUSL-1.1 licensing (owner decision 2026-11-23) | Accepted |
 | ADR-038 | Integration through standardized APIs and SDKs only: OpenCanvas must not depend on specific CasualOffice products; hosts use launch tokens, callbacks, WOPI, REST, postMessage, the SDK and MCP (owner, 2026-11-23; docs/09) | Accepted |
-| ADR-039 | Portable live blocks are host files embedded by reference (Loop model) and opened as their own rooms; read-only `blockRef` projections; derived grants from the host `POST /access`; snapshot policy; depth 1 (docs/27 §2) | Accepted (2026-11-23) |
+| ADR-039 | (Moved to v0.3 by the owner, 2026-11-24) Portable live blocks are host files embedded by reference (Loop model) and opened as their own rooms; read-only `blockRef` projections; derived grants from the host `POST /access`; snapshot policy; depth 1 (docs/27 §2) | Accepted (2026-11-23) |
 | ADR-040 | Block SDK: one generic `extBlock` node and an `ext` root; JSON Schema manifests validated server-side by MOD-01; declarative export templates; no third-party code on the server; sandboxed iframe renderers on a separate origin (docs/27 §3) | Accepted (2026-11-23) |
 | ADR-041 | Headless API v1: `/api/v1`, OpenAPI 3.1, RFC 9457 errors, `Idempotency-Key`, signed cursors, `RateLimit` headers, host key or host-minted user tokens, one operation layer shared with MCP (docs/27 §4) | Accepted (2026-11-23) |
 | ADR-042 | `.ocanvas` stays format version 1 through v0.2: additive nodes, roots and manifest fields only; a 0.1.x round trip is a release gate (docs/27 §3.3, §5) | Accepted (2026-11-23) |

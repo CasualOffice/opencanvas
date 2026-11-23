@@ -25,6 +25,16 @@ Sizes in §8: **S** ≤ 2 days, **M** ≤ 1 week, **L** ≤ 3 weeks, for one eng
 
 ---
 
+## 0. Scope change (owner, 2026-11-24)
+
+- **In:** version history with visual diffs (VH-01, VH-02) and webhooks (WH-01, built on the
+  HAPI-05 events stream).
+- **Out, to v0.3:** portable live blocks (§2, LIVE-01 to LIVE-06, ADR-039). The design below stays
+  as the v0.3 plan.
+- v0.2 is now: stable headless API (§4), block SDK (§3), version history, webhooks.
+- Version history needs its own short design (where versions live, given the host owns files)
+  and a prototype before UI work.
+
 ## 1. Research
 
 Sources are listed in §10 with their dates; the bracketed numbers point there. Accessed

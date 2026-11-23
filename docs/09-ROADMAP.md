@@ -27,8 +27,8 @@ open to a broad developer ecosystem (ADR-038).
 | Version | Focus |
 |---|---|
 | v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
-| v0.2 | Portable live blocks, an extensible block SDK and stable headless APIs |
-| v0.3 | Offline-first editing, version history, search and automation |
+| v0.2 | Stable headless APIs, an extensible block SDK, version history and webhooks |
+| v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
 
@@ -36,15 +36,20 @@ open to a broad developer ecosystem (ADR-038).
 
 | Feature | Value | Complexity | Priority |
 |---|---|---|---|
-| Portable live blocks | Very high | High | P0 |
+| Portable live blocks | Very high | High | P1 (v0.3) |
 | Extensible block SDK | Very high | High | P0 |
 | Stable headless API | Very high | Medium | P0 |
 | Offline-first collaboration | High | Very high | P1 |
-| Version history and visual diffs | High | High | P1 |
+| Version history and visual diffs | High | High | P0 (v0.2) |
 | Database formulas and relations | High | Medium–high | P1 |
 | Full-text search API | High | Medium | P1 |
-| Webhooks and automation | High | Medium | P1 |
+| Webhooks (v0.2) and automation (v0.3) | High | Medium | P0 / P1 |
 | Developer plugin marketplace | Medium initially | Very high | P3 |
+
+Owner decision 2026-11-24: version history and webhooks move into v0.2; portable live blocks move to
+v0.3 so v0.2 ships sooner. Before v0.2 starts, 0.1.x also gets link previews (UNF-01), host team
+templates (TPL-01), viewer preview (RND-01) and Jitsi with Jitsi's own JWT sign-in, an owner
+exception to the 0.1.x scope lock below.
 
 Priority here is the order of work across the releases above, not the delivery phases P0–P3 in
 the first table.
