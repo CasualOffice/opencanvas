@@ -7,7 +7,7 @@
 import path from "node:path";
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { OC, ROOT } from "../env";
-import { editor, sharedFile, typeAfterHeading } from "../helpers";
+import { editor, sharedFile, shots, typeAfterHeading } from "../helpers";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
@@ -106,8 +106,10 @@ test("MOB-04b: phone database: narrow sticky title, cells tappable once scrolled
   const title = db.locator(".ocdb-ttl").first();
   await expect(title).toHaveCSS("text-overflow", "ellipsis");
   await expect(title).toHaveCSS("white-space", "nowrap");
+  // The soft edge is always there (prototype PhoneDb), so cells read as passing under the title.
   const sticky = db.locator(".ocdb-gw tbody td").first();
-  await expect(sticky).toHaveCSS("box-shadow", "none");
+  await expect(sticky).not.toHaveCSS("box-shadow", "none");
+  await expect(db.locator(".ocdb-gw th").first()).not.toHaveCSS("box-shadow", "none");
   // A plain tap after the cell is scrolled into view reaches the cell, not the title column.
   const pts = db.getByRole("textbox", { name: "Points" }).first();
   await pts.scrollIntoViewIfNeeded();
@@ -123,6 +125,7 @@ test("MOB-04b: phone database: narrow sticky title, cells tappable once scrolled
   });
   await expect(sticky).not.toHaveCSS("box-shadow", "none");
   await page.screenshot({ path: path.join(ROOT, `target/fix-shots/mob04b-${test.info().project.name}.png`) });
+  if (test.info().project.name === "webkit-phone") await shots(page, "3-phone-db-390");
   expect(await noSideScroll(page)).toBe(true);
   const name = (await title.textContent())!.trim();
   await title.tap();

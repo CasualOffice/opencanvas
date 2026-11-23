@@ -1195,7 +1195,7 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
   }
 
   return (
-    <div className="ocdb-gw" ref={gwRef} onScroll={ctx.compact ? (e) => e.currentTarget.classList.toggle("scrolled", e.currentTarget.scrollLeft > 0) : undefined}>
+    <div className="ocdb-gw" ref={gwRef}>
       <table className="ocdb-grid" style={{ width: total }} aria-label={db.name || "Database"} aria-rowcount={rows.length + 1} aria-multiselectable={edit || undefined}>
         <colgroup>
           {fields.map((f) => <col key={f.id} style={{ width: widthOf(f) }} />)}

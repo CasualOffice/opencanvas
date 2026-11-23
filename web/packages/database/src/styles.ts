@@ -254,8 +254,7 @@ button.ocdb-pv:hover:not(:disabled),div.ocdb-pv:hover{background:var(--hover)}
 .ocdb-compact .ocdb-ib{width:38px;height:38px}
 .ocdb-compact .ocdb-tab{height:44px}
 .ocdb-compact .ocdb-search.show{width:110px;font-size:16px}
-.ocdb-compact .ocdb-gw td:first-child,.ocdb-compact .ocdb-gw th:first-child{position:sticky;left:0;z-index:1;max-width:132px;transition:box-shadow .15s}
-.ocdb-compact .ocdb-gw.scrolled td:first-child,.ocdb-compact .ocdb-gw.scrolled th:first-child{box-shadow:6px 0 8px -6px rgba(0,0,0,.18)}
+.ocdb-compact .ocdb-gw td:first-child,.ocdb-compact .ocdb-gw th:first-child{position:sticky;left:0;z-index:1;max-width:132px;box-shadow:var(--sh-edge,6px 0 8px -6px rgba(0,0,0,.18))}
 .ocdb-ttl{display:block;width:100%;min-height:44px;padding:0 10px;border:0;background:none;color:var(--fg);font:inherit;font-size:15px;font-weight:500;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .ocdb-ttl.empty{color:var(--fg-3);font-weight:400}
 .ocdb-ttl:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px}
