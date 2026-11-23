@@ -9,6 +9,7 @@ import { tableJSON } from "./table";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { bridge } from "../lib/bridge";
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
+import { markPending } from "../lib/unfurl";
 import { aiStore, openAssistant } from "../lib/assistant";
 import { importStore, openImport } from "../lib/importflag";
 
@@ -114,7 +115,10 @@ export const SLASH: SlashItem[] = [
     group: "Media", id: "link", icon: "link-2", title: "Link preview", desc: "Card for a URL", keywords: "bookmark url",
     run: (e, r) => {
       if (r) e.chain().focus().deleteRange(r).run();
-      bridge.promptUrl("bookmark", (url) => e.chain().focus().insertContent([bookmarkNode(url), { type: "paragraph" }]).run());
+      bridge.promptUrl("bookmark", (url) => {
+        markPending(url);
+        e.chain().focus().insertContent([bookmarkNode(url), { type: "paragraph" }]).run();
+      });
     },
   },
   {

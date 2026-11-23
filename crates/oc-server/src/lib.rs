@@ -23,6 +23,7 @@ pub mod redis_wal;
 pub mod room;
 pub mod routes;
 pub mod store;
+pub mod unfurl;
 pub mod util;
 pub mod wopi;
 
@@ -52,6 +53,8 @@ pub struct AppState {
     pub members: Arc<people::Members>,
     /// The server-wide AI switch as `"on"` or `"off (<reason>)"` (`/readyz`).
     pub ai_status: String,
+    /// Link-preview fetcher, cache and rate limits (UNF-01).
+    pub unfurl: unfurl::Unfurler,
 }
 
 #[derive(Clone, Copy)]
@@ -129,7 +132,17 @@ impl AppState {
             metrics: metrics.clone(),
             ai: ai.clone(),
         }));
+        if cfg.unfurl.off {
+            tracing::info!("link unfurl: off (OC_UNFURL=off)");
+        } else if !cfg.unfurl.allow_private.is_empty() {
+            tracing::warn!(
+                ranges = cfg.unfurl.allow_private.len(),
+                "link unfurl may reach private addresses (OC_UNFURL_ALLOW_PRIVATE)"
+            );
+        }
+        let unfurl = unfurl::Unfurler::new(cfg.unfurl.clone());
         let state = Arc::new(Self {
+            unfurl,
             cfg,
             hosts,
             store,

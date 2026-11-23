@@ -12,6 +12,7 @@ import { loadDatabase } from "./editor/blockdata";
 import type { TB } from "./editor/content";
 import type { EmptyAction } from "./editor/CanvasEditor";
 import { resolveAsset, setAssetTicket } from "./lib/assets";
+import { setUnfurl } from "./lib/unfurl";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
 import { deleteThread, useThreads } from "./lib/comments";
 import type { Demo } from "./lib/demo";
@@ -124,6 +125,7 @@ export default function App() {
         const s = await fetchSession(ticket);
         if (cancelled) return;
         setAssetTicket(s.ticket);
+        setUnfurl(s.unfurl === true);
         collab = connectCollab(s);
         await collab.synced;
         if (cancelled) return;

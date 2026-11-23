@@ -29,6 +29,8 @@ export interface Session {
   exp?: number | null;
   /** docs/23 FC-10: what the host lets this person import (empty or absent: no import). */
   import?: { formats?: string[] } | null;
+  /** UNF-01: link cards may ask the server for previews. */
+  unfurl?: boolean;
 }
 
 export class SessionError extends Error {

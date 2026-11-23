@@ -22,6 +22,7 @@ import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
 import { Popover } from "../components/overlay";
 import { keyLabel } from "../lib/keys";
 import { safeHref, safeImageSrc } from "../lib/urls";
+import { cardImageSrc, previewAttrs, unfurlFor } from "../lib/unfurl";
 import { clampWidth } from "./imagelayout";
 import { gridTemplate } from "./columns";
 import { FILE_EVENT, fileDisplay, fileKind, fmtSize, hasBytes, kindIcon, openUrl } from "./files/kind";
@@ -267,16 +268,39 @@ export const Column = Node.create({
 
 // ---------- bookmark (link card) ----------
 
-function BookmarkView({ node }: ReactNodeViewProps) {
-  const { url, title, description, site } = node.attrs as Record<string, string>;
+function BookmarkView({ node, updateAttributes, editor }: ReactNodeViewProps) {
+  const { url, title, description, site, image } = node.attrs as Record<string, string>;
+  // UNF-01: a card a person just inserted asks the server for its preview; while it
+  // loads, and if it fails, the card is today's hostname card.
+  const [phase, setPhase] = useState<"idle" | "loading" | "failed">("idle");
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => {
+    const p = editor.isEditable ? unfurlFor(url) : null;
+    if (!p) return;
+    let live = true;
+    setPhase("loading");
+    void p.then((preview) => {
+      if (!live) return;
+      if (!preview) return setPhase("failed");
+      updateAttributes(previewAttrs(url, preview));
+      setPhase("idle");
+    });
+    return () => {
+      live = false;
+    };
+  }, [url, editor, updateAttributes]);
+  useEffect(() => setImgFailed(false), [image]);
+  const imgSrc = imgFailed ? undefined : cardImageSrc(image);
   return (
     <NodeViewWrapper data-drag-handle="">
       <a
-        className="bookmark"
+        className={phase === "loading" ? "bookmark loading" : "bookmark"}
         href={safeHref(url)}
         target="_blank"
         rel="noopener noreferrer"
         contentEditable={false}
+        aria-busy={phase === "loading" || undefined}
+        data-unfurl={phase}
         onClick={() => bridge.linkClick(url)}
       >
         <div className="bk">
@@ -288,7 +312,7 @@ function BookmarkView({ node }: ReactNodeViewProps) {
           </div>
         </div>
         <div className="bthumb">
-          <Ic name="link-2" size={28} />
+          {imgSrc ? <img src={imgSrc} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setImgFailed(true)} /> : <Ic name="link-2" size={28} />}
         </div>
       </a>
     </NodeViewWrapper>
@@ -300,7 +324,7 @@ const atom = { group: "block", atom: true, selectable: true, draggable: true } a
 export const Bookmark = Node.create({
   name: "bookmark",
   ...atom,
-  addAttributes: () => ({ url: { default: "" }, title: { default: "" }, description: { default: "" }, site: { default: "" } }),
+  addAttributes: () => ({ url: { default: "" }, title: { default: "" }, description: { default: "" }, site: { default: "" }, image: { default: "" } }),
   parseHTML: () => [{ tag: 'div[data-type="bookmark"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "bookmark" })],
   addNodeView() {

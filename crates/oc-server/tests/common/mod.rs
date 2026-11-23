@@ -408,6 +408,7 @@ pub async fn app_full(
         rooms,
         ai: None,
         import_off: false,
+        unfurl: Default::default(),
         wopi_proof: Some(test_proof_keys()),
     };
     tweak_cfg(&mut cfg);

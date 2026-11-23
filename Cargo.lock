@@ -1795,6 +1795,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ulid",
+ "url",
  "yrs",
  "zip",
 ]

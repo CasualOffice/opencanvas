@@ -38,6 +38,8 @@ aes-gcm.workspace = true
 rsa.workspace = true
 getrandom.workspace = true
 bytes = "1"
+# Unfurl (UNF-01): URL host types; already in the tree through reqwest.
+url = "2"
 # Cluster mode (ADR-006): Redis leases, node-to-node relay WebSocket.
 redis = { version = "1.7", default-features = false, features = ["tokio-comp", "connection-manager", "script", "streams"] }
 tokio-tungstenite = "0.28"

@@ -11,6 +11,7 @@ mod launch;
 pub mod mcp;
 mod ops;
 mod proxy;
+pub mod unfurl;
 
 pub use collab::write_frames;
 
@@ -197,6 +198,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/assets", post(proxy::upload_asset).layer(DefaultBodyLimit::max(MAX_ASSET_BYTES)))
         .route("/v1/assets/fetch", get(proxy::fetch_asset))
         .route("/v1/assets/{id}", get(proxy::get_asset))
+        .route("/v1/unfurl", get(unfurl::unfurl))
+        .route("/v1/unfurl/image", get(unfurl::image))
         .route("/v1/members", get(proxy::members))
         .route("/hosting/discovery", get(launch::discovery))
         .route("/hosting/capabilities", get(launch::capabilities))
