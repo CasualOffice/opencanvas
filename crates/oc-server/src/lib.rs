@@ -6,6 +6,7 @@
 pub mod ai;
 pub mod alloc;
 pub mod assets;
+pub mod authz;
 pub mod cluster;
 pub mod config;
 pub mod crypto;

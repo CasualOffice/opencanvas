@@ -48,8 +48,8 @@ pub(super) fn authenticate(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleBody {
-    user_id: String,
-    role: String,
+    pub(super) user_id: String,
+    pub(super) role: String,
 }
 
 /// `POST /v1/files/:fileId/role {"userId","role":"view|comment|edit|none"}`: the user's open
@@ -61,6 +61,16 @@ pub async fn set_role(
     Json(body): Json<RoleBody>,
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
+    set_role_for(&state, &host, &file_id, body).await
+}
+
+/// The role change itself, shared by the 0.1 route and `POST /api/v1/files/{id}/role`.
+pub(super) async fn set_role_for(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    file_id: &str,
+    body: RoleBody,
+) -> Result<Json<Value>, ApiError> {
     let role = match body.role.as_str() {
         "none" => None,
         r => Some(Role::parse(r).ok_or_else(|| {
@@ -71,11 +81,11 @@ pub async fn set_role(
             )
         })?),
     };
-    let room = room_id(&host.id, &file_id);
+    let room = room_id(&host.id, file_id);
     // Cached MCP `/access` answers for this user are dropped too (docs/24 §7.1 rule 5).
     state
         .host
-        .forget_access(&host.id, &file_id, Some(&body.user_id));
+        .forget_access(&host.id, file_id, Some(&body.user_id));
     let sessions = state
         .store
         .set_session_role(&room, &body.user_id, role)
@@ -116,8 +126,16 @@ pub async fn invalidate_members(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
-    let room = room_id(&host.id, &file_id);
-    state.host.forget_access(&host.id, &file_id, None);
+    invalidate_members_for(&state, &host, &file_id).await
+}
+
+pub(super) async fn invalidate_members_for(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    file_id: &str,
+) -> Result<Json<Value>, ApiError> {
+    let room = room_id(&host.id, file_id);
+    state.host.forget_access(&host.id, file_id, None);
     state
         .members_event(MembersEvent::Invalidate { room: room.clone() })
         .await;
@@ -134,7 +152,15 @@ pub async fn close_session(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let host = authenticate(&state, &headers)?;
-    let room = room_id(&host.id, &file_id);
+    close_session_for(&state, &host, &file_id).await
+}
+
+pub(super) async fn close_session_for(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    file_id: &str,
+) -> Result<Json<Value>, ApiError> {
+    let room = room_id(&host.id, file_id);
     state
         .members_event(MembersEvent::Invalidate { room: room.clone() })
         .await;
@@ -322,7 +348,15 @@ pub async fn commit(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let host = authenticate(&state, &headers)?;
-    let room = room_id(&host.id, &file_id);
+    commit_for(&state, &file_id, &host).await
+}
+
+pub(super) async fn commit_for(
+    state: &SharedState,
+    file_id: &str,
+    host: &Arc<HostConfig>,
+) -> Result<Response, ApiError> {
+    let room = room_id(&host.id, file_id);
     if let Some(result) = state.rooms.commit_live(&room).await {
         return commit_response(true, result);
     }
@@ -344,9 +378,9 @@ pub async fn commit(
 #[derive(Deserialize)]
 pub struct ConvertParams {
     #[serde(default)]
-    from: String,
+    pub(super) from: String,
     #[serde(default)]
-    to: String,
+    pub(super) to: String,
 }
 
 /// `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`, stateless.
@@ -357,6 +391,16 @@ pub async fn convert(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let host = authenticate(&state, &headers)?;
+    convert_for(&state, &host, &p, &headers, &body).await
+}
+
+pub(super) async fn convert_for(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    p: &ConvertParams,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Result<Response, ApiError> {
     let unsupported = |m: &str| ApiError::new(StatusCode::BAD_REQUEST, "FORMAT_UNSUPPORTED", m);
     if !matches!(
         p.to.as_str(),
@@ -367,17 +411,17 @@ pub async fn convert(
     let doc = match p.from.as_str() {
         "md" => {
             let d = oc_model::new_doc();
-            oc_model::import::apply_markdown(&d, &String::from_utf8_lossy(&body));
+            oc_model::import::apply_markdown(&d, &String::from_utf8_lossy(body));
             d
         }
         "html" => {
             let d = oc_model::new_doc();
-            let json = oc_model::html::html_to_json(&String::from_utf8_lossy(&body));
+            let json = oc_model::html::html_to_json(&String::from_utf8_lossy(body));
             oc_model::import::apply_document_json(&d, &json);
             d
         }
         "ocanvas" => {
-            oc_model::read_ocanvas(&body)
+            oc_model::read_ocanvas(body)
                 .map_err(|e| {
                     ApiError::new(StatusCode::BAD_REQUEST, "INPUT_INVALID", e.to_string())
                 })?
@@ -385,14 +429,14 @@ pub async fn convert(
         }
         _ => return Err(unsupported("from: md, html or ocanvas")),
     };
-    let token = callback_token(&headers);
+    let token = callback_token(headers);
     let req = super::export::RenderReq {
         token: &token,
         author: "opencanvas",
         wopi_room: None,
         people: None,
     };
-    let (bytes, ctype, _) = super::export::render(&state, &host, &doc, &p.to, req).await?;
+    let (bytes, ctype, _) = super::export::render(state, host, &doc, &p.to, req).await?;
     Ok((
         [
             (header::CONTENT_TYPE, ctype),

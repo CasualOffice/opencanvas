@@ -50,7 +50,11 @@ fn filename(name: &str, ext: &str) -> String {
 }
 
 /// The session's live document (or the host's file when no room is open).
-async fn load(state: &SharedState, host: &Arc<HostConfig>, grant: &Grant) -> Result<Doc, ApiError> {
+pub(super) async fn load(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+) -> Result<Doc, ApiError> {
     let bytes = state
         .rooms
         .state(host, grant)
@@ -178,7 +182,7 @@ pub async fn export_board(
 
 /// Current names of the canvas's members (docs/21 revision 2): the members callback, then the
 /// token's `members`, then the saved `people` map. Anyone else keeps the snapshot label.
-async fn member_names(
+pub(super) async fn member_names(
     state: &SharedState,
     host: &HostConfig,
     grant: &Grant,

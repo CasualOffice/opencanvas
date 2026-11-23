@@ -470,6 +470,56 @@ directly and changes to existing content become **suggestions** (stored in the f
 changes that. Deleting more than 5 blocks needs `confirm: true`. Member lists never carry
 e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 
+## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
+
+The supported API for programs: bots, integrations, back-office jobs. It is described by an
+OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
+`crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
+per host with `[host.flags] api_v1 = true` (off by default in 0.2.0-alpha; otherwise every
+`/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
+`v1` changes are additive.
+
+**Auth.** Server to server with the host key, as in §7: `X-OpenCanvas-Host` +
+`X-OpenCanvas-Key` (full access to your files, admin operations included). Optional
+`X-OpenCanvas-Author: <userId>` attributes changes to that user (edit origin `api:<userId>`;
+default `svc:<hostId>`); `X-OpenCanvas-Callback-Token` is passed on callbacks as in §7.
+
+**Operations** (all under `/api/v1/files/{fileId}` unless noted; each is a thin adapter over the
+same tool layer as MCP, §7a):
+
+| Operation | Method and path | Notes |
+|---|---|---|
+| Read | `GET …?format=json\|markdown\|outline` | JSON (default): `{title, rev, blocks:[{blockId, rev, node}]}`; `ETag: "<rev>"` |
+| List blocks | `GET …/blocks?limit=` | top-level blocks, `limit` ≤ 100; `{blocks, has_more, next_cursor}` |
+| One block | `GET …/blocks/{blockId}` | nested blocks too; `ETag` = block `rev` |
+| Find | `GET …/blocks:find?q=&types=a,b&limit=` | case-insensitive text match |
+| Change blocks | `POST …/blocks:batch {ops, mode?, confirm?}` | ops `append`, `insertAfter`, `replace`, `delete`, `editText`, each with optional `ifMatch` (block `rev`); `If-Match: "<doc rev>"` for the whole document. One transaction or none. Answer `{applied, mode, blockIds, rev}` |
+| Databases | `GET …/databases`, `POST …/databases`, `GET …/databases/{dbId}`, `GET …/databases/{dbId}/rows?filter=&sort=&fields=&limit=`, `POST …/databases/{dbId}/rows:upsert`, `POST …/databases/{dbId}/fields` | `filter` / `sort` are JSON arrays (`[{"f","op","v"}]`, `[{"f","dir"}]`) |
+| Boards | `GET` / `POST …/boards/{boardId}/shapes` | |
+| Comments | `GET …/comments?resolved=`, `POST …/comments {text, blockId\|quote, threadId?}` | |
+| Members | `GET …/members?q=&limit=` | never e-mail addresses |
+| Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |
+| Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
+| Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
+
+Writes land in the live room as one Yjs transaction, broadcast to editors and autosaved to you
+like any edit (open the file with `POST …/commit` when you need it saved now). Changes to
+existing blocks land directly unless the call sends `"mode": "suggest"` or the host sets
+`[host.api] default_mode = "suggest"`. Deleting more than 5 blocks needs `"confirm": true`.
+
+**Errors** are RFC 9457 `application/problem+json`:
+`{"type":"urn:opencanvas:problem:stale-block","title":"Precondition Failed","status":412,"detail":"…","code":"STALE_BLOCK","fresh":{…}}`.
+The `code` is the same machine code the 0.1 routes use (`BLOCK_NOT_FOUND`, `STALE_BLOCK`,
+`ROLE_FORBIDDEN`, `PATCH_INVALID`, `DOC_TOO_LARGE`, `CONFLICT`, `CONFIRMATION_REQUIRED`, …).
+Statuses: `400` bad input, `401` no or wrong credentials, `403` role or scope, `404` unknown file
+part, operation or `API_OFF`, `409` conflict or confirmation, `412` a stale `ifMatch` / `If-Match`
+(with `fresh`), `413` too large, `503` retry (`Retry-After`).
+
+**The 0.1 routes** (`/v1/files/{id}/patch|commit|role|import|session|members/invalidate`,
+`/v1/convert`) keep working unchanged through 0.x, with or without `api_v1`, and keep their
+`{"error":{"code","message"}}` shape. They now carry `Deprecation: @1795478400` (RFC 9745,
+2026-11-24) and `Link: </api/v1/…>; rel="successor-version"`; they are retired in v0.3.
+
 ## 8. Lifecycle & guarantees
 
 - **One live room per (host, file).** Users who open the same file join the
