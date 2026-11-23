@@ -837,4 +837,4 @@ button.cic:hover{transform:scale(1.06)}
 .imp-done.imp-refuse strong{font-size:.9375rem}
 .imp-done.imp-refuse>span{line-height:1.55;max-width:29.375rem}
 .imp-bd[aria-busy]{opacity:.6;pointer-events:none}
-@media (max-width:560px){.imp-stats{grid-template-columns:1fr 1fr 1fr;gap:.375rem}.imp-ft{flex-wrap:wrap}.imp-ft-note{flex-basis:100%}}
+@media (max-width:35em){.imp-stats{grid-template-columns:1fr 1fr 1fr;gap:.375rem}.imp-ft{flex-wrap:wrap}.imp-ft-note{flex-basis:100%}}
