@@ -107,6 +107,16 @@ pub fn canvas_patch(doc: &Doc, input: &Value, w: &Writer) -> Step {
         )));
     }
     let d = doc_json(doc);
+    // `If-Match: "<doc rev>"` on `POST /api/v1/…/blocks:batch` (docs/27 §4.2): checked in the
+    // same room step that applies the ops, so nothing can land in between.
+    if let Some(want) = input["ifMatchDoc"].as_str() {
+        let now = rev(&d["content"]);
+        if now != want {
+            return Err(ToolError::Stale(read::wrap(
+                json!({"rev": now, "stale": []}),
+            )));
+        }
+    }
     let mut stale = Vec::new();
     let mut deletes = 0;
     let mut changes_existing = false;
@@ -182,9 +192,11 @@ pub fn canvas_patch(doc: &Doc, input: &Value, w: &Writer) -> Step {
     }
     flush(&mut pending, &mut block_ids)?;
     let update = s.transact().encode_state_as_update_v1(&before);
+    let after = rev(&doc_json(&s)["content"]);
     Ok((
         Some(update),
-        json!({"applied": ops.len(), "mode": "direct", "blockIds": block_ids, "stale": []}),
+        json!({"applied": ops.len(), "mode": "direct", "blockIds": block_ids, "stale": [],
+            "rev": after}),
     ))
 }
 
@@ -207,10 +219,14 @@ fn suggest(doc: &Doc, ops: &[Value], d: &Value, w: &Writer) -> Step {
         "ops": ops, "status": "pending", "at": crate::util::now_ms(),
     });
     let sid = id.clone();
+    let doc_rev = rev(&d["content"]);
     edit(doc, move |_, txn| {
         let map = txn.get_or_insert_map(SUGGESTIONS);
         map.insert(txn, sid.as_str(), json_to_any(&record));
-        Ok(json!({"applied": 0, "mode": "suggest", "suggestionId": sid, "blockIds": []}))
+        Ok(
+            json!({"applied": 0, "mode": "suggest", "suggestionId": sid, "blockIds": [],
+            "rev": doc_rev}),
+        )
     })
 }
 

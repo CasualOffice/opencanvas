@@ -527,7 +527,10 @@ and reload like comments do. The role filter (COL-03) gains: `comment` may write
    claim is refused (`ROLE_FORBIDDEN`, message `FILES_REQUIRED: …`), because its `role` claim
    would otherwise apply to every file of the host. A host that really wants that sets
    `[host.ai] mcp_all_files = true` (broad: one token covers all its files) (SEC-34).
-6. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
+6. **One check for MCP and the headless API** (HAPI-02, `crate::authz`): the same scope
+   ceiling, `files` rule, `/access` role and revocation, with audience `…/mcp/{hostId}` for MCP
+   and `…/api/v1` for the API, so a token for one is refused by the other.
+7. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
    member invalidation also cut off running agent runs and cached MCP role answers for that user.
 
 ### 7.2 Flows

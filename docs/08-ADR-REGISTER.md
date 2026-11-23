@@ -55,6 +55,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-051 | Version history lives with the host: optional JWT callbacks and WOPI extensions (or a host version-page link); named versions are saves with a commit message; restore is a live-room edit; OpenCanvas stores no versions (VH-01, docs/30) | Accepted (owner, 2026-11-24) |
 | ADR-052 | Version diff is structural and computed on the server in `oc-model` over `document.json` (blocks, text, databases, boards); one implementation for UI, API, MCP and webhooks (VH-02, docs/30) | Accepted (owner, 2026-11-24) |
 | ADR-053 | Diagram import parsers (DGM-15): `oc-model` gains `roxmltree` 0.21, `flate2` 1 and `percent-encoding` 2 as direct dependencies (all three already in Cargo.lock through resvg/usvg and reqwest; no new crate, no new version). draw.io and Excalidraw are converted on the server only, through FC-10 | Proposed (needs owner sign-off) |
+| ADR-054 | Headless API v1 boundary details (HAPI-01/02): `/api/v1` behind `[host.flags] api_v1`; RFC 9457 types `urn:opencanvas:problem:<code>`; 0.1 host routes kept as aliases with `Deprecation` (RFC 9745) and `Link: rel="successor-version"`; user tokens host-minted (no exchange, no token store), `iss` → one host (`[host.api] issuer`), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, ≤ 15 min; one `authz::Principal` check shared with MCP; `canvas:admin` for tokens only with `[host.api] token_admin` (docs/27 §4.4) | Proposed (2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -486,6 +487,21 @@ WebSocket/SSE; TypeScript and Rust clients. MCP tools become adapters over the s
 The 0.1 host routes stay as aliases.
 **Consequences.** + one contract for programs and agents; − a new store table and more surface
 to audit and keep compatible.
+
+### ADR-054 — Headless API v1 boundary details (Proposed, 2026-11-24)
+**Context.** ADR-041 fixed the API's shape; HAPI-01/02 had to pin the details a host codes
+against: the gate, the error type URIs, how the 0.1 routes announce their successor, and how a
+user token names its host and audience without OpenCanvas issuing tokens (ADR-001).
+**Decision.** `/api/v1` answers per host when `[host.flags] api_v1 = true`. Problem `type` is
+`urn:opencanvas:problem:<code>` (stable, not a URL to fetch). The 0.1 host routes stay, with
+their answers, plus `Deprecation: @1795478400` and a successor `Link`. User tokens are minted by
+the host with its launch-token keys; `iss` selects exactly one host (`[host.api] issuer`, default
+the host id); `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, never from the request;
+`exp` ≤ 15 min. One `Principal` check serves the API and MCP. `canvas:admin` counts for tokens
+only with `[host.api] token_admin = true`.
+**Consequences.** + no token store or exchange endpoint; + MCP and the API cannot drift apart;
+− hosts sharing one external issuer must set distinct `[host.api] issuer` values; − a public base
+URL is required for user tokens.
 
 ### ADR-042 — `.ocanvas` forward compatibility in v0.2 (Accepted, 2026-11-23)
 **Decision.** Format version 1 and `schemaVersion` unchanged; v0.2 adds only nodes (`liveBlock`,

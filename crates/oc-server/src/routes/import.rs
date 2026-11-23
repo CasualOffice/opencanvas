@@ -39,35 +39,35 @@ pub const MAX_IMPORT_ROWS: usize = crate::ai::tools::MAX_IMPORT_ROWS;
 /// At most this many distinct values (and each used twice on average) make a `select`.
 const SELECT_MAX_OPTIONS: usize = 20;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct ImportParams {
     #[serde(default)]
-    ticket: String,
+    pub(super) ticket: String,
     #[serde(default)]
-    format: String,
+    pub(super) format: String,
     #[serde(default, rename = "blockId")]
-    block_id: Option<String>,
+    pub(super) block_id: Option<String>,
     /// Database name for CSV (default "Imported table").
     #[serde(default)]
-    name: Option<String>,
+    pub(super) name: Option<String>,
     /// Host REST only: who the import is attributed to.
     #[serde(default)]
-    author: Option<String>,
+    pub(super) author: Option<String>,
     #[serde(default, rename = "authorName")]
-    author_name: Option<String>,
+    pub(super) author_name: Option<String>,
     /// CSV only: the field type per column, as chosen in the import dialog (JSON array;
     /// the first column is always `title`). Absent means detected types.
     #[serde(default)]
-    types: Option<String>,
+    pub(super) types: Option<String>,
     /// Diagrams (DGM-15): `1` converts and returns the report only; nothing is added.
     #[serde(default, rename = "dryRun")]
-    dry_run: Option<String>,
+    pub(super) dry_run: Option<String>,
     /// Diagrams: the page to import (0-based; draw.io files can have several).
     #[serde(default)]
-    page: Option<usize>,
+    pub(super) page: Option<usize>,
     /// Diagrams: add to this open board instead of a new board block.
     #[serde(default, rename = "boardId")]
-    board_id: Option<String>,
+    pub(super) board_id: Option<String>,
 }
 
 /// A diagram file (DGM-15): a dry run returns `{format, dryRun, report}`; an import also adds
@@ -142,7 +142,11 @@ pub fn formats(state: &SharedState, host: &HostConfig, role: Role) -> Vec<String
     host.import_formats()
 }
 
-fn check_format(state: &SharedState, host: &HostConfig, format: &str) -> Result<(), ApiError> {
+pub(super) fn check_format(
+    state: &SharedState,
+    host: &HostConfig,
+    format: &str,
+) -> Result<(), ApiError> {
     if !IMPORT_FORMATS.contains(&format) {
         return Err(invalid(format!(
             "format must be one of {}",
@@ -206,7 +210,7 @@ pub async fn host_import(
     save_if_idle(&state, &host, &grant, out, live).await
 }
 
-async fn run(
+pub(super) async fn run(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,

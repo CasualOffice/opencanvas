@@ -349,6 +349,7 @@ pub fn host_config(base: &str) -> HostConfig {
         template_bytes: None,
         flags: Default::default(),
         ai: Default::default(),
+        api: Default::default(),
     }
 }
 

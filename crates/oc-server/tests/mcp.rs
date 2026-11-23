@@ -471,3 +471,40 @@ async fn without_a_public_url_a_token_matching_the_host_header_is_refused() {
     let meta = format!("http://{addr}/.well-known/oauth-protected-resource/mcp/sample");
     assert_eq!(reqwest::get(&meta).await.unwrap().status(), 404);
 }
+
+/// HAPI-02 (one auth check with the API): a `canvas:comment` token whose host role allows
+/// comments can comment. Before, MCP grants had every perm off, so `comment_add` was refused.
+#[tokio::test]
+async fn a_comment_scope_token_can_comment() {
+    let (addr, state) = serve(mcp_on).await;
+    let mut peer = Peer::join(&state, grant("u_b", Role::Edit)).await;
+    peer.settle().await;
+    let t = token(&addr, "canvas:read canvas:write", "edit", |c| {
+        c["files"] = json!([FILE])
+    });
+    let r = ok(
+        &addr,
+        &t,
+        "tools/call",
+        json!({"name": "canvas_patch", "arguments": {
+        "fileId": FILE, "ops": [{"op": "append", "blocks": [{"type": "paragraph",
+        "attrs": {"blockId": "b_r"}, "content": [{"type": "text", "text": "Review me"}]}]}]}}),
+    )
+    .await;
+    assert_eq!(r["isError"], false, "{r}");
+    let t = token(&addr, "canvas:comment", "comment", |c| {
+        c["files"] = json!([FILE])
+    });
+    let r = ok(
+        &addr,
+        &t,
+        "tools/call",
+        json!({"name": "comment_add", "arguments": {"fileId": FILE, "blockId": "b_r",
+            "text": "Looks right"}}),
+    )
+    .await;
+    assert_eq!(r["isError"], false, "{r}");
+    // …and still cannot write.
+    let r = ok(&addr, &t, "tools/call", patch(&addr)).await;
+    assert_eq!(r["isError"], true, "{r}");
+}

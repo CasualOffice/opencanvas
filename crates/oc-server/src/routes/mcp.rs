@@ -20,8 +20,8 @@ use sha2::{Digest, Sha256};
 
 use crate::SharedState;
 use crate::ai::HostAi;
-use crate::ai::tools::{CanvasTools, LiveTools, Scope, ToolCtx, ToolError, role_allows};
-use crate::grant::{FileRef, Grant, Perms, Role, User, derive_color, room_id};
+use crate::ai::tools::{CanvasTools, LiveTools, ToolError, role_allows};
+use crate::authz::Principal;
 use crate::hosts::HostConfig;
 
 /// Newest first; the first is what we answer when a client asks for something else.
@@ -145,37 +145,6 @@ fn rate_ok(key: &str, rate: u32) -> bool {
     }
 }
 
-/// The caller's role on `file_id`: the host's `POST /access` answer when the host implements
-/// it (cached 30 s), else the token's `role` claim. `None`: no access.
-///
-/// SEC-34: without `/access`, the claim only applies to files the token names (`files`), unless
-/// the host opts into `[host.ai] mcp_all_files = true` (broad: every file of the host).
-async fn host_role(
-    state: &SharedState,
-    caller: &Caller,
-    file_id: &str,
-) -> Result<Option<Role>, ToolError> {
-    let answer = state
-        .host
-        .access(&caller.host, file_id, &caller.claims.sub)
-        .await
-        .map_err(|e| {
-            tracing::warn!(host = %caller.host.id, error = %e, "host access check failed");
-            ToolError::Internal("the host access check failed".into())
-        })?;
-    match answer {
-        Some(role) => Ok(role),
-        None if caller.claims.files.is_none() && !HostAi(&caller.host).mcp_all_files() => {
-            Err(ToolError::Forbidden(
-                "FILES_REQUIRED: the host has no /access callback, so the token must list the \
-                 files it covers in a `files` claim (or the host sets [host.ai] mcp_all_files)"
-                    .into(),
-            ))
-        }
-        None => Ok(Some(caller.claimed_role())),
-    }
-}
-
 fn rpc_result(id: &Value, result: Value) -> Response {
     Json(json!({"jsonrpc": "2.0", "id": id, "result": result})).into_response()
 }
@@ -185,98 +154,12 @@ fn rpc_error(id: &Value, code: i64, message: &str) -> Response {
         .into_response()
 }
 
-/// The ceiling a token's scopes put on the role.
-fn scope_ceiling(scopes: &[&str]) -> Option<Role> {
-    if scopes.contains(&"canvas:write") || scopes.contains(&"canvas:write:direct") {
-        Some(Role::Edit)
-    } else if scopes.contains(&"canvas:comment") {
-        Some(Role::Comment)
-    } else if scopes.contains(&"canvas:read") {
-        Some(Role::View)
-    } else {
-        None
-    }
-}
-
-fn rank(r: Role) -> u8 {
-    match r {
-        Role::View => 0,
-        Role::Comment => 1,
-        Role::Edit => 2,
-    }
-}
-
 fn negotiate(asked: Option<&str>) -> &'static str {
     PROTOCOL_VERSIONS
         .iter()
         .find(|v| Some(**v) == asked)
         .copied()
         .unwrap_or(PROTOCOL_VERSIONS[0])
-}
-
-struct Caller {
-    host: std::sync::Arc<HostConfig>,
-    claims: crate::jwt::McpClaims,
-    ceiling: Role,
-}
-
-impl Caller {
-    /// The token's `role` claim (used when the host has no `/access` callback).
-    fn claimed_role(&self) -> Role {
-        self.claims
-            .role
-            .as_deref()
-            .and_then(Role::parse)
-            .unwrap_or(Role::View)
-    }
-
-    /// docs/24 §7.1 rule 4: `min(token scope, host role)`.
-    fn grant(&self, file_id: &str, role: Role) -> Grant {
-        let role = if rank(role) <= rank(self.ceiling) {
-            role
-        } else {
-            self.ceiling
-        };
-        let name = self
-            .claims
-            .name
-            .clone()
-            .unwrap_or_else(|| self.claims.sub.clone());
-        Grant {
-            host_id: self.host.id.clone(),
-            room: room_id(&self.host.id, file_id),
-            role,
-            user: User {
-                id: self.claims.sub.clone(),
-                name,
-                color: derive_color(&self.claims.sub),
-                ..Default::default()
-            },
-            file: FileRef {
-                id: file_id.to_string(),
-                name: file_id.to_string(),
-                version: None,
-            },
-            perms: Perms::default(),
-            // Never pass the client's token through (docs/24 §7.1 rule 3).
-            callback_token: String::new(),
-            members: vec![],
-        }
-    }
-
-    fn file_allowed(&self, file_id: &str) -> bool {
-        self.claims
-            .files
-            .as_ref()
-            .is_none_or(|f| f.iter().any(|x| x == file_id))
-    }
-
-    fn origin(&self) -> String {
-        format!(
-            "mcp:{}",
-            self.claims.client_id.as_deref().unwrap_or("client")
-        )
-    }
 }
 
 fn tool_result(out: Result<Value, ToolError>) -> Value {
@@ -343,8 +226,8 @@ pub async fn mcp(
             return unauthorized(&base, &host.id, Some("invalid_token"));
         }
     };
-    let scopes: Vec<&str> = claims.scope.split_whitespace().collect();
-    let Some(ceiling) = scope_ceiling(&scopes) else {
+    // One auth check with the headless API (HAPI-02): scope ceiling, files, host role.
+    let Some(caller) = Principal::from_mcp(host.clone(), claims) else {
         let mut res = (
             StatusCode::FORBIDDEN,
             Json(json!({"error": "insufficient_scope"})),
@@ -367,11 +250,6 @@ pub async fn mcp(
         )
             .into_response();
     }
-    let caller = Caller {
-        host: host.clone(),
-        claims,
-        ceiling,
-    };
     let Ok(msg) = serde_json::from_slice::<Value>(&body) else {
         return rpc_error(&Value::Null, -32700, "parse error");
     };
@@ -501,41 +379,16 @@ pub async fn mcp(
 
 async fn call(
     state: &SharedState,
-    caller: &Caller,
+    caller: &Principal,
     file_id: &str,
     name: &str,
     args: Value,
 ) -> Result<Value, ToolError> {
-    if !caller.file_allowed(file_id) {
-        return Err(ToolError::Forbidden(
-            "this token does not cover that file".into(),
-        ));
-    }
     let spec = crate::ai::tools::phase1_specs()
         .into_iter()
         .find(|s| s.name == name)
         .ok_or_else(|| ToolError::NotFound(format!("unknown tool {name:?}")))?;
-    if !role_allows(caller.ceiling, spec.scope) {
-        return Err(ToolError::Forbidden(format!(
-            "SCOPE_REQUIRED: {name} needs {}",
-            match spec.scope {
-                Scope::Read => "canvas:read",
-                Scope::Comment => "canvas:comment",
-                Scope::Write => "canvas:write",
-            }
-        )));
-    }
-    let Some(role) = host_role(state, caller, file_id).await? else {
-        return Err(ToolError::Forbidden(
-            "ROLE_FORBIDDEN: no access to this file".into(),
-        ));
-    };
-    let ctx = ToolCtx {
-        host_id: caller.host.id.clone(),
-        file_id: file_id.to_string(),
-        user: caller.grant(file_id, role),
-        origin: caller.origin(),
-        mode_default: HostAi(&caller.host).default_mode(),
-    };
+    caller.scope_ok(spec.scope, name)?;
+    let ctx = caller.tool_ctx(state, file_id).await?;
     LiveTools::new(state.clone()).call(&ctx, name, args).await
 }

@@ -923,7 +923,9 @@ start-up warning; the audience is never taken from the request's `Host` header. 
 `POST /mcp/{hostId}` (streamable HTTP, stateless, one JSON-RPC message per POST, JSON answers;
 MCP `2026-07-28`, and `2025-11-25` by version negotiation). Methods: `initialize`
 (`server/discover`), `ping`, `tools/list`, `tools/call`, `resources/templates/list`,
-`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON).
+`resources/read` (`canvas://{hostId}/{fileId}` Markdown, `….json` document JSON). MCP and the
+headless API (§7b) share one auth check: the same scope ceiling, `files` rule, `/access` role and
+revocation; a `canvas:comment` token may comment.
 
 **Tokens are yours.** OpenCanvas runs no OAuth server. You mint an access token (JWT) with the
 same keys as launch tokens (HS256 secret, PEM or JWKS):
@@ -963,6 +965,94 @@ directly and changes to existing content become **suggestions** (stored in the f
 `suggestions` root for a person to accept in the editor); `[host.ai] default_mode = "direct"`
 changes that. Deleting more than 5 blocks needs `confirm: true`. Member lists never carry
 e-mail addresses. Errors are tool results with `isError: true` and a `code`.
+
+## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
+
+The supported API for programs: bots, integrations, back-office jobs. It is described by an
+OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
+`crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
+per host with `[host.flags] api_v1 = true` (off by default in 0.2.0-alpha; otherwise every
+`/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
+`v1` changes are additive.
+
+**Auth, two kinds, one check** (shared with MCP, §7a):
+
+1. **Host key**, server to server, as in §7: `X-OpenCanvas-Host` + `X-OpenCanvas-Key` (full
+   access to your files, admin operations included). Optional `X-OpenCanvas-Author: <userId>`
+   attributes changes to that user (edit origin `api:<userId>`; default `svc:<hostId>`);
+   `X-OpenCanvas-Callback-Token` is passed on callbacks as in §7.
+2. **User-scoped bearer token** (`Authorization: Bearer <jwt>`) for code acting for one of your
+   users. **You mint it**; OpenCanvas never issues user tokens. Same keys as launch tokens
+   (HS256 secret, PEM or JWKS), same claims as MCP tokens:
+
+   | claim | value |
+   |---|---|
+   | `iss` | your host id, or `[host.api] issuer` (must be unique among hosts) |
+   | `aud` | `{[host.api] audience or OC_PUBLIC_URL}/api/v1`. An MCP token (`…/mcp/{hostId}`) or a launch token is refused here, and an API token is refused by MCP |
+   | `sub` | the user id (`svc:<name>` for a backend job) |
+   | `exp` | at most 15 minutes ahead (`nbf` honoured) |
+   | `scope` | space-separated `canvas:read`, `canvas:comment`, `canvas:write` (`canvas:write:direct` counts as write), `canvas:admin` |
+   | `role`, `files` | as for MCP: the role on the listed files when you do not implement `POST /access` |
+   | `name` | optional display name |
+
+   Without a public base URL (`OC_PUBLIC_URL` or `[host.api] audience`) user tokens are off for
+   the host (`401 TOKEN_INVALID`); the audience is never taken from the request.
+   The effective permission is `min(scope, role)`, the role coming from your `POST /access`
+   callback when you implement it (cached 30 s, dropped by the role API), else from the token's
+   `role` claim, but only for the files in its `files` claim (`403 FILES_REQUIRED` otherwise,
+   unless `[host.api] all_files = true`). Writes re-check revocation: after
+   `POST …/role {"role":"none"}` the user's next call is refused. `canvas:admin` only works when
+   `[host.api] token_admin = true`; by default the admin operations are the host key's.
+   Errors: `401 UNAUTHENTICATED` (no credentials), `401 TOKEN_INVALID` (signature, issuer,
+   audience, lifetime over 15 min, not yet valid), `401 TOKEN_EXPIRED`, `403 SCOPE_REQUIRED`
+   (the operation needs a scope the token lacks), `403 ROLE_FORBIDDEN` (the host role is lower,
+   or the file is not in `files`). The OpenAPI document marks each operation's scope
+   (`x-opencanvas-scope`).
+
+```toml
+[host.api]
+issuer       = "acme"                        # default: the host id
+audience     = "https://canvas.example.com"  # default: OC_PUBLIC_URL
+default_mode = "direct"                      # or "suggest" for changes to existing blocks
+all_files    = false                         # true: without /access, a token with no `files` covers every file
+token_admin  = false                         # true: tokens with canvas:admin may commit, set roles, close sessions
+```
+
+**Operations** (all under `/api/v1/files/{fileId}` unless noted; each is a thin adapter over the
+same tool layer as MCP, §7a):
+
+| Operation | Method and path | Notes |
+|---|---|---|
+| Read | `GET …?format=json\|markdown\|outline` | JSON (default): `{title, rev, blocks:[{blockId, rev, node}]}`; `ETag: "<rev>"` |
+| List blocks | `GET …/blocks?limit=` | top-level blocks, `limit` ≤ 100; `{blocks, has_more, next_cursor}` |
+| One block | `GET …/blocks/{blockId}` | nested blocks too; `ETag` = block `rev` |
+| Find | `GET …/blocks:find?q=&types=a,b&limit=` | case-insensitive text match |
+| Change blocks | `POST …/blocks:batch {ops, mode?, confirm?}` | ops `append`, `insertAfter`, `replace`, `delete`, `editText`, each with optional `ifMatch` (block `rev`); `If-Match: "<doc rev>"` for the whole document. One transaction or none. Answer `{applied, mode, blockIds, rev}` |
+| Databases | `GET …/databases`, `POST …/databases`, `GET …/databases/{dbId}`, `GET …/databases/{dbId}/rows?filter=&sort=&fields=&limit=`, `POST …/databases/{dbId}/rows:upsert`, `POST …/databases/{dbId}/fields` | `filter` / `sort` are JSON arrays (`[{"f","op","v"}]`, `[{"f","dir"}]`) |
+| Boards | `GET` / `POST …/boards/{boardId}/shapes` | |
+| Comments | `GET …/comments?resolved=`, `POST …/comments {text, blockId\|quote, threadId?}` | |
+| Members | `GET …/members?q=&limit=` | never e-mail addresses |
+| Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |
+| Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
+| Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
+
+Writes land in the live room as one Yjs transaction, broadcast to editors and autosaved to you
+like any edit (open the file with `POST …/commit` when you need it saved now). Changes to
+existing blocks land directly unless the call sends `"mode": "suggest"` or the host sets
+`[host.api] default_mode = "suggest"`. Deleting more than 5 blocks needs `"confirm": true`.
+
+**Errors** are RFC 9457 `application/problem+json`:
+`{"type":"urn:opencanvas:problem:stale-block","title":"Precondition Failed","status":412,"detail":"…","code":"STALE_BLOCK","fresh":{…}}`.
+The `code` is the same machine code the 0.1 routes use (`BLOCK_NOT_FOUND`, `STALE_BLOCK`,
+`ROLE_FORBIDDEN`, `PATCH_INVALID`, `DOC_TOO_LARGE`, `CONFLICT`, `CONFIRMATION_REQUIRED`, …).
+Statuses: `400` bad input, `401` no or wrong credentials, `403` role or scope, `404` unknown file
+part, operation or `API_OFF`, `409` conflict or confirmation, `412` a stale `ifMatch` / `If-Match`
+(with `fresh`), `413` too large, `503` retry (`Retry-After`).
+
+**The 0.1 routes** (`/v1/files/{id}/patch|commit|role|import|session|members/invalidate`,
+`/v1/convert`) keep working unchanged through 0.x, with or without `api_v1`, and keep their
+`{"error":{"code","message"}}` shape. They now carry `Deprecation: @1795478400` (RFC 9745,
+2026-11-24) and `Link: </api/v1/…>; rel="successor-version"`; they are retired in v0.3.
 
 ## 8. Lifecycle & guarantees
 
@@ -3035,6 +3125,7 @@ Reporting a vulnerability: [SECURITY.md](../SECURITY.md).
 | Script injection into the SPA | Every response: `Content-Security-Policy` with `script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'` (+ `frame-ancestors`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`. Handler CSPs are kept: exports and room assets are served `sandbox; default-src 'none'`. Node views pass doc URLs through `safeHref` / `safeImageSrc` (`web/packages/editor/src/lib/urls.ts`). |
 | Injection into exports | HTML/SVG/DOCX escape every text and attribute; link targets limited to `http(s):`, `mailto:`, `/`, `#`; Markdown escapes `<` and drops script/data link targets; CSV cells starting with `= + - @ TAB CR` get a leading `'`. |
 | SQL injection | Every statement is a literal with `?` binds (guard test `sec05_every_sql_statement_is_a_literal`); no dynamic identifiers, no `LIKE`. |
+| Headless API tokens (HAPI-02) | Host-minted only (OpenCanvas issues none); `alg` pinned by host config; `iss` maps to exactly one host; `aud` = `{public base}/api/v1` from config, never the request, so MCP, launch and API tokens are not interchangeable; `exp` ≤ 15 min, `nbf`; scope is a ceiling under the host role (`/access` or `role` for listed `files` only); writes re-check revocation; admin scope off for tokens unless the host opts in. Tests: `tests/api_tokens.rs`. Errors are RFC 9457 problems without content. |
 | Callback replay | `X-OpenCanvas-Signature` `v2` binds method + path + query + body; the signed client never follows redirects. |
 | Callback spoofing (someone pretends to be us) | HMAC `X-OpenCanvas-Signature` with timestamp (5 min skew). |
 | DoS | Per-connection frame rate limits (per-IP limits belong in the reverse proxy); readers that stop reading are dropped (30 s send timeout, 4096-frame backlog); multipart boundaries ≤ 70 chars; frame ≤ 1 MB; doc ≤ 20 MB (block and shape counts are bounded by the doc cap only); room peers ≤ 550 (then close 1013), ≤ 8 awareness client ids per connection; decompression caps on zip import (ratio ≤ 100, total ≤ 100 MB, entries ≤ 1 000, no path traversal), enforced on the bytes actually inflated, never on the sizes the archive declares. |
@@ -4475,7 +4566,10 @@ and reload like comments do. The role filter (COL-03) gains: `comment` may write
    claim is refused (`ROLE_FORBIDDEN`, message `FILES_REQUIRED: …`), because its `role` claim
    would otherwise apply to every file of the host. A host that really wants that sets
    `[host.ai] mcp_all_files = true` (broad: one token covers all its files) (SEC-34).
-6. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
+6. **One check for MCP and the headless API** (HAPI-02, `crate::authz`): the same scope
+   ceiling, `files` rule, `/access` role and revocation, with audience `…/mcp/{hostId}` for MCP
+   and `…/api/v1` for the API, so a token for one is refused by the other.
+7. **Revocation is immediate.** The existing role API (`POST /v1/files/{id}/role`, `none`) and
    member invalidation also cut off running agent runs and cached MCP role answers for that user.
 
 ### 7.2 Flows

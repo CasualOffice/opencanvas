@@ -1,0 +1,2492 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenCanvas headless API",
+    "version": "1.0.0",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "description": "Read and change OpenCanvas canvases from programs (docs/27 §4, ADR-041). The host owns files and ACL; changes land in the live room and are saved to the host like any edit. Errors are RFC 9457 problem details. Turn it on per host with [host.flags] api_v1 = true."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "meta"
+    },
+    {
+      "name": "canvas"
+    },
+    {
+      "name": "blocks"
+    },
+    {
+      "name": "databases"
+    },
+    {
+      "name": "boards"
+    },
+    {
+      "name": "comments"
+    },
+    {
+      "name": "members"
+    },
+    {
+      "name": "files"
+    },
+    {
+      "name": "admin"
+    },
+    {
+      "name": "0.1 aliases"
+    }
+  ],
+  "paths": {
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "summary": "This document",
+        "tags": [
+          "meta"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}": {
+      "get": {
+        "operationId": "readFile",
+        "summary": "Read a canvas as JSON blocks, Markdown or an outline",
+        "tags": [
+          "canvas"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "json (default), markdown or outline",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "outline"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasRead"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The document (or block) revision, quoted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/blocks": {
+      "get": {
+        "operationId": "listBlocks",
+        "summary": "List top-level blocks",
+        "tags": [
+          "blocks"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1-100, default 100",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from next_cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockPage"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The document (or block) revision, quoted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/blocks/{blockId}": {
+      "get": {
+        "operationId": "getBlock",
+        "summary": "Read one block (also nested ones)",
+        "tags": [
+          "blocks"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "description": "The block's blockId attribute",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Block"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The document (or block) revision, quoted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/blocks:find": {
+      "get": {
+        "operationId": "findBlocks",
+        "summary": "Find blocks whose text contains q (case-insensitive)",
+        "tags": [
+          "blocks"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Text to find",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated block types",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1-100",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/blocks:batch": {
+      "post": {
+        "operationId": "batchBlocks",
+        "summary": "Change blocks in one atomic transaction",
+        "tags": [
+          "blocks"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "The document rev (ETag) the batch expects; a mismatch answers 412 STALE_BLOCK.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The document (or block) revision, quoted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "description": "Ops apply in one Yjs transaction or not at all. A block op with ifMatch whose block changed answers 412 with the fresh block. Deleting more than 5 blocks needs confirm: true (409 CONFIRMATION_REQUIRED otherwise).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/databases": {
+      "get": {
+        "operationId": "listDatabases",
+        "summary": "List databases with fields, row counts and views",
+        "tags": [
+          "databases"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      },
+      "post": {
+        "operationId": "createDatabase",
+        "summary": "Create a database block",
+        "tags": [
+          "databases"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatabase"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/databases/{dbId}": {
+      "get": {
+        "operationId": "getDatabase",
+        "summary": "Describe one database",
+        "tags": [
+          "databases"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "dbId",
+            "in": "path",
+            "required": true,
+            "description": "Database id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/databases/{dbId}/rows": {
+      "get": {
+        "operationId": "queryRows",
+        "summary": "Query rows",
+        "tags": [
+          "databases"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "dbId",
+            "in": "path",
+            "required": true,
+            "description": "Database id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "description": "JSON array [{f, op, v}]",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "JSON array [{f, dir}]",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated field ids or names",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1-200",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/databases/{dbId}/rows:upsert": {
+      "post": {
+        "operationId": "upsertRows",
+        "summary": "Create or update rows (at most 200)",
+        "tags": [
+          "databases"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "dbId",
+            "in": "path",
+            "required": true,
+            "description": "Database id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rows"
+                ],
+                "properties": {
+                  "rows": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/databases/{dbId}/fields": {
+      "post": {
+        "operationId": "addField",
+        "summary": "Add a field",
+        "tags": [
+          "databases"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "dbId",
+            "in": "path",
+            "required": true,
+            "description": "Database id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "type"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "options": {
+                    "type": "array"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/boards/{boardId}/shapes": {
+      "get": {
+        "operationId": "readBoard",
+        "summary": "Read a board's shapes",
+        "tags": [
+          "boards"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "description": "Board id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      },
+      "post": {
+        "operationId": "addShapes",
+        "summary": "Add shapes to a board",
+        "tags": [
+          "boards"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "description": "Board id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "shapes"
+                ],
+                "properties": {
+                  "shapes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "layout": {
+                    "type": "string",
+                    "enum": [
+                      "grid",
+                      "flow",
+                      "cluster"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/comments": {
+      "get": {
+        "operationId": "listComments",
+        "summary": "List comment threads",
+        "tags": [
+          "comments"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "resolved",
+            "in": "query",
+            "required": false,
+            "description": "Only resolved (true) or open (false) threads",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      },
+      "post": {
+        "operationId": "addComment",
+        "summary": "Start a thread on a block or reply to one",
+        "tags": [
+          "comments"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:comment"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:comment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "blockId": {
+                    "type": "string"
+                  },
+                  "quote": {
+                    "type": "string"
+                  },
+                  "threadId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/members": {
+      "get": {
+        "operationId": "listMembers",
+        "summary": "People with access (id, name, detail; never e-mail)",
+        "tags": [
+          "members"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Name filter",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1-500",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/export/{format}": {
+      "get": {
+        "operationId": "exportFile",
+        "summary": "Export the canvas",
+        "tags": [
+          "files"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "description": "md, html, json, ocanvas, docx or pdf",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "md",
+                "html",
+                "json",
+                "ocanvas",
+                "docx",
+                "pdf"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exported file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/import": {
+      "post": {
+        "operationId": "importFile",
+        "summary": "Import Markdown, HTML or CSV into the canvas",
+        "tags": [
+          "files"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "md, html or csv",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "md",
+                "html",
+                "csv"
+              ]
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "query",
+            "required": false,
+            "description": "Insert after this block",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "CSV: database name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "description": "CSV: JSON array of column types",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/commit": {
+      "post": {
+        "operationId": "commitFile",
+        "summary": "Save now (200 saved, 202 queued in the outbox, 409 conflict)",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:admin"
+      }
+    },
+    "/api/v1/files/{fileId}/role": {
+      "post": {
+        "operationId": "setRole",
+        "summary": "Change a user's role live (none disconnects them)",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId",
+                  "role"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "view",
+                      "comment",
+                      "edit",
+                      "none"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}/session": {
+      "delete": {
+        "operationId": "closeSession",
+        "summary": "Final save, disconnect everyone, drop every ticket",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:admin"
+      }
+    },
+    "/api/v1/files/{fileId}/members:invalidate": {
+      "post": {
+        "operationId": "invalidateMembers",
+        "summary": "The member list changed; drop cached answers",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:admin"
+      }
+    },
+    "/api/v1/convert": {
+      "post": {
+        "operationId": "convert",
+        "summary": "Stateless conversion",
+        "tags": [
+          "files"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "md, html or ocanvas",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "ocanvas, md, html, json, docx or pdf",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The converted file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{fileId}/patch": {
+      "post": {
+        "operationId": "legacyPatch",
+        "summary": "Patch blocks (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/blocks:batch` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{fileId}/commit": {
+      "post": {
+        "operationId": "legacyCommit",
+        "summary": "Save now (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/commit` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{fileId}/role": {
+      "post": {
+        "operationId": "legacySetRole",
+        "summary": "Change a role (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/role` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{fileId}/session": {
+      "delete": {
+        "operationId": "legacyCloseSession",
+        "summary": "Close the session (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/session` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{fileId}/members/invalidate": {
+      "post": {
+        "operationId": "legacyInvalidateMembers",
+        "summary": "Members changed (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/members:invalidate` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{fileId}/import": {
+      "post": {
+        "operationId": "legacyImport",
+        "summary": "Import (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/import` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/convert": {
+      "post": {
+        "operationId": "legacyConvert",
+        "summary": "Convert (0.1)",
+        "deprecated": true,
+        "tags": [
+          "0.1 aliases"
+        ],
+        "description": "0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/convert` (sent in `Link: rel=\"successor-version\"`, with `Deprecation`).",
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API_KEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 problem details",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine code (BLOCK_NOT_FOUND, STALE_BLOCK, ROLE_FORBIDDEN, …)"
+          },
+          "fresh": {
+            "description": "STALE_BLOCK: the current state to retry against"
+          }
+        },
+        "additionalProperties": true
+      },
+      "LegacyError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Block": {
+        "type": "object",
+        "required": [
+          "blockId",
+          "rev",
+          "node"
+        ],
+        "properties": {
+          "blockId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rev": {
+            "type": "string"
+          },
+          "node": {
+            "type": "object"
+          }
+        }
+      },
+      "BlockPage": {
+        "type": "object",
+        "required": [
+          "blocks",
+          "has_more",
+          "next_cursor"
+        ],
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          },
+          "rev": {
+            "type": "string"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CanvasRead": {
+        "type": "object",
+        "properties": {
+          "title": {},
+          "rev": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array"
+          },
+          "outline": {
+            "type": "array"
+          },
+          "counts": {
+            "type": "object"
+          }
+        }
+      },
+      "BatchOp": {
+        "type": "object",
+        "required": [
+          "op"
+        ],
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "append",
+              "insertAfter",
+              "replace",
+              "delete",
+              "editText"
+            ]
+          },
+          "blockId": {
+            "type": "string"
+          },
+          "ifMatch": {
+            "type": "string",
+            "description": "The block rev this op expects"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "textEdits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "find": {
+                  "type": "string"
+                },
+                "replace": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "BatchRequest": {
+        "type": "object",
+        "required": [
+          "ops"
+        ],
+        "properties": {
+          "ops": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/BatchOp"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "suggest"
+            ]
+          },
+          "confirm": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BatchResult": {
+        "type": "object",
+        "properties": {
+          "applied": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "blockIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rev": {
+            "type": "string"
+          },
+          "suggestionId": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateDatabase": {
+        "type": "object",
+        "required": [
+          "name",
+          "fields"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "rows": {
+            "type": "array"
+          },
+          "afterBlockId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "BAD_INPUT, PATCH_INVALID, …",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "UNAUTHENTICATED, TOKEN_INVALID, TOKEN_EXPIRED",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "ROLE_FORBIDDEN, SCOPE_REQUIRED, FILES_REQUIRED",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "API_OFF, BLOCK_NOT_FOUND, NOT_FOUND, …",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "CONFLICT, CONFIRMATION_REQUIRED",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "STALE_BLOCK, with `fresh`",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "DOC_TOO_LARGE, IMPORT_TOO_LARGE",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "Unprocessable request",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "RATE_LIMITED, with Retry-After",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "UNAVAILABLE, ROOM_UNAVAILABLE, with Retry-After",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "fileId": {
+        "name": "fileId",
+        "in": "path",
+        "required": true,
+        "description": "The host's file id",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    },
+    "securitySchemes": {
+      "hostKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-OpenCanvas-Key",
+        "description": "The host's api_key (server to server; full access to the host's files, canvas:admin included). Sent with X-OpenCanvas-Host. Optional X-OpenCanvas-Author names the user a change is attributed to."
+      },
+      "hostId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-OpenCanvas-Host",
+        "description": "The host id"
+      },
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "A user-scoped token the host mints (docs/05 §7b): iss = host id or [host.api] issuer, aud = {[host.api] audience or OC_PUBLIC_URL}/api/v1, sub, scope, exp at most 15 min ahead, optional role and files. Effective permission = min(scope, host role)."
+      }
+    }
+  }
+}

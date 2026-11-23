@@ -36,6 +36,9 @@ pub enum JwtError {
     Invalid(String),
     #[error("token lifetime exceeds 10h")]
     TooLong,
+    /// An access token past its `exp` (HAPI-02: answered as `TOKEN_EXPIRED`).
+    #[error("token expired")]
+    Expired,
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,7 +146,7 @@ impl LaunchClaims {
 
 use crate::grant::is_hex_color;
 
-fn peek_issuer(token: &str) -> Result<String, JwtError> {
+pub fn peek_issuer(token: &str) -> Result<String, JwtError> {
     let payload = token.split('.').nth(1).ok_or(JwtError::Malformed)?;
     let bytes = URL_SAFE_NO_PAD
         .decode(payload)
@@ -340,7 +343,9 @@ impl Jwks {
     }
 }
 
-/// docs/24 §7.1: an MCP access token minted by the host (or its authorization server).
+/// docs/24 §7.1: an MCP access token minted by the host (or its authorization server). The
+/// headless API's user-scoped tokens (docs/27 §4.2, HAPI-02) have the same claims and are
+/// verified by the same code, with the API audience.
 #[derive(Debug, Clone, Deserialize)]
 pub struct McpClaims {
     /// The user the call acts for (`svc:<name>` for a backend job).
@@ -403,8 +408,10 @@ impl Jwks {
         v.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
         v.validate_nbf = true;
         v.leeway = 30;
-        let data =
-            decode::<McpClaims>(token, &key, &v).map_err(|e| JwtError::Invalid(e.to_string()))?;
+        let data = decode::<McpClaims>(token, &key, &v).map_err(|e| match e.kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => JwtError::Expired,
+            _ => JwtError::Invalid(e.to_string()),
+        })?;
         if data.claims.exp - now > MCP_MAX_TTL_SECS + 30 {
             return Err(JwtError::TooLong);
         }
