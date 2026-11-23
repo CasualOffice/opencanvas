@@ -12,7 +12,7 @@
 // types detected here are for the preview only. `#demo` parses and inserts in this browser.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
-import type * as Y from "yjs";
+import * as Y from "yjs";
 import type { DbField, FieldType } from "@opencanvas/database";
 import { Ic } from "../icons";
 import { Modal } from "./overlay";
@@ -35,7 +35,7 @@ type Step =
   | { s: "busy" }
   | { s: "diagram"; d: Diagram; busy?: boolean }
   | { s: "refused"; name: string; text: string }
-  | { s: "done"; text: string; sub?: string; undo?: string[] }
+  | { s: "done"; text: string; sub?: string; undo?: string[]; undoShapes?: string[] }
   | { s: "undone" };
 
 const FORMAT_NAME: Record<ImportFormat, string> = { md: "Markdown", html: "HTML", csv: "CSV", drawio: "draw.io", excalidraw: "Excalidraw" };
@@ -43,6 +43,22 @@ const list = (xs: string[], last = "or") => (xs.length < 2 ? xs.join("") : `${xs
 const mb = (n: number) => (n < 100 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 const REPORT_ICON: Record<string, string> = { stencil: "puzzle", shape_box: "puzzle", image_large: "image-off", image_svg: "image-off", image_type: "image-off", image_link: "image-off", page_other: "file-stack", containers: "square-dashed", curved: "corner-down-right", elbow: "corner-down-right" };
 const levelIcon = (i: ReportItem) => REPORT_ICON[i.code] ?? (i.level === "warn" ? "triangle-alert" : i.level === "ok" ? "circle-check" : "info");
+
+/** Removes these shapes from board `boardId` in one transaction ("Undo import" in diagram mode). */
+function removeShapes(doc: Y.Doc, boardId: string, ids: string[]) {
+  const b = doc.getMap("boards").get(boardId);
+  if (!(b instanceof Y.Map)) return;
+  const want = new Set(ids);
+  doc.transact(() => {
+    const shapes = b.get("shapes");
+    if (shapes instanceof Y.Map) for (const id of ids) shapes.delete(id);
+    const order = b.get("order");
+    if (order instanceof Y.Array) {
+      const arr = order.toArray();
+      for (let i = arr.length - 1; i >= 0; i--) if (want.has(arr[i] as string)) order.delete(i, 1);
+    }
+  });
+}
 
 /** Removes the top-level blocks with these `blockId`s in one transaction (an undoable local edit). */
 function removeBlocks(editor: Editor, ids: string[]): number {
@@ -62,7 +78,8 @@ const formatOf = (f: File): ImportFormat | null =>
   /\.(drawio|xml)$/i.test(f.name) ? "drawio" : /\.excalidraw$/i.test(f.name) ? "excalidraw" :
   /\.csv$/i.test(f.name) || f.type === "text/csv" ? "csv" : /\.html?$/i.test(f.name) || f.type === "text/html" ? "html" : /\.(md|markdown)$/i.test(f.name) || f.type === "text/markdown" ? "md" : null;
 
-export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { editor: Editor; doc: Y.Doc; ticket: string | null; formats: ImportFormat[]; demo: boolean; onClose(): void }) {
+export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, boardId = null }: { editor: Editor; doc: Y.Doc; ticket: string | null; formats: ImportFormat[]; demo: boolean; onClose(): void; /** Diagram mode (DGM-14.6): add to this board; diagram files only. */ boardId?: string | null }) {
+  const formats = boardId ? all.filter((x) => DIAGRAM_FORMATS.includes(x)) : all;
   const [step, setStep] = useState<Step>({ s: "pick" });
   const [err, setErr] = useState("");
   const [over, setOver] = useState(false);
@@ -138,10 +155,11 @@ export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { ed
     const t = target();
     try {
       const q = new URLSearchParams({ format: d.format, ticket: ticket ?? "", page: String(d.report.page) });
-      if (t.blockId) q.set("blockId", t.blockId);
-      if (t.blockId) await new Promise((r) => setTimeout(r, 120));
+      if (boardId) q.set("boardId", boardId);
+      else if (t.blockId) q.set("blockId", t.blockId);
+      if (!boardId && t.blockId) await new Promise((r) => setTimeout(r, 120));
       const r = await fetch(`/v1/import?${q}`, { method: "POST", body: d.file, headers: { "Content-Type": "application/octet-stream" } });
-      const j = (await r.json().catch(() => ({}))) as { shapes?: number; connectors?: number; blockIds?: string[]; error?: { message?: string } };
+      const j = (await r.json().catch(() => ({}))) as { shapes?: number; connectors?: number; blockIds?: string[]; shapeIds?: string[]; error?: { message?: string } };
       if (!r.ok) return setStep({ s: "refused", name: d.name, text: j.error?.message || "The import didn't work." });
       const boxes = d.report.items.filter((i) => i.code === "stencil" || i.code === "shape_box").reduce((n, i) => n + i.count, 0);
       const shapes = j.shapes ?? d.report.counts.shapes, connectors = j.connectors ?? d.report.counts.connectors;
@@ -149,7 +167,8 @@ export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { ed
         s: "done",
         text: `Imported ${shapes} shape${shapes === 1 ? "" : "s"} and ${connectors} connector${connectors === 1 ? "" : "s"}`,
         sub: boxes ? `${boxes} became plain box${boxes === 1 ? "" : "es"}.` : "",
-        undo: j.blockIds ?? [],
+        undo: boardId ? [] : (j.blockIds ?? []),
+        undoShapes: boardId ? (j.shapeIds ?? []) : undefined,
       });
     } catch {
       setErr("The import didn't work. Try again.");
@@ -183,12 +202,12 @@ export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { ed
   const diagrams = formats.filter((x) => DIAGRAM_FORMATS.includes(x));
   const dataRows = csv ? csv.rows.length - 1 : 0;
   return (
-    <Modal onClose={onClose} label="Import into this canvas" wide>
+    <Modal onClose={onClose} label={boardId ? "Import into this diagram" : "Import into this canvas"} wide>
       <div className="imp">
         <div className="imp-hd">
           <Ic name="upload" />
           <div className="imp-t">
-            <strong>Import into this canvas</strong>
+            <strong>{boardId ? "Import into this diagram" : "Import into this canvas"}</strong>
             {demo ? <span className="imp-demo">Demo: parsed in this browser, no import server</span> : null}
           </div>
           <button className="ib" aria-label="Close" onClick={onClose}>
@@ -462,6 +481,11 @@ export function ImportInto({ editor, doc, ticket, formats, demo, onClose }: { ed
               <span>Undo with {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘Z" : "Ctrl+Z"}, like any edit.</span>
             )}
             <div className="imp-done-acts">
+              {step.undoShapes?.length && boardId ? (
+                <button className="btn sm" onClick={() => (removeShapes(doc, boardId, step.undoShapes ?? []), setStep({ s: "undone" }))}>
+                  Undo import
+                </button>
+              ) : null}
               {step.undo?.length ? (
                 <button className="btn sm" onClick={() => (removeBlocks(editor, step.undo ?? []), setStep({ s: "undone" }))}>
                   Undo import

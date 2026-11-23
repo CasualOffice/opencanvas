@@ -6,11 +6,13 @@
 //    column (Undo brings it back), and the layout stacks at 390 px.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { blocksReady } from "../helpers";
 import { OC } from "../env";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
   await expect(page.locator(".ProseMirror .cols")).toBeVisible();
+  await blocksReady(page);
 }
 const cols = (page: Page) => page.locator(".ProseMirror .cols").first();
 const widths = (page: Page) => cols(page).evaluate((el) => [...el.querySelectorAll(":scope > .column")].map((c) => Math.round(c.getBoundingClientRect().width)));

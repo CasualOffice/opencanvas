@@ -18,10 +18,12 @@ export interface DiagramCanvas {
   shapes: Shape[];
   sel: string[];
   select: (ids: string[]) => void;
+  /** Moves the view so the shape is in the middle (zoom unchanged). */
+  reveal?: (id: string) => void;
 }
 
 export const A11Y_CSS = `
-.ocdg :focus-visible{outline:.15625rem solid var(--accent);outline-offset:.125rem}
+
 .ocdg .ocbd:focus-visible{outline-offset:-.15625rem}
 .ocdg-left{width:16rem;border-right:1px solid var(--line)}
 .ocdg-ol{list-style:none;margin:0;padding:.25rem .5rem}
@@ -34,7 +36,7 @@ export const A11Y_CSS = `
 .ocdg-or .ocdg-ok{font-size:.6875rem;color:var(--fg-2)}
 .ocdg-or input{flex:1;min-width:0;height:1.5rem;font:inherit;border:1px solid var(--accent);border-radius:.25rem;padding:0 .25rem;background:var(--app);color:var(--fg)}
 .ocdg-keys{display:flex;flex-wrap:wrap;gap:.25rem .625rem;padding:.625rem 1rem;border-top:1px solid var(--line);font-size:.6875rem;color:var(--fg-2)}
-.ocdg-kbd{display:inline-grid;place-items:center;min-width:1.25rem;height:1.25rem;padding:0 .25rem;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:.25rem;background:var(--app);color:var(--fg-2);font-size:.6875rem;font-family:var(--font);margin-right:.125rem}
+.ocdg-kbd{display:inline-grid;place-items:center;min-width:1.25rem;height:1.25rem;padding:0 .25rem;border:1px solid var(--line-2);border-bottom-width:.125rem;border-radius:.25rem;background:var(--app);color:var(--fg-2);font-size:.6875rem;font-family:var(--font);margin-right:.125rem}
 .ocdg-scrim{position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:20;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
 .ocdg-pal{width:min(35rem,calc(100% - 2rem));background:var(--pop,var(--app));border-radius:.75rem;box-shadow:var(--sh-pop);overflow:hidden;display:flex;flex-direction:column;max-height:70vh}
 .ocdg-pal-in{display:flex;align-items:center;gap:.5rem;padding:0 1rem;height:3rem;border-bottom:1px solid var(--line)}
@@ -70,6 +72,18 @@ function ensureA11yStyles() {
   s.setAttribute("data-ocdg-a11y", "");
   s.textContent = A11Y_CSS;
   document.head.appendChild(s);
+}
+
+/** A modal gives focus back to what had it when it closes, unless something else took it meanwhile. */
+function useReturnFocus() {
+  const [from] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
+  useEffect(
+    () => () => {
+      const now = document.activeElement;
+      if (from?.isConnected && (!now || now === document.body)) from.focus({ preventScroll: true });
+    },
+    [from],
+  );
 }
 
 const Kbd = ({ k }: { k: string[] }) => (
@@ -145,6 +159,7 @@ export function Outline({ doc, boardId, canvas, edit, origin, onSay }: { doc: Y.
     } else if (k === "Enter" || k === " ") {
       e.preventDefault();
       canvas.select([cur.id]);
+      canvas.reveal?.(cur.id);
       say(cur.id, true);
     } else if (k === "F2" && edit && !cur.connector) {
       e.preventDefault();
@@ -273,6 +288,7 @@ const ACTIONS: (Command & { icon: typeof Box; run: (root: HTMLElement | null) =>
 
 export function Commands({ root, canvas, edit, onClose, onOutline, onShortcuts, onSay }: { root: HTMLElement | null; canvas: DiagramCanvas; edit: boolean; onClose: () => void; onOutline: () => void; onShortcuts: () => void; onSay: (s: string) => void }) {
   ensureA11yStyles();
+  useReturnFocus();
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   const sel = canvas.shapes.filter((s) => canvas.sel.includes(s.id));
@@ -285,6 +301,7 @@ export function Commands({ root, canvas, edit, onClose, onOutline, onShortcuts, 
     if (c.id.startsWith("go:")) {
       const id = c.id.slice(3);
       canvas.select([id]);
+      canvas.reveal?.(id);
       onSay(announce(canvas.shapes, id, true));
       return root?.querySelector<HTMLElement>(".ocbd")?.focus({ preventScroll: true });
     }
@@ -362,6 +379,7 @@ export function Commands({ root, canvas, edit, onClose, onOutline, onShortcuts, 
 
 export function Shortcuts({ onClose }: { onClose: () => void }) {
   ensureA11yStyles();
+  useReturnFocus();
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => ref.current?.focus(), []);
   return (

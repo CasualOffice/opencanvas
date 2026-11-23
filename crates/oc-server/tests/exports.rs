@@ -288,6 +288,39 @@ async fn board_svg_png_and_markdown_embeds_without_ticket() {
     let png = res.bytes().await.unwrap();
     assert!(png.starts_with(b"\x89PNG"));
 
+    // DGM-14.6: draw.io and Mermaid, as a file or as `{text, report}`, whole or a selection.
+    let res = get(format!("/v1/export/board/bd1.drawio?ticket={TICKET}")).await;
+    assert_eq!(res.status(), 200);
+    assert!(
+        res.headers()["content-disposition"]
+            .to_str()
+            .unwrap()
+            .starts_with("attachment")
+    );
+    let x = res.text().await.unwrap();
+    assert!(x.starts_with("<mxfile host=\"OpenCanvas\""), "{x}");
+    let back = oc_model::diagram_import::convert(
+        oc_model::diagram_import::Format::Drawio,
+        x.as_bytes(),
+        0,
+    )
+    .unwrap();
+    assert!(!back.shapes.is_empty());
+    let res = get(format!("/v1/export/board/bd1.mmd?ticket={TICKET}&report=1")).await;
+    assert_eq!(res.status(), 200);
+    let j: serde_json::Value = res.json().await.unwrap();
+    assert!(
+        j["text"].as_str().unwrap().starts_with("flowchart TB\n"),
+        "{j}"
+    );
+    assert_eq!(j["report"]["format"], "mermaid");
+    let res = get(format!(
+        "/v1/export/board/bd1.drawio?ticket={TICKET}&report=1&ids=none"
+    ))
+    .await;
+    let j: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(j["report"]["counts"]["shapes"], 0, "only the listed ids");
+
     assert_eq!(
         get(format!("/v1/export/board/nope.svg?ticket={TICKET}"))
             .await

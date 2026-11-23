@@ -7,12 +7,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
 import { OC, ROOT } from "../env";
-import { shots } from "../helpers";
+import { shots, blocksReady } from "../helpers";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
   await expect(page.locator(".ProseMirror p").first()).toBeVisible();
   await expect(page.locator(".app.compact")).toBeVisible();
+  await blocksReady(page);
 }
 const para = (page: Page) => page.locator(".ProseMirror p").filter({ hasText: "The file stays" });
 const noSideScroll = (page: Page) => page.evaluate(() => document.scrollingElement!.scrollWidth <= window.innerWidth + 1);

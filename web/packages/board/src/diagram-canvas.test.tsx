@@ -200,6 +200,30 @@ describe("containers, bends and the panel (S3, part 2)", { timeout: 60_000 }, ()
     expect(all().find((s) => s.id === b)!.x).toBe(404);
   });
 
+  it("dragging a segment of a routed elbow moves it; its corners become your bends (3e)", async () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    const a = addShape(doc, id, { type: "rect", x: 0, y: 0, w: 100, h: 60, text: "A" });
+    const b = addShape(doc, id, { type: "rect", x: 300, y: 200, w: 100, h: 60, text: "B" });
+    const e = addShape(doc, id, { type: "arrow", pts: [[100, 30], [300, 230]], start: { shapeId: a, anchor: "right" }, end: { shapeId: b, anchor: "left" }, route: "elbow" });
+    const dg = await open(doc, id);
+    const svg = dg.querySelector("svg.ocbd-svg")!;
+    const { sx, sy } = await settledView(svg);
+    const conn = () => readShapes(getBoardMap(doc, id)!).find((q) => q.id === e)!;
+    // Select the connector, then grab the handle on its middle (vertical) segment.
+    ptr(dg.querySelector(`[data-s="${e}"]`)!, "pointerdown", sx(200), sy(130));
+    ptr(svg, "pointerup", sx(200), sy(130));
+    const handle = dg.querySelector(`[data-s="${e}"][data-segmove="1"]`)!;
+    expect(handle).toBeTruthy();
+    ptr(handle, "pointerdown", sx(200), sy(130));
+    ptr(svg, "pointermove", sx(253), sy(140));
+    ptr(svg, "pointerup", sx(253), sy(140));
+    await until(() => expect(conn().via).toEqual([[253, 30], [253, 230]]));
+    expect(conn().pts).toEqual([[100, 30], [253, 30], [253, 230], [300, 230]]);
+    // Its corners are now bends, drawn as diamonds.
+    expect(dg.querySelectorAll(`[data-s="${e}"][data-wp]`)).toHaveLength(2);
+  });
+
   it("your own bends are drawn as diamonds (3e)", async () => {
     const doc = new Y.Doc();
     const id = createBoard(doc, "blank");

@@ -255,7 +255,12 @@ async function inlineImages(shapes: Shape[]): Promise<Shape[]> {
 /** Export a board as a PNG (fitted to content, light palette). `scale` defaults to 2. */
 export async function exportBoardPng(doc: Y.Doc, boardId: string, scale = 2): Promise<Blob> {
   const m = getBoardMap(doc, boardId);
-  const shapes = await inlineImages(m ? readShapes(m) : []);
+  return exportShapesPng(m ? readShapes(m) : [], scale);
+}
+
+/** PNG of the given shapes (a selection), fitted to them. */
+export async function exportShapesPng(list: Shape[], scale = 2): Promise<Blob> {
+  const shapes = await inlineImages(list);
   const svg = shapesToSvg(shapes);
   const [x0, y0, x1, y1] = exportBounds(shapes);
   const W = Math.ceil(x1 - x0), H = Math.ceil(y1 - y0);

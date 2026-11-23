@@ -9,7 +9,7 @@ import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type FrameLocator, type Page } from "@playwright/test";
 import { HOST_RELOAD, OC, ROOT } from "../env";
-import { applyTemplate, createFile, editor, openFile, person, shots } from "../helpers";
+import { applyTemplate, createFile, editor, openFile, person, shots, blocksReady } from "../helpers";
 
 const CSV = "Task,Owner,Due,Done\nFinish embed SDK docs,Ravi,2026-12-04,false\nReview mention list,Priya,2026-12-06,true\nFix PDF zoom on iPhone,Sam,,false\n";
 const csvFile = { name: "tasks-export.csv", mimeType: "text/csv", buffer: Buffer.from(CSV) };
@@ -29,6 +29,7 @@ async function axe(page: Page, frame?: string) {
 }
 
 export async function slashImport(page: Page | FrameLocator, keyboard: Page["keyboard"]) {
+  await blocksReady(page);
   const last = page.locator(".ProseMirror > p").last();
   await last.scrollIntoViewIfNeeded();
   await last.click();

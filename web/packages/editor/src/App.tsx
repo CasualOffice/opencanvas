@@ -25,7 +25,8 @@ import { usePeers, type Peer } from "./lib/presence";
 import { People, setPeople } from "./lib/people";
 import { PersonCards } from "./components/PersonCard";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
-import { importFormats, importOpenStore, importStore, openImport } from "./lib/importflag";
+import { DIAGRAM_FORMATS, importFormats, importOpenStore, importStore, openImport } from "./lib/importflag";
+import { exportBoardText } from "./lib/boardexport";
 import { renewSession, savedAtLabel, schedule, WARN_S, type AccessState } from "./lib/access";
 import { toast, useStore } from "./lib/store";
 import { DocHeader } from "./components/DocHeader";
@@ -285,6 +286,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   useEffect(() => importStore.set({ formats: impFormats }), [impFormats]);
   const impOpen = useStore(importOpenStore);
   const [importInto, setImportInto] = useState(false);
+  // DGM-14.6: "Import…" in diagram mode adds to that board.
+  const [importBoard, setImportBoard] = useState<string | null>(null);
   const impSeen = useRef(impOpen);
   useEffect(() => {
     if (impOpen !== impSeen.current) {
@@ -635,8 +638,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // and board blocks add their edits to it, so ⌘Z / ⌘⇧Z step through text, cells and shapes in order.
   const undoManager = useMemo(() => (editor ? yUndoPluginKey.getState(editor.state)?.undoManager : undefined), [editor]);
   const env: BlockEnv = useMemo(
-    () => ({ role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager }),
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager],
+    () => ({
+      role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager,
+      exportBoard: session.demo ? undefined : (id, fmt, ids) => exportBoardText(session.ticket, id, fmt, ids),
+      importToBoard: impFormats.some((f) => DIAGRAM_FORMATS.includes(f)) ? (id) => (setImportBoard(id), setImportInto(true)) : undefined,
+    }),
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats],
   );
 
   const openThread = useCallback((id: string) => {
@@ -1118,7 +1125,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
           {urlAsk ? <UrlPrompt kind={urlAsk.kind} onClose={() => setUrlAsk(null)} onUrl={urlAsk.cb} /> : null}
           {importInto && editor ? (
-            <ImportInto editor={editor} doc={doc} ticket={session.demo ? null : session.ticket} formats={impFormats} demo={!!session.demo} onClose={() => setImportInto(false)} />
+            <ImportInto editor={editor} doc={doc} ticket={session.demo ? null : session.ticket} formats={impFormats} demo={!!session.demo} boardId={importBoard} onClose={() => (setImportInto(false), setImportBoard(null))} />
           ) : null}
           {importing ? (
             <ImportDialog

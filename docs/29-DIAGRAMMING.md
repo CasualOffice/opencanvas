@@ -412,7 +412,7 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
 - Bundle: Dagre is its own chunk (14 KB gz), imported by the diagram chunk when the options open.
 
 
-### 8.3 Keyboard and accessibility (S5, DGM-14.5)
+### 8.5 Keyboard and accessibility (S5, DGM-14.5)
 
 - Outline (5a): ⌥O or the top-bar Outline button opens it on the left. A tree of containers (frames:
   rectangles with a corner label or a dashed border that hold other shapes entirely; the smallest one
@@ -422,6 +422,8 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   (only that id is re-inserted, so concurrent edits merge). `keyboard.ts` `outlineTree`, `siblingOf`.
 - Announcements go to one polite live region of the diagram window, e.g. "Payments service,
   Rectangle, in VPC, 1 connection, selected. 3 of 5." (`announce`).
+- Go to (Commands, and Enter in the outline) selects the shape and moves the view so it is in the
+  middle, zoom unchanged (`canvas.reveal`, BoardBlock `revealShape`).
 - Commands ⌘K / Ctrl+K (5b): one search for actions (filtered by the selection: Duplicate, Delete,
   Group, Start a connector need an editor and a selection), shapes (Go to) and help. The best match
   is first; typing a shape's name jumps to it. Actions run as the canvas's own shortcuts, dispatched
@@ -430,7 +432,10 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   (Tab, ⇧Tab), arrows pick the target's side, Enter connects in the "New connectors" style, Esc
   cancels. The hint bar sits over the canvas while connecting.
 - Shortcuts sheet (5d): ?; also from Commands.
-- Focus: 2.5 px (`.15625rem`) accent ring with a 2 px offset everywhere in the window.
+- Focus: 2.5 px (`.15625rem`) accent ring with a 2 px offset everywhere in the window, the canvas
+  included (the board's own ring uses `--accent-ring`, 28 % alpha). Chrome draws outline widths in
+  whole device pixels: 2 px at DPR 1, 2.5 px at DPR 2. Browser spec:
+  `e2e/diagram/s5-keyboard.spec.ts` (axe on the outline, Commands, connecting, shortcuts).
 
 
 
@@ -472,8 +477,30 @@ renderer work; the panel writes the fields.
 - Search: label prefix first, then anywhere in the label, then keywords (the matched keyword is
   shown); results grouped by library in the order of their best match, so Enter adds the first
   tile. Arrow keys move between tiles. No results: one plain message and Clear search.
-- Still to come (step 2): ERD, Recent, the collapsed rail, BPMN behind an admin flag, the Icons
-  library slot (DGM-17), relations as connector presets.
+- Step 2 (DGM-14.5), panel UX for about 200 shapes (the library content is owned separately in
+  `libraries.ts`; `src/panel.ts` adds what the panel needs on top of it):
+  - Libraries are collapsible sections with counts; the first is open until the person chooses.
+    A **Libraries** chooser in the footer shows or hides libraries per person (hidden ones are
+    not searched). A library kept in its own chunk gives `count` and `load` and is loaded the
+    first time it is opened or someone searches.
+  - Search runs over a prebuilt lower-case index (label start, then anywhere in the label, then
+    keywords). Tiles: 3 columns, 32 x 24 previews with non-scaling strokes, two-line labels.
+  - Recent: your last six from any library, newest first (per person).
+  - BPMN shows only when the host sets `BlockEnv.diagram.bpmn`, marked Beta with an explanation
+    on hover or focus. Its kinds are registered regardless, so documents with BPMN draw.
+  - The Icons library (DGM-17) joins with `registerLibrary(lib, before)`.
+  - Rail (2h): the panel folds to a 3rem rail (expand, search, recent, each library, outline); a
+    library opens as a flyout that closes on add, Esc or a click outside.
+  - Shapes / Outline are tabs (arrow keys switch); the top-bar Outline button and Alt+O pick the
+    Outline tab. View-only people get the outline alone.
+- Connector presets: Flow line; UML inheritance, implements, association, aggregation,
+  composition, dependency; ERD one to one, one to many, many to many, zero or many. A preset is
+  plain fields and `props` (`startArrow`/`endArrow`, `startCard`/`endCard`, `pattern` + `dashed`),
+  the keys the properties panel edits. Clicking one connects two selected shapes in that style, or
+  arms the connector tool for the next connector. The canvas draws the ends (`src/heads.ts`) and
+  dashed lines; exporters draw the plain connector.
+- Bends (3e): on a routed elbow without bends, its inner segments get a handle; dragging one moves
+  the segment and its corners become your bends (`via`, diamonds).
 
 ### 8.8 Shapes this app can't draw (S8, DGM-14.4)
 
@@ -556,3 +583,65 @@ taken from, traced from or modelled on draw.io's stencils (their licence forbids
   their base rect, as before.
 - Tests: `icons.test.tsx`, `export.test.ts` (shared fixture), `oc-model/tests/diagram.rs`, the
   `oc-model::icons` unit test; browser `e2e/diagram/icons.spec.ts`.
+
+### 8.11 Phone (S11, DGM-14.11)
+
+- Phone layout when the window is at most 30em wide (`usePhone`, `phone/Phone.tsx`): the diagram
+  window gets `.ocdg-phone`: no side panels, rulers or the canvas's own toolbar, zoom and swatch bar;
+  a two-line title (board name over the document title); a bottom bar **Select, Pan, Add, Outline,
+  Undo** above the home indicator (`env(safe-area-inset-bottom)`). Opening fits the diagram (⇧1).
+- 11a: the board block's cover says **Open diagram** and opens diagram mode when the board was made
+  as a diagram (it has a name, or shapes with a diagram `kind`). Plain whiteboards keep "Tap to open
+  board" (full-screen whiteboard with the pen, MOB-05); their options menu still has Open as diagram.
+- 11c: one selected shape gets an action bar: Edit text, Name and colour (a small sheet: name field
+  and the seven tones), Connect (a sheet of the other shapes, nearest first), Duplicate, Delete.
+  The bar sits above the bottom bar rather than above the shape.
+- 11d: Add opens a half-height sheet with search and the basic shapes (Process, Decision, Start or
+  end, Sticky note, Text, Container). With a shape selected, "Connect it to ..." (on by default)
+  places the new shape to its right (stepping past anything there, `placeNextTo`) and connects it.
+- 11e: the options button opens a sheet: Outline, Zoom to fit, Export as PNG / SVG; Auto-layout,
+  Import, Edit connector bends and Edit attributes are listed, disabled, tagged "Larger screen",
+  with the reason below.
+- Every control in the phone bar, action bar, top bar and sheets is at least 44 x 44 px (2.75rem),
+  checked in the browser. Browser spec: `e2e/diagram/s11-phone.phone.spec.ts`, project `phone`
+  (390 x 844, touch) in `e2e/diagram/playwright.config.ts`, axe on each sheet.
+
+### 8.7 Export and import entries (S7, DGM-14.6)
+
+- **Entries.** In diagram mode the board options menu gains **Import…** (editors, when the host
+  allows a diagram import format) and **Export…**. Import opens the approved FC-10 dialog titled
+  "Import into this diagram", diagram files only, and adds to the open board (`boardId`); its
+  "Undo import" removes the added shapes in one transaction. Editor toasts and dialogs show above
+  diagram mode.
+- **Export dialog (7f, 7g).** PNG and SVG are the existing browser exports (a selection exports
+  the selected shapes and the connectors between them). draw.io and Mermaid are converted by the
+  server: `GET /v1/export/board/{boardId}.{drawio,mmd}?ticket=[&ids=][&report=1]`
+  (`crates/oc-model/src/diagram_export/`); the dialog asks for `report=1` and lists "What changes
+  in …", and shows the Mermaid text with Copy text. Without a server (`#demo`) draw.io and Mermaid
+  are shown as "Needs the canvas server".
+- **draw.io mapping** (the inverse of §7.1 on its subset; cell ids are the board's shape ids, so
+  re-importing keeps them as `props.sourceId`): `rect` → `rounded=0` vertex (or `shape=<props.shape>`
+  for imported outline shapes), `ellipse` → `ellipse`, `diamond` → `rhombus`, `text` → `text` with
+  `fontSize`; tones → the draw.io fills that import back to the same tone (`#dae8fc` blue,
+  `#d5e8d4` green, `#fff2cc` amber, `#f8cecc` red, `#e1d5e7` purple, `#f5f5f5` gray, `#fcc2d7`
+  pink); containers (`props.parent`) → `container=1;dashed=1` cells holding their children with
+  relative geometry; board groups → `group;ocGroup=1` cells (the importer turns these back into
+  `group`; other draw.io groups still become containers); connectors keep bound ends,
+  `exitX/entryX` from the side anchor, `via` → waypoints, `route: "elbow"` →
+  `orthogonalEdgeStyle`, labels; free ends → `sourcePoint`/`targetPoint`. Reported: `avoid`
+  (routes around shapes saved as fixed bends), `ports` (named ports → nearest side), `kind`
+  (shapes from a library → plain boxes), `sticky` (→ boxes in their tone), `image_stored`
+  (images stored with the canvas → dashed boxes; `data:` images are kept), `pen`, `swatch` (left
+  out); `kept`, `containers`, `groups`.
+- **Mermaid mapping:** `flowchart TB`; nodes named by their text's first line (`rect` `["…"]`,
+  `ellipse` `(["…"])`, `diamond` `{"…"}`), ids from the shape ids (`[A-Za-z0-9_]`, `n_` before a
+  digit or keyword, made unique); containers → nested `subgraph`; connectors bound at both ends →
+  `-->` with `|"label"|`; tones → `classDef`. Reported: `positions`, `detail` (second lines,
+  icons), `groups_lost`, `unbound`, `images_named`, `pen`, `swatch`; `containers`, `labels`,
+  `colours`.
+- **Tests:** `crates/oc-model/tests/diagram_export.rs` (golden round trip draw.io → import keeps
+  ids, connectors, anchors, labels, waypoints, containers, groups, positions and tones; selection;
+  `data:` images; Mermaid golden text and safe ids), `crates/oc-server/tests/exports.rs` (the
+  endpoint), `web/packages/board/src/diagram-export.test.tsx` (dialog, report, preview, entries),
+  `e2e/diagram/s6-layout.spec.ts` (S6 in the production build, axe light and dark).
+

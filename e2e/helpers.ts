@@ -163,3 +163,19 @@ export async function shots(page: Page, name: string, opts: { frame?: string } =
   }
   await f.evaluate(() => delete document.documentElement.dataset.theme);
 }
+
+/**
+ * VH-00: right after a document loads, the editor stamps an id on every top-level block that
+ * lacks one, which re-renders those blocks once. Wait for that before grabbing a block, or the
+ * element can be detached under the test (seen on CI: "Element is not attached to the DOM").
+ */
+export async function blocksReady(page: Page | FrameLocator) {
+  const pm = page.locator(".ProseMirror").first();
+  await pm.waitFor();
+  await expect
+    .poll(
+      () => pm.evaluate((el) => [...el.querySelectorAll(":scope > p, :scope > h1, :scope > h2, :scope > h3")].every((c) => (c as HTMLElement).dataset.blockId)),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+}

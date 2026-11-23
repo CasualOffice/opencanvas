@@ -462,11 +462,21 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
     }
     let is_vertex = |id: &str| by_id.get(id).is_some_and(|i| cells[*i].vertex);
     let is_edge = |id: &str| by_id.get(id).is_some_and(|i| cells[*i].edge);
+    // Board groups exported by OpenCanvas (`group;ocGroup=1`, DGM-14.6): their children get
+    // `group`; the group cell itself is not a shape.
+    let board_groups: HashSet<&str> = cells
+        .iter()
+        .filter(|c| {
+            c.vertex && c.base == "group" && c.style.get("ocGroup").is_some_and(|v| v == "1")
+        })
+        .map(|c| c.id.as_str())
+        .collect();
     // Containers: groups, swimlanes, `container=1`, and any vertex with vertex children.
     let mut containers: HashSet<&str> = cells
         .iter()
         .filter(|c| {
             c.vertex
+                && !board_groups.contains(c.id.as_str())
                 && (c.base == "group"
                     || c.base == "swimlane"
                     || c.style.get("container").is_some_and(|v| v == "1"))
@@ -474,7 +484,11 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
         .map(|c| c.id.as_str())
         .collect();
     for c in cells.iter().filter(|c| c.vertex) {
-        if let Some(p) = c.parent.as_deref().filter(|p| is_vertex(p)) {
+        if let Some(p) = c
+            .parent
+            .as_deref()
+            .filter(|p| is_vertex(p) && !board_groups.contains(p))
+        {
             containers.insert(p);
         }
     }
@@ -505,6 +519,9 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
             }
             continue;
         }
+        if board_groups.contains(c.id.as_str()) {
+            continue;
+        }
         vertices.push(c);
     }
     for c in vertices {
@@ -518,10 +535,18 @@ fn convert_model(model: roxmltree::Node, out: &mut Out) {
             .cloned()
             .unwrap_or_else(|| c.base.clone());
         let mut props = json!({"source": "drawio", "sourceId": c.id});
-        if let Some(p) = c.parent.as_deref().filter(|p| containers.contains(p)) {
+        let group = c.parent.as_deref().filter(|p| board_groups.contains(p));
+        let parent = match group {
+            Some(g) => by_id.get(g).and_then(|i| cells[*i].parent.as_deref()),
+            None => c.parent.as_deref(),
+        };
+        if let Some(p) = parent.filter(|p| containers.contains(p)) {
             props["parent"] = json!(local[p]);
         }
         let mut s = json!({"id": local[c.id.as_str()], "x": x, "y": y, "w": w, "h": h});
+        if let Some(g) = group {
+            s["group"] = json!(local[g]);
+        }
         let container = containers.contains(c.id.as_str());
         if container {
             out.note("containers", None);

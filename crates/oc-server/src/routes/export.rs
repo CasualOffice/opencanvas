@@ -2,7 +2,8 @@
 // Copyright 2026 CasualOffice
 
 //! `GET /v1/export/:fmt?ticket=` for md, html, json, ocanvas, docx and pdf, and
-//! `GET /v1/export/board/:boardId.{svg,png}?ticket=`. The renderer is shared with
+//! `GET /v1/export/board/:boardId.{svg,png,drawio,mmd}?ticket=` (draw.io and Mermaid with
+//! `ids=` for a selection and `report=1` for the "what changes" report, DGM-14.6). The renderer is shared with
 //! `POST /v1/convert`.
 
 use std::sync::Arc;
@@ -32,6 +33,12 @@ pub(super) const EXPORT_CSP: &str =
 pub struct ExportParams {
     #[serde(default)]
     ticket: String,
+    /// Board export (`drawio`, `mmd`): comma-separated shape ids to export (the selection).
+    #[serde(default)]
+    ids: Option<String>,
+    /// Board export (`drawio`, `mmd`): `1` answers `{text, report}` as JSON instead of the file.
+    #[serde(default)]
+    report: Option<String>,
 }
 
 fn filename(name: &str, ext: &str) -> String {
@@ -125,11 +132,11 @@ pub async fn export_board(
         ApiError::new(
             StatusCode::NOT_FOUND,
             "FORMAT_UNSUPPORTED",
-            "supported: <boardId>.svg, <boardId>.png",
+            "supported: <boardId>.svg, <boardId>.png, <boardId>.drawio, <boardId>.mmd",
         )
     };
     let (board_id, ext) = file.rsplit_once('.').ok_or_else(unsupported)?;
-    if !matches!(ext, "svg" | "png") {
+    if !matches!(ext, "svg" | "png" | "drawio" | "mmd") {
         return Err(unsupported());
     }
     if !host.export_allowed(ext) {
@@ -143,6 +150,43 @@ pub async fn export_board(
             "BOARD_NOT_FOUND",
             "no such board in this canvas",
         ));
+    }
+    if let Some(format) = oc_model::diagram_export::Format::parse(ext) {
+        let only: Option<std::collections::HashSet<String>> = p.ids.as_deref().map(|ids| {
+            ids.split(',')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        });
+        let out = oc_model::diagram_export::export(format, &json, board_id, only.as_ref())
+            .ok_or_else(|| ApiError::internal("board vanished"))?;
+        if p.report.as_deref() == Some("1") {
+            return Ok((
+                [(header::CACHE_CONTROL, "no-store")],
+                axum::Json(serde_json::json!({"text": out.text, "report": out.report})),
+            )
+                .into_response());
+        }
+        let ctype = if ext == "mmd" {
+            "text/vnd.mermaid; charset=utf-8"
+        } else {
+            "application/vnd.jgraph.mxfile; charset=utf-8"
+        };
+        let name = json["boards"][board_id]["name"].as_str().unwrap_or("board");
+        return Ok((
+            [
+                (header::CONTENT_TYPE, ctype.to_string()),
+                (
+                    header::CONTENT_DISPOSITION,
+                    format!("attachment; filename=\"{}\"", filename(name, ext)),
+                ),
+                (header::CACHE_CONTROL, "no-store".into()),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
+                (header::CONTENT_SECURITY_POLICY, EXPORT_CSP.into()),
+            ],
+            out.text,
+        )
+            .into_response());
     }
     let (body, ctype) = if ext == "svg" {
         (
