@@ -1,0 +1,282 @@
+{
+  "about": "Board shapes added, moved, removed, resized, restyled, text changed and a connector re-bound. Shared with the web renderer.",
+  "expected": {
+    "blocks": [],
+    "boards": [
+      {
+        "boardId": "brd_flow",
+        "op": "changed",
+        "shapes": [
+          {
+            "changes": [
+              "resized",
+              "text",
+              "style"
+            ],
+            "from": [
+              220.0,
+              80.0,
+              140.0,
+              60.0
+            ],
+            "op": "changed",
+            "shapeId": "s_login",
+            "style": [
+              "fill"
+            ],
+            "text": [
+              [
+                "del",
+                "Password"
+              ],
+              [
+                "ins",
+                "Single sign-on"
+              ]
+            ],
+            "to": [
+              220.0,
+              80.0,
+              180.0,
+              60.0
+            ],
+            "type": "rect"
+          },
+          {
+            "changes": [
+              "moved"
+            ],
+            "from": [
+              420.0,
+              70.0
+            ],
+            "op": "moved",
+            "shapeId": "s_mfa",
+            "to": [
+              520.0,
+              70.0
+            ],
+            "type": "diamond"
+          },
+          {
+            "changes": [
+              "rebound"
+            ],
+            "op": "changed",
+            "rebound": {
+              "end": {
+                "new": {
+                  "port": null,
+                  "shapeId": "s_mfa"
+                },
+                "old": {
+                  "port": null,
+                  "shapeId": "s_login"
+                }
+              }
+            },
+            "shapeId": "a_1",
+            "type": "arrow"
+          },
+          {
+            "op": "removed",
+            "shape": {
+              "fill": "y",
+              "h": 120,
+              "text": "Ask security",
+              "type": "sticky",
+              "w": 160,
+              "x": 40,
+              "y": 220
+            },
+            "shapeId": "s_note",
+            "type": "sticky"
+          },
+          {
+            "op": "added",
+            "shapeId": "s_done",
+            "type": "rect"
+          }
+        ]
+      }
+    ],
+    "databases": [],
+    "meta": [],
+    "summary": {
+      "added": 1,
+      "changed": 2,
+      "moved": 1,
+      "removed": 1
+    },
+    "truncated": false
+  },
+  "new": {
+    "boards": {
+      "brd_flow": {
+        "order": [
+          "s_start",
+          "s_login",
+          "s_mfa",
+          "a_1",
+          "s_done"
+        ],
+        "shapes": {
+          "a_1": {
+            "end": {
+              "anchor": "left",
+              "shapeId": "s_mfa"
+            },
+            "pts": [
+              [
+                160,
+                110
+              ],
+              [
+                520,
+                110
+              ]
+            ],
+            "start": {
+              "anchor": "right",
+              "shapeId": "s_start"
+            },
+            "type": "arrow"
+          },
+          "s_done": {
+            "h": 60,
+            "text": "Signed in",
+            "type": "rect",
+            "w": 120,
+            "x": 700,
+            "y": 80
+          },
+          "s_login": {
+            "fill": "green",
+            "h": 60,
+            "text": "Single sign-on",
+            "type": "rect",
+            "w": 180,
+            "x": 220,
+            "y": 80
+          },
+          "s_mfa": {
+            "h": 80,
+            "text": "MFA?",
+            "type": "diamond",
+            "w": 120,
+            "x": 520,
+            "y": 70
+          },
+          "s_start": {
+            "h": 60,
+            "text": "Start",
+            "type": "ellipse",
+            "w": 120,
+            "x": 40,
+            "y": 80
+          }
+        }
+      }
+    },
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "blockId": "b_board",
+          "boardId": "brd_flow"
+        },
+        "type": "board"
+      }
+    ],
+    "databases": {},
+    "meta": {
+      "title": "Login flow"
+    },
+    "type": "doc"
+  },
+  "old": {
+    "boards": {
+      "brd_flow": {
+        "order": [
+          "s_start",
+          "s_login",
+          "s_mfa",
+          "s_note",
+          "a_1"
+        ],
+        "shapes": {
+          "a_1": {
+            "end": {
+              "anchor": "left",
+              "shapeId": "s_login"
+            },
+            "pts": [
+              [
+                160,
+                110
+              ],
+              [
+                220,
+                110
+              ]
+            ],
+            "start": {
+              "anchor": "right",
+              "shapeId": "s_start"
+            },
+            "type": "arrow"
+          },
+          "s_login": {
+            "fill": "blue",
+            "h": 60,
+            "text": "Password",
+            "type": "rect",
+            "w": 140,
+            "x": 220,
+            "y": 80
+          },
+          "s_mfa": {
+            "h": 80,
+            "text": "MFA?",
+            "type": "diamond",
+            "w": 120,
+            "x": 420,
+            "y": 70
+          },
+          "s_note": {
+            "fill": "y",
+            "h": 120,
+            "text": "Ask security",
+            "type": "sticky",
+            "w": 160,
+            "x": 40,
+            "y": 220
+          },
+          "s_start": {
+            "h": 60,
+            "text": "Start",
+            "type": "ellipse",
+            "w": 120,
+            "x": 40,
+            "y": 80
+          }
+        }
+      }
+    },
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "blockId": "b_board",
+          "boardId": "brd_flow"
+        },
+        "type": "board"
+      }
+    ],
+    "databases": {},
+    "meta": {
+      "title": "Login flow"
+    },
+    "type": "doc"
+  }
+}

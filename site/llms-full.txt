@@ -2400,7 +2400,17 @@ caller's `attrs.blockId` is kept, else one is generated). The editor must declar
 global attribute on block nodes (Tiptap `addGlobalAttributes`, default `null`, not rendered) and
 keep it when a node is edited; a split keeps it on the first half only and pasting/duplicating
 clears it. Without that, y-prosemirror drops the attribute the first time a user edits the block.
-(Added 2026-11-21 by the server API build; the web part is still to do.)
+(Added 2026-11-21 by the server API build.)
+*(VH-00, 2026-11-24)*: an **editable** editor gives every block in `BLOCK_ID_TYPES` that has none
+an id: local edits in the same transaction (a split's second half, a new block), and documents
+loaded or changed from Yjs (older files, blocks an 0.1.x client inserts) in a follow-up
+transaction outside the undo history. A later copy of an id already used gets a fresh one (the
+first in document order keeps it); a paste drops only the ids still in the document, so cut and
+paste or a drag that moves a block keeps its id. Read-only editors and an empty, not yet loaded
+fragment are never written. Two editors that assign ids to the same block at once converge on
+one (a Yjs attribute is last-writer-wins). 0.1.x clients already declare the attribute, so they
+keep the ids. Shared fixture `crates/oc-model/tests/fixtures/blockids.ydoc.bin` (web
+`blockId.test.ts`, Rust `tests/roundtrip.rs`: Yjs → `document.json` → `.ocanvas`).
 
 **Board shape keys** (`boards/<id>/shapes/<shapeId>` Y.Map; all optional except `type`; source of
 truth `web/packages/board/src/model.ts`). `type`: `sticky rect ellipse diamond text arrow pen swatch

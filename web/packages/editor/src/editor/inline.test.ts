@@ -25,7 +25,8 @@ describe("textColor", () => {
     const e = make("<p>Ship it today</p>");
     e.commands.setTextSelection({ from: 6, to: 8 });
     e.commands.setTextColor("red");
-    expect(e.getHTML()).toBe('<p>Ship <span data-color="red" class="tc tc-red">it</span> today</p>');
+    // Every block now carries a generated id (VH-00); the colour markup is what matters here.
+    expect(e.getHTML().replace(/ data-block-id="[^"]*"/g, "")).toBe('<p>Ship <span data-color="red" class="tc tc-red">it</span> today</p>');
     const again = make(e.getHTML());
     expect(again.getJSON().content?.[0].content?.[1].marks).toEqual([{ type: "textColor", attrs: { color: "red" } }]);
   });

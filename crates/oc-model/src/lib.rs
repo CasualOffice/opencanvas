@@ -5,6 +5,7 @@
 
 pub mod board;
 pub mod diagram_import;
+pub mod diff;
 pub mod doc;
 pub mod docx;
 pub mod export;

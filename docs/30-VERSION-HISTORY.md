@@ -222,6 +222,32 @@ At most 2,000 entries (then `truncated`), 5 s of CPU per diff. Results and decod
 cached **in memory only** (LRU, 64 MB per node, 5 minutes) keyed by (room, from, to); nothing is
 written to the DB (rule 5).
 
+**As built (VH-02a, `oc_model::diff`).** `diff_json(old, new, &Limits)` / `diff_docs`. The answer
+always has `summary`, `meta`, `blocks`, `databases`, `boards`, `truncated`:
+
+- `meta`: `[{field: "title"|"icon", old, new}]`.
+- `blocks`, in the newer version's order: `added` `{path, blockId?, type}`; `changed` and `moved`
+  `{path, blockId?, type, changes, …}` where `changes` ⊆ `text` (with `text` runs), `formatting`,
+  `attrs` (`{key: {old, new}}`; a container's attribute is keyed `taskItem.checked`,
+  `callout.tone`), `type`, `context` (the container chain changed); `moved` adds `from` (the old
+  path). `removed` `{path (old), blockId?, type, node (the old block), context?, after: {path,
+  blockId?} | null}` sits right after the block it followed (null: at the top). Leaf blocks only:
+  paragraphs, headings, code, toggle summaries and atoms; lists, toggles, callouts, columns and
+  tables recurse.
+- `databases`: `{dbId, op: added|removed|changed, name, meta?, fields?, rows?, cells?, notes?,
+  order?, views?}`; fields `{op, fieldId, name, changes?: renamed|type|options|description, old?,
+  new?}`, rows `{op: added|removed, rowId, title}`, cells `{rowId, fieldId, field, old, new}`,
+  notes `{rowId, text}`. Changed parts in the new order, then removed, then added.
+- `boards`: `{boardId, op, shapes, order?}`; shapes `{op: changed|moved|removed|added, shapeId,
+  type, changes?: moved|resized|text|style|rebound, from?, to?, text?, style?: [keys],
+  rebound?: {start|end: {old, new}}, shape? (removed: the old shape)}`. A bound connector's path
+  follows its shapes and is not itself a change.
+- Over the time limit the diff fails (`DiffError::TimedOut`); the server answers
+  `422 DIFF_TOO_LARGE`.
+
+Shared fixtures: `crates/oc-model/tests/fixtures/diff/{text,legacy,database,board}.json`
+(`{old, new, expected}`), read by `tests/diff.rs` and by the web renderer's tests.
+
 **Why the server, not the client.** The callback and WOPI tokens are server-side only, so the
 bytes come through the server anyway; one Rust implementation serves the editor, the headless API
 (`/api/v1/files/{id}/versions/diff`, HAPI), MCP ("what changed since Monday?") and webhooks; a

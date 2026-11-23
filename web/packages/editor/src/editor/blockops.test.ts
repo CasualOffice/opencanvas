@@ -59,7 +59,10 @@ describe("move and duplicate", () => {
     duplicateBlock(e, b.pos, b.node);
     const ids: unknown[] = [];
     e.state.doc.forEach((n) => ids.push(n.attrs.blockId));
-    expect(ids.slice(0, 2)).toEqual(["b_aaaaaaaaaaaaaaaaaaaaaaaaaa", null]);
+    // The copy gets its own fresh id (VH-00), never the original's.
+    expect(ids[0]).toBe("b_aaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(ids[1]).toMatch(/^b_[0-9a-z]{26}$/);
+    expect(ids[1]).not.toBe(ids[0]);
   });
 });
 

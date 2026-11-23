@@ -1,0 +1,271 @@
+{
+  "about": "Database rows added and removed, cells changed, a field renamed and one added. Shared with the web renderer.",
+  "expected": {
+    "blocks": [],
+    "boards": [],
+    "databases": [
+      {
+        "cells": [
+          {
+            "field": "Status",
+            "fieldId": "status",
+            "new": "In review",
+            "old": "In progress",
+            "rowId": "r_1"
+          },
+          {
+            "field": "Due",
+            "fieldId": "due",
+            "new": "2026-11-28",
+            "old": null,
+            "rowId": "r_1"
+          }
+        ],
+        "dbId": "db_tasks",
+        "fields": [
+          {
+            "changes": [
+              "renamed"
+            ],
+            "fieldId": "owner",
+            "name": "Assignee",
+            "new": "Assignee",
+            "old": "Owner",
+            "op": "changed"
+          },
+          {
+            "fieldId": "due",
+            "name": "Due",
+            "op": "added"
+          }
+        ],
+        "name": "Tasks",
+        "notes": [
+          {
+            "rowId": "r_1",
+            "text": [
+              [
+                "ins",
+                "Link the migration guide."
+              ]
+            ]
+          }
+        ],
+        "op": "changed",
+        "rows": [
+          {
+            "op": "removed",
+            "rowId": "r_3",
+            "title": "Old checklist"
+          },
+          {
+            "op": "added",
+            "rowId": "r_4",
+            "title": "Brief support"
+          }
+        ]
+      }
+    ],
+    "meta": [],
+    "summary": {
+      "added": 2,
+      "changed": 4,
+      "moved": 0,
+      "removed": 1
+    },
+    "truncated": false
+  },
+  "new": {
+    "boards": {},
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "blockId": "b_intro"
+        },
+        "content": [
+          {
+            "text": "Launch tasks",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_db",
+          "dbId": "db_tasks"
+        },
+        "type": "database"
+      }
+    ],
+    "databases": {
+      "db_tasks": {
+        "fields": [
+          {
+            "id": "title",
+            "name": "Task",
+            "type": "title"
+          },
+          {
+            "id": "status",
+            "name": "Status",
+            "options": [
+              {
+                "c": "gray",
+                "v": "Todo"
+              },
+              {
+                "c": "blue",
+                "v": "In progress"
+              },
+              {
+                "c": "amber",
+                "v": "In review"
+              },
+              {
+                "c": "green",
+                "v": "Done"
+              }
+            ],
+            "type": "status"
+          },
+          {
+            "id": "owner",
+            "name": "Assignee",
+            "type": "person"
+          },
+          {
+            "id": "due",
+            "name": "Due",
+            "type": "date"
+          }
+        ],
+        "name": "Tasks",
+        "notes": {
+          "r_1": "Link the migration guide."
+        },
+        "order": [
+          "r_1",
+          "r_2",
+          "r_4"
+        ],
+        "rows": {
+          "r_1": {
+            "due": "2026-11-28",
+            "owner": "u_lea",
+            "status": "In review",
+            "title": "Write release notes"
+          },
+          "r_2": {
+            "owner": "u_jonas",
+            "status": "Todo",
+            "title": "Update screenshots"
+          },
+          "r_4": {
+            "owner": "u_lea",
+            "status": "Todo",
+            "title": "Brief support"
+          }
+        },
+        "view": "table"
+      }
+    },
+    "meta": {
+      "title": "Launch"
+    },
+    "type": "doc"
+  },
+  "old": {
+    "boards": {},
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "blockId": "b_intro"
+        },
+        "content": [
+          {
+            "text": "Launch tasks",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_db",
+          "dbId": "db_tasks"
+        },
+        "type": "database"
+      }
+    ],
+    "databases": {
+      "db_tasks": {
+        "fields": [
+          {
+            "id": "title",
+            "name": "Task",
+            "type": "title"
+          },
+          {
+            "id": "status",
+            "name": "Status",
+            "options": [
+              {
+                "c": "gray",
+                "v": "Todo"
+              },
+              {
+                "c": "blue",
+                "v": "In progress"
+              },
+              {
+                "c": "amber",
+                "v": "In review"
+              },
+              {
+                "c": "green",
+                "v": "Done"
+              }
+            ],
+            "type": "status"
+          },
+          {
+            "id": "owner",
+            "name": "Owner",
+            "type": "person"
+          }
+        ],
+        "name": "Tasks",
+        "notes": {},
+        "order": [
+          "r_1",
+          "r_2",
+          "r_3"
+        ],
+        "rows": {
+          "r_1": {
+            "owner": "u_lea",
+            "status": "In progress",
+            "title": "Write release notes"
+          },
+          "r_2": {
+            "owner": "u_jonas",
+            "status": "Todo",
+            "title": "Update screenshots"
+          },
+          "r_3": {
+            "status": "Todo",
+            "title": "Old checklist"
+          }
+        },
+        "view": "table"
+      }
+    },
+    "meta": {
+      "title": "Launch"
+    },
+    "type": "doc"
+  }
+}

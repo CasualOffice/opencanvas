@@ -6,6 +6,59 @@ use oc_model::{CommitInfo, doc_to_json, new_doc, read_ocanvas, write_ocanvas};
 use serde_json::json;
 use yrs::{Map, ReadTxn, StateVector, Transact};
 
+fn block_ids(v: &serde_json::Value) -> Vec<String> {
+    fn walk(n: &serde_json::Value, out: &mut Vec<String>) {
+        if let Some(id) = n["attrs"]["blockId"].as_str() {
+            out.push(id.to_string());
+        }
+        for c in n["content"].as_array().into_iter().flatten() {
+            walk(c, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(v, &mut out);
+    out
+}
+
+/// VH-00: block ids as the web editor writes them (shared fixture, made by
+/// `web/packages/editor/scripts/blockids-fixture.mjs` and read by `blockId.test.ts`) survive
+/// Yjs → `document.json` → `.ocanvas` → Yjs, and `document.json` alone.
+#[test]
+fn web_block_ids_round_trip_through_document_json_and_ocanvas() {
+    let update = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/blockids.ydoc.bin"
+    ))
+    .unwrap();
+    let doc = new_doc();
+    oc_model::ocanvas::apply_update_bytes(&doc, &update).unwrap();
+    let json = doc_to_json(&doc);
+    let want = [
+        "b_0000000000000000000000000a",
+        "b_0000000000000000000000000b",
+        "b_0000000000000000000000000c",
+        "b_0000000000000000000000000d",
+        "b_0000000000000000000000000e",
+    ];
+    assert_eq!(block_ids(&json), want);
+
+    let bytes = write_ocanvas(
+        &doc,
+        &CommitInfo {
+            id: "c1".into(),
+            authors: vec![],
+            at: "2026-11-24T00:00:00Z".into(),
+        },
+    )
+    .unwrap();
+    let loaded = read_ocanvas(&bytes).unwrap();
+    assert_eq!(block_ids(&doc_to_json(&loaded.doc)), want);
+
+    let from_json = new_doc();
+    apply_document_json(&from_json, &json);
+    assert_eq!(block_ids(&doc_to_json(&from_json)), want);
+}
+
 fn sample() -> serde_json::Value {
     json!({
         "type": "doc",

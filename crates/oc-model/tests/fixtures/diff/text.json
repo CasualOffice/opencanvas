@@ -1,0 +1,408 @@
+{
+  "about": "Blocks added, removed, changed (inline words, formatting, attrs) and moved, matched by blockId. Shared with the web renderer.",
+  "expected": {
+    "blocks": [
+      {
+        "blockId": "b_last",
+        "from": "/content/5",
+        "op": "moved",
+        "path": "/content/1",
+        "type": "paragraph"
+      },
+      {
+        "blockId": "b_p1",
+        "changes": [
+          "text"
+        ],
+        "op": "changed",
+        "path": "/content/2",
+        "text": [
+          [
+            "eq",
+            "Admins can sign in with "
+          ],
+          [
+            "del",
+            "SAML"
+          ],
+          [
+            "ins",
+            "SSO"
+          ],
+          [
+            "eq",
+            " from the settings page."
+          ]
+        ],
+        "type": "paragraph"
+      },
+      {
+        "blockId": "b_p2",
+        "changes": [
+          "formatting"
+        ],
+        "op": "changed",
+        "path": "/content/3",
+        "type": "paragraph"
+      },
+      {
+        "after": {
+          "blockId": "b_p2",
+          "path": "/content/3"
+        },
+        "blockId": "b_gone",
+        "node": {
+          "attrs": {
+            "blockId": "b_gone"
+          },
+          "content": [
+            {
+              "text": "Legacy passwords stay for one release.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        "op": "removed",
+        "path": "/content/3",
+        "type": "paragraph"
+      },
+      {
+        "blockId": "b_i1",
+        "changes": [
+          "text"
+        ],
+        "op": "changed",
+        "path": "/content/4/content/0/content/0",
+        "text": [
+          [
+            "eq",
+            "Write the "
+          ],
+          [
+            "ins",
+            "admin "
+          ],
+          [
+            "eq",
+            "guide"
+          ]
+        ],
+        "type": "paragraph"
+      },
+      {
+        "blockId": "b_i3",
+        "op": "added",
+        "path": "/content/4/content/2/content/0",
+        "type": "paragraph"
+      },
+      {
+        "blockId": "b_cp",
+        "op": "added",
+        "path": "/content/5/content/0",
+        "type": "paragraph"
+      }
+    ],
+    "boards": [],
+    "databases": [],
+    "meta": [
+      {
+        "field": "title",
+        "new": "SSO rollout plan",
+        "old": "SSO rollout"
+      }
+    ],
+    "summary": {
+      "added": 2,
+      "changed": 4,
+      "moved": 1,
+      "removed": 1
+    },
+    "truncated": false
+  },
+  "new": {
+    "boards": {},
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "blockId": "b_h1",
+          "level": 1
+        },
+        "content": [
+          {
+            "text": "Single sign-on rollout",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      {
+        "attrs": {
+          "blockId": "b_last"
+        },
+        "content": [
+          {
+            "text": "Questions go to the security channel.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_p1"
+        },
+        "content": [
+          {
+            "text": "Admins can sign in with SSO from the settings page.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_p2"
+        },
+        "content": [
+          {
+            "text": "Rollout starts on ",
+            "type": "text"
+          },
+          {
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "Monday",
+            "type": "text"
+          },
+          {
+            "text": ".",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_l"
+        },
+        "content": [
+          {
+            "attrs": {
+              "blockId": "b_li1"
+            },
+            "content": [
+              {
+                "attrs": {
+                  "blockId": "b_i1"
+                },
+                "content": [
+                  {
+                    "text": "Write the admin guide",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "listItem"
+          },
+          {
+            "attrs": {
+              "blockId": "b_li2"
+            },
+            "content": [
+              {
+                "attrs": {
+                  "blockId": "b_i2"
+                },
+                "content": [
+                  {
+                    "text": "Tell support",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "listItem"
+          },
+          {
+            "attrs": {
+              "blockId": "b_li3"
+            },
+            "content": [
+              {
+                "attrs": {
+                  "blockId": "b_i3"
+                },
+                "content": [
+                  {
+                    "text": "Record a demo",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "listItem"
+          }
+        ],
+        "type": "bulletList"
+      },
+      {
+        "attrs": {
+          "blockId": "b_c",
+          "icon": "info",
+          "tone": "amber"
+        },
+        "content": [
+          {
+            "attrs": {
+              "blockId": "b_cp"
+            },
+            "content": [
+              {
+                "text": "Plan a fallback for locked-out admins.",
+                "type": "text"
+              }
+            ],
+            "type": "paragraph"
+          }
+        ],
+        "type": "callout"
+      }
+    ],
+    "databases": {},
+    "meta": {
+      "icon": "key-round",
+      "title": "SSO rollout plan"
+    },
+    "type": "doc"
+  },
+  "old": {
+    "boards": {},
+    "comments": {},
+    "content": [
+      {
+        "attrs": {
+          "blockId": "b_h1",
+          "level": 1
+        },
+        "content": [
+          {
+            "text": "Single sign-on rollout",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      {
+        "attrs": {
+          "blockId": "b_p1"
+        },
+        "content": [
+          {
+            "text": "Admins can sign in with SAML from the settings page.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_p2"
+        },
+        "content": [
+          {
+            "text": "Rollout starts on Monday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_gone"
+        },
+        "content": [
+          {
+            "text": "Legacy passwords stay for one release.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "blockId": "b_l"
+        },
+        "content": [
+          {
+            "attrs": {
+              "blockId": "b_li1"
+            },
+            "content": [
+              {
+                "attrs": {
+                  "blockId": "b_i1"
+                },
+                "content": [
+                  {
+                    "text": "Write the guide",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "listItem"
+          },
+          {
+            "attrs": {
+              "blockId": "b_li2"
+            },
+            "content": [
+              {
+                "attrs": {
+                  "blockId": "b_i2"
+                },
+                "content": [
+                  {
+                    "text": "Tell support",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "listItem"
+          }
+        ],
+        "type": "bulletList"
+      },
+      {
+        "attrs": {
+          "blockId": "b_last"
+        },
+        "content": [
+          {
+            "text": "Questions go to the security channel.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      }
+    ],
+    "databases": {},
+    "meta": {
+      "icon": "key-round",
+      "title": "SSO rollout"
+    },
+    "type": "doc"
+  }
+}
