@@ -7,6 +7,7 @@
 //    header, contrast/target size in the top bar, and SEC-20 (no script URLs in the DOM).
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { blocksReady } from "../helpers";
 import { OC } from "../env";
 
 // `sim=quiet` stops the simulated collaborator from typing, so positions stay put.
@@ -14,6 +15,7 @@ async function demo(page: Page, extra = "") {
   await page.goto(`${OC}/app/#demo&sim=quiet${extra}`);
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await expect(page.locator(".ProseMirror .callout")).toBeVisible();
+  await blocksReady(page);
 }
 const para = (page: Page) => page.locator(".ProseMirror p").filter({ hasText: "The file stays" });
 const focused = (page: Page) => page.evaluate(() => ({ role: document.activeElement?.getAttribute("role"), label: document.activeElement?.getAttribute("aria-label"), text: document.activeElement?.textContent?.trim() ?? "" }));

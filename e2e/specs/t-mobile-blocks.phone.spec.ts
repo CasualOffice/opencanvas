@@ -7,12 +7,13 @@
 import path from "node:path";
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { OC, ROOT } from "../env";
-import { editor, sharedFile, shots, typeAfterHeading } from "../helpers";
+import { editor, sharedFile, shots, typeAfterHeading, blocksReady } from "../helpers";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
   await expect(page.locator(".ProseMirror p").first()).toBeVisible();
   await expect(page.locator(".app.compact")).toBeVisible();
+  await blocksReady(page);
 }
 const noSideScroll = (page: Page) => page.evaluate(() => document.scrollingElement!.scrollWidth <= window.innerWidth + 1);
 const phoneCtx = () => {
