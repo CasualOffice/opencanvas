@@ -103,7 +103,10 @@ export function descriptorOf(s: Partial<Shape> & Pick<Shape, "type">): ResolvedD
   return { ...FALLBACK, missing: typeof s.type === "string" && s.type ? s.type : k };
 }
 
-/** Fields for a new shape of a registered kind (core kinds give a plain legacy shape). */
+/**
+ * Fields for a new shape of a registered kind (core kinds give a plain legacy shape). `props` is
+ * given as a plain object; `addShape` stores it as a per-field Y.Map (ADR-045).
+ */
 export function makeNode(kind: string, init: Partial<Omit<Shape, "id" | "type" | "kind" | "kindVersion">>): Omit<Shape, "id"> {
   const d = registry.get(kind);
   if (!d) throw new Error(`unknown kind ${kind}`);

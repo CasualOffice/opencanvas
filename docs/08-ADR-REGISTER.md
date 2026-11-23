@@ -46,9 +46,9 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-041 | Headless API v1: `/api/v1`, OpenAPI 3.1, RFC 9457 errors, `Idempotency-Key`, signed cursors, `RateLimit` headers, host key or host-minted user tokens, one operation layer shared with MCP (docs/27 §4) | Accepted (2026-11-23) |
 | ADR-042 | `.ocanvas` stays format version 1 through v0.2: additive nodes, roots and manifest fields only; a 0.1.x round trip is a release gate (docs/27 §3.3, §5) | Accepted (2026-11-23) |
 | ADR-044 | Per-host embed origins: optional `frame_ancestors`; such hosts launch to `/app/?h=<host id>` and only that page carries them (MX-01) | Accepted (owner, 2026-11-24) |
-| ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props`, `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Proposed (DGM, 2026-11-24) |
-| ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Proposed (DGM, 2026-11-24) |
-| ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Proposed (DGM, 2026-11-24) |
+| ADR-045 | Diagram schema: boards stay blocks in a document (per-board budget 25 % of `max_doc_bytes`); additive shape fields `kind` (namespaced, refines the legacy `type`), `kindVersion`, `props` (a per-field map: concurrent edits of different properties merge), `ports`, binding `port` (with `anchor` always kept); declarative shape registry with `core:unknown` fallback; unknown fields kept by every reader and writer; both exporters draw an unknown type's box as a rect; diagram mode is per board; incremental board projection (docs/29) | Accepted (owner, 2026-11-24; condition: `props` merges per field) |
+| ADR-046 | Board renderer: keep SVG + React; no Canvas2D/WebGL rewrite without a browser profile showing the renderer, not projection or React reconciliation, is the bottleneck; next steps are culling through the spatial index and a scene layer separate from React chrome (docs/29 §2) | Accepted (owner, 2026-11-24) |
+| ADR-047 | Connector routing: straight/elbow stay the baseline and the fallback; obstacle-aware orthogonal routing is a deterministic client-side projection of stored intent (`route: "elbow"` + optional `routing: "avoid"`), never a new source of truth; `pts` stays the compatibility snapshot; invalidation through `EdgeIndex` + `SpatialIndex`; worker only if measured; layout is a separate, explicit, lazy step (Dagre first; ELK only after an EPL-2.0 review) | Accepted (owner, 2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -517,14 +517,15 @@ credentials, its session is the ticket.
 − anyone can load `/app/?h=<that host>` under that host's ancestors, which exposes an editor
 with no session; a session still needs a ticket.
 
-### ADR-045 — Diagram schema, shape registry and compatibility (Proposed, DGM 2026-11-24)
+### ADR-045 — Diagram schema, shape registry and compatibility (Accepted by the owner 2026-11-24, with per-field `props`)
 **Context.** Structured diagramming (owner design, 2026-11-24; docs/29) needs shape kinds beyond the
 nine board types, named ports and semantic edges. Boards are blocks inside a document (one Yjs doc,
 `max_doc_bytes`), rendered by the web editor and, server side, by `oc-model` (`board.rs` for SVG/PNG,
 `export.rs`, `preview.rs`). 0.1.x clients are deployed and will share rooms with newer ones.
 **Decision.**
 1. *Additive fields only* (docs/15 §4): `kind` (`<namespace>:<name>`, lowercase), `kindVersion`,
-   `props` (plain JSON), `ports` (`[{id, side?, x?, y?, kind?}]`, fractions of the box), and `port`
+   `props` (a nested Y.Map under the shape, one key per property, each value plain JSON; owner
+   condition at sign-off), `ports` (`[{id, side?, x?, y?, kind?}]`, fractions of the box), and `port`
    inside a `start`/`end` binding. `type` stays one of the nine legacy types: the kind's *base*,
    which 0.1.x clients and the exporters draw. No new Y roots, no format version change (ADR-042).
 2. *Bindings keep `anchor`.* A port binding is `{shapeId, anchor, port}`; `anchor` is the side the
@@ -555,10 +556,12 @@ nine board types, named ports and semantic edges. Boards are blocks inside a doc
    transaction touched are re-read; output equal to `readShapes`.
 **Consequences.** + Every 0.1.x client and export keeps working and keeps new data; + no migration;
 − 0.1.x clients show kinds as plain base shapes and port bindings at the nearest side; − a paste in
-0.1.x drops `port` (kept `anchor`); − `props` is last-writer-wins per shape (concurrent edits of two
-props of one shape keep one); a nested Y.Map for `props` is allowed later if that matters.
+0.1.x drops `port` (kept `anchor`); + concurrent edits of different properties of one shape both
+survive (`props` merges per field; one property is last-writer-wins); − a 0.1.x copy writes `props`
+as one plain object, which every reader accepts and the next per-field edit converts to the map (two
+clients converting the same plain `props` at once keep one conversion).
 
-### ADR-046 — Board renderer: keep SVG, profile first (Proposed, DGM 2026-11-24)
+### ADR-046 — Board renderer: keep SVG, profile first (Accepted by the owner 2026-11-24)
 **Context.** The design proposes profiling SVG against Canvas2D before any renderer change. Phase 0
 measured (docs/29 §2): before DGM-05 a remote move at 5,000 nodes cost ~81 ms of React work in jsdom,
 mostly re-projection and re-resolving every connector; after it, ~21 ms, the rest being React walking
@@ -572,7 +575,7 @@ on the web SVG exporter, unaffected by the screen renderer.
 **Consequences.** + No rewrite risk, accessibility (SVG + DOM) kept; − large boards depend on culling
 and a scene split landing in Phase 2/4.
 
-### ADR-047 — Connector routing and layout (Proposed, DGM 2026-11-24)
+### ADR-047 — Connector routing and layout (Accepted by the owner 2026-11-24)
 **Context.** Connectors store intent (bindings, `route`, `via`); `pts` is a resolved snapshot kept for
 readers that ignore bindings. Web and Rust resolve bound connectors identically today. Obstacle
 avoidance is the main Phase 2 routing feature; layout (ELK/Dagre) is Phase 3.

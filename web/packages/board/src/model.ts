@@ -55,7 +55,12 @@ export interface Shape {
   kind?: string;
   /** Schema version of `kind`'s `props`. */
   kindVersion?: number;
-  /** Kind-specific properties, kept as written (never dropped by readers that don't know them). */
+  /**
+   * Kind-specific properties. Stored as a nested Y.Map, one key per property, so concurrent edits
+   * of different properties merge (ADR-045); read as a plain object (`toJSON`). `updateShape` with
+   * `props` merges per field (`undefined` removes one). The plain-object form that 0.1.x copies
+   * write reads the same and is converted on the next edit.
+   */
   props?: Record<string, unknown>;
   /** Named connection points in addition to the five legacy anchors (see ports.ts). */
   ports?: Port[];
@@ -142,9 +147,43 @@ function presetShapes(kind: BoardPreset): Omit<Shape, "id">[] {
   return sh;
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v) && !(v instanceof Y.AbstractType);
+
+/** `props` as stored: a nested Y.Map, one key per property, so edits merge per field (ADR-045). */
+function propsToY(v: Record<string, unknown>): Y.Map<unknown> {
+  const m = new Y.Map<unknown>();
+  for (const [k, x] of Object.entries(v)) if (x !== undefined) m.set(k, x);
+  return m;
+}
+
+/**
+ * Merge a `props` patch into a shape field by field: `undefined` removes a property, anything
+ * else replaces that one property (its value is plain JSON). A plain-object `props` (written by
+ * a 0.1.x client's copy) is converted to the nested map first, keeping its properties.
+ * A patch that is not an object (`undefined`, `null`) removes `props`.
+ */
+function mergeProps(s: Y.Map<unknown>, patch: unknown) {
+  if (!isPlainObject(patch)) return void s.delete("props");
+  let cur = s.get("props");
+  if (!(cur instanceof Y.Map)) {
+    const next = propsToY(isPlainObject(cur) ? cur : {});
+    s.set("props", next);
+    cur = next;
+  }
+  const m = cur as Y.Map<unknown>;
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) m.delete(k);
+    else m.set(k, v);
+  }
+}
+
 function shapeToY(s: Shape): Y.Map<unknown> {
   const m = new Y.Map<unknown>();
-  for (const [k, v] of Object.entries(s)) if (v !== undefined) m.set(k, Array.isArray(v) ? v.map((p) => (Array.isArray(p) ? [p[0], p[1]] : p)) : v);
+  for (const [k, v] of Object.entries(s)) {
+    if (v === undefined) continue;
+    if (k === "props" && isPlainObject(v)) m.set(k, propsToY(v));
+    else m.set(k, Array.isArray(v) ? v.map((p) => (Array.isArray(p) ? [p[0], p[1]] : p)) : v);
+  }
   return m;
 }
 
@@ -224,7 +263,8 @@ export function updateShape(doc: Y.Doc, boardId: string, sid: string, patch: Par
     if (!(s instanceof Y.Map)) return;
     for (const [k, v] of Object.entries(patch)) {
       if (k === "id") continue;
-      if (v === undefined) s.delete(k);
+      if (k === "props") mergeProps(s, v);
+      else if (v === undefined) s.delete(k);
       else if (s.get(k) !== v || Array.isArray(v)) s.set(k, Array.isArray(v) ? v.map((p) => (Array.isArray(p) ? [p[0], p[1]] : p)) : v);
     }
   }, origin);
@@ -237,7 +277,10 @@ export function moveShapes(doc: Y.Doc, boardId: string, moves: { id: string; pat
     for (const { id, patch } of moves) {
       const s = shapes.get(id);
       if (!(s instanceof Y.Map)) continue;
-      for (const [k, v] of Object.entries(patch)) if (v !== undefined) s.set(k, v);
+      for (const [k, v] of Object.entries(patch)) {
+        if (k === "props") mergeProps(s, v);
+        else if (v !== undefined) s.set(k, v);
+      }
     }
   }, origin);
 }

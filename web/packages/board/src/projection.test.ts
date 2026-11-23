@@ -34,6 +34,12 @@ describe("BoardProjection", () => {
     check();
     updateShape(doc, bid, a, { text: "hi", fill: "blue" });
     check();
+    // Per-field props (a nested Y.Map): creating it, then editing one property inside it.
+    updateShape(doc, bid, a, { props: { stereotype: "entity", n: 1 } });
+    check();
+    updateShape(doc, bid, a, { props: { n: 2 } });
+    check();
+    expect(p.get()!.find((s) => s.id === a)!.props).toEqual({ stereotype: "entity", n: 2 });
     moveShapes(doc, bid, [{ id: a, patch: { x: 50 } }]);
     check();
     bringToFront(doc, bid, read(doc, bid)![0].id);

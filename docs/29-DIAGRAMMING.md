@@ -1,7 +1,8 @@
 # 29 — Structured diagramming: Phase 0 and Phase 1
 
 **Status:** Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) built 2026-11-24, owner approval of
-the workstream 2026-11-24. ADR-045, ADR-046 and ADR-047 are **Proposed** and await owner sign-off.
+the workstream 2026-11-24. ADR-045, ADR-046 and ADR-047 were **accepted by the owner on 2026-11-24**,
+ADR-045 on one condition: `props` merges per field (DGM-16, §3).
 Source: the owner's *OpenCanvas Structured Diagramming Extension* design (24 November 2026) and the
 review points accepted with it, which override the design where they differ (§1).
 Tracker: DGM-* rows in [docs/10](10-EXECUTION-TRACKER.md).
@@ -49,6 +50,9 @@ v0.1.1 projection kept verbatim in `bench/legacy.ts` plus `withResolvedArrows`; 
 | 1,000 / 1,500 | 1.36 / 2.24 | 0.003 / 0.007 | 2,500 → 1 | 1,500 → 2.7 (0.44 → 0.012) |
 | 5,000 / 7,500 | 8.32 / 10.32 | 0.012 / 0.020 | 12,500 → 1 | 7,500 → 2.6 (2.89 → 0.116) |
 | 10,000 / 15,000 | 18.58 / 23.74 | 0.065 / 0.109 | 25,000 → 1 | 15,000 → 2.9 (6.07 → 0.268) |
+
+Re-run at 10k after DGM-16 (per-field `props`): 0.058 / 0.104 ms after, 18.40 / 20.90 ms before
+(`bench/results/projection-10k-props.json`); the fixture has no `props`, so this checks the projection path.
 
 First projection (cold) is unchanged: 2.4 / 11.1 / 22.0 ms before, 2.7 / 11.4 / 24.4 ms after.
 
@@ -109,6 +113,7 @@ machine: DGM-10. Network bytes per collaboration update are the "update per move
 | `ports.ts` | Ports: the five legacy anchors as ports at exactly `anchorPoint`; custom ports as box fractions; `anchorFor` degrades a port to the side it is nearest; `bindingTo` writes `{shapeId, anchor, port}` |
 | `spatial.ts` | `SpatialIndex`: uniform grid hash, O(1) moves, huge boxes in a side list; equal to a linear scan under inserts, moves and deletes |
 | `BoardBlock.tsx` | `useShapes` uses `BoardProjection`; `Board` uses `createArrowResolver`. Nothing else changed: same markup (render-identity test) |
+| `model.ts` | *(DGM-16, owner condition)* `props` stored as a nested Y.Map, one key per property; `addShape` converts a plain `props`, `updateShape`/`moveShapes` merge a `props` patch per field (`undefined` removes one) and convert a plain-form `props` first. Concurrent edits of different properties merge (`compat.test.ts`); the Rust readers accept both forms (`oc-model/tests/diagram.rs`) |
 | `ops.ts` | Paste keeps every binding field (was rebuilt as `{shapeId, anchor}`, dropping `port`) |
 | `export.ts`, `crates/oc-model/src/board.rs` | Unknown type with a box: drawn as a rect with its text in both exporters (shared fixture). Kinds draw as their base type. Existing output byte-identical (`board.web.svg` unchanged) |
 
@@ -117,7 +122,7 @@ Bundle: initial JS unchanged at 280.2 KB gzip; the lazy board chunk grows 28.2 �
 ## 4. Per-board size budget (review point 1)
 
 A board lives in a document capped at `max_doc_bytes` (20 MB default, `OC_MAX_DOC_MB`). The room
-refuses an update past the cap. Proposed budget (ADR-045): **one board up to 25 % of
+refuses an update past the cap. Budget (ADR-045): **one board up to 25 % of
 `max_doc_bytes` (5 MB at the default)**, which holds the 10,000-node / 15,000-edge target with short
 labels (4.44 MB measured) and leaves room for text, databases and history. Bytes per shape grow with
 text and `props`; the budget is in bytes, not shapes. Enforcement is Phase 2 (a warning near the

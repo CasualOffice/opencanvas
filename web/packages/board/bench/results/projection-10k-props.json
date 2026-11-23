@@ -1,0 +1,94 @@
+{
+  "env": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "darwin 25.3.0",
+    "node": "v24.22.1",
+    "date": "2026-11-23"
+  },
+  "edits": 200,
+  "workload": "remote transactions, each moving one random node by 10 px",
+  "rows": [
+    {
+      "nodes": 10000,
+      "edges": 15000,
+      "yjsBytes": 4443778,
+      "jsonBytes": 3554319,
+      "bytesPerShape": 178,
+      "shareOfDocLimit": 0.212,
+      "updateBytesPerMove": {
+        "mean": 32.52,
+        "p50": 33,
+        "p95": 34,
+        "max": 34
+      },
+      "docHeapMB": 58.2,
+      "projectionHeapMB": {
+        "before": 13.8,
+        "after": 21
+      },
+      "firstProjectionMs": {
+        "before": 21.24,
+        "after": 21.52
+      },
+      "perEditProjectionMs": {
+        "before": {
+          "mean": 18.83,
+          "p50": 18.4,
+          "p95": 20.896,
+          "max": 77.992
+        },
+        "after": {
+          "mean": 0.064,
+          "p50": 0.058,
+          "p95": 0.104,
+          "max": 0.381
+        }
+      },
+      "perEditArrowResolveMs": {
+        "before": {
+          "mean": 5.903,
+          "p50": 5.349,
+          "p95": 8.59,
+          "max": 64.293
+        },
+        "after": {
+          "mean": 0.289,
+          "p50": 0.278,
+          "p95": 0.344,
+          "max": 0.931
+        }
+      },
+      "shapesReReadPerEdit": {
+        "before": 25000,
+        "after": 1
+      },
+      "arrowsResolvedPerEdit": {
+        "before": 15000,
+        "after": 2.91
+      },
+      "spatial": {
+        "buildMs": 22.31,
+        "viewportLinearMs": {
+          "mean": 2.024,
+          "p50": 1.965,
+          "p95": 2.325,
+          "max": 5.625
+        },
+        "viewportIndexMs": {
+          "mean": 0.132,
+          "p50": 0.13,
+          "p95": 0.187,
+          "max": 0.579
+        },
+        "moveUpdateMs": {
+          "mean": 0.006,
+          "p50": 0.003,
+          "p95": 0.013,
+          "max": 0.1
+        }
+      }
+    }
+  ]
+}

@@ -155,11 +155,51 @@ describe("an older client keeps fields it does not understand", () => {
     const { bid, n1 } = seed(a);
     Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
     // Offline at the same time:
-    (getBoardMap(a, bid)!.get("shapes") as Y.Map<Y.Map<unknown>>).get(n1)!.set("props", { stereotype: "value" });
+    updateShape(a, bid, n1, { props: { stereotype: "value" } });
     moveShapes(b, bid, [{ id: n1, patch: { x: 999 } }], ORIGIN);
     Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
     Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
-    for (const d of [a, b]) expect(byId(d, bid, n1)).toMatchObject({ x: 999, props: { stereotype: "value" }, kind: "uml:class" });
+    for (const d of [a, b]) expect(byId(d, bid, n1)).toMatchObject({ x: 999, props: { ...NODE_EXTRA.props, stereotype: "value" }, kind: "uml:class" });
+    // Stored per field.
+    expect((getBoardMap(a, bid)!.get("shapes") as Y.Map<Y.Map<unknown>>).get(n1)!.get("props")).toBeInstanceOf(Y.Map);
+  });
+
+  // ADR-045 (owner condition, 2026-11-24): `props` merges per field. Phase 1 stored it as one
+  // plain value, so the second writer's object replaced the first (seen failing first).
+  it("concurrent edits to different props of one shape both survive the merge", () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    const { bid, n1 } = seed(a);
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+    updateShape(a, bid, n1, { props: { stereotype: "value" } });
+    updateShape(b, bid, n1, { props: { owner: "team-b", nested: { deep: [9], extra: { k: true } } } });
+    Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+    for (const d of [a, b]) {
+      expect(byId(d, bid, n1).props).toEqual({
+        stereotype: "value",
+        owner: "team-b",
+        attrs: NODE_EXTRA.props.attrs,
+        nested: { deep: [9], extra: { k: true } },
+      });
+    }
+    // One field removed (undefined) leaves the others.
+    updateShape(a, bid, n1, { props: { owner: undefined } });
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a, Y.encodeStateVector(b)));
+    expect(byId(b, bid, n1).props).not.toHaveProperty("owner");
+    expect(byId(b, bid, n1).props).toHaveProperty("stereotype", "value");
+  });
+
+  it("props in the plain form (a 0.1.x copy) are read, and merge per field once edited", () => {
+    const [nw, old] = pair();
+    const { bid, n1 } = seed(nw);
+    const copy = duplicateShape(old, bid, shapesOf(old, bid).find((s) => s.id === n1)!, 0, 0, ORIGIN);
+    // Simulate a 0.1.x writer: props as one plain value.
+    (getBoardMap(old, bid)!.get("shapes") as Y.Map<Y.Map<unknown>>).get(copy)!.set("props", { stereotype: "plain" });
+    expect(byId(nw, bid, copy).props).toEqual({ stereotype: "plain" });
+    updateShape(nw, bid, copy, { props: { owner: "x" } });
+    expect(byId(old, bid, copy).props).toEqual({ stereotype: "plain", owner: "x" });
+    expect((getBoardMap(nw, bid)!.get("shapes") as Y.Map<Y.Map<unknown>>).get(copy)!.get("props")).toBeInstanceOf(Y.Map);
   });
 
   it("a nested Y type written by a newer client survives an older client's edits", () => {

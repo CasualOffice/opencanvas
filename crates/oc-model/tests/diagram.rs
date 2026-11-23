@@ -147,3 +147,90 @@ fn diagram_fields_survive_a_document_json_only_file() {
         doc["boards"]
     );
 }
+
+/// The shape `n1`'s `props` value as stored in the Y doc.
+fn props_out(doc: &yrs::Doc) -> Option<yrs::Out> {
+    use yrs::{Map, Transact};
+    let boards = doc.get_or_insert_map("boards");
+    let txn = doc.transact();
+    let yrs::Out::YMap(b) = boards.get(&txn, "b1")? else {
+        return None;
+    };
+    let yrs::Out::YMap(shapes) = b.get(&txn, "shapes")? else {
+        return None;
+    };
+    let yrs::Out::YMap(n1) = shapes.get(&txn, "n1")? else {
+        return None;
+    };
+    n1.get(&txn, "props")
+}
+
+#[test]
+fn props_are_a_per_field_map_and_concurrent_field_edits_merge() {
+    use yrs::{Map, Transact};
+    // ADR-045: `props` is a nested map, one key per property. A document.json import gives the
+    // same form the web writes, so two writers editing different properties both survive.
+    let a = ydoc_from(&doc_with(board()));
+    assert!(
+        matches!(props_out(&a), Some(yrs::Out::YMap(_))),
+        "props imported as a map"
+    );
+    let b = oc_model::doc::new_doc();
+    oc_model::ocanvas::apply_update_bytes(&b, &oc_model::ocanvas::encode_state(&a)).unwrap();
+    for (doc, key, val) in [(&a, "stereotype", "value"), (&b, "owner", "team-b")] {
+        let Some(yrs::Out::YMap(p)) = props_out(doc) else {
+            panic!("props map");
+        };
+        p.insert(&mut doc.transact_mut(), key, val);
+    }
+    let (ua, ub) = (
+        oc_model::ocanvas::encode_state(&a),
+        oc_model::ocanvas::encode_state(&b),
+    );
+    oc_model::ocanvas::apply_update_bytes(&a, &ub).unwrap();
+    oc_model::ocanvas::apply_update_bytes(&b, &ua).unwrap();
+    for doc in [&a, &b] {
+        let props = &oc_model::doc::doc_to_json(doc)["boards"]["b1"]["shapes"]["n1"]["props"];
+        assert_eq!(props["stereotype"], "value");
+        assert_eq!(props["owner"], "team-b");
+        assert_eq!(props["attrs"], json!([{"name": "id", "pk": true}]));
+    }
+}
+
+#[test]
+fn both_props_forms_read_and_render_the_same() {
+    // Per-field map (web, import) and one plain value (a 0.1.x copy) give the same logical JSON
+    // and the same pictures.
+    use yrs::{Any, Map, Transact};
+    let mapped = ydoc_from(&doc_with(board()));
+    let plain = ydoc_from(&doc_with(board()));
+    {
+        let boards = plain.get_or_insert_map("boards");
+        let mut txn = plain.transact_mut();
+        let Some(yrs::Out::YMap(b)) = boards.get(&txn, "b1") else {
+            panic!()
+        };
+        let Some(yrs::Out::YMap(shapes)) = b.get(&txn, "shapes") else {
+            panic!()
+        };
+        let Some(yrs::Out::YMap(n1)) = shapes.get(&txn, "n1") else {
+            panic!()
+        };
+        let value: Any = oc_model::import::json_to_any(&board()["shapes"]["n1"]["props"]);
+        n1.insert(&mut txn, "props", value);
+    }
+    assert!(matches!(props_out(&plain), Some(yrs::Out::Any(_))));
+    let (jm, jp) = (
+        oc_model::doc::doc_to_json(&mapped),
+        oc_model::doc::doc_to_json(&plain),
+    );
+    assert_eq!(jm["boards"], jp["boards"]);
+    assert_eq!(
+        oc_model::board::to_svg(&jm, "b1"),
+        oc_model::board::to_svg(&jp, "b1")
+    );
+    assert_eq!(
+        oc_model::preview::render(&jm).html,
+        oc_model::preview::render(&jp).html
+    );
+}
