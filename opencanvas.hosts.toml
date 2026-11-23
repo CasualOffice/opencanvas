@@ -18,6 +18,7 @@ allowed_origins = ["http://localhost:4000"]
 [host.flags]
 export_formats = ["md", "html", "json", "docx", "pdf", "ocanvas", "svg", "png"]
 on_conflict    = "copy"                        # copy | reload (on a 409 from PUT /files/{id})
+team_templates = true                         # TPL-01: GET /templates feeds the gallery's "From your team"
 
 # WOPI-compatible host (docs/05 §6): examples/wopi-host/server.mjs. No JWT; OpenCanvas calls
 # CheckFileInfo / GetFile / PutFile on WOPISrc, which must match wopi_allowlist.

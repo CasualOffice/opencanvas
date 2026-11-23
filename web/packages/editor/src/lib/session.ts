@@ -29,6 +29,8 @@ export interface Session {
   exp?: number | null;
   /** docs/23 FC-10: what the host lets this person import (empty or absent: no import). */
   import?: { formats?: string[] } | null;
+  /** TPL-01: the host's `team_templates` flag (the gallery's "From your team" section). */
+  templates?: { team?: boolean } | null;
 }
 
 export class SessionError extends Error {

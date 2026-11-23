@@ -30,6 +30,16 @@ pub enum RemoteOp {
     Commit {
         grant: Grant,
     },
+    /// TPL-01: a prepared team template.
+    Template {
+        grant: Grant,
+        doc: Value,
+        origin: String,
+    },
+    TemplateUndo {
+        grant: Grant,
+        origin: String,
+    },
     CommitLive,
     SetRole {
         user_id: String,
@@ -44,6 +54,8 @@ impl RemoteOp {
             Self::Info { grant }
             | Self::State { grant }
             | Self::Patch { grant, .. }
+            | Self::Template { grant, .. }
+            | Self::TemplateUndo { grant, .. }
             | Self::Commit { grant } => Some(grant),
             Self::CommitLive | Self::SetRole { .. } | Self::Close => None,
         }
@@ -111,6 +123,14 @@ impl Rooms {
             }
             RemoteOp::Patch { grant, ops, author } => encode_patch(
                 self.patch_at(&need_host()?, &grant, ops, &author, false)
+                    .await?,
+            ),
+            RemoteOp::Template { grant, doc, origin } => encode_patch(
+                self.template_at(&need_host()?, &grant, doc, &origin, false)
+                    .await?,
+            ),
+            RemoteOp::TemplateUndo { grant, origin } => encode_patch(
+                self.template_undo_at(&need_host()?, &grant, &origin, false)
                     .await?,
             ),
             RemoteOp::Commit { grant } => {

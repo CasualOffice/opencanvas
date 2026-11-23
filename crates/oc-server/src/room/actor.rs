@@ -560,6 +560,29 @@ impl Room {
             Cmd::Patch { ops, author, reply } => {
                 let _ = reply.send(self.patch(&ops, &author).await);
             }
+            Cmd::Template {
+                doc,
+                origin,
+                author,
+                reply,
+            } => {
+                let _ = reply.send(self.template(&doc, &origin, &author).await);
+            }
+            Cmd::TemplateUndo { origin, reply } => {
+                let r = if self.conflict.is_some() {
+                    Err(PatchFailure::Conflict)
+                } else if !self.ai_undo.contains_key(&origin) {
+                    Err(PatchFailure::Invalid(oc_model::patch::PatchError::Request(
+                        "nothing to undo".into(),
+                    )))
+                } else {
+                    self.ai_undo(&origin)
+                        .await
+                        .map(|()| Patched { block_ids: vec![] })
+                        .map_err(|_| PatchFailure::Unavailable)
+                };
+                let _ = reply.send(r);
+            }
             Cmd::Tool {
                 run,
                 origin,
@@ -1342,6 +1365,31 @@ impl Room {
         Ok(Patched {
             block_ids: out.block_ids,
         })
+    }
+
+    /// Team template (TPL-01): replaces the content with `doc` as one transaction with
+    /// `origin` (`template:<user>:<applyId>`), tracked for undo. Only the latest template per
+    /// user stays undoable.
+    async fn template(
+        &mut self,
+        doc: &Value,
+        origin: &str,
+        author: &str,
+    ) -> Result<Patched, PatchFailure> {
+        if self.conflict.is_some() {
+            return Err(PatchFailure::Conflict);
+        }
+        let (update, block_ids) = crate::team_templates::apply(&self.doc, doc)
+            .map_err(|e| PatchFailure::Invalid(oc_model::patch::PatchError::Request(e)))?;
+        let mine = format!("template:{author}:");
+        self.ai_undo.retain(|o, _| !o.starts_with(&mine));
+        self.ai_track(origin);
+        if let Err(e) = self.apply_server_update(update, origin, author).await {
+            self.ai_undo.remove(origin);
+            return Err(e);
+        }
+        tracing::info!(room = %self.id, blocks = block_ids.len(), "team template applied");
+        Ok(Patched { block_ids })
     }
 
     /// Applies an update made by the server (patch API, canvas tools) with `origin`, then logs

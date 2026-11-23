@@ -134,6 +134,15 @@ impl HostConfig {
             .unwrap_or_default()
     }
 
+    /// `[host.flags] team_templates = true` (TPL-01, docs/05 §5): the gallery's "From your
+    /// team" section lists the host's `GET /templates`. Off by default; needs a
+    /// `callback_base` and JWT callbacks (not `mode = "wopi"`).
+    pub fn team_templates(&self) -> bool {
+        self.flags.get("team_templates").and_then(|v| v.as_bool()) == Some(true)
+            && !self.callback_base.is_empty()
+            && !self.wopi_only()
+    }
+
     /// `[host.flags] on_conflict = "copy" | "reload"`; default copy.
     pub fn on_conflict(&self) -> ConflictPolicy {
         match self.flags.get("on_conflict").and_then(|v| v.as_str()) {

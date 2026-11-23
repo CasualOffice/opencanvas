@@ -32,6 +32,7 @@ import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
 import type { Template } from "./templates";
+import { applyTeamTemplate, loadTeamTemplates, teamEnabled, undoTeamTemplate, type TeamItem, type TeamState } from "./lib/teamtemplates";
 
 // Everything below is off the first paint (docs/02 §7 bundle budget): it loads
 // when first shown.
@@ -206,6 +207,10 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [urlAsk, setUrlAsk] = useState<{ kind: "bookmark" | "embed"; cb: (u: string) => void } | null>(null);
   const [importing, setImporting] = useState(false);
   const [confirmTpl, setConfirmTpl] = useState<(() => void) | null>(null);
+  // TPL-01: a team template is applied by the server, so it is undone from its toast, not ⌘Z.
+  const [confirmTeam, setConfirmTeam] = useState(false);
+  const [team, setTeam] = useState<TeamState>(() => (teamEnabled(session) ? { s: "loading" } : { s: "off" }));
+  const teamLoaded = useRef(false);
   const [help, setHelp] = useState(false);
   const pendingThread = useRef<string | null>(null);
   const modified = useRef(false);
@@ -766,6 +771,43 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     applyBlocks(t.blocks, { title: !meta.title || meta.template ? t.name : meta.title, icon: t.icon, tone: t.tone, template: t.id });
     toast(`Started from “${t.name}”`, { icon: "layout-template" });
   };
+  const loadTeam = useCallback(() => {
+    if (!teamEnabled(session)) return;
+    teamLoaded.current = true;
+    setTeam({ s: "loading" });
+    loadTeamTemplates(session.ticket).then(
+      (items) => setTeam(items ? { s: "ready", items } : { s: "off" }),
+      (e: unknown) => setTeam({ s: "error", message: e instanceof Error ? e.message : "" }),
+    );
+  }, [session]);
+  useEffect(() => {
+    if (screen === "gallery" && !teamLoaded.current) loadTeam();
+  }, [screen, loadTeam]);
+  const pickTeam = (t: TeamItem) => {
+    if (!editor) return;
+    const run = async () => {
+      try {
+        const r = await applyTeamTemplate(session.ticket, t.id);
+        setScreen("editor");
+        scrollRef.current?.scrollTo({ top: 0 });
+        toast(`Started from “${r.name || t.name}”`, {
+          icon: "layout-template",
+          action: {
+            label: "Undo",
+            run: () =>
+              void undoTeamTemplate(session.ticket, r.applyId).then(
+                () => toast("Template removed", { icon: "layout-template" }),
+                (e: unknown) => toast(e instanceof Error ? e.message : "That template can no longer be undone.", { icon: "triangle-alert" }),
+              ),
+          },
+        });
+      } catch (e) {
+        toast(e instanceof Error && e.message ? e.message : "That template couldn't be used. Try again.", { icon: "triangle-alert" });
+      }
+    };
+    if (editor.isEmpty) void run();
+    else (setConfirmTeam(true), setConfirmTpl(() => () => void run()));
+  };
   const start = (k: "blank" | "dbblank" | "boardblank" | "import") => {
     if (k === "import") return setImporting(true);
     const map: Record<string, [string, string, TB[]]> = { blank: ["file-text", "gray", [{ k: "p", html: "" }]], dbblank: ["database", "blue", [{ k: "db", preset: "blank" }]], boardblank: ["shapes", "purple", [{ k: "board", preset: "blank" }]] };
@@ -920,6 +962,10 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                 postToHost("UI_Templates", {});
                 toast(`Your team's saved templates come from ${hostName}`, { icon: "users-round" });
               }}
+              team={session.demo ? undefined : team}
+              hostName={hostName}
+              onTeamUse={pickTeam}
+              onTeamRetry={loadTeam}
             />
             </Suspense>
           ) : null}
@@ -1031,15 +1077,15 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           ) : null}
           </Suspense>
           {confirmTpl ? (
-            <Modal onClose={() => setConfirmTpl(null)} label="Replace canvas">
+            <Modal onClose={() => (setConfirmTpl(null), setConfirmTeam(false))} label="Replace canvas">
               <ModalHead
                 title="Replace this canvas?"
-                sub={`Everyone here sees the change right away. You can undo it with ${isMac ? "⌘Z" : "Ctrl+Z"}.`}
+                sub={confirmTeam ? "Everyone here sees the change right away. You can undo it from the message that follows." : `Everyone here sees the change right away. You can undo it with ${isMac ? "⌘Z" : "Ctrl+Z"}.`}
                 icon="layout-template"
                 tone="amber"
               />
               <div className="mft" style={{ paddingTop: 18 }}>
-                <button className="btn ghost" data-autofocus onClick={() => setConfirmTpl(null)}>
+                <button className="btn ghost" data-autofocus onClick={() => (setConfirmTpl(null), setConfirmTeam(false))}>
                   Cancel
                 </button>
                 <button
@@ -1047,6 +1093,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                   onClick={() => {
                     const f = confirmTpl;
                     setConfirmTpl(null);
+                    setConfirmTeam(false);
                     f();
                   }}
                 >
