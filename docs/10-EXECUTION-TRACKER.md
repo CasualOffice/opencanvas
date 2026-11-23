@@ -147,7 +147,7 @@ live blocks (LIVE) move to v0.3 (docs/27 §0).
 | ACC-V2 | docs/23 acceptance rows for docs/27 §2.6, §3.5, §4.3 | Todo | S |
 | REL-04 | v0.2.0 scope lock, security audit, release notes (was REL-03; renumbered 2026-11-23 when REL-03 became the v0.1.0 release) | Todo | M; last |
 
-## P4 — Structured diagramming ([docs/29](29-DIAGRAMMING.md))
+## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
 Owner approved Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) on 2026-11-24, with seven review
 points that override the design (docs/29 §1). Independent of the v0.2 commitments (docs/27).
