@@ -6,7 +6,8 @@
 // The canvas is the board's own view, passed in as `children`; this adds the window around it.
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import * as Y from "yjs";
-import { ArrowLeft, Ellipsis, Redo2, Undo2 } from "lucide-react";
+import { ArrowLeft, Command as CmdIcon, Ellipsis, ListTree, Redo2, Undo2 } from "lucide-react";
+import { Commands, ConnectHint, Outline, Shortcuts, useDiagramKeys, type DiagramCanvas } from "./A11y";
 import type { BlockEnv } from "@opencanvas/ui";
 import { getBoardMap } from "../model";
 import type { DiagramPrefs } from "../BoardBlock";
@@ -46,6 +47,8 @@ export interface DiagramShellProps {
   onPrefs: (patch: Partial<DiagramPrefs>) => void;
   /** Right-hand panel content for the current selection; null shows the diagram's settings. */
   inspector?: ReactNode;
+  /** The canvas's shapes and shared selection (S5: outline, commands, keyboard connector). */
+  canvas?: DiagramCanvas;
   children: ReactNode;
 }
 
@@ -116,10 +119,17 @@ export default function DiagramShell(p: DiagramShellProps) {
     };
   }, []);
 
+  // S5: outline, commands, shortcuts and the keyboard connector; announcements go to the live region.
+  const [outline, setOutline] = useState(false);
+  const [said, say] = useState("");
+  const cv = p.canvas;
+  const connectorStyle = () => (p.prefs.connector === "straight" ? {} : p.prefs.connector === "avoid" ? { route: "elbow" as const, routing: "avoid" as const } : { route: "elbow" as const });
+  const keys = useDiagramKeys({ doc, boardId, canvas: cv, edit, origin: p.origin, connectorStyle, onSay: say, onOutline: () => setOutline((v) => !v) });
+
   const people = [{ id: -1, name: env.me.name, color: env.me.color }, ...p.peers];
 
   return (
-    <div ref={ref} className="ocdg" role="dialog" aria-modal="true" aria-label={`Diagram: ${shown}`} data-board={boardId}>
+    <div ref={ref} className="ocdg" role="dialog" aria-modal="true" aria-label={`Diagram: ${shown}`} data-board={boardId} onKeyDownCapture={keys.onKeyDownCapture}>
       <header className="ocdg-top">
         <button type="button" className="ocdg-back" onClick={p.onBack} aria-keyshortcuts="Escape">
           <ArrowLeft size={16} strokeWidth={SW} />
@@ -136,6 +146,18 @@ export default function DiagramShell(p: DiagramShellProps) {
           <span className="ocdg-name" aria-current="page">{shown}</span>
         </nav>
         <span className="ocdg-sp" />
+        {cv ? (
+          <>
+            <button type="button" className="ocdg-cmdk" aria-keyshortcuts="Meta+K Control+K" onClick={() => keys.setPalette(true)}>
+              <CmdIcon size={14} strokeWidth={SW} aria-hidden="true" />
+              <span>Commands</span>
+              <span className="ocdg-kbd" aria-hidden="true">⌘K</span>
+            </button>
+            <button type="button" className="ocdg-ib" aria-label="Outline" title="Outline (Alt+O)" aria-keyshortcuts="Alt+O" aria-pressed={outline} onClick={() => setOutline((v) => !v)}>
+              <ListTree size={16} strokeWidth={SW} />
+            </button>
+          </>
+        ) : null}
         <ul className="ocdg-people" aria-label={`${people.length} ${people.length === 1 ? "person" : "people"} here`}>
           {people.slice(0, 5).map((u) => (
             <li key={u.id} className="ocdg-av" style={{ background: u.color }} title={u.id === -1 ? `${u.name} (you)` : u.name}>
@@ -159,11 +181,22 @@ export default function DiagramShell(p: DiagramShellProps) {
         </button>
       </header>
       <div className="ocdg-body">
-        <main className="ocdg-mid">{p.children}</main>
+        {cv && outline ? (
+          <aside className="ocdg-side ocdg-left" data-side="left" aria-label="Outline">
+            <Outline doc={doc} boardId={boardId} canvas={cv} edit={edit} origin={p.origin} onSay={say} />
+          </aside>
+        ) : null}
+        <main className="ocdg-mid">
+          {p.children}
+          {cv && keys.conn ? <ConnectHint canvas={cv} conn={keys.conn} /> : null}
+        </main>
         <aside className="ocdg-side ocdg-right" data-side="right" aria-label="Properties">
           {p.inspector ?? <DiagramSettings name={name} heading={ctx.heading} edit={edit} onName={(v) => setBoardName(doc, boardId, v, p.origin)} prefs={p.prefs} onPrefs={p.onPrefs} />}
         </aside>
       </div>
+      {cv && keys.palette ? <Commands root={ref.current} canvas={cv} edit={edit} onSay={say} onClose={() => keys.setPalette(false)} onOutline={() => setOutline(true)} onShortcuts={() => keys.setSheet(true)} /> : null}
+      {keys.sheet ? <Shortcuts onClose={() => keys.setSheet(false)} /> : null}
+      <div className="ocdg-sr ocdg-live" role="status" aria-live="polite">{said}</div>
     </div>
   );
 }

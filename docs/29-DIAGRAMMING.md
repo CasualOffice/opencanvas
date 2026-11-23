@@ -376,3 +376,24 @@ someone opens a board as a diagram; nothing in the initial bundle). Browser spec
   The connector stores `bindingTo` (port plus the legacy `anchor`); Avoid shapes stores
   `route: "elbow"` + `routing: "avoid"` and is drawn by the existing router (ADR-047). View-only
   people get no ports (10c).
+
+### 8.3 Keyboard and accessibility (S5, DGM-14.5)
+
+- Outline (5a): ⌥O or the top-bar Outline button opens it on the left. A tree of containers (frames:
+  rectangles with a corner label or a dashed border that hold other shapes entirely; the smallest one
+  wins) and their shapes in board order, then connectors ("A → B" or their label). ↑↓ move, → opens
+  a container or goes into it, ← closes or goes to the parent, Enter selects on the canvas (one
+  shared selection), F2 renames, ⌥↑/⌥↓ moves the shape before/after its sibling in the board order
+  (only that id is re-inserted, so concurrent edits merge). `keyboard.ts` `outlineTree`, `siblingOf`.
+- Announcements go to one polite live region of the diagram window, e.g. "Payments service,
+  Rectangle, in VPC, 1 connection, selected. 3 of 5." (`announce`).
+- Commands ⌘K / Ctrl+K (5b): one search for actions (filtered by the selection: Duplicate, Delete,
+  Group, Start a connector need an editor and a selection), shapes (Go to) and help. The best match
+  is first; typing a shape's name jumps to it. Actions run as the canvas's own shortcuts, dispatched
+  on the canvas, so there is one implementation of each.
+- Keyboard connector (5c): C on the canvas with one shape selected. Targets in order of distance
+  (Tab, ⇧Tab), arrows pick the target's side, Enter connects in the "New connectors" style, Esc
+  cancels. The hint bar sits over the canvas while connecting.
+- Shortcuts sheet (5d): ?; also from Commands.
+- Focus: 2.5 px (`.15625rem`) accent ring with a 2 px offset everywhere in the window.
+
