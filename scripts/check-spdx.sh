@@ -3,7 +3,7 @@
 # Copyright 2026 CasualOffice
 
 # Lists every tracked source file we wrote that lacks the SPDX licence identifier, and fails if
-# there is any. Covered: Rust, TypeScript, JavaScript, CSS, shell, Python, TOML, YAML, Helm
+# there is any. Covered: Rust, Go, TypeScript, JavaScript, CSS, shell, Python, TOML, YAML, Helm
 # templates, Dockerfiles, the nginx config, PHP (integrations/nextcloud). Left out: vendored and generated files (site output
 # other than site/assets, site/_src/lucide), lockfiles, test fixtures and keys, JSON, Markdown
 # and HTML pages.
@@ -14,7 +14,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd); cd "$ROOT"
 ID='SPDX-License-Identifier: Apache-2.0'
 
 files=$(git ls-files -- \
-  '*.rs' '*.ts' '*.tsx' '*.js' '*.mjs' '*.cjs' '*.css' '*.sh' '*.py' '*.toml' '*.yml' '*.yaml' \
+  '*.rs' '*.go' '*.ts' '*.tsx' '*.js' '*.mjs' '*.cjs' '*.css' '*.sh' '*.py' '*.toml' '*.yml' '*.yaml' \
   '*.tpl' '*.conf' '*Dockerfile' '*.dockerignore' '*.php' \
   | grep -Ev '(^|/)(node_modules|dist|target)/' \
   | grep -Ev '(^|/)(pnpm-lock\.yaml|Cargo\.lock|package-lock\.json)$' \

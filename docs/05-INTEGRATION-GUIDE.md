@@ -161,7 +161,9 @@ form, and its Mentions list sends `Action_ScrollToBlock`.
 
 ## 5. Callbacks you implement (JWT mode)
 
-Base: `callback_base`. Every call carries `Authorization: Bearer <callbackToken>` and
+Base: `callback_base`. Every call carries `Authorization: Bearer <callbackToken>` (also sent
+as `X-OpenCanvas-Callback-Token: <callbackToken>`, for hosts behind something that strips
+`Authorization`, such as a Mattermost plugin; neither header is signed) and
 `X-OpenCanvas-Signature: t=<ts>,v1=<hex>,v2=<hex>` so you can verify the call comes from
 OpenCanvas:
 
@@ -530,6 +532,39 @@ widgets. A small bridge (Node 24, no dependencies) is the host:
 Verified in Element Web against Synapse: OpenID, membership, a non-member refused, two people
 co-editing, Matrix names, access closed on leave. Install, configuration and limits (not
 end-to-end encrypted, temporary only): [integrations/matrix/README.md](../integrations/matrix/README.md).
+
+## 8c. Mattermost (plugin as the host)
+
+`integrations/mattermost/` is a Mattermost plugin (`com.casualoffice.opencanvas`) that is a full
+JWT-mode host: canvases live in channels (`/canvas new`, `/canvas notes`, a card in the channel,
+the editor in the right-hand panel), files go to Mattermost's file store, access follows channel
+membership, and leaving a channel calls the role API with `none`. Install and settings:
+[integrations/mattermost/README.md](../integrations/mattermost/README.md).
+
+```toml
+[[host]]
+id              = "mattermost"
+name            = "Mattermost"
+mode            = "jwt"
+jwt_alg         = "HS256"
+jwt_secret      = "env:MM_OC_SECRET"
+api_key         = "env:MM_OC_API_KEY"
+callback_base   = "https://chat.acme.example/plugins/com.casualoffice.opencanvas/oc"
+allowed_origins = ["https://chat.acme.example"]
+```
+
+What a plugin host must know about Mattermost:
+
+- `ServeHTTP` receives the path without `{subpath}/plugins/{id}`, but `v2` signs the full path:
+  the plugin puts the prefix back before checking.
+- Mattermost removes `Authorization` before a plugin sees the request: read the callback token
+  from `X-OpenCanvas-Callback-Token` (§5).
+- Mattermost re-encodes the query string (keys sorted), so the `members` call arrives as
+  `?limit=…&q=…` although `?q=…&limit=…` was signed: the plugin accepts the same pairs in any
+  order.
+- Mattermost sends no `frame-src`, so the canvas frame needs no CSP change there.
+
+Tested end to end against Mattermost 12.1.0 (README "Status").
 
 ## 9. Checklist for integrators
 
