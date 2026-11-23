@@ -4,6 +4,7 @@
 //! OpenCanvas document model: Y.Doc layout helpers, `.ocanvas` files and exports.
 
 pub mod board;
+pub mod diagram_export;
 pub mod diagram_import;
 pub mod doc;
 pub mod docx;
