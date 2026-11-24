@@ -40,5 +40,21 @@ class FencedCodeInLists(unittest.TestCase):
         self.assertEqual(sitelib.markdown("- a\n  b\n- c"), "<ul><li>a b</li><li>c</li></ul>")
 
 
+class SearchEntries(unittest.TestCase):
+    """API reference sub-headings (data-index="no") stay inside their operation's entry."""
+
+    PAGE = ('<html><head><title>Blocks | OpenCanvas</title></head><body><main>'
+            '<h2 id="listBlocks">List top-level blocks</h2><p>Pages of blocks.</p>'
+            '<h3 data-index="no">Parameters</h3><p>limit 1-100</p>'
+            '<h2 id="getBlock">Read one block</h2><p>Nested ones too.</p></main></body></html>')
+
+    def test_sub_headings_do_not_start_entries(self):
+        entries = sitelib.index_entries("api/reference/blocks.html", self.PAGE)
+        self.assertEqual([e["u"] for e in entries],
+                         ["api/reference/blocks.html#listBlocks", "api/reference/blocks.html#getBlock"])
+        self.assertIn("limit 1-100", entries[0]["t"])
+        self.assertIn("Parameters", entries[0]["t"])
+
+
 if __name__ == "__main__":
     unittest.main()

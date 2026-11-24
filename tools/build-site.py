@@ -19,6 +19,8 @@ generates:
 - site/docs/*.html: README.md and docs/*.md rendered (tools/sitelib.py DOCS), so the
   documentation pages cannot drift from the repository, plus hand-written pages;
 - site/roadmap.html from docs/09 and the tracker, docs/10 (tools/build-roadmap.py);
+- site/api/: the API reference, from crates/oc-server/api/openapi.json and the guides in
+  site/_src/api/ (tools/build-api.py);
 - site/changelog.html from the tracker's integration log (docs/10);
 - sitemap.xml, robots.txt, llms.txt (an index) and llms-full.txt (the docs as text);
 - search-index.json for the site search.
@@ -231,6 +233,7 @@ def build() -> dict[str, bytes]:
                                                            sitelib.expand(body, "../"))
     pages["changelog.html"] = changelog()
     pages["roadmap.html"] = _load("build-roadmap").render()
+    pages.update(_load("build-api").render())
 
     index = []
     for rel, text in sorted(pages.items()):
@@ -305,6 +308,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
     def line(rel: str) -> str:
         return f"- [{sitelib.page_title(pages[rel], rel)}]({base}{'' if rel == 'index.html' else rel}): {_desc(pages[rel])}"
     docs = [f"docs/{d[0]}.html" for d in sitelib.available_docs()]
+    api = _load("build-api")
     llms = "\n".join([
         "# OpenCanvas",
         "",
@@ -328,6 +332,10 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "## Documentation",
         *[line(d) for d in docs],
         "",
+        "## API reference",
+        f"- [OpenAPI 3.1 document]({sitelib.BLOB}crates/oc-server/api/openapi.json): the source of the reference below; a running server serves it at /api/v1/openapi.json",
+        *api.llms_index(pages),
+        "",
         "## Source",
         f"- [Repository]({sitelib.REPO})",
         f"- [Licence (Apache-2.0)]({sitelib.BLOB}LICENSE)",
@@ -341,6 +349,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
             full.append(f"\n\n# {title}\n\nURL: {base}docs/{slug}.html\nSource file: {file}\n\n{text.strip()}\n")
         else:
             full.append(f"\n\n# {title}\n\nURL: {base}docs/{slug}.html\n\n{sitelib.main_text(pages[f'docs/{slug}.html'])}\n")
+    full.append(api.llms_full(pages))
     return {
         "sitemap.xml": sitemap.encode("utf8"),
         "robots.txt": robots.encode("utf8"),

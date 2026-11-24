@@ -30,6 +30,16 @@
 - [Product requirements](https://canvas.casualoffice.org/docs/product.html): What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.
 - [Glossary](https://canvas.casualoffice.org/docs/glossary.html): Terms used across the OpenCanvas documentation.
 
+## API reference
+- [OpenAPI 3.1 document](https://github.com/CasualOffice/opencanvas/blob/main/crates/oc-server/api/openapi.json): the source of the reference below; a running server serves it at /api/v1/openapi.json
+- [Authentication](https://canvas.casualoffice.org/api/authentication.html): Authenticate to the OpenCanvas API with the host key or a user token your application mints: claims, issuer and audience, scopes, roles, expiry, and full minting examples.
+- [API changelog](https://canvas.casualoffice.org/api/changelog.html): What changed in the OpenCanvas API, release by release, from the project's CHANGELOG.md.
+- [Errors](https://canvas.casualoffice.org/api/errors.html): OpenCanvas API errors: the RFC 9457 problem details shape, how to handle each status, and every machine code with its status and meaning.
+- [Idempotency](https://canvas.casualoffice.org/api/idempotency.html): Retry OpenCanvas API writes safely with the Idempotency-Key header: what is stored, replays, key reuse, requests still running, and the 24-hour window.
+- [API overview](https://canvas.casualoffice.org/api/index.html): The OpenCanvas headless API: read and change canvases from programs. Base URL, versioning, the api_v1 switch, request conventions and a first call in curl, TypeScript, Rust and Python.
+- [Pagination](https://canvas.casualoffice.org/api/pagination.html): Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header, expiry and errors.
+- [Rate limits](https://canvas.casualoffice.org/api/rate-limits.html): OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.
+
 ## Source
 - [Repository](https://github.com/CasualOffice/opencanvas)
 - [Licence (Apache-2.0)](https://github.com/CasualOffice/opencanvas/blob/main/LICENSE)

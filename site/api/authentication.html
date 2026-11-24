@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Authentication | OpenCanvas</title>
+<meta name="description" content="Authenticate to the OpenCanvas API with the host key or a user token your application mints: claims, issuer and audience, scopes, roles, expiry, and full minting examples.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/authentication.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Authentication | OpenCanvas">
+<meta property="og:description" content="Authenticate to the OpenCanvas API with the host key or a user token your application mints: claims, issuer and audience, scopes, roles, expiry, and full minting examples.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/authentication.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--guide">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html" aria-current="page">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html" aria-current="page">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>Authentication</h1>
+<p class="lede">Two kinds of credentials, one check. Your server uses the host key; code that acts for one of your users carries a short-lived token that your application mints. OpenCanvas never issues user tokens and runs no OAuth server.</p>
+<h2 id="host-key">Host key</h2>
+<p>Server to server, send your host id and the host's <code>api_key</code> (from the hosts file) on every request. The host key has full access to your host's files, the admin operations included.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Header</th><th scope="col">Value</th></tr></thead><tbody><tr><td><code>X-OpenCanvas-Host</code></td><td>Your host id, for example <code>acme</code>.</td></tr><tr><td><code>X-OpenCanvas-Key</code></td><td>The host's <code>api_key</code>. Keep it on your server; never send it to a browser.</td></tr><tr><td><code>X-OpenCanvas-Author</code></td><td>Optional. The user id a change is attributed to: its edit origin becomes <code>api:&lt;userId&gt;</code>. Default <code>svc:&lt;hostId&gt;</code>.</td></tr><tr><td><code>X-OpenCanvas-Callback-Token</code></td><td>Optional. A bearer OpenCanvas passes on the callbacks this call causes (loading the file when nobody has it open, saving it).</td></tr></tbody></table></div>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Host key</span><div class="sample-tabs" role="tablist" aria-label="Host key: language"><button type="button" role="tab" id="s2-curl-tab" aria-controls="s2-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s2-ts-tab" aria-controls="s2-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s2-rust-tab" aria-controls="s2-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s2-python-tab" aria-controls="s2-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s2-curl" aria-labelledby="s2-curl-tab" data-lang="curl"><pre><code class="language-curl">curl -s &quot;https://canvas.example.com/api/v1/files/doc_1?format=outline&quot; \
+  -H &quot;X-OpenCanvas-Host: acme&quot; \
+  -H &quot;X-OpenCanvas-Key: $OC_API_KEY&quot; \
+  -H &quot;X-OpenCanvas-Author: u_42&quot;</code></pre></div><div role="tabpanel" id="s2-ts" aria-labelledby="s2-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">import { OpenCanvas } from &quot;@opencanvas/client&quot;;
+
+const oc = new OpenCanvas({
+  baseUrl: &quot;https://canvas.example.com&quot;,
+  auth: { hostId: &quot;acme&quot;, key: process.env.OC_API_KEY!, author: &quot;u_42&quot; },
+});
+const outline = await oc.readFile({ fileId: &quot;doc_1&quot;, query: { format: &quot;outline&quot; } });</code></pre></div><div role="tabpanel" id="s2-rust" aria-labelledby="s2-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::{Auth, Client};
+
+let oc = Client::builder(&quot;https://canvas.example.com&quot;)
+    .auth(Auth::HostKey {
+        host_id: &quot;acme&quot;.into(),
+        key: std::env::var(&quot;OC_API_KEY&quot;).expect(&quot;OC_API_KEY&quot;),
+        author: Some(&quot;u_42&quot;.into()),
+        callback_token: None,
+    })
+    .build();
+let outline = oc.read_file(&quot;doc_1&quot;, Some(&quot;outline&quot;)).await?;</code></pre></div><div role="tabpanel" id="s2-python" aria-labelledby="s2-python-tab" data-lang="python" hidden><pre><code class="language-python">import os
+
+import requests
+
+r = requests.get(
+    &quot;https://canvas.example.com/api/v1/files/doc_1&quot;,
+    params={&quot;format&quot;: &quot;outline&quot;},
+    headers={
+        &quot;X-OpenCanvas-Host&quot;: &quot;acme&quot;,
+        &quot;X-OpenCanvas-Key&quot;: os.environ[&quot;OC_API_KEY&quot;],
+        &quot;X-OpenCanvas-Author&quot;: &quot;u_42&quot;,
+    },
+    timeout=30,
+)
+r.raise_for_status()</code></pre></div></div>
+<h2 id="user-tokens">User tokens</h2>
+<p>For code that acts for one of your users (an integration running as that user, a script a user starts), mint a JWT for that user and send it as <code>Authorization: Bearer &lt;token&gt;</code>. You sign it with the same keys as launch tokens: the host's <code>jwt_secret</code> (HS256), or your private key when the host has <code>jwt_public_key</code> (RS256, EdDSA) or <code>jwt_jwks_url</code>.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Claim</th><th scope="col">Value</th></tr></thead><tbody><tr><td><code>iss</code></td><td>Your host id, or <code>[host.api] issuer</code>. It picks the host, so it must be unique among the server's hosts.</td></tr><tr><td><code>aud</code></td><td><code>{[host.api] audience or OC_PUBLIC_URL}/api/v1</code>, for example <code>https://canvas.example.com/api/v1</code>. A launch token or an MCP token (audience <code>.../mcp/{hostId}</code>) is refused here.</td></tr><tr><td><code>sub</code></td><td>The user id, as in launch tokens. <code>svc:&lt;name&gt;</code> for a backend job.</td></tr><tr><td><code>exp</code></td><td>At most 15 minutes ahead of the server's clock (with 30 seconds of leeway). <code>nbf</code> is honoured.</td></tr><tr><td><code>scope</code></td><td>Space-separated: <code>canvas:read</code>, <code>canvas:comment</code>, <code>canvas:write</code>, <code>canvas:admin</code>.</td></tr><tr><td><code>role</code></td><td>The user's role on the files: <code>view</code>, <code>comment</code> or <code>edit</code> (absent: <code>view</code>). Used only when you do not implement <code>POST /access</code>.</td></tr><tr><td><code>files</code></td><td>The file ids the token covers. Required when you do not implement <code>POST /access</code>, unless the host sets <code>[host.api] all_files = true</code>.</td></tr><tr><td><code>name</code></td><td>Optional display name, shown with the user's changes.</td></tr></tbody></table></div>
+<p>The audience is never taken from the request: without <code>OC_PUBLIC_URL</code> or <code>[host.api] audience</code>, user tokens are off for the host and answer <code>401 TOKEN_INVALID</code>.</p>
+<pre><code class="language-toml">[host.api]
+issuer      = &quot;acme&quot;                        # default: the host id
+audience    = &quot;https://canvas.example.com&quot;  # default: OC_PUBLIC_URL
+all_files   = false                         # true: without /access, a token with no `files` covers every file
+token_admin = false                         # true: tokens with canvas:admin may use the admin operations</code></pre>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Mint a user token and call the API</span><div class="sample-tabs" role="tablist" aria-label="Mint a user token and call the API: language"><button type="button" role="tab" id="s3-curl-tab" aria-controls="s3-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s3-ts-tab" aria-controls="s3-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s3-rust-tab" aria-controls="s3-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s3-python-tab" aria-controls="s3-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s3-curl" aria-labelledby="s3-curl-tab" data-lang="curl"><pre><code class="language-curl"># HS256 with the host&#x27;s jwt_secret, using only openssl.
+b64url() { openssl base64 -A | tr &#x27;+/&#x27; &#x27;-_&#x27; | tr -d &#x27;=&#x27;; }
+now=$(date +%s)
+header=$(printf &#x27;{&quot;alg&quot;:&quot;HS256&quot;,&quot;typ&quot;:&quot;JWT&quot;}&#x27; | b64url)
+claims=$(printf &#x27;{&quot;iss&quot;:&quot;acme&quot;,&quot;aud&quot;:&quot;https://canvas.example.com/api/v1&quot;,&quot;sub&quot;:&quot;u_42&quot;,&quot;scope&quot;:&quot;canvas:read canvas:comment&quot;,&quot;role&quot;:&quot;edit&quot;,&quot;files&quot;:[&quot;doc_1&quot;],&quot;iat&quot;:%d,&quot;exp&quot;:%d}&#x27; \
+  &quot;$now&quot; &quot;$((now + 600))&quot; | b64url)
+sig=$(printf &#x27;%s.%s&#x27; &quot;$header&quot; &quot;$claims&quot; | openssl dgst -sha256 -hmac &quot;$ACME_OC_SECRET&quot; -binary | b64url)
+TOKEN=&quot;$header.$claims.$sig&quot;
+
+curl -s &quot;https://canvas.example.com/api/v1/files/doc_1/comments&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</code></pre></div><div role="tabpanel" id="s3-ts" aria-labelledby="s3-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">// npm install jose
+import { SignJWT } from &quot;jose&quot;;
+import { OpenCanvas } from &quot;@opencanvas/client&quot;;
+
+const secret = new TextEncoder().encode(process.env.ACME_OC_SECRET!);
+
+async function mintUserToken(userId: string, scope: string, files: string[]): Promise&lt;string&gt; {
+  return new SignJWT({ scope, role: &quot;edit&quot;, files })
+    .setProtectedHeader({ alg: &quot;HS256&quot; })
+    .setIssuer(&quot;acme&quot;)
+    .setAudience(&quot;https://canvas.example.com/api/v1&quot;)
+    .setSubject(userId)
+    .setIssuedAt()
+    .setExpirationTime(&quot;10m&quot;)
+    .sign(secret);
+}
+
+// The token callback runs before every request, so a long job never sends an expired token.
+const oc = new OpenCanvas({
+  baseUrl: &quot;https://canvas.example.com&quot;,
+  auth: { token: () =&gt; mintUserToken(&quot;u_42&quot;, &quot;canvas:read canvas:comment&quot;, [&quot;doc_1&quot;]) },
+});
+const { threads } = (await oc.listComments({ fileId: &quot;doc_1&quot; })) as { threads: unknown[] };</code></pre></div><div role="tabpanel" id="s3-rust" aria-labelledby="s3-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">// jsonwebtoken = &quot;9&quot;, serde_json = &quot;1&quot;
+use jsonwebtoken::{encode, EncodingKey, Header};
+use opencanvas_client::{Auth, Client};
+use serde_json::json;
+
+fn mint_user_token(secret: &amp;[u8], user_id: &amp;str, scope: &amp;str, files: &amp;[&amp;str]) -&gt; String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let claims = json!({
+        &quot;iss&quot;: &quot;acme&quot;,
+        &quot;aud&quot;: &quot;https://canvas.example.com/api/v1&quot;,
+        &quot;sub&quot;: user_id,
+        &quot;scope&quot;: scope,
+        &quot;role&quot;: &quot;edit&quot;,
+        &quot;files&quot;: files,
+        &quot;iat&quot;: now,
+        &quot;exp&quot;: now + 600,
+    });
+    encode(&amp;Header::default(), &amp;claims, &amp;EncodingKey::from_secret(secret)).expect(&quot;signed&quot;)
+}
+
+let secret = std::env::var(&quot;ACME_OC_SECRET&quot;).expect(&quot;ACME_OC_SECRET&quot;);
+let token = mint_user_token(secret.as_bytes(), &quot;u_42&quot;, &quot;canvas:read canvas:comment&quot;, &amp;[&quot;doc_1&quot;]);
+let oc = Client::builder(&quot;https://canvas.example.com&quot;)
+    .auth(Auth::Token(token))
+    .build();
+let threads = oc.list_comments(&quot;doc_1&quot;, None).await?;</code></pre></div><div role="tabpanel" id="s3-python" aria-labelledby="s3-python-tab" data-lang="python" hidden><pre><code class="language-python"># pip install pyjwt requests
+import os
+import time
+
+import jwt
+import requests
+
+
+def mint_user_token(user_id: str, scope: str, files: list[str]) -&gt; str:
+    now = int(time.time())
+    claims = {
+        &quot;iss&quot;: &quot;acme&quot;,
+        &quot;aud&quot;: &quot;https://canvas.example.com/api/v1&quot;,
+        &quot;sub&quot;: user_id,
+        &quot;scope&quot;: scope,
+        &quot;role&quot;: &quot;edit&quot;,
+        &quot;files&quot;: files,
+        &quot;iat&quot;: now,
+        &quot;exp&quot;: now + 600,
+    }
+    return jwt.encode(claims, os.environ[&quot;ACME_OC_SECRET&quot;], algorithm=&quot;HS256&quot;)
+
+
+token = mint_user_token(&quot;u_42&quot;, &quot;canvas:read canvas:comment&quot;, [&quot;doc_1&quot;])
+r = requests.get(
+    &quot;https://canvas.example.com/api/v1/files/doc_1/comments&quot;,
+    headers={&quot;Authorization&quot;: f&quot;Bearer {token}&quot;},
+    timeout=30,
+)
+r.raise_for_status()</code></pre></div></div>
+<h2 id="scopes">Scopes</h2>
+<p>A token's scope is a ceiling: the operation's <code>x-opencanvas-scope</code> in the OpenAPI document must be within it, or the answer is <code>403 SCOPE_REQUIRED</code>. Each scope includes the ones above it.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scopes"><table role="table" class="api-table"><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Scope</th><th scope="col" role="columnheader">Allows</th><th scope="col" role="columnheader">Least role</th><th scope="col" role="columnheader">Operations</th></tr></thead><tbody role="rowgroup"><tr role="row"><td role="cell" data-label="Scope"><code>canvas:read</code></td><td role="cell" data-label="Allows">Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role.</td><td role="cell" data-label="Least role"><code>view</code></td><td role="cell" data-label="Operations"><code>readFile</code>, <code>listBlocks</code>, <code>getBlock</code>, <code>findBlocks</code>, <code>listDatabases</code>, <code>getDatabase</code>, <code>queryRows</code>, <code>readBoard</code>, <code>listComments</code>, <code>listMembers</code>, <code>exportFile</code>, <code>streamEvents</code>, <code>createSyncToken</code>, <code>convert</code></td></tr><tr role="row"><td role="cell" data-label="Scope"><code>canvas:comment</code></td><td role="cell" data-label="Allows">Everything <code>canvas:read</code> allows, and start or reply to comment threads.</td><td role="cell" data-label="Least role"><code>comment</code></td><td role="cell" data-label="Operations"><code>addComment</code></td></tr><tr role="row"><td role="cell" data-label="Scope"><code>canvas:write</code></td><td role="cell" data-label="Allows">Everything <code>canvas:comment</code> allows, and change blocks, databases and boards, and import. <code>canvas:write:direct</code> counts as <code>canvas:write</code>.</td><td role="cell" data-label="Least role"><code>edit</code></td><td role="cell" data-label="Operations"><code>batchBlocks</code>, <code>createDatabase</code>, <code>upsertRows</code>, <code>addField</code>, <code>addShapes</code>, <code>importFile</code></td></tr><tr role="row"><td role="cell" data-label="Scope"><code>canvas:admin</code></td><td role="cell" data-label="Allows">Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets <code>[host.api] token_admin = true</code>; otherwise these are the host key's.</td><td role="cell" data-label="Least role">host key, or a token with <code>canvas:admin</code></td><td role="cell" data-label="Operations"><code>commitFile</code>, <code>setRole</code>, <code>closeSession</code>, <code>invalidateMembers</code></td></tr></tbody></table></div>
+<h2 id="roles">Roles</h2>
+<p>The <strong>effective permission</strong> is <code>min(scope, role)</code>. A <code>canvas:write</code> token does not let a <code>view</code> user write, and a <code>canvas:read</code> token does not let an editor write.</p>
+<ul><li><strong>Where the role comes from.</strong> If you implement the optional <code>POST /access</code> callback, OpenCanvas asks it for the user's role on each file a call touches (cached 30 seconds, dropped by the role API) and ignores the token's <code>role</code> claim; <code>none</code> refuses every operation. Without it, the <code>role</code> claim counts, but only for the files listed in <code>files</code> (<code>403 FILES_REQUIRED</code> otherwise, unless <code>[host.api] all_files = true</code>).</li><li><strong>Revocation.</strong> After <code>POST /api/v1/files/{fileId}/role</code> with <code>&quot;role&quot;: &quot;none&quot;</code>, the user's next call is refused, and their event streams close with code <code>4003</code>.</li><li><strong>The host key</strong> acts with the <code>edit</code> role on every file, plus the admin operations.</li></ul>
+<h2 id="expiry">Expiry</h2>
+<p>Tokens live at most 15 minutes: an <code>exp</code> further ahead than that is refused (<code>401 TOKEN_INVALID</code>). An expired token answers <code>401 TOKEN_EXPIRED</code>; an event stream opened with a token closes with code <code>4001</code> when it expires. Mint a fresh token per job or per request: the clients take a token callback that runs before every request.</p>
+<h2 id="errors">Errors</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Status</th><th scope="col">Code</th><th scope="col">When</th></tr></thead><tbody><tr><td>401</td><td><code>UNAUTHENTICATED</code></td><td>No credentials, an unknown host, or a wrong host key.</td></tr><tr><td>401</td><td><code>TOKEN_INVALID</code></td><td>Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host.</td></tr><tr><td>401</td><td><code>TOKEN_EXPIRED</code></td><td>The token's <code>exp</code> has passed.</td></tr><tr><td>403</td><td><code>SCOPE_REQUIRED</code></td><td>The operation needs a scope the token lacks (admin operations: <code>canvas:admin</code> and <code>token_admin</code>).</td></tr><tr><td>403</td><td><code>ROLE_FORBIDDEN</code></td><td>The user's role on the file is too low, the file is not in <code>files</code>, or access was revoked.</td></tr><tr><td>403</td><td><code>FILES_REQUIRED</code></td><td>No <code>POST /access</code> callback, and the token lists no <code>files</code>.</td></tr></tbody></table></div>
+<p>401 answers carry <code>WWW-Authenticate: Bearer realm=&quot;opencanvas&quot;</code> (with <code>error=&quot;invalid_token&quot;</code> for token problems). The MCP endpoint uses the same check with its own audience; see <a href="../docs/ai.html">AI and MCP</a>.</p>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/index.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Overview</span></a><a class="pn pn-next" href="../api/errors.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Errors</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#host-key">Host key</a></li><li><a href="#user-tokens">User tokens</a></li><li><a href="#scopes">Scopes</a></li><li><a href="#roles">Roles</a></li><li><a href="#expiry">Expiry</a></li><li><a href="#errors">Errors</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

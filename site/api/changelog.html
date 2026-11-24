@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>API changelog | OpenCanvas</title>
+<meta name="description" content="What changed in the OpenCanvas API, release by release, from the project&#x27;s CHANGELOG.md.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/changelog.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="API changelog | OpenCanvas">
+<meta property="og:description" content="What changed in the OpenCanvas API, release by release, from the project&#x27;s CHANGELOG.md.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/changelog.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--guide">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/changelog.html" aria-current="page">Changelog</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/changelog.html" aria-current="page">Changelog</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>API changelog</h1>
+<p class="lede">The API-relevant entries of <a href="https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md">CHANGELOG.md</a>, newest first. The OpenAPI document is version <code>1.0.0</code>; within <code>/api/v1</code> changes are additive, and a breaking change gets a new path major.</p>
+<h2 id="012-2026-11-24">0.1.2 (2026-11-24)</h2>
+<ul class="cl-list"><li><span class="cl-kind cl-added">Added</span> Version history with named versions, preview and comparison, restore and temporary undo where supported by the host.</li><li><span class="cl-kind cl-added">Added</span> Headless API under <code>/api/v1</code> with OpenAPI 3.1, scoped tokens, and idempotency keys on file writes.</li><li><span class="cl-kind cl-added">Added</span> API events stream (SSE and WebSocket) with resume, and a headless sync token.</li><li><span class="cl-kind cl-fixed">Fixed</span> A Jitsi role change takes precedence over launch tokens issued before the change.</li></ul>
+<h2 id="011-2026-11-23">0.1.1 (2026-11-23)</h2>
+<ul class="cl-list"><li><span class="cl-kind cl-added">Added</span> <strong>Jitsi Meet</strong> (<code>integrations/jitsi/</code>, JIT-02): <code>mod_opencanvas.lua</code> gives every meeting a shared canvas in Jitsi's Shared document slot, like Etherpad. One Prosody plugin plus <code>.env</code> lines, no Docker image or compose changes. Per-person launch tokens, a fresh token on reload, the meeting end closes the canvas. Tested end to end against a stock docker-jitsi-meet (stable-11509-1) with two browsers; guide in <code>integrations/jitsi/README.md</code>.</li><li><span class="cl-kind cl-added">Added</span> <strong>Temporary canvases</strong> (<code>storage = &quot;ephemeral&quot;</code>, ADR-043, JIT-01) for hosts with no file storage: no load or save callbacks; everything is deleted when the room closes (idle grace or <code>DELETE /v1/files/{id}/session</code>). A server restart or deploy keeps the canvas for the reconnect.</li><li><span class="cl-kind cl-fixed">Fixed</span> Plugin: tokens signed with Jitsi's <code>luajwtjitsi</code> did not verify (non-standard signature encoding); the plugin now signs with Prosody's own HMAC. Jitsi appends its Etherpad options with <code>?</code>, which broke the token; the launch URL now ends in <code>&amp;ep=</code>.</li></ul>
+<h2 id="010-2026-11-23">0.1.0 (2026-11-23)</h2>
+<ul class="cl-list"><li><span class="cl-kind cl-added">Added</span> <strong>Block schema validation (MOD-01)</strong> in <code>oc-model</code> on <code>.ocanvas</code> read, REST patch, import and MCP writes, with JSON-pointer paths; unknown nodes are warnings, kept and counted in <code>oc_schema_warnings_total</code>.</li><li><span class="cl-kind cl-security">Security</span> <strong>MCP audience (SEC-33):</strong> the MCP token audience comes from <code>[host.ai] mcp_audience</code> or <code>OC_PUBLIC_URL</code>, never from the request's <code>Host</code> header. Without either, MCP is off (<code>404</code>) and the server logs one start-up warning.</li><li><span class="cl-kind cl-security">Security</span> <strong>MCP file scope (SEC-34):</strong> when the host has no <code>/access</code> callback, an MCP token must name its files in a <code>files</code> claim; a token without one is refused (<code>FILES_REQUIRED</code>). The broad behaviour (one token's role on every file) needs <code>[host.ai] mcp_all_files = true</code>.</li></ul>
+<h2 id="010-alpha1-2026-11-23">0.1.0-alpha.1 (2026-11-23)</h2>
+<ul class="cl-list"><li><span class="cl-kind cl-added">Added</span> <strong>Host integration:</strong> HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <code>&lt;open-canvas&gt;</code> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036).</li><li><span class="cl-kind cl-added">Added</span> <strong>WOPI client mode:</strong> discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host.</li><li><span class="cl-kind cl-added">Added</span> <strong>AI assistant and MCP endpoint (experimental, disabled by default):</strong> server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at <code>POST /mcp/{hostId}</code> with host-issued tokens (ADR-031 to ADR-035).</li><li><span class="cl-kind cl-fixed">Fixed</span> Saves kept using a revoked editor's token after a role change (docs/23 PERM-05).</li><li><span class="cl-kind cl-security">Security</span> Callback and outbox tokens sealed at rest with AES-256-GCM under <code>OC_KEK</code>; the server refuses to start without <code>OC_KEK</code> outside development.</li></ul>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/rate-limits.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Rate limits</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#012-2026-11-24">0.1.2 (2026-11-24)</a></li><li><a href="#011-2026-11-23">0.1.1 (2026-11-23)</a></li><li><a href="#010-2026-11-23">0.1.0 (2026-11-23)</a></li><li><a href="#010-alpha1-2026-11-23">0.1.0-alpha.1 (2026-11-23)</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

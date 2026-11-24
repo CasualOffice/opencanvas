@@ -6056,3 +6056,220 @@ Source file: docs/12-GLOSSARY.md
 | **WOPI** | Web Application Open Platform Interface — the Collabora/Office host protocol. |
 | **CRDT** | Conflict-free replicated data type (Yjs here). |
 | **Unfurl** | Fetching a link's title/description/image to render a link card. |
+
+
+# API overview
+
+URL: https://canvas.casualoffice.org/api/index.html
+
+## API overview
+
+Read and change OpenCanvas canvases from programs: bots, integrations and back-office jobs. Changes land in the live canvas as one transaction, show up for everyone editing it, and are saved to your application like any other edit.
+
+## Base URL
+
+Every operation is under /api/v1 on your OpenCanvas server. The examples on these pages use https://canvas.example.com ; use your own server's public address. https://canvas.example.com/api/v1/files/{fileId} fileId is your file id, the one you use in launch tokens and callbacks. OpenCanvas keeps no files of its own: your application owns users, permissions and files, and OpenCanvas loads and saves through your callbacks ( integration guide ).
+
+## Turn it on
+
+The API is off until you turn it on for your host, in its entry of the hosts file: [[host]] id = "acme" api_key = "env:ACME_OC_API_KEY" # the host key, for server-to-server calls [host.flags] api_v1 = true # off by default in 0.1.2 Without the flag, every /api/v1 call for that host answers 404 with the code API_OFF . User tokens also need a public base URL ( OC_PUBLIC_URL , or [host.api] audience ); see authentication .
+
+## Versioning
+
+The path carries the major version. Within v1 changes are additive : new operations, new optional parameters, new fields in answers. Ignore fields you do not know. A breaking change gets a new path ( /api/v2 ), and v1 keeps working alongside it. The OpenAPI 3.1 document is the contract. A running server serves it at GET /api/v1/openapi.json ; it is checked in as [ crates/oc-server/api/openapi.json ](../../../crates/oc-server/api/openapi.json), and a test keeps it and the server's router identical. This reference is generated from it. The 0.1 routes ( /v1/files/{fileId}/patch and the others) still work and carry Deprecation and a Link to their successor. They are retired in v0.3; see 0.1 routes.
+
+## Your first call
+
+Read a canvas as Markdown, then append a paragraph, with the host key. The If-Match header makes the change apply only if nobody changed the canvas since you read it. Read, then append curl TypeScript Rust Python curl -s "https://canvas.example.com/api/v1/files/doc_1?format=markdown" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/blocks:batch" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H 'If-Match: "c465d27bcd7e"' \ -H "Idempotency-Key: 5f0e7d4c-2b1a-4e8f-9c3d-6a7b8c9d0e1f" \ -d '{"ops": [{"op": "append", "markdown": "Shipped on Friday."}]}' import { OpenCanvas } from "@opencanvas/client"; const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { hostId: "acme", key: process.env.OC_API_KEY! }, }); const doc = await oc.readFile({ fileId: "doc_1", query: { format: "markdown" } }); console.log(doc.markdown); // The client sends an Idempotency-Key for you, the same one on every retry. const result = await oc.batchBlocks( { fileId: "doc_1", body: { ops: [{ op: "append", markdown: "Shipped on Friday." }] } }, { ifMatch: doc.rev }, ); console.log(result.blockIds); use opencanvas_client::models::{BatchOp, BatchRequest}; use opencanvas_client::{Auth, CallOptions, Client}; let oc = Client::builder("https://canvas.example.com") .auth(Auth::host_key("acme", std::env::var("OC_API_KEY").expect("OC_API_KEY"))) .build(); let doc = oc.read_file("doc_1", Some("markdown")).await?; println!("{}", doc.markdown.clone().unwrap_or_default()); // The client sends an Idempotency-Key for you, the same one on every retry. let req = BatchRequest { ops: vec![BatchOp { op: "append".into(), markdown: Some("Shipped on Friday.".into()), ..Default::default() }], ..Default::default() }; let result = oc.batch_blocks("doc_1", &req, &CallOptions::if_match(doc.rev.unwrap_or_default())).await?; println!("{:?}", result.block_ids); import os import uuid import requests BASE = "https://canvas.example.com/api/v1" api = requests.Session() api.headers.update({"X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"]}) r = api.get(f"{BASE}/files/doc_1", params={"format": "markdown"}, timeout=30) r.raise_for_status() doc = r.json() print(doc["markdown"]) r = api.post( f"{BASE}/files/doc_1/blocks:batch", json={"ops": [{"op": "append", "markdown": "Shipped on Friday."}]}, headers={"If-Match": f'"{doc["rev"]}"', "Idempotency-Key": str(uuid.uuid4())}, timeout=30, ) r.raise_for_status() print(r.json()["blockIds"])
+
+## Requests and answers
+
+Topic How it works Format JSON in UTF-8, Content-Type: application/json . Import and convert take the file itself as the body; export and convert answer the file. Credentials The host key ( X-OpenCanvas-Host and X-OpenCanvas-Key ) or a user token you mint ( Authorization: Bearer ). See authentication . Errors RFC 9457 problem details with a machine code . See errors . Revisions Reads answer ETag: "<rev>" . Send it back as If-Match on a batch, or a block's rev as ifMatch on one op, and a stale write fails with 412 STALE_BLOCK instead of overwriting. Lists listBlocks and queryRows page with signed cursors. See pagination . Writes Every POST /api/v1/files/... takes Idempotency-Key , so a retry never applies twice. See idempotency . Limits Token buckets per caller and per file, announced in RateLimit headers. See rate limits . Changes Stream them per file (events) or receive them by POST (webhooks).
+
+## How changes land
+
+A write runs in the file's live room as one transaction : everyone editing the canvas sees it at once, and it is saved to your application by the same autosave as a person's edit ( POST .../commit saves now). If nobody has the file open, OpenCanvas loads it from you, applies the change and saves it straight away. Changes to existing blocks land directly, unless the call sends "mode": "suggest" or the host sets [host.api] default_mode = "suggest" : then they become suggestions that a person accepts in the editor. A batch that deletes more than 5 blocks needs "confirm": true .
+
+## Operations
+
+Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JSON blocks, Markdown or an outline Blocks GET /api/v1/files/{fileId}/blocks List top-level blocks Blocks GET /api/v1/files/{fileId}/blocks/{blockId} Read one block (also nested ones) Blocks GET /api/v1/files/{fileId}/blocks:find Find blocks whose text contains q (case-insensitive) Blocks POST /api/v1/files/{fileId}/blocks:batch Change blocks in one atomic transaction Databases GET /api/v1/files/{fileId}/databases List databases with fields, row counts and views Databases POST /api/v1/files/{fileId}/databases Create a database block Databases GET /api/v1/files/{fileId}/databases/{dbId} Describe one database Databases GET /api/v1/files/{fileId}/databases/{dbId}/rows Query rows Databases POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert Create or update rows (at most 200) Databases POST /api/v1/files/{fileId}/databases/{dbId}/fields Add a field Boards GET /api/v1/files/{fileId}/boards/{boardId}/shapes Read a board's shapes Boards POST /api/v1/files/{fileId}/boards/{boardId}/shapes Add shapes to a board Comments GET /api/v1/files/{fileId}/comments List comment threads Comments POST /api/v1/files/{fileId}/comments Start a thread on a block or reply to one Members GET /api/v1/files/{fileId}/members People with access (id, name, detail; never e-mail) Export and import GET /api/v1/files/{fileId}/export/{format} Export the canvas Export and import POST /api/v1/files/{fileId}/import Import Markdown, HTML or CSV into the canvas Export and import POST /api/v1/convert Stateless conversion Events and sync GET /api/v1/files/{fileId}/events Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages Events and sync POST /api/v1/files/{fileId}/sync-token A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly Admin POST /api/v1/files/{fileId}/commit Save now (200 saved, 202 queued in the outbox, 409 conflict) Admin POST /api/v1/files/{fileId}/role Change a user's role live (none disconnects them) Admin DELETE /api/v1/files/{fileId}/session Final save, disconnect everyone, drop every ticket Admin POST /api/v1/files/{fileId}/members:invalidate The member list changed; drop cached answers OpenAPI document GET /api/v1/openapi.json This document 0.1 routes (deprecated) POST /v1/files/{fileId}/patch Patch blocks (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/commit Save now (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/role Change a role (0.1) 0.1 routes (deprecated) DELETE /v1/files/{fileId}/session Close the session (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/members/invalidate Members changed (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/import Import (0.1) 0.1 routes (deprecated) POST /v1/convert Convert (0.1)
+
+## No "try it" console
+
+This reference has no console that sends requests from the page. The site is static (GitHub Pages) with no OpenCanvas server behind it, and a console would mean pasting a host key or a user token into a web page. Use the samples with your own server: every one of them can be copied, and the language you pick is remembered on your device.
+
+
+# Authentication
+
+URL: https://canvas.casualoffice.org/api/authentication.html
+
+## Authentication
+
+Two kinds of credentials, one check. Your server uses the host key; code that acts for one of your users carries a short-lived token that your application mints. OpenCanvas never issues user tokens and runs no OAuth server.
+
+## Host key
+
+Server to server, send your host id and the host's api_key (from the hosts file) on every request. The host key has full access to your host's files, the admin operations included. Header Value X-OpenCanvas-Host Your host id, for example acme . X-OpenCanvas-Key The host's api_key . Keep it on your server; never send it to a browser. X-OpenCanvas-Author Optional. The user id a change is attributed to: its edit origin becomes api:<userId> . Default svc:<hostId> . X-OpenCanvas-Callback-Token Optional. A bearer OpenCanvas passes on the callbacks this call causes (loading the file when nobody has it open, saving it). Host key curl TypeScript Rust Python curl -s "https://canvas.example.com/api/v1/files/doc_1?format=outline" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "X-OpenCanvas-Author: u_42" import { OpenCanvas } from "@opencanvas/client"; const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { hostId: "acme", key: process.env.OC_API_KEY!, author: "u_42" }, }); const outline = await oc.readFile({ fileId: "doc_1", query: { format: "outline" } }); use opencanvas_client::{Auth, Client}; let oc = Client::builder("https://canvas.example.com") .auth(Auth::HostKey { host_id: "acme".into(), key: std::env::var("OC_API_KEY").expect("OC_API_KEY"), author: Some("u_42".into()), callback_token: None, }) .build(); let outline = oc.read_file("doc_1", Some("outline")).await?; import os import requests r = requests.get( "https://canvas.example.com/api/v1/files/doc_1", params={"format": "outline"}, headers={ "X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"], "X-OpenCanvas-Author": "u_42", }, timeout=30, ) r.raise_for_status()
+
+## User tokens
+
+For code that acts for one of your users (an integration running as that user, a script a user starts), mint a JWT for that user and send it as Authorization: Bearer <token> . You sign it with the same keys as launch tokens: the host's jwt_secret (HS256), or your private key when the host has jwt_public_key (RS256, EdDSA) or jwt_jwks_url . Claim Value iss Your host id, or [host.api] issuer . It picks the host, so it must be unique among the server's hosts. aud {[host.api] audience or OC_PUBLIC_URL}/api/v1 , for example https://canvas.example.com/api/v1 . A launch token or an MCP token (audience .../mcp/{hostId} ) is refused here. sub The user id, as in launch tokens. svc:<name> for a backend job. exp At most 15 minutes ahead of the server's clock (with 30 seconds of leeway). nbf is honoured. scope Space-separated: canvas:read , canvas:comment , canvas:write , canvas:admin . role The user's role on the files: view , comment or edit (absent: view ). Used only when you do not implement POST /access . files The file ids the token covers. Required when you do not implement POST /access , unless the host sets [host.api] all_files = true . name Optional display name, shown with the user's changes. The audience is never taken from the request: without OC_PUBLIC_URL or [host.api] audience , user tokens are off for the host and answer 401 TOKEN_INVALID . [host.api] issuer = "acme" # default: the host id audience = "https://canvas.example.com" # default: OC_PUBLIC_URL all_files = false # true: without /access, a token with no `files` covers every file token_admin = false # true: tokens with canvas:admin may use the admin operations Mint a user token and call the API curl TypeScript Rust Python # HS256 with the host's jwt_secret, using only openssl. b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; } now=$(date +%s) header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url) claims=$(printf '{"iss":"acme","aud":"https://canvas.example.com/api/v1","sub":"u_42","scope":"canvas:read canvas:comment","role":"edit","files":["doc_1"],"iat":%d,"exp":%d}' \ "$now" "$((now + 600))" | b64url) sig=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$ACME_OC_SECRET" -binary | b64url) TOKEN="$header.$claims.$sig" curl -s "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "Authorization: Bearer $TOKEN" // npm install jose import { SignJWT } from "jose"; import { OpenCanvas } from "@opencanvas/client"; const secret = new TextEncoder().encode(process.env.ACME_OC_SECRET!); async function mintUserToken(userId: string, scope: string, files: string[]): Promise<string> { return new SignJWT({ scope, role: "edit", files }) .setProtectedHeader({ alg: "HS256" }) .setIssuer("acme") .setAudience("https://canvas.example.com/api/v1") .setSubject(userId) .setIssuedAt() .setExpirationTime("10m") .sign(secret); } // The token callback runs before every request, so a long job never sends an expired token. const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { token: () => mintUserToken("u_42", "canvas:read canvas:comment", ["doc_1"]) }, }); const { threads } = (await oc.listComments({ fileId: "doc_1" })) as { threads: unknown[] }; // jsonwebtoken = "9", serde_json = "1" use jsonwebtoken::{encode, EncodingKey, Header}; use opencanvas_client::{Auth, Client}; use serde_json::json; fn mint_user_token(secret: &[u8], user_id: &str, scope: &str, files: &[&str]) -> String { let now = std::time::SystemTime::now() .duration_since(std::time::UNIX_EPOCH) .unwrap() .as_secs(); let claims = json!({ "iss": "acme", "aud": "https://canvas.example.com/api/v1", "sub": user_id, "scope": scope, "role": "edit", "files": files, "iat": now, "exp": now + 600, }); encode(&Header::default(), &claims, &EncodingKey::from_secret(secret)).expect("signed") } let secret = std::env::var("ACME_OC_SECRET").expect("ACME_OC_SECRET"); let token = mint_user_token(secret.as_bytes(), "u_42", "canvas:read canvas:comment", &["doc_1"]); let oc = Client::builder("https://canvas.example.com") .auth(Auth::Token(token)) .build(); let threads = oc.list_comments("doc_1", None).await?; # pip install pyjwt requests import os import time import jwt import requests def mint_user_token(user_id: str, scope: str, files: list[str]) -> str: now = int(time.time()) claims = { "iss": "acme", "aud": "https://canvas.example.com/api/v1", "sub": user_id, "scope": scope, "role": "edit", "files": files, "iat": now, "exp": now + 600, } return jwt.encode(claims, os.environ["ACME_OC_SECRET"], algorithm="HS256") token = mint_user_token("u_42", "canvas:read canvas:comment", ["doc_1"]) r = requests.get( "https://canvas.example.com/api/v1/files/doc_1/comments", headers={"Authorization": f"Bearer {token}"}, timeout=30, ) r.raise_for_status()
+
+## Scopes
+
+A token's scope is a ceiling: the operation's x-opencanvas-scope in the OpenAPI document must be within it, or the answer is 403 SCOPE_REQUIRED . Each scope includes the ones above it. Scope Allows Least role Operations canvas:read Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role. view readFile , listBlocks , getBlock , findBlocks , listDatabases , getDatabase , queryRows , readBoard , listComments , listMembers , exportFile , streamEvents , createSyncToken , convert canvas:comment Everything canvas:read allows, and start or reply to comment threads. comment addComment canvas:write Everything canvas:comment allows, and change blocks, databases and boards, and import. canvas:write:direct counts as canvas:write . edit batchBlocks , createDatabase , upsertRows , addField , addShapes , importFile canvas:admin Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets [host.api] token_admin = true ; otherwise these are the host key's. host key, or a token with canvas:admin commitFile , setRole , closeSession , invalidateMembers
+
+## Roles
+
+The effective permission is min(scope, role) . A canvas:write token does not let a view user write, and a canvas:read token does not let an editor write. Where the role comes from. If you implement the optional POST /access callback, OpenCanvas asks it for the user's role on each file a call touches (cached 30 seconds, dropped by the role API) and ignores the token's role claim; none refuses every operation. Without it, the role claim counts, but only for the files listed in files ( 403 FILES_REQUIRED otherwise, unless [host.api] all_files = true ). Revocation. After POST /api/v1/files/{fileId}/role with "role": "none" , the user's next call is refused, and their event streams close with code 4003 . The host key acts with the edit role on every file, plus the admin operations.
+
+## Expiry
+
+Tokens live at most 15 minutes: an exp further ahead than that is refused ( 401 TOKEN_INVALID ). An expired token answers 401 TOKEN_EXPIRED ; an event stream opened with a token closes with code 4001 when it expires. Mint a fresh token per job or per request: the clients take a token callback that runs before every request.
+
+## Errors
+
+Status Code When 401 UNAUTHENTICATED No credentials, an unknown host, or a wrong host key. 401 TOKEN_INVALID Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host. 401 TOKEN_EXPIRED The token's exp has passed. 403 SCOPE_REQUIRED The operation needs a scope the token lacks (admin operations: canvas:admin and token_admin ). 403 ROLE_FORBIDDEN The user's role on the file is too low, the file is not in files , or access was revoked. 403 FILES_REQUIRED No POST /access callback, and the token lists no files . 401 answers carry WWW-Authenticate: Bearer realm="opencanvas" (with error="invalid_token" for token problems). The MCP endpoint uses the same check with its own audience; see AI and MCP .
+
+
+# Errors
+
+URL: https://canvas.casualoffice.org/api/errors.html
+
+## Errors
+
+Every error answer is RFC 9457 problem details, application/problem+json, with a machine code you can branch on. The code is stable; the human detail is not.
+
+## The shape
+
+{ "type": "urn:opencanvas:problem:stale-block", "title": "Precondition Failed", "status": 412, "detail": "a block changed since it was read; re-read it and retry", "code": "STALE_BLOCK", "fresh": { "stale": [ { "blockId": "b_01m87jv4rtkdxymn93jwtx35sk", "rev": "5641be1fd2cb", "markdown": "Ship on Friday.\n" } ] } } Member Meaning type urn:opencanvas:problem:<code in lower case, hyphens> . A stable name, not a URL to fetch. title The HTTP reason phrase of status . status The HTTP status, repeated in the body. detail What went wrong, in words, for logs and people. It can change between releases; do not parse it. code The machine code: branch on this. The same codes the 0.1 routes use. fresh Only with STALE_BLOCK : the current state to retry against. Unknown members may be added later; ignore them. Even answers the router gives before an operation runs (an unknown path, a wrong method) are problem details, so a client parses one error format.
+
+## Handling them
+
+Status What to do 400 Fix the request; detail says what is wrong. Do not retry it unchanged. 401 Fix the credentials: the host key, or mint a new token. 403 The scope or the user's role does not allow it. Do not retry. 404 Unknown file part or operation, or the API is off ( API_OFF ). 409 CONFIRMATION_REQUIRED : send again with "confirm": true . IDEMPOTENCY_IN_PROGRESS : retry after Retry-After . CONFLICT : your save callback reported a conflict. 410 CURSOR_EXPIRED : start the walk again without a cursor. 412 STALE_BLOCK : re-read (or use fresh ), apply your change again, send it with the new revision. 413 The body or the resulting document is too large. 422 IDEMPOTENCY_KEY_REUSED : a new request needs a new key. 429 Wait Retry-After seconds, then retry. 5xx 503 and 502 are transient: retry after Retry-After with backoff. 501 : the server is not set up for it (PDF). The TypeScript and Rust clients turn these into typed errors and retry 429 , 503 and 409 IDEMPOTENCY_IN_PROGRESS for you; see SDKs.
+
+## Every code
+
+## Any operation on a file
+
+Authentication, the API switch, rate limits and availability: every /api/v1 operation on a file can answer these. Code Status Meaning TOKEN_EXPIRED 401 The bearer token's exp has passed. Mint a new one; tokens live at most 15 minutes. TOKEN_INVALID 401 A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid ( nbf ). Also answered when the host has no public base URL, so user tokens are off for it. UNAUTHENTICATED 401 No credentials, an unknown host, or a wrong host key. The answer carries WWW-Authenticate: Bearer realm="opencanvas" . FILES_REQUIRED 403 The host does not implement POST /access , so a token's role claim counts only for the files in its files claim, and this token has none. Add files , implement /access , or set [host.api] all_files = true . ROLE_FORBIDDEN 403 The user's role on the file is below what the operation needs (the effective permission is min(scope, role) ), the token does not list the file in files , or the host revoked the user. SCOPE_REQUIRED 403 The token's scope does not cover the operation. Admin operations need canvas:admin , which counts only when the host sets [host.api] token_admin = true . API_OFF 404 The host has not turned the API on. Set [host.flags] api_v1 = true in its entry of the hosts file. RATE_LIMITED 429 A token bucket is empty: the caller's, or the file's write bucket. Wait for Retry-After seconds. The RateLimit header says which bucket and when it refills. INTERNAL 500 An unexpected server error, or the host's POST /access callback failed. The server logs the cause; retrying may help. UNAVAILABLE 503 A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after Retry-After .
+
+## Operation-specific
+
+Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. ROLE_INVALID 400 role is not view , comment , edit or none . EXPORT_OFF 403 The host's export settings do not allow this format. IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). DB_NOT_FOUND 404 The canvas has no database with that dbId . FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry.
+
+## Router fallbacks
+
+Answers the router gives before an operation runs. Code Status Meaning UNAUTHORIZED 401 A fallback for a 401 that did not carry its own code. FORBIDDEN 403 A fallback for a 403 that did not carry its own code. METHOD_NOT_ALLOWED 405 The path exists but not with this method; Allow lists the methods it takes. UNSUPPORTED_MEDIA_TYPE 415 A fallback for a request the router could not read. ERROR other Any other error status without its own code.
+
+## 0.1 routes only
+
+The deprecated /v1/... routes answer {"error": {"code", "message"}} with these and the codes above. Code Status Meaning PATCH_INVALID 400 0.1 patch : an op is malformed. API_KEY_INVALID 401 0.1 routes: the host id or key is missing or wrong.
+
+## The 0.1 routes
+
+The deprecated /v1/files/{fileId}/... routes keep their old error shape, {"error": {"code": "...", "message": "..."}} , with the same codes. Only /api/v1 answers problem details.
+
+
+# Pagination
+
+URL: https://canvas.casualoffice.org/api/pagination.html
+
+## Pagination
+
+Two operations answer pages: listBlocks (top-level blocks, up to 100 per page) and queryRows (database rows, up to 200). Cursors are opaque and signed, and a block walk stays correct while people edit the canvas.
+
+## How it works
+
+Ask for the first page with an optional limit . Each page answers has_more and next_cursor ; when more follow, it also carries a Link header with the next page's URL. Pass next_cursor back as cursor , unchanged, until has_more is false . GET /api/v1/files/doc_1/blocks?limit=2 HTTP/1.1 200 OK ETag: "c465d27bcd7e" Link: </api/v1/files/doc_1/blocks?cursor=eyJmIjoiZG9jXzEi...&limit=2>; rel="next" {"blocks": [...], "rev": "c465d27bcd7e", "has_more": true, "next_cursor": "eyJmIjoiZG9jXzEi..."} Operation Items limit Default GET /api/v1/files/{fileId}/blocks blocks 1-100 100 GET /api/v1/files/{fileId}/databases/{dbId}/rows rows 1-200 50
+
+## Walk every page
+
+Every block of a canvas curl TypeScript Rust Python url="https://canvas.example.com/api/v1/files/doc_1/blocks?limit=100" while [ -n "$url" ]; do page=$(curl -s "$url" -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY") echo "$page" | jq -c '.blocks[]' cursor=$(echo "$page" | jq -r '.next_cursor // empty') url=${cursor:+"https://canvas.example.com/api/v1/files/doc_1/blocks?limit=100&cursor=$cursor"} done // paginate() follows next_cursor and yields each item. for await (const block of oc.paginate("listBlocks", { fileId: "doc_1", query: { limit: 100 } })) { console.log(block); } use futures::StreamExt; use opencanvas_client::{CallOptions, Params}; let mut blocks = Box::pin(oc.paginate("listBlocks", Params::file("doc_1").query("limit", 100), CallOptions::default())); while let Some(block) = blocks.next().await { println!("{}", block?); } def every_block(api, file_id): params = {"limit": 100} while True: r = api.get(f"{BASE}/files/{file_id}/blocks", params=params, timeout=30) r.raise_for_status() page = r.json() yield from page["blocks"] if not page["has_more"]: return params["cursor"] = page["next_cursor"]
+
+## Cursors
+
+Opaque and signed. Do not build or change them; a changed cursor answers 400 CURSOR_INVALID . Bound to the request. A block cursor belongs to its file; a row cursor to its file, database, filter , sort and fields . Sending it with other values is CURSOR_INVALID . Valid for an hour. After that, 410 CURSOR_EXPIRED : start again without one. Stable under edits. A block cursor is a position after the last block you got (a Yjs relative position), not an index. A block inserted or deleted before it does not shift the next page, and if that last block is deleted, the next page starts at its successor. Every block that exists for the whole walk is returned exactly once.
+
+## Errors
+
+Status Code When 400 CURSOR_INVALID Not a cursor this server signed for this file and query. 410 CURSOR_EXPIRED Older than an hour. 400 BAD_INPUT filter or sort is not a JSON array.
+
+
+# Idempotency
+
+URL: https://canvas.casualoffice.org/api/idempotency.html
+
+## Idempotency
+
+Every POST under /api/v1/files takes an Idempotency-Key header. Send the same key on every retry of one request, and the change is applied once, even across nodes of a cluster.
+
+## How it works
+
+Pick a key per logical request (a UUID, or an id from your own job) and send it on the first try and on every retry: POST /api/v1/files/doc_1/comments Idempotency-Key: remind-2026-11-25-doc_1 Content-Type: application/json {"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"} Case Answer First request with the key Runs, and its answer is stored for 24 hours. The same request again (method, path and body) The stored answer, with Idempotency-Replayed: true . Nothing runs again. The same key with another request 422 IDEMPOTENCY_KEY_REUSED . The same key while the first is still running, on any node 409 IDEMPOTENCY_IN_PROGRESS with Retry-After: 1 . Retry to get the first one's answer. The first request failed (any error) Not stored: a retry with the key runs again. A malformed key 400 IDEMPOTENCY_KEY_INVALID .
+
+## The key
+
+1 to 255 visible ASCII characters. Yours per caller: the host key with its X-OpenCanvas-Author , or a token's sub . Two users can use the same key without seeing each other's answers. Kept 24 hours. After that, the same key is a new request.
+
+## Which operations
+
+Every POST under /api/v1/files/{fileId}/... takes a key, except POST .../sync-token : its answer is a credential, never stored, so the same key gets a fresh ticket. POST /api/v1/convert changes nothing and takes no key. Reads and DELETE .../session (closing a session twice is harmless) take none.
+
+## What is stored
+
+The request's hash and the write's answer: ids, counts and revisions. Never document content. Keys live in the database ( api_idempotency , SQLite, MySQL or MariaDB) or, with Redis-only storage, in Redis ( oc:idem:... ).
+
+## In the clients
+
+The TypeScript and Rust clients send a random key on every write and reuse it for each retry of that call. Pass your own key when a retry may come from another process (a job queue that re-runs a job after a crash): Your own key curl TypeScript Rust Python curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H "Idempotency-Key: remind-2026-11-25-doc_1" \ -d '{"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}' const res = await oc.call( "addComment", { fileId: "doc_1", body: { text: "Is Friday still right?", blockId: "b_01m87jv4rtkdxymn93jwtx35sk" } }, { idempotencyKey: "remind-2026-11-25-doc_1" }, ); console.log(res.replayed); // true when the server answered from the stored result use opencanvas_client::{CallOptions, Params}; use serde_json::json; let res = oc .call( "addComment", &Params::file("doc_1").json(json!({"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"})), &CallOptions::key("remind-2026-11-25-doc_1"), ) .await?; println!("replayed: {}", res.replayed); r = api.post( f"{BASE}/files/doc_1/comments", json={"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}, headers={"Idempotency-Key": "remind-2026-11-25-doc_1"}, timeout=30, ) replayed = r.headers.get("Idempotency-Replayed") == "true"
+
+
+# Rate limits
+
+URL: https://canvas.casualoffice.org/api/rate-limits.html
+
+## Rate limits
+
+Token buckets, announced on every answer. One bucket per caller, shared with MCP, and one per file for writes. With Redis the buckets are shared by every node of a cluster.
+
+## The buckets
+
+Bucket Applies to Default Setting ( [host.api] ) subject Every request of one caller: the host key, or a token's sub 10 requests a second, burst 30 rate_per_sec , burst file-writes POST and DELETE on one file, from everyone 5 a second, burst 10 file_writes_per_sec , file_burst MCP calls take from the same subject bucket as the API. [host.ai] mcp_rate_per_min still sets the rate when [host.api] does not.
+
+## The headers
+
+Every answer says where you stand (draft IETF RateLimit header fields): RateLimit-Policy: "subject";q=30;w=3, "file-writes";q=10;w=2 RateLimit: "subject";r=29;t=1 Header Meaning RateLimit-Policy The buckets that apply: q is the burst, w the seconds an empty bucket takes to refill. file-writes appears on writes only. RateLimit The bucket closest to empty: r requests remaining, t seconds until it is full again.
+
+## When a bucket is empty
+
+The answer is 429 RATE_LIMITED with Retry-After (seconds). Wait that long, then retry; keep the same Idempotency-Key for a write. HTTP/1.1 429 Too Many Requests Content-Type: application/problem+json Retry-After: 1 RateLimit: "subject";r=0;t=3 {"type": "urn:opencanvas:problem:rate-limited", "title": "Too Many Requests", "status": 429, "detail": "too many requests (subject limit); retry later", "code": "RATE_LIMITED"} The clients retry 429 and 503 after Retry-After (else 500 ms doubling, at most 30 seconds), 3 times by default. In your own code: Retry after 429 curl TypeScript Rust Python for attempt in 1 2 3 4; do status=$(curl -s -o page.json -w '%{http_code}' -D headers.txt \ "https://canvas.example.com/api/v1/files/doc_1" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY") [ "$status" != 429 ] && break sleep "$(awk 'tolower($1) == "retry-after:" { print $2 + 0 }' headers.txt)" done // Retries are built in: maxRetries (default 3) per client or per call. const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth, maxRetries: 5 }); const doc = await oc.readFile({ fileId: "doc_1" }, { maxRetries: 0 }); // or none for this call // Retries are built in: max_retries (default 3) per client or per call. let oc = Client::builder("https://canvas.example.com").auth(auth).max_retries(5).build(); import time def get_with_retry(api, url, **kw): for _ in range(4): r = api.get(url, timeout=30, **kw) if r.status_code not in (429, 503): return r time.sleep(float(r.headers.get("Retry-After", "1"))) return r
+
+## Other limits
+
+At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true .
+
+
+# API changelog
+
+URL: https://canvas.casualoffice.org/api/changelog.html
+
+## API changelog
+
+The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
+
+## 0.1.2 (2026-11-24)
+
+Added Version history with named versions, preview and comparison, restore and temporary undo where supported by the host. Added Headless API under /api/v1 with OpenAPI 3.1, scoped tokens, and idempotency keys on file writes. Added API events stream (SSE and WebSocket) with resume, and a headless sync token. Fixed A Jitsi role change takes precedence over launch tokens issued before the change.
+
+## 0.1.1 (2026-11-23)
+
+Added Jitsi Meet ( integrations/jitsi/ , JIT-02): mod_opencanvas.lua gives every meeting a shared canvas in Jitsi's Shared document slot, like Etherpad. One Prosody plugin plus .env lines, no Docker image or compose changes. Per-person launch tokens, a fresh token on reload, the meeting end closes the canvas. Tested end to end against a stock docker-jitsi-meet (stable-11509-1) with two browsers; guide in integrations/jitsi/README.md . Added Temporary canvases ( storage = "ephemeral" , ADR-043, JIT-01) for hosts with no file storage: no load or save callbacks; everything is deleted when the room closes (idle grace or DELETE /v1/files/{id}/session ). A server restart or deploy keeps the canvas for the reconnect. Fixed Plugin: tokens signed with Jitsi's luajwtjitsi did not verify (non-standard signature encoding); the plugin now signs with Prosody's own HMAC. Jitsi appends its Etherpad options with ? , which broke the token; the launch URL now ends in &ep= .
+
+## 0.1.0 (2026-11-23)
+
+Added Block schema validation (MOD-01) in oc-model on .ocanvas read, REST patch, import and MCP writes, with JSON-pointer paths; unknown nodes are warnings, kept and counted in oc_schema_warnings_total . Security MCP audience (SEC-33): the MCP token audience comes from [host.ai] mcp_audience or OC_PUBLIC_URL , never from the request's Host header. Without either, MCP is off ( 404 ) and the server logs one start-up warning. Security MCP file scope (SEC-34): when the host has no /access callback, an MCP token must name its files in a files claim; a token without one is refused ( FILES_REQUIRED ). The broad behaviour (one token's role on every file) needs [host.ai] mcp_all_files = true .
+
+## 0.1.0-alpha.1 (2026-11-23)
+
+Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development.

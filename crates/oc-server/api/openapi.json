@@ -50,6 +50,371 @@
       "name": "0.1 aliases"
     }
   ],
+  "x-opencanvas-error-codes": [
+    {
+      "code": "API_OFF",
+      "status": [
+        404
+      ],
+      "detail": "the API is not enabled for this host ([host.flags] api_v1)",
+      "description": "The host has not turned the API on. Set `[host.flags] api_v1 = true` in its entry of the hosts file.",
+      "kind": "common"
+    },
+    {
+      "code": "UNAUTHENTICATED",
+      "status": [
+        401
+      ],
+      "detail": "missing or wrong credentials",
+      "description": "No credentials, an unknown host, or a wrong host key. The answer carries `WWW-Authenticate: Bearer realm=\"opencanvas\"`.",
+      "kind": "common"
+    },
+    {
+      "code": "TOKEN_INVALID",
+      "status": [
+        401
+      ],
+      "detail": "token lifetime exceeds 15 minutes",
+      "description": "A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid (`nbf`). Also answered when the host has no public base URL, so user tokens are off for it.",
+      "kind": "common"
+    },
+    {
+      "code": "TOKEN_EXPIRED",
+      "status": [
+        401
+      ],
+      "detail": "the token has expired",
+      "description": "The bearer token's `exp` has passed. Mint a new one; tokens live at most 15 minutes.",
+      "kind": "common"
+    },
+    {
+      "code": "SCOPE_REQUIRED",
+      "status": [
+        403
+      ],
+      "detail": "SCOPE_REQUIRED: comment_add needs canvas:comment",
+      "description": "The token's scope does not cover the operation. Admin operations need `canvas:admin`, which counts only when the host sets `[host.api] token_admin = true`.",
+      "kind": "common"
+    },
+    {
+      "code": "ROLE_FORBIDDEN",
+      "status": [
+        403
+      ],
+      "detail": "ROLE_FORBIDDEN: no access to this file",
+      "description": "The user's role on the file is below what the operation needs (the effective permission is `min(scope, role)`), the token does not list the file in `files`, or the host revoked the user.",
+      "kind": "common"
+    },
+    {
+      "code": "FILES_REQUIRED",
+      "status": [
+        403
+      ],
+      "detail": "FILES_REQUIRED: the host has no /access callback, so the token must list the files it covers in a `files` claim (or the host allows all files)",
+      "description": "The host does not implement `POST /access`, so a token's `role` claim counts only for the files in its `files` claim, and this token has none. Add `files`, implement `/access`, or set `[host.api] all_files = true`.",
+      "kind": "common"
+    },
+    {
+      "code": "RATE_LIMITED",
+      "status": [
+        429
+      ],
+      "detail": "too many requests (subject limit); retry later",
+      "description": "A token bucket is empty: the caller's, or the file's write bucket. Wait for `Retry-After` seconds. The `RateLimit` header says which bucket and when it refills.",
+      "kind": "common"
+    },
+    {
+      "code": "UNAVAILABLE",
+      "status": [
+        503
+      ],
+      "detail": "the idempotency store is unavailable; retry",
+      "description": "A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after `Retry-After`.",
+      "kind": "common"
+    },
+    {
+      "code": "INTERNAL",
+      "status": [
+        500
+      ],
+      "detail": "internal error",
+      "description": "An unexpected server error, or the host's `POST /access` callback failed. The server logs the cause; retrying may help.",
+      "kind": "common"
+    },
+    {
+      "code": "BAD_INPUT",
+      "status": [
+        400
+      ],
+      "detail": "rows[0].values must be an object",
+      "description": "The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or `fileId` is longer than 1,024 bytes. `detail` says which."
+    },
+    {
+      "code": "CURSOR_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "the cursor is not valid for this request",
+      "description": "The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different `filter`, `sort` or `fields`. Pass `next_cursor` back unchanged."
+    },
+    {
+      "code": "CURSOR_EXPIRED",
+      "status": [
+        410
+      ],
+      "detail": "the cursor has expired; start again without one",
+      "description": "Cursors last an hour. Start the walk again without one."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "Idempotency-Key must be 1-255 visible ASCII characters",
+      "description": "The `Idempotency-Key` header is empty, longer than 255 bytes, or has characters outside visible ASCII."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REUSED",
+      "status": [
+        422
+      ],
+      "detail": "this Idempotency-Key was used with a different request",
+      "description": "The key was used in the last 24 hours with another method, path or body. Use a new key for a new request."
+    },
+    {
+      "code": "IDEMPOTENCY_IN_PROGRESS",
+      "status": [
+        409
+      ],
+      "detail": "a request with this Idempotency-Key is still running",
+      "description": "A request with the same key is still running, on this or another node. Retry after `Retry-After` (1 second) to get its answer."
+    },
+    {
+      "code": "BODY_TOO_LARGE",
+      "status": [
+        413
+      ],
+      "detail": "the request body is too large",
+      "description": "The request body is over the server's limit (at least 5 MiB, the import limit)."
+    },
+    {
+      "code": "BLOCK_NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "no block with that blockId",
+      "description": "No block in the canvas has that `blockId` (the path's, an op's `blockId`, or a comment's `blockId`)."
+    },
+    {
+      "code": "NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "no database \"db_01m87jv4sc2twxjhzzxzh7mene\"",
+      "description": "An unknown database, board or comment thread id, or a path that is no API operation."
+    },
+    {
+      "code": "DB_NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "no database with that id",
+      "description": "The canvas has no database with that `dbId`."
+    },
+    {
+      "code": "STALE_BLOCK",
+      "status": [
+        412
+      ],
+      "detail": "a block changed since it was read; re-read it and retry",
+      "description": "A block op's `ifMatch` or the `If-Match` header names a revision that is no longer current. `fresh` carries the current state: the changed blocks with their `rev` and Markdown, or the document `rev`. Nothing was applied.",
+      "extra": {
+        "fresh": {
+          "stale": [
+            {
+              "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+              "rev": "5641be1fd2cb",
+              "markdown": "Ship on Friday.\n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "CONFIRMATION_REQUIRED",
+      "status": [
+        409
+      ],
+      "detail": "Delete 6 blocks? Repeat the call with \"confirm\": true.",
+      "description": "The batch deletes more than 5 blocks. Send it again with `\"confirm\": true`."
+    },
+    {
+      "code": "CONFLICT",
+      "status": [
+        409
+      ],
+      "detail": "the file changed elsewhere; the host's conflict policy is running",
+      "description": "Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried."
+    },
+    {
+      "code": "FORMAT_UNSUPPORTED",
+      "status": [
+        404,
+        400
+      ],
+      "detail": "formats: md, html, json, ocanvas, docx, pdf",
+      "description": "Export (404): the format in the path is not one of `md`, `html`, `json`, `ocanvas`, `docx`, `pdf`. Convert (400): `from` or `to` is not supported."
+    },
+    {
+      "code": "EXPORT_OFF",
+      "status": [
+        403
+      ],
+      "detail": "this host does not allow that format",
+      "description": "The host's export settings do not allow this format."
+    },
+    {
+      "code": "PDF_RENDERER_NOT_CONFIGURED",
+      "status": [
+        501
+      ],
+      "detail": "PDF export needs OC_PDF_RENDERER=gotenberg:<url>; use the print view instead",
+      "description": "PDF needs the operator to run the Gotenberg sidecar and set `OC_PDF_RENDERER`."
+    },
+    {
+      "code": "HOST_UNAVAILABLE",
+      "status": [
+        502
+      ],
+      "detail": "host answered 503 Service Unavailable",
+      "description": "Your load or save callback failed or timed out, so the file could not be loaded or saved."
+    },
+    {
+      "code": "IMPORT_OFF",
+      "status": [
+        403
+      ],
+      "detail": "this host does not allow md import",
+      "description": "The format is not in the host's `[host.flags] import_formats`, or the operator set `OC_IMPORT=off`."
+    },
+    {
+      "code": "IMPORT_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "the file must be UTF-8 text",
+      "description": "The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities."
+    },
+    {
+      "code": "IMPORT_TOO_LARGE",
+      "status": [
+        413
+      ],
+      "detail": "at most 200 columns",
+      "description": "The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns."
+    },
+    {
+      "code": "DOC_TOO_LARGE",
+      "status": [
+        413
+      ],
+      "detail": "the patched document would exceed the size limit",
+      "description": "The change would make the canvas larger than the server's document limit."
+    },
+    {
+      "code": "ROOM_UNAVAILABLE",
+      "status": [
+        503
+      ],
+      "detail": "the change could not be stored; retry",
+      "description": "The change could not be stored in the live room. Retry."
+    },
+    {
+      "code": "INPUT_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "not a valid .ocanvas zip: invalid Zip archive: Could not find EOCD",
+      "description": "Convert: the body is not a readable `.ocanvas` file."
+    },
+    {
+      "code": "ROLE_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "role must be view, comment, edit or none",
+      "description": "`role` is not `view`, `comment`, `edit` or `none`."
+    },
+    {
+      "code": "TOO_MANY_STREAMS",
+      "status": [
+        429
+      ],
+      "detail": "at most 100 event streams per file on one server",
+      "description": "A server holds at most 100 event streams per file. Close one, or share one stream between your workers."
+    },
+    {
+      "code": "METHOD_NOT_ALLOWED",
+      "status": [
+        405
+      ],
+      "detail": "Method Not Allowed",
+      "description": "The path exists but not with this method; `Allow` lists the methods it takes.",
+      "kind": "general"
+    },
+    {
+      "code": "UNSUPPORTED_MEDIA_TYPE",
+      "status": [
+        415
+      ],
+      "detail": "Unsupported Media Type",
+      "description": "A fallback for a request the router could not read.",
+      "kind": "general"
+    },
+    {
+      "code": "UNAUTHORIZED",
+      "status": [
+        401
+      ],
+      "detail": "Unauthorized",
+      "description": "A fallback for a 401 that did not carry its own code.",
+      "kind": "general"
+    },
+    {
+      "code": "FORBIDDEN",
+      "status": [
+        403
+      ],
+      "detail": "export not permitted for this session",
+      "description": "A fallback for a 403 that did not carry its own code.",
+      "kind": "general"
+    },
+    {
+      "code": "ERROR",
+      "status": [],
+      "detail": "error",
+      "description": "Any other error status without its own code.",
+      "kind": "general"
+    },
+    {
+      "code": "API_KEY_INVALID",
+      "status": [
+        401
+      ],
+      "detail": "missing or wrong X-OpenCanvas-Host / X-OpenCanvas-Key",
+      "description": "0.1 routes: the host id or key is missing or wrong.",
+      "kind": "legacy"
+    },
+    {
+      "code": "PATCH_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "op 1: blockId is required",
+      "description": "0.1 `patch`: an op is malformed.",
+      "kind": "legacy"
+    }
+  ],
   "paths": {
     "/api/v1/openapi.json": {
       "get": {

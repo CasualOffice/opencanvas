@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Rate limits | OpenCanvas</title>
+<meta name="description" content="OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/rate-limits.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Rate limits | OpenCanvas">
+<meta property="og:description" content="OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/rate-limits.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--guide">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html" aria-current="page">Rate limits</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html" aria-current="page">Rate limits</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>Rate limits</h1>
+<p class="lede">Token buckets, announced on every answer. One bucket per caller, shared with MCP, and one per file for writes. With Redis the buckets are shared by every node of a cluster.</p>
+<h2 id="the-buckets">The buckets</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Bucket</th><th scope="col">Applies to</th><th scope="col">Default</th><th scope="col">Setting (<code>[host.api]</code>)</th></tr></thead><tbody><tr><td><code>subject</code></td><td>Every request of one caller: the host key, or a token's <code>sub</code></td><td>10 requests a second, burst 30</td><td><code>rate_per_sec</code>, <code>burst</code></td></tr><tr><td><code>file-writes</code></td><td><code>POST</code> and <code>DELETE</code> on one file, from everyone</td><td>5 a second, burst 10</td><td><code>file_writes_per_sec</code>, <code>file_burst</code></td></tr></tbody></table></div>
+<p>MCP calls take from the same <code>subject</code> bucket as the API. <code>[host.ai] mcp_rate_per_min</code> still sets the rate when <code>[host.api]</code> does not.</p>
+<h2 id="the-headers">The headers</h2>
+<p>Every answer says where you stand (draft IETF RateLimit header fields):</p>
+<pre><code class="language-http">RateLimit-Policy: &quot;subject&quot;;q=30;w=3, &quot;file-writes&quot;;q=10;w=2
+RateLimit: &quot;subject&quot;;r=29;t=1</code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Header</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>RateLimit-Policy</code></td><td>The buckets that apply: <code>q</code> is the burst, <code>w</code> the seconds an empty bucket takes to refill. <code>file-writes</code> appears on writes only.</td></tr><tr><td><code>RateLimit</code></td><td>The bucket closest to empty: <code>r</code> requests remaining, <code>t</code> seconds until it is full again.</td></tr></tbody></table></div>
+<h2 id="when-a-bucket-is-empty">When a bucket is empty</h2>
+<p>The answer is <code>429 RATE_LIMITED</code> with <code>Retry-After</code> (seconds). Wait that long, then retry; keep the same <code>Idempotency-Key</code> for a write.</p>
+<pre><code class="language-http">HTTP/1.1 429 Too Many Requests
+Content-Type: application/problem+json
+Retry-After: 1
+RateLimit: &quot;subject&quot;;r=0;t=3
+
+{&quot;type&quot;: &quot;urn:opencanvas:problem:rate-limited&quot;, &quot;title&quot;: &quot;Too Many Requests&quot;, &quot;status&quot;: 429,
+ &quot;detail&quot;: &quot;too many requests (subject limit); retry later&quot;, &quot;code&quot;: &quot;RATE_LIMITED&quot;}</code></pre>
+<p>The clients retry <code>429</code> and <code>503</code> after <code>Retry-After</code> (else 500 ms doubling, at most 30 seconds), 3 times by default. In your own code:</p>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Retry after 429</span><div class="sample-tabs" role="tablist" aria-label="Retry after 429: language"><button type="button" role="tab" id="s6-curl-tab" aria-controls="s6-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s6-ts-tab" aria-controls="s6-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s6-rust-tab" aria-controls="s6-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s6-python-tab" aria-controls="s6-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s6-curl" aria-labelledby="s6-curl-tab" data-lang="curl"><pre><code class="language-curl">for attempt in 1 2 3 4; do
+  status=$(curl -s -o page.json -w &#x27;%{http_code}&#x27; -D headers.txt \
+    &quot;https://canvas.example.com/api/v1/files/doc_1&quot; \
+    -H &quot;X-OpenCanvas-Host: acme&quot; -H &quot;X-OpenCanvas-Key: $OC_API_KEY&quot;)
+  [ &quot;$status&quot; != 429 ] &amp;&amp; break
+  sleep &quot;$(awk &#x27;tolower($1) == &quot;retry-after:&quot; { print $2 + 0 }&#x27; headers.txt)&quot;
+done</code></pre></div><div role="tabpanel" id="s6-ts" aria-labelledby="s6-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">// Retries are built in: maxRetries (default 3) per client or per call.
+const oc = new OpenCanvas({ baseUrl: &quot;https://canvas.example.com&quot;, auth, maxRetries: 5 });
+const doc = await oc.readFile({ fileId: &quot;doc_1&quot; }, { maxRetries: 0 }); // or none for this call</code></pre></div><div role="tabpanel" id="s6-rust" aria-labelledby="s6-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">// Retries are built in: max_retries (default 3) per client or per call.
+let oc = Client::builder(&quot;https://canvas.example.com&quot;).auth(auth).max_retries(5).build();</code></pre></div><div role="tabpanel" id="s6-python" aria-labelledby="s6-python-tab" data-lang="python" hidden><pre><code class="language-python">import time
+
+
+def get_with_retry(api, url, **kw):
+    for _ in range(4):
+        r = api.get(url, timeout=30, **kw)
+        if r.status_code not in (429, 503):
+            return r
+        time.sleep(float(r.headers.get(&quot;Retry-After&quot;, &quot;1&quot;)))
+    return r</code></pre></div></div>
+<h2 id="other-limits">Other limits</h2>
+<ul><li>At most 100 event streams per file on one server (<code>429 TOO_MANY_STREAMS</code>).</li><li>At most 200 rows per <code>rows:upsert</code> and per page of <code>queryRows</code>; at most 100 blocks per page of <code>listBlocks</code>.</li><li>Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns (<code>413 IMPORT_TOO_LARGE</code>).</li><li>A batch that deletes more than 5 blocks needs <code>&quot;confirm&quot;: true</code>.</li></ul>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/idempotency.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Idempotency</span></a><a class="pn pn-next" href="../api/changelog.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Changelog</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#the-buckets">The buckets</a></li><li><a href="#the-headers">The headers</a></li><li><a href="#when-a-bucket-is-empty">When a bucket is empty</a></li><li><a href="#other-limits">Other limits</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

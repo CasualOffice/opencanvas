@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://canvas.casualoffice.org/api/authentication.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/changelog.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/errors.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/idempotency.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/index.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/pagination.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/rate-limits.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/brand.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/changelog.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/docs/ai.html</loc></url>

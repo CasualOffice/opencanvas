@@ -127,6 +127,7 @@ def shot(name: str, alt: str, root: str, eager: bool = False) -> str:
 NAV = [
     ("features", "Product", "index.html#product"),
     ("integrate", "Integrate", "docs/integration.html"),
+    ("api", "API", "api/index.html"),
     ("docs", "Docs", "docs/index.html"),
     ("roadmap", "Roadmap", "roadmap.html"),
     ("changelog", "Changelog", "changelog.html"),
@@ -228,7 +229,7 @@ def footer(root: str) -> str:
       <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
     </div>
     {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
-    {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
+    {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("API reference", "api/index.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
     {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>
@@ -654,7 +655,9 @@ class _Text(HTMLParser):
             return
         if tag in self.SKIP:
             self.skip += 1
-        elif tag in ("h1", "h2", "h3") and not self.skip:
+        elif tag in ("h1", "h2", "h3") and not self.skip and a.get("data-index") != "no":
+            # data-index="no": a sub-heading (an API operation's "Parameters") stays part of
+            # its section instead of starting a search entry of its own.
             self.head = ""
             self.head_id = a.get("id", "") or ""
 
