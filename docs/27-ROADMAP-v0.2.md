@@ -369,6 +369,20 @@ Third-party renderers run in an iframe per block instance:
   removes an `extBlock`, closing it with 4426. Tests: `oc-model/tests/ext.rs` (round trip,
   exports, patches), `oc-server/tests/blocks.rs` (API writes, the 4426 guard), `ext/ext.test.ts`.
 
+- **BSDK-05 (2026-11-25, Review; ADR-060 Proposed).** `migrations` may be declarative steps
+  (`set default remove move copy map scale` over `{attrs, data}`), run identically by
+  `oc_model::ext::migrate` and `ext/migrate.ts`; the script form waits for the sandbox (BSDK-03).
+  Older data validates, renders and exports migrated and is written back at the installed version
+  on the next server write; data newer than the installed package is kept read-only (warning,
+  fallback, "Updated by a newer version" in the editor), and server writes or replaces of it are
+  refused. 0.1.x forward compatibility: `web/packages/editor/test-fixtures/v011/schema.json` is
+  the v0.1.1 editor schema (built from the tag's extensions); `ext/compat.test.ts` binds it with
+  y-prosemirror to a document with an `extBlock`, children and data, and shows that the room
+  keeps every block, attribute, child and data field once the server rule refuses the 0.1.1
+  removal (and loses the block without it). Tests: `oc-model/tests/ext.rs`
+  (`older_data_validates_after_migration`, `a_block_from_a_newer_version_is_not_overwritten`,
+  migration cases in `ext_fixtures`), `ext/ext.test.ts`, `ext/compat.test.ts`.
+
 ## 4. Stable headless API
 
 ### 4.1 Problem and user value

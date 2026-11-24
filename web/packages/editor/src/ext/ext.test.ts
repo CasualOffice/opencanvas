@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-// SDK blocks in the editor (BSDK-02): the shared template cases (the Rust engine runs the same
-// file), the `ext` root's per-field merge, version status and
+// SDK blocks in the editor (BSDK-02, BSDK-05): the shared template and migration cases (the
+// Rust engine runs the same file), the `ext` root's per-field merge, version status and
 // fallbacks, and that the current schema loads and saves `extBlock`s untouched.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -13,7 +13,8 @@ import { EditorState } from "@tiptap/pm/state";
 import { EditorView } from "@tiptap/pm/view";
 import { ySyncPlugin, ySyncPluginKey } from "@tiptap/y-tiptap";
 import { parseTemplate, renderTemplate } from "./template";
-import { deriveFallback } from "./derive";
+import { migrate, covers } from "./migrate";
+import { currentOf, deriveFallback } from "./derive";
 import { fallbackText, readExtData, setInstalledBlocks, statusOf, writeExtData, type BlockPackage } from "./model";
 import { ExtBlock } from "./node";
 import { seedDoc, snapshot } from "./testdoc";
@@ -33,10 +34,20 @@ describe("shared fixtures (same results as oc_model::ext)", () => {
   it("refuses code-like templates", () => {
     for (const t of FIX.refused) expect(() => parseTemplate(t), t).toThrow();
   });
+  it("runs every migration case", () => {
+    for (const c of FIX.migrations) {
+      expect(covers(c.migrations, c.from, c.to)).toBe(true);
+      const out = migrate(c.migrations, c.from, c.to, c.attrs, c.data);
+      expect(out.attrs).toEqual(c.attrs_out);
+      expect(out.data).toEqual(c.data_out);
+    }
+    expect(() => migrate("migrations.js", 1, 2, {}, {})).toThrow();
+  });
 });
 
 const OKR: BlockPackage = {
   type: "acme.okr", version: "2.0.0", v: 2, title: "OKR", content: "blocks", attrs: {}, entry: null, integrity: "",
+  migrations: { "1": [{ op: "move", from: "/attrs/name", path: "/attrs/objective" }] },
   export: { markdown: "**{{objective}}** ({{progress|percent}})", text: "{{objective}}" },
 };
 
@@ -47,6 +58,9 @@ describe("versions, data and fallbacks", () => {
     expect(statusOf({ type: "acme.okr", v: 1 })).toBe("older");
     expect(statusOf({ type: "acme.okr", v: 3 })).toBe("newer");
     expect(statusOf({ type: "acme.other", v: 1 })).toBe("missing");
+    // Older data opens migrated; newer data is not touched.
+    expect(currentOf({ type: "acme.okr", v: 1, attrs: { name: "Old" } }, {})).toEqual({ attrs: { objective: "Old" }, data: {} });
+    expect(currentOf({ type: "acme.okr", v: 3, attrs: { future: 1 } }, {})).toBeNull();
     expect(deriveFallback(OKR, { objective: "Ship <it>", progress: 0.5 }, {})).toEqual({ markdown: "**Ship \\<it\\>** (50%)", text: "Ship <it>" });
     expect(fallbackText({ type: "acme.other", fallback: { markdown: "**x**", text: "X text" } })).toBe("X text");
     expect(fallbackText({ type: "acme.okr", fallback: null })).toBe("Block: OKR");

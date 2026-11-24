@@ -6,6 +6,7 @@
 // (`ext[dataId]` is a Y.Map with one key per field, so concurrent edits of different fields
 // both survive and one field is last-writer-wins).
 import * as Y from "yjs";
+import type { Migrations } from "./migrate";
 
 /** One entry of the session's `blocks` (docs/15 §2). */
 export interface BlockPackage {
@@ -22,6 +23,8 @@ export interface BlockPackage {
   /** Bundle URL on the block origin; null without `OC_BLOCKS_ORIGIN`. */
   entry: string | null;
   integrity: string;
+  /** Present when the server lists them (BSDK-03); declarative steps only here. */
+  migrations?: Migrations;
   export?: { markdown?: string; text?: string };
 }
 

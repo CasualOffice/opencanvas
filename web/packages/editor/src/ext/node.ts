@@ -6,7 +6,8 @@
 // schema is the same in every client whether or not it has the package, which y-prosemirror
 // needs. Until the sandboxed runtime (BSDK-03) draws blocks, every block shows its stored
 // fallback as plain text, read-only, in an unstyled container; nothing is rewritten, so all
-// attributes, data and children round-trip. Visible element: the fallback line.
+// attributes, data and children round-trip. Visible elements: the fallback line, and the
+// line "Updated by a newer version" for data newer than the installed package.
 import { Node } from "@tiptap/core";
 import { editable, fallbackText, statusOf, type ExtAttrs } from "./model";
 
@@ -54,6 +55,12 @@ export const ExtBlock = Node.create({
         dom.dataset.extType = a.type;
         dom.dataset.extStatus = s;
         head.replaceChildren();
+        if (s === "newer") {
+          const note = document.createElement("div");
+          note.className = "oc-ext-note";
+          note.textContent = "Updated by a newer version";
+          head.append(note);
+        }
         const text = document.createElement("div");
         text.textContent = fallbackText(a);
         head.append(text);

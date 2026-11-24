@@ -251,7 +251,22 @@ fn prepare_ext(
         };
         let v = view(reg, node, &ext);
         match (&v.status, &v.manifest, v.current) {
-            (Status::Current, Some(m), Some((new_attrs, new_data))) => {
+            (Status::Newer { .. }, ..) => {
+                return Err(format!(
+                    "{}: {} is {}; it is read-only on this server",
+                    at(),
+                    v.manifest.as_ref().map_or("", |m| m.ty.as_str()),
+                    v.problem.unwrap_or_default()
+                ));
+            }
+            (Status::Older { .. }, Some(_), None) => {
+                return Err(format!(
+                    "{}: {} (write it at the installed version)",
+                    at(),
+                    v.problem.unwrap_or_default()
+                ));
+            }
+            (Status::Current | Status::Older { .. }, Some(m), Some((new_attrs, new_data))) => {
                 let findings = crate::ext::schema_findings(m, &new_attrs, &new_data);
                 if let Some((w, p, e)) = findings.first() {
                     let place = if *w == "attrs" { "attrs/attrs" } else { "data" };
@@ -319,6 +334,28 @@ fn write_ext(txn: &mut TransactionMut, writes: &ExtWrites) {
     }
 }
 
+/// The stored data version of an `extBlock` element and whether the installed package is
+/// older (a newer-version block must not be overwritten by a replace).
+fn newer_than_installed<T: ReadTxn>(txn: &T, parent: &Parent, at: u32) -> Option<String> {
+    let el = match parent {
+        Parent::Root(f) => f.get(txn, at),
+        Parent::El(e) => e.get(txn, at),
+    }?;
+    let XmlOut::Element(el) = el else { return None };
+    if el.tag().as_ref() != crate::ext::NODE {
+        return None;
+    }
+    let ty = el.get_attribute(txn, "type")?.to_string(txn);
+    let v: u64 = el.get_attribute(txn, "v")?.to_string(txn).parse().ok()?;
+    let m = crate::ext::installed().get(&ty).cloned()?;
+    (v > m.major()).then(|| {
+        format!(
+            "{ty} was updated by a newer version (data v{v}, installed v{}); it is read-only on this server",
+            m.major()
+        )
+    })
+}
+
 /// Applies `ops` to a copy of `doc` and returns the update that reproduces them.
 pub fn apply_patch(
     doc: &Doc,
@@ -364,6 +401,9 @@ pub fn apply_patch(
                         .ok_or_else(|| PatchError::NotFound(n, block_id.clone()))?;
                     let nodes = op_blocks(n, markdown, blocks, new_id, &mut ids, &mut data)?;
                     if matches!(op, PatchOp::Replace { .. }) {
+                        if let Some(why) = newer_than_installed(&txn, &parent, at) {
+                            return Err(PatchError::Invalid(n, why));
+                        }
                         parent.remove(&mut txn, at);
                         parent.insert(&mut txn, at, &nodes);
                     } else {

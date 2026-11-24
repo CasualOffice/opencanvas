@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-//! SDK blocks in the model (BSDK-01, BSDK-02; docs/15 §4.2): validation against
+//! SDK blocks in the model (BSDK-01, BSDK-02, BSDK-05; docs/15 §4.2): validation against
 //! installed manifests, the `ext` root, `.ocanvas` round trips, exports and server writes.
 //!
 //! The installed registry is process-wide, so every test installs its own type names.
@@ -137,6 +137,29 @@ fn validation_checks_installed_blocks_and_keeps_unknown_ones() {
 }
 
 #[test]
+fn older_data_validates_after_migration() {
+    let reg = install("t.migrated", 2);
+    // v1 stored `name`; v2's schema wants `objective` and allows nothing else.
+    let r = oc_model::validate_json_with(
+        &doc_with(block("t.migrated", 1, json!({"name": "Old"})), json!({})),
+        &reg,
+    );
+    assert!(r.errors.is_empty() && r.warnings.is_empty(), "{r:?}");
+    let bad = oc_model::validate_json_with(
+        &doc_with(block("t.migrated", 1, json!({"name": 7})), json!({})),
+        &reg,
+    );
+    assert!(
+        bad.errors.is_empty(),
+        "older data is never refused: {bad:?}"
+    );
+    assert!(
+        bad.warnings[0].message.contains("does not match"),
+        "{bad:?}"
+    );
+}
+
+#[test]
 fn ocanvas_round_trips_blocks_data_and_unknown_types() {
     install("t.round", 1);
     let doc = oc_model::new_doc();
@@ -266,9 +289,9 @@ fn patch(doc: &yrs::Doc, ops: Value) -> Result<(), oc_model::patch::PatchError> 
 fn patches_write_data_migrate_and_derive_fallbacks() {
     install("t.write", 2);
     let doc = oc_model::new_doc();
-    // The installed version is stamped; data goes to the ext root.
+    // A v1 block written today is migrated to v2 on the way in; data goes to the ext root.
     patch(&doc, json!([{"op": "append", "blocks": [
-        {"type": "extBlock", "attrs": {"type": "t.write", "attrs": {"objective": "Q1", "progress": 0.1}},
+        {"type": "extBlock", "attrs": {"type": "t.write", "v": 1, "attrs": {"name": "Q1", "progress": 0.1}},
          "data": {"score": 4}}
     ]}]))
     .unwrap();
@@ -286,6 +309,7 @@ fn patches_write_data_migrate_and_derive_fallbacks() {
     for bad in [
         json!({"type": "extBlock", "attrs": {"type": "t.write", "v": 2, "attrs": {"objective": 3}}}),
         json!({"type": "extBlock", "attrs": {"type": "t.write", "v": 2, "attrs": {"objective": "x"}}, "data": {"score": "high"}}),
+        json!({"type": "extBlock", "attrs": {"type": "t.write", "v": 3, "attrs": {"objective": "x"}}}),
     ] {
         let err = patch(&doc, json!([{"op": "append", "blocks": [bad.clone()]}])).unwrap_err();
         assert!(err.to_string().contains("t.write"), "{bad}: {err}");
@@ -328,4 +352,22 @@ fn ext_fixtures() {
         assert_eq!(a, c["attrs_out"], "{c}");
         assert_eq!(d, c["data_out"], "{c}");
     }
+}
+
+#[test]
+fn a_block_from_a_newer_version_is_not_overwritten() {
+    install("t.newer", 1);
+    let doc = oc_model::new_doc();
+    oc_model::import::apply_document_json(
+        &doc,
+        &doc_with(block("t.newer", 2, json!({"future": true})), json!({})),
+    );
+    let err = patch(
+        &doc,
+        json!([{"op": "replace", "blockId": "b_ext", "markdown": "gone"}]),
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("newer version"), "{err}");
+    // Deleting it is a person's choice and is allowed.
+    patch(&doc, json!([{"op": "delete", "blockId": "b_ext"}])).unwrap();
 }

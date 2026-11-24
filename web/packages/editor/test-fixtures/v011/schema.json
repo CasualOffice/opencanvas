@@ -1,0 +1,571 @@
+{
+ "source": "git show v0.1.1:web/packages/editor/src/editor/CanvasEditor.tsx (schema-defining extensions)",
+ "topNode": "doc",
+ "nodes": [
+  [
+   "paragraph",
+   {
+    "content": "inline*",
+    "group": "block",
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "mention",
+   {
+    "group": "inline",
+    "inline": true,
+    "atom": true,
+    "selectable": false,
+    "attrs": {
+     "id": {
+      "default": null
+     },
+     "label": {
+      "default": null
+     },
+     "mentionSuggestionChar": {
+      "default": "@"
+     }
+    }
+   }
+  ],
+  [
+   "blockquote",
+   {
+    "content": "block+",
+    "group": "block",
+    "defining": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "bulletList",
+   {
+    "content": "listItem+",
+    "group": "block list",
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "doc",
+   {
+    "content": "block+"
+   }
+  ],
+  [
+   "hardBreak",
+   {
+    "group": "inline",
+    "inline": true,
+    "selectable": false
+   }
+  ],
+  [
+   "heading",
+   {
+    "content": "inline*",
+    "group": "block",
+    "defining": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "level": {
+      "default": 1
+     }
+    }
+   }
+  ],
+  [
+   "horizontalRule",
+   {
+    "group": "block",
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "listItem",
+   {
+    "content": "paragraph block*",
+    "defining": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "orderedList",
+   {
+    "content": "listItem+",
+    "group": "block list",
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "start": {
+      "default": 1
+     },
+     "type": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "text",
+   {
+    "group": "inline"
+   }
+  ],
+  [
+   "codeBlock",
+   {
+    "content": "text*",
+    "group": "block",
+    "marks": "",
+    "defining": true,
+    "code": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "language": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "taskList",
+   {
+    "content": "taskItem+",
+    "group": "block list",
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "taskItem",
+   {
+    "content": "paragraph block*",
+    "defining": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "checked": {
+      "default": false
+     }
+    }
+   }
+  ],
+  [
+   "table",
+   {
+    "content": "tableRow+",
+    "group": "block",
+    "isolating": true,
+    "tableRole": "table",
+    "attrs": {
+     "blockId": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "tableRow",
+   {
+    "content": "(tableCell | tableHeader)*",
+    "tableRole": "row"
+   }
+  ],
+  [
+   "tableHeader",
+   {
+    "content": "block+",
+    "isolating": true,
+    "tableRole": "header_cell",
+    "attrs": {
+     "colspan": {
+      "default": 1
+     },
+     "rowspan": {
+      "default": 1
+     },
+     "colwidth": {
+      "default": null
+     },
+     "align": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "tableCell",
+   {
+    "content": "block+",
+    "isolating": true,
+    "tableRole": "cell",
+    "attrs": {
+     "colspan": {
+      "default": 1
+     },
+     "rowspan": {
+      "default": 1
+     },
+     "colwidth": {
+      "default": null
+     },
+     "align": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "dateMention",
+   {
+    "group": "inline",
+    "inline": true,
+    "atom": true,
+    "selectable": true,
+    "attrs": {
+     "date": {
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "callout",
+   {
+    "content": "paragraph+",
+    "group": "block",
+    "defining": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "tone": {
+      "default": "blue"
+     },
+     "icon": {
+      "default": "lightbulb"
+     }
+    }
+   }
+  ],
+  [
+   "toggle",
+   {
+    "content": "toggleSummary toggleContent",
+    "group": "block",
+    "defining": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "open": {
+      "default": true
+     }
+    }
+   }
+  ],
+  [
+   "toggleSummary",
+   {
+    "content": "inline*",
+    "defining": true
+   }
+  ],
+  [
+   "toggleContent",
+   {
+    "content": "block+",
+    "defining": true
+   }
+  ],
+  [
+   "columns",
+   {
+    "content": "column+",
+    "group": "block",
+    "defining": true,
+    "isolating": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "widths": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "column",
+   {
+    "content": "block+",
+    "isolating": true,
+    "attrs": {
+     "title": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "bookmark",
+   {
+    "group": "block",
+    "atom": true,
+    "selectable": true,
+    "draggable": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "url": {
+      "default": ""
+     },
+     "title": {
+      "default": ""
+     },
+     "description": {
+      "default": ""
+     },
+     "site": {
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "embed",
+   {
+    "group": "block",
+    "atom": true,
+    "selectable": true,
+    "draggable": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "provider": {
+      "default": ""
+     },
+     "url": {
+      "default": ""
+     },
+     "title": {
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "fileAttachment",
+   {
+    "group": "block",
+    "atom": true,
+    "selectable": true,
+    "draggable": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "name": {
+      "default": ""
+     },
+     "size": {
+      "default": 0
+     },
+     "url": {
+      "default": ""
+     },
+     "mime": {
+      "default": ""
+     },
+     "display": {
+      "default": null
+     },
+     "height": {
+      "default": null
+     },
+     "upload": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "image",
+   {
+    "group": "block",
+    "inline": false,
+    "draggable": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "src": {
+      "default": null
+     },
+     "alt": {
+      "default": null
+     },
+     "title": {
+      "default": null
+     },
+     "width": {
+      "default": null
+     },
+     "height": {
+      "default": null
+     },
+     "caption": {
+      "default": ""
+     },
+     "align": {
+      "default": null
+     },
+     "upload": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "database",
+   {
+    "group": "block",
+    "atom": true,
+    "selectable": true,
+    "draggable": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "dbId": {
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "board",
+   {
+    "group": "block",
+    "atom": true,
+    "selectable": true,
+    "draggable": true,
+    "attrs": {
+     "blockId": {
+      "default": null
+     },
+     "boardId": {
+      "default": ""
+     }
+    }
+   }
+  ]
+ ],
+ "marks": [
+  [
+   "link",
+   {
+    "inclusive": true,
+    "attrs": {
+     "href": {
+      "default": null
+     },
+     "target": {
+      "default": "_blank"
+     },
+     "rel": {
+      "default": "noopener noreferrer nofollow"
+     },
+     "class": {
+      "default": null
+     },
+     "title": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "bold",
+   {}
+  ],
+  [
+   "code",
+   {
+    "code": true,
+    "excludes": "_"
+   }
+  ],
+  [
+   "italic",
+   {}
+  ],
+  [
+   "strike",
+   {}
+  ],
+  [
+   "underline",
+   {}
+  ],
+  [
+   "highlight",
+   {}
+  ],
+  [
+   "textColor",
+   {
+    "attrs": {
+     "color": {
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "commentMark",
+   {
+    "inclusive": false,
+    "excludes": "",
+    "attrs": {
+     "threadId": {
+      "default": null
+     }
+    }
+   }
+  ]
+ ]
+}

@@ -161,10 +161,10 @@ pub fn view(reg: &Registry, node: &Value, ext: &Value) -> View {
     };
     let (current, problem) = match &status {
         Status::Current => (Some((inner, obj_or_empty(data))), None),
-        Status::Older { .. } => (
-            None,
-            Some("older data is migrated by the block's package".to_string()),
-        ),
+        Status::Older { from, to } => match m.migrations.run(*from, *to, &inner, &data) {
+            Ok(x) => (Some(x), None),
+            Err(e) => (None, Some(e)),
+        },
         Status::Newer { stored, installed } => (
             None,
             Some(format!(
@@ -632,6 +632,18 @@ pub(crate) mod tests {
             render(&reg(1), &block(2, json!({"objective": "x"})), &ext).source,
             "fallback"
         );
+    }
+
+    #[test]
+    fn older_data_is_migrated_before_rendering() {
+        let ext = json!({});
+        let r = render(
+            &reg(2),
+            &block(1, json!({"name": "Old name", "progress": 0.25})),
+            &ext,
+        );
+        assert_eq!(r.source, "template");
+        assert_eq!(r.markdown, "**Old name** (25%)");
     }
 
     #[test]

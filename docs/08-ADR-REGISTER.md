@@ -61,6 +61,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-057 | Icons people add (DGM-17): a server-written document root `icons` `{id → {name, keywords, format, data (cleaned file, base64), width, height, bytes, by, byName, at}}` (exception to ADR-045 §1: a new root, so a document is self-contained and exports never fetch); client updates that touch it are refused, like `comments` for the comment role; `POST /v1/icons` (editors, 20 a minute) cleans the file (`oc_model::icon_clean`: roxmltree pre-scan without DTDs, usvg normalisation, allow-list, 256 KB in / 64 KB cleaned, 2,000 elements, depth 16; PNG by magic bytes, ≤ 256 KB and 1024 px, re-encoded) and writes it through the room; 200 icons and 1 MB per document; every reader checks a stored icon again; the editor and both exporters draw it as `<image href="data:…">`, never inline markup | Accepted (owner approved the design via the prototype, 2026-11-24) |
 | ADR-058 | Block packages (BSDK-01): `block.json` checked at install with a compiled JSON Schema 2020-12 **subset** (`oc_model::ext::schema`; any other keyword, a remote `$ref` or another `$schema` refuses the package) instead of the `jsonschema` crate (about 15 new crates); new direct dependency `regex` 1 (MIT OR Apache-2.0; its dependencies already in Cargo.lock) for `pattern`, and `semver` 1 (already in Cargo.lock); packages that fail (manifest, integrity sha384) are refused one by one and listed on `/healthz`; `[host.blocks] enabled = ["type@req"]` is the per-host switch (no `block_sdk` flag); `OC_BLOCKS_ORIGIN` must differ from the editor's origin | Proposed (2026-11-25) |
 | ADR-059 | SDK blocks in documents (BSDK-02): every package's block is `extBlock > block*` (inline content in one paragraph child); data in the `ext` root, one Y.Map key per field; writes carry `data` beside the node and get `fallback` re-derived from the templates; exports draw template, else sanitised fallback, else a placeholder; connections declare `caps=ext`, and an update from a connection without it that removes an `extBlock` (what y-prosemirror in a 0.1.x editor does) is refused and closed with 4426 | Proposed (2026-11-25) |
+| ADR-060 | Block versions (BSDK-05): `v` is the package's SemVer major; `migrations` may be declarative steps (`set default remove move copy map scale` over `{attrs, data}`) run by the server and the editor, or a script for the sandbox; older data is validated, exported and written back migrated; data newer than the installed package is kept read-only (fallback, "Updated by a newer version"), and server writes to it are refused | Proposed (2026-11-25) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -872,3 +873,18 @@ refused and the socket closed with 4426 (a 0.1.x editor treats 44xx as final).
 editor's session ends when it meets an SDK block (the person reopens with the current editor);
 − headless CRDT clients must send `caps=ext` to delete SDK blocks; − one scratch-copy check per
 update from such connections in rooms with SDK blocks.
+
+### ADR-060 — Block versions and declarative migrations (Proposed 2026-11-25, BSDK-05)
+**Context.** docs/27 §3.3 runs `migrations.js` in the sandbox. The sandbox (BSDK-03) is not built
+yet, and the server must never run third-party code (ADR-040), so neither could migrate or
+validate older data.
+**Decision.** `v` is the package's SemVer major. `migrations` is either a script (sandbox) or
+declarative steps per version (`set default remove move copy map scale` over `{attrs, data}` with
+JSON pointers), run identically by `oc_model::ext::migrate` and the editor's `migrate.ts` (shared
+cases). Older data is validated, exported and written back at the installed version; script
+migrations leave older data as it is (a warning). Data newer than the installed package is never
+rewritten: validation warns, exports use its fallback, the editor shows "Updated by a newer
+version" read-only, and server writes or replaces of it are refused.
+**Consequences.** + older documents open with newer packages on every path, without code; + the
+server can check migrated data against the new schema; − complex migrations still need the
+script form and a client with the package.

@@ -418,6 +418,15 @@ templates. A type that is not installed is written as given (fallback Markdown s
 whose `v` is newer than the installed package is read-only: writing one, or replacing one, is
 refused. `canvas_read` with `format: "json"` returns an SDK block's `data` next to its node.
 
+**Versions and migrations (BSDK-05).** `migrations` is either a script path (run by the block in
+its sandbox, BSDK-03) or declarative steps per version, `{"1": [steps to go from 1 to 2], …}`, each
+step `set default remove move copy map scale` over `{attrs, data}` with JSON-pointer paths
+(`/attrs/x`, `/data/y`); a step whose source is missing does nothing. Both the server and the
+editor run declarative steps (Rust `oc_model::ext::migrate`, editor `src/ext/migrate.ts`, same
+shared cases). Older data opens migrated (validation, exports) and is written back at the new
+version on its next write. Data newer than the installed package is kept untouched, read-only,
+and shown as its fallback under "Updated by a newer version".
+
 **Editor (until BSDK-03).** The editor shows every SDK block as its fallback text, read-only, in an
 unstyled container (`.oc-ext`), with its children below; nothing it renders rewrites the block.
 
