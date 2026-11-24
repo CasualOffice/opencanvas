@@ -456,6 +456,17 @@ fn md_block(cx: &Cx, n: &Value) -> String {
                 format!("{link} ({meta})")
             }
         }
+        // BSDK-02: the package's Markdown template, else the sanitised fallback, then the
+        // block's own children.
+        "extBlock" => {
+            let r = crate::ext::render(&crate::ext::installed(), n, &cx.doc["ext"]);
+            let body = md_children(cx, n, "\n\n");
+            [r.markdown, body]
+                .into_iter()
+                .filter(|x| !x.trim().is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        }
         "column"
             if n["attrs"]["title"]
                 .as_str()
@@ -595,6 +606,9 @@ pub fn to_html(doc: &Value) -> String {
 }
 
 pub fn to_html_with(doc: &Value, opts: &Options) -> String {
+    // BSDK-02: SDK blocks become their template (or fallback) rendering first.
+    let expanded = crate::ext::expand(doc, &crate::ext::installed());
+    let doc = expanded.as_ref();
     let cx = &Cx { doc, opts };
     let t = title(doc);
     let mut body = String::new();

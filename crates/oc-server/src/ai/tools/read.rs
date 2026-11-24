@@ -142,7 +142,17 @@ pub fn canvas_read(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
         "json" => {
             out["blocks"] = blocks
                 .iter()
-                .map(|b| json!({"blockId": block_id(b.node), "rev": rev(b.node), "node": b.node}))
+                .map(|b| {
+                    let mut e =
+                        json!({"blockId": block_id(b.node), "rev": rev(b.node), "node": b.node});
+                    // BSDK-02: an SDK block's collaborative data (its `ext` root entry).
+                    if b.node["type"] == oc_model::ext::NODE
+                        && let Some(id) = b.node["attrs"]["dataId"].as_str()
+                    {
+                        e["data"] = d["ext"][id].clone();
+                    }
+                    e
+                })
                 .collect();
         }
         "outline" => {

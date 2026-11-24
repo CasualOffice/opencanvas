@@ -128,6 +128,9 @@ where
 pub struct WsParams {
     #[serde(default)]
     ticket: String,
+    /// Comma-separated client capabilities; `ext`: keeps SDK blocks (BSDK-02).
+    #[serde(default)]
+    caps: String,
 }
 
 pub async fn upgrade(
@@ -146,7 +149,8 @@ pub async fn upgrade(
         )
             .into_response());
     }
-    let (host, grant) = session(&state, &p.ticket).await?;
+    let (host, mut grant) = session(&state, &p.ticket).await?;
+    grant.ext_blocks = p.caps.split(',').any(|c| c.trim() == "ext");
     if grant.room != room {
         return Err(ApiError::forbidden("ticket is for another room"));
     }

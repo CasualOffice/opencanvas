@@ -39,8 +39,12 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "isNew": true,
      "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
      "import": {"formats":["md","html","csv"]},
+     "blocks": [],
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
+   *(BSDK-01)* `blocks`: the SDK block packages `[host.blocks]` enables, each
+   `{type, version, v, title, icon, description, content, attrs, data, export, migrations, entry,
+   integrity}` (docs/05 §2a; `v` is the data version the package writes, its SemVer major).
    *(VH-01a)*: `history` `full` | `link` | `none`, `historySource` `host` | `file` (the list shown
    first), `historyHostName`, and in link mode `historyUrl` + `historyPostMessage` (docs/05 §5a).
    `perms.history`, `perms.restore`, `perms.commitMessage` are effective (the role included).
@@ -74,8 +78,17 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
 
 ## 3. Collaboration WebSocket
 
-`GET /v1/collab/<room>?ticket=<ticket>`, upgraded to a WebSocket. This is compatible with
-the stock `y-websocket` `WebsocketProvider(wsUrl, room, doc, { params: { ticket } })`.
+`GET /v1/collab/<room>?ticket=<ticket>[&caps=ext]`, upgraded to a WebSocket. This is compatible
+with the stock `y-websocket` `WebsocketProvider(wsUrl, room, doc, { params: { ticket } })`.
+
+*(BSDK-02)* `caps` lists client capabilities, comma-separated. `ext`: the client keeps `extBlock`
+nodes (§4.2); the 0.2 editor always sends it. Editors before 0.2 bind the document with
+y-prosemirror against a schema without `extBlock`, and y-prosemirror deletes nodes its schema
+lacks. So an update from a connection **without** `caps=ext` that lowers the number of `extBlock`s
+is refused (auth frame `this editor is out of date; reopen the canvas`) and the socket is closed
+with **4426** `"editor out of date: reopen the canvas"` (0.1.x clients treat 4400-4499 as final
+and show their ended screen; reopening loads the current editor). Nothing else changes for such
+connections. Headless CRDT clients that delete SDK blocks must send `caps=ext`.
 
 Binary frames, y-protocols encoding (lib0 varuint message type first):
 
@@ -187,6 +200,7 @@ arguments are sent or logged.
 | `databases` | Map<dbId, Y.Map> | per database: `name`, `icon`, `tone`, `fields` Y.Array<Y.Map{id,name,type,options(JSON array)}>, `order` Y.Array<rowId>, `rows` Y.Map<rowId, Y.Map<fieldId,value>>, `notes` Y.Map<rowId,string>, `view` string, `views` Y.Map (per-view prefs JSON) |
 | `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId>; *(DGM-14, optional)* `name` string, the board's own name shown in diagram mode (additive: older clients ignore it, every reader keeps it, the exporters don't draw it) |
 | `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,name,color,text,at,mentions?,labels?}>; *(docs/21)* `labels` = `{userId: "@label as inserted"}`, so the text shows the member's current name in place of the inserted label |
+| `ext` | Map<dataId, Y.Map> | *(BSDK-02, optional)* SDK block data: per block, one key per field, each value plain JSON, so concurrent edits of different fields both survive (last writer wins per field). Written by the block (BSDK-03 bridge), the API and MCP; validated against the package's `data` schema (§4.2). In `document.json` as `ext` only when non-empty |
 | `people` | Map<userId, object> | *(docs/21, optional)* who opened the file: `{id, name, detail?, avatar?, lastSeen}` (ms), never an e-mail. Written by the server on join (never makes the room dirty; `lastSeen` refreshed at most hourly). The member list when the host gives neither token `members` nor the members callback; otherwise only fills a missing `detail`/`avatar` |
 
 Tiptap node types (names are part of the file format, so don't rename them):
@@ -195,7 +209,8 @@ blockquote, codeBlock(language), horizontalRule, image(src,alt,caption), callout
 toggle(open) > toggleSummary + toggleContent, database(dbId), board(boardId),
 bookmark(url,title,description,site), embed(provider,url,title), fileAttachment(name,size,url,mime),
 columns > column, table/tableRow/tableHeader/tableCell, mention(id,label) inline,
-commentMark(threadId) mark, dateMention(date) inline, textColor(color) mark`.
+commentMark(threadId) mark, dateMention(date) inline, textColor(color) mark`,
+*(BSDK-02)* `extBlock(type, v, attrs, dataId, fallback) > block*` (§4.2).
 
 *(UX-02 / FILE-01 / LAY-01, ADR-027; all optional and additive, older clients keep them)*:
 - `textColor(color)` mark: `color` ∈ `gray red amber green blue purple pink` (the tone tokens'
@@ -309,7 +324,9 @@ Field types for databases: `title text status select tags person date number che
 Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.
 
 `.ocanvas` as written by the server: `manifest.json` (`format`, `version` 1, `schemaVersion` 1,
-`createdWith`, `title` from `meta.title`, `commit {id, authors, at}`), `document.json` and `ydoc.bin`.
+`createdWith`, `title` from `meta.title`, `commit {id, authors, at}`, *(BSDK-02, ADR-042)*
+`requires.blocks: [{type, v}]` when the document has SDK blocks: each type once, its highest data
+version), `document.json` and `ydoc.bin`.
 `ydoc.bin` is a Yjs **v1** update (`Y.encodeStateAsUpdate(doc)`); readers also accept v2.
 `document.json` is `{type:"doc", content:[…], meta, databases, boards, comments, people?}` (`people` only
 when non-empty) where `content`
@@ -339,6 +356,79 @@ content is kept as is and counted in `oc_schema_warnings_total`.
 
 A patch's blocks are checked on their own (each root may be any known node, so a `listItem`
 can replace a `listItem`); they are not checked against where they are inserted.
+
+| `extBlock` (§4.2) | `type` missing or not a valid type name; `v` not a whole number ≥ 1; `attrs` not an object or over 64 KB; `dataId` not a non-empty string; `fallback` not `{markdown?, text?}` strings ≤ 16 KB; for an installed type stored at the package's version: `attrs` against the manifest's `attrs` schema (`/content/…/attrs/attrs/<field>`), its data against the `data` schema (`/ext/<dataId>/<field>`; whole documents only) | type not installed (kept, shown as its fallback); data from a newer version (kept, read-only); older data that the package migrates in its sandbox, or whose declarative migration does not match the new schema (kept) |
+| `ext` root | not an object, an entry not an object | — |
+
+### 4.2 SDK blocks (BSDK-01, BSDK-02, BSDK-05; docs/27 §3, ADR-040, ADR-058)
+
+Third-party blocks never add ProseMirror node types: every one is stored as the one generic node
+
+```text
+extBlock { blockId, type, v, attrs, dataId?, fallback } > block*
+```
+
+| attribute | meaning |
+|---|---|
+| `type` | the package's type, lowercase reverse-DNS (`acme.okr`); `oc.` is reserved |
+| `v` | the data version, the package's SemVer **major** when it wrote the block |
+| `attrs` | small JSON object, last writer wins as a whole; checked against the manifest's `attrs` schema |
+| `dataId` | key of the block's collaborative data in the `ext` root (§4), optional |
+| `fallback` | `{markdown, text}`: what readers without the package show and export. The client keeps it current; the server re-derives it from the package's templates on its own writes and sanitises a stored Markdown fallback before exporting it |
+
+The content is `block*` for every type: a package with `"content": "inline"` keeps its inline
+content in one paragraph child (one node type serves every package, so it has one content
+expression). Children are ordinary blocks and export as such after the block's own rendering.
+
+**Manifest (`block.json`).** `type`, `version` (SemVer, major ≥ 1), `title` (1-80), `icon` (a Lucide
+name), `description?`, `content` (`none` | `inline` | `blocks`), `attrs` (JSON Schema, `"type":
+"object"`, no property named `data`), `data?` (`{kind: "map", schema}`), `export?`
+(`{markdown?, text?}` templates), `permissions?` (`network`: https origins, `members`: `"read"`),
+`migrations?`, `entry` (relative `.js` path), `integrity` (`sha384-…`). Unknown keys are logged and
+ignored. A major above 1 needs a migration for every version step.
+
+**JSON Schema.** 2020-12 subset, compiled at install; any other keyword refuses the package:
+`type enum const minimum maximum exclusiveMinimum exclusiveMaximum multipleOf minLength maxLength
+pattern items prefixItems minItems maxItems uniqueItems contains properties required
+additionalProperties patternProperties propertyNames minProperties maxProperties allOf anyOf oneOf
+not if then else $ref $defs`; annotations (`$schema` = 2020-12, `$id $comment title description
+default examples deprecated readOnly writeOnly format`) are ignored. `$ref` is local only (`#`,
+`#/$defs/<name>`); nothing is fetched; `pattern` runs on a linear-time engine.
+
+**Templates** (Rust `oc_model::ext::template`, editor `src/ext/template.ts`, shared cases in
+`crates/oc-model/tests/fixtures/ext.json`): `{{name}}`, `{{a.b}}`, `{{.}}`, sections
+`{{#name}}…{{/name}}` (shown when truthy, repeated per array item), inverted `{{^name}}…{{/name}}`,
+comments `{{! }}`, filters `percent[:digits] number[:digits] date upper lower trim truncate:n
+default:text join[:sep] count yesno[:yes,no]`. No partials, raw output (`{{{ }}}`, `{{& }}`),
+delimiter changes or other filters: refused at install. The context is the block's `attrs` with its
+data under `data`. Values are escaped for Markdown (no link, image, HTML, emphasis, table or new
+block can start inside one); limits 4 KB source, 64 KB output, 8 nested sections, 1,000 iterations.
+
+**Exports.** Markdown: the package's `markdown` template when the type is installed and its data is
+current (or migrated) and valid; else the stored fallback (sanitised by a Markdown round trip);
+else `*Block: <title or type>*`; then the block's children. HTML, DOCX, PDF and previews draw the
+same Markdown parsed into ordinary blocks. Text: the `text` template, else `fallback.text`.
+
+**Writes (REST patch, `blocks:batch`, MCP `canvas_patch`).** An `extBlock` in `blocks` may carry a
+top-level `data` object (not a node attribute): it is written to `ext[dataId]` (a `dataId` is
+assigned when missing). For an installed type the server stamps `v` when missing, migrates older
+data declaratively to the installed version, checks attrs and data against the schemas (400
+`PATCH_INVALID` / `BAD_INPUT` naming the field otherwise), and re-derives `fallback` from the
+templates. A type that is not installed is written as given (fallback Markdown sanitised). A block
+whose `v` is newer than the installed package is read-only: writing one, or replacing one, is
+refused. `canvas_read` with `format: "json"` returns an SDK block's `data` next to its node.
+
+**Versions and migrations (BSDK-05).** `migrations` is either a script path (run by the block in
+its sandbox, BSDK-03) or declarative steps per version, `{"1": [steps to go from 1 to 2], …}`, each
+step `set default remove move copy map scale` over `{attrs, data}` with JSON-pointer paths
+(`/attrs/x`, `/data/y`); a step whose source is missing does nothing. Both the server and the
+editor run declarative steps (Rust `oc_model::ext::migrate`, editor `src/ext/migrate.ts`, same
+shared cases). Older data opens migrated (validation, exports) and is written back at the new
+version on its next write. Data newer than the installed package is kept untouched, read-only,
+and shown as its fallback under "Updated by a newer version".
+
+**Editor (until BSDK-03).** The editor shows every SDK block as its fallback text, read-only, in an
+unstyled container (`.oc-ext`), with its children below; nothing it renders rewrites the block.
 
 ## 5. Host callbacks (JWT mode). The server calls the host.
 

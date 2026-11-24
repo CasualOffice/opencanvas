@@ -11,6 +11,7 @@ pub mod doc;
 pub mod doc_icons;
 pub mod docx;
 pub mod export;
+pub mod ext;
 pub mod fonts;
 pub mod history;
 pub mod html;
@@ -28,7 +29,10 @@ pub mod validate;
 
 pub use doc::{doc_to_json, ensure_roots, is_empty, new_doc};
 pub use ocanvas::{CommitInfo, Error, read_ocanvas, write_ocanvas};
-pub use validate::{Issue, Report, validate, validate_blocks, validate_json};
+pub use validate::{
+    Issue, Report, validate, validate_blocks, validate_blocks_with, validate_json,
+    validate_json_with,
+};
 
 /// Root names of the shared Y.Doc (docs/15 §4).
 pub mod roots {
@@ -42,5 +46,7 @@ pub mod roots {
     pub const PEOPLE: &str = "people";
     /// DGM-17 (ADR-057): icons people added, written by the server only (`doc_icons`).
     pub const ICONS: &str = "icons";
-    pub const MAPS: [&str; 6] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE];
+    /// BSDK-02 (ADR-040): SDK block data, `{dataId → Y.Map}` with one key per field.
+    pub const EXT: &str = "ext";
+    pub const MAPS: [&str; 7] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE, EXT];
 }

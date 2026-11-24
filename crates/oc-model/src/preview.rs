@@ -47,6 +47,9 @@ fn tone(t: &str) -> &'static str {
 
 /// Renders the preview body of `doc` (the logical JSON, e-mails already stripped).
 pub fn render(doc: &Value) -> Preview {
+    // BSDK-02: SDK blocks as their template (or fallback) rendering.
+    let expanded = crate::ext::expand(doc, &crate::ext::installed());
+    let doc = expanded.as_ref();
     let meta = &doc["meta"];
     let title = s(meta, "title");
     let mut html = format!(

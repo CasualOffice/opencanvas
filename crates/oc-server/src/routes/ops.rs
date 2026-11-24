@@ -11,8 +11,15 @@ use serde_json::json;
 
 use crate::SharedState;
 
-pub async fn healthz() -> impl IntoResponse {
-    Json(json!({"ok": true, "version": env!("CARGO_PKG_VERSION")}))
+pub async fn healthz(State(state): State<SharedState>) -> impl IntoResponse {
+    // BSDK-01: block packages refused at start (bad manifest, integrity mismatch), so an
+    // operator sees them without reading logs.
+    let mut body = json!({"ok": true, "version": env!("CARGO_PKG_VERSION")});
+    if !state.blocks.refused.is_empty() {
+        body["blocks"] =
+            json!({"installed": state.blocks.registry.len(), "refused": state.blocks.refused});
+    }
+    Json(body)
 }
 
 pub async fn readyz(State(state): State<SharedState>) -> impl IntoResponse {

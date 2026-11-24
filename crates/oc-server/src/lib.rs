@@ -7,6 +7,7 @@ pub mod ai;
 pub mod alloc;
 pub mod assets;
 pub mod authz;
+pub mod blocks;
 pub mod clock;
 pub mod cluster;
 pub mod config;
@@ -74,6 +75,8 @@ pub struct AppState {
     pub limiter: ratelimit::Limiter,
     /// Webhook delivery (WH-01): HTTP client and the worker's wake-up.
     pub webhooks: Arc<webhooks::Webhooks>,
+    /// Installed SDK block packages (BSDK-01) and the ones refused at start.
+    pub blocks: Arc<blocks::Installed>,
 }
 
 #[derive(Clone, Copy)]
@@ -115,6 +118,10 @@ impl AppState {
             );
         }
         crate::metrics::mark_start();
+        // BSDK-01: block packages, installed for validation, exports and writes (oc_model::ext).
+        let blocks = Arc::new(blocks::Installed::load(&cfg.blocks)?);
+        oc_model::ext::install(&blocks.registry);
+        blocks::warn_missing(&blocks, &hosts);
         let metrics = Arc::new(Metrics::default());
         if cfg.wopi_proof.is_none() && hosts.iter().any(|h| h.accepts_wopi()) {
             anyhow::bail!(
@@ -205,6 +212,7 @@ impl AppState {
             history: Default::default(),
             limiter,
             webhooks,
+            blocks,
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
@@ -276,6 +284,7 @@ impl AppState {
                 continue;
             };
             let grant = grant::Grant {
+                ext_blocks: false,
                 wopi_history: None,
                 host_id: row.host_id.clone(),
                 room: row.room_id.clone(),

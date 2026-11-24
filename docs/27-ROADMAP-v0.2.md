@@ -334,6 +334,55 @@ Third-party renderers run in an iframe per block instance:
 
 ---
 
+### 3.6 What was built
+
+- **BSDK-01 (2026-11-25, Review; ADR-058 Proposed).** `oc_model::ext`: `Manifest` (`block.json`:
+  type name rules, `oc.` reserved, SemVer major ≥ 1, title, Lucide icon, content kind, JSON Schemas,
+  templates, permissions as https origins and `members: "read"`, migrations, safe `entry`,
+  `sha384-` integrity; unknown keys logged) and `Registry`; a compiled JSON Schema 2020-12 subset
+  (`ext::schema`, docs/15 §4.2) that refuses unsupported keywords and remote `$ref`s instead of a
+  third-party validator. MOD-01 knows `extBlock`: installed types at their data version are checked
+  against the manifest (errors with field paths), unknown types and newer data are warnings, and
+  the process-wide registry (`ext::install`) serves `.ocanvas` load, patch, import, API and MCP
+  writes. Server: `crate::blocks` reads `OC_BLOCKS_DIR` (one package per directory), verifies each
+  bundle's sha384 SRI, refuses bad packages one by one (logged, `/healthz` `blocks.refused`);
+  `OC_BLOCKS_ORIGIN` must differ from `OC_PUBLIC_URL`; `[host.blocks] enabled = ["type@req"]`
+  (checked at start) selects what the session's new `blocks` list carries (schemas, templates,
+  bundle URL on the block origin, integrity). Tests: `oc-model/tests/ext.rs`
+  (`validation_checks_installed_blocks_and_keeps_unknown_ones`, `a_schema_invalid_block_refuses_the_file`),
+  units in `ext::{schema,manifest}` and `blocks`, `oc-server/tests/blocks.rs`
+  (`installed_packages_reach_the_session_and_refused_ones_healthz`).
+
+- **BSDK-02 (2026-11-25, Review; ADR-059 Proposed).** The editor has one generic node,
+  `extBlock {blockId, type, v, attrs, dataId, fallback} > block*` (`web/packages/editor/src/ext/node.ts`),
+  shown until BSDK-03 as an unstyled container with its fallback text, read-only, and its children;
+  the `ext` root (`ext[dataId]` = Y.Map, one key per field) in Rust (`roots::EXT`, `document.json`
+  `ext`, document.json-only rebuild) and TS (`ext/model.ts`). Declarative templates
+  (`ext::template`, `ext/template.ts`, Mustache subset with fixed filters, values escaped for
+  Markdown, shared cases `oc-model/tests/fixtures/ext.json`). Exports: Markdown renders the
+  template, else the sanitised fallback, else `Block: <name>`, then the children; HTML, DOCX, PDF
+  and previews draw it through `ext::expand`; `.ocanvas` manifests gain `requires.blocks`. Writes
+  (REST patch, `blocks:batch`, MCP `canvas_patch`) take `data` beside the node, check attrs and
+  data against the schemas and re-derive `fallback`; `canvas_read` JSON returns the data. Found
+  while writing the 0.1.x test: a 0.1.x **editor** deletes unknown nodes (y-prosemirror), so the
+  editor now sends `caps=ext` and the room refuses an update from a connection without it that
+  removes an `extBlock`, closing it with 4426. Tests: `oc-model/tests/ext.rs` (round trip,
+  exports, patches), `oc-server/tests/blocks.rs` (API writes, the 4426 guard), `ext/ext.test.ts`.
+
+- **BSDK-05 (2026-11-25, Review; ADR-060 Proposed).** `migrations` may be declarative steps
+  (`set default remove move copy map scale` over `{attrs, data}`), run identically by
+  `oc_model::ext::migrate` and `ext/migrate.ts`; the script form waits for the sandbox (BSDK-03).
+  Older data validates, renders and exports migrated and is written back at the installed version
+  on the next server write; data newer than the installed package is kept read-only (warning,
+  fallback, "Updated by a newer version" in the editor), and server writes or replaces of it are
+  refused. 0.1.x forward compatibility: `web/packages/editor/test-fixtures/v011/schema.json` is
+  the v0.1.1 editor schema (built from the tag's extensions); `ext/compat.test.ts` binds it with
+  y-prosemirror to a document with an `extBlock`, children and data, and shows that the room
+  keeps every block, attribute, child and data field once the server rule refuses the 0.1.1
+  removal (and loses the block without it). Tests: `oc-model/tests/ext.rs`
+  (`older_data_validates_after_migration`, `a_block_from_a_newer_version_is_not_overwritten`,
+  migration cases in `ext_fixtures`), `ext/ext.test.ts`, `ext/compat.test.ts`.
+
 ## 4. Stable headless API
 
 ### 4.1 Problem and user value

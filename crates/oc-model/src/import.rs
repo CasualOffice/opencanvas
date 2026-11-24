@@ -60,7 +60,16 @@ pub fn apply_document_json(doc: &Doc, value: &Value) {
         };
         let map = txn.get_or_insert_map(name);
         for (k, v) in obj {
-            if name == roots::META {
+            if name == roots::EXT {
+                // One Y.Map per block, one plain JSON value per field (per-field LWW).
+                if let Some(fields) = v.as_object() {
+                    let prelim: MapPrelim = fields
+                        .iter()
+                        .map(|(f, x)| (f.as_str(), In::Any(json_to_any(x))))
+                        .collect();
+                    map.insert(&mut txn, k.as_str(), prelim);
+                }
+            } else if name == roots::META {
                 map.insert(&mut txn, k.as_str(), json_to_any(v));
             } else {
                 map.insert(&mut txn, k.as_str(), json_to_in(k, v));

@@ -90,6 +90,10 @@ pub struct HostConfig {
     /// through `crate::webhooks::WebhookCfg`.
     #[serde(default)]
     pub webhooks: toml::Table,
+    /// `[host.blocks]` (BSDK-01, docs/05 §2): `enabled = ["acme.okr@^1"]`, the installed SDK
+    /// block packages this host's editors may load; read through `crate::blocks::HostBlocks`.
+    #[serde(default)]
+    pub blocks: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -340,6 +344,8 @@ impl Hosts {
             if h.flags.get("api_v1").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] api_v1 takes true or false", h.id);
             }
+            crate::blocks::HostBlocks::parse(&h.blocks)
+                .with_context(|| format!("host {}", h.id))?;
             if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] unfurl takes true or false", h.id);
             }

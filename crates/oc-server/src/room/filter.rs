@@ -83,6 +83,60 @@ pub fn touches_root(doc: &Doc, update: &[u8], root: &str) -> bool {
     pending && present || hit.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+/// `extBlock` elements in the content tree.
+fn ext_block_count<T: ReadTxn>(txn: &T) -> usize {
+    use yrs::XmlFragment;
+    use yrs::types::xml::XmlOut;
+    fn walk<T: ReadTxn>(
+        txn: &T,
+        children: yrs::types::xml::XmlNodes<'_, T>,
+        n: &mut usize,
+        depth: usize,
+    ) {
+        for c in children {
+            if let XmlOut::Element(el) = c {
+                if el.tag().as_ref() == oc_model::ext::NODE {
+                    *n += 1;
+                }
+                if depth < 64 {
+                    walk(txn, el.children(txn), n, depth + 1);
+                }
+            }
+        }
+    }
+    let mut n = 0;
+    if let Some(f) = txn.get_xml_fragment(roots::CONTENT) {
+        walk(txn, f.children(txn), &mut n, 0);
+    }
+    n
+}
+
+/// True when `update` removes an `extBlock` from the document (BSDK-02): what an editor older
+/// than 0.2 does to a node its schema lacks. Cheap when the document has none. Updates that
+/// cannot be decoded or fully integrated count as removing one.
+pub fn removes_ext_block(doc: &Doc, update: &[u8]) -> bool {
+    let before = ext_block_count(&doc.transact());
+    if before == 0 {
+        return false;
+    }
+    let Ok(update) = Update::decode_v1(update) else {
+        return true;
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return true;
+    }
+    let mut txn = scratch.transact_mut();
+    if txn.apply_update(update).is_err() {
+        return true;
+    }
+    txn.commit();
+    ext_block_count(&txn) < before
+}
+
 /// True when `update` carries nothing the room does not already have. Read-only clients
 /// send their (empty or stale) state as sync step 2 on every connect; that is not a write.
 pub fn adds_nothing(doc: &Doc, update: &[u8]) -> bool {

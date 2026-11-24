@@ -8,6 +8,7 @@ import { Awareness } from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import type { Role } from "@opencanvas/ui";
+import { setInstalledBlocks, type BlockPackage } from "../ext/model";
 
 export interface Session {
   ticket: string;
@@ -46,6 +47,8 @@ export interface Session {
   unfurl?: boolean;
   /** TPL-01: the host's `team_templates` flag (the gallery's "From your team" section). */
   templates?: { team?: boolean } | null;
+  /** BSDK-01: the SDK block packages this host enables (docs/15 §2). */
+  blocks?: BlockPackage[];
 }
 
 export class SessionError extends Error {
@@ -73,7 +76,9 @@ export async function fetchSession(ticket: string): Promise<Session> {
     }
     throw new SessionError(code, code === "TICKET_INVALID" ? "This link has expired. Open the canvas again from your app." : "We couldn't open this canvas.");
   }
-  return (await r.json()) as Session;
+  const s = (await r.json()) as Session;
+  setInstalledBlocks(s.blocks);
+  return s;
 }
 
 // ---------- control channel (message type 100) ----------
@@ -230,7 +235,9 @@ export function connectCollab(s: Session): Collab {
   // merge stale local state back in, so the 1012 that follows is terminal too.
   let reloading = false;
   const provider = new WebsocketProvider(s.wsUrl, s.room, doc, {
-    params: { ticket: s.ticket },
+    // `caps=ext`: this editor keeps SDK blocks (BSDK-02); the server refuses an update that
+    // removes one from a connection without it (an editor older than 0.2).
+    params: { ticket: s.ticket, caps: "ext" },
     maxBackoffTime: 10000,
     shouldReconnect: (e: CloseEvent) => !isTerminalClose(e.code, e.reason, reloading),
   });

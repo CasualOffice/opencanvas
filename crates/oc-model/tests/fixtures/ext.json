@@ -1,0 +1,42 @@
+{
+  "about": "Shared cases for SDK block templates and migrations: the Rust engine (crates/oc-model/tests/ext.rs ext_fixtures) and the editor's (web/packages/editor/src/ext/ext.test.ts) must give these exact results.",
+  "templates": [
+    {"template": "**{{objective}}** ({{progress|percent}})", "ctx": {"objective": "Ship v0.2", "progress": 0.42},
+     "markdown": "**Ship v0.2** (42%)", "text": "**Ship v0.2** (42%)"},
+    {"template": "{{x}}", "ctx": {"x": "[a](javascript:alert(1)) <b>\n# h ![i](x) a|b ~s~ `c` _e_ \\"},
+     "markdown": "\\[a\\](javascript:alert(1)) \\<b\\> \\# h \\!\\[i\\](x) a\\|b \\~s\\~ \\`c\\` \\_e\\_ \\\\",
+     "text": "[a](javascript:alert(1)) <b>\n# h ![i](x) a|b ~s~ `c` _e_ \\"},
+    {"template": "{{n}} {{n|number:2}} {{f}} {{f|percent:1}} {{big}} {{neg|number:1}}", "ctx": {"n": 3, "f": 0.12345, "big": 12000000, "neg": -0.04},
+     "markdown": "3 3.00 0.12345 12.3% 12000000 0.0", "text": "3 3.00 0.12345 12.3% 12000000 0.0"},
+    {"template": "{{d|date}}|{{bad|date}}|{{s|upper}}|{{s|lower}}|{{p|trim}}|{{long|truncate:5}}|{{missing|default:\"none\"}}|{{e|default:n/a}}",
+     "ctx": {"d": "2026-11-25", "bad": "25/11/2026", "s": "MiXed", "p": "  pad  ", "long": "abcdefgh", "e": ""},
+     "markdown": "Nov 25, 2026||MIXED|mixed|pad|abcde…|none|n/a", "text": "Nov 25, 2026||MIXED|mixed|pad|abcde…|none|n/a"},
+    {"template": "{{tags|join}}; {{tags|join:\" / \"}}; {{tags|count}}; {{obj|count}}; {{tags}}; {{done|yesno}} {{open|yesno:\"Done,Open\"}}",
+     "ctx": {"tags": ["a", 2, true, null, {"x": 1}], "obj": {"a": 1, "b": 2}, "done": true, "open": 0},
+     "markdown": "a, 2, true; a / 2 / true; 5; 2; a, 2, true; yes Open", "text": "a, 2, true; a / 2 / true; 5; 2; a, 2, true; yes Open"},
+    {"template": "{{#krs}}- {{title}} ({{data.unit}}){{#done}} done{{/done}}\n{{/krs}}{{^krs}}No key results{{/krs}}{{#owner}}Owner: {{name}}{{/owner}}",
+     "ctx": {"krs": [{"title": "A", "done": true}, {"title": "B*", "done": false}], "owner": {"name": "Asha"}, "data": {"unit": "%"}},
+     "markdown": "- A (%) done\n- B\\* (%)\nOwner: Asha", "text": "- A (%) done\n- B* (%)\nOwner: Asha"},
+    {"template": "{{^krs}}No key results{{/krs}} {{! a comment }}{{a.b.0}}{{a.c}}", "ctx": {"krs": [], "a": {"b": ["first"]}},
+     "markdown": "No key results first", "text": "No key results first"}
+  ],
+  "refused": ["{{{x}}}", "{{&x}}", "{{>p}}", "{{=<% %>=}}", "{{x|eval}}", "{{#a}}", "{{/a}}", "{{#a}}{{/b}}", "{{x", "{{a b}}", "{{x|truncate}}", "{{x|percent:9}}", "{{x|default:\"a|b\"}}"],
+  "migrations": [
+    {"migrations": {"1": [{"op": "move", "from": "/attrs/name", "path": "/attrs/objective"},
+                          {"op": "default", "path": "/attrs/progress", "value": 0}],
+                    "2": [{"op": "scale", "path": "/attrs/progress", "by": 100},
+                          {"op": "map", "path": "/attrs/state", "values": {"wip": "active"}},
+                          {"op": "move", "from": "/attrs/notes", "path": "/data/notes"},
+                          {"op": "copy", "from": "/attrs/objective", "path": "/data/title"},
+                          {"op": "set", "path": "/data/meta/source", "value": "v2"},
+                          {"op": "remove", "path": "/attrs/legacy"}]},
+     "from": 1, "to": 3,
+     "attrs": {"name": "Ship", "state": "wip", "notes": "n", "legacy": true, "keep": [1]},
+     "data": {"score": 2},
+     "attrs_out": {"objective": "Ship", "progress": 0, "state": "active", "keep": [1]},
+     "data_out": {"score": 2, "notes": "n", "title": "Ship", "meta": {"source": "v2"}}},
+    {"migrations": {"1": [{"op": "scale", "path": "/attrs/progress", "by": 100}, {"op": "map", "path": "/attrs/missing", "values": {"a": "b"}}]},
+     "from": 1, "to": 2, "attrs": {"progress": 0.25}, "data": null,
+     "attrs_out": {"progress": 25}, "data_out": {}}
+  ]
+}

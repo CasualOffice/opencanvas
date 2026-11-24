@@ -430,6 +430,9 @@ pub async fn session_info(
         "wording": host.temporary_wording(),
         // DGM-14 S9: the document limit; a diagram warns at 80 % of a quarter of it.
         "maxDocBytes": state.cfg.rooms.max_doc_bytes,
+        // BSDK-01: the SDK block packages this host enables (type, version, schemas, bundle URL
+        // on the block origin and its integrity); empty when none.
+        "blocks": state.blocks.for_host(&host),
         "isNew": info.is_new,
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,

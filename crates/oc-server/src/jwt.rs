@@ -119,6 +119,7 @@ impl LaunchClaims {
         }));
         let members = crate::people::members_from_json(self.members.as_ref());
         Grant {
+            ext_blocks: false,
             wopi_history: None,
             members,
             room: room_id(&self.iss, &self.file.id),
