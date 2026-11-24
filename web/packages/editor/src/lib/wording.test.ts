@@ -37,6 +37,15 @@ describe("temporary wording", () => {
     expect(r.viewOnly).toBe("You can view this canvas. Room moderators can edit.");
   });
 
+  it("words the version history panel of a temporary canvas per host (VH-01d frame 8c)", () => {
+    const m = temporaryWording("meeting");
+    expect(m.historyTitle).toBe("This canvas is temporary");
+    expect(m.historySub).toBe("It isn't saved anywhere and is deleted when the meeting ends, so it has no versions. Download a copy to keep one.");
+    const r = temporaryWording("room");
+    expect(r.historyTitle).toBe("This canvas is temporary");
+    expect(r.historySub).toBe("It isn't saved anywhere and is deleted after everyone has closed it, so it has no versions. Download a copy to keep one.");
+  });
+
   it("is what the editor renders: no meeting sentence is hard-coded in the components", () => {
     for (const f of ["App.tsx", "components/TopBar.tsx"]) {
       expect(src(f), f).not.toContain("when the meeting ends");

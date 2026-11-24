@@ -30,6 +30,7 @@ import { DIAGRAM_FORMATS, importFormats, importOpenStore, importStore, openImpor
 import { exportBoardText } from "./lib/boardexport";
 import { renewSession, savedAtLabel, schedule, WARN_S, type AccessState } from "./lib/access";
 import { toast, useStore } from "./lib/store";
+import { restoredText } from "./lib/restored";
 import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
@@ -48,6 +49,8 @@ const ImportInto = lazy(() => import("./components/ImportInto").then((m) => ({ d
 const CsvImportDialog = lazy(() => loadDatabase().then((m) => ({ default: m.CsvImportDialog })));
 const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
+// VH-01d: the version history panel, preview and changes (its own chunk, with its CSS).
+const HistoryRoot = lazy(() => import("./history/root"));
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
  *  Workspace shows the banner once (docs/23 PERM-03). Per room, in sessionStorage, so it
@@ -219,7 +222,16 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [screen, setScreen] = useState<"editor" | "gallery">("editor");
-  const [side, setSide] = useState<"comments" | null>(null);
+  const [side, setSide] = useState<"comments" | "history" | null>(null);
+  // VH-01d: bumped on every save and restore so an open history panel refreshes its list;
+  // `nameReq` opens the naming popover from the menu; `previewing` hides the live canvas.
+  const [historyTick, setHistoryTick] = useState(0);
+  const [nameReq, setNameReq] = useState(0);
+  const [previewing, setPreviewing] = useState(false);
+  // A naming request is for the panel it opened; reopening the panel later must not re-ask.
+  useEffect(() => {
+    if (side !== "history") setNameReq(0);
+  }, [side]);
   const [active, setActive] = useState<string | null>(null);
   const [wide, setWide] = useState(() => {
     try {
@@ -284,6 +296,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   useEffect(() => aiStore.set(ai), [ai]);
   // FC-10: "Import…" in the slash and "…" menus, behind the host's import flag.
   const impFormats = useMemo(() => importFormats(session, effectiveRole), [session, effectiveRole]);
+  // docs/30 §7, frame 7b: editors see history by default; others only with the host's `history`
+  // perm. Without it there is no menu item at all. The server checks every call again.
+  const canHistory = !session.demo && (session.perms.history ?? effectiveRole === "edit");
+  const canHistoryRef = useRef(canHistory);
+  canHistoryRef.current = canHistory;
+  const canNameVersion =
+    canHistory && effectiveRole === "edit" && session.storage !== "ephemeral" && session.history === "full" && session.perms.commitMessage !== false;
   useEffect(() => importStore.set({ formats: impFormats }), [impFormats]);
   const impOpen = useStore(importOpenStore);
   const [importInto, setImportInto] = useState(false);
@@ -370,6 +389,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             break;
           case "saved":
             setSave({ kind: "saved", at: c.at, version: c.version });
+            setHistoryTick((n) => n + 1);
             postToHost("Doc_Saved", { commitId: c.version ?? null, hostVersion: c.version ?? null });
             if (modified.current) postToHost("Doc_ModifiedStatus", { Modified: false });
             modified.current = false;
@@ -402,6 +422,16 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               return c.role;
             });
             awareness.setLocalStateField("role", c.role);
+            break;
+          case "restored":
+            setHistoryTick((n) => n + 1);
+            // 6b: a toast, not a modal; the person who restored gets theirs (with Undo) from the panel.
+            if (c.by !== session.user.id)
+              toast(restoredText(c), {
+                avatar: { name: c.byName ?? "Someone", color: people.get(c.by).color },
+                ms: 8000,
+                action: canHistoryRef.current ? { label: "View", run: () => setSide("history") } : undefined,
+              });
             break;
           case "closed": {
             const reason = c.reason ?? "";
@@ -576,6 +606,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       if (mod && !e.shiftKey && !e.altKey && (e.key === "j" || e.key === "J" || e.code === "KeyJ") && aiStore.get().on) {
         e.preventDefault();
         openAssistant();
+        return;
+      }
+      // VH-01d frame 1a: ⌥⌘H (Ctrl+Alt+H elsewhere) opens or closes Version history.
+      if (mod && e.altKey && !e.shiftKey && e.code === "KeyH") {
+        if (!canHistoryRef.current) return;
+        e.preventDefault();
+        setSide((s) => (s === "history" ? null : "history"));
         return;
       }
       if ((mod && e.shiftKey && (e.code === "Slash" || e.key === "?")) || (!inText && !mod && !e.altKey && e.key === "?")) {
@@ -1031,7 +1068,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             />
             </Suspense>
           ) : null}
-          <div className={screen === "gallery" ? "hidden" : "wsp"}>
+          <div className={screen === "gallery" ? "hidden" : "wsp" + (side === "history" && canHistory ? " vh-open" : "") + (previewing && side === "history" ? " vh-previewing" : "")}>
             <TopBar
               temporaryTitle={words.pill}
               meta={meta}
@@ -1048,7 +1085,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               canDownload={session.perms.download !== false}
               temporary={temporary}
               onFollow={follow}
-              onComments={() => (side ? closeSide() : setSide("comments"))}
+              onComments={() => (side === "comments" ? closeSide() : setSide("comments"))}
               onImportInto={impFormats.length ? openImport : undefined}
               onWide={() =>
                 setWide((w) => {
@@ -1061,10 +1098,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                 })
               }
               onExport={doExport}
-              onHistory={() => {
-                postToHost("UI_FileVersions", {});
-                toast(`Version history lives in ${hostName}`, { icon: "history" });
-              }}
+              onHistory={canHistory ? () => setSide("history") : undefined}
+              onNameVersion={canNameVersion ? () => (setSide("history"), setNameReq((n) => n + 1)) : undefined}
               onRetry={() => collab.sendControl({ t: "save" })}
               onShortcuts={() => setHelp(true)}
               onAssistant={ai.on ? openAssistant : undefined}
@@ -1100,6 +1135,28 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               {side === "comments" ? (
                 <Suspense fallback={<aside className="side" aria-label="Comments" aria-busy="true" />}>
                   <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} users={allUsers} onActivate={setActive} onJump={jump} onClose={closeSide} />
+                </Suspense>
+              ) : null}
+              {side === "history" && canHistory ? (
+                <Suspense fallback={<aside className="side" aria-label="Version history" aria-busy="true" />}>
+                  <HistoryRoot
+                    session={session}
+                    bridge={bridgeValue}
+                    liveDoc={doc}
+                    me={me}
+                    peers={peers}
+                    person={(id) => people.get(id)}
+                    compact={compact}
+                    role={effectiveRole}
+                    temporary={temporary}
+                    words={words}
+                    tick={historyTick}
+                    known={save.kind === "saved" ? save.version ?? null : null}
+                    nameReq={nameReq}
+                    onClose={() => setSide(null)}
+                    onPreview={setPreviewing}
+                    onDownload={() => doExport(session.perms.download !== false ? "ocanvas" : "pdf")}
+                  />
                 </Suspense>
               ) : null}
             </div>

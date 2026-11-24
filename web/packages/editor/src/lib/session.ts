@@ -16,7 +16,16 @@ export interface Session {
   user: { id: string; name: string; color: string; avatar: string | null; detail?: string };
   file: { id: string; name: string };
   host: { id: string; name: string };
-  perms: { export?: boolean; download?: boolean; comment?: boolean; commitMessage?: boolean; mention?: boolean };
+  perms: { export?: boolean; download?: boolean; comment?: boolean; commitMessage?: boolean; mention?: boolean; history?: boolean; restore?: boolean };
+  /** docs/30 §3, ADR-055: version history here: `full` (listed in the editor), `link` (the host's own page), `none`. */
+  history?: "full" | "link" | "none";
+  /** The list shown first: the host's versions or the in-file history. */
+  historySource?: "host" | "file";
+  /** The panel footer's "Kept by <name>". */
+  historyHostName?: string;
+  /** `link` mode: the host's version page, or post `UI_FileVersions` to the host when `historyPostMessage`. */
+  historyUrl?: string | null;
+  historyPostMessage?: boolean;
   isNew: boolean;
   /** docs/05 §8a: "ephemeral" = a temporary canvas (no host storage, deleted when the room closes). */
   storage?: "host" | "ephemeral";
@@ -79,6 +88,8 @@ export type Control =
    *  `reload` → `closed` and close 1012 follow, and the client must start over from the server. */
   | { t: "conflict"; policy?: "copy" | "reload"; fileId?: string; url?: string }
   | { t: "role"; role: Role }
+  /** VH-01b: someone restored a version (docs/15 §3). */
+  | { t: "restored"; by: string; byName?: string; from: string; name?: string; at: number; restoreId: string }
   | { t: "closed"; reason?: string }
   /** Heartbeat, every 10 s (docs/15 §3). Nothing to do: any frame resets the silence timer. */
   | { t: "ping" };

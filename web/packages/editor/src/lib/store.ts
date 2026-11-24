@@ -46,11 +46,13 @@ export const toastStore = createStore<ToastMsg | null>(null);
 let toastSeq = 0;
 let toastTimer: number | undefined;
 
-export function toast(text: string, opts: { icon?: string; avatar?: ToastMsg["avatar"]; action?: ToastMsg["action"] } = {}) {
+/** `ms`: how long it shows (default 3 s, 5 s with an action; a restore's Undo stays 30 s). */
+export function toast(text: string, opts: { icon?: string; avatar?: ToastMsg["avatar"]; action?: ToastMsg["action"]; ms?: number } = {}) {
   const id = ++toastSeq;
-  toastStore.set({ id, text, ...opts });
+  const { ms, ...rest } = opts;
+  toastStore.set({ id, text, ...rest });
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
     if (toastStore.get()?.id === id) toastStore.set(null);
-  }, opts.action ? 5000 : 3000);
+  }, ms ?? (opts.action ? 5000 : 3000));
 }

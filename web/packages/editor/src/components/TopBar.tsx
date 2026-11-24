@@ -14,6 +14,9 @@ import { readableOn } from "../lib/color";
 import { isMac } from "../lib/keys";
 import type { ExportFormat } from "../lib/exports";
 
+/** VH-01d frame 1a: the shortcut shown next to "Version history". */
+export const HISTORY_KEY = isMac ? "⌥⌘H" : "Ctrl+Alt+H";
+
 export type SaveState =
   | { kind: "connecting" }
   | { kind: "saved"; at: number | null; version?: string }
@@ -54,7 +57,10 @@ export function TopBar(props: {
   /** FC-10: "Import…" (only when the host's import flag is on for this person). */
   onImportInto?: () => void;
   onExport(fmt: ExportFormat): void;
-  onHistory(): void;
+  /** VH-01d frame 1a: "Version history ⌥⌘H"; absent when this person may not see history (7b). */
+  onHistory?: () => void;
+  /** "Name this version": edit access, a host that lists versions, the commitMessage perm. */
+  onNameVersion?: () => void;
   onRetry(): void;
   onShortcuts(): void;
   /** Shown only when the assistant is on for this person (docs/24 §10.2). */
@@ -237,6 +243,22 @@ export function TopBar(props: {
       ) : null}
       {pop?.kind === "more" ? (
         <Popover anchor={pop.anchor} onClose={close} title="Canvas" alignRight minWidth={240}>
+          {props.onHistory ? (
+            <>
+              <button className="mi" onClick={() => (close(), props.onHistory!())}>
+                <Ic name="history" />
+                Version history
+                {!compact ? <span className="mk">{HISTORY_KEY}</span> : null}
+              </button>
+              {props.onNameVersion ? (
+                <button className="mi" onClick={() => (close(), props.onNameVersion!())}>
+                  <Ic name="tag" />
+                  Name this version
+                </button>
+              ) : null}
+              <div className="msep" />
+            </>
+          ) : null}
           {props.canExport || props.canDownload ? (
             <>
               <div className="mh">Export</div>
@@ -299,13 +321,6 @@ export function TopBar(props: {
               <span className="mk">?</span>
             </button>
           ) : null}
-          <button className="mi" onClick={() => (close(), props.onHistory())}>
-            <Ic name="history" />
-            Version history in {props.hostName}
-            <span className="chk" style={{ color: "var(--fg-3)" }}>
-              <Ic name="external-link" size={12} />
-            </span>
-          </button>
         </Popover>
       ) : null}
     </div>
@@ -369,7 +384,7 @@ function StatusButton({ save, hostName, onClick }: { save: SaveState; hostName: 
   );
 }
 
-function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: { anchor: Anchor; save: SaveState; hostName: string; onClose(): void; onHistory(): void; onRetry(): void }) {
+function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: { anchor: Anchor; save: SaveState; hostName: string; onClose(): void; onHistory?: () => void; onRetry(): void }) {
   useTick(10000);
   const ok = save.kind === "saved" || save.kind === "saving" || save.kind === "unsaved" || save.kind === "connecting";
   const paused = save.kind === "paused";
@@ -413,13 +428,12 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
           Retry now
         </button>
       ) : null}
-      <button className="mi" onClick={() => (onClose(), onHistory())}>
-        <Ic name="history" />
-        Version history in {hostName}
-        <span className="chk" style={{ color: "var(--fg-3)" }}>
-          <Ic name="external-link" size={12} />
-        </span>
-      </button>
+      {onHistory ? (
+        <button className="mi" onClick={() => (onClose(), onHistory())}>
+          <Ic name="history" />
+          Version history
+        </button>
+      ) : null}
     </Popover>
   );
 }

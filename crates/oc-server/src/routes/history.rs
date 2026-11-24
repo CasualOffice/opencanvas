@@ -47,6 +47,9 @@ pub struct Params {
     to: Option<String>,
     #[serde(default, rename = "restoreId")]
     restore_id: String,
+    /// The newest save the editor was told about: a list cached before it is fetched again.
+    #[serde(default)]
+    known: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -190,6 +193,7 @@ pub async fn list(
     Query(p): Query<Params>,
 ) -> Result<Response, ApiError> {
     let (host, grant, mut s) = open(&state, &p.ticket).await?;
+    state.history.seen(&grant.room, &p.known);
     let mut host_list: Option<Value> = None;
     if s.host {
         let key = format!("{}:list:{}", grant.room, p.cursor.as_deref().unwrap_or(""));
