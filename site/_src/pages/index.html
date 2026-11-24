@@ -298,6 +298,51 @@ allowed_origins = ["https://app.acme.example"]</code></pre>
   </div>
 </section>
 
+<section class="section" id="blocks-sdk" aria-labelledby="blocks-sdk-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Block SDK · v0.2</span>
+      <h2 id="blocks-sdk-h">Build your own blocks.</h2>
+      <p>An OKR tracker, a ticket card, a chart from your own service: write it once with <code>@opencanvas/block-sdk</code>. OpenCanvas runs it in a sandbox, keeps its data in the document, lets people edit it together and exports it. The code below is from the <a href="docs/block-sdk.html">Block SDK guide</a>.</p>
+    </div>
+    <div class="duo">
+      <div class="duo-cell reveal">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>1. Write the block</div>
+<pre><code>import { defineBlock, h } from "@opencanvas/block-sdk";
+
+defineBlock&lt;{ value: number }&gt;({
+  render(el, ctx) {
+    const slider = h("input", { type: "range" });
+    slider.addEventListener("change", () =&gt;
+      ctx.setAttrs({ value: Number(slider.value) / 100 }));
+    el.append(slider);
+  },
+});</code></pre>
+        </div>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>2. The host turns it on</div>
+<pre><code><span class="c-cmt"># opencanvas.hosts.toml</span>
+[host.blocks]
+enabled = ["oc.progress", "acme.okr@^1"]
+
+[host.blocks.permissions."acme.okr"]
+members = "none"   <span class="c-cmt"># narrow what it may read</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <ul class="services reveal">
+      <li>{{icon:shield-check:18}}<span><b>Sandboxed</b>Each block runs in its own frame on a separate origin, with a strict content policy</span></li>
+      <li>{{icon:fingerprint:18}}<span><b>Checked</b>Manifests, hashes and schemas are verified; the server re-checks every change</span></li>
+      <li>{{icon:users:18}}<span><b>Live</b>Co-editing, comments and roles work in custom blocks as in built-in ones</span></li>
+      <li>{{icon:file-text:18}}<span><b>Never lost</b>A missing or refused package shows its saved copy; the data stays in the file</span></li>
+    </ul>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="docs/block-sdk.html">Block SDK guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="api/sdks.html">API clients<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
+  </div>
+</section>
+
 <section class="section section-alt" id="self-host" aria-labelledby="selfhost-h">
   <div class="wrap">
     <div class="sec-head reveal">

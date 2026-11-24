@@ -1,4 +1,4 @@
-# 32 — Block SDK guide: write, package and install a block
+# 33 — Block SDK guide: write, package and install a block
 
 **Status:** v0.2 (BSDK-01 to BSDK-05). Contract: docs/15 §4.2-4.3; design: docs/27 §3; decisions:
 ADR-040, ADR-058, ADR-059, ADR-060.

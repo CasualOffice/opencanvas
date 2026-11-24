@@ -83,9 +83,8 @@ Source file: README.md
 > Support is best-effort, with no production SLA. AI and MCP are experimental and off by default.
 >
 > **v0.2.0 is prepared on `main`, not yet tagged.** It brings the stable headless API with
-> TypeScript and Rust clients, webhooks, the block SDK and host editor profiles. The tag waits for
-> the block SDK runtime and the editor profiles. Read the
-> [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) first.
+> TypeScript and Rust clients, webhooks, the [block SDK](docs/33-BLOCK-SDK.md) for your own blocks,
+> and host editor profiles. Read the [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) first.
 
 ## Goal
 
@@ -116,6 +115,35 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 - **OpenCanvas keeps nothing** once a session is saved and idle. Its database only
   holds the transient room log and the save outbox.
 
+## Build your own blocks
+
+A block is a small web component that lives inside a canvas: an OKR tracker, a ticket card, a
+chart from your own service. You write it once with `@opencanvas/block-sdk`; OpenCanvas runs it in
+a sandbox, keeps its data in the document, lets people edit it together and exports it.
+
+```ts
+import { defineBlock, h } from "@opencanvas/block-sdk";
+
+defineBlock<{ value: number }>({
+  render(el, ctx) {
+    const slider = h("input", { type: "range", min: "0", max: "100" });
+    slider.addEventListener("change", () => ctx.setAttrs({ value: Number(slider.value) / 100 }));
+    el.append(slider);
+  },
+});
+```
+
+Describe it in a `block.json`, bundle it, and the host turns it on:
+
+```toml
+[host.blocks]
+enabled = ["oc.progress", "acme.okr@^1"]
+```
+
+Block code never runs on the server and only reaches what the host allows. Read the
+[Block SDK guide](docs/33-BLOCK-SDK.md); the samples are in
+[`web/packages/block-sdk/samples`](web/packages/block-sdk/samples).
+
 ## What works today
 
 | Area | Status |
@@ -130,6 +158,8 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
 | Nextcloud, Mattermost and Element / Matrix | Host integrations for WOPI files, channel canvases and room widgets. See the [release notes](docs/31-RELEASE-v0.1.2.md). |
 | Diagramming | Shape libraries, ports, connector routing, layout and interchange. [Diagram guide](docs/29-DIAGRAMMING.md) |
+| Your own blocks (v0.2) | The [block SDK](docs/33-BLOCK-SDK.md) (`@opencanvas/block-sdk`): write a block once and it runs sandboxed in every canvas, with live co-editing, comments, export and a saved copy when it is missing. Samples: Progress and an OKR tracker |
+| Editor profiles (v0.2) | Each host picks what its users see: notebook, meeting, project, diagramming, document or the full workspace. Hidden blocks are never deleted. [Guide](docs/05-INTEGRATION-GUIDE.md) |
 | Version history | Named versions, comparison, restore and a short undo window. Availability depends on the host and permissions. [History guide](docs/30-VERSION-HISTORY.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
@@ -6980,6 +7010,10 @@ See pagination , events and webhooks : each page has the client samples beside c
 ## The conformance suite
 
 crates/oc-server/api/conformance.json is one list of scenarios that both clients run against a real server: a read, a block batch with If-Match , idempotent replay, paging, a rate limit, an events resume and a webhook signature, plus offline webhook signature vectors. The server pins its clock, so no scenario sleeps. A third-party client can run the same scenarios; the format is in the integration guide .
+
+## Block SDK
+
+To add your own block types to the editor rather than call the API, use @opencanvas/block-sdk . It is a different package: blocks run sandboxed inside the canvas, not on your server. See the Block SDK guide .
 
 
 # API changelog
