@@ -59,6 +59,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-055 | In-file bounded history: besides host versions (ADR-051), a host may keep a bounded history inside the `.ocanvas` (`history/index.json` + `history/<id>.deflate`, additive to format 1): each kept version is the compressed reverse structural diff (newer → older, over `document.json`) plus kind, name, authors and time, never a full copy; Yjs GC stays on. Bounds `[host.versions] file_max_kb` (1024) and `file_max_versions` (50): the oldest automatic versions go first, named ones last. `[host.versions] file` (default on for JWT hosts, off for WOPI hosts; never for temporary canvases) turns it off where deleted text must not travel with the file; `prefer_host` picks the list shown first when both exist (docs/30 §13) | Accepted (owner, 2026-11-24, by message) |
 | ADR-056 | Webhooks (WH-01): the HAPI-05 events POSTed to `[host.webhooks] url` (same origin as the host's `callback_base`: the SSRF rule), signed with `X-OpenCanvas-Signature` v2 and the host secret (or `[host.webhooks] secret`), event id as `Idempotency-Key`; a durable `webhook_outbox` (metadata only, rule 5) on SQLite/MySQL/MariaDB written by the room's owner, claimed per row so one node delivers; backoff 10 s → 12 h with `Retry-After`, give-up after `max_attempts` (12) | Accepted (owner, 2026-11-25) |
 | ADR-057 | Icons people add (DGM-17): a server-written document root `icons` `{id → {name, keywords, format, data (cleaned file, base64), width, height, bytes, by, byName, at}}` (exception to ADR-045 §1: a new root, so a document is self-contained and exports never fetch); client updates that touch it are refused, like `comments` for the comment role; `POST /v1/icons` (editors, 20 a minute) cleans the file (`oc_model::icon_clean`: roxmltree pre-scan without DTDs, usvg normalisation, allow-list, 256 KB in / 64 KB cleaned, 2,000 elements, depth 16; PNG by magic bytes, ≤ 256 KB and 1024 px, re-encoded) and writes it through the room; 200 icons and 1 MB per document; every reader checks a stored icon again; the editor and both exporters draw it as `<image href="data:…">`, never inline markup | Accepted (owner approved the design via the prototype, 2026-11-24) |
+| ADR-058 | Block packages (BSDK-01): `block.json` checked at install with a compiled JSON Schema 2020-12 **subset** (`oc_model::ext::schema`; any other keyword, a remote `$ref` or another `$schema` refuses the package) instead of the `jsonschema` crate (about 15 new crates); new direct dependency `regex` 1 (MIT OR Apache-2.0; its dependencies already in Cargo.lock) for `pattern`, and `semver` 1 (already in Cargo.lock); packages that fail (manifest, integrity sha384) are refused one by one and listed on `/healthz`; `[host.blocks] enabled = ["type@req"]` is the per-host switch (no `block_sdk` flag); `OC_BLOCKS_ORIGIN` must differ from the editor's origin | Proposed (2026-11-25) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -833,3 +834,22 @@ a document must stay self-contained: exports and the preview never fetch anythin
 cleaner for every path. − Documents with icons pay a scratch-copy check per client update (O(doc
 size)); a cheaper check by update structure is a follow-up. − Undo of adding or removing an icon
 is not offered (only the server writes the root); shapes keep working either way.
+
+### ADR-058 — Block packages: schema subset, integrity and per-host enablement (Proposed 2026-11-25, BSDK-01)
+**Context.** ADR-040 fixed the block contract: JSON Schema 2020-12 manifests validated by MOD-01,
+packages installed by the operator with an SRI hash. A validator was needed in `oc-model`. The
+`jsonschema` crate (MIT) implements all of 2020-12 but brings about 15 crates (fancy-regex,
+fraction, referencing, uuid-simd, email_address, ahash, …) and remote-reference features to keep
+switched off.
+**Decision.** (1) `oc_model::ext::schema` compiles a defined subset (docs/15 §4.2) and refuses any
+other keyword, a `$schema` other than 2020-12 and any non-local `$ref` when the package is
+installed; nothing is ever fetched. (2) `pattern` uses `regex` 1 (MIT OR Apache-2.0,
+rust-lang; linear time, size-limited); `regex`'s own dependencies and `semver` 1 (MIT OR
+Apache-2.0) were already in Cargo.lock. (3) Each package is checked on its own; a bad one is
+refused, logged and listed on `/healthz`, and the server starts. (4) `[host.blocks] enabled` (a
+list of `type@SemVer requirement`) is the per-host switch the design's `block_sdk` flag would
+have been. (5) `OC_BLOCKS_ORIGIN` must be a different origin from `OC_PUBLIC_URL`.
+**Consequences.** + one small, audited validator, the same on every write path; + a bad package
+cannot stop a server; − authors cannot use `unevaluatedProperties`, `$dynamicRef`,
+`dependentSchemas` or format assertions; − the editor has no validator yet (BSDK-03 adds the
+bridge's write check).

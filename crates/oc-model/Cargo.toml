@@ -24,6 +24,11 @@ unicode-script = "0.5"
 roxmltree = "0.21"
 flate2 = "1"
 percent-encoding = "2"
+# BSDK-01 (ADR-058, Proposed): JSON Schema `pattern` (linear-time engine) and manifest SemVer.
+# regex's own dependencies (regex-automata, regex-syntax, aho-corasick, memchr) and semver
+# are already in Cargo.lock; regex itself is the one new crate (MIT OR Apache-2.0).
+regex = "1"
+semver = "1"
 
 [dev-dependencies]
 zip.workspace = true

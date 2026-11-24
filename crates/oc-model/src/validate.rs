@@ -78,8 +78,18 @@ pub fn validate(doc: &Doc) -> Report {
 }
 
 /// Validates a whole `document.json` (`{type:"doc", content, meta, databases, boards, comments}`).
+/// SDK blocks are checked against the packages this process installed ([`crate::ext::install`]).
 pub fn validate_json(v: &Value) -> Report {
-    let mut cx = Cx::default();
+    validate_json_with(v, &crate::ext::installed())
+}
+
+/// [`validate_json`] against an explicit block registry.
+pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
+    let mut cx = Cx {
+        reg: Some(reg.clone()),
+        ext: Some(v.get("ext").cloned().unwrap_or(Value::Null)),
+        ..Cx::default()
+    };
     let Some(obj) = v.as_object() else {
         cx.r.err("", "the document must be a JSON object");
         return cx.r;
@@ -93,6 +103,9 @@ pub fn validate_json(v: &Value) -> Report {
         None => {}
         Some(Value::Array(nodes)) => cx.children("/content", nodes, &Content::Blocks(0), "doc"),
         Some(_) => cx.r.err("/content", "content must be an array"),
+    }
+    if let Some(ext) = obj.get("ext") {
+        crate::ext::check_root(ext, &mut |p, m| cx.r.err(&p, m));
     }
     for key in ["meta", "databases", "boards", "comments", "people"] {
         if obj.get(key).is_some_and(|m| !m.is_object()) {
@@ -149,7 +162,16 @@ pub fn validate_json(v: &Value) -> Report {
 /// under `prefix`. Each root may be any known node (a patch can replace a list item), but
 /// everything inside it must follow the schema.
 pub fn validate_blocks(prefix: &str, blocks: &[Value]) -> Report {
-    let mut cx = Cx::default();
+    validate_blocks_with(prefix, blocks, &crate::ext::installed())
+}
+
+/// [`validate_blocks`] against an explicit block registry. SDK block data is not checked here
+/// (patch input carries none); the writer checks it with the `ext` root it writes.
+pub fn validate_blocks_with(prefix: &str, blocks: &[Value], reg: &crate::ext::Registry) -> Report {
+    let mut cx = Cx {
+        reg: Some(reg.clone()),
+        ..Cx::default()
+    };
     for (i, b) in blocks.iter().enumerate() {
         cx.node(&format!("{prefix}/{i}"), b);
     }
@@ -332,6 +354,19 @@ fn spec(ty: &str) -> Option<Spec> {
             false,
         ),
         "dateMention" => s(Inline, &[("date", A::Date)], C::None, false),
+        // BSDK-02: every SDK block (docs/15 §4.2); `crate::ext::check` checks its attributes.
+        "extBlock" => s(
+            Block,
+            &[
+                ("type", A::Any),
+                ("v", A::Any),
+                ("attrs", A::Any),
+                ("dataId", A::Any),
+                ("fallback", A::Any),
+            ],
+            C::Blocks(0),
+            true,
+        ),
         _ => return None,
     })
 }
@@ -362,6 +397,10 @@ const MAX_NEST: usize = 64;
 #[derive(Default)]
 struct Cx {
     r: Report,
+    /// Installed SDK blocks (`None`: an empty registry).
+    reg: Option<crate::ext::Registry>,
+    /// The document's `ext` root; `None` for patch input (no data to check).
+    ext: Option<Value>,
     depth: usize,
     block_ids: HashMap<String, String>,
     db_refs: Vec<(String, String)>,
@@ -487,6 +526,25 @@ impl Cx {
         };
         if let Some(a) = attrs {
             self.attrs(path, ty, a, spec.attrs, spec.block_id);
+        }
+        if ty == crate::ext::NODE {
+            let reg = self.reg.take().unwrap_or_default();
+            let (mut errs, mut warns) = (Vec::new(), Vec::new());
+            crate::ext::check(
+                &reg,
+                path,
+                attrs,
+                self.ext.as_ref(),
+                &mut |p, m| errs.push((p, m)),
+                &mut |p, m| warns.push((p, m)),
+            );
+            self.reg = Some(reg);
+            for (p, m) in errs {
+                self.r.err(&p, m);
+            }
+            for (p, m) in warns {
+                self.r.warn(&p, m);
+            }
         }
         let c = content.map(Vec::as_slice).unwrap_or_default();
         self.children(&format!("{path}/content"), c, &spec.content, ty);

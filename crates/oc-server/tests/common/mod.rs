@@ -449,6 +449,7 @@ pub fn host_config(base: &str) -> HostConfig {
         ai: Default::default(),
         api: Default::default(),
         webhooks: Default::default(),
+        blocks: Default::default(),
     }
 }
 
@@ -511,6 +512,7 @@ pub async fn app_full(
         import_off: false,
         unfurl: Default::default(),
         wopi_proof: Some(test_proof_keys()),
+        blocks: Default::default(),
     };
     tweak_cfg(&mut cfg);
     AppState::new(cfg, Hosts::from_list(vec![host]))

@@ -96,6 +96,7 @@ pub async fn start() -> Conformance {
         import_off: false,
         unfurl: Default::default(),
         wopi_proof: Some(crate::common::test_proof_keys()),
+        blocks: Default::default(),
     };
     let state =
         oc_server::AppState::new(cfg, oc_server::hosts::Hosts::from_list(vec![conf, tight]))

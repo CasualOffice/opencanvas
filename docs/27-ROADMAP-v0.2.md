@@ -334,6 +334,25 @@ Third-party renderers run in an iframe per block instance:
 
 ---
 
+### 3.6 What was built
+
+- **BSDK-01 (2026-11-25, Review; ADR-058 Proposed).** `oc_model::ext`: `Manifest` (`block.json`:
+  type name rules, `oc.` reserved, SemVer major ≥ 1, title, Lucide icon, content kind, JSON Schemas,
+  templates, permissions as https origins and `members: "read"`, migrations, safe `entry`,
+  `sha384-` integrity; unknown keys logged) and `Registry`; a compiled JSON Schema 2020-12 subset
+  (`ext::schema`, docs/15 §4.2) that refuses unsupported keywords and remote `$ref`s instead of a
+  third-party validator. MOD-01 knows `extBlock`: installed types at their data version are checked
+  against the manifest (errors with field paths), unknown types and newer data are warnings, and
+  the process-wide registry (`ext::install`) serves `.ocanvas` load, patch, import, API and MCP
+  writes. Server: `crate::blocks` reads `OC_BLOCKS_DIR` (one package per directory), verifies each
+  bundle's sha384 SRI, refuses bad packages one by one (logged, `/healthz` `blocks.refused`);
+  `OC_BLOCKS_ORIGIN` must differ from `OC_PUBLIC_URL`; `[host.blocks] enabled = ["type@req"]`
+  (checked at start) selects what the session's new `blocks` list carries (schemas, templates,
+  bundle URL on the block origin, integrity). Tests: `oc-model/tests/ext.rs`
+  (`validation_checks_installed_blocks_and_keeps_unknown_ones`, `a_schema_invalid_block_refuses_the_file`),
+  units in `ext::{schema,manifest}` and `blocks`, `oc-server/tests/blocks.rs`
+  (`installed_packages_reach_the_session_and_refused_ones_healthz`).
+
 ## 4. Stable headless API
 
 ### 4.1 Problem and user value

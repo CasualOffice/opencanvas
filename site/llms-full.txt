@@ -683,7 +683,37 @@ file_max_kb       = 1024                   # its byte budget (compressed)
 file_max_versions = 50                     # and its count
 prefer_host       = true                   # with your versions too: your list first, in-file = "recent changes";
                                            # on restore or conflict your version wins
+
+[host.blocks]                              # SDK blocks your editors may load (§2a, BSDK-01); default none
+enabled           = ["acme.okr@^1", "acme.ticket"]   # "type@SemVer requirement" (requirement optional);
+                                           # a bad entry is refused at start-up, one not installed is logged
 ```
+
+### 2a. SDK block packages (BSDK-01, docs/27 §3, ADR-040, ADR-058)
+
+Third-party blocks are **installed by the server operator** and **enabled per host**. There is no
+upload API and nothing is installed from the browser.
+
+- `OC_BLOCKS_DIR`: a directory with one sub-directory per package, each holding `block.json` (the
+  manifest, docs/15 §4.2) and the bundle it names in `entry`. At start-up the server parses every
+  manifest, checks it (type name, SemVer, JSON Schemas, templates, permissions, migrations) and
+  verifies the bundle against `integrity` (`sha384-<base64>`, Subresource Integrity). A package that
+  fails any check is **refused**: logged, listed on `/healthz` as `blocks.refused[{package,
+  reason}]`, and not installed. The server still starts; documents using its type keep the blocks
+  as they are and show their fallback.
+- Type names are lowercase reverse-DNS labels (`acme.okr`, `com.example.ticket-card`); `oc.` is
+  reserved for OpenCanvas's own blocks. One package per type.
+- `OC_BLOCKS_ORIGIN` (optional): the separate origin bundles are served from
+  (`https://blocks.canvas.example`; `http://` only for local development). It must differ from
+  `OC_PUBLIC_URL`'s origin, or the server refuses to start. The sandbox that runs bundles is
+  BSDK-03; until then the editor shows each block's stored fallback.
+- `[host.blocks] enabled` picks which installed packages a host's editors see. The session
+  (`GET /v1/sessions/:ticket`) lists them as `blocks: [{type, version, v, title, icon,
+  description, content, attrs, data, export, migrations, entry, integrity}]` (`entry` is
+  `{OC_BLOCKS_ORIGIN}/{type}/{version}/{entry}`, or null without a block origin). A host with no
+  `[host.blocks]` gets an empty list.
+- Validation of block attributes and data (docs/15 §4.2) uses every **installed** package, whatever
+  a host enables, on `.ocanvas` load, the REST patch, imports, the headless API and MCP writes.
 
 People (docs/21 revision 2): the @mention list is the people with access to the canvas, the same
 for every viewer. Everyone with access sees real names and the `detail` second line. OpenCanvas

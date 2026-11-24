@@ -38,6 +38,8 @@ pub struct Config {
     /// WOPI proof keys (`OC_WOPI_PROOF_KEY`, `OC_WOPI_PROOF_KEY_OLD`; generated with
     /// `OC_DEV=1`). Required when a host speaks WOPI.
     pub wopi_proof: Option<crate::proof::ProofKeys>,
+    /// `OC_BLOCKS_DIR`, `OC_BLOCKS_ORIGIN` (BSDK-01, docs/05 §2).
+    pub blocks: crate::blocks::BlocksConfig,
 }
 
 /// How edits reach the database between host saves (ADR-029, `OC_DURABILITY`).
@@ -173,9 +175,12 @@ impl Config {
         );
         let durability = Durability::parse(var("OC_DURABILITY").as_deref(), wal_redis.is_some())?;
         let memory = durability == Durability::Memory;
+        let public_url = var("OC_PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string());
+        let blocks = crate::blocks::BlocksConfig::from_env(public_url.as_deref())?;
         Ok(Self {
+            blocks,
             bind: var("OC_BIND").unwrap_or_else(|| "0.0.0.0:8080".into()),
-            public_url: var("OC_PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string()),
+            public_url,
             database_url: match (&database_url, &storage_redis_url) {
                 (Some(u), _) => u.clone(),
                 (None, Some(_)) => String::new(),
