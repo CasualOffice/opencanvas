@@ -38,8 +38,7 @@ A Mattermost plugin that adds collaborative canvases to channels:
 4. **Callback security.** The plugin accepts a callback only with a valid
    `X-OpenCanvas-Signature` v2 (HMAC-SHA256 over time, method, path, query and body, within 5
    minutes). Mattermost removes the `Authorization` header before a plugin sees a request, so
-   OpenCanvas also sends the callback token as `X-OpenCanvas-Callback-Token` (OpenCanvas releases after
-   0.1.1); the plugin checks that it belongs to the same canvas. Mattermost also re-sorts the
+   OpenCanvas also sends the callback token as `X-OpenCanvas-Callback-Token` (OpenCanvas 0.1.2 or later); the plugin checks that it belongs to the same canvas. Mattermost also re-sorts the
    query string, which the plugin allows for.
 5. **Access changes.** When someone leaves a channel, the plugin tells OpenCanvas (role API,
    `none`), which closes their open canvas at once. When someone joins, the @mention list is
@@ -58,7 +57,7 @@ channel for canvases that only some people may edit.
 ## Requirements
 
 - Mattermost 9.11 or later (tested: 12.1.0 Team Edition), web or Desktop app.
-- OpenCanvas 0.1.x, reachable from browsers and from the Mattermost server. Releases after 0.1.1 also
+- OpenCanvas 0.1.x, reachable from browsers and from the Mattermost server. Version 0.1.2 and later also
   send the callback token header (older versions work with signature-only checks).
 - To build: Go 1.24.3 or later, Node 20 or later.
 

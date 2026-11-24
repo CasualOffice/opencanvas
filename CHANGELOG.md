@@ -7,6 +7,31 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-24
+
+See the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md).
+
+### Added
+
+- Nextcloud WOPI app, Mattermost channel canvases, and Element / Matrix room widgets.
+- Diagram mode with searchable shape libraries, ports, obstacle-aware connectors, auto-layout,
+  draw.io and Excalidraw import, and draw.io and Mermaid export.
+- Version history with named versions, preview and comparison, restore and temporary undo
+  where supported by the host.
+- Headless API under `/api/v1` with OpenAPI 3.1, scoped tokens, and idempotency keys on file writes.
+- Server-rendered previews, host team templates, and a Grafana dashboard with alert rules.
+
+### Changed
+
+- Large boards use incremental projection and draw less detail when zoomed out.
+- Editor controls and icons scale with the reader's text size.
+- Hosts can set per-host frame ancestors and temporary-canvas wording.
+
+### Fixed
+
+- Concurrent edits preserve separate diagram properties during mixed-version collaboration.
+- A Jitsi role change takes precedence over launch tokens issued before the change.
+
 ## [0.1.1] - 2026-11-23
 
 Jitsi Meet integration and temporary canvases. No upgrade steps: existing hosts behave as before.

@@ -12,6 +12,9 @@ slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus 
 - It starts blank, or from a template you choose (`template = "meeting"`).
 - A reload, a dropped network or an OpenCanvas restart rejoins the same canvas.
 
+The integration was introduced in OpenCanvas 0.1.1. Version 0.1.2 improves how role changes
+apply to links minted earlier in the meeting. See the [release notes](../../docs/31-RELEASE-v0.1.2.md).
+
 ## How it works
 
 - Jitsi's client opens the `<etherpad>` value of a presence it receives in the shared-document

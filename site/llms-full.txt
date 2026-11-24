@@ -9,7 +9,7 @@ URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
-How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. OpenCanvas is a P1 alpha. These pages describe what is built and say so where something is planned. The roadmap has the full picture.
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.1.2. These pages describe what is built and say so where something is planned. The roadmap has the full picture.
 
 ## Start
 
@@ -75,22 +75,12 @@ The terms these pages use.
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
-> **On `main`, not yet released:** integrations for [Nextcloud](integrations/nextcloud/README.md)
-> (a WOPI app: files, versions and shares stay in Nextcloud), [Mattermost](integrations/mattermost/README.md)
-> (a plugin: canvases in channels) and [Element / Matrix](integrations/matrix/README.md) (a room
-> widget), each tested end to end in the real host; the groundwork for structured diagramming
-> ([docs/29](docs/29-DIAGRAMMING.md)): faster large boards, ports, connectors that route around
-> shapes; and a UI that follows the reader's text size (rem units, ADR-050). See the
-> [execution tracker](docs/10-EXECUTION-TRACKER.md) for what is done and what is left.
->
-> **v0.1.1: Jitsi Meet integration.** Every Jitsi meeting can get a shared, temporary canvas
-> with one Prosody plugin and config ([guide](integrations/jitsi/README.md), [changes](CHANGELOG.md)).
-> Best-effort support with no SLA. Before you deploy, read the 0.1.x
-> [release notes](docs/28-RELEASE-v0.1.0.md), its
-> [upgrade notes](docs/28-RELEASE-v0.1.0.md#upgrade-notes) (WOPI proof keys are now required) and
-> [known limitations](docs/28-RELEASE-v0.1.0.md#known-limitations) (memory, durability modes,
-> single node first) before you deploy it. The AI assistant and MCP endpoint are
-> **experimental and off by default**.
+> **New in v0.1.2.** OpenCanvas now integrates with [Nextcloud](integrations/nextcloud/README.md),
+> [Mattermost](integrations/mattermost/README.md) and [Element / Matrix](integrations/matrix/README.md).
+> Diagramming adds shape libraries, connector routing, auto-layout, and import and export.
+> Version history lets editors compare and restore versions where the host supports it.
+> Read the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md) before deploying.
+> Support is best-effort, with no production SLA. AI and MCP are experimental and off by default.
 
 ## Goal
 
@@ -133,6 +123,9 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Templates | 40 templates in 9 categories, plus blank canvas, database, whiteboard and import |
 | Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
 | Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
+| Nextcloud, Mattermost and Element / Matrix | Host integrations for WOPI files, channel canvases and room widgets. See the [release notes](docs/31-RELEASE-v0.1.2.md). |
+| Diagramming | Shape libraries, ports, connector routing, layout and interchange. [Diagram guide](docs/29-DIAGRAMMING.md) |
+| Version history | Named versions, comparison, restore and a short undo window. Availability depends on the host and permissions. [History guide](docs/30-VERSION-HISTORY.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
 | Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only; draw.io and Excalidraw diagrams into a board after a dry-run report (DGM-15). **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
@@ -263,9 +256,9 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 
 | Version | Focus |
 |---|---|
-| **v0.1** (this alpha) | The collaborative editor, databases, whiteboards and embedding |
-| v0.1.x (in progress) | Host integrations (Jitsi Meet, Nextcloud, Mattermost, Element / Matrix), link previews, team templates, viewer preview, a UI that follows the reader's text size |
-| v0.2 | Stable headless APIs, an extensible block SDK, version history and webhooks |
+| v0.1.0 | First final release of the collaborative editor, databases, whiteboards and embedding |
+| [v0.1.2](docs/31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
+| v0.2 | Stable headless APIs, an extensible block SDK, version-history follow-ups and webhooks |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
@@ -278,6 +271,49 @@ ready and does not move the release commitments above.
 OpenCanvas integrates with any application through standardized APIs and SDKs and depends on no
 specific CasualOffice product. Priorities and detail: [docs/09](docs/09-ROADMAP.md) and the
 [roadmap page](https://canvas.casualoffice.org/roadmap.html).
+
+
+# Release notes 0.1.2
+
+URL: https://canvas.casualoffice.org/docs/release-012.html
+Source file: docs/31-RELEASE-v0.1.2.md
+
+OpenCanvas 0.1.2 adds host integrations, structured diagramming, version history, and a
+versioned headless API. See the [changelog](../CHANGELOG.md) for changes since v0.1.1
+and the [execution tracker](10-EXECUTION-TRACKER.md) for implementation and test evidence.
+
+## What's included
+
+- The [Nextcloud app](../integrations/nextcloud/README.md) uses WOPI and keeps canvas files,
+  versions, and shares in Nextcloud. The [Mattermost plugin](../integrations/mattermost/README.md)
+  adds canvases to channels. The [Element / Matrix widget](../integrations/matrix/README.md)
+  provides shared room canvases. [Jitsi Meet](../integrations/jitsi/README.md) continues to
+  support temporary meeting canvases.
+- [Diagram mode](29-DIAGRAMMING.md) adds libraries, ports, routing, and auto-layout.
+  Import draw.io and Excalidraw with a dry-run report, and export draw.io and Mermaid alongside
+  PNG and SVG. See the diagram guide for format coverage and mixed-version behavior.
+- [Version history](30-VERSION-HISTORY.md) supports named saves, comparison, restore, and a
+  30-second undo after restore. The history menu depends on host capabilities and user permissions.
+- The [host integration guide](05-INTEGRATION-GUIDE.md) describes the headless API, scoped access,
+  and host launch options. Read the [operations guide](13-OPERATIONS-AND-DEPLOYMENT.md) for deployment
+  and monitoring.
+
+## Upgrade notes
+
+- Back up host files and follow the [recovery guidance](25-RELEASE-v0.1.0-alpha.1.md#durability-modes)
+  before upgrading. Allow active saves to complete before replacing the server.
+- Use `ghcr.io/casualoffice/opencanvas:0.1.2` for the container. For Helm, use chart `0.1.2`
+  from the checkout with `image.repository=ghcr.io/casualoffice/opencanvas`. WOPI hosts still
+  need proof keys. Consult the [v0.1.0 upgrade notes](28-RELEASE-v0.1.0.md#upgrade-notes) for older deployments.
+- Configure each integration with its own guide, including the allowed iframe origins. Hosts adopting
+  version history should check their callback support and the permissions granted to each user.
+
+## Known limitations
+
+Support is best-effort, with no production SLA. Start with a single node and review the
+[capacity guidance](22-CAPACITY-AND-SIZING.md) before scaling. AI and MCP are experimental and
+off by default. For diagram interchange and mixed-version sessions, see the
+[diagram guide](29-DIAGRAMMING.md).
 
 
 # Release notes 0.1.0
@@ -551,7 +587,7 @@ Short answers, with links to the pages that say more.
 
 ## Can I use it in production today?
 
-Not yet. OpenCanvas is a P1 alpha for evaluation. The server, the editor, the database and whiteboard blocks and the sample host run end to end, and most work is built and verified, but it still awaits the owner's review and there is no tagged release. The roadmap shows each item's status.
+OpenCanvas 0.1.2 has best-effort support and no production SLA. Review the deployment limits before committing it to a production workflow.
 
 ## What does the licence allow?
 
@@ -700,7 +736,7 @@ exchanged for a session ticket on open).
 picker. When your own UI already asked what kind of canvas it is (a "Blank or Meeting notes"
 dialog), put `"start": "page"` in the token: the canvas opens on its first line instead, and
 templates stay available inside the editor. The server passes it on as `&start=page` after the
-ticket in the editor URL fragment. Any other value is ignored, and servers up to 0.1.1 ignore the
+ticket in the editor URL fragment. Any other value is ignored, and servers before 0.1.2 ignore the
 claim (the picker shows). It changes nothing for a canvas that already has content.
 
 ## 4. Embed in your page
@@ -1025,7 +1061,7 @@ e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 The supported API for programs: bots, integrations, back-office jobs. It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
-per host with `[host.flags] api_v1 = true` (off by default in 0.2.0-alpha; otherwise every
+per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every
 `/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
 `v1` changes are additive.
 
@@ -1453,6 +1489,9 @@ slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus 
 - It starts blank, or from a template you choose (`template = "meeting"`).
 - A reload, a dropped network or an OpenCanvas restart rejoins the same canvas.
 
+The integration was introduced in OpenCanvas 0.1.1. Version 0.1.2 improves how role changes
+apply to links minted earlier in the meeting. See the [release notes](../../docs/31-RELEASE-v0.1.2.md).
+
 ## How it works
 
 - Jitsi's client opens the `<etherpad>` value of a presence it receives in the shared-document
@@ -1660,7 +1699,7 @@ versions. OpenCanvas does the editing and stores no documents.
 
 ## Install
 
-You need a running OpenCanvas server. See
+Use an OpenCanvas 0.1.2 server for the features described in this guide. See
 [Operations](../../docs/13-OPERATIONS-AND-DEPLOYMENT.md).
 
 **1. OpenCanvas: register Nextcloud as a WOPI host** in `opencanvas.hosts.toml`:
@@ -1921,8 +1960,7 @@ prototype: [UI-SCREENS.md](UI-SCREENS.md).
 
 ## Install
 
-You need OpenCanvas 0.1.1 or later with per-host `frame_ancestors` (releases after 0.1.1 for
-`temporary_wording`; older ones keep meeting wording), Node 24 for the bridge,
+You need OpenCanvas 0.1.2 or later for per-host `frame_ancestors` and `temporary_wording`, Node 24 for the bridge,
 and a Matrix bot account.
 
 1. **Bot account** on your homeserver, for example `@canvasbot:acme.example`. Log in once to
@@ -2143,8 +2181,7 @@ A Mattermost plugin that adds collaborative canvases to channels:
 4. **Callback security.** The plugin accepts a callback only with a valid
    `X-OpenCanvas-Signature` v2 (HMAC-SHA256 over time, method, path, query and body, within 5
    minutes). Mattermost removes the `Authorization` header before a plugin sees a request, so
-   OpenCanvas also sends the callback token as `X-OpenCanvas-Callback-Token` (OpenCanvas releases after
-   0.1.1); the plugin checks that it belongs to the same canvas. Mattermost also re-sorts the
+   OpenCanvas also sends the callback token as `X-OpenCanvas-Callback-Token` (OpenCanvas 0.1.2 or later); the plugin checks that it belongs to the same canvas. Mattermost also re-sorts the
    query string, which the plugin allows for.
 5. **Access changes.** When someone leaves a channel, the plugin tells OpenCanvas (role API,
    `none`), which closes their open canvas at once. When someone joins, the @mention list is
@@ -2163,7 +2200,7 @@ channel for canvases that only some people may edit.
 ## Requirements
 
 - Mattermost 9.11 or later (tested: 12.1.0 Team Edition), web or Desktop app.
-- OpenCanvas 0.1.x, reachable from browsers and from the Mattermost server. Releases after 0.1.1 also
+- OpenCanvas 0.1.x, reachable from browsers and from the Mattermost server. Version 0.1.2 and later also
   send the callback token header (older versions work with signature-only checks).
 - To build: Go 1.24.3 or later, Node 20 or later.
 
@@ -2839,15 +2876,18 @@ Server `:8080`, sample host `:4000`, Vite dev `:5173` (proxying `/v1` to `:8080`
 URL: https://canvas.casualoffice.org/docs/operations.html
 Source file: docs/13-OPERATIONS-AND-DEPLOYMENT.md
 
-**Status:** draft v0.1, 2026-11-21. Implemented in SCAF-01 / OPS-01.
+For upgrades, see the [v0.1.2 release notes](31-RELEASE-v0.1.2.md#upgrade-notes).
 
 ## Single node (default, SQLite)
+
+Prepare a host registry for your deployment using the [integration guide](05-INTEGRATION-GUIDE.md).
+
 ```sh
 docker run -p 8080:8080 -v oc-data:/data \
+  -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
-  opencanvas/server:0.1
+  ghcr.io/casualoffice/opencanvas:0.1.2
 ```
 SQLite file at `/data/opencanvas.db` (WAL mode). Back it up only if you care
 about un-committed edits surviving a disk loss — committed content is in the host.
