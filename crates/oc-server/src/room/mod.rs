@@ -110,6 +110,12 @@ pub(crate) enum Cmd {
         author: String,
         reply: oneshot::Sender<Result<Patched, PatchFailure>>,
     },
+    /// DGM-17 (ADR-057): a change to the server-written `icons` root, origin `icons`.
+    Icons {
+        op: oc_model::doc_icons::IconOp,
+        author: String,
+        reply: oneshot::Sender<Result<Patched, PatchFailure>>,
+    },
     /// Revert the template applied with `origin` (only by the user who applied it).
     TemplateUndo {
         origin: String,
@@ -838,6 +844,45 @@ impl Rooms {
                 grant: grant.clone(),
                 doc: doc.clone(),
                 origin: origin.to_string(),
+            },
+            remote::decode_patch,
+        )
+        .await
+    }
+
+    /// Changes the document's `icons` root (DGM-17), opening the room when needed. Only the
+    /// server writes that root; the room refuses client updates that touch it.
+    pub async fn icons(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        op: oc_model::doc_icons::IconOp,
+        author: &str,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.icons_at(host, grant, op, author, true).await
+    }
+
+    pub(super) async fn icons_at(
+        &self,
+        host: &Arc<HostConfig>,
+        grant: &Grant,
+        op: oc_model::doc_icons::IconOp,
+        author: &str,
+        forward: bool,
+    ) -> anyhow::Result<Result<Patched, PatchFailure>> {
+        self.ask(
+            host,
+            grant,
+            forward,
+            |reply| Cmd::Icons {
+                op: op.clone(),
+                author: author.to_string(),
+                reply,
+            },
+            || RemoteOp::Icons {
+                grant: grant.clone(),
+                icon_op: op.clone(),
+                author: author.to_string(),
             },
             remote::decode_patch,
         )

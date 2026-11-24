@@ -28,7 +28,12 @@ import { CONTAINER, isContainer } from "./kinds";
 import { descriptorOf, makeNode } from "./registry";
 import { ends, HEADS } from "./heads";
 import { KIND_MIME } from "./libraries";
-import { ICON_KIND, ICON_LABEL, ICON_MIME, iconById, iconGlyphBox, iconLabelLayout, iconNodeFields, iconPathsOf, readIconDrag } from "./icons";
+import { DOC_PREFIX, ICON_KIND, ICON_LABEL, ICON_MIME, docIconNodeFields, iconById, iconGlyphBox, iconLabelLayout, iconNodeFields, iconPathsOf, iconProps, readDocIcons, readIconDrag } from "./icons";
+import { DocIconsContext, useDocIcons, useDocIconList, type DocIconsCtx } from "./iconsContext";
+// The icon dialogs (DGM-17): their own lazy module, loaded when one opens.
+type IconDialogsModule = typeof import("./diagram/icons/Dialogs");
+let iconDialogsModule: Promise<IconDialogsModule> | null = null;
+const loadIconDialogs = () => (iconDialogsModule ??= import("./diagram/icons/Dialogs"));
 import { newShapeFields, PRESET, presetOf, type ConnectorPreset } from "./panel";
 import { KindMarks, UnknownShape } from "./diagram/Placeholder";
 import { fitImage, ImageError, imageFiles, imageSize, imageSource } from "./images";
@@ -202,6 +207,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [place, setPlace] = useState({ heading: "", title: "" });
   const refocus = useRef(false);
   const [Dg, setDg] = useState<ShellModule | null>(null);
+  // DGM-17: icons added to the document, and the icon dialogs.
+  const docIcons = useDocIconList(doc);
+  const [iconDlg, setIconDlg] = useState<import("./diagram/icons/Dialogs").IconDialogState | null>(null);
+  const [IconDlgs, setIconDlgs] = useState<IconDialogsModule | null>(null);
+  const openIconDialog = (st: import("./diagram/icons/Dialogs").IconDialogState) => {
+    setIconDlg(st);
+    void loadIconDialogs().then((m) => setIconDlgs(() => m));
+  };
   const [dp, setDp] = useState<DiagramPrefs>(DIAGRAM_PREFS);
   /** Shape whose ports show (diagram mode, pointer over it). */
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -633,6 +646,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const insertImages = async (files: File[], at: Pt) => {
     if (!S.current.edit) return;
     let i = 0;
+    // 2e: an SVG or PNG still lands as a picture; a toast offers to make it a reusable icon.
+    const reusable = env.icons ? files.find((f) => f.type === "image/svg+xml" || f.type === "image/png") : undefined;
     for (const file of files) {
       let src: string;
       try {
@@ -648,10 +663,29 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const sid = addShape(doc, boardId, { type: "image", x: Math.round(at[0] - w / 2 + off), y: Math.round(at[1] - h / 2 + off), w, h, src, alt: file.name || "Image" }, origin);
       setSel([sid]);
     }
+    if (reusable) env.toast("Image added. It’s a picture on this board only.", { label: "Make it a reusable icon", run: () => openIconDialog({ kind: "add", file: reusable }) });
+  };
+  /** Adds an icon added to the document (DGM-17 part 3) centred on `at`, on the grid in diagram mode. */
+  const addDocIcon = (id: string, at: Pt = viewCenter()) => {
+    if (!S.current.edit) return;
+    // Read from the doc, not render state: the dialog places an icon the server just wrote.
+    const icon = readDocIcons(doc).find((i) => i.id === id);
+    if (!icon) return;
+    const f = docIconNodeFields(icon, at);
+    if (S.current.dgm && S.current.dp.snapGrid) {
+      const g = S.current.dp.gridSize;
+      f.x = Math.round((f.x ?? 0) / g) * g;
+      f.y = Math.round((f.y ?? 0) / g) * g;
+    }
+    um?.stopCapturing();
+    const sid = addShape(doc, boardId, f, origin);
+    setSel([sid]);
+    setLive(`${icon.name} icon added`);
   };
   /** Adds a shape of a registered kind centred on `at` (the view's centre by default): S2. */
   const addKind = (kind: string, at: Pt = viewCenter(), icon?: string, paths?: readonly string[]) => {
     if (!S.current.edit) return;
+    if (kind === ICON_KIND && icon?.startsWith(DOC_PREFIX)) return addDocIcon(icon.slice(DOC_PREFIX.length), at);
     if (kind === ICON_KIND) return addIcon(icon ?? "", at, paths);
     const d = descriptorOf({ type: "rect", kind });
     if (d.kind !== kind) return;
@@ -2177,10 +2211,24 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     </div>
   );
 
+  const iconsCtx: DocIconsCtx = {
+    list: docIcons.list,
+    urls: docIcons.urls,
+    api: env.icons,
+    edit,
+    place: (id) => addDocIcon(id),
+    openAdd: (file) => openIconDialog({ kind: "add", file }),
+    openManage: () => openIconDialog({ kind: "manage" }),
+  };
+  const iconDialogs =
+    iconDlg && IconDlgs && typeof document !== "undefined"
+      ? createPortal(<IconDlgs.IconDialogs state={iconDlg} doc={doc} list={docIcons.list} api={env.icons} onState={setIconDlg} onAdded={(id) => addDocIcon(id)} />, document.body)
+      : null;
+
   if (dgm && Dg && typeof document !== "undefined") {
     const Shell = Dg.default;
     return (
-      <>
+      <DocIconsContext.Provider value={iconsCtx}>
         <div ref={phRef} className="ocbd-ph" style={{ height: phH || (compact ? 300 : 440) }}>Open as a diagram</div>
         {createPortal(
           <Shell
@@ -2213,18 +2261,25 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           </Shell>,
           document.body,
         )}
-      </>
+        {iconDialogs}
+      </DocIconsContext.Provider>
     );
   }
   if (full && typeof document !== "undefined") {
     return (
-      <>
+      <DocIconsContext.Provider value={iconsCtx}>
         <div className="ocbd-ph" style={{ height: compact ? 300 : 440 }}>Open in full screen</div>
         {createPortal(content, document.body)}
-      </>
+        {iconDialogs}
+      </DocIconsContext.Provider>
     );
   }
-  return content;
+  return (
+    <DocIconsContext.Provider value={iconsCtx}>
+      {content}
+      {iconDialogs}
+    </DocIconsContext.Provider>
+  );
 }
 
 /* ------------------------------------------------------------ minimap */
@@ -2393,9 +2448,20 @@ function IconNodeView({ s, stroke, hideText }: { s: Shape; stroke: string; hideT
   const icon = iconPathsOf(s);
   const g = iconGlyphBox(s);
   const lb = hideText ? null : iconLabelLayout(s);
+  // An icon added to the document (DGM-17 part 3): the cleaned file as an <image> with a data:
+  // URL, never inline markup.
+  const { urls } = useDocIcons();
+  const ref = iconProps(s).icon;
+  const url = ref?.startsWith(DOC_PREFIX) ? urls.get(ref.slice(DOC_PREFIX.length)) : undefined;
+  const im = Math.min(w, h) * 0.72;
   return (
     <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
-      {icon ? (
+      {url ? (
+        <>
+          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} stroke={tone ? "none" : "var(--line-2)"} strokeWidth={1} />
+          <image href={url} x={x + (w - im) / 2} y={y + (h - im) / 2} width={im} height={im} preserveAspectRatio="xMidYMid meet" />
+        </>
+      ) : icon ? (
         <>
           <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} stroke={tone ? "none" : stroke} strokeWidth={1.5} />
           <IconGlyph paths={icon} x={g.x} y={g.y} size={g.size} color={tone?.stroke ?? stroke} />

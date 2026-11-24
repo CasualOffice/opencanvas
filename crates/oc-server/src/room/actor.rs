@@ -568,6 +568,9 @@ impl Room {
             } => {
                 let _ = reply.send(self.template(&doc, &origin, &author).await);
             }
+            Cmd::Icons { op, author, reply } => {
+                let _ = reply.send(self.icons(&op, &author).await);
+            }
             Cmd::TemplateUndo { origin, reply } => {
                 let r = if self.conflict.is_some() {
                     Err(PatchFailure::Conflict)
@@ -1146,6 +1149,10 @@ impl Room {
             }
             _ => {}
         }
+        // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
+        if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {
+            return self.deny(conn, "icons are changed through the server");
+        }
         let cap = self.ctx.cfg.max_doc_bytes;
         if self.doc_bytes + bytes.len() > cap {
             self.doc_bytes = encoded_len(&self.doc);
@@ -1392,6 +1399,23 @@ impl Room {
         }
         tracing::info!(room = %self.id, blocks = block_ids.len(), "team template applied");
         Ok(Patched { block_ids })
+    }
+
+    /// DGM-17: a change to the server-written `icons` root, made on a scratch copy
+    /// (`oc_model::doc_icons::apply`, which enforces 200 icons and 1 MB) and applied with origin
+    /// `icons`.
+    async fn icons(
+        &mut self,
+        op: &oc_model::doc_icons::IconOp,
+        author: &str,
+    ) -> Result<Patched, PatchFailure> {
+        if self.conflict.is_some() {
+            return Err(PatchFailure::Conflict);
+        }
+        let update = oc_model::doc_icons::apply(&self.doc, op)
+            .map_err(|e| PatchFailure::Invalid(oc_model::patch::PatchError::Request(e)))?;
+        self.apply_server_update(update, "icons", author).await?;
+        Ok(Patched { block_ids: vec![] })
     }
 
     /// Applies an update made by the server (patch API, canvas tools) with `origin`, then logs

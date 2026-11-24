@@ -16,6 +16,7 @@ import { setUnfurl } from "./lib/unfurl";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
 import { deleteThread, useThreads } from "./lib/comments";
 import type { Demo } from "./lib/demo";
+import { demoIcons, serverIcons } from "./lib/icons";
 import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
@@ -642,8 +643,10 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       role: effectiveRole, me, users: allUsers, person: (id: string) => people.get(id), compact, toast: (m, action) => toast(m, { action }), upload: (f: File) => upload(f), resolveAsset, undoManager,
       exportBoard: session.demo ? undefined : (id, fmt, ids) => exportBoardText(session.ticket, id, fmt, ids),
       importToBoard: impFormats.some((f) => DIAGRAM_FORMATS.includes(f)) ? (id) => (setImportBoard(id), setImportInto(true)) : undefined,
+      // DGM-17: Add your own icon, cleaned by the server (demo: the local doc stands in for the room).
+      icons: session.demo ? demoIcons(doc, me) : serverIcons(session.ticket),
     }),
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats],
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, doc],
   );
 
   const openThread = useCallback((id: string) => {

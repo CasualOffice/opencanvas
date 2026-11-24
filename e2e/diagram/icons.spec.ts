@@ -10,9 +10,9 @@ let srv: Awaited<ReturnType<typeof serve>>;
 test.beforeAll(async () => (srv = await serve()));
 test.afterAll(() => srv.close());
 
-async function axe(page: Page) {
+async function axe(page: Page, sel = ".ocdg-left") {
   await page.evaluate(() => Promise.all(document.querySelector(".ocdg")!.getAnimations({ subtree: true }).filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
-  const r = await new AxeBuilder({ page }).include(".ocdg-left").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  const r = await new AxeBuilder({ page }).include(sel).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((x) => x.target.join(" ")).join(", ")}`)).toEqual([]);
 }
 
@@ -41,6 +41,40 @@ test("Icons: the library, search “s3” and “jitsi”, placing an icon; the 
   await expect(panel.locator(".ocdg-noicon .ocdg-tile")).toHaveCount(3);
   await axe(page);
   if (process.env.DGM_SHOT) await page.screenshot({ path: process.env.DGM_SHOT });
+});
+
+test("Add your own icon: an SVG is checked by the server, named and placed; the dialog passes axe", async ({ page }) => {
+  // The demo build has no room server: `/v1/icons` answers as oc-server's cleaner would.
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#2a5ad7"/></svg>`;
+  const dataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  const seen: string[] = [];
+  await page.route("**/v1/icons**", async (route) => {
+    seen.push(route.request().url());
+    await route.fulfill({ json: { format: "svg", width: 24, height: 24, bytes: svg.length, removed: [{ what: "Scripts", count: 1 }, { what: "Event handlers", count: 1 }], dataUrl } });
+  });
+  const board = await openDemo(page, srv.url);
+  await board.getByRole("button", { name: "Diagram", exact: true }).click();
+  const dg = page.getByRole("dialog", { name: /^Diagram: / });
+  const panel = dg.getByRole("complementary", { name: "Shapes" });
+  await panel.locator('[data-library="doc-icons"]').getByRole("button", { name: "Add icon" }).click();
+  const dlg = page.getByRole("dialog", { name: "Add an icon to this document" });
+  await expect(dlg).toBeVisible();
+  await expect(dlg).toContainText("Drop an SVG or PNG here");
+  await axe(page, ".ocic-dlg");
+  await dlg.locator('input[type="file"]').setInputFiles({ name: "acme-logo.svg", mimeType: "image/svg+xml", buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><circle cx="12" cy="12" r="10" onclick="x()"/></svg>`) });
+  await expect(dlg).toContainText("We removed 2 things that icons can’t contain");
+  await expect(dlg.locator(".ocdg-aipv img")).toHaveCount(6);
+  await expect(dlg.getByRole("textbox", { name: "Name" })).toHaveValue("Acme logo");
+  await axe(page, ".ocic-dlg");
+  await dlg.getByRole("textbox", { name: "Keywords" }).fill("sso, login");
+  await dlg.getByRole("button", { name: "Add icon" }).click();
+  await expect(dlg).toBeHidden();
+  const icon = dg.locator('g[data-kind="icon:node"]');
+  await expect(icon).toHaveCount(1);
+  await expect(icon.locator("image")).toHaveAttribute("href", /^data:image\/svg\+xml;base64,/);
+  await expect(icon).toContainText("Acme logo");
+  await expect(panel.locator('[data-library="doc-icons"] .ocdg-tile')).toHaveCount(1);
+  expect(seen.some((u) => u.includes("dryRun=1"))).toBe(true);
 });
 
 test("All icons: the full Lucide set loads lazily, searches and places with its paths", async ({ page }) => {

@@ -172,6 +172,10 @@ export function iconLabelLayout(s: Partial<Shape>): { lines: string[]; x: number
 
 /* ---------------------------------------------------------------- icons added to the document */
 
+/** Limits of the `icons` root (enforced by the server, `oc_model::doc_icons`). */
+export const MAX_DOC_ICONS = 200;
+export const MAX_DOC_ICON_BYTES = 1024 * 1024;
+
 /** `props.icon` prefix of an icon added to the document (DGM-17 part 3, ADR-057). */
 export const DOC_PREFIX = "doc:";
 

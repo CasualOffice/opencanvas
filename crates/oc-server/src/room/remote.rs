@@ -40,6 +40,12 @@ pub enum RemoteOp {
         grant: Grant,
         origin: String,
     },
+    /// DGM-17: a change to the server-written `icons` root.
+    Icons {
+        grant: Grant,
+        icon_op: oc_model::doc_icons::IconOp,
+        author: String,
+    },
     CommitLive,
     SetRole {
         user_id: String,
@@ -56,6 +62,7 @@ impl RemoteOp {
             | Self::Patch { grant, .. }
             | Self::Template { grant, .. }
             | Self::TemplateUndo { grant, .. }
+            | Self::Icons { grant, .. }
             | Self::Commit { grant } => Some(grant),
             Self::CommitLive | Self::SetRole { .. } | Self::Close => None,
         }
@@ -127,6 +134,14 @@ impl Rooms {
             ),
             RemoteOp::Template { grant, doc, origin } => encode_patch(
                 self.template_at(&need_host()?, &grant, doc, &origin, false)
+                    .await?,
+            ),
+            RemoteOp::Icons {
+                grant,
+                icon_op,
+                author,
+            } => encode_patch(
+                self.icons_at(&need_host()?, &grant, icon_op, &author, false)
                     .await?,
             ),
             RemoteOp::TemplateUndo { grant, origin } => encode_patch(

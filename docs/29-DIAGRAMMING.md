@@ -661,6 +661,46 @@ taken from, traced from or modelled on draw.io's stencils (their licence forbids
 - Tests: `lucide.test.tsx` (the grid and search cases seen failing first), the shared fixture, and
   the All icons case in `e2e/diagram/icons.spec.ts`.
 
+**Add your own icon (part 3, ADR-057).**
+
+- Server: `POST /v1/icons` (docs/05 §7) cleans the file (`oc_model::icon_clean`) and writes it into
+  the server-written root `icons` (`oc_model::doc_icons`: 200 icons, 1 MB); `POST /v1/icons/:id`
+  renames or removes. The room refuses client updates touching `icons`
+  (`room::filter::touches_root`). Every reader checks a stored icon again.
+- Shape: `icon:node` with `props.icon = "doc:<id>"`. The editor draws the cleaned file as
+  `<image href="data:…">` in the tile; `export.ts` and `oc-model::board` do the same, byte for
+  byte (`board-doc-icons.web.svg`), and the PNG export renders it. A removed icon draws the empty
+  frame with its label (6a); exports and 0.1.x clients draw the rect with its text (6b).
+- Panel (3a): **In this document** above Icons, with its count, Manage icons and Add icon (disabled
+  without a server, with a tooltip saying so); search shows document icons first (1f), so "jitsi"
+  finds an added Jitsi logo instead of the "no built-in icon" answer.
+- Add icon (`diagram/icons/Dialogs.tsx`, 2a–2d, 2f): drop, Choose file or paste (⌘V, a file or SVG
+  text); the server's dry run gives the report by name ("We removed 3 things that icons can’t
+  contain": Scripts, Event handlers, …) and previews at 16, 24 and 48 px on light and dark; name
+  from the file name, keywords; Add icon stores it and places it in the middle of the view,
+  selected. Refusals say why, list the other reasons, and offer Choose another file. No "from URL":
+  the server never fetches outside files.
+- Paste (2e): an SVG or PNG pasted or dropped on a board still becomes a picture; a toast offers
+  **Make it a reusable icon**, which opens Add icon with the file.
+- Icons in this document (3b–3d): filter, each icon's type, cleaned size, "Used N×", who added it and
+  when; Rename and keywords, Replace file (every shape updates), Download cleaned SVG, Remove (with
+  "It is used by N shapes on M boards. They keep their labels and connections…" and Replace file
+  instead); the allowance meter "… of 1 MB for icons · n of 200". "Suggest for the team library"
+  is later (decision 4).
+- Phone (7a–7d): the dialogs become bottom sheets under 30em with 44 px targets.
+- Demo (`#demo`, no room server): `/v1/icons` still checks the file; the local document stands in for
+  the room. Without a server the check is refused with "Adding icons needs the OpenCanvas server."
+- Not done: undo of adding or removing an icon (only the server writes the root), the "In this
+  document" Choose an icon action in the properties panel for a missing icon (6a shows the frame
+  only), team icons from the host (I5, part 4).
+- Tests: `oc-model/tests/icon_clean.rs` (script, handlers, `foreignObject`, external references,
+  billion laughs, oversize, too many elements, too deep, cleaned over 64 KB, fake PNG, PNG over
+  1024 px, allow-list; 11/11 seen failing against a stub), `doc_icons` unit tests,
+  `oc-server/tests/icons.rs` (dry run, add, rename, remove, view role, refusal codes, rate limit,
+  clients refused when they add, change or remove under `icons`; 3/3 seen failing first),
+  `icons-doc.test.tsx` (6 of 7 seen failing first), the shared export fixture, and
+  `e2e/diagram/icons.spec.ts` (adding an SVG with axe on the dialog).
+
 ### 8.11 Phone (S11, DGM-14.11)
 
 - Phone layout when the window is at most 30em wide (`usePhone`, `phone/Phone.tsx`): the diagram

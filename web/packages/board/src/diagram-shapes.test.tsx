@@ -148,7 +148,8 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     const id = createBoard(doc, "blank");
     const dg = await open(doc, id);
     const panel = panelOf(dg);
-    const heads = [...panel.querySelectorAll(".ocdg-lib[data-library] .ocdg-lh button")].map((b) => b.textContent);
+    // In this document (DGM-17 part 3) has its own header with Manage; the libraries follow it.
+    const heads = [...panel.querySelectorAll('.ocdg-lib[data-library]:not([data-library="doc-icons"]) .ocdg-lh button')].map((b) => b.textContent);
     const expected = panelLibraries()
       .filter((l) => !l.flag)
       .map((l) => `${l.name}${l.kinds.length + (l.connectors?.length ?? 0) || l.count}`);
