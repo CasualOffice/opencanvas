@@ -1323,6 +1323,20 @@ impl Room {
             }
             _ => {}
         }
+        // BSDK-02: an editor older than 0.2 deletes every `extBlock` it receives (its schema
+        // has no such node). Refuse that update and end the session; the person reopens the
+        // canvas with the current editor. Connections that keep SDK blocks say `caps=ext`.
+        if !grant.ext_blocks && filter::removes_ext_block(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: removes an SDK block from a client without caps=ext");
+            self.deny(conn, "this editor is out of date; reopen the canvas");
+            if let Some(p) = self.peers.get(&conn) {
+                let _ = p.tx.send(Outbound::Close(
+                    4426,
+                    "editor out of date: reopen the canvas".into(),
+                ));
+            }
+            return;
+        }
         // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
         if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {
             return self.deny(conn, "icons are changed through the server");

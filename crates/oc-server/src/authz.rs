@@ -360,6 +360,7 @@ impl Principal {
             min_role(host_role, self.ceiling)
         };
         Ok(Grant {
+            ext_blocks: false,
             wopi_history: None,
             host_id: self.host.id.clone(),
             room: room_id(&self.host.id, file_id),

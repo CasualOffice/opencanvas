@@ -253,6 +253,7 @@ impl FileInfo {
     pub fn grant(&self, host_id: &str, src: &Url, access_token: &str) -> Grant {
         let role = self.role();
         Grant {
+            ext_blocks: false,
             wopi_history: Some(crate::grant::WopiHistory {
                 supports: self.supports_versions,
                 url: self.file_version_url.clone(),

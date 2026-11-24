@@ -211,6 +211,7 @@ pub struct PatchBody {
 /// The grant a host API call acts under: an `edit` "user" named after the author.
 pub(super) fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -> Grant {
     Grant {
+        ext_blocks: false,
         wopi_history: None,
         host_id: host.id.clone(),
         room: room_id(&host.id, file_id),

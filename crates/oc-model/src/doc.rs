@@ -76,6 +76,11 @@ pub fn doc_to_json(doc: &Doc) -> Value {
     if people.as_object().is_some_and(|p| !p.is_empty()) {
         out["people"] = people;
     }
+    // BSDK-02: SDK block data, only when there is some.
+    let ext = map_json(&txn, txn.get_map(roots::EXT));
+    if ext.as_object().is_some_and(|e| !e.is_empty()) {
+        out["ext"] = ext;
+    }
     // DGM-17: icons people added (server-written), only when there are some.
     let icons = map_json(&txn, txn.get_map(roots::ICONS));
     if icons.as_object().is_some_and(|i| !i.is_empty()) {

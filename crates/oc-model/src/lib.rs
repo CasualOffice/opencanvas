@@ -46,5 +46,7 @@ pub mod roots {
     pub const PEOPLE: &str = "people";
     /// DGM-17 (ADR-057): icons people added, written by the server only (`doc_icons`).
     pub const ICONS: &str = "icons";
-    pub const MAPS: [&str; 6] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE];
+    /// BSDK-02 (ADR-040): SDK block data, `{dataId → Y.Map}` with one key per field.
+    pub const EXT: &str = "ext";
+    pub const MAPS: [&str; 7] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE, EXT];
 }

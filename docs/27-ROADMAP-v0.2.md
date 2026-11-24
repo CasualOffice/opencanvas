@@ -353,6 +353,22 @@ Third-party renderers run in an iframe per block instance:
   units in `ext::{schema,manifest}` and `blocks`, `oc-server/tests/blocks.rs`
   (`installed_packages_reach_the_session_and_refused_ones_healthz`).
 
+- **BSDK-02 (2026-11-25, Review; ADR-059 Proposed).** The editor has one generic node,
+  `extBlock {blockId, type, v, attrs, dataId, fallback} > block*` (`web/packages/editor/src/ext/node.ts`),
+  shown until BSDK-03 as an unstyled container with its fallback text, read-only, and its children;
+  the `ext` root (`ext[dataId]` = Y.Map, one key per field) in Rust (`roots::EXT`, `document.json`
+  `ext`, document.json-only rebuild) and TS (`ext/model.ts`). Declarative templates
+  (`ext::template`, `ext/template.ts`, Mustache subset with fixed filters, values escaped for
+  Markdown, shared cases `oc-model/tests/fixtures/ext.json`). Exports: Markdown renders the
+  template, else the sanitised fallback, else `Block: <name>`, then the children; HTML, DOCX, PDF
+  and previews draw it through `ext::expand`; `.ocanvas` manifests gain `requires.blocks`. Writes
+  (REST patch, `blocks:batch`, MCP `canvas_patch`) take `data` beside the node, check attrs and
+  data against the schemas and re-derive `fallback`; `canvas_read` JSON returns the data. Found
+  while writing the 0.1.x test: a 0.1.x **editor** deletes unknown nodes (y-prosemirror), so the
+  editor now sends `caps=ext` and the room refuses an update from a connection without it that
+  removes an `extBlock`, closing it with 4426. Tests: `oc-model/tests/ext.rs` (round trip,
+  exports, patches), `oc-server/tests/blocks.rs` (API writes, the 4426 guard), `ext/ext.test.ts`.
+
 ## 4. Stable headless API
 
 ### 4.1 Problem and user value

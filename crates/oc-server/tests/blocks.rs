@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 
 use common::*;
 use jsonwebtoken::{EncodingKey, Header, encode};
+use oc_server::grant::Role;
 use serde_json::{Value, json};
+use yrs::{Transact, XmlFragment};
 
 const API_KEY: &str = "test-api-key";
 
@@ -109,6 +111,25 @@ async fn session_json(addr: &str) -> Value {
         .unwrap()
 }
 
+fn api(addr: &str, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+    reqwest::Client::new()
+        .request(method, format!("http://{addr}/api/v1/files/{FILE}{path}"))
+        .header("X-OpenCanvas-Host", "sample")
+        .header("X-OpenCanvas-Key", API_KEY)
+}
+
+async fn batch(addr: &str, ops: Value) -> (u16, Value) {
+    let res = api(addr, reqwest::Method::POST, "/blocks:batch")
+        .json(&json!({"ops": ops}))
+        .send()
+        .await
+        .unwrap();
+    (
+        res.status().as_u16(),
+        res.json().await.unwrap_or(Value::Null),
+    )
+}
+
 #[tokio::test]
 async fn installed_packages_reach_the_session_and_refused_ones_healthz() {
     let (addr, state) = serve("session").await;
@@ -149,4 +170,132 @@ async fn installed_packages_reach_the_session_and_refused_ones_healthz() {
             .contains("integrity mismatch"),
         "{health}"
     );
+}
+
+#[tokio::test]
+async fn api_writes_are_checked_against_the_block_schema() {
+    let (addr, state) = serve("api").await;
+    let mut a = Peer::join(&state, {
+        let mut g = grant("u_a", Role::Edit);
+        g.ext_blocks = true;
+        g
+    })
+    .await;
+    a.settle().await;
+
+    let (s, out) = batch(&addr, json!([{"op": "append", "blocks": [
+        {"type": "extBlock", "attrs": {"blockId": "b_okr", "type": "srv.okr", "attrs": {"objective": "Ship v0.2", "progress": 0.4}},
+         "data": {"score": 3}}
+    ]}]))
+    .await;
+    assert_eq!(s, 200, "{out}");
+    a.settle().await;
+    let doc = json_of(&a.doc);
+    let attrs = &doc["content"][0]["attrs"];
+    assert_eq!(attrs["v"], 1, "the installed version is stamped");
+    assert_eq!(attrs["fallback"]["markdown"], "**Ship v0.2** (40%)");
+    assert_eq!(
+        doc["ext"][attrs["dataId"].as_str().unwrap()],
+        json!({"score": 3})
+    );
+
+    // Schema-invalid attrs or data: refused before anything reaches the room.
+    for bad in [
+        json!({"type": "extBlock", "attrs": {"type": "srv.okr", "attrs": {"objective": "x", "progress": 7}}}),
+        json!({"type": "extBlock", "attrs": {"type": "srv.okr", "attrs": {"objective": "x"}}, "data": {"score": "lots"}}),
+        json!({"type": "extBlock", "attrs": {"type": "srv.okr", "attrs": {}}}),
+    ] {
+        let (s, out) = batch(&addr, json!([{"op": "append", "blocks": [bad.clone()]}])).await;
+        assert_eq!(s, 400, "{bad}: {out}");
+        assert!(
+            out["detail"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("srv.okr"),
+            "{out}"
+        );
+    }
+    // A type this server did not install is kept as written (round trip), not refused.
+    let (s, out) = batch(&addr, json!([{"op": "append", "blocks": [
+        {"type": "extBlock", "attrs": {"type": "other.thing", "v": 3, "attrs": {"anything": [1]},
+         "fallback": {"text": "Other thing"}}}
+    ]}]))
+    .await;
+    assert_eq!(s, 200, "{out}");
+
+    // Reads: JSON carries the node and its data; Markdown the template rendering.
+    let res = api(&addr, reqwest::Method::GET, "?format=json")
+        .send()
+        .await
+        .unwrap();
+    let read: Value = res.json().await.unwrap();
+    let first = &read["blocks"][0];
+    assert_eq!(first["node"]["attrs"]["type"], "srv.okr", "{read}");
+    assert_eq!(first["data"], json!({"score": 3}), "{read}");
+    let res = api(&addr, reqwest::Method::GET, "?format=markdown")
+        .send()
+        .await
+        .unwrap();
+    let md: Value = res.json().await.unwrap();
+    let md = md["markdown"].as_str().unwrap();
+    assert!(
+        md.contains("**Ship v0.2** (40%)") && md.contains("Other thing"),
+        "{md}"
+    );
+}
+
+#[tokio::test]
+async fn an_editor_older_than_0_2_cannot_delete_sdk_blocks() {
+    let (addr, state) = serve("legacy").await;
+    let mut new = Peer::join(&state, {
+        let mut g = grant("u_new", Role::Edit);
+        g.ext_blocks = true;
+        g
+    })
+    .await;
+    // `grant()` is a connection without `caps=ext`: an editor older than 0.2.
+    let mut old = Peer::join(&state, grant("u_old", Role::Edit)).await;
+    new.settle().await;
+    old.settle().await;
+    // Before any SDK block exists, the old editor edits as always.
+    old.edit(|d| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        c.push_back(&mut t, yrs::XmlElementPrelim::empty("paragraph"));
+    });
+    old.settle().await;
+    assert_eq!(old.closed, None);
+
+    let (s, out) = batch(&addr, json!([{"op": "append", "blocks": [
+        {"type": "extBlock", "attrs": {"blockId": "b_okr", "type": "srv.okr", "attrs": {"objective": "Keep me"}}}
+    ]}]))
+    .await;
+    assert_eq!(s, 200, "{out}");
+    old.settle().await;
+    new.settle().await;
+
+    // What y-prosemirror does in a 0.1.x editor: delete the node its schema lacks.
+    let remove_ext = |d: &yrs::Doc| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let at = (0..c.len(&t))
+            .find(|i| matches!(c.get(&t, *i), Some(yrs::XmlOut::Element(e)) if e.tag().as_ref() == "extBlock"))
+            .unwrap();
+        c.remove_range(&mut t, at, 1);
+    };
+    old.edit(remove_ext);
+    old.settle().await;
+    assert_eq!(old.closed, Some(4426), "the old editor's session ends");
+    assert!(old.denied > 0);
+    let server = server_json(&state).await;
+    assert!(
+        server.to_string().contains("Keep me"),
+        "the block is kept: {server}"
+    );
+
+    // A current editor may delete it.
+    new.edit(remove_ext);
+    new.settle().await;
+    assert_eq!(new.closed, None);
+    assert!(!server_json(&state).await.to_string().contains("Keep me"));
 }

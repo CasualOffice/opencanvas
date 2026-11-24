@@ -550,6 +550,7 @@ pub async fn app_ai(
 
 pub fn grant(user: &str, role: Role) -> Grant {
     Grant {
+        ext_blocks: false,
         wopi_history: None,
         host_id: "sample".into(),
         room: room_id("sample", FILE),

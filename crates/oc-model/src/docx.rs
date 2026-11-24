@@ -693,6 +693,9 @@ pub fn to_docx(
     doc: &Value,
     images: &HashMap<String, Vec<u8>>,
 ) -> Result<(Vec<u8>, Vec<String>), crate::Error> {
+    // BSDK-02: SDK blocks as their template (or fallback) rendering.
+    let expanded = crate::ext::expand(doc, &crate::ext::installed());
+    let doc = expanded.as_ref();
     let mut w = Writer {
         doc,
         images,

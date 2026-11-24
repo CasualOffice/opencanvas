@@ -95,6 +95,12 @@ pub struct Grant {
     /// WOPI launches: what CheckFileInfo said about version history (docs/30 §3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wopi_history: Option<WopiHistory>,
+    /// BSDK-02 (docs/15 §3): the connection said it keeps `extBlock` nodes (`caps=ext` on the
+    /// WebSocket URL). Editors before 0.2 delete nodes their schema lacks, so an update from a
+    /// connection without it that deletes an `extBlock` is refused and the connection closed
+    /// with 4426.
+    #[serde(default)]
+    pub ext_blocks: bool,
 }
 
 /// CheckFileInfo `OpenCanvas_SupportsVersions`, `FileVersionUrl`, `FileVersionPostMessage`.
@@ -201,6 +207,7 @@ mod tests {
     #[test]
     fn debug_output_redacts_the_callback_token() {
         let g = super::Grant {
+            ext_blocks: false,
             wopi_history: None,
             host_id: "h".into(),
             room: "r".into(),

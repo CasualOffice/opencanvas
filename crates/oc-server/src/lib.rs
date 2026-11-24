@@ -284,6 +284,7 @@ impl AppState {
                 continue;
             };
             let grant = grant::Grant {
+                ext_blocks: false,
                 wopi_history: None,
                 host_id: row.host_id.clone(),
                 room: row.room_id.clone(),

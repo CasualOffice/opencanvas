@@ -32,6 +32,7 @@ import { Popover, useShell } from "../components/overlay";
 import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
+import { ExtBlock } from "../ext/node";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
 import type { SlashItem } from "./slash";
 
@@ -304,6 +305,7 @@ export function CanvasEditor(p: EditorProps) {
         OcImage,
         Database,
         Board,
+        ExtBlock,
         CommentMark,
         FileDrop,
         PasteUrl,

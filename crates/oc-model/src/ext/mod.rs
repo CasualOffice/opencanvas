@@ -363,3 +363,294 @@ pub(crate) fn check_root(ext: &Value, err: &mut dyn FnMut(String, String)) {
         }
     }
 }
+
+// ------------------------------------------------------------------ rendering
+
+/// A block's rendering for exports: Markdown (escaped, safe to embed) and plain text.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rendered {
+    pub markdown: String,
+    pub text: String,
+    /// `template`, `fallback` or `placeholder`.
+    pub source: &'static str,
+}
+
+/// Re-derives safe Markdown from untrusted Markdown: parsed by the importer and written by
+/// the exporter, so script links, raw HTML and images with odd URLs cannot pass.
+pub fn sanitize_markdown(md: &str) -> String {
+    let parsed = crate::import::markdown_to_json(md);
+    crate::export::to_markdown(&json!({"content": parsed["content"].clone()}))
+        .trim()
+        .to_string()
+}
+
+fn template_ctx(attrs: &Value, data: &Value) -> Value {
+    let mut ctx = attrs.as_object().cloned().unwrap_or_default();
+    ctx.insert("data".into(), obj_or_empty(data.clone()));
+    Value::Object(ctx)
+}
+
+/// Renders a block: the installed package's templates when its data is current (or migrated)
+/// and valid, else the stored fallback, else a placeholder naming the type.
+pub fn render(reg: &Registry, node: &Value, ext: &Value) -> Rendered {
+    let v = view(reg, node, ext);
+    if let (Some(m), Some((attrs, data))) = (&v.manifest, &v.current)
+        && (m.markdown.is_some() || m.text.is_some())
+        && schema_findings(m, attrs, data).is_empty()
+    {
+        let ctx = template_ctx(attrs, data);
+        let text = m
+            .text
+            .as_ref()
+            .map(|t| t.render(&ctx, template::Target::Text));
+        let markdown = match &m.markdown {
+            Some(t) => t.render(&ctx, template::Target::Markdown),
+            None => template::md_escape(text.as_deref().unwrap_or_default()),
+        };
+        let text = text.unwrap_or_else(|| plain_of_markdown(&markdown));
+        return Rendered {
+            markdown,
+            text,
+            source: "template",
+        };
+    }
+    let a = attrs_of(node);
+    let fb = a.get("fallback").unwrap_or(&Value::Null);
+    let md = fb
+        .get("markdown")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let text = fb.get("text").and_then(Value::as_str).unwrap_or_default();
+    if !md.trim().is_empty() || !text.trim().is_empty() {
+        let markdown = if md.trim().is_empty() {
+            template::md_escape(text)
+        } else {
+            sanitize_markdown(md)
+        };
+        let text = if text.trim().is_empty() {
+            plain_of_markdown(&markdown)
+        } else {
+            text.to_string()
+        };
+        return Rendered {
+            markdown,
+            text,
+            source: "fallback",
+        };
+    }
+    let ty = a.get("type").and_then(Value::as_str).unwrap_or("unknown");
+    let name = v.manifest.as_ref().map_or(ty, |m| m.title.as_str());
+    Rendered {
+        markdown: format!("*{}*", template::md_escape(&format!("Block: {name}"))),
+        text: format!("Block: {name}"),
+        source: "placeholder",
+    }
+}
+
+fn plain_of_markdown(md: &str) -> String {
+    let parsed = crate::import::markdown_to_json(md);
+    parsed["content"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(crate::export::plain_text)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
+}
+
+/// The document with every `extBlock` replaced by ordinary blocks: its rendering (parsed
+/// from the safe Markdown) followed by its own children. HTML, DOCX, PDF and previews draw
+/// this; Markdown export renders `extBlock` directly.
+pub fn expand<'a>(doc: &'a Value, reg: &Registry) -> std::borrow::Cow<'a, Value> {
+    use std::borrow::Cow;
+    fn has_ext(nodes: &[Value]) -> bool {
+        nodes.iter().any(|n| {
+            n.get("type").and_then(Value::as_str) == Some(NODE)
+                || n.get("content")
+                    .and_then(Value::as_array)
+                    .is_some_and(|c| has_ext(c))
+        })
+    }
+    fn walk(nodes: &[Value], ext: &Value, reg: &Registry, depth: usize) -> Vec<Value> {
+        let mut out = Vec::with_capacity(nodes.len());
+        for n in nodes {
+            if n.get("type").and_then(Value::as_str) == Some(NODE) {
+                let r = render(reg, n, ext);
+                if let Some(c) = crate::import::markdown_to_json(&r.markdown)["content"].as_array()
+                {
+                    out.extend(c.iter().cloned());
+                }
+                if let Some(c) = n.get("content").and_then(Value::as_array)
+                    && depth < 64
+                {
+                    out.extend(walk(c, ext, reg, depth + 1));
+                }
+                continue;
+            }
+            let mut n = n.clone();
+            if let Some(c) = n.get("content").and_then(Value::as_array)
+                && depth < 64
+                && has_ext(c)
+            {
+                n["content"] = Value::Array(walk(c, ext, reg, depth + 1));
+            }
+            out.push(n);
+        }
+        out
+    }
+    let Some(content) = doc.get("content").and_then(Value::as_array) else {
+        return Cow::Borrowed(doc);
+    };
+    if !has_ext(content) {
+        return Cow::Borrowed(doc);
+    }
+    let ext = doc.get("ext").cloned().unwrap_or(Value::Null);
+    let mut out = doc.clone();
+    out["content"] = Value::Array(walk(content, &ext, reg, 0));
+    Cow::Owned(out)
+}
+
+/// `manifest.requires.blocks` of a `.ocanvas`: the types and data versions the document
+/// uses, sorted, highest version per type.
+pub fn requires(doc: &Value) -> Vec<Value> {
+    fn walk(nodes: &[Value], out: &mut BTreeMap<String, u64>, depth: usize) {
+        for n in nodes {
+            if n.get("type").and_then(Value::as_str) == Some(NODE) {
+                let a = attrs_of(n);
+                if let Some(t) = a.get("type").and_then(Value::as_str) {
+                    let v = stored_v(a);
+                    let e = out.entry(t.to_string()).or_insert(v);
+                    *e = (*e).max(v);
+                }
+            }
+            if let Some(c) = n.get("content").and_then(Value::as_array)
+                && depth < 64
+            {
+                walk(c, out, depth + 1);
+            }
+        }
+    }
+    let mut found = BTreeMap::new();
+    if let Some(c) = doc.get("content").and_then(Value::as_array) {
+        walk(c, &mut found, 0);
+    }
+    found
+        .into_iter()
+        .map(|(t, v)| json!({"type": t, "v": v}))
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    /// The design's example package, at data version `major`; version 2 renames
+    /// `name` → `objective` and scales nothing.
+    pub fn okr(major: u64) -> Manifest {
+        let mut v = json!({
+            "type": "acme.okr", "version": format!("{major}.0.0"), "title": "OKR", "icon": "target",
+            "attrs": {"type": "object", "additionalProperties": false,
+                      "properties": {"objective": {"type": "string", "maxLength": 50},
+                                     "progress": {"type": "number", "minimum": 0, "maximum": 1}},
+                      "required": ["objective"]},
+            "data": {"kind": "map", "schema": {"type": "object",
+                      "properties": {"score": {"type": "integer"}}, "additionalProperties": false}},
+            "export": {"markdown": "**{{objective}}** ({{progress|percent}}){{#data.score}} score {{data.score}}{{/data.score}}",
+                       "text": "{{objective}}"},
+            "entry": "block.js",
+            "integrity": format!("sha384-{}", "A".repeat(64))
+        });
+        if major >= 2 {
+            v["migrations"] =
+                json!({"1": [{"op": "move", "from": "/attrs/name", "path": "/attrs/objective"}]});
+        }
+        Manifest::from_json(&v, false).unwrap()
+    }
+
+    pub fn reg(major: u64) -> Registry {
+        let mut r = Registry::new();
+        r.insert(okr(major)).unwrap();
+        r
+    }
+
+    fn block(v: u64, attrs: Value) -> Value {
+        json!({"type": "extBlock", "attrs": {"blockId": "b1", "type": "acme.okr", "v": v,
+            "attrs": attrs, "dataId": "d1",
+            "fallback": {"markdown": "OKR: [x](javascript:alert(1)) <b>hi</b>", "text": "OKR fallback"}}})
+    }
+
+    #[test]
+    fn current_blocks_render_their_template() {
+        let ext = json!({"d1": {"score": 7}});
+        let r = render(
+            &reg(1),
+            &block(1, json!({"objective": "Ship *it*", "progress": 0.5})),
+            &ext,
+        );
+        assert_eq!(r.source, "template");
+        assert_eq!(r.markdown, "**Ship \\*it\\*** (50%) score 7");
+        assert_eq!(r.text, "Ship *it*");
+    }
+
+    #[test]
+    fn missing_newer_or_invalid_blocks_render_the_sanitised_fallback() {
+        let ext = json!({});
+        let b = block(1, json!({"objective": "Ship", "progress": 0.5}));
+        for (r, why) in [(Registry::new(), "not installed"), (reg(1), "invalid")] {
+            let node = if why == "invalid" {
+                block(1, json!({"progress": 3}))
+            } else {
+                b.clone()
+            };
+            let out = render(&r, &node, &ext);
+            assert_eq!(out.source, "fallback", "{why}");
+            assert!(
+                !out.markdown.contains("javascript:"),
+                "{why}: {}",
+                out.markdown
+            );
+            // `<` only escaped, so it is text, never HTML.
+            assert!(
+                !out.markdown.replace("\\<", "").contains('<'),
+                "{why}: {}",
+                out.markdown
+            );
+            assert_eq!(out.text, "OKR fallback");
+        }
+        // Data written by v2 on a v1 install: fallback, read-only.
+        let v = view(&reg(1), &block(2, json!({"objective": "x"})), &ext);
+        assert!(matches!(
+            v.status,
+            Status::Newer {
+                stored: 2,
+                installed: 1
+            }
+        ));
+        assert_eq!(
+            render(&reg(1), &block(2, json!({"objective": "x"})), &ext).source,
+            "fallback"
+        );
+    }
+
+    #[test]
+    fn expand_replaces_blocks_and_keeps_children() {
+        let doc = json!({"content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "before"}]},
+            {"type": "extBlock", "attrs": {"type": "acme.okr", "v": 1, "attrs": {"objective": "Goal"}},
+             "content": [{"type": "paragraph", "content": [{"type": "text", "text": "child"}]}]}
+        ]});
+        let out = expand(&doc, &reg(1));
+        let types: Vec<&str> = out["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| n["type"].as_str().unwrap())
+            .collect();
+        assert_eq!(types, ["paragraph", "paragraph", "paragraph"]);
+        assert_eq!(crate::export::plain_text(&out["content"][1]), "Goal ()");
+        assert_eq!(crate::export::plain_text(&out["content"][2]), "child");
+        assert_eq!(requires(&doc), [json!({"type": "acme.okr", "v": 1})]);
+    }
+}

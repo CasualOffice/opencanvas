@@ -119,7 +119,7 @@ pub fn write_ocanvas_with(
         .as_str()
         .unwrap_or_default()
         .to_string();
-    let manifest = json!({
+    let mut manifest = json!({
         "format": "ocanvas",
         "version": FORMAT_VERSION,
         "schemaVersion": SCHEMA_VERSION,
@@ -127,6 +127,12 @@ pub fn write_ocanvas_with(
         "title": title,
         "commit": commit,
     });
+    // BSDK-02 (ADR-042): the SDK block types and data versions the document uses; additive,
+    // format version 1 unchanged.
+    let blocks = crate::ext::requires(&document);
+    if !blocks.is_empty() {
+        manifest["requires"] = json!({ "blocks": blocks });
+    }
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let deflate = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     zip.start_file("manifest.json", deflate)?;

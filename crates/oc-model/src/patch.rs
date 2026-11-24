@@ -130,6 +130,7 @@ fn op_blocks(
     blocks: &Option<Vec<Value>>,
     new_id: &mut dyn FnMut() -> String,
     ids: &mut Vec<String>,
+    data: &mut ExtWrites,
 ) -> Result<Vec<Value>, PatchError> {
     let mut nodes = match (markdown, blocks) {
         (Some(md), None) => markdown_to_json(md)["content"]
@@ -170,13 +171,152 @@ fn op_blocks(
         };
         ids.push(id);
     }
+    // BSDK-02/05: SDK blocks are migrated to the installed version, their data split off
+    // for the `ext` root and their fallback re-derived from the package's templates.
+    let reg = crate::ext::installed();
+    let mut path = Vec::new();
+    for (i, node) in nodes.iter_mut().enumerate() {
+        path.push(i);
+        prepare_ext(&reg, node, &mut path, new_id, data).map_err(|e| PatchError::Invalid(n, e))?;
+        path.pop();
+    }
     // MOD-01: refuse blocks that break the schema, naming the bad node; unknown content
     // is kept (a warning).
-    let report = crate::validate::record(crate::validate::validate_blocks("blocks", &nodes));
+    let report = crate::validate::record(crate::validate::validate_blocks_with(
+        "blocks", &nodes, &reg,
+    ));
     if let Some(e) = report.first_error() {
         return Err(PatchError::Invalid(n, e));
     }
     Ok(nodes)
+}
+
+/// Data for the `ext` root that a patch writes: `(dataId, fields)`.
+type ExtWrites = Vec<(String, serde_json::Map<String, Value>)>;
+
+/// Prepares one node (and its children) for writing: for an `extBlock`, takes `data` off
+/// the node (it lives in the `ext` root), migrates attrs and data to the installed package's
+/// version, checks the data against the package schema and re-derives `fallback`.
+fn prepare_ext(
+    reg: &crate::ext::Registry,
+    node: &mut Value,
+    path: &mut Vec<usize>,
+    new_id: &mut dyn FnMut() -> String,
+    writes: &mut ExtWrites,
+) -> Result<(), String> {
+    use crate::ext::{Status, view};
+    if path.len() > 64 {
+        return Ok(());
+    }
+    let at = || {
+        let p: Vec<String> = path.iter().map(ToString::to_string).collect();
+        format!("blocks/{}", p.join("/content/"))
+    };
+    if node.get("type").and_then(Value::as_str) == Some(crate::ext::NODE) {
+        let data = node.as_object_mut().and_then(|o| o.remove("data"));
+        if data
+            .as_ref()
+            .is_some_and(|d| !d.is_object() && !d.is_null())
+        {
+            return Err(format!("{}/data: block data must be an object", at()));
+        }
+        let attrs = node["attrs"]
+            .as_object_mut()
+            .ok_or("attrs must be an object")?;
+        if !attrs.contains_key("v")
+            && let Some(m) = attrs
+                .get("type")
+                .and_then(Value::as_str)
+                .and_then(|t| reg.get(t))
+        {
+            attrs.insert("v".into(), Value::from(m.major()));
+        }
+        let has_data = data
+            .as_ref()
+            .is_some_and(|d| d.as_object().is_some_and(|o| !o.is_empty()));
+        if has_data
+            && !attrs
+                .get("dataId")
+                .is_some_and(|d| d.as_str().is_some_and(|s| !s.is_empty()))
+        {
+            attrs.insert("dataId".into(), Value::String(new_id()));
+        }
+        let data_id = attrs
+            .get("dataId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let ext = match (&data_id, &data) {
+            (Some(id), Some(d)) => json!({ id.clone(): d }),
+            _ => json!({}),
+        };
+        let v = view(reg, node, &ext);
+        match (&v.status, &v.manifest, v.current) {
+            (Status::Current, Some(m), Some((new_attrs, new_data))) => {
+                let findings = crate::ext::schema_findings(m, &new_attrs, &new_data);
+                if let Some((w, p, e)) = findings.first() {
+                    let place = if *w == "attrs" { "attrs/attrs" } else { "data" };
+                    return Err(format!("{}/{place}{p}: {}: {e}", at(), m.ty));
+                }
+                let attrs = node["attrs"].as_object_mut().expect("checked");
+                attrs.insert("v".into(), Value::from(m.major()));
+                attrs.insert("attrs".into(), new_attrs);
+                if let (Some(id), Value::Object(fields)) = (&data_id, new_data)
+                    && (data.is_some() || !fields.is_empty())
+                {
+                    writes.push((id.clone(), fields));
+                }
+                let ext_now = match writes.last() {
+                    Some((id, f)) if Some(id) == data_id.as_ref() => json!({ id.clone(): f }),
+                    _ => json!({}),
+                };
+                let r = crate::ext::render(reg, node, &ext_now);
+                if r.source == "template" {
+                    node["attrs"]["fallback"] = json!({"markdown": r.markdown, "text": r.text});
+                }
+            }
+            _ => {
+                // Not installed here: kept as written; its data is stored as is and its
+                // Markdown fallback sanitised.
+                if let (Some(id), Some(Value::Object(fields))) = (&data_id, data) {
+                    writes.push((id.clone(), fields));
+                }
+                if let Some(md) = node["attrs"]["fallback"]["markdown"]
+                    .as_str()
+                    .map(str::to_string)
+                {
+                    node["attrs"]["fallback"]["markdown"] =
+                        Value::String(crate::ext::sanitize_markdown(&md));
+                }
+            }
+        }
+    }
+    if let Some(children) = node.get_mut("content").and_then(Value::as_array_mut) {
+        for (i, c) in children.iter_mut().enumerate() {
+            path.push(i);
+            let r = prepare_ext(reg, c, path, new_id, writes);
+            path.pop();
+            r?;
+        }
+    }
+    Ok(())
+}
+
+/// Writes block data into the `ext` root, one key per field (per-field last writer wins).
+fn write_ext(txn: &mut TransactionMut, writes: &ExtWrites) {
+    use yrs::{Map, MapPrelim, Out, WriteTxn};
+    if writes.is_empty() {
+        return;
+    }
+    let root = txn.get_or_insert_map(roots::EXT);
+    for (id, fields) in writes {
+        let map = match root.get(txn, id) {
+            Some(Out::YMap(m)) => m,
+            _ => root.insert(txn, id.as_str(), MapPrelim::default()),
+        };
+        for (k, v) in fields {
+            map.insert(txn, k.as_str(), crate::import::json_to_any(v));
+        }
+    }
 }
 
 /// Applies `ops` to a copy of `doc` and returns the update that reproduces them.
@@ -200,12 +340,13 @@ pub fn apply_patch(
     let before = scratch.transact().state_vector();
     let content = scratch.get_or_insert_xml_fragment(roots::CONTENT);
     let mut ids = Vec::new();
+    let mut data = ExtWrites::new();
     {
         let mut txn = scratch.transact_mut();
         for (n, op) in ops.iter().enumerate() {
             match op {
                 PatchOp::Append { markdown, blocks } => {
-                    let nodes = op_blocks(n, markdown, blocks, new_id, &mut ids)?;
+                    let nodes = op_blocks(n, markdown, blocks, new_id, &mut ids, &mut data)?;
                     let at = content.len(&txn);
                     insert_children(&mut txn, &content, at, &nodes);
                 }
@@ -221,7 +362,7 @@ pub fn apply_patch(
                 } => {
                     let (parent, at) = find_in(&txn, &content, block_id)
                         .ok_or_else(|| PatchError::NotFound(n, block_id.clone()))?;
-                    let nodes = op_blocks(n, markdown, blocks, new_id, &mut ids)?;
+                    let nodes = op_blocks(n, markdown, blocks, new_id, &mut ids, &mut data)?;
                     if matches!(op, PatchOp::Replace { .. }) {
                         parent.remove(&mut txn, at);
                         parent.insert(&mut txn, at, &nodes);
@@ -236,6 +377,7 @@ pub fn apply_patch(
                 }
             }
         }
+        write_ext(&mut txn, &data);
     }
     let update = scratch.transact().encode_state_as_update_v1(&before);
     Ok(PatchOutcome {

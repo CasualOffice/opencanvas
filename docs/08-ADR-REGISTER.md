@@ -60,6 +60,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-056 | Webhooks (WH-01): the HAPI-05 events POSTed to `[host.webhooks] url` (same origin as the host's `callback_base`: the SSRF rule), signed with `X-OpenCanvas-Signature` v2 and the host secret (or `[host.webhooks] secret`), event id as `Idempotency-Key`; a durable `webhook_outbox` (metadata only, rule 5) on SQLite/MySQL/MariaDB written by the room's owner, claimed per row so one node delivers; backoff 10 s → 12 h with `Retry-After`, give-up after `max_attempts` (12) | Accepted (owner, 2026-11-25) |
 | ADR-057 | Icons people add (DGM-17): a server-written document root `icons` `{id → {name, keywords, format, data (cleaned file, base64), width, height, bytes, by, byName, at}}` (exception to ADR-045 §1: a new root, so a document is self-contained and exports never fetch); client updates that touch it are refused, like `comments` for the comment role; `POST /v1/icons` (editors, 20 a minute) cleans the file (`oc_model::icon_clean`: roxmltree pre-scan without DTDs, usvg normalisation, allow-list, 256 KB in / 64 KB cleaned, 2,000 elements, depth 16; PNG by magic bytes, ≤ 256 KB and 1024 px, re-encoded) and writes it through the room; 200 icons and 1 MB per document; every reader checks a stored icon again; the editor and both exporters draw it as `<image href="data:…">`, never inline markup | Accepted (owner approved the design via the prototype, 2026-11-24) |
 | ADR-058 | Block packages (BSDK-01): `block.json` checked at install with a compiled JSON Schema 2020-12 **subset** (`oc_model::ext::schema`; any other keyword, a remote `$ref` or another `$schema` refuses the package) instead of the `jsonschema` crate (about 15 new crates); new direct dependency `regex` 1 (MIT OR Apache-2.0; its dependencies already in Cargo.lock) for `pattern`, and `semver` 1 (already in Cargo.lock); packages that fail (manifest, integrity sha384) are refused one by one and listed on `/healthz`; `[host.blocks] enabled = ["type@req"]` is the per-host switch (no `block_sdk` flag); `OC_BLOCKS_ORIGIN` must differ from the editor's origin | Proposed (2026-11-25) |
+| ADR-059 | SDK blocks in documents (BSDK-02): every package's block is `extBlock > block*` (inline content in one paragraph child); data in the `ext` root, one Y.Map key per field; writes carry `data` beside the node and get `fallback` re-derived from the templates; exports draw template, else sanitised fallback, else a placeholder; connections declare `caps=ext`, and an update from a connection without it that removes an `extBlock` (what y-prosemirror in a 0.1.x editor does) is refused and closed with 4426 | Proposed (2026-11-25) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -853,3 +854,21 @@ have been. (5) `OC_BLOCKS_ORIGIN` must be a different origin from `OC_PUBLIC_URL
 cannot stop a server; − authors cannot use `unevaluatedProperties`, `$dynamicRef`,
 `dependentSchemas` or format assertions; − the editor has no validator yet (BSDK-03 adds the
 bridge's write check).
+
+### ADR-059 — SDK blocks in documents and older editors (Proposed 2026-11-25, BSDK-02)
+**Context.** ADR-040/042 assumed that 0.1.x keeps an unknown node. The `.ocanvas` reader does
+(MOD-02), but the 0.1.x **editor** binds the document with y-prosemirror against its own schema,
+and y-prosemirror deletes any element its schema lacks (`deleteYType`), for every peer. Seen with
+the v0.1.1 schema in `web/packages/editor/src/ext/compat.test.ts`.
+**Decision.** (1) One node, `extBlock {type, v, attrs, dataId, fallback} > block*`; a package with
+inline content keeps it in one paragraph child. (2) Data in the `ext` root: `ext[dataId]` is a
+Y.Map with one plain-JSON value per field. (3) API, MCP and REST patch writes may carry `data`
+beside the node; the server writes it to `ext`, checks both against the schemas and re-derives
+`fallback` from the templates. (4) Exports: template, else the fallback sanitised by a Markdown
+round trip, else `Block: <name>`; HTML, DOCX, PDF and previews draw that Markdown. (5) The editor
+sends `caps=ext`; an update from a connection without it that lowers the number of `extBlock`s is
+refused and the socket closed with 4426 (a 0.1.x editor treats 44xx as final).
+**Consequences.** + no SDK block is lost to an editor older than 0.2 sharing the room; − such an
+editor's session ends when it meets an SDK block (the person reopens with the current editor);
+− headless CRDT clients must send `caps=ext` to delete SDK blocks; − one scratch-copy check per
+update from such connections in rooms with SDK blocks.
