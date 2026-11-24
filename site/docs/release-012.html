@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Release notes 0.1.2 | OpenCanvas</title>
+<meta name="description" content="OpenCanvas 0.1.2 release and upgrade notes for host integrations, diagramming, version history, and the headless API.">
+<link rel="canonical" href="https://canvas.casualoffice.org/docs/release-012.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Release notes 0.1.2 | OpenCanvas">
+<meta property="og:description" content="OpenCanvas 0.1.2 release and upgrade notes for host integrations, diagramming, version history, and the headless API.">
+<meta property="og:url" content="https://canvas.casualoffice.org/docs/release-012.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release-012.html" aria-current="page">Release notes 0.1.2</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html">Nextcloud</a></li><li><a href="matrix.html">Element / Matrix</a></li><li><a href="mattermost.html">Mattermost</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release-012.html" aria-current="page">Release notes 0.1.2</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html">Nextcloud</a></li><li><a href="matrix.html">Element / Matrix</a></li><li><a href="mattermost.html">Mattermost</a></li><li><a href="protocol.html">Protocol and build contract</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Release notes 0.1.2</h1>
+
+<p>OpenCanvas 0.1.2 adds host integrations, structured diagramming, version history, and a versioned headless API. See the <a href="https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md">changelog</a> for changes since v0.1.1 and the <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/10-EXECUTION-TRACKER.md">execution tracker</a> for implementation and test evidence.</p>
+<h2 id="whats-included">What's included</h2>
+<ul><li>The <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/nextcloud/README.md">Nextcloud app</a> uses WOPI and keeps canvas files, versions, and shares in Nextcloud. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/mattermost/README.md">Mattermost plugin</a> adds canvases to channels. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/matrix/README.md">Element / Matrix widget</a> provides shared room canvases. <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/jitsi/README.md">Jitsi Meet</a> continues to support temporary meeting canvases.</li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/29-DIAGRAMMING.md">Diagram mode</a> adds libraries, ports, routing, and auto-layout. Import draw.io and Excalidraw with a dry-run report, and export draw.io and Mermaid alongside PNG and SVG. See the diagram guide for format coverage and mixed-version behavior.</li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/30-VERSION-HISTORY.md">Version history</a> supports named saves, comparison, restore, and a 30-second undo after restore. The history menu depends on host capabilities and user permissions.</li><li>The <a href="../docs/integration.html">host integration guide</a> describes the headless API, scoped access, and host launch options. Read the <a href="../docs/operations.html">operations guide</a> for deployment and monitoring.</li></ul>
+<h2 id="upgrade-notes">Upgrade notes</h2>
+<ul><li>Back up host files and follow the <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/25-RELEASE-v0.1.0-alpha.1.md#durability-modes">recovery guidance</a> before upgrading. Allow active saves to complete before replacing the server.</li><li>Use <code>ghcr.io/casualoffice/opencanvas:0.1.2</code> for the container. For Helm, use chart <code>0.1.2</code> from the checkout with <code>image.repository=ghcr.io/casualoffice/opencanvas</code>. WOPI hosts still need proof keys. Consult the <a href="../docs/release.html#upgrade-notes">v0.1.0 upgrade notes</a> for older deployments.</li><li>Configure each integration with its own guide, including the allowed iframe origins. Hosts adopting version history should check their callback support and the permissions granted to each user.</li></ul>
+<h2 id="known-limitations">Known limitations</h2>
+<p>Support is best-effort, with no production SLA. Start with a single node and review the <a href="../docs/capacity.html">capacity guidance</a> before scaling. AI and MCP are experimental and off by default. For diagram interchange and mixed-version sessions, see the <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/29-DIAGRAMMING.md">diagram guide</a>.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/31-RELEASE-v0.1.2.md">docs/31-RELEASE-v0.1.2.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="getting-started.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Getting started</span></a><a class="pn pn-next" href="release.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Release notes 0.1.0</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#whats-included">What's included</a></li><li><a href="#upgrade-notes">Upgrade notes</a></li><li><a href="#known-limitations">Known limitations</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

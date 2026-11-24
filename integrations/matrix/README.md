@@ -48,8 +48,7 @@ prototype: [UI-SCREENS.md](UI-SCREENS.md).
 
 ## Install
 
-You need OpenCanvas 0.1.1 or later with per-host `frame_ancestors` (releases after 0.1.1 for
-`temporary_wording`; older ones keep meeting wording), Node 24 for the bridge,
+You need OpenCanvas 0.1.2 or later for per-host `frame_ancestors` and `temporary_wording`, Node 24 for the bridge,
 and a Matrix bot account.
 
 1. **Bot account** on your homeserver, for example `@canvasbot:acme.example`. Log in once to

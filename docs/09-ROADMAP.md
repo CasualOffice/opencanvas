@@ -27,8 +27,8 @@ open to a broad developer ecosystem (ADR-038).
 | Version | Focus |
 |---|---|
 | v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
-| v0.1.x | Host integrations (Jitsi Meet, Nextcloud, Mattermost, Element / Matrix), link previews, team templates, viewer preview, a UI that follows the reader's text size |
-| v0.2 | Stable headless APIs, an extensible block SDK, version history and webhooks |
+| [v0.1.2](31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
+| v0.2 | Stable headless APIs, an extensible block SDK, version-history follow-ups and webhooks |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |

@@ -1,7 +1,7 @@
 # OpenCanvas
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.1-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.1)
+[![Release](https://img.shields.io/badge/release-v0.1.2-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.2)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 
 **An embeddable, real-time collaborative canvas for your app.** Rich text, databases and
@@ -11,7 +11,7 @@ office documents.
 
 [Website](https://canvas.casualoffice.org) ·
 [Try the demo](https://canvas.casualoffice.org/app/#demo) ·
-[Release notes](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.1) ·
+[Release notes](https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.2) ·
 [Jitsi Meet](integrations/jitsi/README.md) ·
 [Nextcloud](integrations/nextcloud/README.md) ·
 [Mattermost](integrations/mattermost/README.md) ·
@@ -24,22 +24,12 @@ office documents.
   <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
 </picture>
 
-> **On `main`, not yet released:** integrations for [Nextcloud](integrations/nextcloud/README.md)
-> (a WOPI app: files, versions and shares stay in Nextcloud), [Mattermost](integrations/mattermost/README.md)
-> (a plugin: canvases in channels) and [Element / Matrix](integrations/matrix/README.md) (a room
-> widget), each tested end to end in the real host; the groundwork for structured diagramming
-> ([docs/29](docs/29-DIAGRAMMING.md)): faster large boards, ports, connectors that route around
-> shapes; and a UI that follows the reader's text size (rem units, ADR-050). See the
-> [execution tracker](docs/10-EXECUTION-TRACKER.md) for what is done and what is left.
->
-> **v0.1.1: Jitsi Meet integration.** Every Jitsi meeting can get a shared, temporary canvas
-> with one Prosody plugin and config ([guide](integrations/jitsi/README.md), [changes](CHANGELOG.md)).
-> Best-effort support with no SLA. Before you deploy, read the 0.1.x
-> [release notes](docs/28-RELEASE-v0.1.0.md), its
-> [upgrade notes](docs/28-RELEASE-v0.1.0.md#upgrade-notes) (WOPI proof keys are now required) and
-> [known limitations](docs/28-RELEASE-v0.1.0.md#known-limitations) (memory, durability modes,
-> single node first) before you deploy it. The AI assistant and MCP endpoint are
-> **experimental and off by default**.
+> **New in v0.1.2.** OpenCanvas now integrates with [Nextcloud](integrations/nextcloud/README.md),
+> [Mattermost](integrations/mattermost/README.md) and [Element / Matrix](integrations/matrix/README.md).
+> Diagramming adds shape libraries, connector routing, auto-layout, and import and export.
+> Version history lets editors compare and restore versions where the host supports it.
+> Read the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md) before deploying.
+> Support is best-effort, with no production SLA. AI and MCP are experimental and off by default.
 
 ## Goal
 
@@ -91,6 +81,9 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Templates | 40 templates in 9 categories, plus blank canvas, database, whiteboard and import |
 | Integration | HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; live role changes; `<open-canvas>` SDK; postMessage API |
 | Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
+| Nextcloud, Mattermost and Element / Matrix | Host integrations for WOPI files, channel canvases and room widgets. See the [release notes](docs/31-RELEASE-v0.1.2.md). |
+| Diagramming | Shape libraries, ports, connector routing, layout and interchange. [Diagram guide](docs/29-DIAGRAMMING.md) |
+| Version history | Named versions, comparison, restore and a short undo window. Availability depends on the host and permissions. [History guide](docs/30-VERSION-HISTORY.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
 | Import | Markdown, HTML and CSV into a canvas on the server, one undoable step, editors only; draw.io and Excalidraw diagrams into a board after a dry-run report (DGM-15). **Off by default**: a host lists `import_formats`; `OC_IMPORT=off` turns it off everywhere |
@@ -221,9 +214,9 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 
 | Version | Focus |
 |---|---|
-| **v0.1** (this alpha) | The collaborative editor, databases, whiteboards and embedding |
-| v0.1.x (in progress) | Host integrations (Jitsi Meet, Nextcloud, Mattermost, Element / Matrix), link previews, team templates, viewer preview, a UI that follows the reader's text size |
-| v0.2 | Stable headless APIs, an extensible block SDK, version history and webhooks |
+| v0.1.0 | First final release of the collaborative editor, databases, whiteboards and embedding |
+| [v0.1.2](docs/31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
+| v0.2 | Stable headless APIs, an extensible block SDK, version-history follow-ups and webhooks |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |

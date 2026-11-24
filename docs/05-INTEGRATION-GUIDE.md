@@ -105,7 +105,7 @@ exchanged for a session ticket on open).
 picker. When your own UI already asked what kind of canvas it is (a "Blank or Meeting notes"
 dialog), put `"start": "page"` in the token: the canvas opens on its first line instead, and
 templates stay available inside the editor. The server passes it on as `&start=page` after the
-ticket in the editor URL fragment. Any other value is ignored, and servers up to 0.1.1 ignore the
+ticket in the editor URL fragment. Any other value is ignored, and servers before 0.1.2 ignore the
 claim (the picker shows). It changes nothing for a canvas that already has content.
 
 ## 4. Embed in your page
@@ -544,7 +544,7 @@ e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 The supported API for programs: bots, integrations, back-office jobs. It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
-per host with `[host.flags] api_v1 = true` (off by default in 0.2.0-alpha; otherwise every
+per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every
 `/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
 `v1` changes are additive.
 

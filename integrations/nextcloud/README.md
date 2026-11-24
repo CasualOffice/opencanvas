@@ -69,7 +69,7 @@ versions. OpenCanvas does the editing and stores no documents.
 
 ## Install
 
-You need a running OpenCanvas server. See
+Use an OpenCanvas 0.1.2 server for the features described in this guide. See
 [Operations](../../docs/13-OPERATIONS-AND-DEPLOYMENT.md).
 
 **1. OpenCanvas: register Nextcloud as a WOPI host** in `opencanvas.hosts.toml`:
