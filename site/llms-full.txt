@@ -3405,7 +3405,7 @@ Server `:8080`, sample host `:4000`, Vite dev `:5173` (proxying `/v1` to `:8080`
 # Block SDK guide
 
 URL: https://canvas.casualoffice.org/docs/block-sdk.html
-Source file: docs/32-BLOCK-SDK.md
+Source file: docs/33-BLOCK-SDK.md
 
 **Status:** v0.2 (BSDK-01 to BSDK-05). Contract: docs/15 §4.2-4.3; design: docs/27 §3; decisions:
 ADR-040, ADR-058, ADR-059, ADR-060.

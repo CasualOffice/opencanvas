@@ -19,7 +19,7 @@ const CATS = ["Basic", "Data", "Media", "Layout", ORG_GROUP] as const;
 const CAT_ICON: Record<string, string> = { Basic: "type", Data: "database", Media: "image", Layout: "columns-2", [ORG_GROUP]: "building-2" };
 
 /** Docs for admins: how SDK blocks are added (the site page of docs/32). */
-export const BLOCKS_DOCS = "https://github.com/CasualOffice/opencanvas/blob/main/docs/32-BLOCK-SDK.md";
+export const BLOCKS_DOCS = "https://github.com/CasualOffice/opencanvas/blob/main/docs/33-BLOCK-SDK.md";
 
 function Preview({ x }: { x: SlashItem }) {
   const [broken, setBroken] = useState(false);
