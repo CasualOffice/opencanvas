@@ -743,6 +743,82 @@ origin.
 `refused`) and `oc_webhook_delivery_seconds{host}` (time of one attempt), on the OPS-01
 dashboard's "Webhooks" row.
 
+## 7d. API clients (HAPI-06/07)
+
+Two clients wrap §7b with the same behaviour; both are Apache-2.0, versioned with the server,
+and in this repository (not yet published to npm or crates.io):
+
+- **TypeScript** `@opencanvas/client` (`web/packages/client`): Node 20+, browsers, Deno and edge
+  runtimes; no runtime dependency beyond `fetch`. Types, the operation table and one method per
+  operation are generated from `crates/oc-server/api/openapi.json` by
+  `web/packages/client/scripts/gen.mjs` (CI runs it with `--check`).
+
+What both do:
+
+| | |
+|---|---|
+| Credentials | host key (`X-OpenCanvas-Host` + `X-OpenCanvas-Key`, optional `X-OpenCanvas-Author`) or a user token; a token callback runs before every request, so it can refresh |
+| Idempotency | every write (`POST /api/v1/files/…`) carries an `Idempotency-Key`: a random one per call, the same one on each retry of that call; pass your own to survive a process restart, or none |
+| Retries | `429`, `503` and `409 IDEMPOTENCY_IN_PROGRESS`, after `Retry-After` (else 500 ms doubling, at most 30 s), 3 times by default; network errors for reads and keyed writes only (an unkeyed write may have run). The wait is injectable, so tests never sleep |
+| Errors | RFC 9457 problems as typed errors, by `code` first, then status: `StaleBlock` (412 with `fresh`), `RateLimited` (`retryAfterSecs`), `IdempotencyKeyReused`, `IdempotencyInProgress`, `CursorExpired`, `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `Gone`, `PreconditionFailed`, `TooLarge`, `Unprocessable`, `Unavailable`, `Server` |
+| Paging | iterators over `listBlocks` and `queryRows` that follow `next_cursor` |
+| Events | the SSE stream of a file; a dropped stream (or close code 4008) reconnects with `Last-Event-ID` and gets what it missed, or a `resync` event; 4001 and 4003 end it with an error |
+| Webhooks | a signature check for §7c deliveries (`v2`, constant time, 5-minute window) |
+
+```ts
+import { OpenCanvas, StaleBlockError, verifyWebhook } from "@opencanvas/client";
+
+const oc = new OpenCanvas({
+  baseUrl: "https://canvas.example.com",
+  auth: { hostId: "acme", key: process.env.OC_API_KEY!, author: "u_42" },
+  // or: auth: { token: async () => mintUserToken("u_42", "canvas:read canvas:write") },
+});
+
+const doc = await oc.readFile({ fileId: "doc_1" });               // typed CanvasRead
+try {
+  await oc.batchBlocks(
+    { fileId: "doc_1", body: { ops: [{ op: "append", markdown: "## Decisions\n\nShip Friday." }] } },
+    { ifMatch: doc.rev },                                          // the document precondition
+  );
+} catch (e) {
+  if (e instanceof StaleBlockError) console.log("changed meanwhile", e.fresh);
+  else throw e;
+}
+
+for await (const row of oc.paginate("queryRows", { fileId: "doc_1", dbId: "db_1", query: { limit: 200 } })) {
+  console.log(row);
+}
+
+const res = await oc.call("addComment", { fileId: "doc_1", body: { text: "Done?", blockId: "b_1" } },
+  { idempotencyKey: `remind-${jobId}` });                          // answer + ETag, replayed, rateLimit
+
+const stream = oc.events({ fileId: "doc_1", types: ["edited", "commented"], lastEventId: saved });
+for await (const event of stream) await handle(event);              // stream.lastEventId to resume later
+
+// In your webhook receiver (raw body, before JSON parsing):
+const ok = await verifyWebhook({ secret, signature: req.headers["x-opencanvas-signature"], body: raw,
+  pathQuery: req.originalUrl });
+```
+
+**Conformance suite.** `crates/oc-server/api/conformance.json` is one list of scenarios that both
+clients run against a real server (`crates/oc-server/tests/conformance/server.rs`; the TypeScript
+client starts it as the `conformance_server` example, built with cargo unless
+`OC_CONFORMANCE_BIN` names it; `OC_CONFORMANCE=skip` runs the unit tests only): read, a block
+batch with `If-Match`, idempotent replay, paging, a rate limit, an events resume and a webhook
+signature, plus offline webhook signature vectors. The server pins its clock and exposes test
+routes under `/__conformance/` (move the clock, mint a token, deliver webhooks), so no scenario
+sleeps: a client's retry wait advances the server clock. Each scenario has a `host` (`conf`, or
+`tight` with a burst of 2) and `steps`; `{file}` is a fresh file id, and `{name}` is a value an
+earlier step saved. A step is one of:
+
+| Step | Does |
+|---|---|
+| `{"call": op, "params", "options"?, "auth"?, "expect"?, "save"?}` | one operation through the client's generic call. `params` = path parameters plus `query` and `body`; `options` = `idempotencyKey`, `ifMatch`, `maxRetries`; `auth` = `{"token": {scope, files}}` or `{"hostKey": "…"}` (default the host key). `expect`: `error {status, code, kind, retryAfterSecs?}`, `etag`, `replayed`, `sleptMs` (the retry waits), `body {<JSON pointer>: value \| {length} \| {contains} \| {exists} \| {notEquals}}` (on the problem for errors). `save {name: pointer}` |
+| `{"paginate": op, "params", "expect": {count, pages, uniqueBy}}` | every page through the client's iterator |
+| `{"events": "open" \| "next" \| "close", "stream": name, "params"?}` | an events stream (`params`: `fileId`, `types`, `lastEventId`); `next` waits up to 10 s for an event and takes `expect`/`save` |
+| `{"webhook": type, "expect": {verified, body}}` | the server delivers webhooks of that type for `{file}`; the client's check must accept each and refuse it with the body changed |
+| `{"clock": ms}` | advances the server clock |
+
 ## 8. Lifecycle & guarantees
 
 - **One live room per (host, file).** Users who open the same file join the

@@ -1,0 +1,32 @@
+{
+  "name": "@opencanvas/client",
+  "version": "0.1.2",
+  "description": "TypeScript client of the OpenCanvas headless API (/api/v1): typed operations, idempotent writes, retries, cursor paging, events and webhook verification.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "engines": { "node": ">=20" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "src", "README.md"],
+  "scripts": {
+    "gen": "node scripts/gen.mjs",
+    "gen:check": "node scripts/gen.mjs --check",
+    "build": "node scripts/gen.mjs --check && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "~5.9",
+    "vitest": "^5.1.1"
+  }
+}

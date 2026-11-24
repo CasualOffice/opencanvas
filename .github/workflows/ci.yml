@@ -41,10 +41,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - run: node ../tools/check-px.mjs   # SCALE-01 / ADR-050: type and spacing in rem, breakpoints in em
+      - run: node packages/client/scripts/gen.mjs --check   # HAPI-06: client types match openapi.json
       - run: pnpm -r test
+        env: { OC_CONFORMANCE: skip }   # the server conformance run is the clients job
       - run: pnpm --filter @opencanvas/editor build
       - uses: actions/upload-artifact@v4
         with: { name: editor-dist, path: web/packages/editor/dist }
+
+  clients:
+    # HAPI-06/07: both API clients run the shared conformance suite (crates/oc-server/api/
+    # conformance.json) against a real server. The Rust client runs it in `cargo test`
+    # (rust job); here the TypeScript client runs it against the conformance_server example.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: cargo build -p oc-server --example conformance_server
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm --filter @opencanvas/client test && pnpm --filter @opencanvas/client build
+        working-directory: web
+        env: { OC_CONFORMANCE_BIN: "${{ github.workspace }}/target/debug/examples/conformance_server" }
 
   helm:
     # deploy/helm/opencanvas: lint + render the three supported shapes, and check that SQLite

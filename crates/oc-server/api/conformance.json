@@ -1,0 +1,349 @@
+{
+  "version": 1,
+  "about": "Client conformance suite for the headless API (HAPI-06/07, docs/27 §4.2). Both clients (@opencanvas/client, opencanvas-client) run every scenario against a real server (crates/oc-server/tests/conformance/server.rs) and every webhook vector offline. Grammar: docs/05 §7d. Strings '{name}' are variables: {file} is a fresh file id per scenario, others are saved by 'save'.",
+  "webhookVectors": [
+    {
+      "name": "valid",
+      "secret": "whsec_conformance",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a,v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000010,
+      "valid": true
+    },
+    {
+      "name": "clock behind, within 5 minutes",
+      "secret": "whsec_conformance",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a,v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1799999800,
+      "valid": true
+    },
+    {
+      "name": "timestamp more than 5 minutes old",
+      "secret": "whsec_conformance",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a,v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000301,
+      "valid": false
+    },
+    {
+      "name": "tampered body",
+      "secret": "whsec_conformance",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a,v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_2\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000010,
+      "valid": false
+    },
+    {
+      "name": "another path",
+      "secret": "whsec_conformance",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a,v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000010,
+      "valid": false
+    },
+    {
+      "name": "wrong secret",
+      "secret": "whsec_other",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a,v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000010,
+      "valid": false
+    },
+    {
+      "name": "v1 only (not bound to the path)",
+      "secret": "whsec_conformance",
+      "signature": "t=1800000000,v1=43a98c08db480669dd7e41c348af198db86caf5053bb6f210985392ee7341f2a",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000010,
+      "valid": false
+    },
+    {
+      "name": "malformed header",
+      "secret": "whsec_conformance",
+      "signature": "v2=808fdcce19e7be633b2a2ff0f4ef881e215308cd6f793f028346ea876dfe6900",
+      "method": "POST",
+      "pathQuery": "/hooks/opencanvas?tenant=a",
+      "body": "{\"id\":\"ev_01kconformance\",\"type\":\"saved\",\"fileId\":\"doc_1\",\"at\":1800000000000,\"data\":{\"version\":\"7\"}}",
+      "nowSecs": 1800000010,
+      "valid": false
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "read",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "# Launch plan\n\nShip the client this week"}]}},
+          "expect": {"body": {"/applied": 1, "/blockIds": {"length": 2}, "/mode": "direct"}},
+          "save": {"rev": "/rev"}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}"},
+          "expect": {"etag": "{rev}", "body": {"/rev": "{rev}", "/blocks": {"length": 2}, "/blocks/0/node/type": "heading"}},
+          "save": {"para": "/blocks/1/blockId", "paraRev": "/blocks/1/rev"}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}", "query": {"format": "markdown"}},
+          "expect": {"body": {"/markdown": {"contains": "Ship the client this week"}}}
+        },
+        {
+          "call": "getBlock",
+          "params": {"fileId": "{file}", "blockId": "{para}"},
+          "expect": {"etag": "{paraRev}", "body": {"/blockId": "{para}", "/rev": "{paraRev}"}}
+        },
+        {
+          "call": "findBlocks",
+          "params": {"fileId": "{file}", "query": {"q": "client"}},
+          "expect": {"body": {"/matches": {"length": 1}, "/matches/0/blockId": "{para}"}}
+        },
+        {
+          "call": "readFile",
+          "auth": {"token": {"scope": "canvas:read", "files": ["{file}"]}},
+          "params": {"fileId": "{file}", "query": {"format": "outline"}},
+          "expect": {"body": {"/rev": "{rev}"}}
+        },
+        {
+          "call": "batchBlocks",
+          "auth": {"token": {"scope": "canvas:read", "files": ["{file}"]}},
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "not allowed"}]}},
+          "expect": {"error": {"status": 403, "code": "SCOPE_REQUIRED", "kind": "Forbidden"}}
+        }
+      ]
+    },
+    {
+      "name": "batch with If-Match",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "First"}]}},
+          "save": {"rev1": "/rev", "block": "/blockIds/0"}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Second"}]}},
+          "options": {"ifMatch": "{rev1}"},
+          "expect": {"body": {"/applied": 1}},
+          "save": {"rev2": "/rev"}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Third"}]}},
+          "options": {"ifMatch": "{rev1}"},
+          "expect": {"error": {"status": 412, "code": "STALE_BLOCK", "kind": "StaleBlock"}}
+        },
+        {
+          "call": "getBlock",
+          "params": {"fileId": "{file}", "blockId": "{block}"},
+          "save": {"blockRev": "/rev"}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "editText", "blockId": "{block}", "ifMatch": "{blockRev}", "textEdits": [{"find": "First", "replace": "First, edited"}]}]}},
+          "expect": {"body": {"/applied": 1}}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "editText", "blockId": "{block}", "ifMatch": "{blockRev}", "textEdits": [{"find": "edited", "replace": "edited twice"}]}]}},
+          "expect": {"error": {"status": 412, "code": "STALE_BLOCK", "kind": "StaleBlock"}, "body": {"/fresh": {"exists": true}}}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}", "query": {"format": "markdown"}},
+          "expect": {"body": {"/markdown": {"contains": "First, edited\n"}}}
+        }
+      ]
+    },
+    {
+      "name": "idempotent replay",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Once"}]}},
+          "options": {"idempotencyKey": "conformance-{file}"},
+          "expect": {"replayed": false},
+          "save": {"first": "/blockIds/0", "rev": "/rev"}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Once"}]}},
+          "options": {"idempotencyKey": "conformance-{file}"},
+          "expect": {"replayed": true, "body": {"/blockIds/0": "{first}", "/rev": "{rev}"}}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Twice?"}]}},
+          "options": {"idempotencyKey": "conformance-{file}"},
+          "expect": {"error": {"status": 422, "code": "IDEMPOTENCY_KEY_REUSED", "kind": "IdempotencyKeyReused"}}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}"},
+          "expect": {"body": {"/blocks": {"length": 1}}}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Automatic key"}]}},
+          "expect": {"replayed": false, "body": {"/applied": 1}}
+        },
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Automatic key"}]}},
+          "expect": {"replayed": false, "body": {"/applied": 1}}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}"},
+          "expect": {"body": {"/blocks": {"length": 3}}}
+        }
+      ]
+    },
+    {
+      "name": "paging",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "B1\n\nB2\n\nB3\n\nB4\n\nB5\n\nB6\n\nB7\n\nB8\n\nB9\n\nB10\n\nB11\n\nB12\n\nB13\n\nB14\n\nB15\n\nB16\n\nB17\n\nB18\n\nB19\n\nB20\n\nB21\n\nB22\n\nB23\n\nB24\n\nB25"}]}},
+          "expect": {"body": {"/blockIds": {"length": 25}}}
+        },
+        {
+          "paginate": "listBlocks",
+          "params": {"fileId": "{file}", "query": {"limit": 10}},
+          "expect": {"count": 25, "pages": 3, "uniqueBy": "/blockId"}
+        },
+        {
+          "call": "createDatabase",
+          "params": {"fileId": "{file}", "body": {"name": "Tasks", "fields": [{"name": "Task", "type": "title"}, {"name": "Points", "type": "number"}], "rows": [{"values": {"Task": "a", "Points": 1}}, {"values": {"Task": "b", "Points": 2}}, {"values": {"Task": "c", "Points": 3}}, {"values": {"Task": "d", "Points": 4}}, {"values": {"Task": "e", "Points": 5}}, {"values": {"Task": "f", "Points": 6}}, {"values": {"Task": "g", "Points": 7}}]}},
+          "save": {"db": "/dbId"}
+        },
+        {
+          "paginate": "queryRows",
+          "params": {"fileId": "{file}", "dbId": "{db}", "query": {"limit": 3}},
+          "expect": {"count": 7, "pages": 3, "uniqueBy": "/rowId"}
+        }
+      ]
+    },
+    {
+      "name": "rate limit",
+      "host": "tight",
+      "steps": [
+        {"call": "readFile", "params": {"fileId": "{file}"}},
+        {"call": "readFile", "params": {"fileId": "{file}"}},
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}"},
+          "options": {"maxRetries": 0},
+          "expect": {"error": {"status": 429, "code": "RATE_LIMITED", "kind": "RateLimited", "retryAfterSecs": 1}}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{file}"},
+          "options": {"maxRetries": 2},
+          "expect": {"sleptMs": [1000], "body": {"/blocks": {"length": 0}}}
+        }
+      ]
+    },
+    {
+      "name": "events resume",
+      "host": "conf",
+      "steps": [
+        {"events": "open", "stream": "live", "params": {"fileId": "{file}", "types": ["edited"]}},
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Seen live"}]}},
+          "save": {"b1": "/blockIds/0"}
+        },
+        {
+          "events": "next",
+          "stream": "live",
+          "expect": {"body": {"/type": "edited", "/fileId": "{file}", "/data/blockIds": ["{b1}"]}},
+          "save": {"ev1": "/id"}
+        },
+        {"events": "close", "stream": "live"},
+        {"events": "open", "stream": "witness", "params": {"fileId": "{file}", "types": ["edited"]}},
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Missed while away"}]}},
+          "save": {"b2": "/blockIds/0"}
+        },
+        {
+          "events": "next",
+          "stream": "witness",
+          "expect": {"body": {"/data/blockIds": ["{b2}"]}},
+          "save": {"ev2": "/id"}
+        },
+        {"events": "close", "stream": "witness"},
+        {"events": "open", "stream": "resumed", "params": {"fileId": "{file}", "types": ["edited"], "lastEventId": "{ev1}"}},
+        {
+          "events": "next",
+          "stream": "resumed",
+          "expect": {"body": {"/type": "edited", "/id": "{ev2}", "/data/blockIds": ["{b2}"]}}
+        },
+        {"events": "close", "stream": "resumed"}
+      ]
+    },
+    {
+      "name": "webhook signature",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Comment on me"}]}},
+          "save": {"block": "/blockIds/0"}
+        },
+        {
+          "call": "addComment",
+          "params": {"fileId": "{file}", "body": {"text": "Looks good", "blockId": "{block}"}},
+          "expect": {"body": {"/threadId": {"exists": true}}}
+        },
+        {
+          "webhook": "commented",
+          "expect": {"verified": true, "body": {"/fileId": "{file}", "/data/blockId": "{block}", "/data/added": 1}}
+        }
+      ]
+    },
+    {
+      "name": "errors",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "getBlock",
+          "params": {"fileId": "{file}", "blockId": "b_missing"},
+          "expect": {"error": {"status": 404, "code": "BLOCK_NOT_FOUND", "kind": "NotFound"}, "body": {"/type": "urn:opencanvas:problem:block-not-found"}}
+        },
+        {
+          "call": "listBlocks",
+          "params": {"fileId": "{file}", "query": {"cursor": "not-a-cursor"}},
+          "expect": {"error": {"status": 400, "code": "CURSOR_INVALID", "kind": "BadRequest"}}
+        },
+        {
+          "call": "readFile",
+          "auth": {"hostKey": "wrong-key"},
+          "params": {"fileId": "{file}"},
+          "expect": {"error": {"status": 401, "code": "UNAUTHENTICATED", "kind": "Unauthorized"}}
+        }
+      ]
+    }
+  ]
+}

@@ -70,6 +70,18 @@ importers:
         specifier: ~13.6
         version: 13.6.33
 
+  packages/client:
+    devDependencies:
+      '@types/node':
+        specifier: ^24
+        version: 24.19.2
+      typescript:
+        specifier: ~5.9
+        version: 5.9.3
+      vitest:
+        specifier: ^5.1.1
+        version: 5.1.1(@types/node@24.19.2)(jsdom@31.0.1)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(terser@5.51.4))
+
   packages/database:
     dependencies:
       '@opencanvas/ui':

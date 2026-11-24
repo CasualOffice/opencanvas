@@ -530,6 +530,23 @@ if any lacks a matching operation.
   `webhook_outbox` on SQLite, MySQL 8.4 and MariaDB 10.11, `cluster.rs`
   `webhooks_are_sent_once_in_a_cluster`, units in `webhooks`.
 
+- **HAPI-06 (2026-11-25, Review).** `@opencanvas/client` in `web/packages/client` (docs/05
+  §7d), published layout (`exports`, `dist`, `files`) but private, not published. Instead of
+  `openapi-typescript` (§4.2), a 200-line generator (`scripts/gen.mjs`) turns the narrow JSON
+  Schema subset the document uses into types, an operation table (method, path, scope,
+  parameters, body kind, paged item key, takes `Idempotency-Key`) and one typed method per
+  operation; `--check` runs in CI and the pre-push gates, so the client cannot drift from the
+  document. The hand-written core is `fetch` only: host key or a token callback, a random
+  `Idempotency-Key` per write reused across its retries, retries of `429`/`503`/`409
+  IDEMPOTENCY_IN_PROGRESS` after `Retry-After` (exponential otherwise) through an injectable
+  wait, network retries only for reads and keyed writes, RFC 9457 problems as typed errors
+  (kind by `code`, then status), `pages`/`paginate` over `next_cursor`, an SSE events iterator
+  that resumes with `Last-Event-ID` (and after close code 4008), and `verifyWebhook` (Web
+  Crypto). The shared conformance suite (`crates/oc-server/api/conformance.json`: read, batch
+  with `If-Match`, idempotent replay, paging, rate limit, events resume, webhook signature, and
+  signature vectors) runs against a real server with a pinned clock whose `/__conformance/`
+  routes let a client's retry wait move server time instead of sleeping.
+
 ---
 
 ## 5. Cross-cutting changes
