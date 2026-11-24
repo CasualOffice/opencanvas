@@ -153,7 +153,8 @@ function Hl({ text, q }: { text: string; q?: string }): ReactNode {
 }
 
 function Pill({ label, c, st, q }: { label: string; c?: string; st?: boolean; q?: string }) {
-  return <span className={`ocdb-pill ocdb-c-${c ?? "gray"}${st ? " st" : ""}`}><Hl text={label} q={q} /></span>;
+  // The label is its own box so a narrow column ends it with an ellipsis (SCALE-02).
+  return <span className={`ocdb-pill ocdb-c-${c ?? "gray"}${st ? " st" : ""}`} title={label}><span className="ocdb-pt"><Hl text={label} q={q} /></span></span>;
 }
 
 function Value({ f, v, people, peek, q }: { f: DbField; v: CellValue | undefined; people: People; peek?: boolean; q?: string }): ReactNode {

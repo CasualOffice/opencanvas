@@ -340,3 +340,20 @@ describe("peek and import", () => {
     expect(el.querySelector(".ocdb-kan")).toBeTruthy();
   });
 });
+
+// SCALE-02 S2: at a 24 px default font a status pill in a narrow column clipped mid-word ("In
+// progres"): the label sat directly in an inline-flex pill, where text-overflow has no effect.
+describe("pills at large text (SCALE-02)", () => {
+  it("the label is its own ellipsis box and the full text is in the title", async () => {
+    const doc = new Y.Doc();
+    const id = createDatabase(doc, "tasks");
+    const el = mount(<DatabaseBlock doc={doc} dbId={id} env={env()} />);
+    const pill = el.querySelector<HTMLElement>(".ocdb-pill.st")!;
+    const label = pill.querySelector<HTMLElement>(".ocdb-pt")!;
+    expect(label.textContent).toBe(pill.textContent);
+    expect(pill.title).toBe(pill.textContent);
+    const { CSS } = await import("./styles");
+    expect(CSS).toMatch(/\.ocdb-pt\{[^}]*overflow:hidden;text-overflow:ellipsis/);
+    expect(CSS).toMatch(/\.ocdb-pill\{[^}]*min-width:0/);
+  });
+});
