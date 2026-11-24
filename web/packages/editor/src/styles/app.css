@@ -400,7 +400,8 @@ button.cic:hover{transform:scale(1.06)}
 .ftb input{height:1.875rem;border:0;outline:none;background:none;width:13.75rem;padding:0 .5rem;font-size:.8125rem}
 
 /* ---------- side panel: comments ---------- */
-.side{width:23.75rem;flex:none;border-left:1px solid var(--line);background:var(--app);display:flex;flex-direction:column;min-height:0;animation:slideIn .4s var(--ease)}
+/* SCALE-02 S5: grows with the text size up to 30 % of the window; its 16 px width (380 px) is the floor. */
+.side{width:min(23.75rem, max(380px, 30vw)) /* px */;flex:none;border-left:1px solid var(--line);background:var(--app);display:flex;flex-direction:column;min-height:0;animation:slideIn .4s var(--ease)}
 @keyframes slideIn{from{transform:translateX(24px);opacity:0}}
 .side .shd{height:3rem;display:flex;align-items:center;gap:.375rem;padding:0 .5rem 0 1rem;border-bottom:1px solid var(--line);flex:none;font-size:.8125rem;color:var(--fg-3);white-space:nowrap}
 .side .shd b{color:var(--fg);font-weight:600;font-size:.875rem}

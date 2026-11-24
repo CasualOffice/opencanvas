@@ -2,6 +2,7 @@
 // Copyright 2026 CasualOffice
 
 // SCALE-02: reflow at 200 % zoom and a 24 px default font (docs/19 §Scaling, S5 and S6).
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { clampCaretLabels } from "./carets";
 
@@ -23,5 +24,12 @@ describe("collaborator caret labels (S6)", () => {
     a!.getBoundingClientRect = () => rect(200, 330);
     clampCaretLabels(root);
     expect(a!.style.transform).toBe("");
+  });
+});
+
+describe("comments panel (S5)", () => {
+  it("grows with the text size but never past 30 % of the window, and never below its 16 px width", () => {
+    const css = readFileSync(new URL("../styles/app.css", `file://${__filename}`), "utf8");
+    expect(css).toMatch(/\.side\{width:min\(23\.75rem, max\(380px, 30vw\)\)/);
   });
 });
