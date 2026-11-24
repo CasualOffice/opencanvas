@@ -241,6 +241,29 @@ export function withResolvedArrows(shapes: Shape[]): Shape[] {
   return shapes.map((s) => (s.type === "arrow" && (s.start || s.end || s.route || s.via) ? { ...s, pts: resolveArrow(s, byId) } : s));
 }
 
+/**
+ * ADR-047 point 3: an `avoid` connector's stored route (`pts`, written by the commit-time sync)
+ * while it still starts and ends where its plain elbow would and every leg is axis-aligned;
+ * otherwise `null` (the plain elbow). Exporters only: the screen routes live (routing.ts).
+ */
+export function storedRoute(s: Shape): ElbowHook | undefined {
+  if (!isAvoid(s)) return undefined;
+  return (a, _sa, b) => {
+    const p = s.pts;
+    if (!p || p.length < 2) return null;
+    const at = (q: Pt, r: Pt) => q[0] === r[0] && q[1] === r[1];
+    if (!at(p[0], a) || !at(p[p.length - 1], b)) return null;
+    for (let i = 1; i < p.length; i++) if (p[i][0] !== p[i - 1][0] && p[i][1] !== p[i - 1][1]) return null;
+    return p.map((q): Pt => [q[0], q[1]]);
+  };
+}
+
+/** `withResolvedArrows` for exporters: `avoid` connectors keep a current stored route (`storedRoute`). */
+export function exportResolvedArrows(shapes: Shape[]): Shape[] {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  return shapes.map((s) => (s.type === "arrow" && (s.start || s.end || s.route || s.via) ? { ...s, pts: resolveArrow(s, byId, storedRoute(s)) } : s));
+}
+
 export const samePts = (a: Pt[] | undefined, b: Pt[]) => !!a && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
 
 /** A connector whose stored `pts` the commit-time sync keeps in step with its shapes. */

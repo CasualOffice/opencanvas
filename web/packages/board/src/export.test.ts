@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { exportBoardSvg, shapesToSvg } from "./export";
 import { getBoardMap, readShapes, type Shape } from "./model";
-import { withResolvedArrows } from "./connectors";
+import { exportResolvedArrows, withResolvedArrows } from "./connectors";
 import { GENERIC_ICONS } from "./icons";
 
 // Shared with the Rust renderer (`crates/oc-model/tests/board.rs`): both must produce
@@ -66,6 +66,31 @@ describe("board export: ports (DGM-12)", () => {
     expect(pts.e7![0]).toEqual([100, 0]);
     expect(json).toBe(readFileSync(FIX + "board-ports.resolved.json", "utf8"));
     expect(svg).toBe(readFileSync(FIX + "board-ports.web.svg", "utf8"));
+  });
+});
+
+describe("board export: avoid connectors (ADR-047 point 3, DGM-12b)", () => {
+  // `board-avoid.resolved.json` is the exporter's connector points; the Rust exporter must give the
+  // same (`crates/oc-model/tests/diagram.rs`) and the same SVG.
+  it("draws an avoid connector's stored route while its ends match, else the plain elbow", () => {
+    const doc = fixtureDoc("board-avoid.json");
+    const raw = readShapes(getBoardMap(doc, "b1")!);
+    const stored = (id: string) => raw.find((s) => s.id === id)!.pts;
+    const shapes = exportResolvedArrows(raw);
+    const pts = Object.fromEntries(shapes.filter((s) => s.type === "arrow").map((s) => [s.id, s.pts]));
+    const json = JSON.stringify(pts, null, 1) + "\n";
+    const svg = exportBoardSvg(doc, "b1").replace(/ocbd-x-clip-\d+/g, "ocbd-x-clip-1");
+    if (UPDATE) {
+      writeFileSync(FIX + "board-avoid.resolved.json", json);
+      writeFileSync(FIX + "board-avoid.web.svg", svg);
+    }
+    expect(pts.r1).toEqual(stored("r1"));
+    expect(pts.r2).not.toEqual(stored("r2"));
+    expect(pts.r4).not.toEqual(stored("r4"));
+    expect(pts.r3).toEqual(withResolvedArrows(raw).find((s) => s.id === "r3")!.pts);
+    expect(svg).toContain("M100 30 L150 30 L150 300 L350 300 L350 230 L400 230");
+    expect(json).toBe(readFileSync(FIX + "board-avoid.resolved.json", "utf8"));
+    expect(svg).toBe(readFileSync(FIX + "board-avoid.web.svg", "utf8"));
   });
 });
 

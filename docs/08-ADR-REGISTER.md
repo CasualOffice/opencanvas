@@ -631,6 +631,14 @@ avoidance is the main Phase 2 routing feature; layout (ELK/Dagre) is Phase 3.
    outside the 300 KB initial budget (ADR-019). Phase 1 adds no dependency.
 **Consequences.** + Mixed-version rooms draw something sensible; + no new persisted geometry; − the
 Rust export of an `avoid` connector may fall back to a plain elbow when `pts` is stale.
+**Note (DGM-12b, 2026-11-24).** Point 3 is built in every exporter: Rust SVG, PNG, PDF and preview
+(`board::stored_route`), the web SVG/PNG exporter (`connectors.ts` `exportResolvedArrows`) and the
+draw.io export (bends only for a current route; otherwise a plain orthogonal edge draw.io routes
+itself; Mermaid has no geometry). "Still match" = `pts` starts and ends exactly where the plain
+elbow would (ports or anchors of the bound shapes, after sticky growth) and every leg is
+axis-aligned. Shared fixture `board-avoid.json` (points and SVG byte-equal in both). The Rust router
+port and the route worker stay deferred: neither is needed while `pts` is current, and no
+measurement asks for the worker yet.
 
 ### ADR-048 — Skip the start screen with a launch claim (Accepted, owner approved via prototype MM S2f / MX S5–S7b, 2026-11-24)
 **Context.** The Mattermost plugin asks for the kind of canvas (blank or meeting notes) in its own

@@ -186,6 +186,29 @@ fn drawio_export_is_deterministic_and_escapes_text() {
 }
 
 #[test]
+fn a_stale_avoid_route_exports_as_a_plain_elbow() {
+    // ADR-047 point 3 (DGM-12b): bends are written only while the stored route still starts and
+    // ends at the bound shapes' anchors; after `pay` moved (an older client, no re-sync), draw.io
+    // gets no fixed bends and routes the orthogonal edge itself.
+    let mut doc = board();
+    doc["boards"]["b1"]["shapes"]["pay"]["y"] = json!(100);
+    let e = export(Out::Drawio, &doc, "b1", None).unwrap();
+    let back = convert(In::Drawio, e.text.as_bytes(), 0).unwrap();
+    let m = by_src(&back.shapes);
+    assert!(m["e3"]["via"].is_null(), "{}", m["e3"]);
+    assert_eq!(m["e3"]["route"], "elbow");
+    assert!(!items(&e.report).contains_key("avoid"));
+    // A diagonal leg is not a route either.
+    let mut doc = board();
+    doc["boards"]["b1"]["shapes"]["e3"]["pts"] = json!([[620, 200], [760, 340], [800, 340]]);
+    let e = export(Out::Drawio, &doc, "b1", None).unwrap();
+    assert!(
+        !e.text
+            .contains("<Array as=\"points\"><mxPoint x=\"760\" y=\"340\"/>")
+    );
+}
+
+#[test]
 fn a_selection_exports_its_shapes_and_the_connectors_between_them() {
     let doc = board();
     let only: HashSet<String> = ["gw", "orders", "e1"]

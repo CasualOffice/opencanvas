@@ -67,7 +67,10 @@ pub fn export(
     let name = board["name"].as_str().unwrap_or("Board").to_string();
     let mut out = Out::default();
     let text = match format {
-        Format::Drawio => drawio::write(&shapes, board_id, &name, &mut out),
+        Format::Drawio => {
+            let routed = crate::board::current_routes(doc, board_id);
+            drawio::write(&shapes, board_id, &name, &routed, &mut out)
+        }
         Format::Mermaid => mermaid::write(&shapes, &mut out),
     };
     Some(Exported {

@@ -23,6 +23,38 @@ fn doc_with(board: Value) -> Value {
     })
 }
 
+fn avoid_board() -> Value {
+    serde_json::from_str(include_str!("fixtures/board-avoid.json")).expect("fixture json")
+}
+
+fn stored(board: &Value, id: &str) -> Vec<[f64; 2]> {
+    serde_json::from_value(board["shapes"][id]["pts"].clone()).unwrap()
+}
+
+#[test]
+fn avoid_connectors_export_their_stored_route_while_its_ends_match() {
+    // ADR-047 point 3 (DGM-12b): `board-avoid.resolved.json` is the web exporter's connector
+    // points for `board-avoid.json` (export.test.ts regenerates it). r1, a routed `avoid`
+    // connector whose stored ends still sit on its bound anchors, draws its stored route; r2
+    // (stale start), r4 (a diagonal leg) and r3 (no `routing`) draw the plain elbow.
+    let board = avoid_board();
+    let expected: std::collections::BTreeMap<String, Vec<[f64; 2]>> =
+        serde_json::from_str(include_str!("fixtures/board-avoid.resolved.json")).unwrap();
+    let got: std::collections::BTreeMap<String, Vec<[f64; 2]>> =
+        oc_model::board::resolved_points(&doc_with(board.clone()), "b1")
+            .into_iter()
+            .collect();
+    assert_eq!(got["r1"], stored(&board, "r1"));
+    assert_ne!(got["r2"], stored(&board, "r2"));
+    assert_ne!(got["r4"], stored(&board, "r4"));
+    assert_eq!(got, expected);
+    let svg = oc_model::board::to_svg(&doc_with(board), "b1");
+    assert_eq!(
+        svg.replace("ocbd-b1-", "ocbd-x-"),
+        include_str!("fixtures/board-avoid.web.svg")
+    );
+}
+
 fn icons_board() -> Value {
     serde_json::from_str(include_str!("fixtures/board-icons.json")).expect("fixture json")
 }
