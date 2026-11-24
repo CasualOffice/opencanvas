@@ -22,6 +22,9 @@ export interface TemporaryWording {
   revokedSub: string | null;
   /** View-only banner (S7a); null keeps the host-named default. */
   viewOnly: string | null;
+  /** The version history panel of a temporary canvas (VH-01d frame 8c). */
+  historyTitle: string;
+  historySub: string;
 }
 
 export function wordingOf(v: unknown): Wording {
@@ -39,6 +42,8 @@ export function temporaryWording(w: Wording): TemporaryWording {
       revokedTitle: "You're no longer in this room, so this canvas is closed",
       revokedSub: "Only room members can open it. Join the room again to come back. Copies you downloaded are yours to keep.",
       viewOnly: "You can view this canvas. Room moderators can edit.",
+      historyTitle: "This canvas is temporary",
+      historySub: "It isn't saved anywhere and is deleted after everyone has closed it, so it has no versions. Download a copy to keep one.",
     };
   return {
     note: "This canvas is not saved anywhere. It is deleted when the meeting ends; download a copy to keep it.",
@@ -49,6 +54,8 @@ export function temporaryWording(w: Wording): TemporaryWording {
     revokedTitle: null,
     revokedSub: null,
     viewOnly: null,
+    historyTitle: "This canvas is temporary",
+    historySub: "It isn't saved anywhere and is deleted when the meeting ends, so it has no versions. Download a copy to keep one.",
   };
 }
 
