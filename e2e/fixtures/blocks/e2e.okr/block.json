@@ -1,0 +1,25 @@
+{
+  "type": "e2e.okr",
+  "version": "1.2.0",
+  "title": "Test OKR",
+  "icon": "target",
+  "publisher": "E2E Corp",
+  "description": "Objective and progress",
+  "keywords": ["goals", "tick"],
+  "content": "none",
+  "attrs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "objective": { "type": "string", "maxLength": 80, "default": "New objective" },
+      "progress": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }
+    },
+    "required": ["objective"]
+  },
+  "data": { "kind": "map", "schema": { "type": "object", "properties": { "score": { "type": "integer", "minimum": 0 } }, "additionalProperties": false } },
+  "export": { "markdown": "**{{objective}}** ({{progress|percent}}) score {{data.score|default:0}}", "text": "{{objective}}" },
+  "permissions": { "network": ["https://okr.e2e.example"], "members": "read" },
+  "entry": "block.js",
+  "integrity": "@SRI@"
+}

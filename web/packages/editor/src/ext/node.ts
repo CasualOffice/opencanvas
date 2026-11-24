@@ -4,12 +4,13 @@
 // The one generic node every SDK block is stored as (BSDK-02, ADR-040, docs/15 §4.2):
 // `extBlock {blockId, type, v, attrs (JSON), dataId?, fallback}` with content `block*`. The
 // schema is the same in every client whether or not it has the package, which y-prosemirror
-// needs. Until the sandboxed runtime (BSDK-03) draws blocks, every block shows its stored
-// fallback as plain text, read-only, in an unstyled container; nothing is rewritten, so all
-// attributes, data and children round-trip. Visible elements: the fallback line, and the
-// line "Updated by a newer version" for data newer than the installed package.
+// needs. The node view (ExtView) draws the approved chrome (BSDK-03): the sandboxed frame when
+// this editor can run the block, else the read-only fallback states; children sit below it.
 import { Node } from "@tiptap/core";
-import { editable, fallbackText, statusOf, type ExtAttrs } from "./model";
+import { NodeSelection } from "@tiptap/pm/state";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import { fallbackText, focusBlock, type ExtAttrs } from "./model";
+import { ExtView } from "./ExtView";
 
 const json = (s: string | null) => {
   if (!s) return null;
@@ -27,6 +28,7 @@ export const ExtBlock = Node.create({
   defining: true,
   isolating: true,
   draggable: true,
+  selectable: true,
   addAttributes: () => ({
     type: { default: "", parseHTML: (el) => el.getAttribute("data-ext-type") ?? "", renderHTML: (a) => ({ "data-ext-type": a.type }) },
     v: { default: 1, parseHTML: (el) => Number(el.getAttribute("data-ext-v")) || 1, renderHTML: (a) => ({ "data-ext-v": String(a.v) }) },
@@ -37,51 +39,17 @@ export const ExtBlock = Node.create({
   parseHTML: () => [{ tag: 'div[data-type="extBlock"]' }],
   renderHTML: ({ HTMLAttributes }) => ["div", { ...HTMLAttributes, "data-type": "extBlock" }, 0],
   renderText: ({ node }) => fallbackText(node.attrs as ExtAttrs),
-  addNodeView() {
-    return ({ node }) => {
-      const dom = document.createElement("div");
-      dom.className = "oc-ext";
-      dom.dataset.type = "extBlock";
-      const head = document.createElement("div");
-      head.className = "oc-ext-fallback";
-      head.contentEditable = "false";
-      const children = document.createElement("div");
-      children.className = "oc-ext-children";
-      dom.append(head, children);
-      let current = node;
-      const draw = () => {
-        const a = current.attrs as ExtAttrs;
-        const s = statusOf(a);
-        dom.dataset.extType = a.type;
-        dom.dataset.extStatus = s;
-        head.replaceChildren();
-        if (s === "newer") {
-          const note = document.createElement("div");
-          note.className = "oc-ext-note";
-          note.textContent = "Updated by a newer version";
-          head.append(note);
-        }
-        const text = document.createElement("div");
-        text.textContent = fallbackText(a);
-        head.append(text);
-        // Children of a block nobody here can draw (or from a newer version) stay as written.
-        children.contentEditable = editable(s) ? "true" : "false";
-        children.hidden = current.childCount === 0;
-      };
-      draw();
-      return {
-        dom,
-        contentDOM: children,
-        update: (n) => {
-          if (n.type !== current.type) return false;
-          current = n;
-          draw();
-          return true;
-        },
-        // The fallback line is not editable content; ProseMirror ignores changes inside it.
-        ignoreMutation: (m) => head.contains(m.target as globalThis.Node),
-        stopEvent: (e) => head.contains(e.target as globalThis.Node),
-      };
+  addKeyboardShortcuts() {
+    return {
+      // Enter on a selected block moves focus into its frame (decision 2, frame 1e).
+      Enter: ({ editor }) => {
+        const sel = editor.state.selection;
+        if (!(sel instanceof NodeSelection) || sel.node.type.name !== "extBlock") return false;
+        return focusBlock(sel.node.attrs.blockId as string | null);
+      },
     };
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(ExtView, { stopEvent: ({ event }) => (event.target as HTMLElement | null)?.closest?.(".oc-ext-chrome") != null });
   },
 });

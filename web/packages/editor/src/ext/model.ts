@@ -6,6 +6,7 @@
 // (`ext[dataId]` is a Y.Map with one key per field, so concurrent edits of different fields
 // both survive and one field is last-writer-wins).
 import * as Y from "yjs";
+import { createStore } from "../lib/store";
 import type { Migrations } from "./migrate";
 
 /** One entry of the session's `blocks` (docs/15 §2). */
@@ -23,7 +24,17 @@ export interface BlockPackage {
   /** Bundle URL on the block origin; null without `OC_BLOCKS_ORIGIN`. */
   entry: string | null;
   integrity: string;
-  /** Present when the server lists them (BSDK-03); declarative steps only here. */
+  /** The sandboxed frame document for this host on the block origin (BSDK-03). */
+  frame?: string | null;
+  /** `publisher`, `keywords` and the `preview.png` URL (BSDK-03, decision 7). */
+  publisher?: string | null;
+  keywords?: string[];
+  preview?: string | null;
+  /** Menu label, category, keywords, editor profiles, complexity (see discovery.ts). */
+  discovery?: import("./discovery").Discovery;
+  /** Effective permissions: the manifest's, narrowed by this host (decision 9). */
+  permissions?: { network: string[]; members: "read" | "none" };
+  /** Declarative steps per version, or a script path run in the sandbox. */
   migrations?: Migrations;
   export?: { markdown?: string; text?: string };
 }
@@ -35,7 +46,9 @@ export interface ExtAttrs {
   v: number;
   attrs: Record<string, unknown> | null;
   dataId?: string | null;
-  fallback?: { markdown?: string | null; text?: string | null } | null;
+  /** `title` (the package's, for readers without it) and `height` (last drawn height, for the
+   *  loading skeleton) are kept with the fallback (BSDK-03). */
+  fallback?: { markdown?: string | null; text?: string | null; title?: string | null; height?: number | null } | null;
 }
 
 export type Status = "missing" | "current" | "older" | "newer";
@@ -45,6 +58,11 @@ let installed = new Map<string, BlockPackage>();
 /** Called with the session's `blocks` when the editor opens. */
 export function setInstalledBlocks(list: BlockPackage[] | undefined): void {
   installed = new Map((list ?? []).map((p) => [p.type, p]));
+}
+
+/** The packages this host enables, in `[host.blocks]` order. */
+export function installedBlocks(): BlockPackage[] {
+  return [...installed.values()];
 }
 
 export function installedBlock(type: string): BlockPackage | undefined {
@@ -85,7 +103,8 @@ export function writeExtData(doc: Y.Doc, dataId: string, fields: Record<string, 
       root.set(dataId, m);
     }
     for (const [k, v] of Object.entries(fields)) {
-      if (v === undefined) m.delete(k);
+      // `null` or `undefined` removes the field (data.set({x: null})).
+      if (v === undefined || v === null) m.delete(k);
       else m.set(k, v);
     }
   }, origin);
@@ -96,6 +115,39 @@ export function fallbackText(a: Pick<ExtAttrs, "type" | "fallback">): string {
   const f = a.fallback;
   const t = (f?.text ?? "").trim() || (f?.markdown ?? "").trim();
   if (t) return t;
-  const pkg = installedBlock(a.type);
-  return `Block: ${pkg?.title ?? (a.type || "unknown")}`;
+  return `Block: ${blockTitle(a)}`;
 }
+
+/** The block's name for people: the installed package's title, else the one kept with the
+ *  fallback, else the type. */
+export function blockTitle(a: Pick<ExtAttrs, "type" | "fallback">): string {
+  return installedBlock(a.type)?.title ?? a.fallback?.title ?? (a.type || "Block");
+}
+
+// ---------- focus into a block's frame (decision 2) ----------
+
+const focusers = new Map<string, () => void>();
+/** Block ids that take focus as soon as their frame is ready (just inserted, frame 6g). */
+export const focusOnReady = new Set<string>();
+
+/** Registers how to move focus into the frame of block `id`; returns the unregister. */
+export function registerFocus(id: string, fn: () => void): () => void {
+  focusers.set(id, fn);
+  return () => {
+    if (focusers.get(id) === fn) focusers.delete(id);
+  };
+}
+
+/** Moves focus into block `id`'s frame; false when it has none running. */
+export function focusBlock(id: string | null | undefined): boolean {
+  const f = id ? focusers.get(id) : undefined;
+  if (!f) return false;
+  f();
+  return true;
+}
+
+/** Block menu actions the chrome handles (`About this block`, `Reload block`). */
+export const EXT_ACTION = "oc-ext-action";
+
+/** Opens the insert gallery ("Browse all blocks", frame 6e). */
+export const galleryStore = createStore<{ open: boolean; category?: string }>({ open: false });

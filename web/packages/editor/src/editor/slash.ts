@@ -13,9 +13,18 @@ import { markPending } from "../lib/unfurl";
 import { aiStore, openAssistant } from "../lib/assistant";
 import { importStore, openImport } from "../lib/importflag";
 import { insertable, intentOf } from "./profile";
+import { focusOnReady, installedBlocks, type BlockPackage } from "../ext/model";
+import { blockVisibleInMenus } from "../ext/discovery";
+import { initialAttrs } from "../ext/runtime";
+import { newBlockId } from "./blockId";
+
+/** The / menu group of SDK blocks (BSDK-03, decision 6). */
+export const ORG_GROUP = "From your organisation";
 
 export interface SlashItem {
-  group: "Basic" | "Data" | "Media" | "Layout";
+  group: "Basic" | "Data" | "Media" | "Layout" | typeof ORG_GROUP;
+  /** An SDK block package (its manifest icon is drawn instead of `icon`). */
+  ext?: BlockPackage;
   id: string;
   icon: string;
   title: string;
@@ -174,14 +183,16 @@ export function filterSlash(q: string): SlashItem[] {
   // `/assistant` only when the assistant is on for this person (docs/24 §10.2).
   const ai = aiStore.get().on;
   const imp = importStore.get().formats.length > 0;
-  // EDP-01: the host's editor profile (the shared insertion filter, profile.ts).
-  const all = SLASH.filter((x) => (x.id !== "assistant" || ai) && (x.id !== "import" || imp) && insertable(x));
+  // EDP-01: the host's editor profile (the shared insertion filter, profile.ts). SDK blocks come
+  // last, in `[host.blocks]` order; no group at all when there are none (6c).
+  const all = [...SLASH, ...orgItems()].filter((x) => (x.id !== "assistant" || ai) && (x.id !== "import" || imp) && insertable(x));
   if (!s) return all;
   const rank = (x: SlashItem) => {
     const t = x.title.toLowerCase();
     if (t.startsWith(s)) return 0;
     if (t.split(/\s+/).some((w) => w.startsWith(s))) return 1;
     if (t.includes(s)) return 2;
+    if (x.ext && x.ext.type.toLowerCase().includes(s)) return 3;
     const meta = (x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "") + " " + intentOf(x.id)).toLowerCase();
     if (meta.includes(s)) return 3;
     // Intent phrases ("track tasks", "draw architecture"): every word starts a metadata word.
@@ -193,6 +204,44 @@ export function filterSlash(q: string): SlashItem[] {
     .filter((e) => e.r >= 0)
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .map((e) => e.x);
+}
+
+// ---------- SDK blocks (BSDK-03, frames 6a-6g) ----------
+
+/** Inserts an SDK block where the / was (or at the selection), selected, with focus going into
+ *  its frame as soon as it is ready (6g). Its attrs start from the schema's defaults. */
+export function insertExtBlock(editor: Editor, range: Range | null, pkg: BlockPackage) {
+  const id = newBlockId();
+  focusOnReady.add(id);
+  const node: JSONContent = {
+    type: "extBlock",
+    attrs: { blockId: id, type: pkg.type, v: pkg.v, attrs: initialAttrs(pkg.attrs), dataId: null, fallback: { title: pkg.title } },
+    content: pkg.content === "none" ? [] : [{ type: "paragraph" }],
+  };
+  insertBlock(editor, range, node);
+  let at = -1;
+  editor.state.doc.descendants((n, pos) => {
+    if (at < 0 && n.type.name === "extBlock" && n.attrs.blockId === id) at = pos;
+    return at < 0;
+  });
+  if (at >= 0) editor.chain().setNodeSelection(at).run();
+}
+
+/** One / menu item per installed SDK block: manifest icon, title, "publisher · description";
+ *  search also matches the type, the publisher and the manifest's keywords (6a, 6b). */
+export function orgItems(): SlashItem[] {
+  return installedBlocks()
+    .filter((pkg) => blockVisibleInMenus(pkg))
+    .map((pkg) => ({
+    group: ORG_GROUP,
+    id: "ext:" + pkg.type,
+    icon: "puzzle",
+    title: pkg.discovery?.label ?? pkg.title,
+    desc: [pkg.publisher, pkg.description].filter(Boolean).join(" · "),
+    keywords: [pkg.type, pkg.publisher ?? "", ...(pkg.discovery?.keywords ?? pkg.keywords ?? []), pkg.discovery?.category ?? ""].join(" "),
+    ext: pkg,
+    run: (e, r) => insertExtBlock(e, r, pkg),
+  }));
 }
 
 // ---------- turn into ----------

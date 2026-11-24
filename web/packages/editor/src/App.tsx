@@ -758,7 +758,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   };
   const jump = (id: string) => {
     setActive(id);
-    const el = scrollRef.current?.querySelector(`.cmt[data-thread="${CSS.escape(id)}"]`);
+    const blk = threads.find((t) => t.id === id)?.block;
+    const el = scrollRef.current?.querySelector(blk ? `.oc-ext[data-ext-block="${CSS.escape(blk)}"]` : `.cmt[data-thread="${CSS.escape(id)}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     if (compact) setSide(null);
   };
@@ -767,7 +768,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       threads
         .filter((t) => t.resolved)
         .map((t) => `.ProseMirror .cmt[data-thread="${CSS.escape(t.id)}"]{background:none;border-bottom:0;cursor:text}`)
-        .join("") + (active && side ? `.ProseMirror .cmt[data-thread="${CSS.escape(active)}"]{background:color-mix(in srgb,var(--amber-fg) 30%,transparent)}` : ""),
+        .join("") +
+      (active && side ? `.ProseMirror .cmt[data-thread="${CSS.escape(active)}"]{background:color-mix(in srgb,var(--amber-fg) 30%,transparent)}` : "") +
+      // Decision 5: the open thread's SDK block gets the amber outline of the active comment.
+      (() => {
+        const blk = active && side ? threads.find((t) => t.id === active)?.block : undefined;
+        return blk ? `.ProseMirror .oc-ext[data-ext-block="${CSS.escape(blk)}"] .oc-ext-frame{outline:2px solid color-mix(in srgb,var(--amber-fg) 70%,transparent);outline-offset:2px}` : "";
+      })(),
     [threads, active, side],
   );
 

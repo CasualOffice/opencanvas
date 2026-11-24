@@ -95,11 +95,16 @@ describe("the shared insertion filter", () => {
     expect(insertable(okr, prof("project"))).toBe(true);
     expect(insertable(okr, prof("meeting"))).toBe(false);
     expect(insertable(okr, prof("full"))).toBe(true);
-    expect(insertable(plain, prof("meeting"))).toBe(true);
-    expect(insertable(odd, prof("meeting"))).toBe(true);
+    // No (or a malformed) discovery.profiles: the SDK default, `full` only.
+    expect(insertable(plain, prof("meeting"))).toBe(false);
+    expect(insertable(plain, prof("full"))).toBe(true);
+    expect(insertable(odd, prof("meeting"))).toBe(false);
+    expect(insertable({ id: "ext:acme.okr", ext: okr }, prof("project"))).toBe(true);
+    expect(insertable({ id: "ext:acme.okr", ext: okr }, prof("meeting"))).toBe(false);
     // An explicit block list names SDK types itself.
     expect(insertable(okr, { profile: "meeting", blocks: ["core.text", "acme.okr"] })).toBe(true);
     expect(insertable(plain, { profile: "meeting", blocks: ["core.text", "acme.okr"] })).toBe(false);
+    expect(insertable(plain, { profile: "meeting", blocks: ["core.text", "acme.plain"] })).toBe(true);
   });
 });
 

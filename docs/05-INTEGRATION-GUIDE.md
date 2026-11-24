@@ -55,7 +55,11 @@ prefer_host       = true                   # with your versions too: your list f
 
 [host.blocks]                              # SDK blocks your editors may load (§2a, BSDK-01); default none
 enabled           = ["acme.okr@^1", "acme.ticket"]   # "type@SemVer requirement" (requirement optional);
-                                           # a bad entry is refused at start-up, one not installed is logged
+                                           # a bad entry is refused at start-up, one not installed is logged;
+                                           # the / menu lists them in this order
+[host.blocks.permissions."acme.okr"]       # optional: narrow what a block may do on this host (decision 9)
+network           = ["https://okr.acme.example"]     # a subset of the manifest's origins
+members           = "none"                 # "read" (the manifest's ask) or "none"
 ```
 
 ### 2a. SDK block packages (BSDK-01, docs/27 §3, ADR-040, ADR-058)
@@ -72,15 +76,26 @@ upload API and nothing is installed from the browser.
   as they are and show their fallback.
 - Type names are lowercase reverse-DNS labels (`acme.okr`, `com.example.ticket-card`); `oc.` is
   reserved for OpenCanvas's own blocks. One package per type.
-- `OC_BLOCKS_ORIGIN` (optional): the separate origin bundles are served from
-  (`https://blocks.canvas.example`; `http://` only for local development). It must differ from
-  `OC_PUBLIC_URL`'s origin, or the server refuses to start. The sandbox that runs bundles is
-  BSDK-03; until then the editor shows each block's stored fallback.
-- `[host.blocks] enabled` picks which installed packages a host's editors see. The session
-  (`GET /v1/sessions/:ticket`) lists them as `blocks: [{type, version, v, title, icon,
-  description, content, attrs, data, export, migrations, entry, integrity}]` (`entry` is
-  `{OC_BLOCKS_ORIGIN}/{type}/{version}/{entry}`, or null without a block origin). A host with no
-  `[host.blocks]` gets an empty list.
+- `OC_BLOCKS_ORIGIN`: the separate origin block code runs on (`https://blocks.canvas.example`;
+  `http://` only for local development). Point a second host name at the same server; it answers
+  `/blocks/frame/{host}/{type}` (the sandboxed frame document) and `/blocks/{type}/{version}/{file}`
+  (bundle, migrations script, `preview.png`) **only** for requests to that host name, and 404 on
+  the editor's. It must differ from `OC_PUBLIC_URL`'s origin, or the server refuses to start.
+  Without it no block code runs: editors show every SDK block as its read-only saved copy. Set
+  `OC_PUBLIC_URL` too, so frames may be embedded only by the editor (`frame-ancestors`).
+- `[host.blocks] enabled` picks which installed packages a host's editors see, in that order.
+  `[host.blocks.permissions."<type>"]` narrows what a block may do on this host: `network` keeps
+  only the listed origins of the manifest's, `members = "none"` withholds the member list. A host
+  can take permissions away, never add. The session (`GET /v1/sessions/:ticket`) lists the
+  packages as `blocks: [{type, version, v, title, icon, description, publisher, keywords, discovery, content,
+  attrs, data, export, migrations, entry, frame, preview, integrity, permissions}]` (`frame` is
+  `{OC_BLOCKS_ORIGIN}/blocks/frame/{host}/{type}`, `entry` and `preview` live under
+  `{OC_BLOCKS_ORIGIN}/blocks/{type}/{version}/`, all null without a block origin; `permissions` is
+  the effective set). A host with no `[host.blocks]` gets an empty list.
+- The frame's CSP is `default-src 'none'; script-src '<runtime sha384>' <package path>/;
+  style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src <effective network
+  or 'none'>; base-uri 'none'; form-action 'none'; frame-ancestors <OC_PUBLIC_URL origin>`; the
+  bundle loads with its SRI hash. The editor frames it with `sandbox="allow-scripts"` only.
 - Validation of block attributes and data (docs/15 §4.2) uses every **installed** package, whatever
   a host enables, on `.ocanvas` load, the REST patch, imports, the headless API and MCP writes.
 
@@ -133,7 +148,7 @@ that `[host.blocks]` enables for this host.
 
 `core.text` is always offered, even when `enabled` leaves it out. Every profile keeps the
 `core.import` and `core.assistant` actions; the `import` and `ai` features decide whether they
-show. SDK blocks follow their manifest's `discovery.profiles` (absent: offered in every profile);
+show. SDK blocks follow their manifest's `discovery.profiles` (absent: `full` only, the SDK default);
 with an explicit `enabled` list only the SDK types it names are offered.
 
 **Hide, never delete.** A profile only hides blocks from the insertion surfaces: the / menu (and
@@ -651,7 +666,7 @@ The supported API for programs: bots, integrations, back-office jobs. The websit
 reference, generated from the OpenAPI document: [API reference](https://canvas.casualoffice.org/api/index.html). It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
-per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every
+per host with `[host.flags] api_v1 = true` (off by default in 0.1.2 and 0.2.0; otherwise every
 `/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
 `v1` changes are additive.
 

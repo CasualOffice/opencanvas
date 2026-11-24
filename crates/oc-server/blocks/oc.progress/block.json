@@ -1,0 +1,24 @@
+{
+  "type": "oc.progress",
+  "version": "1.0.0",
+  "title": "Progress",
+  "icon": "gauge",
+  "publisher": "OpenCanvas",
+  "description": "A labelled progress bar",
+  "keywords": ["percent", "status"],
+  "discovery": { "label": "Progress bar", "category": "data-planning", "keywords": ["bar", "done"], "profiles": ["notebook", "meeting", "project", "document", "full"], "complexity": "basic" },
+  "content": "none",
+  "attrs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "label": { "type": "string", "maxLength": 80, "default": "Progress" },
+      "value": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }
+    },
+    "required": ["label", "value"]
+  },
+  "export": { "markdown": "**{{label}}**: {{value|percent}}", "text": "{{label}}: {{value|percent}}" },
+  "entry": "block.js",
+  "integrity": "sha384-vObVbZtPweGwVkbHNLpV8vDlDvdyFLesWzEKOidUpsiPMJCoW4skKt1GTFk7AbT9"
+}

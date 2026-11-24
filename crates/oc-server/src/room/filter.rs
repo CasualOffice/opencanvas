@@ -137,6 +137,46 @@ pub fn removes_ext_block(doc: &Doc, update: &[u8]) -> bool {
     ext_block_count(&txn) < before
 }
 
+/// BSDK-03: the first schema error an update would add to the room's SDK blocks (attrs or
+/// data of an installed type at its data version), or `None`. Errors the document already
+/// had are not the update's. Free when no package is installed, or when the document has no
+/// `extBlock` and the update does not name one; otherwise one scratch copy, O(document).
+pub fn sdk_block_error(doc: &Doc, update: &[u8]) -> Option<String> {
+    let reg = oc_model::ext::installed();
+    if reg.is_empty() {
+        return None;
+    }
+    let named = update
+        .windows(oc_model::ext::NODE.len())
+        .any(|w| w == oc_model::ext::NODE.as_bytes());
+    if !named && ext_block_count(&doc.transact()) == 0 {
+        return None;
+    }
+    let Ok(decoded) = Update::decode_v1(update) else {
+        return Some("malformed update".into());
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return None;
+    }
+    {
+        let mut txn = scratch.transact_mut();
+        if txn.apply_update(decoded).is_err() {
+            return Some("update could not be applied".into());
+        }
+    }
+    let before: std::collections::HashSet<String> =
+        oc_model::ext::document_errors(&reg, &oc_model::doc_to_json(doc))
+            .into_iter()
+            .collect();
+    oc_model::ext::document_errors(&reg, &oc_model::doc_to_json(&scratch))
+        .into_iter()
+        .find(|e| !before.contains(e))
+}
+
 /// True when `update` carries nothing the room does not already have. Read-only clients
 /// send their (empty or stale) state as sync step 2 on every connect; that is not a write.
 pub fn adds_nothing(doc: &Doc, update: &[u8]) -> bool {

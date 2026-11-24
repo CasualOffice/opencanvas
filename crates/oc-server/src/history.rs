@@ -117,8 +117,9 @@ pub struct Caches {
     pub lists: oc_model::diff::DiffCache<Value>,
     /// The host file's in-file history, 30 s.
     pub files: oc_model::diff::DiffCache<FileSnapshot>,
-    /// Rooms whose host answered the list call with 404/405/501: no host history.
-    pub unsupported: std::sync::Mutex<std::collections::HashSet<String>>,
+    /// Rooms whose host answered the list call with 404/405/501: no host history, until the
+    /// server-clock second stored (5 minutes later; SEC-53).
+    pub unsupported: std::sync::Mutex<std::collections::HashMap<String, i64>>,
     /// The newest save each room's editors were told about (`known` on the list call, VH-01d):
     /// a list cached before it is stale.
     pub known: std::sync::Mutex<std::collections::HashMap<String, String>>,

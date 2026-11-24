@@ -28,7 +28,7 @@ open to a broad developer ecosystem (ADR-038).
 |---|---|
 | v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
 | [v0.1.2](31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
-| v0.2 | Stable headless APIs, an extensible block SDK, version-history follow-ups and webhooks |
+| [v0.2.0](32-RELEASE-v0.2.0.md) (prepared, not yet tagged) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |

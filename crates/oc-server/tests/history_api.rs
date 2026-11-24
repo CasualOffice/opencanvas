@@ -278,6 +278,25 @@ async fn a_host_without_the_list_call_falls_back_to_in_file_history() {
     assert_eq!(st, 200, "{r}");
     assert_eq!(r["source"], "file");
     assert_eq!(r["versions"].as_array().unwrap().len(), 1);
+
+    // SEC-53: that answer is remembered for a while, not for the life of the process (a host
+    // that answers 404 for one user, or adds the call later, would lose history for everyone).
+    s.mock.lock().unwrap().versions = Some(json!({"versions": [
+        {"version": "1", "at": "2026-11-24T09:00:00Z", "kind": "auto"}
+    ]}));
+    let (_, r) = get(&s.addr, &format!("/v1/history?ticket={t}")).await;
+    assert_eq!(r["source"], "file", "still remembered: {r}");
+    s.state.clock.advance_ms(6 * 60 * 1000);
+    let (st, r) = get(&s.addr, &format!("/v1/history?ticket={t}")).await;
+    assert_eq!(st, 200, "{r}");
+    assert!(
+        r["versions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["source"] == "host"),
+        "the host is asked again: {r}"
+    );
 }
 
 async fn restore_setup(window: Duration) -> (Setup, String, Peer, Peer) {
@@ -390,6 +409,49 @@ async fn only_the_restorer_may_undo_and_only_within_the_window() {
         (st, e["error"]["code"].as_str()),
         (409, Some("UNDO_EXPIRED"))
     );
+}
+
+/// SEC-51: user ids may contain `:`. The undo entry was keyed `restore:{id}:{author}`, so user
+/// `u` could undo the restore of user `x:u` by sending `restoreId=<id>:x` (the id reaches every
+/// peer in the `restored` control), and a restore by `u` dropped `x:u`'s undo entry.
+#[tokio::test]
+async fn a_restore_id_cannot_reach_another_users_undo() {
+    let (s, _t, _a, _b) = restore_setup(Duration::from_secs(30)).await;
+    let victim = ticket(&s.addr, &token("acme:u_1", "edit", ALL())).await;
+    let (st, r) = post(
+        &s.addr,
+        &format!("/v1/history/5/restore?ticket={victim}"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, 200, "{r}");
+    let rid = r["restoreId"].as_str().unwrap().to_string();
+    let attacker = ticket(&s.addr, &token("u_1", "edit", ALL())).await;
+    let (st, e) = post(
+        &s.addr,
+        &format!("/v1/history/restore/undo?ticket={attacker}&restoreId={rid}:acme"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(
+        st, 400,
+        "a restoreId is a restore's id and nothing else: {e}"
+    );
+    // A restore by the other user does not drop the victim's undo.
+    let (st, r2) = post(
+        &s.addr,
+        &format!("/v1/history/5/restore?ticket={attacker}"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, 200, "{r2}");
+    let (st, e) = post(
+        &s.addr,
+        &format!("/v1/history/restore/undo?ticket={victim}&restoreId={rid}"),
+        json!({}),
+    )
+    .await;
+    assert_ne!(e["error"]["code"], "NOTHING_TO_UNDO", "{st} {e}");
 }
 
 #[tokio::test]

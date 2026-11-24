@@ -22,3 +22,4 @@
 | 29 | [Diagramming](29-DIAGRAMMING.md) | Board formats, interaction, compatibility, and performance |
 | 30 | [Version history](30-VERSION-HISTORY.md) | Host capabilities, comparing versions, restore, and undo |
 | 31 | [Release notes v0.1.2](31-RELEASE-v0.1.2.md) | Changes, upgrade guidance, and limitations |
+| 32 | [Release v0.2.0](32-RELEASE-v0.2.0.md) | Scope lock, upgrade notes (migrations 0008/0009, new `[host.*]` sections, 4426), known limitations, release checklist |

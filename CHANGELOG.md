@@ -7,6 +7,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.2.0] - YYYY-MM-DD (draft: date set at the tag)
+
+The release notes and the scope lock are in [docs/32](docs/32-RELEASE-v0.2.0.md); read the
+upgrade notes in it first. The block SDK runtime (BSDK-03/04), host editor profiles (EDP-01) and
+block discovery metadata land before the tag.
+
 ### Added
 
 - Editor profiles (`[host.editor]`, docs/05 §2b): `notebook`, `meeting`, `project`,
@@ -18,10 +24,52 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   Profiles only hide: every existing block still opens and edits. The session carries `editor`.
   The Jitsi sample uses `meeting`, the Matrix sample `notebook`.
 
+- **Headless API is the supported contract.** `/api/v1` with OpenAPI 3.1, RFC 9457 errors,
+  scoped user tokens shared with MCP, `Idempotency-Key`, signed cursors, rate limits, the events
+  stream and the sync token. Most of it shipped in 0.1.2 behind `[host.flags] api_v1`.
+- **Webhooks** for the events-stream events (WH-01): `[host.webhooks]`, signed deliveries
+  (`X-OpenCanvas-Signature` v2, `Idempotency-Key` = event id) from a durable outbox (migration
+  `0009_webhook_outbox`), retries with backoff, each sent once per cluster, same origin as
+  `callback_base` only.
+- **Clients:** TypeScript `@opencanvas/client` and Rust `opencanvas-client`, generated from the
+  OpenAPI document, with retries, idempotency keys, paging, events resume and webhook
+  verification. They share a conformance suite (HAPI-06, HAPI-07).
+- MCP canvas tools are adapters over the API operations, with one scope check, limiter and
+  idempotency store, and a parity contract test (HAPI-08). New operation: `POST /api/v1/files/{id}/boards`.
+- **Block SDK (data side):**
+  - `block.json` manifests installed by the operator (`OC_BLOCKS_DIR`, sha384 integrity,
+    `OC_BLOCKS_ORIGIN`) and enabled per host with `[host.blocks]`;
+  - JSON Schema validation of attrs and data on every write path;
+  - one generic `extBlock` node and an `ext` root;
+  - declarative export templates and fallbacks;
+  - data versions with declarative migrations (BSDK-01, -02, -05).
 - API reference on the website (`/api/`): guides for authentication, errors, pagination,
   idempotency, rate limits, events, webhooks and the SDKs, and one page per resource generated
   from the OpenAPI document, with samples in curl, TypeScript, Rust and Python.
 - `tools/check-openapi.py`: every API operation is documented with examples and its error codes.
+- Acceptance rows for v0.2 in docs/23, and the v0.2 security audit in docs/18 §6.
+
+### Changed
+
+- The 0.1 host routes (`/v1/files/{id}/patch|commit|role|import|session`, `/v1/convert`) answer
+  with `Deprecation` and `Link: rel="successor-version"`. They are removed in v0.3.
+- An editor older than 0.2 that would delete an SDK block is closed with 4426 ("editor out of
+  date: reopen the canvas").
+- Nodes that start together on an empty database wait for each other's migrations, instead of
+  one failing (SEC-47).
+- A webhook sweep claims at most 40 deliveries, and the next sweep starts at once (SEC-48).
+
+### Security
+
+- SEC-46: room updates over the WebSocket are checked against installed SDK block schemas, as API
+  and MCP writes are. A broken block could otherwise make the file unopenable.
+- SEC-49: draw.io and Excalidraw label cleaning is linear; it was quadratic on raw-text tags.
+- SEC-50: icon SVGs are counted with `<use>` references expanded, and refused past 2,000 drawn
+  elements.
+- SEC-51: a restore's undo cannot be reached with a crafted `restoreId` by a user whose id is a
+  suffix of the restorer's.
+- SEC-52: `opencanvas_client::verify_webhook` no longer overflows on an extreme header timestamp.
+- SEC-53: a host that answers 404 to the version-list call is asked again after 5 minutes.
 
 ## [0.1.2] - 2026-11-24
 

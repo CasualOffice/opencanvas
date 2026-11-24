@@ -13,6 +13,7 @@
 //   E2E_SKIP_BUILD=1   reuse target/release/opencanvas and web/packages/editor/dist
 //   E2E_KEEP=1         keep the temp dir (logs, DB, host data) after the run
 import { execSync, spawn, type ChildProcess } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -29,6 +30,32 @@ const AI_HOST = `
 enabled  = true
 provider = "mock"
 `;
+
+/** SDK blocks for the "sample" host (BSDK-03/04): the e2e fixtures and the shipped samples. */
+const BLOCKS_HOST = `
+[host.blocks]
+enabled = ["e2e.okr@^1", "e2e.hostile", "e2e.mig", "e2e.tampered", "oc.progress", "acme.okr"]
+`;
+/** The block origin: a different origin from the editor's (localhost), same server. */
+export const BLOCKS_ORIGIN = "http://127.0.0.1:8280";
+
+/** Copies the fixture block packages, filling in each bundle's sha384 (the tampered one keeps
+ *  its wrong hash, so the server refuses it). */
+function blockPackages(dir: string) {
+  const src = path.join(ROOT, "e2e/fixtures/blocks");
+  // The third-party sample (BSDK-04) as an operator installs it; oc.progress is built in.
+  fs.cpSync(path.join(ROOT, "examples/blocks/acme.okr"), path.join(dir, "acme.okr"), { recursive: true });
+  for (const name of fs.readdirSync(src)) {
+    const from = path.join(src, name);
+    const to = path.join(dir, name);
+    fs.cpSync(from, to, { recursive: true });
+    const manifest = path.join(to, "block.json");
+    const m = fs.readFileSync(manifest, "utf8");
+    const entry = JSON.parse(m).entry as string;
+    const sri = "sha384-" + crypto.createHash("sha384").update(fs.readFileSync(path.join(to, entry))).digest("base64");
+    fs.writeFileSync(manifest, m.replace("@SRI@", sri));
+  }
+}
 
 function portFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -99,7 +126,10 @@ ${id === "sample" ? 'import_formats = ["md", "html", "csv", "drawio", "excalidra
 ${id === "sample" ? "team_templates = true" : "# no team_templates: no team section in the gallery (TPL-01)"}
 ${id === "sample" ? "history        = true" : "# no host versions: in-file history only (VH-01, ADR-055)"}
 ${ai}`;
-  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
+  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST + BLOCKS_HOST) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
+  const blocksDir = path.join(tmp, "blocks");
+  fs.mkdirSync(blocksDir);
+  blockPackages(blocksDir);
 
   // The assistant against a mock model (t-assistant.real.spec.ts). Started before the server:
   // the server probes each provider's tool calling once, at start-up.
@@ -123,6 +153,8 @@ ${ai}`;
       DATABASE_URL: `sqlite://${path.join(tmp, "oc.db")}?mode=rwc`,
       OC_BIND: "127.0.0.1:8280",
       OC_PUBLIC_URL: OC,
+      OC_BLOCKS_DIR: blocksDir,
+      OC_BLOCKS_ORIGIN: BLOCKS_ORIGIN,
       OC_WEB_DIR: path.join(ROOT, "web/packages/editor/dist"),
       OC_AUTOSAVE_DEBOUNCE_MS: "500",
       OC_LOG: process.env.OC_LOG ?? "info",

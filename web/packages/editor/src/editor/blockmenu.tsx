@@ -22,6 +22,7 @@ import { fileActions } from "./files/actions";
 import { newBlockId } from "./blockId";
 import { addColumn, MAX_COLUMNS, MIN_COLUMNS, setColumnTitles } from "./columns";
 import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
+import { EXT_ACTION, blockTitle, type ExtAttrs } from "../ext/model";
 
 // ---------- comments from the editor ----------
 
@@ -185,6 +186,20 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
           <div className="msep" />
         </>
       ) : null}
+      {node.type.name === "extBlock" ? (
+        <>
+          <div className="mh">{blockTitle(node.attrs as ExtAttrs)}</div>
+          <button className="mi" onClick={() => run(() => (editor.view.nodeDOM(pos) as HTMLElement | null)?.dispatchEvent(new CustomEvent(EXT_ACTION, { detail: "about" })))}>
+            <Ic name="info" />
+            About this block
+          </button>
+          <button className="mi" onClick={() => run(() => (editor.view.nodeDOM(pos) as HTMLElement | null)?.dispatchEvent(new CustomEvent(EXT_ACTION, { detail: "reload" })))}>
+            <Ic name="rotate-ccw" />
+            Reload block
+          </button>
+          <div className="msep" />
+        </>
+      ) : null}
       <button className="mi" onClick={() => run(() => duplicateBlock(editor, pos, node))}>
         <Ic name="copy" />
         Duplicate
@@ -220,7 +235,16 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
             const from = pos + 1;
             const to = pos + node.nodeSize - 1;
             if (node.isTextblock || texty) startComment(editor, "edit", onComment, { from, to });
-            else {
+            else if (node.type.name === "extBlock") {
+              // Decision 5: a thread on the whole block. Its quote is the block's title and the
+              // first line of its saved copy, so it reads well if the block later fails to load.
+              const a = node.attrs as ExtAttrs;
+              const bid = ensureBlockId(editor, pos, node);
+              const first = (a.fallback?.text || a.fallback?.markdown || "").split("\n")[0].replace(/\\(.)/g, "$1").trim();
+              const id = newThreadId();
+              createThread(bridge.doc, id, first ? `${blockTitle(a)}: ${first}` : blockTitle(a), bid ?? undefined);
+              onComment(id);
+            } else {
               const id = newThreadId();
               createThread(bridge.doc, id, node.type.name === "database" ? "Database" : node.type.name === "board" ? "Whiteboard" : node.textContent || "Block");
               onComment(id);

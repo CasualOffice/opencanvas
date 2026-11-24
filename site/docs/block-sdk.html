@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Block SDK guide | OpenCanvas</title>
+<meta name="description" content="Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.">
+<link rel="canonical" href="https://canvas.casualoffice.org/docs/block-sdk.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Block SDK guide | OpenCanvas">
+<meta property="og:description" content="Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.">
+<meta property="og:url" content="https://canvas.casualoffice.org/docs/block-sdk.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html">API</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html">API</a><a href="../docs/index.html" aria-current="page">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main">
+<div class="wrap docs-layout">
+  <aside class="docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release-020.html">Release notes 0.2.0</a></li><li><a href="release-012.html">Release notes 0.1.2</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html">Nextcloud</a></li><li><a href="matrix.html">Element / Matrix</a></li><li><a href="mattermost.html">Mattermost</a></li><li><a href="protocol.html">Protocol and build contract</a></li><li><a href="block-sdk.html" aria-current="page">Block SDK guide</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav></details>
+    <nav class="docs-nav docs-nav--wide" aria-label="Documentation"><h2>Start</h2><ul><li><a href="index.html">Documentation</a></li><li><a href="getting-started.html">Getting started</a></li><li><a href="release-020.html">Release notes 0.2.0</a></li><li><a href="release-012.html">Release notes 0.1.2</a></li><li><a href="release.html">Release notes 0.1.0</a></li><li><a href="faq.html">FAQ</a></li></ul><h2>Integrate</h2><ul><li><a href="integration.html">Integration guide</a></li><li><a href="wopi.html">WOPI mode</a></li><li><a href="jitsi.html">Jitsi Meet</a></li><li><a href="nextcloud.html">Nextcloud</a></li><li><a href="matrix.html">Element / Matrix</a></li><li><a href="mattermost.html">Mattermost</a></li><li><a href="protocol.html">Protocol and build contract</a></li><li><a href="block-sdk.html" aria-current="page">Block SDK guide</a></li></ul><h2>Operate</h2><ul><li><a href="operations.html">Operations and deployment</a></li><li><a href="security.html">Security and limits</a></li><li><a href="capacity.html">Capacity and sizing</a></li><li><a href="ai.html">AI and MCP</a></li></ul><h2>Understand</h2><ul><li><a href="architecture.html">Architecture</a></li><li><a href="collaboration.html">Collaboration and presence</a></li><li><a href="product.html">Product requirements</a></li><li><a href="glossary.html">Glossary</a></li></ul></nav>
+  </aside>
+  <article class="docs-article prose">
+<h1>Block SDK guide</h1>
+
+<p><strong>Status:</strong> v0.2 (BSDK-01 to BSDK-05). Contract: docs/15 §4.2-4.3; design: docs/27 §3; decisions: ADR-040, ADR-058, ADR-059, ADR-060.</p>
+<p>A block is a small web component that lives inside a canvas: an OKR tracker, a ticket card, a chart from your own service. You write it once; OpenCanvas runs it in a sandbox, keeps its data in the document, collaborates on it in real time and exports it. Nothing about your block runs on the server.</p>
+<h2 id="1-how-a-block-runs">1. How a block runs</h2>
+<ul><li>Every block is stored as one <code>extBlock</code> node: its <code>type</code>, data version <code>v</code>, small <code>attrs</code> (JSON, last writer wins), optional collaborative <code>data</code> (one key per field) and a <code>fallback</code> copy that readers without your block see and export.</li><li>Your bundle runs in an <code>&lt;iframe sandbox=&quot;allow-scripts&quot;&gt;</code> on a separate origin. It cannot see the editor's page, its sign-in, its storage or other blocks, cannot open pop-ups or navigate the page, and reaches the network only at the origins your manifest asks for and the host allows.</li><li>Everything goes through the context <code>render</code> receives. Writes are checked: only people who may edit, at most 60 a second, and only values your JSON Schemas accept.</li><li>If your block throws, stops answering for 5 s, or never renders, OpenCanvas shows "This block stopped working" with the last saved copy and a Reload button. The rest of the canvas is fine.</li></ul>
+<h2 id="2-write-it">2. Write it</h2>
+<pre><code class="language-ts">import { defineBlock, h } from &quot;@opencanvas/block-sdk&quot;;
+
+interface Attrs { label: string; value: number }
+
+defineBlock&lt;Attrs&gt;({
+  render(el, ctx) {
+    const bar = h(&quot;progress&quot;, { max: 100 });
+    const slider = h(&quot;input&quot;, { type: &quot;range&quot;, min: &quot;0&quot;, max: &quot;100&quot; });
+    slider.addEventListener(&quot;change&quot;, () =&gt; ctx.setAttrs({ value: Number(slider.value) / 100 }));
+    el.append(bar, slider);
+    this.update!(ctx);
+  },
+  update(ctx) {
+    // Attrs, data, role or theme changed: redraw from ctx.
+  },
+});</code></pre>
+<p>The context (<code>BlockContext</code>):</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">member</th><th scope="col">what it does</th></tr></thead><tbody><tr><td><code>attrs</code>, <code>data.get/all</code></td><td>read the current values (copies)</td></tr><tr><td><code>setAttrs(patch)</code>, <code>data.set(fields)</code></td><td>write; <code>null</code> removes a key; rejects with the reason when refused</td></tr><tr><td><code>data.observe(fn)</code></td><td>called after any data change, yours or someone else's</td></tr><tr><td><code>role</code>, <code>readOnly</code></td><td>hide your controls when <code>readOnly</code> (viewers, commenters)</td></tr><tr><td><code>theme</code></td><td><code>{scheme, tokens}</code>; tokens are also CSS properties <code>--oc-fg</code>, <code>--oc-accent</code>, … on your root</td></tr><tr><td><code>resize(h)</code></td><td>the frame follows your content's height by itself; force one if you need to</td></tr><tr><td><code>openLink(url)</code></td><td>ask the editor to open a link</td></tr><tr><td><code>members.list()</code></td><td>names and pictures of the canvas's people (with <code>members: &quot;read&quot;</code>); never e-mail</td></tr><tr><td><code>permissions</code></td><td>what you may do on this host (network origins, members)</td></tr></tbody></table></div>
+<p>Keyboard: Escape and Tab past your first or last control return focus to the editor. Draw your own focus styles; the editor draws a ring around the frame.</p>
+<p>Test it without a browser frame:</p>
+<pre><code class="language-ts">import { createHarness } from &quot;@opencanvas/block-sdk/harness&quot;;
+const t = createHarness(myBlock, { attrs: { label: &quot;Launch&quot;, value: 0.2 }, role: &quot;edit&quot; });
+t.el.querySelector(&quot;input&quot;)!.dispatchEvent(new Event(&quot;change&quot;));
+expect(t.attrs().value).toBe(0.2);</code></pre>
+<h2 id="3-describe-it-blockjson">3. Describe it: <code>block.json</code></h2>
+<pre><code class="language-jsonc">{
+  &quot;type&quot;: &quot;acme.okr&quot;,                // lowercase reverse-DNS; &quot;oc.&quot; is OpenCanvas&#x27;s
+  &quot;version&quot;: &quot;1.2.0&quot;,                // SemVer of your data contract; v = the major
+  &quot;title&quot;: &quot;OKR&quot;,
+  &quot;icon&quot;: &quot;target&quot;,                  // any Lucide icon name
+  &quot;publisher&quot;: &quot;Acme Corp&quot;,
+  &quot;description&quot;: &quot;Objective and key results&quot;,
+  &quot;keywords&quot;: [&quot;goals&quot;],
+  &quot;discovery&quot;: { &quot;label&quot;: &quot;OKR&quot;, &quot;category&quot;: &quot;data-planning&quot;, &quot;keywords&quot;: [&quot;okr&quot;],
+                 &quot;profiles&quot;: [&quot;project&quot;, &quot;meeting&quot;, &quot;full&quot;], &quot;complexity&quot;: &quot;basic&quot; },
+  &quot;content&quot;: &quot;none&quot;,                 // &quot;none&quot; | &quot;inline&quot; | &quot;blocks&quot; (editable children below)
+  &quot;attrs&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;objective&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;default&quot;: &quot;New objective&quot; } },
+             &quot;required&quot;: [&quot;objective&quot;] },
+  &quot;data&quot;: { &quot;kind&quot;: &quot;map&quot;, &quot;schema&quot;: { &quot;type&quot;: &quot;object&quot; } },
+  &quot;export&quot;: { &quot;markdown&quot;: &quot;**{{objective}}** ({{progress|percent}})&quot;, &quot;text&quot;: &quot;{{objective}}&quot; },
+  &quot;permissions&quot;: { &quot;network&quot;: [&quot;https://okr.acme.example&quot;], &quot;members&quot;: &quot;read&quot; },
+  &quot;migrations&quot;: { &quot;1&quot;: [{ &quot;op&quot;: &quot;move&quot;, &quot;from&quot;: &quot;/attrs/name&quot;, &quot;path&quot;: &quot;/attrs/objective&quot; }] },
+  &quot;preview&quot;: &quot;preview.png&quot;,          // optional gallery card image
+  &quot;entry&quot;: &quot;block.js&quot;,
+  &quot;integrity&quot;: &quot;sha384-…&quot;            // of block.js (Subresource Integrity)
+}</code></pre>
+<ul><li><strong>Schemas</strong> are JSON Schema 2020-12, the subset in docs/15 §4.2. Give required properties a <code>default</code>: a newly inserted block starts from them.</li><li><strong>Export templates</strong> are logic-less (<code>{{name}}</code>, sections, the fixed filters <code>percent number date upper lower trim truncate default join count yesno</code>). Markdown, HTML, Word, PDF, previews and agents read your block through them; without one, through your fallback.</li><li><strong>Discovery</strong> files the block in the / menu and the gallery: <code>category</code> is one of <code>content</code>, <code>data-planning</code>, <code>visual</code>, <code>layout</code>, <code>extensions</code>; <code>profiles</code> the editor profiles that offer it (<code>notebook</code>, <code>meeting</code>, <code>project</code>, <code>diagramming</code>, <code>document</code>, <code>full</code>); <code>complexity</code> <code>basic</code> or <code>advanced</code>. Unknown names refuse the package.</li><li><strong>Versions.</strong> A breaking change is a new major with a migration for every step: declarative steps (<code>set default remove move copy map scale</code>, run by the server and the editor) or a script (<code>&quot;migrations&quot;: &quot;migrations.js&quot;</code> calling <code>defineMigrations({1: (attrs, data) =&gt; ({attrs, data})})</code>, run in your frame). Older data opens migrated and is saved at the new version on the first edit. Data from a newer version than the installed one is shown read only, untouched.</li></ul>
+<h2 id="4-build-and-package">4. Build and package</h2>
+<p>Bundle your block into one script (any bundler; <code>@opencanvas/block-sdk</code> has no runtime dependencies), then write its hash into the manifest:</p>
+<pre><code class="language-sh">esbuild src/main.ts --bundle --format=iife --minify --outfile=block.js
+echo &quot;sha384-$(openssl dgst -sha384 -binary block.js | base64)&quot;</code></pre>
+<p>The samples show the whole flow: <code>web/packages/block-sdk/samples/{progress,okr}</code> built by <code>node web/packages/block-sdk/scripts/build-samples.mjs</code> into <code>crates/oc-server/blocks/oc.progress</code> (OpenCanvas's own block, compiled into the server) and <code>examples/blocks/acme.okr</code> (a third-party package with a <code>preview.png</code>).</p>
+<h2 id="5-install-and-enable-operators">5. Install and enable (operators)</h2>
+<ol><li>Put each package in its own directory under <code>OC_BLOCKS_DIR</code> (<code>block.json</code>, <code>block.js</code>, and any <code>migrations.js</code> / <code>preview.png</code>). The server checks every manifest and hash at start-up; a package that fails is refused, logged and listed on <code>/healthz</code>, and the server still starts.</li><li>Set <code>OC_BLOCKS_ORIGIN</code> to a second host name of the server (<code>https://blocks.canvas.example</code>) and <code>OC_PUBLIC_URL</code> to the editor's. Block code runs only on the block origin.</li><li>Enable per host, and narrow permissions if you like (docs/05 §2a):</li></ol>
+<pre><code class="language-toml">[host.blocks]
+enabled = [&quot;oc.progress&quot;, &quot;acme.okr@^1&quot;]
+[host.blocks.permissions.&quot;acme.okr&quot;]
+members = &quot;none&quot;</code></pre>
+<p>People then find the blocks in the / menu under "From your organisation" and in Browse all blocks. A canvas opened where a block is not available shows its saved copy, read only, and keeps all its data.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/32-BLOCK-SDK.md">docs/32-BLOCK-SDK.md</a> in the repository; edit it there.</p>
+    <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="protocol.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Protocol and build contract</span></a><a class="pn pn-next" href="operations.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Operations and deployment</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#1-how-a-block-runs">1. How a block runs</a></li><li><a href="#2-write-it">2. Write it</a></li><li><a href="#3-describe-it-blockjson">3. Describe it: block.json</a></li><li><a href="#4-build-and-package">4. Build and package</a></li><li><a href="#5-install-and-enable-operators">5. Install and enable (operators)</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

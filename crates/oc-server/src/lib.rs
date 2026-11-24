@@ -120,7 +120,10 @@ impl AppState {
         }
         crate::metrics::mark_start();
         // BSDK-01: block packages, installed for validation, exports and writes (oc_model::ext).
-        let blocks = Arc::new(blocks::Installed::load(&cfg.blocks)?);
+        let mut installed =
+            blocks::Installed::load(&cfg.blocks)?.with_editor_origin(cfg.public_url.as_deref());
+        installed.add_first_party();
+        let blocks = Arc::new(installed);
         oc_model::ext::install(&blocks.registry);
         blocks::warn_missing(&blocks, &hosts);
         let metrics = Arc::new(Metrics::default());
@@ -348,7 +351,7 @@ impl AppState {
     pub async fn deliver_webhooks(&self, now_ms: i64) -> anyhow::Result<usize> {
         use futures::StreamExt;
         let mut claimed = Vec::new();
-        for row in self.store.webhook_due(now_ms, 100).await? {
+        for row in self.store.webhook_due(now_ms, webhooks::SWEEP_ROWS).await? {
             if self
                 .store
                 .webhook_claim(&row.id, row.next_try_at, now_ms + webhooks::CLAIM_MS)

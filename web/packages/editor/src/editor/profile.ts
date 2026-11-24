@@ -9,6 +9,7 @@
 // Hide, never delete: nothing here touches the schema, rendering, paste or stored content. A
 // document full of hidden types opens, renders, stays editable and round-trips unchanged.
 import { createStore } from "../lib/store";
+import { blockVisibleInMenus, setMenuProfile, type Discovery } from "../ext/discovery";
 
 /** The session's `editor` (docs/15 §2). */
 export interface EditorProfile {
@@ -24,7 +25,11 @@ export interface EditorProfile {
 export const profileStore = createStore<EditorProfile | null>(null);
 
 export function setEditorProfile(p: EditorProfile | null | undefined): void {
-  profileStore.set(p && Array.isArray(p.blocks) ? p : null);
+  const v = p && Array.isArray(p.blocks) ? p : null;
+  profileStore.set(v);
+  // SDK blocks: the block SDK's discovery filter follows the same profile.
+  // With an explicit list naming SDK types, `insertable` decides alone (no discovery filter).
+  setMenuProfile(v && !v.blocks.some((b) => !b.startsWith("core.")) ? v.profile : null);
 }
 
 /** Stable core block ids (mirrors `oc_server::editor::CORE_BLOCKS`; a test keeps them equal). */
@@ -112,15 +117,17 @@ export function blockAllowed(id: string, p: EditorProfile | null = profileStore.
  * THE shared filter of every insertion surface: a / menu entry (by its id) or an SDK block
  * package (by `type`, and its manifest `discovery.profiles`, read defensively).
  */
-export function insertable(item: { id?: string; type?: string; discovery?: unknown }, p: EditorProfile | null = profileStore.get()): boolean {
+export function insertable(item: { id?: string; type?: string; discovery?: unknown; ext?: { type: string; discovery?: unknown } }, p: EditorProfile | null = profileStore.get()): boolean {
   if (!p) return true;
-  if (item.type && !item.id) {
-    if (p.blocks.includes(item.type)) return true;
-    // An explicit block list names SDK types itself; otherwise the manifest says which profiles.
+  // An SDK block: a package, or its / menu entry (`ext:<type>`).
+  const sdk = item.ext ?? (item.type && !item.id ? (item as { type: string; discovery?: unknown }) : item.id?.startsWith("ext:") ? { type: item.id.slice(4) } : null);
+  if (sdk) {
+    if (p.blocks.includes(sdk.type)) return true;
+    // An explicit block list names SDK types itself; otherwise the manifest's discovery.profiles
+    // decide (ext/discovery.ts, the block SDK's filter; read defensively).
     if (p.blocks.some((b) => !b.startsWith("core."))) return false;
-    const profiles = (item.discovery as { profiles?: unknown } | undefined)?.profiles;
-    if (!Array.isArray(profiles)) return true;
-    return p.profile === "full" || profiles.includes(p.profile);
+    const d = sdk.discovery as Partial<Discovery> | null | undefined;
+    return blockVisibleInMenus({ discovery: d && Array.isArray(d.profiles) ? d : null }, p.profile);
   }
   const ids = SLASH_BLOCKS[item.id ?? ""];
   if (!ids) return true;

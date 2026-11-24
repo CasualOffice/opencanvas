@@ -1,6 +1,6 @@
 # 13 — Operations and deployment
 
-For upgrades, see the [v0.1.2 release notes](31-RELEASE-v0.1.2.md#upgrade-notes).
+For upgrades, see the [v0.2.0 upgrade notes](32-RELEASE-v0.2.0.md#3-upgrade-notes).
 
 ## Single node (default, SQLite)
 
@@ -11,7 +11,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.1.2
+  ghcr.io/casualoffice/opencanvas:0.2.0
 ```
 SQLite file at `/data/opencanvas.db` (WAL mode). Back it up only if you care
 about un-committed edits surviving a disk loss — committed content is in the host.

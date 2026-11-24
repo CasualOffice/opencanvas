@@ -49,7 +49,8 @@ pub fn verify_webhook_within(
     let (Some(t), Some(v2)) = (t, v2) else {
         return false;
     };
-    if (now_secs - t).abs() > tolerance_secs {
+    // `t` is not authenticated yet: no arithmetic that can overflow on it (SEC-52).
+    if now_secs.abs_diff(t) > tolerance_secs.max(0).unsigned_abs() {
         return false;
     }
     let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(secret) else {

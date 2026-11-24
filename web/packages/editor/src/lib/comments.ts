@@ -23,6 +23,8 @@ export interface Message {
 export interface Thread {
   id: string;
   quote: string;
+  /** BSDK-03 (decision 5): the `blockId` of an SDK block the thread is about, as a whole. */
+  block?: string;
   resolved: boolean;
   messages: Message[];
   createdAt: number;
@@ -34,11 +36,12 @@ export function newThreadId(): string {
   return "t_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-export function createThread(doc: Y.Doc, id: string, quote: string): void {
+export function createThread(doc: Y.Doc, id: string, quote: string, block?: string): void {
   doc.transact(() => {
     const m = new Y.Map<unknown>();
     commentsRoot(doc).set(id, m);
     m.set("quote", quote.slice(0, 280));
+    if (block) m.set("block", block);
     m.set("resolved", false);
     m.set("createdAt", Date.now());
     m.set("messages", new Y.Array<Y.Map<unknown>>());
@@ -111,6 +114,7 @@ function snapshot(doc: Y.Doc): Thread[] {
     out.push({
       id,
       quote: String(m.get("quote") ?? ""),
+      block: typeof m.get("block") === "string" ? (m.get("block") as string) : undefined,
       resolved: !!m.get("resolved"),
       createdAt: Number(m.get("createdAt") ?? 0),
       messages: msgs.map((x) => ({

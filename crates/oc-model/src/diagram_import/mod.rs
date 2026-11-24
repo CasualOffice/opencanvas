@@ -540,10 +540,12 @@ pub(crate) fn html_to_text(html: &str) -> (String, bool) {
         out.push_str(&rest[..i]);
         let after = &rest[i + 1..];
         let Some(end) = after.find('>') else {
-            // A lone '<' is text.
+            // A lone '<' is text, and so is everything after it: no later '<' can close (one
+            // scan, not one per '<', SEC-49).
             out.push('<');
-            rest = after;
-            continue;
+            out.push_str(after);
+            rest = "";
+            break;
         };
         let tag = after[..end].trim();
         let name: String = tag
@@ -557,9 +559,10 @@ pub(crate) fn html_to_text(html: &str) -> (String, bool) {
             // `<!-- … -->`, `<!doctype>`, `<?…?>`: drop.
             if let Some(body) = tag.strip_prefix("!--")
                 && !body.ends_with("--")
-                && let Some(k) = rest.find("-->")
             {
-                rest = &rest[k + 3..];
+                // An unclosed comment runs to the end (as in HTML), so the label is not
+                // scanned again for every `<!--` (SEC-49).
+                rest = rest.find("-->").map_or("", |k| &rest[k + 3..]);
             }
             continue;
         }
@@ -570,10 +573,14 @@ pub(crate) fn html_to_text(html: &str) -> (String, bool) {
                 "script" | "style" | "svg" | "math" | "template" | "iframe" | "object" | "noscript"
             )
         {
-            // Skip to the matching close tag (case-insensitive), or the end.
-            let lower = rest.to_ascii_lowercase();
+            // Skip to the matching close tag (case-insensitive, searched in place: lowercasing a
+            // copy of the rest for every tag was quadratic, SEC-49), or the end.
             let close = format!("</{name}");
-            rest = match lower.find(&close) {
+            let found = rest
+                .as_bytes()
+                .windows(close.len())
+                .position(|w| w.eq_ignore_ascii_case(close.as_bytes()));
+            rest = match found {
                 Some(k) => rest[k..].find('>').map_or("", |e| &rest[k + e + 1..]),
                 None => "",
             };
@@ -793,5 +800,31 @@ mod tests {
         assert_eq!(html_to_text("1 &lt; 2 &amp;&amp; &#x41;").0, "1 < 2 && A");
         assert!(html_to_text("<b>bold</b>").1);
         assert_eq!(html_to_text("a < b").0, "a < b");
+        assert_eq!(html_to_text("a <!-- never closed <b>x</b>").0, "a");
+        assert_eq!(html_to_text("<svg><text>x</text></SVG >y").0, "y");
+    }
+
+    /// SEC-49: raw-text tags, lone `<` and unclosed comments in a label each scanned (and the
+    /// raw-text case lowercased a copy of) the rest of the label: quadratic in the label size.
+    #[test]
+    fn label_cleaning_is_linear() {
+        for unit in ["<svg></svg>", "<", "<!--x>"] {
+            let best = |n: usize| {
+                let src = unit.repeat(n) + "end";
+                (0..3)
+                    .map(|_| {
+                        let t = std::time::Instant::now();
+                        std::hint::black_box(html_to_text(&src));
+                        t.elapsed().as_secs_f64()
+                    })
+                    .fold(f64::MAX, f64::min)
+            };
+            let (small, large) = (best(20_000), best(80_000));
+            assert!(
+                large < small * 10.0 + 0.05,
+                "{unit:?}: 4x the input took {:.1}x the time ({small:.3}s -> {large:.3}s)",
+                large / small
+            );
+        }
     }
 }

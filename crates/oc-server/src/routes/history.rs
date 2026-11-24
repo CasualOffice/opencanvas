@@ -96,7 +96,8 @@ async fn open(
         .unsupported
         .lock()
         .expect("lock")
-        .contains(&grant.room)
+        .get(&grant.room)
+        .is_some_and(|&until| until > state.clock.now_secs())
     {
         s.host = false;
     }
@@ -227,12 +228,11 @@ pub async fn list(
                 }
                 // Not implemented: this session falls back to what else it has (docs/30 §3).
                 Err(HostError::Status(st)) if [404, 405, 501].contains(&st.as_u16()) => {
-                    state
-                        .history
-                        .unsupported
-                        .lock()
-                        .expect("lock")
-                        .insert(grant.room.clone());
+                    // Remembered for 5 minutes, then asked again (SEC-53).
+                    let now = state.clock.now_secs();
+                    let mut u = state.history.unsupported.lock().expect("lock");
+                    u.retain(|_, until| *until > now);
+                    u.insert(grant.room.clone(), now + 300);
                     s.host = false;
                 }
                 Err(e) => return Err(ApiError::host(e)),
@@ -567,7 +567,14 @@ pub async fn undo(
             "you can't restore versions of this canvas",
         ));
     }
-    if p.restore_id.is_empty() || p.restore_id.len() > 64 {
+    // A restore's id is a lowercase ULID (see `restore`). Anything else could name another
+    // person's undo entry, which is keyed by id and author (SEC-51).
+    if p.restore_id.len() != 26
+        || !p
+            .restore_id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
+    {
         return Err(err(
             StatusCode::BAD_REQUEST,
             "BAD_REQUEST",

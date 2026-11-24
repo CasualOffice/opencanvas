@@ -1,0 +1,12 @@
+{
+  "type": "e2e.mig",
+  "version": "2.0.0",
+  "title": "Migrating",
+  "icon": "history",
+  "publisher": "E2E Corp",
+  "attrs": { "type": "object", "properties": { "title": { "type": "string" }, "touched": { "type": "boolean" } }, "required": ["title"], "additionalProperties": false },
+  "export": { "markdown": "{{title}}" },
+  "migrations": "migrations.js",
+  "entry": "block.js",
+  "integrity": "@SRI@"
+}
