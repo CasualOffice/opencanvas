@@ -589,6 +589,7 @@ audience     = "https://canvas.example.com"  # default: OC_PUBLIC_URL
 default_mode = "direct"                      # or "suggest" for changes to existing blocks
 all_files    = false                         # true: without /access, a token with no `files` covers every file
 token_admin  = false                         # true: tokens with canvas:admin may commit, set roles, close sessions
+events_coalesce_ms = 250                     # `edited` events: debounce of a burst of edits (0-10000)
 ```
 
 **Operations** (all under `/api/v1/files/{fileId}` unless noted; each is a thin adapter over the
@@ -608,6 +609,8 @@ same tool layer as MCP, §7a):
 | Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
+| Events | `GET …/events` (SSE or WebSocket) | change events, below |
+| CRDT sync | `POST …/sync-token` | a room WebSocket ticket, below |
 
 Writes land in the live room as one Yjs transaction, broadcast to editors and autosaved to you
 like any edit (open the file with `POST …/commit` when you need it saved now). Changes to
@@ -640,6 +643,46 @@ are not stored, so a retry runs again. Keys live in the database (`api_idempoten
 Redis-only mode, in Redis (`oc:idem:…`), with request hashes and write answers (ids, counts,
 revisions) only, never document content. `POST /api/v1/convert` returns a document and takes no
 key (it changes nothing).
+
+**Events** (HAPI-05). `GET /api/v1/files/{fileId}/events` streams what happens to one file, as
+Server-Sent Events (`id:`, `event: <type>`, `data: <JSON>`, a keep-alive comment every 15 s) or,
+when the request is a WebSocket upgrade, one JSON text message per event. Scope `canvas:read` and
+access to the file, checked like every read. Each event is
+`{"id":"ev_<ulid>","type":"…","fileId":"…","at":<ms>,"data":{…}}` and carries ids, user ids,
+versions and counts only, never document text (ADR-001):
+
+| `type` | `data` | When |
+|---|---|---|
+| `edited` | `{blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}` | Changes, debounced: once edits pause for `[host.api] events_coalesce_ms` (default 250) and at least every 2 s during a long burst. `blockIds` are the deepest blocks with a `blockId` that changed (≤ 500; `truncated: true` beyond); `untracked: true` when something changed outside any identified block (re-read). `by`: who sent the changes (grant user ids, or `X-OpenCanvas-Author`) |
+| `commented` | `{threadId, blockId?, added, by}` | New comment messages in a thread |
+| `mentioned` | `{mentioned, by, blockId?, threadId?}` | New @mentions, as for the mentions callback (§5), without the excerpt |
+| `member.joined` / `member.left` | `{userId, role}` / `{userId}` | A person's first connection to the live room opened, or their last one closed |
+| `saved` | `{version}` | The host accepted a save |
+| `restored` | `{restoreId, from, by}` | A version was restored (docs/30) |
+| `session.closed` | `{reason: "host" \| "idle"}` | The live room ended (`DELETE …/session`, or everyone left and it closed) |
+| `resync` | `{reason}` | Stream only: the resume point is gone; re-read the file |
+
+Resume after a disconnect with `Last-Event-ID: <id>` (or `?since=`): the server keeps the last
+512 events of each file in memory and answers those after your id, or one `resync` (whose `id`
+is the newest event it has) when your id is gone (evicted, server restarted, another node that
+was not listening). `?types=saved,commented` filters. In a cluster the room's owner publishes
+each event on the members bus, so a stream on any node gets them. A stream that falls 256 events
+behind is closed: WebSocket close code **4008**, SSE a final `event: close` with
+`{"code":4008,"reason":"…"}`; reconnect with your last id. With a user token the stream closes
+with **4001** when the token expires and with **4003** once the host revokes the user
+(`POST …/role {"role":"none"}`); nothing is sent after the revoke. At most 100 streams per file
+on one server (`429 TOO_MANY_STREAMS`). Behind nginx, `X-Accel-Buffering: no` is set; keep
+proxy read timeouts above 15 s.
+
+**CRDT sync** (HAPI-05). `POST /api/v1/files/{fileId}/sync-token` answers
+`{ticket, room, role, url, expiresAt, connectWithinSecs: 60}` for a Yjs-native client (yrs, Yjs,
+y-crdt bindings) that wants the document itself: connect a y-websocket client to `url`
+(`/v1/collab/{room}?ticket=…`) within 60 s. `role` is the effective one, `min(scope, host role)`
+(a `canvas:read` token gets `view`: the room refuses its writes as it would a viewer's). The
+session ends at `expiresAt`, at most 15 minutes and never after the token's `exp`; ask for a new
+ticket to continue. The answer is a credential: `Cache-Control: no-store`, no `Idempotency-Key`
+(the same key gets a fresh ticket). Awareness is optional; if you send it, your entry is stamped
+with your user like any client's.
 
 **Errors** are RFC 9457 `application/problem+json`:
 `{"type":"urn:opencanvas:problem:stale-block","title":"Precondition Failed","status":412,"detail":"…","code":"STALE_BLOCK","fresh":{…}}`.

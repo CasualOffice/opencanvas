@@ -50,7 +50,11 @@ pub fn valid_key(k: &str) -> bool {
 }
 
 fn applies(req: &Request) -> bool {
-    req.method() == Method::POST && req.uri().path().starts_with("/api/v1/files/")
+    let path = req.uri().path();
+    // A sync token is a credential: never stored for replays (HAPI-05).
+    req.method() == Method::POST
+        && path.starts_with("/api/v1/files/")
+        && !path.ends_with("/sync-token")
 }
 
 pub async fn layer(

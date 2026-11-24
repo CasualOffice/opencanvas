@@ -47,6 +47,8 @@ const WAL_BATCH: usize = 256;
 /// New @mentions are collected once the room has been quiet this long (a burst of edits in one
 /// block becomes one notification).
 const MENTION_SETTLE: Duration = Duration::from_millis(500);
+/// A long burst of edits still produces an `edited` event this often (HAPI-05).
+const EVENTS_MAX_WAIT: Duration = Duration::from_secs(2);
 
 fn backoff(attempt: u32) -> u64 {
     BACKOFF_SECS[(attempt as usize).min(BACKOFF_SECS.len() - 1)]
@@ -153,8 +155,17 @@ struct Room {
     self_tx: mpsc::UnboundedSender<Cmd>,
     /// Commit API callers waiting for a save that covers `seq`.
     commit_waiters: Vec<(i64, tokio::sync::oneshot::Sender<CommitResult>)>,
-    /// New @mentions to tell the host about (`None`: WOPI or no callbacks, UX-02).
+    /// New @mentions, for `mentioned` events and (with `notify`) the host (UX-02).
     mentions: Option<super::mentions::Tracker>,
+    /// The host gets `POST /mentions` calls (JWT callbacks; not WOPI).
+    notify: bool,
+    /// HAPI-05: ids each transaction touched, and the edits waiting for their `edited` event.
+    watch: super::changes::Watch,
+    edits: crate::events::EditBatch,
+    /// Comment messages per thread when last reported, and who changed comments since.
+    comment_counts: HashMap<String, (u32, Option<String>)>,
+    comment_by: BTreeSet<String>,
+    comments_dirty: bool,
     /// Set when the in-memory doc can no longer be trusted to match the WAL (a write was
     /// fenced, or a WAL append failed): the run loop closes the room without saving and every
     /// client reconnects (1012) to a room rebuilt from the WAL, resending what it missed.
@@ -289,18 +300,25 @@ pub(super) async fn run(
         }
         End::Shutdown(by_host, reply) => {
             room.shutdown(&mut rx, by_host).await;
+            if by_host {
+                room.close_events("host");
+            }
             if let Some(r) = rooms.upgrade() {
                 r.remove(&id, generation);
             }
             let _ = reply.send(());
         }
         End::Idle if room.ephemeral => {
+            room.flush_mentions().await;
+            room.close_events("idle");
             room.destroy().await;
             if let Some(r) = rooms.upgrade() {
                 r.remove(&id, generation);
             }
         }
         End::Idle => {
+            room.flush_mentions().await;
+            room.close_events("idle");
             match ctx.store.purge_room_fenced(&id, room.epoch).await {
                 Ok(()) => {}
                 Err(e) if crate::store::is_fenced(&e) => {
@@ -525,10 +543,16 @@ impl Room {
             json!({"t": "saved", "at": now_ms(), "version": host_version})
         };
         let ephemeral = host.ephemeral();
-        let mentions = crate::notify::enabled(&host, &seed.file.id)
-            .then(|| super::mentions::Tracker::new(&doc));
+        let notify = crate::notify::enabled(&host, &seed.file.id);
+        let mentions = Some(super::mentions::Tracker::new(&doc));
         Ok(Self {
             mentions,
+            notify,
+            watch: super::changes::Watch::attach(&doc),
+            edits: Default::default(),
+            comment_counts: super::changes::comment_counts(&doc),
+            comment_by: BTreeSet::new(),
+            comments_dirty: false,
             awareness: Awareness::new(doc.clone()),
             owners: HashMap::new(),
             presence: presence::Coalescer::default(),
@@ -707,6 +731,63 @@ impl Room {
         }
     }
 
+    /// Publishes a change event of this room (HAPI-05): ids and users only, no content.
+    fn emit(&self, kind: &str, data: Value) {
+        self.ctx.events.publish(crate::events::FileEvent::new(
+            &self.host.id,
+            &self.id,
+            &self.file_id,
+            kind,
+            data,
+        ));
+    }
+
+    /// Sends the pending `edited` and `commented` events when due (`force`: now). Edits are
+    /// debounced by `[host.api] events_coalesce_ms` (default 250 ms; at least one tick) and
+    /// reported at least every 2 s during a long burst.
+    fn flush_events(&mut self, force: bool) {
+        let quiet = Duration::from_millis(
+            self.host
+                .api
+                .get("events_coalesce_ms")
+                .and_then(|v| v.as_integer())
+                .map_or(250, |n| n.clamp(0, 10_000) as u64),
+        );
+        let now = Instant::now();
+        let due = force || self.edits.due(now, quiet, EVENTS_MAX_WAIT);
+        if due && !self.edits.is_empty() {
+            let data = self.edits.take();
+            self.emit(crate::events::EDITED, data);
+        }
+        if self.comments_dirty && (due || self.edits.is_empty()) {
+            self.comments_dirty = false;
+            let by: Vec<String> = std::mem::take(&mut self.comment_by).into_iter().collect();
+            let now_counts = super::changes::comment_counts(&self.doc);
+            let mut added: Vec<(&String, u32, &Option<String>)> = now_counts
+                .iter()
+                .filter_map(|(t, (n, b))| {
+                    let before = self.comment_counts.get(t).map_or(0, |c| c.0);
+                    (*n > before).then_some((t, *n - before, b))
+                })
+                .collect();
+            added.sort();
+            for (thread, n, block) in added {
+                let mut data = json!({"threadId": thread, "added": n, "by": by});
+                if let Some(b) = block {
+                    data["blockId"] = json!(b);
+                }
+                self.emit(crate::events::COMMENTED, data);
+            }
+            self.comment_counts = now_counts;
+        }
+    }
+
+    /// The live session ended (`reason`: `host` or `idle`): last events, then `session.closed`.
+    fn close_events(&mut self, reason: &str) {
+        self.flush_events(true);
+        self.emit(crate::events::SESSION_CLOSED, json!({"reason": reason}));
+    }
+
     fn set_status(&mut self, status: Value) {
         self.broadcast(protocol::control(&status), None);
         if status["t"] != "saving" {
@@ -733,6 +814,16 @@ impl Room {
         }
         let sv = self.doc.transact().state_vector();
         let _ = tx.send(Outbound::Frame(protocol::step1(sv).into()));
+        if !self
+            .peers
+            .values()
+            .any(|p| p.grant.user.id == grant.user.id)
+        {
+            self.emit(
+                crate::events::MEMBER_JOINED,
+                json!({"userId": grant.user.id, "role": grant.role.as_str()}),
+            );
+        }
         self.peers.insert(
             conn,
             Peer {
@@ -833,6 +924,16 @@ impl Room {
             return;
         };
         self.inbox.forget(conn);
+        if !self
+            .peers
+            .values()
+            .any(|p| p.grant.user.id == peer.grant.user.id)
+        {
+            self.emit(
+                crate::events::MEMBER_LEFT,
+                json!({"userId": peer.grant.user.id}),
+            );
+        }
         // A run never outlives its requester's last connection (docs/24 §10.5).
         if let Some(rt) = &self.ctx.ai
             && !self
@@ -1342,6 +1443,20 @@ impl Room {
             }
         }
         let mut edited = false;
+        // HAPI-05: what this durable batch changed, and who sent it.
+        let mut users: Vec<String> = batch
+            .iter()
+            .filter(|q| q.edit)
+            .map(|q| q.user_id.clone())
+            .collect();
+        users.sort();
+        users.dedup();
+        let touched = self.watch.take();
+        if touched.comments {
+            self.comments_dirty = true;
+            self.comment_by.extend(users.iter().cloned());
+        }
+        self.edits.add(touched, &users, Instant::now());
         // The sender does not get its own update back; with several senders in one batch the
         // merged frame goes to everyone (Yjs ignores structs it already has).
         let first = batch[0].from;
@@ -1524,6 +1639,11 @@ impl Room {
                 self.restore_until
                     .insert(origin, Instant::now() + self.ctx.cfg.restore_undo_window);
                 tracing::info!(room = %self.id, changed, "version restored");
+                self.flush_events(true);
+                self.emit(
+                    crate::events::RESTORED,
+                    json!({"restoreId": restore_id, "from": from, "by": author}),
+                );
                 let ctl = json!({"t": "restored", "by": author, "byName": by_name, "from": from,
                     "name": name, "at": now_ms(), "restoreId": restore_id});
                 self.broadcast(protocol::control(&ctl), None);
@@ -1809,6 +1929,7 @@ impl Room {
         {
             self.flush_mentions().await;
         }
+        self.flush_events(false);
         if self.seq > self.compacted_seq
             && (self.seq - self.compacted_seq >= cfg.compact_every.min(i64::MAX as u64) as i64
                 || self.last_compact.elapsed() >= cfg.compact_interval)
@@ -1840,7 +1961,17 @@ impl Room {
             return;
         };
         let events = tracker.collect(&self.doc);
-        if events.is_empty() || self.callback_token.is_empty() {
+        for ev in &events {
+            let mut data = json!({"mentioned": ev.mentioned, "by": ev.by});
+            if let Some(b) = &ev.block_id {
+                data["blockId"] = json!(b);
+            }
+            if let Some(t) = &ev.thread_id {
+                data["threadId"] = json!(t);
+            }
+            self.emit(crate::events::MENTIONED, data);
+        }
+        if events.is_empty() || !self.notify || self.callback_token.is_empty() {
             return;
         }
         let now = now_ms();
@@ -2166,6 +2297,8 @@ impl Room {
                     tracing::error!(room = %self.id, error = %e, "recording save failed");
                 }
                 tracing::info!(room = %self.id, version = ?self.host_version, "saved to host");
+                self.flush_events(true);
+                self.emit(crate::events::SAVED, json!({"version": self.host_version}));
                 let version = self.host_version.clone();
                 self.answer_commits(Some(pending.seq), &CommitResult::Saved { version });
                 self.set_status(
@@ -2342,9 +2475,12 @@ impl Room {
             tracing::error!(room = %self.id, error = %e, "recording reload failed");
         }
         self.awareness = Awareness::new(doc.clone());
-        if self.mentions.is_some() {
-            self.mentions = Some(super::mentions::Tracker::new(&doc));
-        }
+        self.mentions = Some(super::mentions::Tracker::new(&doc));
+        self.watch = super::changes::Watch::attach(&doc);
+        self.edits = Default::default();
+        self.comment_counts = super::changes::comment_counts(&doc);
+        self.comments_dirty = false;
+        self.comment_by.clear();
         self.doc_bytes = encoded_len(&doc);
         self.doc = doc;
         self.host_version = version;

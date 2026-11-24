@@ -543,7 +543,10 @@ fn openapi_documents_idempotency_on_every_file_write() {
             p.iter()
                 .any(|p| p["$ref"] == "#/components/parameters/IdempotencyKey")
         });
-        if path.starts_with("/api/v1/files/") {
+        if path.ends_with("/sync-token") {
+            // HAPI-05: the answer is a credential, never stored for a replay.
+            assert!(!has_key, "{path} takes no key");
+        } else if path.starts_with("/api/v1/files/") {
             n += 1;
             assert!(has_key, "{path}: Idempotency-Key");
             assert!(

@@ -11,6 +11,7 @@ pub mod clock;
 pub mod cluster;
 pub mod config;
 pub mod crypto;
+pub mod events;
 pub mod grant;
 pub mod history;
 pub mod host_client;
@@ -148,6 +149,7 @@ impl AppState {
             cfg: cfg.rooms.clone(),
             metrics: metrics.clone(),
             ai: ai.clone(),
+            events: events::Hub::new(),
         }));
         if cfg.unfurl.off {
             tracing::info!("link unfurl: off (OC_UNFURL=off)");
@@ -191,10 +193,16 @@ impl AppState {
 }
 
 impl AppState {
+    /// This node's change events (HAPI-05).
+    pub fn events(&self) -> &Arc<events::Hub> {
+        &self.rooms.ctx().events
+    }
+
     /// Switches to cluster mode (once, before serving): rooms get one owner node, and member
     /// events from other nodes are applied here as they arrive.
     pub fn join_cluster(&self, cluster: Arc<cluster::Cluster>) {
         self.rooms.set_cluster(cluster.clone());
+        cluster::spawn_events(self.events().clone(), cluster.clone());
         cluster::spawn_members_listener(self.members.clone(), cluster);
     }
 
