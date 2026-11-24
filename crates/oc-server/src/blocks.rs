@@ -268,6 +268,17 @@ impl Installed {
         self.add(name.to_string(), res);
     }
 
+    /// Installs OpenCanvas's own blocks on the contract (BSDK-04): `oc.progress`, built from
+    /// `web/packages/block-sdk/samples/progress` into `crates/oc-server/blocks/oc.progress`.
+    /// Hosts enable it like any other package.
+    pub fn add_first_party(&mut self) {
+        self.add_builtin(
+            "oc.progress (built in)",
+            include_bytes!("../blocks/oc.progress/block.json"),
+            &[("block.js", include_bytes!("../blocks/oc.progress/block.js"))],
+        );
+    }
+
     /// The editor origin that may frame blocks (`OC_PUBLIC_URL`'s origin).
     pub fn with_editor_origin(mut self, public_url: Option<&str>) -> Self {
         self.editor_origin = public_url.map(|u| origin_of(u).to_string());

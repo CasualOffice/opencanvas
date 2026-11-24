@@ -403,6 +403,18 @@ Third-party renderers run in an iframe per block instance:
   Open points settled: children below the frame, full width; a failed migration is read only with
   its own sentence; the last height is kept in `fallback.height`.
 
+- **BSDK-04 (2026-11-25, Review).** `@opencanvas/block-sdk` (`web/packages/block-sdk`):
+  `defineBlock`, the typed `BlockContext`, `defineMigrations`, a DOM helper `h` and a test harness
+  (`createHarness`, the runtime's behaviour in the test's DOM). Samples built with it by
+  `scripts/build-samples.mjs` (`--check` in the package tests): `oc.progress`, first party,
+  compiled into the server (`Installed::add_first_party`) and enabled per host like any package;
+  `acme.okr` (the frames' OKR: objective, key results, owners from the member list, overall
+  progress stored for exports, a generated `preview.png`) in `examples/blocks/acme.okr` for
+  `OC_BLOCKS_DIR`. Both carry `discovery`. Guide: docs/32, published as the site page
+  `docs/block-sdk.html`. Tests: `block-sdk/src/sdk.test.ts`, `oc-server/tests/blocks.rs`
+  `the_samples_install`, `e2e/specs/zb-block-samples.spec.ts` (insert, edit, second person,
+  preview in the gallery, axe light and dark).
+
 ## 4. Stable headless API
 
 ### 4.1 Problem and user value

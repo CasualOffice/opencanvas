@@ -1,0 +1,44 @@
+{
+  "type": "acme.okr",
+  "version": "1.2.0",
+  "title": "OKR",
+  "icon": "target",
+  "publisher": "Acme Corp",
+  "description": "Objective and key results",
+  "keywords": ["goals", "objectives"],
+  "discovery": { "label": "OKR", "category": "data-planning", "keywords": ["key results", "okr"], "profiles": ["project", "meeting", "full"], "complexity": "basic" },
+  "content": "none",
+  "attrs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "objective": { "type": "string", "maxLength": 200, "default": "New objective" },
+      "progress": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+      "krs": {
+        "type": "array",
+        "maxItems": 20,
+        "default": [],
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": { "type": "string", "maxLength": 200 },
+            "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+            "owner": { "type": "string", "maxLength": 128 }
+          },
+          "required": ["title", "progress"]
+        }
+      }
+    },
+    "required": ["objective"]
+  },
+  "export": {
+    "markdown": "**{{objective}}** ({{progress|percent}})\n{{#krs}}- {{title}}: {{progress|percent}}\n{{/krs}}",
+    "text": "{{objective}} ({{progress|percent}})"
+  },
+  "permissions": { "network": ["https://okr.acme.example"], "members": "read" },
+  "preview": "preview.png",
+  "entry": "block.js",
+  "integrity": "@SRI@"
+}
