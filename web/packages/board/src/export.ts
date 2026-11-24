@@ -6,7 +6,7 @@
 // Keep in step with the Rust port (`crates/oc-model/src/board.rs`): both must produce
 // `crates/oc-model/tests/fixtures/board.web.svg` byte for byte (see export.test.ts).
 import * as Y from "yjs";
-import { withResolvedArrows } from "./connectors";
+import { exportResolvedArrows } from "./connectors";
 import { contentBounds, getBoardMap, readShapes, smooth, type Pt, type Shape } from "./model";
 import { STICKY_TEXT, stickyHeight, wrapText } from "./ops";
 import { DOC_PREFIX, ICON_KIND, ICON_LABEL, docIconUrls, iconGlyphBox, iconLabelLayout, iconPathsOf, iconProps } from "./icons";
@@ -207,7 +207,7 @@ const grown = (shapes: Shape[]) =>
   });
 
 /** Shapes as drawn: grown stickies, then connectors resolved against them. */
-const prepared = (shapes: Shape[]) => withResolvedArrows(grown(shapes));
+const prepared = (shapes: Shape[]) => exportResolvedArrows(grown(shapes));
 
 function boundsOf(list: Shape[]): [number, number, number, number] {
   const b = contentBounds(list);

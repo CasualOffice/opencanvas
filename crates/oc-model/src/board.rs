@@ -137,6 +137,8 @@ struct Shape {
     start: Option<Binding>,
     end: Option<Binding>,
     route: String,
+    /// `routing` (ADR-047): `avoid` marks an obstacle-avoiding elbow whose route is stored in `pts`.
+    routing: String,
     /// `via` set at all (an empty list still counts, as in the web model).
     has_via: bool,
     /// Manual waypoints the connector passes through.
@@ -253,6 +255,7 @@ fn shape(id: &str, v: &Value) -> Shape {
         start: binding(&v["start"]),
         end: binding(&v["end"]),
         route: string(&v["route"]),
+        routing: string(&v["routing"]),
         has_via: truthy(&v["via"]),
         via: points(&v["via"]),
         src: string(&v["src"]),
@@ -747,6 +750,26 @@ fn js_round(v: f64) -> f64 {
     (v + 0.5).floor()
 }
 
+/// ADR-047 point 3 (web `storedRoute`): an `avoid` connector (`route: "elbow"` +
+/// `routing: "avoid"`) draws its stored route while `pts` still starts at `a`, ends at `b` (where
+/// its plain elbow would) and every leg is axis-aligned; otherwise `None`, the plain elbow.
+fn stored_route(s: &Shape, a: Pt, b: Pt) -> Option<Vec<Pt>> {
+    if s.route != "elbow" || s.routing != "avoid" || s.pts.len() < 2 {
+        return None;
+    }
+    let p = &s.pts;
+    if p[0] != a || p[p.len() - 1] != b {
+        return None;
+    }
+    if p.windows(2)
+        .any(|w| w[0][0] != w[1][0] && w[0][1] != w[1][1])
+    {
+        return None;
+    }
+    Some(p.clone())
+}
+
+/// Resolved connector points as the exporters draw them (web `exportResolvedArrows`).
 fn resolve_arrow(s: &Shape, by_id: &HashMap<&str, &Shape>) -> Vec<Pt> {
     let pts = &s.pts;
     if pts.len() < 2 && !(s.has_start && s.has_end) {
@@ -835,7 +858,11 @@ fn resolve_arrow(s: &Shape, by_id: &HashMap<&str, &Shape>) -> Vec<Pt> {
             ab = Some(f);
             b = anchor_point(sh, f);
         }
-        return elbow(r1(a), r1(b), aa, ab);
+        let (ra, rb) = (r1(a), r1(b));
+        if let Some(p) = stored_route(s, ra, rb) {
+            return p;
+        }
+        return elbow(ra, rb, aa, ab);
     }
     if let (Some(sh), Some(Anchor::Center)) = (bs, aa) {
         a = boundary_toward(sh, raw_b);
@@ -863,8 +890,22 @@ fn with_resolved_arrows(shapes: &[Shape]) -> Vec<Shape> {
         .collect()
 }
 
-/// Every connector's resolved points, in paint order (the web `withResolvedArrows` for arrows):
-/// the parity check between the two resolvers (`tests/fixtures/board-ports.resolved.json`).
+/// Ids of the `avoid` connectors the exporters draw with their stored route (ADR-047 point 3,
+/// [`stored_route`]); the draw.io export writes bends only for these.
+pub(crate) fn current_routes(doc: &Value, board_id: &str) -> std::collections::HashSet<String> {
+    let raw = read_shapes(doc, board_id);
+    let drawn = prepared(raw.clone());
+    raw.into_iter()
+        .zip(drawn)
+        .filter(|(s, _)| s.kind == "arrow" && s.routing == "avoid" && s.route == "elbow")
+        .filter(|(s, d)| s.via.is_empty() && s.pts.len() > 2 && s.pts == d.pts)
+        .map(|(s, _)| s.id)
+        .collect()
+}
+
+/// Every connector's resolved points, in paint order (the web `exportResolvedArrows` for
+/// arrows): the parity check between the two resolvers (`tests/fixtures/board-ports.resolved.json`,
+/// `board-avoid.resolved.json`).
 pub fn resolved_points(doc: &Value, board_id: &str) -> Vec<(String, Vec<[f64; 2]>)> {
     with_resolved_arrows(&read_shapes(doc, board_id))
         .into_iter()

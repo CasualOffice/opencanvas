@@ -54,7 +54,15 @@ fn anchor_xy(a: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-pub(super) fn write(shapes: &[S], board_id: &str, name: &str, out: &mut Out) -> String {
+/// `routed`: the `avoid` connectors whose stored route is current (ADR-047 point 3); any other
+/// `avoid` connector is written as a plain orthogonal edge that draw.io routes itself.
+pub(super) fn write(
+    shapes: &[S],
+    board_id: &str,
+    name: &str,
+    routed: &HashSet<String>,
+    out: &mut Out,
+) -> String {
     let conts = containers(shapes);
     let ids: HashSet<&str> = shapes.iter().map(|s| s.id.as_str()).collect();
     let by_id: HashMap<&str, &S> = shapes.iter().map(|s| (s.id.as_str(), s)).collect();
@@ -310,7 +318,7 @@ pub(super) fn write(shapes: &[S], board_id: &str, name: &str, out: &mut Out) -> 
             }
         }
         let mut via = s.pts("via");
-        if via.is_empty() && s.str("routing") == "avoid" && pts.len() > 2 {
+        if via.is_empty() && s.str("routing") == "avoid" && routed.contains(&s.id) {
             out.note("avoid", None);
             via = pts[1..pts.len() - 1].to_vec();
         }

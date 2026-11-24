@@ -135,12 +135,13 @@ drags grows the state, which is why drags stay throttled.
 |---|---|
 | Renderers learn ports (web `resolveArrow` and Rust `resolve_arrow`, parity fixture) | 2, done (§6.3) |
 | Wire `SpatialIndex` into culling, `snapTarget` and marquee; profile in a browser (DGM-10) | 2, done (§6.1, §6.2) |
-| Obstacle-aware orthogonal routing (ADR-047) | 2, minimal (§6.4); worker, Rust port / stored-`pts` export rule, narrower commit set: 3 |
+| Obstacle-aware orthogonal routing (ADR-047) | 2, minimal (§6.4); stored-`pts` export rule: done (DGM-12b, §6.4); worker, Rust router port, narrower commit set: deferred |
 | Per-board budget warning; per-board diagram mode, stencils, inspector, editor placeholder for unknown types: prototypes first (ADR-011) | 2 (prototypes in progress elsewhere) |
 | O(n) per change left: projection and resolver copy the full list (10k `drag20` 20 ms); scene layer separate from React and level-of-detail for the fit view (10k pan 68 ms) | 3 |
 | `syncBoundArrows` reads the whole board on each commit; use the projection and `EdgeIndex` | 2, done (`syncArrows`, §6.2) |
 | Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid import through FC-10 | 3 (draw.io and Excalidraw import: done, §7) |
-| 5k/10k browser stress, multi-client fuzz with diagram fields | 4 |
+| 5k/10k browser stress | 4 |
+| Multi-client fuzz with diagram fields, 0.1.1 and current clients together | done (§6.5, DGM-18) |
 
 ## 6. Phase 2 (engine only, built 2026-11-24)
 
@@ -251,7 +252,52 @@ route in `pts`. Tests (`routing.test.tsx`): a box between two ends is avoided; 1
 shuffled obstacle order with no obstacle crossed; 10-seed × 15-edit incremental = from-scratch routing
 (about half the routes recomputed); deferred results with stale versions dropped; the scheduler; the
 board draws and commits the route (seen failing first: drew `M100 30 L400 30`). Readers without a
-router (0.1.x, both exporters) draw the plain elbow.
+router (0.1.x) draw the plain elbow.
+
+**Export rule (DGM-12b, ADR-047 point 3).** Every exporter draws an `avoid` connector with its stored
+`pts` while they start and end exactly where its plain elbow would (bound ports or anchors, after
+sticky growth) and every leg is axis-aligned, else the plain elbow: Rust SVG/PNG/PDF/preview
+(`board.rs` `stored_route`), web SVG/PNG (`connectors.ts` `exportResolvedArrows`; the screen keeps
+routing live), draw.io (bends only for a current route, `board::current_routes`; a stale one is a
+plain orthogonal edge draw.io routes itself; Mermaid has no geometry). Shared fixture
+`crates/oc-model/tests/fixtures/board-avoid.json`: connector points (`board-avoid.resolved.json`)
+and SVG (`board-avoid.web.svg`) byte-equal from both exporters (`export.test.ts`, `tests/diagram.rs`);
+`tests/diagram_export.rs` checks a moved shape and a diagonal leg drop the draw.io bends. All seen
+failing first (Rust drew `M100 30 L250 30 L250 230 L400 230` through the wall; draw.io kept stale
+bends). Still deferred: the Rust router port (not needed while `pts` is current) and the route
+worker (no measurement asks for it).
+
+### 6.5 Mixed-version collaboration (DGM-18)
+
+`src/mixed-version.test.ts` runs deployed 0.1.1 clients against current ones on shared Yjs
+documents. The 0.1.1 `model.ts`, `ops.ts` and `connectors.ts` are vendored unchanged from tag
+`v0.1.1` in `web/packages/board/test-fixtures/v011/` (test-only: outside the package tsconfig,
+imported only by the test, in no bundle). Four peers (two 0.1.1, two current), 24 fixed seeds, 160
+edits each on a 0.1.1 flowchart board plus 8 nodes and 6 bound connectors. 0.1.1 edits: move
+(with connector sync), resize, text, delete, paste (`cloneShapes` + `insertShapes`), z-order,
+connector sync. Current edits: kinds, `props` per field, ports, port bindings, `routing: "avoid"`,
+containers (create, move with contents), icons, board name, connector sync. Updates go to random
+peers in random order with gaps while editing, then everything is delivered in a shuffled order.
+Asserted per seed: identical state on every peer (sorted-key JSON and paint order); every field a
+current client wrote (`kind`, `kindVersion`, each `props` key, `ports`, `routing`, a binding's
+`port`, the board name) is present with a value a current client wrote, unless a 0.1.1 client
+deleted the shape; every binding has a legacy `anchor`; the 0.1.1 reader returns every shape with
+one of its nine types and resolves every connector to finite points; `BoardProjection` equals
+`readShapes` on every peer (also every 40 edits). A last test checks every edit kind ran more than
+10 times across the seeds. Deterministic: seeded PRNG for edits and delivery, seeded
+`Math.random`/`Date.now` for both versions' ids, no timers.
+
+**Data-loss bug found and fixed.** Two clients giving a shape its first `props` field at the same
+time (or both converting a plain-object `props` written by a 0.1.1 copy) each created the nested
+`props` Y.Map; Yjs keeps one of two concurrent values of a key, so the other client's fields were
+silently dropped (14 of the 24 seeds failed on it). This broke ADR-045's per-field merge condition for the first
+edit of a shape. Fix (`model.ts` `mergeProps`/`watchProps`): the client whose map lost copies the
+fields it wrote into the winning map when the remote update arrives (keys the winner has keep their
+value; origin `PROPS_MERGE_ORIGIN`, not an undo step). It relies on the losing client receiving the
+winner's update while it still has the document open; a client that closes before that keeps the
+loss. Regression tests (both cases) seen failing first. Nothing else was lost: 0.1.1 edits keep
+every diagram field; 0.1.1 connector sync rewrites an `avoid` connector's `pts` to the plain elbow,
+which ADR-047 already allows (`pts` is a snapshot).
 
 ## 7. Diagram import: draw.io and Excalidraw (DGM-15, built 2026-11-24)
 
