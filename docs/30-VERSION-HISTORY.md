@@ -263,6 +263,21 @@ ghost, moved as a faint ghost at the old place with an arrow). A **Show changes*
 the decorations off; Previous / Next change steps through them. Compare any two versions by
 choosing a base in the panel.
 
+**As built (VH-01d / VH-02b, `web/packages/editor/src/history/`, a lazy chunk).** `root.tsx` is the
+panel, naming popover, preview, Compare with, restore confirm and the phone layout; `group.ts`
+groups by day and folds automatic saves at 30-minute gaps (the automatic save just before a
+restore is its own "Before restore" row); `changes.ts` turns the diff into the ordered list of
+changes (stepper, phone list) and maps inline runs onto the newer text (no inline marks when they
+no longer spell it); `decorate.ts` draws text changes as ProseMirror decorations (`ins.vh-ins`,
+`del.vh-del` widgets, a bar and a gutter sign per block: `+` added, `−` removed, `~` changed, `↕`
+moved) and databases, boards and the title as DOM marks kept through re-renders by a
+MutationObserver. The preview is a second read-only `CanvasEditor` on a throwaway `Y.Doc` with
+its own bridge (role `view`), so node views never touch the live room. Comparing with "Current
+version" previews the live canvas (a snapshot) against the selected version. The footer names the
+source: "Kept by <host>" or "Kept in this file" (§13). Others see 6b as a toast with View; the
+restorer's toast keeps Undo for 30 s. The menu shows "Version history" (⌥⌘H / Ctrl+Alt+H) only
+with `perms.history`, and "Name this version" only with `history: full`, edit and `commitMessage`.
+
 ## 7. Permissions
 
 | Action | Who | How it is set |

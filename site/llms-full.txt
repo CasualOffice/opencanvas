@@ -2639,7 +2639,7 @@ logged as a warning).
 `GET /v1/sessions/:ticket` · `POST /v1/assets?ticket=` (multipart, proxied to host; WOPI mode:
 stored with the room, `201 {"assetId","url":"/v1/assets/<id>","mime","size"}`, ≤ 10 MB each, ≤ 50 MB
 per file) · `GET /v1/assets/:id?ticket=` (WOPI mode only, else 404) ·
-*(VH-01b, docs/30 §8; memory caches only)* `GET /v1/history?ticket=[&cursor=]` → `{source, versions, next?, recent?,
+*(VH-01b, docs/30 §8; memory caches only)* `GET /v1/history?ticket=[&cursor=][&known=]` (`known`: the newest saved version the editor was told of; a list cached before it is fetched again) → `{source, versions, next?, recent?,
 hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the version's Yjs state) ·
 `GET /v1/history/diff?ticket=&from=&to=current|<v>` (ADR-052 JSON; `422 DIFF_TOO_LARGE`) ·
 `POST /v1/history/name?ticket=` `{name}` (edit + `commitMessage`; saves now even when clean) ·
