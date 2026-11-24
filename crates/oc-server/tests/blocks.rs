@@ -168,7 +168,8 @@ async fn installed_packages_reach_the_session_and_refused_ones_healthz() {
         .await
         .unwrap();
     assert_eq!(health["ok"], true);
-    assert_eq!(health["blocks"]["installed"], 1);
+    // srv.okr plus the built-in oc.progress.
+    assert_eq!(health["blocks"]["installed"], 2);
     let refused = &health["blocks"]["refused"][0];
     assert_eq!(refused["package"], "tampered");
     assert!(
@@ -549,4 +550,70 @@ async fn room_updates_that_break_a_block_schema_are_refused() {
     b.settle().await;
     assert_eq!(b.denied, 0);
     assert!(server_json(&state).await.to_string().contains("Ship v2"));
+}
+
+/// BSDK-04: `oc.progress` is compiled in (first party, the `oc.` prefix allowed) and enabled
+/// like any package; the `acme.okr` sample package installs from a blocks directory.
+#[tokio::test]
+async fn the_samples_install() {
+    let (base, _host) = mock_host().await;
+    let state = app_full(
+        &base,
+        room_cfg(),
+        &temp_db(),
+        |h| h.blocks = toml::from_str("enabled = [\"oc.progress\", \"acme.okr@^1\"]").unwrap(),
+        |c| {
+            c.blocks = oc_server::blocks::BlocksConfig {
+                dir: Some(
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/blocks"),
+                ),
+                origin: Some("https://blocks.example".into()),
+            };
+        },
+    )
+    .await;
+    assert!(
+        state.blocks.refused.is_empty(),
+        "{:?}",
+        state.blocks.refused
+    );
+    let addr = serve_state(state.clone()).await;
+    let s = session_json(&addr).await;
+    let types: Vec<&str> = s["blocks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["type"].as_str().unwrap())
+        .collect();
+    assert_eq!(types, ["oc.progress", "acme.okr"]);
+    let okr = &s["blocks"][1];
+    assert_eq!(
+        okr["preview"],
+        "https://blocks.example/blocks/acme.okr/1.2.0/preview.png"
+    );
+    assert_eq!(okr["discovery"]["category"], "data-planning");
+    assert_eq!(okr["permissions"]["members"], "read");
+    let png = on(
+        &addr,
+        "blocks.example",
+        "/blocks/acme.okr/1.2.0/preview.png",
+    )
+    .send()
+    .await
+    .unwrap();
+    assert_eq!(png.headers()["content-type"], "image/png");
+    // Exports draw the samples' templates.
+    let reg = oc_model::ext::installed();
+    let doc = json!({"content": [
+        {"type": "extBlock", "attrs": {"type": "oc.progress", "v": 1, "attrs": {"label": "Launch", "value": 0.5}}},
+        {"type": "extBlock", "attrs": {"type": "acme.okr", "v": 1, "attrs": {"objective": "Ship", "progress": 0.5,
+            "krs": [{"title": "API", "progress": 1}, {"title": "SDK", "progress": 0}]}}}
+    ]});
+    assert!(reg.get("oc.progress").is_some());
+    let md = oc_model::export::to_markdown(&doc);
+    assert!(md.contains("**Launch**: 50%"), "{md}");
+    assert!(
+        md.contains("**Ship** (50%)\n- API: 100%\n- SDK: 0%"),
+        "{md}"
+    );
 }

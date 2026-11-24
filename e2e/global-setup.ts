@@ -43,6 +43,8 @@ export const BLOCKS_ORIGIN = "http://127.0.0.1:8280";
  *  its wrong hash, so the server refuses it). */
 function blockPackages(dir: string) {
   const src = path.join(ROOT, "e2e/fixtures/blocks");
+  // The third-party sample (BSDK-04) as an operator installs it; oc.progress is built in.
+  fs.cpSync(path.join(ROOT, "examples/blocks/acme.okr"), path.join(dir, "acme.okr"), { recursive: true });
   for (const name of fs.readdirSync(src)) {
     const from = path.join(src, name);
     const to = path.join(dir, name);

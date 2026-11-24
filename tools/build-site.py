@@ -115,6 +115,7 @@ DOC_DESCRIPTIONS = {
     "nextcloud": "Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps files, shares and versions as a WOPI host; read-only shares open view-only and share changes reach open canvases at once.",
     "mattermost": "Create canvases and meeting notes in Mattermost channels, opened in the right-hand panel; the plugin is the host, files stay in Mattermost, access follows channel membership.",
     "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
+    "block-sdk": "Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.",
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
     "ai": "The OpenCanvas assistant and MCP endpoint: how they work, what they may do, what is sent to the model server, the threat model and limits, and how an operator configures Claude Platform or a self-hosted model.",
