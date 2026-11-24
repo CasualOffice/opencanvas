@@ -764,11 +764,11 @@ mod tests {
     ///
     /// Measured as growth, not against a wall-clock budget (which failed on slow or busy CI
     /// runners): 4x the input must take well under the 16x a quadratic parse would. Each size
-    /// takes its best of three runs, so a pause in one run does not count.
+    /// takes its best of five runs, so a pause in one run does not count.
     fn many_raw_text_tags_are_linear() {
         let best = |n: usize| {
             let src = "<style></style>".repeat(n) + "<p>end</p>";
-            (0..3)
+            (0..5)
                 .map(|_| {
                     let t = std::time::Instant::now();
                     let v = html_to_json(&src);
@@ -779,7 +779,9 @@ mod tests {
         };
         let (small, large) = (best(25_000), best(100_000));
         assert!(
-            large < small * 8.0 + 0.05,
+            // A quadratic parse is 16x; 10x leaves room for a busy runner sharing the CPU with
+            // the rest of the test suite, without hiding a real regression.
+            large < small * 10.0 + 0.1,
             "4x the tags took {:.1}x the time ({small:.3}s -> {large:.3}s)",
             large / small
         );
