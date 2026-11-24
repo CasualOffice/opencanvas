@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>OpenAPI document API | OpenCanvas</title>
+<meta name="description" content="OpenCanvas API reference, OpenAPI document: This document.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/reference/meta.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="OpenAPI document API | OpenCanvas">
+<meta property="og:description" content="OpenCanvas API reference, OpenAPI document: This document.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/reference/meta.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/site.css">
+<script src="../../assets/theme-init.js"></script>
+<script type="module" src="../../assets/site.js"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../../index.html#product">Product</a><a href="../../docs/integration.html">Integrate</a><a href="../../api/index.html" aria-current="page">API</a><a href="../../docs/index.html">Docs</a><a href="../../roadmap.html">Roadmap</a><a href="../../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../../index.html#product">Product</a><a href="../../docs/integration.html">Integrate</a><a href="../../api/index.html" aria-current="page">API</a><a href="../../docs/index.html">Docs</a><a href="../../roadmap.html">Roadmap</a><a href="../../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--ref">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../../api/index.html">Overview</a></li><li><a href="../../api/authentication.html">Authentication</a></li><li><a href="../../api/errors.html">Errors</a></li><li><a href="../../api/pagination.html">Pagination</a></li><li><a href="../../api/idempotency.html">Idempotency</a></li><li><a href="../../api/rate-limits.html">Rate limits</a></li><li><a href="../../api/events.html">Events</a></li><li><a href="../../api/webhooks.html">Webhooks</a></li><li><a href="../../api/sdks.html">SDKs</a></li><li><a href="../../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../../api/reference/canvas.html">Canvas</a></li><li><a href="../../api/reference/blocks.html">Blocks</a></li><li><a href="../../api/reference/databases.html">Databases</a></li><li><a href="../../api/reference/boards.html">Boards</a></li><li><a href="../../api/reference/comments.html">Comments</a></li><li><a href="../../api/reference/members.html">Members</a></li><li><a href="../../api/reference/files.html">Export and import</a></li><li><a href="../../api/reference/streams.html">Events and sync</a></li><li><a href="../../api/reference/admin.html">Admin</a></li><li><a href="../../api/reference/meta.html" aria-current="page">OpenAPI document</a><ul class="api-nav-ops"><li><a href="#getOpenApi" class="nav-op"><span class="method method-get">GET</span><span>OpenAPI document</span></a></li></ul></li><li><a href="../../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../../api/index.html">Overview</a></li><li><a href="../../api/authentication.html">Authentication</a></li><li><a href="../../api/errors.html">Errors</a></li><li><a href="../../api/pagination.html">Pagination</a></li><li><a href="../../api/idempotency.html">Idempotency</a></li><li><a href="../../api/rate-limits.html">Rate limits</a></li><li><a href="../../api/events.html">Events</a></li><li><a href="../../api/webhooks.html">Webhooks</a></li><li><a href="../../api/sdks.html">SDKs</a></li><li><a href="../../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../../api/reference/canvas.html">Canvas</a></li><li><a href="../../api/reference/blocks.html">Blocks</a></li><li><a href="../../api/reference/databases.html">Databases</a></li><li><a href="../../api/reference/boards.html">Boards</a></li><li><a href="../../api/reference/comments.html">Comments</a></li><li><a href="../../api/reference/members.html">Members</a></li><li><a href="../../api/reference/files.html">Export and import</a></li><li><a href="../../api/reference/streams.html">Events and sync</a></li><li><a href="../../api/reference/admin.html">Admin</a></li><li><a href="../../api/reference/meta.html" aria-current="page">OpenAPI document</a><ul class="api-nav-ops"><li><a href="#getOpenApi" class="nav-op"><span class="method method-get">GET</span><span>OpenAPI document</span></a></li></ul></li><li><a href="../../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>OpenAPI document</h1>
+<p class="lede">The OpenAPI 3.1 document this reference is generated from.</p>
+<ul class="op-index"><li><a href="#getOpenApi"><span class="method method-get">GET</span> <code class="op-path-s">/api/v1/openapi.json</code></a></li></ul>
+<section class="op" aria-labelledby="getOpenApi"><div class="op-doc"><h2 id="getOpenApi" class="op-title">This document</h2><p class="op-line"><span class="method method-get">GET</span><code>/api/v1/openapi.json</code></p><p>The OpenAPI 3.1 document of this server's API, the same file as <code>crates/oc-server/api/openapi.json</code> in the repository. Public: no credentials, not rate limited.</p><dl class="op-meta"><dt>Credentials</dt><dd>None: the document is public.</dd><dt>Operation id</dt><dd><code>getOpenApi</code></dd></dl><h3 data-index="no" id="responses">Responses</h3><details class="resp" open><summary><span class="status status-2">200</span><span>OK</span><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div class="resp-body"><h4 data-index="no" id="body-applicationjson">Body <code>application/json</code></h4><p>object</p><h4 data-index="no" id="example">Example</h4><pre><code class="language-json">{
+  &quot;openapi&quot;: &quot;3.1.0&quot;,
+  &quot;info&quot;: {
+    &quot;title&quot;: &quot;OpenCanvas headless API&quot;,
+    &quot;version&quot;: &quot;1.0.0&quot;
+  },
+  &quot;paths&quot;: {}
+}</code></pre></div></details></div><aside class="op-code" aria-label="This document: examples"><div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Request</span><div class="sample-tabs" role="tablist" aria-label="Request: language"><button type="button" role="tab" id="s38-curl-tab" aria-controls="s38-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s38-ts-tab" aria-controls="s38-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s38-rust-tab" aria-controls="s38-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s38-python-tab" aria-controls="s38-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s38-curl" aria-labelledby="s38-curl-tab" data-lang="curl"><pre><code class="language-curl">curl -s &quot;https://canvas.example.com/api/v1/openapi.json&quot;</code></pre></div><div role="tabpanel" id="s38-ts" aria-labelledby="s38-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">import { OpenCanvas } from &quot;@opencanvas/client&quot;;
+
+const oc = new OpenCanvas({
+  baseUrl: &quot;https://canvas.example.com&quot;,
+  auth: { hostId: &quot;acme&quot;, key: process.env.OC_API_KEY! },
+});
+
+const result = await oc.getOpenApi();
+console.log(result);</code></pre></div><div role="tabpanel" id="s38-rust" aria-labelledby="s38-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::{Auth, CallOptions, Client, Params};
+
+let oc = Client::builder(&quot;https://canvas.example.com&quot;)
+    .auth(Auth::host_key(&quot;acme&quot;, std::env::var(&quot;OC_API_KEY&quot;).expect(&quot;OC_API_KEY&quot;)))
+    .build();
+
+let res = oc
+    .call(
+        &quot;getOpenApi&quot;,
+        &amp;Params::new(),
+        &amp;CallOptions::default(),
+    )
+    .await?;
+let answer: serde_json::Value = res.value()?;
+println!(&quot;{answer:#}&quot;);</code></pre></div><div role="tabpanel" id="s38-python" aria-labelledby="s38-python-tab" data-lang="python" hidden><pre><code class="language-python">import requests
+
+r = requests.get(
+    &quot;https://canvas.example.com/api/v1/openapi.json&quot;,
+    timeout=30,
+)
+r.raise_for_status()
+print(r.json())</code></pre></div></div><div class="sample sample-res"><span class="sample-label">Response 200</span><pre><code class="language-json">{
+  &quot;openapi&quot;: &quot;3.1.0&quot;,
+  &quot;info&quot;: {
+    &quot;title&quot;: &quot;OpenCanvas headless API&quot;,
+    &quot;version&quot;: &quot;1.0.0&quot;
+  },
+  &quot;paths&quot;: {}
+}</code></pre></div></aside></section>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../../api/reference/admin.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Admin</span></a><a class="pn pn-next" href="../../api/reference/legacy.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">0.1 routes (deprecated)</span></a></nav>
+  </article>
+  
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../../index.html#product">Overview</a></li><li><a href="../../app/#demo">Try the demo</a></li><li><a href="../../roadmap.html">Roadmap</a></li><li><a href="../../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../../docs/getting-started.html">Getting started</a></li><li><a href="../../docs/integration.html">Integration guide</a></li><li><a href="../../api/index.html">API reference</a></li><li><a href="../../docs/wopi.html">WOPI mode</a></li><li><a href="../../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../../docs/matrix.html">Element / Matrix</a></li><li><a href="../../docs/mattermost.html">Mattermost</a></li><li><a href="../../docs/nextcloud.html">Nextcloud</a></li><li><a href="../../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../../docs/security.html">Security and limits</a></li><li><a href="../../docs/architecture.html">Architecture</a></li><li><a href="../../docs/protocol.html">Protocol</a></li><li><a href="../../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

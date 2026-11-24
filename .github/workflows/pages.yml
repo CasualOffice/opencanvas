@@ -18,8 +18,8 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ["site/**", "tools/build-*.py", "tools/sitelib.py", "tools/check-site-*", "tools/serve-site.py",
-            "README.md", "docs/**", "web/**", "e2e/package*.json", ".github/workflows/pages.yml"]
+    paths: ["site/**", "tools/build-*.py", "tools/sitelib.py", "tools/apilib.py", "tools/check-site-*", "tools/check-openapi.py",
+            "tools/serve-site.py", "crates/oc-server/api/**", "CHANGELOG.md", "README.md", "docs/**", "web/**", "e2e/package*.json", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -49,6 +49,8 @@ jobs:
       # even when site/ was not rebuilt in the commit.
       - name: Markdown renderer tests
         run: python3 -I tools/test_sitelib.py
+      - name: The OpenAPI document is complete (API-DOCS-01)
+        run: python3 -I tools/check-openapi.py
       - name: Build the generated pages
         run: python3 -I tools/build-site.py
       - name: Every internal link resolves

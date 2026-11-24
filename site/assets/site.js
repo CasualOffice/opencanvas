@@ -2,8 +2,8 @@
 // Copyright 2026 CasualOffice
 
 // The website's behaviour (SITE-01): theme switch, phone menu, search over the prebuilt
-// index (search-index.json), copy buttons on code, scroll reveals and the docs'
-// "on this page" highlight. No framework; every string set as text. The hero's entrance
+// index (search-index.json), copy buttons on code, scroll reveals, the docs'
+// "on this page" highlight, and the API reference's language switch (API-DOCS-01). No framework; every string set as text. The hero's entrance
 // is CSS only (site.css §Motion), keyed on the `js` class theme-init.js sets.
 
 const root = document.documentElement;
@@ -110,6 +110,64 @@ if (tocLinks.length && "IntersectionObserver" in window) {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       for (const a of tocLinks) a.classList.toggle("is-active", a === byId.get(e.target.id));
+    }
+  }, { rootMargin: "-10% 0px -75% 0px" });
+  for (const id of byId.keys()) { const h = document.getElementById(id); if (h) io.observe(h); }
+}
+
+// ---- API samples: one language for every sample, remembered per reader ------------------------
+// The tabs are an ARIA tab list (arrows, Home, End). Choosing a language switches every sample
+// on the page and is kept in localStorage; the clicked sample stays where it was on screen.
+const LANG_KEY = "opencanvas.apiLang";
+const samples = [...document.querySelectorAll("[data-sample]")];
+function setLang(lang, save, anchor) {
+  const before = anchor?.getBoundingClientRect().top;
+  for (const s of samples) {
+    const tabs = [...s.querySelectorAll('[role="tab"]')];
+    if (!tabs.some((t) => t.dataset.lang === lang)) continue;
+    for (const t of tabs) {
+      const on = t.dataset.lang === lang;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      const panel = document.getElementById(t.getAttribute("aria-controls"));
+      if (panel) panel.hidden = !on;
+    }
+  }
+  if (anchor && before !== undefined) scrollBy(0, anchor.getBoundingClientRect().top - before);
+  if (save) { try { localStorage.setItem(LANG_KEY, lang); } catch { /* storage off */ } }
+}
+if (samples.length) {
+  let saved = null;
+  try { saved = localStorage.getItem(LANG_KEY); } catch { /* storage off */ }
+  if (saved) setLang(saved, false);
+  for (const s of samples) {
+    const list = s.querySelector('[role="tablist"]');
+    list.addEventListener("click", (e) => {
+      const t = e.target.closest('[role="tab"]');
+      if (t) setLang(t.dataset.lang, true, t);
+    });
+    list.addEventListener("keydown", (e) => {
+      const tabs = [...list.querySelectorAll('[role="tab"]')];
+      const i = tabs.indexOf(document.activeElement);
+      if (i < 0) return;
+      const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (to === undefined) return;
+      e.preventDefault();
+      const t = tabs[(to + tabs.length) % tabs.length];
+      setLang(t.dataset.lang, true, t);
+      t.focus();
+    });
+  }
+}
+
+// The reference pages' operation list follows the reader's position.
+const opLinks = [...document.querySelectorAll(".docs-nav--wide a.nav-op")];
+if (opLinks.length && "IntersectionObserver" in window) {
+  const byId = new Map(opLinks.map((a) => [decodeURIComponent(a.hash.slice(1)), a]));
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      for (const a of opLinks) a.classList.toggle("is-active", a === byId.get(e.target.id));
     }
   }, { rootMargin: "-10% 0px -75% 0px" });
   for (const id of byId.keys()) { const h = document.getElementById(id); if (h) io.observe(h); }

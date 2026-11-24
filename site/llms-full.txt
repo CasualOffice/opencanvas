@@ -1064,7 +1064,8 @@ e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 
 ## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
 
-The supported API for programs: bots, integrations, back-office jobs. It is described by an
+The supported API for programs: bots, integrations, back-office jobs. The website has the full
+reference, generated from the OpenAPI document: [API reference](https://canvas.casualoffice.org/api/index.html). It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
 per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every
@@ -6077,3 +6078,1863 @@ Source file: docs/12-GLOSSARY.md
 | **WOPI** | Web Application Open Platform Interface — the Collabora/Office host protocol. |
 | **CRDT** | Conflict-free replicated data type (Yjs here). |
 | **Unfurl** | Fetching a link's title/description/image to render a link card. |
+
+
+# API overview
+
+URL: https://canvas.casualoffice.org/api/index.html
+
+## API overview
+
+Read and change OpenCanvas canvases from programs: bots, integrations and back-office jobs. Changes land in the live canvas as one transaction, show up for everyone editing it, and are saved to your application like any other edit.
+
+## Base URL
+
+Every operation is under /api/v1 on your OpenCanvas server. The examples on these pages use https://canvas.example.com ; use your own server's public address. https://canvas.example.com/api/v1/files/{fileId} fileId is your file id, the one you use in launch tokens and callbacks. OpenCanvas keeps no files of its own: your application owns users, permissions and files, and OpenCanvas loads and saves through your callbacks ( integration guide ).
+
+## Turn it on
+
+The API is off until you turn it on for your host, in its entry of the hosts file: [[host]] id = "acme" api_key = "env:ACME_OC_API_KEY" # the host key, for server-to-server calls [host.flags] api_v1 = true # off by default in 0.1.2 Without the flag, every /api/v1 call for that host answers 404 with the code API_OFF . User tokens also need a public base URL ( OC_PUBLIC_URL , or [host.api] audience ); see authentication .
+
+## Versioning
+
+The path carries the major version. Within v1 changes are additive : new operations, new optional parameters, new fields in answers. Ignore fields you do not know. A breaking change gets a new path ( /api/v2 ), and v1 keeps working alongside it. The OpenAPI 3.1 document is the contract. A running server serves it at GET /api/v1/openapi.json ; it is checked in as [ crates/oc-server/api/openapi.json ](../../../crates/oc-server/api/openapi.json), and a test keeps it and the server's router identical. This reference is generated from it. The 0.1 routes ( /v1/files/{fileId}/patch and the others) still work and carry Deprecation and a Link to their successor. They are retired in v0.3; see 0.1 routes .
+
+## Your first call
+
+Read a canvas as Markdown, then append a paragraph, with the host key. The If-Match header makes the change apply only if nobody changed the canvas since you read it. Read, then append curl TypeScript Rust Python curl -s "https://canvas.example.com/api/v1/files/doc_1?format=markdown" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/blocks:batch" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H 'If-Match: "c465d27bcd7e"' \ -H "Idempotency-Key: 5f0e7d4c-2b1a-4e8f-9c3d-6a7b8c9d0e1f" \ -d '{"ops": [{"op": "append", "markdown": "Shipped on Friday."}]}' import { OpenCanvas } from "@opencanvas/client"; const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { hostId: "acme", key: process.env.OC_API_KEY! }, }); const doc = await oc.readFile({ fileId: "doc_1", query: { format: "markdown" } }); console.log(doc.markdown); // The client sends an Idempotency-Key for you, the same one on every retry. const result = await oc.batchBlocks( { fileId: "doc_1", body: { ops: [{ op: "append", markdown: "Shipped on Friday." }] } }, { ifMatch: doc.rev }, ); console.log(result.blockIds); use opencanvas_client::models::{BatchOp, BatchRequest}; use opencanvas_client::{Auth, CallOptions, Client}; let oc = Client::builder("https://canvas.example.com") .auth(Auth::host_key("acme", std::env::var("OC_API_KEY").expect("OC_API_KEY"))) .build(); let doc = oc.read_file("doc_1", Some("markdown")).await?; println!("{}", doc.markdown.clone().unwrap_or_default()); // The client sends an Idempotency-Key for you, the same one on every retry. let req = BatchRequest { ops: vec![BatchOp { op: "append".into(), markdown: Some("Shipped on Friday.".into()), ..Default::default() }], ..Default::default() }; let result = oc.batch_blocks("doc_1", &req, &CallOptions::if_match(doc.rev.unwrap_or_default())).await?; println!("{:?}", result.block_ids); import os import uuid import requests BASE = "https://canvas.example.com/api/v1" api = requests.Session() api.headers.update({"X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"]}) r = api.get(f"{BASE}/files/doc_1", params={"format": "markdown"}, timeout=30) r.raise_for_status() doc = r.json() print(doc["markdown"]) r = api.post( f"{BASE}/files/doc_1/blocks:batch", json={"ops": [{"op": "append", "markdown": "Shipped on Friday."}]}, headers={"If-Match": f'"{doc["rev"]}"', "Idempotency-Key": str(uuid.uuid4())}, timeout=30, ) r.raise_for_status() print(r.json()["blockIds"])
+
+## Requests and answers
+
+Topic How it works Format JSON in UTF-8, Content-Type: application/json . Import and convert take the file itself as the body; export and convert answer the file. Credentials The host key ( X-OpenCanvas-Host and X-OpenCanvas-Key ) or a user token you mint ( Authorization: Bearer ). See authentication . Errors RFC 9457 problem details with a machine code . See errors . Revisions Reads answer ETag: "<rev>" . Send it back as If-Match on a batch, or a block's rev as ifMatch on one op, and a stale write fails with 412 STALE_BLOCK instead of overwriting. Lists listBlocks and queryRows page with signed cursors. See pagination . Writes Every POST /api/v1/files/... takes Idempotency-Key , so a retry never applies twice. See idempotency . Limits Token buckets per caller and per file, announced in RateLimit headers. See rate limits . Changes Stream them per file ( events ) or receive them by POST ( webhooks ).
+
+## How changes land
+
+A write runs in the file's live room as one transaction : everyone editing the canvas sees it at once, and it is saved to your application by the same autosave as a person's edit ( POST .../commit saves now). If nobody has the file open, OpenCanvas loads it from you, applies the change and saves it straight away. Changes to existing blocks land directly, unless the call sends "mode": "suggest" or the host sets [host.api] default_mode = "suggest" : then they become suggestions that a person accepts in the editor. A batch that deletes more than 5 blocks needs "confirm": true .
+
+## Operations
+
+Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JSON blocks, Markdown or an outline Blocks GET /api/v1/files/{fileId}/blocks List top-level blocks Blocks GET /api/v1/files/{fileId}/blocks/{blockId} Read one block (also nested ones) Blocks GET /api/v1/files/{fileId}/blocks:find Find blocks whose text contains q (case-insensitive) Blocks POST /api/v1/files/{fileId}/blocks:batch Change blocks in one atomic transaction Databases GET /api/v1/files/{fileId}/databases List databases with fields, row counts and views Databases POST /api/v1/files/{fileId}/databases Create a database block Databases GET /api/v1/files/{fileId}/databases/{dbId} Describe one database Databases GET /api/v1/files/{fileId}/databases/{dbId}/rows Query rows Databases POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert Create or update rows (at most 200) Databases POST /api/v1/files/{fileId}/databases/{dbId}/fields Add a field Boards POST /api/v1/files/{fileId}/boards Create a board block with shapes Boards GET /api/v1/files/{fileId}/boards/{boardId}/shapes Read a board's shapes Boards POST /api/v1/files/{fileId}/boards/{boardId}/shapes Add shapes to a board Comments GET /api/v1/files/{fileId}/comments List comment threads Comments POST /api/v1/files/{fileId}/comments Start a thread on a block or reply to one Members GET /api/v1/files/{fileId}/members People with access (id, name, detail; never e-mail) Export and import GET /api/v1/files/{fileId}/export/{format} Export the canvas Export and import POST /api/v1/files/{fileId}/import Import Markdown, HTML or CSV into the canvas Export and import POST /api/v1/convert Stateless conversion Events and sync GET /api/v1/files/{fileId}/events Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages Events and sync POST /api/v1/files/{fileId}/sync-token A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly Admin POST /api/v1/files/{fileId}/commit Save now (200 saved, 202 queued in the outbox, 409 conflict) Admin POST /api/v1/files/{fileId}/role Change a user's role live (none disconnects them) Admin DELETE /api/v1/files/{fileId}/session Final save, disconnect everyone, drop every ticket Admin POST /api/v1/files/{fileId}/members:invalidate The member list changed; drop cached answers OpenAPI document GET /api/v1/openapi.json This document 0.1 routes (deprecated) POST /v1/files/{fileId}/patch Patch blocks (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/commit Save now (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/role Change a role (0.1) 0.1 routes (deprecated) DELETE /v1/files/{fileId}/session Close the session (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/members/invalidate Members changed (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/import Import (0.1) 0.1 routes (deprecated) POST /v1/convert Convert (0.1)
+
+## No "try it" console
+
+This reference has no console that sends requests from the page. The site is static (GitHub Pages) with no OpenCanvas server behind it, and a console would mean pasting a host key or a user token into a web page. Use the samples with your own server: every one of them can be copied, and the language you pick is remembered on your device.
+
+
+# Authentication
+
+URL: https://canvas.casualoffice.org/api/authentication.html
+
+## Authentication
+
+Two kinds of credentials, one check. Your server uses the host key; code that acts for one of your users carries a short-lived token that your application mints. OpenCanvas never issues user tokens and runs no OAuth server.
+
+## Host key
+
+Server to server, send your host id and the host's api_key (from the hosts file) on every request. The host key has full access to your host's files, the admin operations included. Header Value X-OpenCanvas-Host Your host id, for example acme . X-OpenCanvas-Key The host's api_key . Keep it on your server; never send it to a browser. X-OpenCanvas-Author Optional. The user id a change is attributed to: its edit origin becomes api:<userId> . Default svc:<hostId> . X-OpenCanvas-Callback-Token Optional. A bearer OpenCanvas passes on the callbacks this call causes (loading the file when nobody has it open, saving it). Host key curl TypeScript Rust Python curl -s "https://canvas.example.com/api/v1/files/doc_1?format=outline" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "X-OpenCanvas-Author: u_42" import { OpenCanvas } from "@opencanvas/client"; const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { hostId: "acme", key: process.env.OC_API_KEY!, author: "u_42" }, }); const outline = await oc.readFile({ fileId: "doc_1", query: { format: "outline" } }); use opencanvas_client::{Auth, Client}; let oc = Client::builder("https://canvas.example.com") .auth(Auth::HostKey { host_id: "acme".into(), key: std::env::var("OC_API_KEY").expect("OC_API_KEY"), author: Some("u_42".into()), callback_token: None, }) .build(); let outline = oc.read_file("doc_1", Some("outline")).await?; import os import requests r = requests.get( "https://canvas.example.com/api/v1/files/doc_1", params={"format": "outline"}, headers={ "X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"], "X-OpenCanvas-Author": "u_42", }, timeout=30, ) r.raise_for_status()
+
+## User tokens
+
+For code that acts for one of your users (an integration running as that user, a script a user starts), mint a JWT for that user and send it as Authorization: Bearer <token> . You sign it with the same keys as launch tokens: the host's jwt_secret (HS256), or your private key when the host has jwt_public_key (RS256, EdDSA) or jwt_jwks_url . Claim Value iss Your host id, or [host.api] issuer . It picks the host, so it must be unique among the server's hosts. aud {[host.api] audience or OC_PUBLIC_URL}/api/v1 , for example https://canvas.example.com/api/v1 . A launch token or an MCP token (audience .../mcp/{hostId} ) is refused here. sub The user id, as in launch tokens. svc:<name> for a backend job. exp At most 15 minutes ahead of the server's clock (with 30 seconds of leeway). nbf is honoured. scope Space-separated: canvas:read , canvas:comment , canvas:write , canvas:admin . role The user's role on the files: view , comment or edit (absent: view ). Used only when you do not implement POST /access . files The file ids the token covers. Required when you do not implement POST /access , unless the host sets [host.api] all_files = true . name Optional display name, shown with the user's changes. The audience is never taken from the request: without OC_PUBLIC_URL or [host.api] audience , user tokens are off for the host and answer 401 TOKEN_INVALID . [host.api] issuer = "acme" # default: the host id audience = "https://canvas.example.com" # default: OC_PUBLIC_URL all_files = false # true: without /access, a token with no `files` covers every file token_admin = false # true: tokens with canvas:admin may use the admin operations Mint a user token and call the API curl TypeScript Rust Python # HS256 with the host's jwt_secret, using only openssl. b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; } now=$(date +%s) header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url) claims=$(printf '{"iss":"acme","aud":"https://canvas.example.com/api/v1","sub":"u_42","scope":"canvas:read canvas:comment","role":"edit","files":["doc_1"],"iat":%d,"exp":%d}' \ "$now" "$((now + 600))" | b64url) sig=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$ACME_OC_SECRET" -binary | b64url) TOKEN="$header.$claims.$sig" curl -s "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "Authorization: Bearer $TOKEN" // npm install jose import { SignJWT } from "jose"; import { OpenCanvas } from "@opencanvas/client"; const secret = new TextEncoder().encode(process.env.ACME_OC_SECRET!); async function mintUserToken(userId: string, scope: string, files: string[]): Promise<string> { return new SignJWT({ scope, role: "edit", files }) .setProtectedHeader({ alg: "HS256" }) .setIssuer("acme") .setAudience("https://canvas.example.com/api/v1") .setSubject(userId) .setIssuedAt() .setExpirationTime("10m") .sign(secret); } // The token callback runs before every request, so a long job never sends an expired token. const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { token: () => mintUserToken("u_42", "canvas:read canvas:comment", ["doc_1"]) }, }); const { threads } = (await oc.listComments({ fileId: "doc_1" })) as { threads: unknown[] }; // jsonwebtoken = "9", serde_json = "1" use jsonwebtoken::{encode, EncodingKey, Header}; use opencanvas_client::{Auth, Client}; use serde_json::json; fn mint_user_token(secret: &[u8], user_id: &str, scope: &str, files: &[&str]) -> String { let now = std::time::SystemTime::now() .duration_since(std::time::UNIX_EPOCH) .unwrap() .as_secs(); let claims = json!({ "iss": "acme", "aud": "https://canvas.example.com/api/v1", "sub": user_id, "scope": scope, "role": "edit", "files": files, "iat": now, "exp": now + 600, }); encode(&Header::default(), &claims, &EncodingKey::from_secret(secret)).expect("signed") } let secret = std::env::var("ACME_OC_SECRET").expect("ACME_OC_SECRET"); let token = mint_user_token(secret.as_bytes(), "u_42", "canvas:read canvas:comment", &["doc_1"]); let oc = Client::builder("https://canvas.example.com") .auth(Auth::Token(token)) .build(); let threads = oc.list_comments("doc_1", None).await?; # pip install pyjwt requests import os import time import jwt import requests def mint_user_token(user_id: str, scope: str, files: list[str]) -> str: now = int(time.time()) claims = { "iss": "acme", "aud": "https://canvas.example.com/api/v1", "sub": user_id, "scope": scope, "role": "edit", "files": files, "iat": now, "exp": now + 600, } return jwt.encode(claims, os.environ["ACME_OC_SECRET"], algorithm="HS256") token = mint_user_token("u_42", "canvas:read canvas:comment", ["doc_1"]) r = requests.get( "https://canvas.example.com/api/v1/files/doc_1/comments", headers={"Authorization": f"Bearer {token}"}, timeout=30, ) r.raise_for_status()
+
+## Scopes
+
+A token's scope is a ceiling: the operation's x-opencanvas-scope in the OpenAPI document must be within it, or the answer is 403 SCOPE_REQUIRED . Each scope includes the ones above it. Scope Allows Least role Operations canvas:read Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role. view readFile , listBlocks , getBlock , findBlocks , listDatabases , getDatabase , queryRows , readBoard , listComments , listMembers , exportFile , streamEvents , createSyncToken , convert canvas:comment Everything canvas:read allows, and start or reply to comment threads. comment addComment canvas:write Everything canvas:comment allows, and change blocks, databases and boards, and import. canvas:write:direct counts as canvas:write . edit batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , importFile canvas:admin Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets [host.api] token_admin = true ; otherwise these are the host key's. host key, or a token with canvas:admin commitFile , setRole , closeSession , invalidateMembers
+
+## Roles
+
+The effective permission is min(scope, role) . A canvas:write token does not let a view user write, and a canvas:read token does not let an editor write. Where the role comes from. If you implement the optional POST /access callback, OpenCanvas asks it for the user's role on each file a call touches (cached 30 seconds, dropped by the role API) and ignores the token's role claim; none refuses every operation. Without it, the role claim counts, but only for the files listed in files ( 403 FILES_REQUIRED otherwise, unless [host.api] all_files = true ). Revocation. After POST /api/v1/files/{fileId}/role with "role": "none" , the user's next call is refused, and their event streams close with code 4003 . The host key acts with the edit role on every file, plus the admin operations.
+
+## Expiry
+
+Tokens live at most 15 minutes: an exp further ahead than that is refused ( 401 TOKEN_INVALID ). An expired token answers 401 TOKEN_EXPIRED ; an event stream opened with a token closes with code 4001 when it expires. Mint a fresh token per job or per request: the clients take a token callback that runs before every request.
+
+## Errors
+
+Status Code When 401 UNAUTHENTICATED No credentials, an unknown host, or a wrong host key. 401 TOKEN_INVALID Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host. 401 TOKEN_EXPIRED The token's exp has passed. 403 SCOPE_REQUIRED The operation needs a scope the token lacks (admin operations: canvas:admin and token_admin ). 403 ROLE_FORBIDDEN The user's role on the file is too low, the file is not in files , or access was revoked. 403 FILES_REQUIRED No POST /access callback, and the token lists no files . 401 answers carry WWW-Authenticate: Bearer realm="opencanvas" (with error="invalid_token" for token problems). The MCP endpoint uses the same check with its own audience; see AI and MCP .
+
+
+# Errors
+
+URL: https://canvas.casualoffice.org/api/errors.html
+
+## Errors
+
+Every error answer is RFC 9457 problem details, application/problem+json, with a machine code you can branch on. The code is stable; the human detail is not.
+
+## The shape
+
+{ "type": "urn:opencanvas:problem:stale-block", "title": "Precondition Failed", "status": 412, "detail": "a block changed since it was read; re-read it and retry", "code": "STALE_BLOCK", "fresh": { "stale": [ { "blockId": "b_01m87jv4rtkdxymn93jwtx35sk", "rev": "5641be1fd2cb", "markdown": "Ship on Friday.\n" } ] } } Member Meaning type urn:opencanvas:problem:<code in lower case, hyphens> . A stable name, not a URL to fetch. title The HTTP reason phrase of status . status The HTTP status, repeated in the body. detail What went wrong, in words, for logs and people. It can change between releases; do not parse it. code The machine code: branch on this. The same codes the 0.1 routes use. fresh Only with STALE_BLOCK : the current state to retry against. Unknown members may be added later; ignore them. Even answers the router gives before an operation runs (an unknown path, a wrong method) are problem details, so a client parses one error format.
+
+## Handling them
+
+Status What to do 400 Fix the request; detail says what is wrong. Do not retry it unchanged. 401 Fix the credentials: the host key, or mint a new token. 403 The scope or the user's role does not allow it. Do not retry. 404 Unknown file part or operation, or the API is off ( API_OFF ). 409 CONFIRMATION_REQUIRED : send again with "confirm": true . IDEMPOTENCY_IN_PROGRESS : retry after Retry-After . CONFLICT : your save callback reported a conflict. 410 CURSOR_EXPIRED : start the walk again without a cursor. 412 STALE_BLOCK : re-read (or use fresh ), apply your change again, send it with the new revision. 413 The body or the resulting document is too large. 422 IDEMPOTENCY_KEY_REUSED : a new request needs a new key. 429 Wait Retry-After seconds, then retry. 5xx 503 and 502 are transient: retry after Retry-After with backoff. 501 : the server is not set up for it (PDF). The TypeScript and Rust clients turn these into typed errors and retry 429 , 503 and 409 IDEMPOTENCY_IN_PROGRESS for you; see SDKs .
+
+## Every code
+
+## Any operation on a file
+
+Authentication, the API switch, rate limits and availability: every /api/v1 operation on a file can answer these. Code Status Meaning TOKEN_EXPIRED 401 The bearer token's exp has passed. Mint a new one; tokens live at most 15 minutes. TOKEN_INVALID 401 A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid ( nbf ). Also answered when the host has no public base URL, so user tokens are off for it. UNAUTHENTICATED 401 No credentials, an unknown host, or a wrong host key. The answer carries WWW-Authenticate: Bearer realm="opencanvas" . FILES_REQUIRED 403 The host does not implement POST /access , so a token's role claim counts only for the files in its files claim, and this token has none. Add files , implement /access , or set [host.api] all_files = true . ROLE_FORBIDDEN 403 The user's role on the file is below what the operation needs (the effective permission is min(scope, role) ), the token does not list the file in files , or the host revoked the user. SCOPE_REQUIRED 403 The token's scope does not cover the operation. Admin operations need canvas:admin , which counts only when the host sets [host.api] token_admin = true . API_OFF 404 The host has not turned the API on. Set [host.flags] api_v1 = true in its entry of the hosts file. RATE_LIMITED 429 A token bucket is empty: the caller's, or the file's write bucket. Wait for Retry-After seconds. The RateLimit header says which bucket and when it refills. INTERNAL 500 An unexpected server error, or the host's POST /access callback failed. The server logs the cause; retrying may help. UNAVAILABLE 503 A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after Retry-After .
+
+## Operation-specific
+
+Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. readFile , findBlocks , batchBlocks , createDatabase , queryRows , upsertRows , addField , createBoard , addShapes , addComment , setRole , streamEvents CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. listBlocks , queryRows IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. importFile , legacyImport INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. convert , legacyConvert ROLE_INVALID 400 role is not view , comment , edit or none . setRole , legacySetRole EXPORT_OFF 403 The host's export settings do not allow this format. exportFile IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . importFile , legacyImport BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). getBlock , batchBlocks , createDatabase , addComment , importFile , legacyPatch , legacyImport DB_NOT_FOUND 404 The canvas has no database with that dbId . getDatabase FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. exportFile , convert , legacyConvert NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. getDatabase , queryRows , upsertRows , addField , createBoard , readBoard , addShapes , addComment CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . batchBlocks CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. importFile , commitFile , legacyPatch , legacyCommit , legacyImport IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. listBlocks , queryRows STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. batchBlocks BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers , convert DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. importFile , legacyPatch , legacyImport IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. importFile , legacyImport IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. streamEvents PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . exportFile , convert , legacyConvert HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. readFile , batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , exportFile , importFile , legacyPatch , legacyImport ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry. importFile , legacyPatch , legacyImport
+
+## Router fallbacks
+
+Answers the router gives before an operation runs. Code Status Meaning UNAUTHORIZED 401 A fallback for a 401 that did not carry its own code. FORBIDDEN 403 A fallback for a 403 that did not carry its own code. METHOD_NOT_ALLOWED 405 The path exists but not with this method; Allow lists the methods it takes. UNSUPPORTED_MEDIA_TYPE 415 A fallback for a request the router could not read. ERROR other Any other error status without its own code.
+
+## 0.1 routes only
+
+The deprecated /v1/... routes answer {"error": {"code", "message"}} with these and the codes above. Code Status Meaning PATCH_INVALID 400 0.1 patch : an op is malformed. API_KEY_INVALID 401 0.1 routes: the host id or key is missing or wrong.
+
+## The 0.1 routes
+
+The deprecated /v1/files/{fileId}/... routes keep their old error shape, {"error": {"code": "...", "message": "..."}} , with the same codes. Only /api/v1 answers problem details.
+
+
+# Pagination
+
+URL: https://canvas.casualoffice.org/api/pagination.html
+
+## Pagination
+
+Two operations answer pages: listBlocks (top-level blocks, up to 100 per page) and queryRows (database rows, up to 200). Cursors are opaque and signed, and a block walk stays correct while people edit the canvas.
+
+## How it works
+
+Ask for the first page with an optional limit . Each page answers has_more and next_cursor ; when more follow, it also carries a Link header with the next page's URL. Pass next_cursor back as cursor , unchanged, until has_more is false . GET /api/v1/files/doc_1/blocks?limit=2 HTTP/1.1 200 OK ETag: "c465d27bcd7e" Link: </api/v1/files/doc_1/blocks?cursor=eyJmIjoiZG9jXzEi...&limit=2>; rel="next" {"blocks": [...], "rev": "c465d27bcd7e", "has_more": true, "next_cursor": "eyJmIjoiZG9jXzEi..."} Operation Items limit Default GET /api/v1/files/{fileId}/blocks blocks 1-100 100 GET /api/v1/files/{fileId}/databases/{dbId}/rows rows 1-200 50
+
+## Walk every page
+
+Every block of a canvas curl TypeScript Rust Python url="https://canvas.example.com/api/v1/files/doc_1/blocks?limit=100" while [ -n "$url" ]; do page=$(curl -s "$url" -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY") echo "$page" | jq -c '.blocks[]' cursor=$(echo "$page" | jq -r '.next_cursor // empty') url=${cursor:+"https://canvas.example.com/api/v1/files/doc_1/blocks?limit=100&cursor=$cursor"} done // paginate() follows next_cursor and yields each item. for await (const block of oc.paginate("listBlocks", { fileId: "doc_1", query: { limit: 100 } })) { console.log(block); } use futures::StreamExt; use opencanvas_client::{CallOptions, Params}; let mut blocks = Box::pin(oc.paginate("listBlocks", Params::file("doc_1").query("limit", 100), CallOptions::default())); while let Some(block) = blocks.next().await { println!("{}", block?); } def every_block(api, file_id): params = {"limit": 100} while True: r = api.get(f"{BASE}/files/{file_id}/blocks", params=params, timeout=30) r.raise_for_status() page = r.json() yield from page["blocks"] if not page["has_more"]: return params["cursor"] = page["next_cursor"]
+
+## Cursors
+
+Opaque and signed. Do not build or change them; a changed cursor answers 400 CURSOR_INVALID . Bound to the request. A block cursor belongs to its file; a row cursor to its file, database, filter , sort and fields . Sending it with other values is CURSOR_INVALID . Valid for an hour. After that, 410 CURSOR_EXPIRED : start again without one. Stable under edits. A block cursor is a position after the last block you got (a Yjs relative position), not an index. A block inserted or deleted before it does not shift the next page, and if that last block is deleted, the next page starts at its successor. Every block that exists for the whole walk is returned exactly once.
+
+## Errors
+
+Status Code When 400 CURSOR_INVALID Not a cursor this server signed for this file and query. 410 CURSOR_EXPIRED Older than an hour. 400 BAD_INPUT filter or sort is not a JSON array.
+
+
+# Idempotency
+
+URL: https://canvas.casualoffice.org/api/idempotency.html
+
+## Idempotency
+
+Every POST under /api/v1/files takes an Idempotency-Key header. Send the same key on every retry of one request, and the change is applied once, even across nodes of a cluster.
+
+## How it works
+
+Pick a key per logical request (a UUID, or an id from your own job) and send it on the first try and on every retry: POST /api/v1/files/doc_1/comments Idempotency-Key: remind-2026-11-25-doc_1 Content-Type: application/json {"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"} Case Answer First request with the key Runs, and its answer is stored for 24 hours. The same request again (method, path and body) The stored answer, with Idempotency-Replayed: true . Nothing runs again. The same key with another request 422 IDEMPOTENCY_KEY_REUSED . The same key while the first is still running, on any node 409 IDEMPOTENCY_IN_PROGRESS with Retry-After: 1 . Retry to get the first one's answer. The first request failed (any error) Not stored: a retry with the key runs again. A malformed key 400 IDEMPOTENCY_KEY_INVALID .
+
+## The key
+
+1 to 255 visible ASCII characters. Yours per caller: the host key with its X-OpenCanvas-Author , or a token's sub . Two users can use the same key without seeing each other's answers. Kept 24 hours. After that, the same key is a new request.
+
+## Which operations
+
+Every POST under /api/v1/files/{fileId}/... takes a key, except POST .../sync-token : its answer is a credential, never stored, so the same key gets a fresh ticket. POST /api/v1/convert changes nothing and takes no key. Reads and DELETE .../session (closing a session twice is harmless) take none.
+
+## What is stored
+
+The request's hash and the write's answer: ids, counts and revisions. Never document content. Keys live in the database ( api_idempotency , SQLite, MySQL or MariaDB) or, with Redis-only storage, in Redis ( oc:idem:... ).
+
+## In the clients
+
+The TypeScript and Rust clients send a random key on every write and reuse it for each retry of that call. Pass your own key when a retry may come from another process (a job queue that re-runs a job after a crash): Your own key curl TypeScript Rust Python curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H "Idempotency-Key: remind-2026-11-25-doc_1" \ -d '{"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}' const res = await oc.call( "addComment", { fileId: "doc_1", body: { text: "Is Friday still right?", blockId: "b_01m87jv4rtkdxymn93jwtx35sk" } }, { idempotencyKey: "remind-2026-11-25-doc_1" }, ); console.log(res.replayed); // true when the server answered from the stored result use opencanvas_client::{CallOptions, Params}; use serde_json::json; let res = oc .call( "addComment", &Params::file("doc_1").json(json!({"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"})), &CallOptions::key("remind-2026-11-25-doc_1"), ) .await?; println!("replayed: {}", res.replayed); r = api.post( f"{BASE}/files/doc_1/comments", json={"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}, headers={"Idempotency-Key": "remind-2026-11-25-doc_1"}, timeout=30, ) replayed = r.headers.get("Idempotency-Replayed") == "true"
+
+
+# Rate limits
+
+URL: https://canvas.casualoffice.org/api/rate-limits.html
+
+## Rate limits
+
+Token buckets, announced on every answer. One bucket per caller, shared with MCP, and one per file for writes. With Redis the buckets are shared by every node of a cluster.
+
+## The buckets
+
+Bucket Applies to Default Setting ( [host.api] ) subject Every request of one caller: the host key, or a token's sub 10 requests a second, burst 30 rate_per_sec , burst file-writes POST and DELETE on one file, from everyone 5 a second, burst 10 file_writes_per_sec , file_burst MCP calls take from the same subject bucket as the API. [host.ai] mcp_rate_per_min still sets the rate when [host.api] does not.
+
+## The headers
+
+Every answer says where you stand (draft IETF RateLimit header fields): RateLimit-Policy: "subject";q=30;w=3, "file-writes";q=10;w=2 RateLimit: "subject";r=29;t=1 Header Meaning RateLimit-Policy The buckets that apply: q is the burst, w the seconds an empty bucket takes to refill. file-writes appears on writes only. RateLimit The bucket closest to empty: r requests remaining, t seconds until it is full again.
+
+## When a bucket is empty
+
+The answer is 429 RATE_LIMITED with Retry-After (seconds). Wait that long, then retry; keep the same Idempotency-Key for a write. HTTP/1.1 429 Too Many Requests Content-Type: application/problem+json Retry-After: 1 RateLimit: "subject";r=0;t=3 {"type": "urn:opencanvas:problem:rate-limited", "title": "Too Many Requests", "status": 429, "detail": "too many requests (subject limit); retry later", "code": "RATE_LIMITED"} The clients retry 429 and 503 after Retry-After (else 500 ms doubling, at most 30 seconds), 3 times by default. In your own code: Retry after 429 curl TypeScript Rust Python for attempt in 1 2 3 4; do status=$(curl -s -o page.json -w '%{http_code}' -D headers.txt \ "https://canvas.example.com/api/v1/files/doc_1" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY") [ "$status" != 429 ] && break sleep "$(awk 'tolower($1) == "retry-after:" { print $2 + 0 }' headers.txt)" done // Retries are built in: maxRetries (default 3) per client or per call. const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth, maxRetries: 5 }); const doc = await oc.readFile({ fileId: "doc_1" }, { maxRetries: 0 }); // or none for this call // Retries are built in: max_retries (default 3) per client or per call. let oc = Client::builder("https://canvas.example.com").auth(auth).max_retries(5).build(); import time def get_with_retry(api, url, **kw): for _ in range(4): r = api.get(url, timeout=30, **kw) if r.status_code not in (429, 503): return r time.sleep(float(r.headers.get("Retry-After", "1"))) return r
+
+## Other limits
+
+At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true .
+
+
+# Events
+
+URL: https://canvas.casualoffice.org/api/events.html
+
+## Events
+
+GET /api/v1/files/{fileId}/events streams what happens to one file: edits, comments, mentions, people joining and leaving, saves, restores. Events carry ids, user ids, versions and counts, never document text.
+
+## Open a stream
+
+The same URL serves Server-Sent Events and, when the request is a WebSocket upgrade, a WebSocket with one JSON text message per event. It needs canvas:read and access to the file, checked like every read. ?types= keeps only the types you list. Stream saves and comments curl TypeScript Rust Python curl -s -N "https://canvas.example.com/api/v1/files/doc_1/events?types=saved,commented" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Accept: text/event-stream" // Reconnects with Last-Event-ID when the stream drops, and resumes where it stopped. const stream = oc.events({ fileId: "doc_1", types: ["saved", "commented"] }); for await (const event of stream) { console.log(event.id, event.type, event.data); } // stream.lastEventId: keep it to resume after a restart (lastEventId option). use opencanvas_client::EventsOptions; let mut opts = EventsOptions::new("doc_1"); opts.types = vec!["saved".into(), "commented".into()]; let mut stream = oc.events(opts); while let Some(event) = stream.next().await { let event = event?; println!("{} {} {:?}", event.id, event.type_, event.data); } import json import os import requests r = requests.get( "https://canvas.example.com/api/v1/files/doc_1/events", params={"types": "saved,commented"}, headers={ "X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"], "Accept": "text/event-stream", }, stream=True, timeout=(10, 60), ) r.raise_for_status() for line in r.iter_lines(decode_unicode=True): if line.startswith("data:"): event = json.loads(line[5:]) print(event["id"], event["type"], event["data"]) On the wire, each SSE event has an id , an event name (the type) and one data line; a comment line keeps the connection alive every 15 seconds: id: ev_01m87jv4t3ggvh8n6d6nh38xc0 event: commented data: {"at":1795550974787,"data":{"added":2,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["svc:acme"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"} :
+
+## The event
+
+Every event, on a stream, a WebSocket or a webhook , is the same JSON: Member Meaning id ev_<ulid> : sorts by time. Pass the last one back to resume; webhooks send it as Idempotency-Key . type One of the types below. fileId Your file id. at Unix milliseconds. data The type's payload. type data When edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?} Changes, debounced: once edits pause for [host.api] events_coalesce_ms (default 250) and at least every 2 seconds during a long burst. blockIds are the deepest blocks with a blockId that changed (at most 500; truncated: true beyond). untracked: true when something changed outside any identified block: re-read. by lists who sent the changes. commented {threadId, blockId?, added, by} New comment messages in a thread. mentioned {mentioned, by, blockId?, threadId?} New @mentions, as for the mentions callback, without the excerpt. member.joined {userId, role} A person's first connection to the live room opened. member.left {userId} Their last connection closed. saved {version} Your application accepted a save. restored {restoreId, from, by} A version was restored. session.closed {reason: "host" | "idle"} The live room ended: DELETE .../session , or everyone left. resync {reason} Streams only: the resume point is gone; re-read the file.
+
+## Resume
+
+Send the last id you handled as Last-Event-ID (or ?since= ; the header wins). The server keeps the last 512 events of each file in memory and answers the ones after your id. When your id is gone (evicted, the server restarted, or another node that was not listening), you get one resync event, whose id is the newest the server has: re-read the file, then carry on from there. In a cluster, the node that runs the file's live room publishes each event to the others, so a stream on any node gets them.
+
+## Close codes
+
+Code SSE Meaning What to do 4008 a final event: close with {"code": 4008, "reason": "..."} The stream fell 256 events behind. Reconnect with your last id. 4001 the same The user token expired. Mint a new token and reconnect. 4003 the same The host revoked the user ( role: none ). Nothing is sent after the revoke. Stop.
+
+## Limits and proxies
+
+At most 100 streams per file on one server: 429 TOO_MANY_STREAMS . Share one stream between your workers. Behind nginx the answer sets X-Accel-Buffering: no ; keep proxy read timeouts above 15 seconds (the keep-alive interval). Events are a notification, not a log: when you need the content, read it with the API.
+
+## Sync the document itself
+
+A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: POST /api/v1/files/{fileId}/sync-token answers a ticket for the room WebSocket. {"ticket": "01M87JV4T23GYQ773ZF1WN91VA", "room": "r_2whbv4nncveupmqu35cywoidfe", "role": "edit", "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA", "expiresAt": 1795551874, "connectWithinSecs": 60} Connect a y-websocket client to url within 60 seconds. role is the effective one, min(scope, role) : a canvas:read token gets view , and the room refuses its writes as it would a viewer's. The session ends at expiresAt (at most 15 minutes, never after the token's exp ); ask for a new ticket to continue. The answer is a credential: Cache-Control: no-store , and it is never stored for idempotent replays. See createSyncToken .
+
+
+# Webhooks
+
+URL: https://canvas.casualoffice.org/api/webhooks.html
+
+## Webhooks
+
+OpenCanvas POSTs a file's change events to one URL of yours, so you can react without holding a stream open: index a saved file, notify on a comment. Deliveries are signed, retried, and survive restarts.
+
+## Turn them on
+
+Webhooks are off unless the host's entry has a [host.webhooks] table: [host.webhooks] url = "https://host.example.com/opencanvas/hooks" # must be on your callback_base origin events = ["saved", "commented", "mentioned"] # or ["*"]; the event types below # secret = "env:OC_WEBHOOK_SECRET" # default: callback_secret, else jwt_secret # max_attempts = 12 # 1-20 Setting Meaning url Where to POST. It must be on the same origin (scheme, host and port) as your callback_base ; anything else stops the server at start-up and is refused again before every delivery. To receive on another domain, relay from your callback origin. events The event types to send, or ["*"] for all. secret The signing secret. Default: the host's callback secret, else its jwt_secret . max_attempts Attempts before an event is dropped, 1 to 20 (default 12, about a day). Webhooks need a database (SQLite, MySQL or MariaDB): with Redis-only storage the server refuses to start with [host.webhooks] .
+
+## The request
+
+One POST per event. The body is the event, the same JSON as on the events stream : ids, user ids, versions and counts, never document text. POST /opencanvas/hooks HTTP/1.1 Content-Type: application/json X-OpenCanvas-Event: commented X-OpenCanvas-Event-Id: ev_01m87jv4t3ggvh8n6d6nh38xc0 Idempotency-Key: ev_01m87jv4t3ggvh8n6d6nh38xc0 X-OpenCanvas-Delivery-Attempt: 1 X-OpenCanvas-Signature: t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57 {"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"} Header Meaning X-OpenCanvas-Event The event type. X-OpenCanvas-Event-Id The event id ( ev_<ulid> ). Idempotency-Key The event id again: deduplicate on it. X-OpenCanvas-Delivery-Attempt 1 for the first attempt, then 2, 3, ... X-OpenCanvas-Signature t=<unix seconds>,v1=<hex>,v2=<hex> . Verify v2 . No bearer token is sent; the signature is the credential.
+
+## Payloads
+
+type Example data edited {"blockIds": ["b_01m87jv4rtkdxymn93jwtx35sk"], "removedBlockIds": [], "databaseIds": ["db_01m87jv4sc2twxjhzzxzh7mene"], "by": ["u_42"]} commented {"threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk", "added": 1, "by": ["u_42"]} mentioned {"mentioned": ["u_7"], "by": "u_42", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"} member.joined {"userId": "u_42", "role": "edit"} member.left {"userId": "u_42"} saved {"version": "18"} restored {"restoreId": "01m87k0a2b3c4d5e6f7g8h9j0k", "from": "17", "by": "u_42"} session.closed {"reason": "host"} or {"reason": "idle"} resync is never sent to webhooks; it only exists on streams.
+
+## Verify the signature
+
+v2 is HMAC-SHA256 of "<t>.POST.<path?query>.<body>" with your secret, in lower-case hex: Read the raw body bytes before any JSON parsing; a re-serialised body does not match. Use the path and query as your server received them (behind a proxy that rewrites paths, the path OpenCanvas sent to). Compare in constant time, and reject a t more than 5 minutes from your clock. t is the time of the attempt, so each retry has a new signature. v1 (timestamp and body only) is kept for old callback verifiers; do not use it for webhooks. Verify a delivery openssl TypeScript Rust Python # A sketch of the check: compare the hex in constant time in real code. secret='whsec_test_example' signature='t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57' path_query='/opencanvas/hooks' body='{"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"}' t=$(printf '%s' "$signature" | tr ',' '\n' | sed -n 's/^t=//p') v2=$(printf '%s' "$signature" | tr ',' '\n' | sed -n 's/^v2=//p') expected=$(printf '%s.POST.%s.%s' "$t" "$path_query" "$body" \ | openssl dgst -sha256 -hmac "$secret" -hex | sed 's/^.*= //') [ "$expected" = "$v2" ] && echo "signature ok" || echo "signature WRONG" # Then reject it if t is more than 300 seconds from now: # [ $(( $(date +%s) - t )) -le 300 ] && [ $(( t - $(date +%s) )) -le 300 ] import { verifyWebhook } from "@opencanvas/client"; // In your receiver: the raw body (before JSON parsing) and the path and query as received. const ok = await verifyWebhook({ secret: process.env.OC_WEBHOOK_SECRET!, // "whsec_test_example" for the test vector signature: req.headers["x-opencanvas-signature"] as string, body: rawBody, // string or Uint8Array, exactly as received pathQuery: req.originalUrl, // "/opencanvas/hooks" // nowSecs: 1795550974, // pin the clock to check the test vector }); if (!ok) return res.status(401).end(); res.status(204).end(); // answer fast, then do the work const event = JSON.parse(rawBody); use opencanvas_client::{verify_webhook, WebhookRequest}; let ok = verify_webhook( secret.as_bytes(), // b"whsec_test_example" for the test vector WebhookRequest { signature: &signature_header, // X-OpenCanvas-Signature method: "POST", path_query: &path_and_query, // "/opencanvas/hooks" body: &raw_body, // the bytes as received }, now_secs, // 1795550974 for the test vector ); if !ok { return StatusCode::UNAUTHORIZED; } import hashlib import hmac import time def verify_webhook(secret: bytes, signature: str, path_query: str, body: bytes, now=None, tolerance=300) -> bool: parts = {} for item in signature.split(","): k, _, v = item.strip().partition("=") parts.setdefault(k, v) try: t = int(parts["t"]) v2 = parts["v2"] except (KeyError, ValueError): return False if abs((time.time() if now is None else now) - t) > tolerance: return False mac = hmac.new(secret, f"{t}.POST.{path_query}.".encode() + body, hashlib.sha256).hexdigest() return hmac.compare_digest(mac, v2) # The test vector: assert verify_webhook( b"whsec_test_example", "t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57", "/opencanvas/hooks", "{\"at\":1795550974787,\"data\":{\"added\":1,\"blockId\":\"b_01m87jv4rtkdxymn93jwtx35sk\",\"by\":[\"u_42\"],\"threadId\":\"t_01m87jv4sqj5z6jz5q2n5zdtdw\"},\"fileId\":\"doc_1\",\"id\":\"ev_01m87jv4t3ggvh8n6d6nh38xc0\",\"type\":\"commented\"}".encode(), now=1795550974, )
+
+## Test vector
+
+Your verifier must accept this delivery (with the clock at t ) and refuse it when any byte of the body, the path or the signature changes: Input Value Secret whsec_test_example Time (Unix seconds, also t ) 1795550974 Path and query /opencanvas/hooks Body (exact bytes) {"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"} X-OpenCanvas-Signature t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57
+
+## Answer and retries
+
+Answer any 2xx quickly (10-second timeout) and do the work afterwards. Your answer What OpenCanvas does 2xx Delivered. Network error, timeout, 408 , 425 , 429 , 5xx Retried after 10 s, 30 s, 1 min, 5 min, 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, then every 12 h, until max_attempts ; then dropped. A longer Retry-After (seconds, up to 12 h) wins. Any other 3xx or 4xx Dropped at once. Redirects are never followed. At least once. An event can arrive twice: deduplicate on Idempotency-Key . Order is not guaranteed across retries: order a file's events by at and the id (a ULID). Durable. Events are written to a database outbox ( webhook_outbox ) by the server that runs the file's live room before they are sent, so they survive restarts, and exactly one server of a cluster sends each. An event can be lost only if that server dies between the change and the outbox write.
+
+## Metrics
+
+oc_webhook_deliveries_total{host,result} ( ok , retry , rejected , gave_up , refused ) and oc_webhook_delivery_seconds{host} (one attempt's time), on the operations dashboard's "Webhooks" row.
+
+
+# SDKs
+
+URL: https://canvas.casualoffice.org/api/sdks.html
+
+## SDKs
+
+Two clients wrap the API with the same behaviour: typed operations generated from the OpenAPI document, an Idempotency-Key on every write, retries after Retry-After, cursor paging, resumable events, typed errors and the webhook signature check. Both are Apache-2.0 and versioned with the server.
+
+## Install
+
+Both clients live in the OpenCanvas repository and are not yet published to npm or crates.io. Client Where Runs on TypeScript @opencanvas/client [ web/packages/client ](../../../web/packages/client) Node 20+, browsers, Deno, edge runtimes. No runtime dependency beyond fetch . Rust opencanvas-client (library opencanvas_client ) [ crates/oc-client ](../../../crates/oc-client) Tokio, reqwest and serde . Add the client Shell TypeScript Rust Python # TypeScript: build the package from a checkout, then depend on the folder. git clone https://github.com/CasualOffice/opencanvas cd opencanvas/web && pnpm install && pnpm --filter @opencanvas/client build cd /path/to/your/app && npm install /path/to/opencanvas/web/packages/client # Rust: a git dependency. cargo add opencanvas-client --git https://github.com/CasualOffice/opencanvas // package.json, after building web/packages/client in a checkout: // "dependencies": { "@opencanvas/client": "file:../opencanvas/web/packages/client" } import { OpenCanvas } from "@opencanvas/client"; // Cargo.toml: // [dependencies] // opencanvas-client = { git = "https://github.com/CasualOffice/opencanvas" } // tokio = { version = "1", features = ["macros", "rt-multi-thread"] } use opencanvas_client::{Auth, Client}; # No Python client yet: the samples on these pages use requests. # pip install requests import requests
+
+## Create a client
+
+Host key or user token curl TypeScript Rust Python # curl: send the headers yourself (see Authentication). curl -s "https://canvas.example.com/api/v1/files/doc_1" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" import { OpenCanvas } from "@opencanvas/client"; const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { hostId: "acme", key: process.env.OC_API_KEY!, author: "u_42" }, // or a user token, minted before every request so it never expires mid-job: // auth: { token: () => mintUserToken("u_42", "canvas:read canvas:write", ["doc_1"]) }, maxRetries: 3, }); use opencanvas_client::{Auth, Client}; let oc = Client::builder("https://canvas.example.com") .auth(Auth::host_key("acme", std::env::var("OC_API_KEY").expect("OC_API_KEY"))) // or .auth(Auth::Token(token)), or Auth::TokenFn(...) to mint one per request .max_retries(3) .build(); import os import requests api = requests.Session() api.headers.update({"X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"]})
+
+## What both do
+
+Feature Behaviour Typed operations One method per operation, with the types of its parameters, body and answer, generated from openapi.json (TypeScript scripts/gen.mjs , Rust tests/models.rs ; CI fails when they drift). The generic call(operationId, params, options) answers status, headers, etag , replayed and rateLimit too. Credentials The host key (with optional author and callback token) or a user token; a token callback runs before every request. Idempotency Every write carries an Idempotency-Key : a random one per call, the same on each retry of that call. Pass your own to survive a process restart, or none. Retries 429 , 503 and 409 IDEMPOTENCY_IN_PROGRESS , after Retry-After (else 500 ms doubling, at most 30 s), 3 times by default. Network errors are retried for reads and keyed writes only. The wait is injectable, so tests never sleep. Errors Problem details as typed errors, by code first, then status: stale block (412, with fresh ), rate limited ( retryAfterSecs ), key reused, key in progress, cursor expired, bad request, unauthorized, forbidden, not found, conflict, gone, precondition failed, too large, unprocessable, unavailable, server. Paging paginate follows next_cursor through listBlocks and queryRows , item by item. Events The SSE stream of a file. A dropped stream (or close code 4008) reconnects with Last-Event-ID and gets what it missed, or a resync event; 4001 and 4003 end it with an error. Webhooks verifyWebhook / verify_webhook : the v2 check, in constant time, with a 5-minute window.
+
+## Typed errors
+
+Handle a stale write curl TypeScript Rust Python # 412 with "code": "STALE_BLOCK": re-read, apply your change again, send it with the new rev. curl -s -o answer.json -w '%{http_code}\n' -X POST \ "https://canvas.example.com/api/v1/files/doc_1/blocks:batch" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" -H 'If-Match: "c465d27bcd7e"' \ -d '{"ops": [{"op": "append", "markdown": "Shipped."}]}' jq -r .code answer.json import { RateLimitedError, StaleBlockError } from "@opencanvas/client"; try { await oc.batchBlocks( { fileId: "doc_1", body: { ops: [{ op: "append", markdown: "Shipped." }] } }, { ifMatch: doc.rev }, ); } catch (e) { if (e instanceof StaleBlockError) console.log("changed meanwhile", e.fresh); else if (e instanceof RateLimitedError) console.log("retry in", e.retryAfterSecs, "s"); else throw e; } use opencanvas_client::ProblemKind; match oc.batch_blocks("doc_1", &req, &CallOptions::if_match(rev)).await { Ok(result) => println!("{:?}", result.block_ids), Err(e) if e.kind() == Some(ProblemKind::StaleBlock) => { println!("changed meanwhile: {:?}", e.api().and_then(|a| a.fresh())); } Err(e) => return Err(e), } r = api.post(f"{BASE}/files/doc_1/blocks:batch", json={"ops": [{"op": "append", "markdown": "Shipped."}]}, headers={"If-Match": f'"{rev}"'}, timeout=30) if r.status_code == 412 and r.json().get("code") == "STALE_BLOCK": print("changed meanwhile", r.json()["fresh"]) else: r.raise_for_status()
+
+## Paging, events and webhooks
+
+See pagination , events and webhooks : each page has the client samples beside curl and Python.
+
+## The conformance suite
+
+crates/oc-server/api/conformance.json is one list of scenarios that both clients run against a real server: a read, a block batch with If-Match , idempotent replay, paging, a rate limit, an events resume and a webhook signature, plus offline webhook signature vectors. The server pins its clock, so no scenario sleeps. A third-party client can run the same scenarios; the format is in the integration guide .
+
+
+# API changelog
+
+URL: https://canvas.casualoffice.org/api/changelog.html
+
+## API changelog
+
+The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
+
+## Unreleased
+
+Added API reference on the website ( /api/ ): guides for authentication, errors, pagination, idempotency, rate limits, events, webhooks and the SDKs, and one page per resource generated from the OpenAPI document, with samples in curl, TypeScript, Rust and Python. Added tools/check-openapi.py : every API operation is documented with examples and its error codes.
+
+## 0.1.2 (2026-11-24)
+
+Added Version history with named versions, preview and comparison, restore and temporary undo where supported by the host. Added Headless API under /api/v1 with OpenAPI 3.1, scoped tokens, and idempotency keys on file writes. Added API events stream (SSE and WebSocket) with resume, and a headless sync token. Fixed A Jitsi role change takes precedence over launch tokens issued before the change.
+
+## 0.1.1 (2026-11-23)
+
+Added Jitsi Meet ( integrations/jitsi/ , JIT-02): mod_opencanvas.lua gives every meeting a shared canvas in Jitsi's Shared document slot, like Etherpad. One Prosody plugin plus .env lines, no Docker image or compose changes. Per-person launch tokens, a fresh token on reload, the meeting end closes the canvas. Tested end to end against a stock docker-jitsi-meet (stable-11509-1) with two browsers; guide in integrations/jitsi/README.md . Added Temporary canvases ( storage = "ephemeral" , ADR-043, JIT-01) for hosts with no file storage: no load or save callbacks; everything is deleted when the room closes (idle grace or DELETE /v1/files/{id}/session ). A server restart or deploy keeps the canvas for the reconnect. Fixed Plugin: tokens signed with Jitsi's luajwtjitsi did not verify (non-standard signature encoding); the plugin now signs with Prosody's own HMAC. Jitsi appends its Etherpad options with ? , which broke the token; the launch URL now ends in &ep= .
+
+## 0.1.0 (2026-11-23)
+
+Added Block schema validation (MOD-01) in oc-model on .ocanvas read, REST patch, import and MCP writes, with JSON-pointer paths; unknown nodes are warnings, kept and counted in oc_schema_warnings_total . Security MCP audience (SEC-33): the MCP token audience comes from [host.ai] mcp_audience or OC_PUBLIC_URL , never from the request's Host header. Without either, MCP is off ( 404 ) and the server logs one start-up warning. Security MCP file scope (SEC-34): when the host has no /access callback, an MCP token must name its files in a files claim; a token without one is refused ( FILES_REQUIRED ). The broad behaviour (one token's role on every file) needs [host.ai] mcp_all_files = true .
+
+## 0.1.0-alpha.1 (2026-11-23)
+
+Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development.
+
+
+# API reference: Canvas
+
+URL: https://canvas.casualoffice.org/api/reference/canvas.html
+
+Read a whole canvas as JSON blocks, Markdown or a heading outline.
+
+## Read a canvas as JSON blocks, Markdown or an outline
+
+GET /api/v1/files/{fileId} (operationId readFile, scope canvas:read)
+
+The canvas as JSON blocks (default), Markdown or a heading outline. Every block carries its `blockId` and a `rev` hash; the document `rev` comes back as `ETag`. Pass a block's `rev` as `ifMatch`, or the document's as `If-Match`, when you change it.
+
+If nobody has the file open, OpenCanvas loads it from your load callback first.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- format (query, string): json (default), markdown or outline
+
+Response 200 (application/json), example:
+{
+  "blocks": [
+    {
+      "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "Launch plan",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      "rev": "689ac3d33e18"
+    },
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+        },
+        "content": [
+          {
+            "text": "Ship on Friday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      "rev": "5641be1fd2cb"
+    },
+    {
+      "blockId": "b_01m87jv4rtngbs1n2p5aypa4mz",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtngbs1n2p5aypa4mz"
+        },
+        "content": [
+          {
+            "attrs": {
+              "checked": false
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Write the release notes",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "taskItem"
+          }
+        ],
+        "type": "taskList"
+      },
+      "rev": "92c98e698f58"
+    }
+  ],
+  "rev": "fc3a67f52c7b",
+  "title": null,
+  "truncated": false
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1?format=json" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+
+# API reference: Blocks
+
+URL: https://canvas.casualoffice.org/api/reference/blocks.html
+
+List, read and find blocks, and change them in one atomic batch.
+
+## List top-level blocks
+
+GET /api/v1/files/{fileId}/blocks (operationId listBlocks, scope canvas:read)
+
+Top-level blocks in document order, a page at a time. Each page answers `has_more` and `next_cursor` (and a `Link` header when more follow); pass the cursor back unchanged. Cursors are signed Yjs positions: paging survives concurrent edits, and every block that exists for the whole walk comes back exactly once.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- limit (query, integer): 1-100, default 100
+- cursor (query, string): Opaque, signed cursor from next_cursor (bound to this file and query, valid 1 h)
+
+Response 200 (application/json), example:
+{
+  "blocks": [
+    {
+      "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "Launch plan",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      "rev": "689ac3d33e18"
+    },
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+        },
+        "content": [
+          {
+            "text": "Ship on Friday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      "rev": "5641be1fd2cb"
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "eyJmIjoiZG9jXzEiLCJpIjoiQU1XcW5aRHpfZThKRDBFIiwiayI6ImJsb2NrcyIsInEiOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0YzgiLCJ4IjoxODAwMDAzNjAwfQ.pdHAPcfzMM5tjJk54UBrTS9TIqKP3xtJR9yZRY1bPv4",
+  "rev": "fc3a67f52c7b"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), CURSOR_INVALID (400), CURSOR_EXPIRED (410)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks?limit=2" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Read one block (also nested ones)
+
+GET /api/v1/files/{fileId}/blocks/{blockId} (operationId getBlock, scope canvas:read)
+
+One block by its `blockId`, top-level or nested (a paragraph in a column, a task in a list). The block's `rev` comes back as `ETag`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- blockId (path, string, required): The block's blockId attribute
+
+Response 200 (application/json), example:
+{
+  "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+  "node": {
+    "attrs": {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+    },
+    "content": [
+      {
+        "text": "Ship on Friday.",
+        "type": "text"
+      }
+    ],
+    "type": "paragraph"
+  },
+  "rev": "5641be1fd2cb"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BLOCK_NOT_FOUND (404)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks/b_01m87jv4rtkdxymn93jwtx35sk" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Find blocks whose text contains q (case-insensitive)
+
+GET /api/v1/files/{fileId}/blocks:find (operationId findBlocks, scope canvas:read)
+
+Blocks whose text contains `q`, case-insensitively, in document order, with an excerpt and the block's position (`path`, indexes from the top). `types` keeps only those block types (`paragraph`, `heading`, `taskList`, ...).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- q (query, string): Text to find
+- types (query, string): Comma-separated block types
+- limit (query, integer): 1-100
+
+Response 200 (application/json), example:
+{
+  "matches": [
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "excerpt": "Ship on Friday.",
+      "path": "1",
+      "rev": "5641be1fd2cb",
+      "type": "paragraph"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks:find?q=friday" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Change blocks in one atomic transaction
+
+POST /api/v1/files/{fileId}/blocks:batch (operationId batchBlocks, scope canvas:write)
+
+Change blocks in one Yjs transaction: all ops apply, or none. Ops: `append` and `insertAfter` (with `markdown` or Tiptap `blocks`), `replace`, `delete`, and `editText` (`textEdits: [{find, replace}]`). An op with `ifMatch` whose block changed since you read it answers `412 STALE_BLOCK` with the fresh block, and the `If-Match` header does the same for the whole document. Deleting more than 5 blocks needs `"confirm": true`.
+
+New content lands directly. Changes to existing blocks land directly too, unless the call sends `"mode": "suggest"` or the host sets `[host.api] default_mode = "suggest"`: then they become a suggestion (`suggestionId`) for a person to accept. The answer's `rev` is the new document revision (also the `ETag`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- If-Match (header, string): The document rev (ETag) the batch expects; a mismatch answers 412 STALE_BLOCK.
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "ops": [
+    {
+      "op": "append",
+      "markdown": "## Decisions\n\nShip on Friday."
+    },
+    {
+      "op": "editText",
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "ifMatch": "5641be1fd2cb",
+      "textEdits": [
+        {
+          "find": "Friday",
+          "replace": "Monday"
+        }
+      ]
+    }
+  ]
+}
+
+Response 200 (application/json), example:
+{
+  "applied": 2,
+  "blockIds": [
+    "b_01m87jv4s4hw2f9n0k3q6t8y1v",
+    "b_01m87jv4s4p7d2m5c8x0z3r6tb",
+    "b_01m87jv4rtkdxymn93jwtx35sk"
+  ],
+  "mode": "direct",
+  "rev": "27ae51518968",
+  "stale": []
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), BLOCK_NOT_FOUND (404), STALE_BLOCK (412), CONFIRMATION_REQUIRED (409), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/blocks:batch" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H 'If-Match: "fc3a67f52c7b"' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ops": [
+      {
+        "op": "append",
+        "markdown": "## Decisions\n\nShip on Friday."
+      },
+      {
+        "op": "editText",
+        "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+        "ifMatch": "5641be1fd2cb",
+        "textEdits": [
+          {
+            "find": "Friday",
+            "replace": "Monday"
+          }
+        ]
+      }
+    ]
+  }'
+
+
+# API reference: Databases
+
+URL: https://canvas.casualoffice.org/api/reference/databases.html
+
+Describe databases, query rows with filters and sorts, create databases and fields, and create or update rows.
+
+## List databases with fields, row counts and views
+
+GET /api/v1/files/{fileId}/databases (operationId listDatabases, scope canvas:read)
+
+Every database block in the canvas: its fields (id, name, type, options), row count and views.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "databases": [
+    {
+      "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+      "fields": [
+        {
+          "description": null,
+          "id": "f_01m87jv4scpzrpdkt85ph5kftr",
+          "name": "Task",
+          "options": [],
+          "type": "title"
+        },
+        {
+          "description": null,
+          "id": "f_01m87jv4schbq8mwrxbq9m31wr",
+          "name": "Status",
+          "options": [
+            {
+              "c": "gray",
+              "v": "Todo"
+            },
+            {
+              "c": "gray",
+              "v": "Doing"
+            },
+            {
+              "c": "gray",
+              "v": "Done"
+            }
+          ],
+          "type": "select"
+        },
+        {
+          "description": null,
+          "id": "f_01m87jv4scmq5tffb8z3jfphjv",
+          "name": "Due",
+          "options": [],
+          "type": "date"
+        }
+      ],
+      "name": "Tasks",
+      "rowCount": 1,
+      "views": []
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/databases" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Create a database block
+
+POST /api/v1/files/{fileId}/databases (operationId createDatabase, scope canvas:write)
+
+Add a database block, after `afterBlockId` or at the end, with its fields and optional first rows. Field types: `title`, `text`, `status`, `select`, `tags`, `person`, `date`, `number`, `checkbox`, `url`, `progress`; `options` lists the choices of `select`, `status` and `tags`. Rows are `{values: {<field name or id>: value}}`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "name": "Tasks",
+  "fields": [
+    {
+      "name": "Task",
+      "type": "title"
+    },
+    {
+      "name": "Status",
+      "type": "select",
+      "options": [
+        "Todo",
+        "Doing",
+        "Done"
+      ]
+    },
+    {
+      "name": "Due",
+      "type": "date"
+    }
+  ],
+  "rows": [
+    {
+      "values": {
+        "Task": "Write the release notes",
+        "Status": "Doing",
+        "Due": "2026-11-27"
+      }
+    }
+  ]
+}
+
+Response 200 (application/json), example:
+{
+  "blockId": "b_01m87jv4sc1ya7yxpfn918vty9",
+  "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+  "fieldIds": [
+    "f_01m87jv4scpzrpdkt85ph5kftr",
+    "f_01m87jv4schbq8mwrxbq9m31wr",
+    "f_01m87jv4scmq5tffb8z3jfphjv"
+  ],
+  "rowIds": [
+    "r_01m87jv4scp2q5qt8k4r4mchy8"
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), BLOCK_NOT_FOUND (404), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/databases" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Tasks",
+    "fields": [
+      {
+        "name": "Task",
+        "type": "title"
+      },
+      {
+        "name": "Status",
+        "type": "select",
+        "options": [
+          "Todo",
+          "Doing",
+          "Done"
+        ]
+      },
+      {
+        "name": "Due",
+        "type": "date"
+      }
+    ],
+    "rows": [
+      {
+        "values": {
+          "Task": "Write the release notes",
+          "Status": "Doing",
+          "Due": "2026-11-27"
+        }
+      }
+    ]
+  }'
+
+## Describe one database
+
+GET /api/v1/files/{fileId}/databases/{dbId} (operationId getDatabase, scope canvas:read)
+
+One database: its fields, row count and views. Use the field ids (or names) in `queryRows` and `rows:upsert`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- dbId (path, string, required): Database id
+
+Response 200 (application/json), example:
+{
+  "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+  "fields": [
+    {
+      "description": null,
+      "id": "f_01m87jv4scpzrpdkt85ph5kftr",
+      "name": "Task",
+      "options": [],
+      "type": "title"
+    },
+    {
+      "description": null,
+      "id": "f_01m87jv4schbq8mwrxbq9m31wr",
+      "name": "Status",
+      "options": [
+        {
+          "c": "gray",
+          "v": "Todo"
+        },
+        {
+          "c": "gray",
+          "v": "Doing"
+        },
+        {
+          "c": "gray",
+          "v": "Done"
+        }
+      ],
+      "type": "select"
+    },
+    {
+      "description": null,
+      "id": "f_01m87jv4scmq5tffb8z3jfphjv",
+      "name": "Due",
+      "options": [],
+      "type": "date"
+    }
+  ],
+  "name": "Tasks",
+  "rowCount": 1,
+  "views": []
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), NOT_FOUND (404), DB_NOT_FOUND (404)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Query rows
+
+GET /api/v1/files/{fileId}/databases/{dbId}/rows (operationId queryRows, scope canvas:read)
+
+Rows of a database, filtered, sorted and paged. `filter` is a JSON array of `{f, op, v}` (`op`: `eq`, `ne`, `contains`, `gt`, `lt`, `ge`, `le`, `empty`, `notEmpty`), `sort` a JSON array of `{f, dir}` (`asc`, `desc`), `fields` the fields to return; fields by id or name. Values come back keyed by field id. Pages of at most 200 rows, with a cursor bound to this database, filter, sort and fields.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- dbId (path, string, required): Database id
+- filter (query, string): JSON array [{f, op, v}]
+- sort (query, string): JSON array [{f, dir}]
+- fields (query, string): Comma-separated field ids or names
+- limit (query, integer): 1-200
+- cursor (query, string): Opaque, signed cursor from next_cursor (bound to this database, filter, sort and fields, valid 1 h)
+
+Response 200 (application/json), example:
+{
+  "has_more": true,
+  "next_cursor": "eyJmIjoiZG9jXzEiLCJpIjp7ImFmdGVyIjoicl8wMW04N2p2NHNjcDJxNXF0OGs0cjRtY2h5OCIsIm8iOiIxIn0sImsiOiJyb3dzIiwicSI6IjI4MGMzOGFjNTM4NTYyN2FmMWFhZGE5ZiIsIngiOjE4MDAwMDM2MDB9.ZAFcDhTGnqZklHMuAINEeogPeSpmm29T1AbRmxg-rRU",
+  "rows": [
+    {
+      "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+      "values": {
+        "f_01m87jv4schbq8mwrxbq9m31wr": "Doing",
+        "f_01m87jv4scmq5tffb8z3jfphjv": "2026-11-27",
+        "f_01m87jv4scpzrpdkt85ph5kftr": "Write the release notes"
+      }
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400), NOT_FOUND (404), CURSOR_INVALID (400), CURSOR_EXPIRED (410)
+
+Example:
+curl -s -G "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/rows" \
+  --data-urlencode 'filter=[{"f": "Status", "op": "ne", "v": "Done"}]' \
+  --data-urlencode 'sort=[{"f": "Due", "dir": "asc"}]' \
+  --data-urlencode 'limit=1' \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Create or update rows (at most 200)
+
+POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert (operationId upsertRows, scope canvas:write)
+
+Create or update up to 200 rows in one transaction. `values` maps field names or ids to values; a row with an existing `rowId` is updated, any other row is created.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- dbId (path, string, required): Database id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "rows": [
+    {
+      "values": {
+        "Task": "Tag the release",
+        "Status": "Todo",
+        "Due": "2026-11-28"
+      }
+    },
+    {
+      "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+      "values": {
+        "Status": "Done"
+      }
+    }
+  ]
+}
+
+Response 200 (application/json), example:
+{
+  "created": 1,
+  "rowIds": [
+    "r_01m87jv4sg668wqdmpx9n1frsj",
+    "r_01m87jv4scp2q5qt8k4r4mchy8"
+  ],
+  "updated": 1
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/rows:upsert" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rows": [
+      {
+        "values": {
+          "Task": "Tag the release",
+          "Status": "Todo",
+          "Due": "2026-11-28"
+        }
+      },
+      {
+        "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+        "values": {
+          "Status": "Done"
+        }
+      }
+    ]
+  }'
+
+## Add a field
+
+POST /api/v1/files/{fileId}/databases/{dbId}/fields (operationId addField, scope canvas:write)
+
+Add a field to a database. `type` as in `createDatabase`; `options` for `select`, `status` and `tags`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- dbId (path, string, required): Database id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "name": "Owner",
+  "type": "person"
+}
+
+Response 200 (application/json), example:
+{
+  "fieldId": "f_01m87jv4shsxrhbw3cyfhpgz91"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/fields" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Owner", "type": "person"}'
+
+
+# API reference: Boards
+
+URL: https://canvas.casualoffice.org/api/reference/boards.html
+
+Read a board's shapes and add shapes to a board.
+
+## Create a board block with shapes
+
+POST /api/v1/files/{fileId}/boards (operationId createBoard, scope canvas:write)
+
+A new board block after afterBlockId (default: the end) with the given shapes; shapes without coordinates are laid out (grid, flow or cluster). Answers the new boardId and blockId.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "afterBlockId": "blk_01m87jv4q9zr3t6y8u1i2o3p4a",
+  "shapes": [
+    {
+      "ref": "a",
+      "kind": "sticky",
+      "text": "Idea"
+    },
+    {
+      "ref": "b",
+      "kind": "rect",
+      "text": "Plan"
+    },
+    {
+      "kind": "arrow",
+      "from": "a",
+      "to": "b"
+    }
+  ],
+  "layout": "flow"
+}
+
+Response 200 (application/json), example:
+{
+  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+  "blockId": "blk_01m87jv4tq2w3e4r5t6y7u8i9o",
+  "shapeIds": {
+    "a": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+    "b": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+  },
+  "created": [
+    "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+    "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+    "s_01m87jv4t1v2w3x4y5z6a7b8c9"
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/boards" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "afterBlockId": "blk_01m87jv4q9zr3t6y8u1i2o3p4a",
+    "shapes": [
+      {
+        "ref": "a",
+        "kind": "sticky",
+        "text": "Idea"
+      },
+      {
+        "ref": "b",
+        "kind": "rect",
+        "text": "Plan"
+      },
+      {
+        "kind": "arrow",
+        "from": "a",
+        "to": "b"
+      }
+    ],
+    "layout": "flow"
+  }'
+
+## Read a board's shapes
+
+GET /api/v1/files/{fileId}/boards/{boardId}/shapes (operationId readBoard, scope canvas:read)
+
+The shapes of a board block in drawing order: kind, text, position and size, tone, and for arrows the shapes they connect.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- boardId (path, string, required): Board id
+
+Response 200 (application/json), example:
+{
+  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+  "shapes": [
+    {
+      "id": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+      "kind": "sticky",
+      "text": "Idea",
+      "x": 0,
+      "y": 0,
+      "w": 180,
+      "h": 120,
+      "tone": "y",
+      "from": null,
+      "to": null
+    },
+    {
+      "id": "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+      "kind": "rect",
+      "text": "Plan",
+      "x": 240,
+      "y": 0,
+      "w": 180,
+      "h": 100,
+      "tone": null,
+      "from": null,
+      "to": null
+    },
+    {
+      "id": "s_01m87jv4t1v2w3x4y5z6a7b8c9",
+      "kind": "arrow",
+      "text": null,
+      "x": null,
+      "y": null,
+      "w": null,
+      "h": null,
+      "tone": null,
+      "from": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+      "to": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), NOT_FOUND (404)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/boards/bd_01m87jv4t0h5kq8r2x9w3c4d5e/shapes" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Add shapes to a board
+
+POST /api/v1/files/{fileId}/boards/{boardId}/shapes (operationId addShapes, scope canvas:write)
+
+Add shapes to a board: `sticky`, `rect`, `ellipse`, `diamond`, `text` and `arrow` (`from` and `to` name other shapes by their `ref` in the same call, or by id). Shapes without `x` and `y` are laid out (`grid`, `flow` or `cluster`) below what the board already holds. `shapeIds` maps your `ref`s to the new ids.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- boardId (path, string, required): Board id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "shapes": [
+    {
+      "ref": "a",
+      "kind": "sticky",
+      "text": "Idea"
+    },
+    {
+      "ref": "b",
+      "kind": "rect",
+      "text": "Plan"
+    },
+    {
+      "kind": "arrow",
+      "from": "a",
+      "to": "b"
+    }
+  ],
+  "layout": "flow"
+}
+
+Response 200 (application/json), example:
+{
+  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+  "blockId": null,
+  "shapeIds": {
+    "a": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+    "b": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+  },
+  "created": [
+    "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+    "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+    "s_01m87jv4t1v2w3x4y5z6a7b8c9"
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/boards/bd_01m87jv4t0h5kq8r2x9w3c4d5e/shapes" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shapes": [
+      {
+        "ref": "a",
+        "kind": "sticky",
+        "text": "Idea"
+      },
+      {
+        "ref": "b",
+        "kind": "rect",
+        "text": "Plan"
+      },
+      {
+        "kind": "arrow",
+        "from": "a",
+        "to": "b"
+      }
+    ],
+    "layout": "flow"
+  }'
+
+
+# API reference: Comments
+
+URL: https://canvas.casualoffice.org/api/reference/comments.html
+
+List comment threads, start a thread on a block or reply to one.
+
+## List comment threads
+
+GET /api/v1/files/{fileId}/comments (operationId listComments, scope canvas:read)
+
+Comment threads with their messages: the block (or quote) each is on, whether it is resolved, and who wrote each message (user id and name, never an e-mail address). `resolved=false` keeps the open ones.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- resolved (query, boolean): Only resolved (true) or open (false) threads
+
+Response 200 (application/json), example:
+{
+  "threads": [
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "messages": [
+        {
+          "at": 1795550974775,
+          "by": "u_42",
+          "text": "Is Friday still right?",
+          "userId": "u_42"
+        },
+        {
+          "at": 1795550974778,
+          "by": "u_42",
+          "text": "Yes, confirmed.",
+          "userId": "u_42"
+        }
+      ],
+      "quote": "Ship on Monday.",
+      "resolved": false,
+      "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/comments?resolved=false" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Start a thread on a block or reply to one
+
+POST /api/v1/files/{fileId}/comments (operationId addComment, scope canvas:comment)
+
+Start a thread on a block (`blockId`, optionally with the `quote` it is about) or on a quote alone, or reply to a thread with `threadId`. Needs `canvas:comment`. Mentions in the text notify people as in the editor.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "text": "Is Friday still right?",
+  "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+}
+
+Response 200 (application/json), example:
+{
+  "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), BLOCK_NOT_FOUND (404), NOT_FOUND (404), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Is Friday still right?",
+    "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+  }'
+
+
+# API reference: Members
+
+URL: https://canvas.casualoffice.org/api/reference/members.html
+
+The people with access to a canvas: id, name and detail, never an e-mail address.
+
+## People with access (id, name, detail; never e-mail)
+
+GET /api/v1/files/{fileId}/members (operationId listMembers, scope canvas:read)
+
+The people with access to the canvas, from your members callback and the people in the document: id, name and a `detail` line (team, title). Never an e-mail address. `q` filters by name.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- q (query, string): Name filter
+- limit (query, integer): 1-500
+
+Response 200 (application/json), example:
+{
+  "members": [
+    {
+      "id": "u_42",
+      "name": "Ada Lovelace",
+      "detail": "Engineering"
+    },
+    {
+      "id": "u_7",
+      "name": "Lin Chen",
+      "detail": "Design"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/members" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+
+# API reference: Export and import
+
+URL: https://canvas.casualoffice.org/api/reference/files.html
+
+Export a canvas, import Markdown, HTML or CSV into it, and convert files without a canvas.
+
+## Export the canvas
+
+GET /api/v1/files/{fileId}/export/{format} (operationId exportFile, scope canvas:read)
+
+The canvas as a file: `md`, `html`, `json` (the document JSON), `ocanvas` (the native file), `docx` or `pdf`. The host's `export_formats` decides which are allowed. Images in DOCX and PDF come only from your `callback_base` or `asset_origins`; PDF needs the operator's Gotenberg sidecar. Answers `Cache-Control: no-store`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- format (path, string, required): md, html, json, ocanvas, docx or pdf
+
+Response 200 (application/octet-stream), example:
+## Launch plan
+
+Ship on Monday.
+
+- [ ] Write the release notes
+
+### Tasks
+
+| Task | Status | Due | Owner |
+| --- | --- | --- | --- |
+| Write the release notes | Doing | 2026-11-27 |  |
+| Tag the release | Todo | 2026-11-28 |  |
+
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), FORMAT_UNSUPPORTED (404/400), EXPORT_OFF (403), HOST_UNAVAILABLE (502), PDF_RENDERER_NOT_CONFIGURED (501)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/export/md" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -o canvas.md
+
+## Import Markdown, HTML or CSV into the canvas
+
+POST /api/v1/files/{fileId}/import (operationId importFile, scope canvas:write)
+
+Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- format (query, string): md, html or csv
+- blockId (query, string): Insert after this block
+- name (query, string): CSV: database name
+- types (query, string): CSV: JSON array of column types
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/octet-stream), example:
+## Notes
+
+Imported from Markdown.
+
+- First point
+- Second point
+
+
+Response 200 (application/json), example:
+{
+  "format": "md",
+  "blocks": 2,
+  "blockIds": [
+    "b_01m87jw2k3m4n5p6q7r8s9t0v1",
+    "b_01m87jw2k3w4x5y6z7a8b9c0d1"
+  ],
+  "live": true
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), IMPORT_OFF (403), IMPORT_INVALID (400), IMPORT_TOO_LARGE (413), BLOCK_NOT_FOUND (404), DOC_TOO_LARGE (413), CONFLICT (409), ROOM_UNAVAILABLE (503), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/import?format=md" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  --data-binary @notes.md
+
+## Stateless conversion
+
+POST /api/v1/convert (operationId convert, scope canvas:read)
+
+Convert a file without a canvas: `from` Markdown, HTML or `.ocanvas`, `to` `ocanvas`, `md`, `html`, `json`, `docx` or `pdf`. Send the file as the raw body; the answer is the converted file. Changes nothing, so it takes no `Idempotency-Key`. Images in DOCX and PDF come only from your `callback_base` or `asset_origins`; boards become pictures.
+
+Parameters:
+- from (query, string): md, html or ocanvas
+- to (query, string): ocanvas, md, html, json, docx or pdf
+
+Request body (application/octet-stream), example:
+<h1>Hello</h1><p>From <strong>HTML</strong>.</p>
+
+Response 200 (application/octet-stream), example:
+# Hello
+
+From **HTML**.
+
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), RATE_LIMITED (429), INTERNAL (500), BODY_TOO_LARGE (413), FORMAT_UNSUPPORTED (404/400), INPUT_INVALID (400), PDF_RENDERER_NOT_CONFIGURED (501)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/convert?from=html&to=md" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  --data-binary @page.html \
+  -o canvas.md
+
+
+# API reference: Events and sync
+
+URL: https://canvas.casualoffice.org/api/reference/streams.html
+
+Stream a file's change events, and get a ticket to sync the CRDT document directly.
+
+## Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages
+
+GET /api/v1/files/{fileId}/events (operationId streamEvents, scope canvas:read)
+
+SSE: `id: <event id>`, `event: <type>`, `data: <Event JSON>`, a keep-alive comment every 15 s. WebSocket: one Event per text message. Resume with `Last-Event-ID` (or `since`): the events after it from this server's in-memory ring (512 per file), or one `resync` event when it is gone. A stream that falls 256 events behind is closed with code 4008 (SSE: a final `close` event `{code, reason}`); a user token's stream closes with 4001 when the token expires, and with 4003 when the host revokes the user. Events carry ids only, never content.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Last-Event-ID (header, string): Resume after this event id
+- since (query, string): Same as Last-Event-ID (the header wins)
+- types (query, string): Comma-separated event types to receive (default all)
+
+Response 200 (text/event-stream), example:
+id: ev_01m87jv4t3ggvh8n6d6nh38xc0
+event: commented
+data: {"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"}
+
+
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400), TOO_MANY_STREAMS (429)
+
+Example:
+curl -s -N "https://canvas.example.com/api/v1/files/doc_1/events?types=saved,commented" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Accept: text/event-stream"
+
+## A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly
+
+POST /api/v1/files/{fileId}/sync-token (operationId createSyncToken, scope canvas:read)
+
+Answers a session ticket with the caller's effective role (min(scope, host role)). Connect to `url` (y-websocket protocol) within 60 s; the session ends at `expiresAt`. Takes no Idempotency-Key: the answer is a credential and is never stored. `Cache-Control: no-store`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "connectWithinSecs": 60,
+  "expiresAt": 1795551874,
+  "role": "edit",
+  "room": "r_2whbv4nncveupmqu35cywoidfe",
+  "ticket": "01M87JV4T23GYQ773ZF1WN91VA",
+  "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/sync-token" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+
+# API reference: Admin
+
+URL: https://canvas.casualoffice.org/api/reference/admin.html
+
+Host operations: save now, change a user's role live, close the session, drop cached members.
+
+## Save now (200 saved, 202 queued in the outbox, 409 conflict)
+
+POST /api/v1/files/{fileId}/commit (operationId commitFile, scope canvas:admin)
+
+Save the canvas to your application now, for example before you back it up. `200` once your save callback answered (`saved: false` when there was nothing new), `202` when the save failed and waits in the outbox to be retried, `409` when your callback reported a conflict.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Response 200 (application/json), example:
+{
+  "live": true,
+  "saved": true,
+  "version": "18"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), CONFLICT (409)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/commit" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Change a user's role live (none disconnects them)
+
+POST /api/v1/files/{fileId}/role (operationId setRole, scope canvas:admin)
+
+Change a user's role on the file, live: their open sessions switch at once (`view` makes them read-only, `none` disconnects them and drops them from the member list). The role also applies to launch tokens issued before the call. Answers how many live connections switched and sessions were updated.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "userId": "u_42",
+  "role": "view"
+}
+
+Response 200 (application/json), example:
+{
+  "connections": 1,
+  "sessions": 2
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), ROLE_INVALID (400)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/role" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "u_42", "role": "view"}'
+
+## Final save, disconnect everyone, drop every ticket
+
+DELETE /api/v1/files/{fileId}/session (operationId closeSession, scope canvas:admin)
+
+For a file deleted or moved in your application: a final save, then every connection is closed and every ticket for the file is dropped.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "closed": true,
+  "sessions": 3
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
+
+Example:
+curl -s -X DELETE "https://canvas.example.com/api/v1/files/doc_1/session" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## The member list changed; drop cached answers
+
+POST /api/v1/files/{fileId}/members:invalidate (operationId invalidateMembers, scope canvas:admin)
+
+Tell OpenCanvas the file's member list changed outside a role call: the cached members answer is dropped and open editors fetch it again.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Response 200 (application/json), example:
+{
+  "invalidated": true
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/members:invalidate" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+
+# API reference: OpenAPI document
+
+URL: https://canvas.casualoffice.org/api/reference/meta.html
+
+The OpenAPI 3.1 document this reference is generated from.
+
+## This document
+
+GET /api/v1/openapi.json (operationId getOpenApi)
+
+The OpenAPI 3.1 document of this server's API, the same file as `crates/oc-server/api/openapi.json` in the repository. Public: no credentials, not rate limited.
+
+Response 200 (application/json), example:
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenCanvas headless API",
+    "version": "1.0.0"
+  },
+  "paths": {}
+}
+
+Example:
+curl -s "https://canvas.example.com/api/v1/openapi.json"
+
+
+# API reference: 0.1 routes (deprecated)
+
+URL: https://canvas.casualoffice.org/api/reference/legacy.html
+
+The 0.1 host routes, kept through 0.x with their old answers, and retired in v0.3. Use the `/api/v1` successor each one names.
+
+## Patch blocks (0.1)
+
+POST /v1/files/{fileId}/patch (operationId legacyPatch)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/blocks:batch` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Request body (application/json), example:
+{
+  "ops": [
+    {
+      "op": "append",
+      "markdown": "Shipped on Friday."
+    }
+  ],
+  "author": {
+    "id": "u_42",
+    "name": "Ada Lovelace"
+  }
+}
+
+Response 200 (application/json), example:
+{
+  "applied": 1,
+  "blockIds": [
+    "b_01m87jv4s4hw2f9n0k3q6t8y1v"
+  ],
+  "live": true
+}
+
+Errors: API_KEY_INVALID (401), PATCH_INVALID (400), BLOCK_NOT_FOUND (404), DOC_TOO_LARGE (413), CONFLICT (409), ROOM_UNAVAILABLE (503), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/v1/files/doc_1/patch" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ops": [
+      {
+        "op": "append",
+        "markdown": "Shipped on Friday."
+      }
+    ],
+    "author": {
+      "id": "u_42",
+      "name": "Ada Lovelace"
+    }
+  }'
+
+## Save now (0.1)
+
+POST /v1/files/{fileId}/commit (operationId legacyCommit)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/commit` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "live": true,
+  "saved": true,
+  "version": "18"
+}
+
+Errors: API_KEY_INVALID (401), CONFLICT (409), INTERNAL (500)
+
+Example:
+curl -s -X POST "https://canvas.example.com/v1/files/doc_1/commit" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Change a role (0.1)
+
+POST /v1/files/{fileId}/role (operationId legacySetRole)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/role` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Request body (application/json), example:
+{
+  "userId": "u_42",
+  "role": "view"
+}
+
+Response 200 (application/json), example:
+{
+  "connections": 1,
+  "sessions": 2
+}
+
+Errors: API_KEY_INVALID (401), ROLE_INVALID (400)
+
+Example:
+curl -s -X POST "https://canvas.example.com/v1/files/doc_1/role" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "u_42", "role": "view"}'
+
+## Close the session (0.1)
+
+DELETE /v1/files/{fileId}/session (operationId legacyCloseSession)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/session` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "closed": true,
+  "sessions": 3
+}
+
+Errors: API_KEY_INVALID (401)
+
+Example:
+curl -s -X DELETE "https://canvas.example.com/v1/files/doc_1/session" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Members changed (0.1)
+
+POST /v1/files/{fileId}/members/invalidate (operationId legacyInvalidateMembers)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/members:invalidate` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "invalidated": true
+}
+
+Errors: API_KEY_INVALID (401)
+
+Example:
+curl -s -X POST "https://canvas.example.com/v1/files/doc_1/members/invalidate" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Import (0.1)
+
+POST /v1/files/{fileId}/import (operationId legacyImport)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/files/{fileId}/import` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- format (query, string, required): 
+- author (query, string): 
+
+Request body (application/octet-stream), example:
+## Notes
+
+Imported from Markdown.
+
+
+Response 200 (application/json), example:
+{
+  "format": "md",
+  "blocks": 2,
+  "blockIds": [
+    "b_01m87jw2k3m4n5p6q7r8s9t0v1",
+    "b_01m87jw2k3w4x5y6z7a8b9c0d1"
+  ],
+  "live": true
+}
+
+Errors: API_KEY_INVALID (401), IMPORT_OFF (403), IMPORT_INVALID (400), IMPORT_TOO_LARGE (413), BLOCK_NOT_FOUND (404), DOC_TOO_LARGE (413), CONFLICT (409), ROOM_UNAVAILABLE (503), HOST_UNAVAILABLE (502)
+
+Example:
+curl -s -X POST "https://canvas.example.com/v1/files/doc_1/import?format=md&author=u_42" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  --data-binary @notes.md
+
+## Convert (0.1)
+
+POST /v1/convert (operationId legacyConvert)
+
+0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/convert` (sent in `Link: rel="successor-version"`, with `Deprecation`).
+
+Parameters:
+- from (query, string, required): 
+- to (query, string, required): 
+
+Request body (application/octet-stream), example:
+<h1>Hello</h1><p>From <strong>HTML</strong>.</p>
+
+Response 200 (application/octet-stream), example:
+# Hello
+
+From **HTML**.
+
+
+Errors: API_KEY_INVALID (401), FORMAT_UNSUPPORTED (404/400), INPUT_INVALID (400), PDF_RENDERER_NOT_CONFIGURED (501)
+
+Example:
+curl -s -X POST "https://canvas.example.com/v1/convert?from=html&to=md" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  --data-binary @page.html \
+  -o canvas.md

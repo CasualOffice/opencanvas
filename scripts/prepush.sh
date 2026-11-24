@@ -12,6 +12,7 @@ bash scripts/check-spdx.sh
 node tools/px-to-rem.mjs --check >/dev/null
 (cd web && node ../tools/check-px.mjs && node packages/client/scripts/gen.mjs --check >/dev/null && pnpm -r --if-present typecheck)
 python3 -I tools/test_sitelib.py
+python3 -I tools/test_apilib.py && python3 -I tools/check-openapi.py >/dev/null
 python3 tools/build-site.py >/dev/null && python3 tools/check-site-links.py >/dev/null && python3 tools/check-site-claims.py >/dev/null
 git diff --exit-code --quiet site || { echo "prepush: site/ is out of date; commit the rebuilt site"; exit 1; }
 echo "prepush: all fast CI gates pass"

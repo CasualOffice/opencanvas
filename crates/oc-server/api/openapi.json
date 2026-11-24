@@ -50,6 +50,371 @@
       "name": "0.1 aliases"
     }
   ],
+  "x-opencanvas-error-codes": [
+    {
+      "code": "API_OFF",
+      "status": [
+        404
+      ],
+      "detail": "the API is not enabled for this host ([host.flags] api_v1)",
+      "description": "The host has not turned the API on. Set `[host.flags] api_v1 = true` in its entry of the hosts file.",
+      "kind": "common"
+    },
+    {
+      "code": "UNAUTHENTICATED",
+      "status": [
+        401
+      ],
+      "detail": "missing or wrong credentials",
+      "description": "No credentials, an unknown host, or a wrong host key. The answer carries `WWW-Authenticate: Bearer realm=\"opencanvas\"`.",
+      "kind": "common"
+    },
+    {
+      "code": "TOKEN_INVALID",
+      "status": [
+        401
+      ],
+      "detail": "token lifetime exceeds 15 minutes",
+      "description": "A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid (`nbf`). Also answered when the host has no public base URL, so user tokens are off for it.",
+      "kind": "common"
+    },
+    {
+      "code": "TOKEN_EXPIRED",
+      "status": [
+        401
+      ],
+      "detail": "the token has expired",
+      "description": "The bearer token's `exp` has passed. Mint a new one; tokens live at most 15 minutes.",
+      "kind": "common"
+    },
+    {
+      "code": "SCOPE_REQUIRED",
+      "status": [
+        403
+      ],
+      "detail": "SCOPE_REQUIRED: comment_add needs canvas:comment",
+      "description": "The token's scope does not cover the operation. Admin operations need `canvas:admin`, which counts only when the host sets `[host.api] token_admin = true`.",
+      "kind": "common"
+    },
+    {
+      "code": "ROLE_FORBIDDEN",
+      "status": [
+        403
+      ],
+      "detail": "ROLE_FORBIDDEN: no access to this file",
+      "description": "The user's role on the file is below what the operation needs (the effective permission is `min(scope, role)`), the token does not list the file in `files`, or the host revoked the user.",
+      "kind": "common"
+    },
+    {
+      "code": "FILES_REQUIRED",
+      "status": [
+        403
+      ],
+      "detail": "FILES_REQUIRED: the host has no /access callback, so the token must list the files it covers in a `files` claim (or the host allows all files)",
+      "description": "The host does not implement `POST /access`, so a token's `role` claim counts only for the files in its `files` claim, and this token has none. Add `files`, implement `/access`, or set `[host.api] all_files = true`.",
+      "kind": "common"
+    },
+    {
+      "code": "RATE_LIMITED",
+      "status": [
+        429
+      ],
+      "detail": "too many requests (subject limit); retry later",
+      "description": "A token bucket is empty: the caller's, or the file's write bucket. Wait for `Retry-After` seconds. The `RateLimit` header says which bucket and when it refills.",
+      "kind": "common"
+    },
+    {
+      "code": "UNAVAILABLE",
+      "status": [
+        503
+      ],
+      "detail": "the idempotency store is unavailable; retry",
+      "description": "A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after `Retry-After`.",
+      "kind": "common"
+    },
+    {
+      "code": "INTERNAL",
+      "status": [
+        500
+      ],
+      "detail": "internal error",
+      "description": "An unexpected server error, or the host's `POST /access` callback failed. The server logs the cause; retrying may help.",
+      "kind": "common"
+    },
+    {
+      "code": "BAD_INPUT",
+      "status": [
+        400
+      ],
+      "detail": "rows[0].values must be an object",
+      "description": "The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or `fileId` is longer than 1,024 bytes. `detail` says which."
+    },
+    {
+      "code": "CURSOR_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "the cursor is not valid for this request",
+      "description": "The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different `filter`, `sort` or `fields`. Pass `next_cursor` back unchanged."
+    },
+    {
+      "code": "CURSOR_EXPIRED",
+      "status": [
+        410
+      ],
+      "detail": "the cursor has expired; start again without one",
+      "description": "Cursors last an hour. Start the walk again without one."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "Idempotency-Key must be 1-255 visible ASCII characters",
+      "description": "The `Idempotency-Key` header is empty, longer than 255 bytes, or has characters outside visible ASCII."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REUSED",
+      "status": [
+        422
+      ],
+      "detail": "this Idempotency-Key was used with a different request",
+      "description": "The key was used in the last 24 hours with another method, path or body. Use a new key for a new request."
+    },
+    {
+      "code": "IDEMPOTENCY_IN_PROGRESS",
+      "status": [
+        409
+      ],
+      "detail": "a request with this Idempotency-Key is still running",
+      "description": "A request with the same key is still running, on this or another node. Retry after `Retry-After` (1 second) to get its answer."
+    },
+    {
+      "code": "BODY_TOO_LARGE",
+      "status": [
+        413
+      ],
+      "detail": "the request body is too large",
+      "description": "The request body is over the server's limit (at least 5 MiB, the import limit)."
+    },
+    {
+      "code": "BLOCK_NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "no block with that blockId",
+      "description": "No block in the canvas has that `blockId` (the path's, an op's `blockId`, or a comment's `blockId`)."
+    },
+    {
+      "code": "NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "no database \"db_01m87jv4sc2twxjhzzxzh7mene\"",
+      "description": "An unknown database, board or comment thread id, or a path that is no API operation."
+    },
+    {
+      "code": "DB_NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "no database with that id",
+      "description": "The canvas has no database with that `dbId`."
+    },
+    {
+      "code": "STALE_BLOCK",
+      "status": [
+        412
+      ],
+      "detail": "a block changed since it was read; re-read it and retry",
+      "description": "A block op's `ifMatch` or the `If-Match` header names a revision that is no longer current. `fresh` carries the current state: the changed blocks with their `rev` and Markdown, or the document `rev`. Nothing was applied.",
+      "extra": {
+        "fresh": {
+          "stale": [
+            {
+              "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+              "rev": "5641be1fd2cb",
+              "markdown": "Ship on Friday.\n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "CONFIRMATION_REQUIRED",
+      "status": [
+        409
+      ],
+      "detail": "Delete 6 blocks? Repeat the call with \"confirm\": true.",
+      "description": "The batch deletes more than 5 blocks. Send it again with `\"confirm\": true`."
+    },
+    {
+      "code": "CONFLICT",
+      "status": [
+        409
+      ],
+      "detail": "the file changed elsewhere; the host's conflict policy is running",
+      "description": "Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried."
+    },
+    {
+      "code": "FORMAT_UNSUPPORTED",
+      "status": [
+        404,
+        400
+      ],
+      "detail": "formats: md, html, json, ocanvas, docx, pdf",
+      "description": "Export (404): the format in the path is not one of `md`, `html`, `json`, `ocanvas`, `docx`, `pdf`. Convert (400): `from` or `to` is not supported."
+    },
+    {
+      "code": "EXPORT_OFF",
+      "status": [
+        403
+      ],
+      "detail": "this host does not allow that format",
+      "description": "The host's export settings do not allow this format."
+    },
+    {
+      "code": "PDF_RENDERER_NOT_CONFIGURED",
+      "status": [
+        501
+      ],
+      "detail": "PDF export needs OC_PDF_RENDERER=gotenberg:<url>; use the print view instead",
+      "description": "PDF needs the operator to run the Gotenberg sidecar and set `OC_PDF_RENDERER`."
+    },
+    {
+      "code": "HOST_UNAVAILABLE",
+      "status": [
+        502
+      ],
+      "detail": "host answered 503 Service Unavailable",
+      "description": "Your load or save callback failed or timed out, so the file could not be loaded or saved."
+    },
+    {
+      "code": "IMPORT_OFF",
+      "status": [
+        403
+      ],
+      "detail": "this host does not allow md import",
+      "description": "The format is not in the host's `[host.flags] import_formats`, or the operator set `OC_IMPORT=off`."
+    },
+    {
+      "code": "IMPORT_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "the file must be UTF-8 text",
+      "description": "The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities."
+    },
+    {
+      "code": "IMPORT_TOO_LARGE",
+      "status": [
+        413
+      ],
+      "detail": "at most 200 columns",
+      "description": "The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns."
+    },
+    {
+      "code": "DOC_TOO_LARGE",
+      "status": [
+        413
+      ],
+      "detail": "the patched document would exceed the size limit",
+      "description": "The change would make the canvas larger than the server's document limit."
+    },
+    {
+      "code": "ROOM_UNAVAILABLE",
+      "status": [
+        503
+      ],
+      "detail": "the change could not be stored; retry",
+      "description": "The change could not be stored in the live room. Retry."
+    },
+    {
+      "code": "INPUT_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "not a valid .ocanvas zip: invalid Zip archive: Could not find EOCD",
+      "description": "Convert: the body is not a readable `.ocanvas` file."
+    },
+    {
+      "code": "ROLE_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "role must be view, comment, edit or none",
+      "description": "`role` is not `view`, `comment`, `edit` or `none`."
+    },
+    {
+      "code": "TOO_MANY_STREAMS",
+      "status": [
+        429
+      ],
+      "detail": "at most 100 event streams per file on one server",
+      "description": "A server holds at most 100 event streams per file. Close one, or share one stream between your workers."
+    },
+    {
+      "code": "METHOD_NOT_ALLOWED",
+      "status": [
+        405
+      ],
+      "detail": "Method Not Allowed",
+      "description": "The path exists but not with this method; `Allow` lists the methods it takes.",
+      "kind": "general"
+    },
+    {
+      "code": "UNSUPPORTED_MEDIA_TYPE",
+      "status": [
+        415
+      ],
+      "detail": "Unsupported Media Type",
+      "description": "A fallback for a request the router could not read.",
+      "kind": "general"
+    },
+    {
+      "code": "UNAUTHORIZED",
+      "status": [
+        401
+      ],
+      "detail": "Unauthorized",
+      "description": "A fallback for a 401 that did not carry its own code.",
+      "kind": "general"
+    },
+    {
+      "code": "FORBIDDEN",
+      "status": [
+        403
+      ],
+      "detail": "export not permitted for this session",
+      "description": "A fallback for a 403 that did not carry its own code.",
+      "kind": "general"
+    },
+    {
+      "code": "ERROR",
+      "status": [],
+      "detail": "error",
+      "description": "Any other error status without its own code.",
+      "kind": "general"
+    },
+    {
+      "code": "API_KEY_INVALID",
+      "status": [
+        401
+      ],
+      "detail": "missing or wrong X-OpenCanvas-Host / X-OpenCanvas-Key",
+      "description": "0.1 routes: the host id or key is missing or wrong.",
+      "kind": "legacy"
+    },
+    {
+      "code": "PATCH_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "op 1: blockId is required",
+      "description": "0.1 `patch`: an op is malformed.",
+      "kind": "legacy"
+    }
+  ],
   "paths": {
     "/api/v1/openapi.json": {
       "get": {
@@ -66,11 +431,21 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "openapi": "3.1.0",
+                  "info": {
+                    "title": "OpenCanvas headless API",
+                    "version": "1.0.0"
+                  },
+                  "paths": {}
                 }
               }
             }
           }
-        }
+        },
+        "description": "The OpenAPI 3.1 document of this server's API, the same file as `crates/oc-server/api/openapi.json` in the repository. Public: no credentials, not rate limited.",
+        "x-opencanvas-errors": []
       }
     },
     "/api/v1/files/{fileId}": {
@@ -107,7 +482,8 @@
                 "markdown",
                 "outline"
               ]
-            }
+            },
+            "example": "json"
           }
         ],
         "responses": {
@@ -117,6 +493,75 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasRead"
+                },
+                "example": {
+                  "blocks": [
+                    {
+                      "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+                      "node": {
+                        "attrs": {
+                          "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+                          "level": 2
+                        },
+                        "content": [
+                          {
+                            "text": "Launch plan",
+                            "type": "text"
+                          }
+                        ],
+                        "type": "heading"
+                      },
+                      "rev": "689ac3d33e18"
+                    },
+                    {
+                      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                      "node": {
+                        "attrs": {
+                          "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+                        },
+                        "content": [
+                          {
+                            "text": "Ship on Friday.",
+                            "type": "text"
+                          }
+                        ],
+                        "type": "paragraph"
+                      },
+                      "rev": "5641be1fd2cb"
+                    },
+                    {
+                      "blockId": "b_01m87jv4rtngbs1n2p5aypa4mz",
+                      "node": {
+                        "attrs": {
+                          "blockId": "b_01m87jv4rtngbs1n2p5aypa4mz"
+                        },
+                        "content": [
+                          {
+                            "attrs": {
+                              "checked": false
+                            },
+                            "content": [
+                              {
+                                "content": [
+                                  {
+                                    "text": "Write the release notes",
+                                    "type": "text"
+                                  }
+                                ],
+                                "type": "paragraph"
+                              }
+                            ],
+                            "type": "taskItem"
+                          }
+                        ],
+                        "type": "taskList"
+                      },
+                      "rev": "92c98e698f58"
+                    }
+                  ],
+                  "rev": "fc3a67f52c7b",
+                  "title": null,
+                  "truncated": false
                 }
               }
             },
@@ -156,6 +601,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -168,11 +616,29 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The canvas as JSON blocks (default), Markdown or a heading outline. Every block carries its `blockId` and a `rev` hash; the document `rev` comes back as `ETag`. Pass a block's `rev` as `ifMatch`, or the document's as `If-Match`, when you change it.\n\nIf nobody has the file open, OpenCanvas loads it from your load callback first.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BAD_INPUT",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/blocks": {
@@ -206,7 +672,8 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 100
-            }
+            },
+            "example": 2
           },
           {
             "name": "cursor",
@@ -225,6 +692,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BlockPage"
+                },
+                "example": {
+                  "blocks": [
+                    {
+                      "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+                      "node": {
+                        "attrs": {
+                          "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+                          "level": 2
+                        },
+                        "content": [
+                          {
+                            "text": "Launch plan",
+                            "type": "text"
+                          }
+                        ],
+                        "type": "heading"
+                      },
+                      "rev": "689ac3d33e18"
+                    },
+                    {
+                      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                      "node": {
+                        "attrs": {
+                          "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+                        },
+                        "content": [
+                          {
+                            "text": "Ship on Friday.",
+                            "type": "text"
+                          }
+                        ],
+                        "type": "paragraph"
+                      },
+                      "rev": "5641be1fd2cb"
+                    }
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJmIjoiZG9jXzEiLCJpIjoiQU1XcW5aRHpfZThKRDBFIiwiayI6ImJsb2NrcyIsInEiOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0YzgiLCJ4IjoxODAwMDAzNjAwfQ.pdHAPcfzMM5tjJk54UBrTS9TIqKP3xtJR9yZRY1bPv4",
+                  "rev": "fc3a67f52c7b"
                 }
               }
             },
@@ -264,6 +771,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -273,20 +783,32 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "410": {
-            "$ref": "#/components/responses/Gone"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "Top-level blocks in document order, a page at a time. Each page answers `has_more` and `next_cursor` (and a `Link` header when more follow); pass the cursor back unchanged. Cursors are signed Yjs positions: paging survives concurrent edits, and every block that exists for the whole walk comes back exactly once.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "CURSOR_INVALID",
+          "CURSOR_EXPIRED"
+        ]
       }
     },
     "/api/v1/files/{fileId}/blocks/{blockId}": {
@@ -318,7 +840,8 @@
             "description": "The block's blockId attribute",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "b_01m87jv4rtkdxymn93jwtx35sk"
           }
         ],
         "responses": {
@@ -328,6 +851,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Block"
+                },
+                "example": {
+                  "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                  "node": {
+                    "attrs": {
+                      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+                    },
+                    "content": [
+                      {
+                        "text": "Ship on Friday.",
+                        "type": "text"
+                      }
+                    ],
+                    "type": "paragraph"
+                  },
+                  "rev": "5641be1fd2cb"
                 }
               }
             },
@@ -383,7 +922,21 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "One block by its `blockId`, top-level or nested (a paragraph in a column, a task in a list). The block's `rev` comes back as `ETag`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BLOCK_NOT_FOUND"
+        ]
       }
     },
     "/api/v1/files/{fileId}/blocks:find": {
@@ -415,7 +968,8 @@
             "description": "Text to find",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "friday"
           },
           {
             "name": "types",
@@ -442,7 +996,49 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "matches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "blockId": {
+                            "type": "string"
+                          },
+                          "rev": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "Indexes from the top, dot-separated"
+                          },
+                          "excerpt": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "matches"
+                  ]
+                },
+                "example": {
+                  "matches": [
+                    {
+                      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                      "excerpt": "Ship on Friday.",
+                      "path": "1",
+                      "rev": "5641be1fd2cb",
+                      "type": "paragraph"
+                    }
+                  ]
                 }
               }
             },
@@ -461,6 +1057,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -477,7 +1076,21 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "Blocks whose text contains `q`, case-insensitively, in document order, with an excerpt and the block's position (`path`, indexes from the top). `types` keeps only those block types (`paragraph`, `heading`, `taskList`, ...).",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BAD_INPUT"
+        ]
       }
     },
     "/api/v1/files/{fileId}/blocks:batch": {
@@ -509,7 +1122,8 @@
             "description": "The document rev (ETag) the batch expects; a mismatch answers 412 STALE_BLOCK.",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "\"fc3a67f52c7b\""
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -522,6 +1136,17 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BatchResult"
+                },
+                "example": {
+                  "applied": 2,
+                  "blockIds": [
+                    "b_01m87jv4s4hw2f9n0k3q6t8y1v",
+                    "b_01m87jv4s4p7d2m5c8x0z3r6tb",
+                    "b_01m87jv4rtkdxymn93jwtx35sk"
+                  ],
+                  "mode": "direct",
+                  "rev": "27ae51518968",
+                  "stale": []
                 }
               }
             },
@@ -582,28 +1207,71 @@
           "413": {
             "$ref": "#/components/responses/TooLarge"
           },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
           "503": {
             "$ref": "#/components/responses/Unavailable"
-          },
-          "422": {
-            "$ref": "#/components/responses/Unprocessable"
           }
         },
         "x-opencanvas-scope": "canvas:write",
-        "description": "Ops apply in one Yjs transaction or not at all. A block op with ifMatch whose block changed answers 412 with the fresh block. Deleting more than 5 blocks needs confirm: true (409 CONFIRMATION_REQUIRED otherwise).",
+        "description": "Change blocks in one Yjs transaction: all ops apply, or none. Ops: `append` and `insertAfter` (with `markdown` or Tiptap `blocks`), `replace`, `delete`, and `editText` (`textEdits: [{find, replace}]`). An op with `ifMatch` whose block changed since you read it answers `412 STALE_BLOCK` with the fresh block, and the `If-Match` header does the same for the whole document. Deleting more than 5 blocks needs `\"confirm\": true`.\n\nNew content lands directly. Changes to existing blocks land directly too, unless the call sends `\"mode\": \"suggest\"` or the host sets `[host.api] default_mode = \"suggest\"`: then they become a suggestion (`suggestionId`) for a person to accept. The answer's `rev` is the new document revision (also the `ETag`).",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BatchRequest"
+              },
+              "example": {
+                "ops": [
+                  {
+                    "op": "append",
+                    "markdown": "## Decisions\n\nShip on Friday."
+                  },
+                  {
+                    "op": "editText",
+                    "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                    "ifMatch": "5641be1fd2cb",
+                    "textEdits": [
+                      {
+                        "find": "Friday",
+                        "replace": "Monday"
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
-        }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "BLOCK_NOT_FOUND",
+          "STALE_BLOCK",
+          "CONFIRMATION_REQUIRED",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/databases": {
@@ -635,7 +1303,114 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "databases": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dbId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "description": "title, text, status, select, tags, person, date, number, checkbox, url or progress"
+                                },
+                                "options": {
+                                  "type": "array",
+                                  "description": "Choices of select, status and tags fields: {v, c}"
+                                },
+                                "description": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": true
+                            }
+                          },
+                          "rowCount": {
+                            "type": "integer"
+                          },
+                          "views": {
+                            "type": "array"
+                          }
+                        },
+                        "additionalProperties": true,
+                        "required": [
+                          "dbId",
+                          "name",
+                          "fields"
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "databases"
+                  ]
+                },
+                "example": {
+                  "databases": [
+                    {
+                      "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+                      "fields": [
+                        {
+                          "description": null,
+                          "id": "f_01m87jv4scpzrpdkt85ph5kftr",
+                          "name": "Task",
+                          "options": [],
+                          "type": "title"
+                        },
+                        {
+                          "description": null,
+                          "id": "f_01m87jv4schbq8mwrxbq9m31wr",
+                          "name": "Status",
+                          "options": [
+                            {
+                              "c": "gray",
+                              "v": "Todo"
+                            },
+                            {
+                              "c": "gray",
+                              "v": "Doing"
+                            },
+                            {
+                              "c": "gray",
+                              "v": "Done"
+                            }
+                          ],
+                          "type": "select"
+                        },
+                        {
+                          "description": null,
+                          "id": "f_01m87jv4scmq5tffb8z3jfphjv",
+                          "name": "Due",
+                          "options": [],
+                          "type": "date"
+                        }
+                      ],
+                      "name": "Tasks",
+                      "rowCount": 1,
+                      "views": []
+                    }
+                  ]
                 }
               }
             },
@@ -670,7 +1445,20 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "Every database block in the canvas: its fields (id, name, type, options), row count and views.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL"
+        ]
       },
       "post": {
         "operationId": "createDatabase",
@@ -703,7 +1491,44 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "blockId": {
+                      "type": "string",
+                      "description": "The new database block"
+                    },
+                    "dbId": {
+                      "type": "string"
+                    },
+                    "fieldIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rowIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "dbId"
+                  ]
+                },
+                "example": {
+                  "blockId": "b_01m87jv4sc1ya7yxpfn918vty9",
+                  "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+                  "fieldIds": [
+                    "f_01m87jv4scpzrpdkt85ph5kftr",
+                    "f_01m87jv4schbq8mwrxbq9m31wr",
+                    "f_01m87jv4scmq5tffb8z3jfphjv"
+                  ],
+                  "rowIds": [
+                    "r_01m87jv4scp2q5qt8k4r4mchy8"
+                  ]
                 }
               }
             },
@@ -743,17 +1568,23 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/Unavailable"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
         "x-opencanvas-scope": "canvas:write",
@@ -763,10 +1594,61 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateDatabase"
+              },
+              "example": {
+                "name": "Tasks",
+                "fields": [
+                  {
+                    "name": "Task",
+                    "type": "title"
+                  },
+                  {
+                    "name": "Status",
+                    "type": "select",
+                    "options": [
+                      "Todo",
+                      "Doing",
+                      "Done"
+                    ]
+                  },
+                  {
+                    "name": "Due",
+                    "type": "date"
+                  }
+                ],
+                "rows": [
+                  {
+                    "values": {
+                      "Task": "Write the release notes",
+                      "Status": "Doing",
+                      "Due": "2026-11-27"
+                    }
+                  }
+                ]
               }
             }
           }
-        }
+        },
+        "description": "Add a database block, after `afterBlockId` or at the end, with its fields and optional first rows. Field types: `title`, `text`, `status`, `select`, `tags`, `person`, `date`, `number`, `checkbox`, `url`, `progress`; `options` lists the choices of `select`, `status` and `tags`. Rows are `{values: {<field name or id>: value}}`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "BLOCK_NOT_FOUND",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/databases/{dbId}": {
@@ -798,7 +1680,8 @@
             "description": "Database id",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "db_01m87jv4sc2twxjhzzxzh7mene"
           }
         ],
         "responses": {
@@ -807,7 +1690,98 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "dbId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "title, text, status, select, tags, person, date, number, checkbox, url or progress"
+                          },
+                          "options": {
+                            "type": "array",
+                            "description": "Choices of select, status and tags fields: {v, c}"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    },
+                    "rowCount": {
+                      "type": "integer"
+                    },
+                    "views": {
+                      "type": "array"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "dbId",
+                    "name",
+                    "fields"
+                  ]
+                },
+                "example": {
+                  "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+                  "fields": [
+                    {
+                      "description": null,
+                      "id": "f_01m87jv4scpzrpdkt85ph5kftr",
+                      "name": "Task",
+                      "options": [],
+                      "type": "title"
+                    },
+                    {
+                      "description": null,
+                      "id": "f_01m87jv4schbq8mwrxbq9m31wr",
+                      "name": "Status",
+                      "options": [
+                        {
+                          "c": "gray",
+                          "v": "Todo"
+                        },
+                        {
+                          "c": "gray",
+                          "v": "Doing"
+                        },
+                        {
+                          "c": "gray",
+                          "v": "Done"
+                        }
+                      ],
+                      "type": "select"
+                    },
+                    {
+                      "description": null,
+                      "id": "f_01m87jv4scmq5tffb8z3jfphjv",
+                      "name": "Due",
+                      "options": [],
+                      "type": "date"
+                    }
+                  ],
+                  "name": "Tasks",
+                  "rowCount": 1,
+                  "views": []
                 }
               }
             },
@@ -842,7 +1816,22 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "One database: its fields, row count and views. Use the field ids (or names) in `queryRows` and `rows:upsert`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "NOT_FOUND",
+          "DB_NOT_FOUND"
+        ]
       }
     },
     "/api/v1/files/{fileId}/databases/{dbId}/rows": {
@@ -874,7 +1863,8 @@
             "description": "Database id",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "db_01m87jv4sc2twxjhzzxzh7mene"
           },
           {
             "name": "filter",
@@ -883,7 +1873,8 @@
             "description": "JSON array [{f, op, v}]",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "[{\"f\": \"Status\", \"op\": \"ne\", \"v\": \"Done\"}]"
           },
           {
             "name": "sort",
@@ -892,7 +1883,8 @@
             "description": "JSON array [{f, dir}]",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "[{\"f\": \"Due\", \"dir\": \"asc\"}]"
           },
           {
             "name": "fields",
@@ -910,7 +1902,8 @@
             "description": "1-200",
             "schema": {
               "type": "integer"
-            }
+            },
+            "example": 1
           },
           {
             "name": "cursor",
@@ -931,7 +1924,20 @@
                   "type": "object",
                   "properties": {
                     "rows": {
-                      "type": "array"
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rowId": {
+                            "type": "string"
+                          },
+                          "values": {
+                            "type": "object",
+                            "description": "Values by field id"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
                     },
                     "has_more": {
                       "type": "boolean"
@@ -943,6 +1949,20 @@
                       ]
                     }
                   }
+                },
+                "example": {
+                  "has_more": true,
+                  "next_cursor": "eyJmIjoiZG9jXzEiLCJpIjp7ImFmdGVyIjoicl8wMW04N2p2NHNjcDJxNXF0OGs0cjRtY2h5OCIsIm8iOiIxIn0sImsiOiJyb3dzIiwicSI6IjI4MGMzOGFjNTM4NTYyN2FmMWFhZGE5ZiIsIngiOjE4MDAwMDM2MDB9.ZAFcDhTGnqZklHMuAINEeogPeSpmm29T1AbRmxg-rRU",
+                  "rows": [
+                    {
+                      "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+                      "values": {
+                        "f_01m87jv4schbq8mwrxbq9m31wr": "Doing",
+                        "f_01m87jv4scmq5tffb8z3jfphjv": "2026-11-27",
+                        "f_01m87jv4scpzrpdkt85ph5kftr": "Write the release notes"
+                      }
+                    }
+                  ]
                 }
               }
             },
@@ -967,6 +1987,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -976,20 +1999,34 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "410": {
-            "$ref": "#/components/responses/Gone"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "Rows of a database, filtered, sorted and paged. `filter` is a JSON array of `{f, op, v}` (`op`: `eq`, `ne`, `contains`, `gt`, `lt`, `ge`, `le`, `empty`, `notEmpty`), `sort` a JSON array of `{f, dir}` (`asc`, `desc`), `fields` the fields to return; fields by id or name. Values come back keyed by field id. Pages of at most 200 rows, with a cursor bound to this database, filter, sort and fields.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BAD_INPUT",
+          "NOT_FOUND",
+          "CURSOR_INVALID",
+          "CURSOR_EXPIRED"
+        ]
       }
     },
     "/api/v1/files/{fileId}/databases/{dbId}/rows:upsert": {
@@ -1021,7 +2058,8 @@
             "description": "Database id",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "db_01m87jv4sc2twxjhzzxzh7mene"
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -1033,7 +2071,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "integer"
+                    },
+                    "updated": {
+                      "type": "integer"
+                    },
+                    "rowIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "The created and updated rows, in request order"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "created",
+                    "updated",
+                    "rowIds"
+                  ]
+                },
+                "example": {
+                  "created": 1,
+                  "rowIds": [
+                    "r_01m87jv4sg668wqdmpx9n1frsj",
+                    "r_01m87jv4scp2q5qt8k4r4mchy8"
+                  ],
+                  "updated": 1
                 }
               }
             },
@@ -1073,17 +2140,23 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/Unavailable"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
         "x-opencanvas-scope": "canvas:write",
@@ -1105,10 +2178,47 @@
                     }
                   }
                 }
+              },
+              "example": {
+                "rows": [
+                  {
+                    "values": {
+                      "Task": "Tag the release",
+                      "Status": "Todo",
+                      "Due": "2026-11-28"
+                    }
+                  },
+                  {
+                    "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+                    "values": {
+                      "Status": "Done"
+                    }
+                  }
+                ]
               }
             }
           }
-        }
+        },
+        "description": "Create or update up to 200 rows in one transaction. `values` maps field names or ids to values; a row with an existing `rowId` is updated, any other row is created.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "NOT_FOUND",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/databases/{dbId}/fields": {
@@ -1140,7 +2250,8 @@
             "description": "Database id",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "db_01m87jv4sc2twxjhzzxzh7mene"
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -1152,7 +2263,19 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "fieldId"
+                  ]
+                },
+                "example": {
+                  "fieldId": "f_01m87jv4shsxrhbw3cyfhpgz91"
                 }
               }
             },
@@ -1192,17 +2315,23 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/Unavailable"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
         "x-opencanvas-scope": "canvas:write",
@@ -1230,10 +2359,34 @@
                     "type": "string"
                   }
                 }
+              },
+              "example": {
+                "name": "Owner",
+                "type": "person"
               }
             }
           }
-        }
+        },
+        "description": "Add a field to a database. `type` as in `createDatabase`; `options` for `select`, `status` and `tags`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "NOT_FOUND",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/boards": {
@@ -1268,7 +2421,46 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "boardId": {
+                      "type": "string"
+                    },
+                    "blockId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "shapeIds": {
+                      "type": "object",
+                      "description": "Your refs to the new shape ids"
+                    },
+                    "created": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "boardId",
+                    "created"
+                  ]
+                },
+                "example": {
+                  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+                  "blockId": "blk_01m87jv4tq2w3e4r5t6y7u8i9o",
+                  "shapeIds": {
+                    "a": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+                    "b": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+                  },
+                  "created": [
+                    "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+                    "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+                    "s_01m87jv4t1v2w3x4y5z6a7b8c9"
+                  ]
                 }
               }
             },
@@ -1319,6 +2511,12 @@
           },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
           }
         },
         "x-opencanvas-scope": "canvas:write",
@@ -1351,11 +2549,51 @@
                     ]
                   }
                 }
+              },
+              "example": {
+                "afterBlockId": "blk_01m87jv4q9zr3t6y8u1i2o3p4a",
+                "shapes": [
+                  {
+                    "ref": "a",
+                    "kind": "sticky",
+                    "text": "Idea"
+                  },
+                  {
+                    "ref": "b",
+                    "kind": "rect",
+                    "text": "Plan"
+                  },
+                  {
+                    "kind": "arrow",
+                    "from": "a",
+                    "to": "b"
+                  }
+                ],
+                "layout": "flow"
               }
             }
           }
         },
-        "description": "A new board block after afterBlockId (default: the end) with the given shapes; shapes without coordinates are laid out (grid, flow or cluster). Answers the new boardId and blockId."
+        "description": "A new board block after afterBlockId (default: the end) with the given shapes; shapes without coordinates are laid out (grid, flow or cluster). Answers the new boardId and blockId.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "NOT_FOUND",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/boards/{boardId}/shapes": {
@@ -1387,7 +2625,8 @@
             "description": "Board id",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "bd_01m87jv4t0h5kq8r2x9w3c4d5e"
           }
         ],
         "responses": {
@@ -1396,7 +2635,124 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "boardId": {
+                      "type": "string"
+                    },
+                    "shapes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "description": "sticky, rect, ellipse, diamond, text or arrow"
+                          },
+                          "text": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "x": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "y": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "w": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "h": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "tone": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "from": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Arrows: the shape it starts at"
+                          },
+                          "to": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Arrows: the shape it ends at"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "boardId",
+                    "shapes"
+                  ]
+                },
+                "example": {
+                  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+                  "shapes": [
+                    {
+                      "id": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+                      "kind": "sticky",
+                      "text": "Idea",
+                      "x": 0,
+                      "y": 0,
+                      "w": 180,
+                      "h": 120,
+                      "tone": "y",
+                      "from": null,
+                      "to": null
+                    },
+                    {
+                      "id": "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+                      "kind": "rect",
+                      "text": "Plan",
+                      "x": 240,
+                      "y": 0,
+                      "w": 180,
+                      "h": 100,
+                      "tone": null,
+                      "from": null,
+                      "to": null
+                    },
+                    {
+                      "id": "s_01m87jv4t1v2w3x4y5z6a7b8c9",
+                      "kind": "arrow",
+                      "text": null,
+                      "x": null,
+                      "y": null,
+                      "w": null,
+                      "h": null,
+                      "tone": null,
+                      "from": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+                      "to": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+                    }
+                  ]
                 }
               }
             },
@@ -1431,7 +2787,21 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The shapes of a board block in drawing order: kind, text, position and size, tone, and for arrows the shapes they connect.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "NOT_FOUND"
+        ]
       },
       "post": {
         "operationId": "addShapes",
@@ -1461,7 +2831,8 @@
             "description": "Board id",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "bd_01m87jv4t0h5kq8r2x9w3c4d5e"
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -1473,7 +2844,46 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "boardId": {
+                      "type": "string"
+                    },
+                    "blockId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "shapeIds": {
+                      "type": "object",
+                      "description": "Your refs to the new shape ids"
+                    },
+                    "created": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "boardId",
+                    "created"
+                  ]
+                },
+                "example": {
+                  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+                  "blockId": null,
+                  "shapeIds": {
+                    "a": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+                    "b": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+                  },
+                  "created": [
+                    "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+                    "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+                    "s_01m87jv4t1v2w3x4y5z6a7b8c9"
+                  ]
                 }
               }
             },
@@ -1513,17 +2923,23 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/Unavailable"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
         "x-opencanvas-scope": "canvas:write",
@@ -1552,10 +2968,50 @@
                     ]
                   }
                 }
+              },
+              "example": {
+                "shapes": [
+                  {
+                    "ref": "a",
+                    "kind": "sticky",
+                    "text": "Idea"
+                  },
+                  {
+                    "ref": "b",
+                    "kind": "rect",
+                    "text": "Plan"
+                  },
+                  {
+                    "kind": "arrow",
+                    "from": "a",
+                    "to": "b"
+                  }
+                ],
+                "layout": "flow"
               }
             }
           }
-        }
+        },
+        "description": "Add shapes to a board: `sticky`, `rect`, `ellipse`, `diamond`, `text` and `arrow` (`from` and `to` name other shapes by their `ref` in the same call, or by id). Shapes without `x` and `y` are laid out (`grid`, `flow` or `cluster`) below what the board already holds. `shapeIds` maps your `ref`s to the new ids.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "NOT_FOUND",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/comments": {
@@ -1587,7 +3043,8 @@
             "description": "Only resolved (true) or open (false) threads",
             "schema": {
               "type": "boolean"
-            }
+            },
+            "example": false
           }
         ],
         "responses": {
@@ -1596,7 +3053,87 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "threadId": {
+                            "type": "string"
+                          },
+                          "blockId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "quote": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "resolved": {
+                            "type": "boolean"
+                          },
+                          "messages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "string"
+                                },
+                                "by": {
+                                  "type": "string",
+                                  "description": "Display name"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "at": {
+                                  "type": "integer",
+                                  "description": "Unix milliseconds"
+                                }
+                              },
+                              "additionalProperties": true
+                            }
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "threads"
+                  ]
+                },
+                "example": {
+                  "threads": [
+                    {
+                      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                      "messages": [
+                        {
+                          "at": 1795550974775,
+                          "by": "u_42",
+                          "text": "Is Friday still right?",
+                          "userId": "u_42"
+                        },
+                        {
+                          "at": 1795550974778,
+                          "by": "u_42",
+                          "text": "Yes, confirmed.",
+                          "userId": "u_42"
+                        }
+                      ],
+                      "quote": "Ship on Monday.",
+                      "resolved": false,
+                      "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
+                    }
+                  ]
                 }
               }
             },
@@ -1631,7 +3168,20 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "Comment threads with their messages: the block (or quote) each is on, whether it is resolved, and who wrote each message (user id and name, never an e-mail address). `resolved=false` keeps the open ones.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL"
+        ]
       },
       "post": {
         "operationId": "addComment",
@@ -1664,7 +3214,19 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "threadId": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "threadId"
+                  ]
+                },
+                "example": {
+                  "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
                 }
               }
             },
@@ -1704,17 +3266,23 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/Unavailable"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
         "x-opencanvas-scope": "canvas:comment",
@@ -1741,10 +3309,35 @@
                     "type": "string"
                   }
                 }
+              },
+              "example": {
+                "text": "Is Friday still right?",
+                "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
               }
             }
           }
-        }
+        },
+        "description": "Start a thread on a block (`blockId`, optionally with the `quote` it is about) or on a quote alone, or reply to a thread with `threadId`. Needs `canvas:comment`. Mentions in the text notify people as in the editor.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "BLOCK_NOT_FOUND",
+          "NOT_FOUND",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/members": {
@@ -1794,7 +3387,48 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "members"
+                  ]
+                },
+                "example": {
+                  "members": [
+                    {
+                      "id": "u_42",
+                      "name": "Ada Lovelace",
+                      "detail": "Engineering"
+                    },
+                    {
+                      "id": "u_7",
+                      "name": "Lin Chen",
+                      "detail": "Design"
+                    }
+                  ]
                 }
               }
             },
@@ -1829,7 +3463,20 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The people with access to the canvas, from your members callback and the people in the document: id, name and a `detail` line (team, title). Never an e-mail address. `q` filters by name.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL"
+        ]
       }
     },
     "/api/v1/files/{fileId}/export/{format}": {
@@ -1869,7 +3516,8 @@
                 "docx",
                 "pdf"
               ]
-            }
+            },
+            "example": "md"
           }
         ],
         "responses": {
@@ -1880,7 +3528,8 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
-                }
+                },
+                "example": "## Launch plan\n\nShip on Monday.\n\n- [ ] Write the release notes\n\n### Tasks\n\n| Task | Status | Due | Owner |\n| --- | --- | --- | --- |\n| Write the release notes | Doing | 2026-11-27 |  |\n| Tag the release | Todo | 2026-11-28 |  |\n"
               }
             },
             "headers": {
@@ -1910,11 +3559,34 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The canvas as a file: `md`, `html`, `json` (the document JSON), `ocanvas` (the native file), `docx` or `pdf`. The host's `export_formats` decides which are allowed. Images in DOCX and PDF come only from your `callback_base` or `asset_origins`; PDF needs the operator's Gotenberg sidecar. Answers `Cache-Control: no-store`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "FORMAT_UNSUPPORTED",
+          "EXPORT_OFF",
+          "HOST_UNAVAILABLE",
+          "PDF_RENDERER_NOT_CONFIGURED"
+        ]
       }
     },
     "/api/v1/files/{fileId}/import": {
@@ -1951,7 +3623,8 @@
                 "html",
                 "csv"
               ]
-            }
+            },
+            "example": "md"
           },
           {
             "name": "blockId",
@@ -1990,7 +3663,51 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "format": {
+                      "type": "string"
+                    },
+                    "blocks": {
+                      "type": "integer",
+                      "description": "Markdown and HTML: blocks added"
+                    },
+                    "rows": {
+                      "type": "integer",
+                      "description": "CSV: rows imported"
+                    },
+                    "dbId": {
+                      "type": "string",
+                      "description": "CSV: the new database"
+                    },
+                    "blockIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "live": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "When nobody had the file open: the version your save callback answered"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "format",
+                    "blockIds"
+                  ]
+                },
+                "example": {
+                  "format": "md",
+                  "blocks": 2,
+                  "blockIds": [
+                    "b_01m87jw2k3m4n5p6q7r8s9t0v1",
+                    "b_01m87jw2k3w4x5y6z7a8b9c0d1"
+                  ],
+                  "live": true
                 }
               }
             },
@@ -2030,20 +3747,23 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "413": {
             "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
           "503": {
             "$ref": "#/components/responses/Unavailable"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "422": {
-            "$ref": "#/components/responses/Unprocessable"
           }
         },
         "x-opencanvas-scope": "canvas:write",
@@ -2054,10 +3774,36 @@
               "schema": {
                 "type": "string",
                 "format": "binary"
-              }
+              },
+              "example": "## Notes\n\nImported from Markdown.\n\n- First point\n- Second point\n"
             }
           }
-        }
+        },
+        "description": "Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "IMPORT_OFF",
+          "IMPORT_INVALID",
+          "IMPORT_TOO_LARGE",
+          "BLOCK_NOT_FOUND",
+          "DOC_TOO_LARGE",
+          "CONFLICT",
+          "ROOM_UNAVAILABLE",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/commit": {
@@ -2092,7 +3838,30 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "live": {
+                      "type": "boolean"
+                    },
+                    "saved": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "live"
+                  ]
+                },
+                "example": {
+                  "live": true,
+                  "saved": true,
+                  "version": "18"
                 }
               }
             },
@@ -2125,10 +3894,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "live": {
+                      "type": "boolean"
+                    },
+                    "queued": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "queued"
+                  ]
+                },
+                "example": {
+                  "live": true,
+                  "message": "no editor with a valid grant is connected",
+                  "queued": true
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2142,14 +3934,38 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
           },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:admin"
+        "x-opencanvas-scope": "canvas:admin",
+        "description": "Save the canvas to your application now, for example before you back it up. `200` once your save callback answered (`saved: false` when there was nothing new), `202` when the save failed and waits in the outbox to be retried, `409` when your callback reported a conflict.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "CONFLICT"
+        ]
       }
     },
     "/api/v1/files/{fileId}/role": {
@@ -2184,7 +4000,24 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "connections": {
+                      "type": "integer"
+                    },
+                    "sessions": {
+                      "type": "integer"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "connections",
+                    "sessions"
+                  ]
+                },
+                "example": {
+                  "connections": 1,
+                  "sessions": 2
                 }
               }
             },
@@ -2224,14 +4057,20 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
         "x-opencanvas-scope": "canvas:admin",
@@ -2259,10 +4098,33 @@
                     ]
                   }
                 }
+              },
+              "example": {
+                "userId": "u_42",
+                "role": "view"
               }
             }
           }
-        }
+        },
+        "description": "Change a user's role on the file, live: their open sessions switch at once (`view` makes them read-only, `none` disconnects them and drops them from the member list). The role also applies to launch tokens issued before the call. Answers how many live connections switched and sessions were updated.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "ROLE_INVALID"
+        ]
       }
     },
     "/api/v1/files/{fileId}/session": {
@@ -2294,7 +4156,24 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "sessions": {
+                      "type": "integer"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "closed",
+                    "sessions"
+                  ]
+                },
+                "example": {
+                  "closed": true,
+                  "sessions": 3
                 }
               }
             },
@@ -2324,9 +4203,25 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:admin"
+        "x-opencanvas-scope": "canvas:admin",
+        "description": "For a file deleted or moved in your application: a final save, then every connection is closed and every ticket for the file is dropped.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL"
+        ]
       }
     },
     "/api/v1/files/{fileId}/members:invalidate": {
@@ -2361,7 +4256,19 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "invalidated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "invalidated"
+                  ]
+                },
+                "example": {
+                  "invalidated": true
                 }
               }
             },
@@ -2389,6 +4296,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -2398,17 +4308,40 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:admin"
+        "x-opencanvas-scope": "canvas:admin",
+        "description": "Tell OpenCanvas the file's member list changed outside a role call: the cached members answer is dropped and open editors fetch it again.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE"
+        ]
       }
     },
     "/api/v1/files/{fileId}/events": {
@@ -2461,17 +4394,43 @@
             "description": "Comma-separated event types to receive (default all)",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "saved,commented"
           }
         ],
         "responses": {
+          "101": {
+            "description": "Switched to a WebSocket (Upgrade: websocket); each text message is an Event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                },
+                "example": {
+                  "at": 1795550974787,
+                  "data": {
+                    "added": 1,
+                    "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+                    "by": [
+                      "u_42"
+                    ],
+                    "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
+                  },
+                  "fileId": "doc_1",
+                  "id": "ev_01m87jv4t3ggvh8n6d6nh38xc0",
+                  "type": "commented"
+                }
+              }
+            }
+          },
           "200": {
             "description": "An event stream; each `data:` line is an Event",
             "content": {
               "text/event-stream": {
                 "schema": {
                   "type": "string"
-                }
+                },
+                "example": "id: ev_01m87jv4t3ggvh8n6d6nh38xc0\nevent: commented\ndata: {\"at\":1795550974787,\"data\":{\"added\":1,\"blockId\":\"b_01m87jv4rtkdxymn93jwtx35sk\",\"by\":[\"u_42\"],\"threadId\":\"t_01m87jv4sqj5z6jz5q2n5zdtdw\"},\"fileId\":\"doc_1\",\"id\":\"ev_01m87jv4t3ggvh8n6d6nh38xc0\",\"type\":\"commented\"}\n\n"
               }
             },
             "headers": {
@@ -2485,16 +4444,6 @@
                 "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
                 "schema": {
                   "type": "string"
-                }
-              }
-            }
-          },
-          "101": {
-            "description": "Switched to a WebSocket (Upgrade: websocket); each text message is an Event",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Event"
                 }
               }
             }
@@ -2513,9 +4462,26 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BAD_INPUT",
+          "TOO_MANY_STREAMS"
+        ]
       }
     },
     "/api/v1/files/{fileId}/sync-token": {
@@ -2549,6 +4515,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SyncTicket"
+                },
+                "example": {
+                  "connectWithinSecs": 60,
+                  "expiresAt": 1795551874,
+                  "role": "edit",
+                  "room": "r_2whbv4nncveupmqu35cywoidfe",
+                  "ticket": "01M87JV4T23GYQ773ZF1WN91VA",
+                  "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA"
                 }
               }
             },
@@ -2583,7 +4557,19 @@
             "$ref": "#/components/responses/Unavailable"
           }
         },
-        "x-opencanvas-scope": "canvas:read"
+        "x-opencanvas-scope": "canvas:read",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL"
+        ]
       }
     },
     "/api/v1/convert": {
@@ -2612,7 +4598,8 @@
             "description": "md, html or ocanvas",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "html"
           },
           {
             "name": "to",
@@ -2621,7 +4608,8 @@
             "description": "ocanvas, md, html, json, docx or pdf",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "md"
           }
         ],
         "responses": {
@@ -2632,7 +4620,8 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
-                }
+                },
+                "example": "# Hello\n\nFrom **HTML**.\n"
               }
             },
             "headers": {
@@ -2656,8 +4645,20 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
           }
         },
         "x-opencanvas-scope": "canvas:read",
@@ -2668,10 +4669,25 @@
               "schema": {
                 "type": "string",
                 "format": "binary"
-              }
+              },
+              "example": "<h1>Hello</h1><p>From <strong>HTML</strong>.</p>"
             }
           }
-        }
+        },
+        "description": "Convert a file without a canvas: `from` Markdown, HTML or `.ocanvas`, `to` `ocanvas`, `md`, `html`, `json`, `docx` or `pdf`. Send the file as the raw body; the answer is the converted file. Changes nothing, so it takes no `Idempotency-Key`. Images in DOCX and PDF come only from your `callback_base` or `asset_origins`; boards become pictures.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "RATE_LIMITED",
+          "INTERNAL",
+          "BODY_TOO_LARGE",
+          "FORMAT_UNSUPPORTED",
+          "INPUT_INVALID",
+          "PDF_RENDERER_NOT_CONFIGURED"
+        ]
       }
     },
     "/v1/files/{fileId}/patch": {
@@ -2701,6 +4717,23 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "applied": 1,
+                  "blockIds": [
+                    "b_01m87jv4s4hw2f9n0k3q6t8y1v"
+                  ],
+                  "live": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "PATCH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -2714,8 +4747,89 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "BLOCK_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "DOC_TOO_LARGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "HOST_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ROOM_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "ops": [
+                  {
+                    "op": "append",
+                    "markdown": "Shipped on Friday."
+                  }
+                ],
+                "author": {
+                  "id": "u_42",
+                  "name": "Ada Lovelace"
+                }
+              }
+            }
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID",
+          "PATCH_INVALID",
+          "BLOCK_NOT_FOUND",
+          "DOC_TOO_LARGE",
+          "CONFLICT",
+          "ROOM_UNAVAILABLE",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/v1/files/{fileId}/commit": {
@@ -2745,6 +4859,11 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "live": true,
+                  "saved": true,
+                  "version": "18"
                 }
               }
             }
@@ -2758,8 +4877,33 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
-        }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID",
+          "CONFLICT",
+          "INTERNAL"
+        ]
       }
     },
     "/v1/files/{fileId}/role": {
@@ -2789,6 +4933,20 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "connections": 1,
+                  "sessions": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ROLE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -2803,7 +4961,25 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "userId": "u_42",
+                "role": "view"
+              }
+            }
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID",
+          "ROLE_INVALID"
+        ]
       }
     },
     "/v1/files/{fileId}/session": {
@@ -2833,6 +5009,10 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "closed": true,
+                  "sessions": 3
                 }
               }
             }
@@ -2847,7 +5027,10 @@
               }
             }
           }
-        }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID"
+        ]
       }
     },
     "/v1/files/{fileId}/members/invalidate": {
@@ -2877,6 +5060,9 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "invalidated": true
                 }
               }
             }
@@ -2891,7 +5077,10 @@
               }
             }
           }
-        }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID"
+        ]
       }
     },
     "/v1/files/{fileId}/import": {
@@ -2912,6 +5101,24 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "md"
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "u_42"
           }
         ],
         "responses": {
@@ -2921,6 +5128,25 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "format": "md",
+                  "blocks": 2,
+                  "blockIds": [
+                    "b_01m87jw2k3m4n5p6q7r8s9t0v1",
+                    "b_01m87jw2k3w4x5y6z7a8b9c0d1"
+                  ],
+                  "live": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "IMPORT_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -2934,8 +5160,91 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "IMPORT_OFF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "BLOCK_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "IMPORT_TOO_LARGE, DOC_TOO_LARGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "HOST_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ROOM_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "example": "## Notes\n\nImported from Markdown.\n"
+            }
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID",
+          "IMPORT_OFF",
+          "IMPORT_INVALID",
+          "IMPORT_TOO_LARGE",
+          "BLOCK_NOT_FOUND",
+          "DOC_TOO_LARGE",
+          "CONFLICT",
+          "ROOM_UNAVAILABLE",
+          "HOST_UNAVAILABLE"
+        ]
       }
     },
     "/v1/convert": {
@@ -2953,14 +5262,45 @@
             "hostId": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "html"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "md"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "The converted file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "# Hello\n\nFrom **HTML**.\n"
+              }
+            }
+          },
+          "400": {
+            "description": "FORMAT_UNSUPPORTED, INPUT_INVALID",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -2974,8 +5314,46 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "FORMAT_UNSUPPORTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "PDF_RENDERER_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "example": "<h1>Hello</h1><p>From <strong>HTML</strong>.</p>"
+            }
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_KEY_INVALID",
+          "FORMAT_UNSUPPORTED",
+          "INPUT_INVALID",
+          "PDF_RENDERER_NOT_CONFIGURED"
+        ]
       }
     }
   },
@@ -3415,6 +5793,26 @@
             }
           }
         }
+      },
+      "NotImplemented": {
+        "description": "PDF_RENDERER_NOT_CONFIGURED",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "BadGateway": {
+        "description": "HOST_UNAVAILABLE: your load or save callback failed",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
       }
     },
     "parameters": {
@@ -3438,7 +5836,8 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1024
-        }
+        },
+        "example": "doc_1"
       }
     },
     "securitySchemes": {

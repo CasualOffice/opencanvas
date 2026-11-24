@@ -601,22 +601,121 @@ a.card:hover { transform: translateY(-2px); color: var(--os-text); box-shadow: 0
   .pn-next { grid-column: auto; }
 }
 
-/* ---- API reference ----------------------------------------------------------------------- */
-.op { border-radius: var(--r-card); background: var(--os-bg); box-shadow: var(--lift); padding: 1.25rem; margin-top: 1rem; }
-.op-head { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; }
-.op-head code { font-size: 0.875rem; background: none; box-shadow: none; padding: 0; overflow-wrap: anywhere; color: var(--os-text); }
-.verb { display: inline-block; min-width: 4.25rem; text-align: center; padding: 0.2rem 0.5rem; border-radius: 0.375rem; font: 600 0.6875rem/1.4 var(--os-font-mono); letter-spacing: 0.04em; box-shadow: inset 0 0 0 1px currentColor; }
-.verb-get { color: var(--os-info); }
-.verb-post { color: var(--os-success); }
-.verb-put, .verb-patch { color: var(--os-warning); }
-.verb-delete { color: var(--os-danger); }
-.op-sum { font-weight: 580; margin-top: 0.5rem; color: var(--os-text); }
-.op-perm { font-size: 0.8125rem; color: var(--os-muted); }
-.op details { margin-top: 0.75rem; }
-.op summary { cursor: pointer; font-size: 0.875rem; font-weight: 550; color: var(--os-muted); min-height: var(--os-target-min); }
-.op table { font-size: 0.8125rem; }
-.op th, .op td { padding: 0.5rem 0.75rem; }
-.schema-list { font-size: 0.875rem; }
+/* ---- API reference (API-DOCS-01, site/api/) -------------------------------------------------
+ * Three columns on wide screens: the API navigation, the content and (reference pages) each
+ * operation's samples beside it; guides show "on this page" instead. One column on phones. */
+.api-layout {
+  width: min(92rem, 100% - 2 * var(--gutter)); margin-inline: auto; display: grid; align-items: start;
+  grid-template-columns: 15rem minmax(0, 1fr) 12.5rem; gap: clamp(1.5rem, 1rem + 2.5vw, 3.5rem); padding-block: 2.5rem 6rem;
+}
+.api-layout--ref { grid-template-columns: 15rem minmax(0, 1fr); }
+.api-layout--guide .api-article { max-width: 48rem; }
+.api-article { min-width: 0; }
+.api-nav-ops { list-style: none; margin: 0.25rem 0 0.5rem 0.75rem; padding: 0 0 0 0.5rem; display: grid; gap: 0.0625rem; border-left: 1px solid var(--os-border); }
+.api-nav a.nav-op { display: flex; gap: 0.5rem; align-items: center; padding-block: 0.3125rem; font-size: 0.8125rem; }
+.api-nav a.nav-op .method { min-width: 3.25rem; font-size: 0.625rem; }
+.api-nav a.nav-op.is-active { color: var(--os-text); background: color-mix(in srgb, var(--os-text) 5%, transparent); }
+
+.method, .status { display: inline-block; text-align: center; padding: 0.1875rem 0.4375rem; border-radius: 0.3125rem; font: 650 0.6875rem/1.3 var(--os-font-mono); letter-spacing: 0.03em; white-space: nowrap; }
+.method { min-width: 3.5rem; }
+.method-get, .status-2, .status-1 { color: var(--os-success); background: color-mix(in srgb, var(--os-success) 11%, var(--os-bg)); }
+.method-post { color: var(--os-accent); background: color-mix(in srgb, var(--os-accent) 11%, var(--os-bg)); }
+.method-put, .method-patch, .status-4 { color: var(--os-warning); background: color-mix(in srgb, var(--os-warning) 11%, var(--os-bg)); }
+.method-delete, .status-5 { color: var(--os-danger); background: color-mix(in srgb, var(--os-danger) 11%, var(--os-bg)); }
+.op-path-s { font-size: 0.8125rem; overflow-wrap: anywhere; }
+.prose .op-index { list-style: none; padding: 0; display: grid; gap: 0.25rem; }
+.prose .op-index li + li { margin-top: 0; }
+.op-index a { display: inline-flex; gap: 0.75rem; align-items: center; padding: 0.25rem 0; color: var(--os-text-2); text-decoration: none; }
+.op-index a:hover { color: var(--os-text); }
+.prose .op-index code { background: none; box-shadow: none; padding: 0; }
+
+/* One operation: its documentation, and its samples beside it (below it on narrower screens). */
+.prose .op { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 30rem); gap: 1.5rem 2.5rem; align-items: start; margin-top: 3rem; padding-top: 2.5rem; border-top: 1px solid var(--os-border); }
+.op-doc { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.op-doc > *, .prose .op-doc > * { margin: 0; }
+.prose .op-title { margin: 0; padding: 0; font-size: 1.375rem; }
+.prose .op-doc h3 { margin: 0.75rem 0 0; font-size: 1rem; }
+.op-line { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; }
+.prose .op-line code { font-size: 0.875rem; font-weight: 500; color: var(--os-text); background: none; box-shadow: none; padding: 0; overflow-wrap: anywhere; }
+.op-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.375rem 1rem; padding: 0.875rem 1rem; border-radius: var(--r-ctl); background: var(--os-surface); box-shadow: 0 0 0 1px var(--os-border); font-size: 0.875rem; }
+.op-meta dt { color: var(--os-muted); font-weight: 550; }
+.op-meta dd { margin: 0; color: var(--os-text-2); min-width: 0; }
+.op-code { position: sticky; top: calc(var(--header-h) + 1rem); display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; min-width: 0; }
+.op-deprecated { color: var(--os-warning); font-weight: 550; }
+
+.resp { border-radius: var(--r-ctl); background: var(--os-bg); box-shadow: 0 0 0 1px var(--os-border); }
+.resp + .resp { margin-top: 0.5rem; }
+.resp > summary { display: flex; gap: 0.75rem; align-items: center; padding: 0.5rem 0.875rem; min-height: var(--os-target-touch); cursor: pointer; list-style: none; font-size: 0.875rem; color: var(--os-text-2); }
+.resp > summary::-webkit-details-marker { display: none; }
+.resp > summary .i { margin-left: auto; color: var(--os-muted); transition: transform var(--os-dur) var(--os-ease-out); flex: none; }
+.resp[open] > summary .i { transform: rotate(180deg); }
+.resp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; padding: 0 0.875rem 0.875rem; min-width: 0; }
+.resp-body > *, .prose .resp-body > * { margin: 0; }
+.resp-body h4 { font-size: 0.8125rem; color: var(--os-muted); font-weight: 600; margin: 0.25rem 0 0; }
+
+.prose .schema { font-size: 0.8125rem; }
+.schema th, .schema td { padding: 0.5rem 0.75rem; }
+.schema td:first-child { white-space: nowrap; }
+.schema tr.d1 td:first-child { padding-left: 1.75rem; }
+.schema tr.d2 td:first-child { padding-left: 2.75rem; }
+.schema tr.d3 td:first-child { padding-left: 3.75rem; }
+.schema tr.d4 td:first-child { padding-left: 4.75rem; }
+.schema .ty { font: 500 0.75rem/1.4 var(--os-font-mono); color: var(--os-text-2); white-space: nowrap; }
+.req { display: inline-block; margin-left: 0.375rem; color: var(--os-danger); font-size: 0.6875rem; font-weight: 600; }
+.schema .muted, .err-ops { color: var(--os-muted); font-size: 0.8125rem; }
+.api-table code[id] { scroll-margin-top: calc(var(--header-h) + 1.5rem); }
+
+/* Code samples: ink panels in both themes, a language switch, and copy (site.js). */
+.sample { border-radius: var(--r-ctl); background: var(--ink-code); box-shadow: 0 0 0 1px var(--code-edge); overflow: hidden; min-width: 0; }
+.sample-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem; padding: 0.3125rem 0.3125rem 0.3125rem 0.875rem; box-shadow: inset 0 -1px 0 var(--code-edge); }
+.sample-label { color: var(--code-muted); font: 550 0.75rem/1.3 var(--os-font); min-width: 0; }
+.sample-tabs { display: flex; flex-wrap: wrap; gap: 0.125rem; }
+.sample-tabs button {
+  min-height: 2rem; padding: 0 0.625rem; border: 0; border-radius: 0.375rem; background: transparent; color: var(--code-muted);
+  font: 550 0.75rem/1 var(--os-font); white-space: nowrap; cursor: pointer;
+}
+.sample-tabs button:hover { color: var(--code-text); background: rgba(255, 255, 255, 0.06); }
+.sample-tabs button[aria-selected="true"] { color: var(--code-text); background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 -2px 0 #86a5ff; }
+.sample :focus-visible { outline-color: #86a5ff; }
+.sample pre { border-radius: 0; box-shadow: none; background: transparent; max-height: 30rem; }
+.prose .sample, .prose .sample-res { margin-top: 1.25rem; }
+.op-code .sample, .op-code .sample-res { margin-top: 0; }
+.sample-res .sample-label { display: block; padding: 0.625rem 0.875rem; box-shadow: inset 0 -1px 0 var(--code-edge); }
+
+.cl-list { list-style: none; padding: 0 !important; }
+.cl-list li { padding-left: 0; }
+.cl-kind { display: inline-block; min-width: 4.75rem; margin-right: 0.5rem; padding: 0.0625rem 0.4375rem; border-radius: 0.3125rem; font-size: 0.75rem; font-weight: 600; text-align: center; color: var(--os-text-2); background: var(--os-surface-2); box-shadow: inset 0 0 0 1px var(--os-border); }
+.cl-added { color: var(--os-success); }
+.cl-fixed { color: var(--os-info); }
+
+@media (max-width: 80em) {
+  .prose .op { grid-template-columns: minmax(0, 1fr); }
+  .op-code { position: static; }
+}
+@media (max-width: 75em) {
+  .api-layout { grid-template-columns: 14rem minmax(0, 1fr); }
+  .api-layout .toc { display: none; }
+}
+@media (max-width: 52em) {
+  .api-layout, .api-layout--ref { grid-template-columns: minmax(0, 1fr); padding-top: 1rem; }
+}
+/* Phones: each table row becomes a card, every cell after the first labelled. */
+@media (max-width: 40em) {
+  .api-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .api-table, .api-table tbody, .api-table tr, .api-table td { display: block; }
+  .api-table tr { padding: 0.75rem 1rem; }
+  .api-table tbody tr + tr { border-top: 1px solid var(--os-hairline); }
+  .api-table tbody tr + tr > * { border-top: 0; }
+  .api-table td { padding: 0.125rem 0; }
+  .api-table td:first-child { white-space: normal; }
+  .api-table td + td::before { content: attr(data-label) ": "; color: var(--os-muted); font-weight: 550; }
+  .api-table td:empty { display: none; }
+  .schema tr.d1 { padding-left: 1.75rem; }
+  .schema tr.d2 { padding-left: 2.5rem; }
+  .schema tr.d3, .schema tr.d4 { padding-left: 3.25rem; }
+  .schema tr[class] td:first-child { padding-left: 0; }
+}
+.api-table td:first-child code { white-space: nowrap; overflow-wrap: normal; }
 
 /* ---- Roadmap -------------------------------------------------------------------------- */
 .pill {

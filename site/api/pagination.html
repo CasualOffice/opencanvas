@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Pagination | OpenCanvas</title>
+<meta name="description" content="Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header, expiry and errors.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/pagination.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Pagination | OpenCanvas">
+<meta property="og:description" content="Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header, expiry and errors.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/pagination.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--guide">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html" aria-current="page">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/events.html">Events</a></li><li><a href="../api/webhooks.html">Webhooks</a></li><li><a href="../api/sdks.html">SDKs</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../api/reference/canvas.html">Canvas</a></li><li><a href="../api/reference/blocks.html">Blocks</a></li><li><a href="../api/reference/databases.html">Databases</a></li><li><a href="../api/reference/boards.html">Boards</a></li><li><a href="../api/reference/comments.html">Comments</a></li><li><a href="../api/reference/members.html">Members</a></li><li><a href="../api/reference/files.html">Export and import</a></li><li><a href="../api/reference/streams.html">Events and sync</a></li><li><a href="../api/reference/admin.html">Admin</a></li><li><a href="../api/reference/meta.html">OpenAPI document</a></li><li><a href="../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html" aria-current="page">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/events.html">Events</a></li><li><a href="../api/webhooks.html">Webhooks</a></li><li><a href="../api/sdks.html">SDKs</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../api/reference/canvas.html">Canvas</a></li><li><a href="../api/reference/blocks.html">Blocks</a></li><li><a href="../api/reference/databases.html">Databases</a></li><li><a href="../api/reference/boards.html">Boards</a></li><li><a href="../api/reference/comments.html">Comments</a></li><li><a href="../api/reference/members.html">Members</a></li><li><a href="../api/reference/files.html">Export and import</a></li><li><a href="../api/reference/streams.html">Events and sync</a></li><li><a href="../api/reference/admin.html">Admin</a></li><li><a href="../api/reference/meta.html">OpenAPI document</a></li><li><a href="../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>Pagination</h1>
+<p class="lede">Two operations answer pages: listBlocks (top-level blocks, up to 100 per page) and queryRows (database rows, up to 200). Cursors are opaque and signed, and a block walk stays correct while people edit the canvas.</p>
+<h2 id="how-it-works">How it works</h2>
+<p>Ask for the first page with an optional <code>limit</code>. Each page answers <code>has_more</code> and <code>next_cursor</code>; when more follow, it also carries a <code>Link</code> header with the next page's URL. Pass <code>next_cursor</code> back as <code>cursor</code>, unchanged, until <code>has_more</code> is <code>false</code>.</p>
+<pre><code class="language-http">GET /api/v1/files/doc_1/blocks?limit=2
+
+HTTP/1.1 200 OK
+ETag: &quot;c465d27bcd7e&quot;
+Link: &lt;/api/v1/files/doc_1/blocks?cursor=eyJmIjoiZG9jXzEi...&amp;limit=2&gt;; rel=&quot;next&quot;
+
+{&quot;blocks&quot;: [...], &quot;rev&quot;: &quot;c465d27bcd7e&quot;, &quot;has_more&quot;: true, &quot;next_cursor&quot;: &quot;eyJmIjoiZG9jXzEi...&quot;}</code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Operation</th><th scope="col">Items</th><th scope="col"><code>limit</code></th><th scope="col">Default</th></tr></thead><tbody><tr><td><code>GET /api/v1/files/{fileId}/blocks</code></td><td><code>blocks</code></td><td>1-100</td><td>100</td></tr><tr><td><code>GET /api/v1/files/{fileId}/databases/{dbId}/rows</code></td><td><code>rows</code></td><td>1-200</td><td>50</td></tr></tbody></table></div>
+<h2 id="walk-every-page">Walk every page</h2>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Every block of a canvas</span><div class="sample-tabs" role="tablist" aria-label="Every block of a canvas: language"><button type="button" role="tab" id="s4-curl-tab" aria-controls="s4-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s4-ts-tab" aria-controls="s4-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s4-rust-tab" aria-controls="s4-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s4-python-tab" aria-controls="s4-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s4-curl" aria-labelledby="s4-curl-tab" data-lang="curl"><pre><code class="language-curl">url=&quot;https://canvas.example.com/api/v1/files/doc_1/blocks?limit=100&quot;
+while [ -n &quot;$url&quot; ]; do
+  page=$(curl -s &quot;$url&quot; -H &quot;X-OpenCanvas-Host: acme&quot; -H &quot;X-OpenCanvas-Key: $OC_API_KEY&quot;)
+  echo &quot;$page&quot; | jq -c &#x27;.blocks[]&#x27;
+  cursor=$(echo &quot;$page&quot; | jq -r &#x27;.next_cursor // empty&#x27;)
+  url=${cursor:+&quot;https://canvas.example.com/api/v1/files/doc_1/blocks?limit=100&amp;cursor=$cursor&quot;}
+done</code></pre></div><div role="tabpanel" id="s4-ts" aria-labelledby="s4-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">// paginate() follows next_cursor and yields each item.
+for await (const block of oc.paginate(&quot;listBlocks&quot;, { fileId: &quot;doc_1&quot;, query: { limit: 100 } })) {
+  console.log(block);
+}</code></pre></div><div role="tabpanel" id="s4-rust" aria-labelledby="s4-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use futures::StreamExt;
+use opencanvas_client::{CallOptions, Params};
+
+let mut blocks = Box::pin(oc.paginate(&quot;listBlocks&quot;, Params::file(&quot;doc_1&quot;).query(&quot;limit&quot;, 100), CallOptions::default()));
+while let Some(block) = blocks.next().await {
+    println!(&quot;{}&quot;, block?);
+}</code></pre></div><div role="tabpanel" id="s4-python" aria-labelledby="s4-python-tab" data-lang="python" hidden><pre><code class="language-python">def every_block(api, file_id):
+    params = {&quot;limit&quot;: 100}
+    while True:
+        r = api.get(f&quot;{BASE}/files/{file_id}/blocks&quot;, params=params, timeout=30)
+        r.raise_for_status()
+        page = r.json()
+        yield from page[&quot;blocks&quot;]
+        if not page[&quot;has_more&quot;]:
+            return
+        params[&quot;cursor&quot;] = page[&quot;next_cursor&quot;]</code></pre></div></div>
+<h2 id="cursors">Cursors</h2>
+<ul><li><strong>Opaque and signed.</strong> Do not build or change them; a changed cursor answers <code>400 CURSOR_INVALID</code>.</li><li><strong>Bound to the request.</strong> A block cursor belongs to its file; a row cursor to its file, database, <code>filter</code>, <code>sort</code> and <code>fields</code>. Sending it with other values is <code>CURSOR_INVALID</code>.</li><li><strong>Valid for an hour.</strong> After that, <code>410 CURSOR_EXPIRED</code>: start again without one.</li><li><strong>Stable under edits.</strong> A block cursor is a position after the last block you got (a Yjs relative position), not an index. A block inserted or deleted before it does not shift the next page, and if that last block is deleted, the next page starts at its successor. Every block that exists for the whole walk is returned exactly once.</li></ul>
+<h2 id="errors">Errors</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Status</th><th scope="col">Code</th><th scope="col">When</th></tr></thead><tbody><tr><td>400</td><td><code>CURSOR_INVALID</code></td><td>Not a cursor this server signed for this file and query.</td></tr><tr><td>410</td><td><code>CURSOR_EXPIRED</code></td><td>Older than an hour.</td></tr><tr><td>400</td><td><code>BAD_INPUT</code></td><td><code>filter</code> or <code>sort</code> is not a JSON array.</td></tr></tbody></table></div>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/errors.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Errors</span></a><a class="pn pn-next" href="../api/idempotency.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Idempotency</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#how-it-works">How it works</a></li><li><a href="#walk-every-page">Walk every page</a></li><li><a href="#cursors">Cursors</a></li><li><a href="#errors">Errors</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

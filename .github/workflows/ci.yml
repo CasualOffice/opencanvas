@@ -25,6 +25,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: bash scripts/check-spdx.sh   # every source file carries the Apache-2.0 SPDX header
       - run: cargo fmt --all -- --check
+      - run: python3 -I tools/test_apilib.py && python3 -I tools/check-openapi.py   # API-DOCS-01: every operation documented, examples valid, error codes match the server
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 

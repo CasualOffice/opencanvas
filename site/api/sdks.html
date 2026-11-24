@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>SDKs | OpenCanvas</title>
+<meta name="description" content="The OpenCanvas API clients for TypeScript (@opencanvas/client) and Rust (opencanvas-client): install, credentials, typed calls, retries, idempotency, paging, events, typed errors and webhook checks.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/sdks.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="SDKs | OpenCanvas">
+<meta property="og:description" content="The OpenCanvas API clients for TypeScript (@opencanvas/client) and Rust (opencanvas-client): install, credentials, typed calls, retries, idempotency, paging, events, typed errors and webhook checks.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/sdks.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--guide">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/events.html">Events</a></li><li><a href="../api/webhooks.html">Webhooks</a></li><li><a href="../api/sdks.html" aria-current="page">SDKs</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../api/reference/canvas.html">Canvas</a></li><li><a href="../api/reference/blocks.html">Blocks</a></li><li><a href="../api/reference/databases.html">Databases</a></li><li><a href="../api/reference/boards.html">Boards</a></li><li><a href="../api/reference/comments.html">Comments</a></li><li><a href="../api/reference/members.html">Members</a></li><li><a href="../api/reference/files.html">Export and import</a></li><li><a href="../api/reference/streams.html">Events and sync</a></li><li><a href="../api/reference/admin.html">Admin</a></li><li><a href="../api/reference/meta.html">OpenAPI document</a></li><li><a href="../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/events.html">Events</a></li><li><a href="../api/webhooks.html">Webhooks</a></li><li><a href="../api/sdks.html" aria-current="page">SDKs</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../api/reference/canvas.html">Canvas</a></li><li><a href="../api/reference/blocks.html">Blocks</a></li><li><a href="../api/reference/databases.html">Databases</a></li><li><a href="../api/reference/boards.html">Boards</a></li><li><a href="../api/reference/comments.html">Comments</a></li><li><a href="../api/reference/members.html">Members</a></li><li><a href="../api/reference/files.html">Export and import</a></li><li><a href="../api/reference/streams.html">Events and sync</a></li><li><a href="../api/reference/admin.html">Admin</a></li><li><a href="../api/reference/meta.html">OpenAPI document</a></li><li><a href="../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>SDKs</h1>
+<p class="lede">Two clients wrap the API with the same behaviour: typed operations generated from the OpenAPI document, an Idempotency-Key on every write, retries after Retry-After, cursor paging, resumable events, typed errors and the webhook signature check. Both are Apache-2.0 and versioned with the server.</p>
+<h2 id="install">Install</h2>
+<p>Both clients live in the OpenCanvas repository and are <strong>not yet published</strong> to npm or crates.io.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Client</th><th scope="col">Where</th><th scope="col">Runs on</th></tr></thead><tbody><tr><td>TypeScript <code>@opencanvas/client</code></td><td>[<code>web/packages/client</code>](../../../web/packages/client)</td><td>Node 20+, browsers, Deno, edge runtimes. No runtime dependency beyond <code>fetch</code>.</td></tr><tr><td>Rust <code>opencanvas-client</code> (library <code>opencanvas_client</code>)</td><td>[<code>crates/oc-client</code>](../../../crates/oc-client)</td><td>Tokio, <code>reqwest</code> and <code>serde</code>.</td></tr></tbody></table></div>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Add the client</span><div class="sample-tabs" role="tablist" aria-label="Add the client: language"><button type="button" role="tab" id="s9-curl-tab" aria-controls="s9-curl" aria-selected="true" tabindex="0" data-lang="curl">Shell</button><button type="button" role="tab" id="s9-ts-tab" aria-controls="s9-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s9-rust-tab" aria-controls="s9-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s9-python-tab" aria-controls="s9-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s9-curl" aria-labelledby="s9-curl-tab" data-lang="curl"><pre><code class="language-curl"># TypeScript: build the package from a checkout, then depend on the folder.
+git clone https://github.com/CasualOffice/opencanvas
+cd opencanvas/web &amp;&amp; pnpm install &amp;&amp; pnpm --filter @opencanvas/client build
+cd /path/to/your/app &amp;&amp; npm install /path/to/opencanvas/web/packages/client
+
+# Rust: a git dependency.
+cargo add opencanvas-client --git https://github.com/CasualOffice/opencanvas</code></pre></div><div role="tabpanel" id="s9-ts" aria-labelledby="s9-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">// package.json, after building web/packages/client in a checkout:
+//   &quot;dependencies&quot;: { &quot;@opencanvas/client&quot;: &quot;file:../opencanvas/web/packages/client&quot; }
+import { OpenCanvas } from &quot;@opencanvas/client&quot;;</code></pre></div><div role="tabpanel" id="s9-rust" aria-labelledby="s9-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">// Cargo.toml:
+//   [dependencies]
+//   opencanvas-client = { git = &quot;https://github.com/CasualOffice/opencanvas&quot; }
+//   tokio = { version = &quot;1&quot;, features = [&quot;macros&quot;, &quot;rt-multi-thread&quot;] }
+use opencanvas_client::{Auth, Client};</code></pre></div><div role="tabpanel" id="s9-python" aria-labelledby="s9-python-tab" data-lang="python" hidden><pre><code class="language-python"># No Python client yet: the samples on these pages use requests.
+# pip install requests
+import requests</code></pre></div></div>
+<h2 id="create-a-client">Create a client</h2>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Host key or user token</span><div class="sample-tabs" role="tablist" aria-label="Host key or user token: language"><button type="button" role="tab" id="s10-curl-tab" aria-controls="s10-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s10-ts-tab" aria-controls="s10-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s10-rust-tab" aria-controls="s10-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s10-python-tab" aria-controls="s10-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s10-curl" aria-labelledby="s10-curl-tab" data-lang="curl"><pre><code class="language-curl"># curl: send the headers yourself (see Authentication).
+curl -s &quot;https://canvas.example.com/api/v1/files/doc_1&quot; \
+  -H &quot;X-OpenCanvas-Host: acme&quot; -H &quot;X-OpenCanvas-Key: $OC_API_KEY&quot;</code></pre></div><div role="tabpanel" id="s10-ts" aria-labelledby="s10-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">import { OpenCanvas } from &quot;@opencanvas/client&quot;;
+
+const oc = new OpenCanvas({
+  baseUrl: &quot;https://canvas.example.com&quot;,
+  auth: { hostId: &quot;acme&quot;, key: process.env.OC_API_KEY!, author: &quot;u_42&quot; },
+  // or a user token, minted before every request so it never expires mid-job:
+  // auth: { token: () =&gt; mintUserToken(&quot;u_42&quot;, &quot;canvas:read canvas:write&quot;, [&quot;doc_1&quot;]) },
+  maxRetries: 3,
+});</code></pre></div><div role="tabpanel" id="s10-rust" aria-labelledby="s10-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::{Auth, Client};
+
+let oc = Client::builder(&quot;https://canvas.example.com&quot;)
+    .auth(Auth::host_key(&quot;acme&quot;, std::env::var(&quot;OC_API_KEY&quot;).expect(&quot;OC_API_KEY&quot;)))
+    // or .auth(Auth::Token(token)), or Auth::TokenFn(...) to mint one per request
+    .max_retries(3)
+    .build();</code></pre></div><div role="tabpanel" id="s10-python" aria-labelledby="s10-python-tab" data-lang="python" hidden><pre><code class="language-python">import os
+
+import requests
+
+api = requests.Session()
+api.headers.update({&quot;X-OpenCanvas-Host&quot;: &quot;acme&quot;, &quot;X-OpenCanvas-Key&quot;: os.environ[&quot;OC_API_KEY&quot;]})</code></pre></div></div>
+<h2 id="what-both-do">What both do</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Feature</th><th scope="col">Behaviour</th></tr></thead><tbody><tr><td>Typed operations</td><td>One method per operation, with the types of its parameters, body and answer, generated from <code>openapi.json</code> (TypeScript <code>scripts/gen.mjs</code>, Rust <code>tests/models.rs</code>; CI fails when they drift). The generic <code>call(operationId, params, options)</code> answers status, headers, <code>etag</code>, <code>replayed</code> and <code>rateLimit</code> too.</td></tr><tr><td>Credentials</td><td>The host key (with optional <code>author</code> and callback token) or a user token; a token callback runs before every request.</td></tr><tr><td>Idempotency</td><td>Every write carries an <code>Idempotency-Key</code>: a random one per call, the same on each retry of that call. Pass your own to survive a process restart, or none.</td></tr><tr><td>Retries</td><td><code>429</code>, <code>503</code> and <code>409 IDEMPOTENCY_IN_PROGRESS</code>, after <code>Retry-After</code> (else 500 ms doubling, at most 30 s), 3 times by default. Network errors are retried for reads and keyed writes only. The wait is injectable, so tests never sleep.</td></tr><tr><td>Errors</td><td>Problem details as typed errors, by <code>code</code> first, then status: stale block (412, with <code>fresh</code>), rate limited (<code>retryAfterSecs</code>), key reused, key in progress, cursor expired, bad request, unauthorized, forbidden, not found, conflict, gone, precondition failed, too large, unprocessable, unavailable, server.</td></tr><tr><td>Paging</td><td><code>paginate</code> follows <code>next_cursor</code> through <code>listBlocks</code> and <code>queryRows</code>, item by item.</td></tr><tr><td>Events</td><td>The SSE stream of a file. A dropped stream (or close code 4008) reconnects with <code>Last-Event-ID</code> and gets what it missed, or a <code>resync</code> event; 4001 and 4003 end it with an error.</td></tr><tr><td>Webhooks</td><td><code>verifyWebhook</code> / <code>verify_webhook</code>: the <code>v2</code> check, in constant time, with a 5-minute window.</td></tr></tbody></table></div>
+<h2 id="typed-errors">Typed errors</h2>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Handle a stale write</span><div class="sample-tabs" role="tablist" aria-label="Handle a stale write: language"><button type="button" role="tab" id="s11-curl-tab" aria-controls="s11-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s11-ts-tab" aria-controls="s11-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s11-rust-tab" aria-controls="s11-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s11-python-tab" aria-controls="s11-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s11-curl" aria-labelledby="s11-curl-tab" data-lang="curl"><pre><code class="language-curl"># 412 with &quot;code&quot;: &quot;STALE_BLOCK&quot;: re-read, apply your change again, send it with the new rev.
+curl -s -o answer.json -w &#x27;%{http_code}\n&#x27; -X POST \
+  &quot;https://canvas.example.com/api/v1/files/doc_1/blocks:batch&quot; \
+  -H &quot;X-OpenCanvas-Host: acme&quot; -H &quot;X-OpenCanvas-Key: $OC_API_KEY&quot; \
+  -H &quot;Content-Type: application/json&quot; -H &#x27;If-Match: &quot;c465d27bcd7e&quot;&#x27; \
+  -d &#x27;{&quot;ops&quot;: [{&quot;op&quot;: &quot;append&quot;, &quot;markdown&quot;: &quot;Shipped.&quot;}]}&#x27;
+jq -r .code answer.json</code></pre></div><div role="tabpanel" id="s11-ts" aria-labelledby="s11-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">import { RateLimitedError, StaleBlockError } from &quot;@opencanvas/client&quot;;
+
+try {
+  await oc.batchBlocks(
+    { fileId: &quot;doc_1&quot;, body: { ops: [{ op: &quot;append&quot;, markdown: &quot;Shipped.&quot; }] } },
+    { ifMatch: doc.rev },
+  );
+} catch (e) {
+  if (e instanceof StaleBlockError) console.log(&quot;changed meanwhile&quot;, e.fresh);
+  else if (e instanceof RateLimitedError) console.log(&quot;retry in&quot;, e.retryAfterSecs, &quot;s&quot;);
+  else throw e;
+}</code></pre></div><div role="tabpanel" id="s11-rust" aria-labelledby="s11-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::ProblemKind;
+
+match oc.batch_blocks(&quot;doc_1&quot;, &amp;req, &amp;CallOptions::if_match(rev)).await {
+    Ok(result) =&gt; println!(&quot;{:?}&quot;, result.block_ids),
+    Err(e) if e.kind() == Some(ProblemKind::StaleBlock) =&gt; {
+        println!(&quot;changed meanwhile: {:?}&quot;, e.api().and_then(|a| a.fresh()));
+    }
+    Err(e) =&gt; return Err(e),
+}</code></pre></div><div role="tabpanel" id="s11-python" aria-labelledby="s11-python-tab" data-lang="python" hidden><pre><code class="language-python">r = api.post(f&quot;{BASE}/files/doc_1/blocks:batch&quot;,
+             json={&quot;ops&quot;: [{&quot;op&quot;: &quot;append&quot;, &quot;markdown&quot;: &quot;Shipped.&quot;}]},
+             headers={&quot;If-Match&quot;: f&#x27;&quot;{rev}&quot;&#x27;}, timeout=30)
+if r.status_code == 412 and r.json().get(&quot;code&quot;) == &quot;STALE_BLOCK&quot;:
+    print(&quot;changed meanwhile&quot;, r.json()[&quot;fresh&quot;])
+else:
+    r.raise_for_status()</code></pre></div></div>
+<h2 id="paging-events-and-webhooks">Paging, events and webhooks</h2>
+<p>See <a href="../api/pagination.html">pagination</a>, <a href="../api/events.html">events</a> and <a href="../api/webhooks.html">webhooks</a>: each page has the client samples beside curl and Python.</p>
+<h2 id="the-conformance-suite">The conformance suite</h2>
+<p><code>crates/oc-server/api/conformance.json</code> is one list of scenarios that both clients run against a real server: a read, a block batch with <code>If-Match</code>, idempotent replay, paging, a rate limit, an events resume and a webhook signature, plus offline webhook signature vectors. The server pins its clock, so no scenario sleeps. A third-party client can run the same scenarios; the format is in the <a href="../docs/integration.html">integration guide</a>.</p>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/webhooks.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Webhooks</span></a><a class="pn pn-next" href="../api/changelog.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Changelog</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#install">Install</a></li><li><a href="#create-a-client">Create a client</a></li><li><a href="#what-both-do">What both do</a></li><li><a href="#typed-errors">Typed errors</a></li><li><a href="#paging-events-and-webhooks">Paging, events and webhooks</a></li><li><a href="#the-conformance-suite">The conformance suite</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>
