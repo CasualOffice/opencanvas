@@ -19,6 +19,7 @@ See the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md).
 - Version history with named versions, preview and comparison, restore and temporary undo
   where supported by the host.
 - Headless API under `/api/v1` with OpenAPI 3.1, scoped tokens, and idempotency keys on file writes.
+- API events stream (SSE and WebSocket) with resume, and a headless sync token.
 - Server-rendered previews, host team templates, and a Grafana dashboard with alert rules.
 
 ### Changed

@@ -47,14 +47,15 @@ test("MOB-07: comments open full width on a phone", async ({ page }) => {
   await expect(side).toBeVisible();
   // The panel can re-render as it opens; measure once it has a box.
   // Keep the box the poll saw: a second boundingBox() can land mid re-render and return null.
-  let box: { x: number; y: number; width: number; height: number } | null = null;
+  type Box = { x: number; y: number; width: number; height: number };
+  const seen: { box: Box | null } = { box: null };
   await expect
     .poll(async () => {
-      box = await side.boundingBox();
-      return box?.width ?? 0;
+      seen.box = await side.boundingBox();
+      return seen.box?.width ?? 0;
     })
     .toBeGreaterThan(0);
-  if (!box) throw new Error("comments panel has no box");
+  const box = seen.box!;
   const vw = page.viewportSize()!.width;
   expect(box.x).toBeGreaterThanOrEqual(-1);
   expect(box.x + box.width).toBeLessThanOrEqual(vw + 1);
