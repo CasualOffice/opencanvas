@@ -1236,6 +1236,128 @@
         }
       }
     },
+    "/api/v1/files/{fileId}/boards": {
+      "post": {
+        "operationId": "createBoard",
+        "summary": "Create a board block with shapes",
+        "tags": [
+          "boards"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "true when this is the stored answer of an earlier request with the same Idempotency-Key",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "shapes"
+                ],
+                "properties": {
+                  "shapes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "[{ref?, kind: sticky|rect|ellipse|diamond|text|arrow, text?, tone?, x?, y?, from?, to?}]"
+                  },
+                  "afterBlockId": {
+                    "type": "string"
+                  },
+                  "layout": {
+                    "type": "string",
+                    "enum": [
+                      "grid",
+                      "flow",
+                      "cluster"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "A new board block after afterBlockId (default: the end) with the given shapes; shapes without coordinates are laid out (grid, flow or cluster). Answers the new boardId and blockId."
+      }
+    },
     "/api/v1/files/{fileId}/boards/{boardId}/shapes": {
       "get": {
         "operationId": "readBoard",

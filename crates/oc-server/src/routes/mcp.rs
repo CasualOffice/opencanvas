@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 
 use crate::SharedState;
 use crate::ai::HostAi;
-use crate::ai::tools::{CanvasTools, LiveTools, ToolError, role_allows};
+use crate::ai::tools::{ToolError, role_allows};
 use crate::authz::Principal;
 use crate::hosts::HostConfig;
 
@@ -137,12 +137,23 @@ fn negotiate(asked: Option<&str>) -> &'static str {
 }
 
 fn tool_result(out: Result<Value, ToolError>) -> Value {
+    tool_result_replayed(out.map(|v| (v, false)))
+}
+
+/// A tool result; a replayed idempotent call says so in `_meta` (HAPI-08).
+fn tool_result_replayed(out: Result<(Value, bool), ToolError>) -> Value {
     match out {
-        Ok(v) => json!({
-            "content": [{"type": "text", "text": v.to_string()}],
-            "structuredContent": v,
-            "isError": false,
-        }),
+        Ok((v, replayed)) => {
+            let mut r = json!({
+                "content": [{"type": "text", "text": v.to_string()}],
+                "structuredContent": v,
+                "isError": false,
+            });
+            if replayed {
+                r["_meta"] = json!({"idempotencyReplayed": true});
+            }
+            r
+        }
         Err(e) => {
             let mut body = json!({"code": e.code(), "message": e.message()});
             if let ToolError::Stale(v) = &e {
@@ -306,7 +317,25 @@ pub async fn mcp(
                     tool_result(Err(ToolError::BadInput("fileId is required".into()))),
                 );
             };
-            match call(&state, &caller, &file_id, name, args).await {
+            // A write takes from the file's write bucket too, like the API's (HAPI-08).
+            if let Some(op) = super::v1::ops::operation_for_call(name, &args)
+                && super::v1::ops::is_write(op)
+            {
+                let d = super::v1::ops::admit_write(&state, &caller, &file_id).await;
+                if !d.ok {
+                    let wait = d.retry_after.to_string();
+                    return (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        [(header::RETRY_AFTER, wait.as_str())],
+                        Json(
+                            json!({"error": "RATE_LIMITED", "retryAfterMs": d.retry_after * 1000}),
+                        ),
+                    )
+                        .into_response();
+                }
+            }
+            let key = params["_meta"]["idempotencyKey"].as_str();
+            match call_keyed(&state, &caller, &file_id, name, args, key).await {
                 // Cluster: the room's owner is unreachable or moving (docs/24 §5.6).
                 Err(ToolError::Unavailable(m)) => (
                     StatusCode::SERVICE_UNAVAILABLE,
@@ -315,7 +344,7 @@ pub async fn mcp(
                         "message": m, "data": {"code": "UNAVAILABLE", "retryAfterMs": 2000}}})),
                 )
                     .into_response(),
-                out => rpc_result(&id, tool_result(out)),
+                out => rpc_result(&id, tool_result_replayed(out)),
             }
         }
         "resources/templates/list" => rpc_result(
@@ -359,6 +388,8 @@ pub async fn mcp(
     }
 }
 
+/// One MCP canvas tool: a thin adapter over the API operation it stands for
+/// (`v1::ops::MCP_TOOLS`), run by the same operation layer as the API (HAPI-08).
 async fn call(
     state: &SharedState,
     caller: &Principal,
@@ -366,11 +397,38 @@ async fn call(
     name: &str,
     args: Value,
 ) -> Result<Value, ToolError> {
-    let spec = crate::ai::tools::phase1_specs()
-        .into_iter()
-        .find(|s| s.name == name)
+    let op = super::v1::ops::operation_for_call(name, &args)
         .ok_or_else(|| ToolError::NotFound(format!("unknown tool {name:?}")))?;
-    caller.scope_ok(spec.scope, name)?;
-    let ctx = caller.tool_ctx(state, file_id).await?;
-    LiveTools::new(state.clone()).call(&ctx, name, args).await
+    super::v1::ops::invoke(state, caller, op, file_id, args).await
+}
+
+/// [`call`] with an optional `_meta.idempotencyKey`: writes with a key go through the API's
+/// idempotency store (same key space per caller, 24 h replays). Answers whether the result is
+/// a replay.
+async fn call_keyed(
+    state: &SharedState,
+    caller: &Principal,
+    file_id: &str,
+    name: &str,
+    args: Value,
+    key: Option<&str>,
+) -> Result<(Value, bool), ToolError> {
+    use super::v1::ops::{self, Idem};
+    let write = ops::operation_for_call(name, &args).filter(|op| ops::is_write(op));
+    let (Some(op), Some(key)) = (write, key) else {
+        return call(state, caller, file_id, name, args)
+            .await
+            .map(|v| (v, false));
+    };
+    match ops::mcp_idempotent(state, caller, op, file_id, key, &args).await? {
+        Idem::Replay(v) => Ok((v, true)),
+        Idem::Run { id, hash } => {
+            let out = call(state, caller, file_id, name, args).await;
+            match &out {
+                Ok(v) => ops::mcp_finish(state, caller, &id, &hash, v).await,
+                Err(_) => ops::mcp_release(state, caller, &id, &hash).await,
+            }
+            out.map(|v| (v, false))
+        }
+    }
 }

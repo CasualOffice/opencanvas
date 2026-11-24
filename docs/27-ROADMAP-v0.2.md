@@ -561,6 +561,21 @@ if any lacks a matching operation.
   optional `yrs` CRDT-sync feature of §4.2 is not built: `create_sync_token` returns the ticket
   for any y-websocket client.
 
+- **HAPI-08 (2026-11-25, Review).** `routes/v1/ops.rs` is the one operation layer: canvas
+  operations are named by `operationId` and run by `ops::invoke` (scope ceiling, host role,
+  tool-layer step); the API handlers call it, and each MCP canvas tool is an adapter that names
+  its operation (`ops::MCP_TOOLS`) and calls the same function. MCP writes now also take from
+  the per-file write bucket and can use the API idempotency store through
+  `params._meta.idempotencyKey` (same key space per caller; the fingerprint is the operation and
+  its input). Closing the one gap the contract found: `board_add_shapes` without a `boardId`
+  creates a board, which the API could not do, so v1 gained `POST /api/v1/files/{fileId}/boards`
+  (`createBoard`, additive; both clients regenerated). The parity contract test
+  (`tests/mcp_api_parity.rs`) checks that every tool maps to documented operations with the same
+  scope and a route, that reads answer identical JSON on the same file, that writes answer the
+  same (ids aside) on two equal files that then read the same, and the shared bucket and store.
+  The existing MCP, agent and API suites pass unchanged; the tool `inputSchema`s are still
+  written by hand (generating them from the OpenAPI components, §4.2, is left for later).
+
 ---
 
 ## 5. Cross-cutting changes

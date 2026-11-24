@@ -35,7 +35,7 @@ pub const LEASE_SECS: i64 = 60;
 /// Longest answer stored; a longer one is not stored (the key is freed instead).
 const MAX_STORED: usize = 256 * 1024;
 
-fn sha(parts: &[&[u8]]) -> String {
+pub(crate) fn sha(parts: &[&[u8]]) -> String {
     let mut h = Sha256::new();
     for p in parts {
         h.update((p.len() as u64).to_be_bytes());

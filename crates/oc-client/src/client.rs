@@ -754,6 +754,17 @@ impl Client {
         .await
     }
 
+    /// `POST …/boards` with `{shapes, afterBlockId?, layout?}`: a new board block.
+    pub async fn create_board(
+        &self,
+        file_id: &str,
+        body: Value,
+        opts: &CallOptions,
+    ) -> Result<Value> {
+        self.typed("createBoard", Params::file(file_id).json(body), opts)
+            .await
+    }
+
     /// `POST …/boards/{boardId}/shapes`
     pub async fn add_shapes(
         &self,

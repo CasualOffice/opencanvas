@@ -18,6 +18,7 @@ pub mod cursor;
 pub mod events;
 pub mod idempotency;
 pub mod limits;
+pub mod ops;
 pub mod problem;
 
 use axum::Json;
@@ -34,7 +35,7 @@ use serde_json::{Value, json};
 use self::problem::Problem;
 use super::{api, export, import};
 use crate::SharedState;
-use crate::ai::tools::{CanvasTools, LiveTools};
+use crate::ai::tools::LiveTools;
 use crate::authz::{AuthError, Principal};
 use crate::grant::Role;
 
@@ -91,6 +92,7 @@ pub fn table() -> Table {
         .op(M::GET, p!("/databases/{dbId}/rows"), query_rows)
         .op(M::POST, p!("/databases/{dbId}/rows:upsert"), upsert_rows)
         .op(M::POST, p!("/databases/{dbId}/fields"), add_field)
+        .op(M::POST, p!("/boards"), create_board)
         .op(M::GET, p!("/boards/{boardId}/shapes"), board_shapes)
         .op(M::POST, p!("/boards/{boardId}/shapes"), add_shapes)
         .op(M::GET, p!("/comments"), list_comments)
@@ -250,26 +252,18 @@ fn check_file(file_id: &str) -> Result<(), Problem> {
     Ok(())
 }
 
-/// One tool-layer operation as the caller, with canvas content unwrapped from the agent
-/// notice (programs read it as data anyway).
+/// One canvas operation (by `operationId`) as the caller, through the operation layer shared
+/// with MCP ([`ops::invoke`]), with canvas content unwrapped from the agent notice (programs
+/// read it as data anyway).
 async fn tool(
     state: &SharedState,
     p: &Principal,
     file_id: &str,
-    name: &str,
-    mut input: Value,
+    op: &str,
+    input: Value,
 ) -> Result<Value, Problem> {
     check_file(file_id)?;
-    input["fileId"] = json!(file_id);
-    let spec = crate::ai::tools::phase1_specs()
-        .into_iter()
-        .find(|s| s.name == name)
-        .ok_or_else(|| Problem::not_found("NOT_FOUND", "unknown operation"))?;
-    p.scope_ok(spec.scope, name)?;
-    let ctx = p.tool_ctx(state, file_id).await?;
-    let out = LiveTools::new(state.clone())
-        .call(&ctx, name, input)
-        .await?;
+    let out = ops::invoke(state, p, op, file_id, input).await?;
     Ok(match (out.get("notice"), out.get("data")) {
         (Some(_), Some(d)) => d.clone(),
         _ => out,
@@ -359,14 +353,7 @@ async fn read_file(
 ) -> Answer {
     let p = caller(&state, &headers).await?;
     let format = q.format.unwrap_or_else(|| "json".into());
-    let out = tool(
-        &state,
-        &p,
-        &file_id,
-        "canvas_read",
-        json!({"format": format}),
-    )
-    .await?;
+    let out = tool(&state, &p, &file_id, "readFile", json!({"format": format})).await?;
     let rev = out["rev"].as_str().map(str::to_string);
     Ok(with_etag(out, rev.as_deref()))
 }
@@ -441,7 +428,7 @@ async fn get_block(
         &state,
         &p,
         &file_id,
-        "canvas_read",
+        "getBlock",
         json!({"format": "json", "blockIds": [block_id]}),
     )
     .await?;
@@ -468,7 +455,7 @@ async fn find_blocks(
     if let Some(l) = q.limit {
         input["limit"] = json!(l.clamp(1, 100));
     }
-    Ok(Json(tool(&state, &p, &file_id, "canvas_find", input).await?).into_response())
+    Ok(Json(tool(&state, &p, &file_id, "findBlocks", input).await?).into_response())
 }
 
 /// `If-Match: "<rev>"` (or `W/"<rev>"`, or bare): the document revision the batch expects.
@@ -495,7 +482,7 @@ async fn batch(
         // Only the header sets the document precondition.
         o.remove("ifMatchDoc");
     }
-    let out = tool(&state, &p, &file_id, "canvas_patch", input).await?;
+    let out = tool(&state, &p, &file_id, "batchBlocks", input).await?;
     let rev = out["rev"].as_str().map(str::to_string);
     Ok(with_etag(out, rev.as_deref()))
 }
@@ -506,7 +493,7 @@ async fn list_databases(
     headers: HeaderMap,
 ) -> Answer {
     let p = caller(&state, &headers).await?;
-    Ok(Json(tool(&state, &p, &file_id, "db_describe", json!({})).await?).into_response())
+    Ok(Json(tool(&state, &p, &file_id, "listDatabases", json!({})).await?).into_response())
 }
 
 async fn get_database(
@@ -515,7 +502,7 @@ async fn get_database(
     headers: HeaderMap,
 ) -> Answer {
     let p = caller(&state, &headers).await?;
-    let out = tool(&state, &p, &file_id, "db_describe", json!({"dbId": db_id})).await?;
+    let out = tool(&state, &p, &file_id, "getDatabase", json!({"dbId": db_id})).await?;
     let db = out["databases"]
         .as_array()
         .and_then(|d| d.first())
@@ -556,7 +543,7 @@ async fn query_rows(
         input["afterRow"] = pos["after"].clone();
         input["cursor"] = pos["o"].clone();
     }
-    let mut out = tool(&state, &p, &file_id, "db_query", input).await?;
+    let mut out = tool(&state, &p, &file_id, "queryRows", input).await?;
     let next = match (out["lastRow"].as_str(), out["next"].as_str()) {
         (Some(last), Some(o)) => Some(cursor::sign(
             &p.host,
@@ -610,7 +597,7 @@ async fn create_database(
     headers: HeaderMap,
     body: Bytes,
 ) -> Answer {
-    write_op(state, file_id, headers, body, "db_create", json!({})).await
+    write_op(state, file_id, headers, body, "createDatabase", json!({})).await
 }
 
 async fn upsert_rows(
@@ -624,7 +611,7 @@ async fn upsert_rows(
         file_id,
         headers,
         body,
-        "db_upsert_rows",
+        "upsertRows",
         json!({"dbId": db_id}),
     )
     .await
@@ -641,7 +628,7 @@ async fn add_field(
         file_id,
         headers,
         body,
-        "db_add_field",
+        "addField",
         json!({"dbId": db_id}),
     )
     .await
@@ -657,11 +644,26 @@ async fn board_shapes(
         &state,
         &p,
         &file_id,
-        "board_read",
+        "readBoard",
         json!({"boardId": board_id}),
     )
     .await?;
     Ok(Json(out).into_response())
+}
+
+async fn create_board(
+    State(state): State<SharedState>,
+    Path(file_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Answer {
+    let p = caller(&state, &headers).await?;
+    let mut input = body_object(&body)?;
+    if let Some(o) = input.as_object_mut() {
+        // Always a new board: adding to one is `POST …/boards/{boardId}/shapes`.
+        o.remove("boardId");
+    }
+    Ok(Json(tool(&state, &p, &file_id, "createBoard", input).await?).into_response())
 }
 
 async fn add_shapes(
@@ -675,7 +677,7 @@ async fn add_shapes(
         file_id,
         headers,
         body,
-        "board_add_shapes",
+        "addShapes",
         json!({"boardId": board_id}),
     )
     .await
@@ -692,7 +694,7 @@ async fn list_comments(
     if let Some(r) = q.resolved {
         input["resolved"] = json!(r);
     }
-    Ok(Json(tool(&state, &p, &file_id, "comment_list", input).await?).into_response())
+    Ok(Json(tool(&state, &p, &file_id, "listComments", input).await?).into_response())
 }
 
 async fn add_comment(
@@ -701,7 +703,7 @@ async fn add_comment(
     headers: HeaderMap,
     body: Bytes,
 ) -> Answer {
-    write_op(state, file_id, headers, body, "comment_add", json!({})).await
+    write_op(state, file_id, headers, body, "addComment", json!({})).await
 }
 
 async fn list_members(
@@ -718,7 +720,7 @@ async fn list_members(
     if let Some(l) = q.limit {
         input["limit"] = json!(l.clamp(1, 500));
     }
-    Ok(Json(tool(&state, &p, &file_id, "members_list", input).await?).into_response())
+    Ok(Json(tool(&state, &p, &file_id, "listMembers", input).await?).into_response())
 }
 
 async fn export_file(
