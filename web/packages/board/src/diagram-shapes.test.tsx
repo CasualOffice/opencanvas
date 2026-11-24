@@ -338,7 +338,7 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     act(() => btn(dg, "Collapse shapes panel")!.click());
     const rail = dg.querySelector<HTMLElement>("aside.ocdg-rail")!;
     const names = [...rail.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-    expect(names.slice(0, 4)).toEqual(["Expand shapes panel", "Search shapes", "Recent", "Test shapes"]);
+    expect(names.slice(0, 5)).toEqual(["Expand shapes panel", "Search shapes", "Recent", "Icons", "Test shapes"]);
     expect(names.at(-1)).toBe("Outline");
     expect(JSON.parse(localStorage.getItem("oc-diagram-rail")!)).toBe(true);
     act(() => btn(rail, "Test shapes")!.click());
@@ -355,6 +355,23 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     expect(document.querySelector(".ocdg")).toBeTruthy(); // Esc closed the flyout, not diagram mode
     act(() => btn(rail, "Expand shapes panel")!.click());
     expect(dg.querySelector("aside.ocdg-rail")).toBeNull();
+  });
+
+  it("the rail has an Icons button: the Icons library as a flyout, by group (UX-DGM-01)", async () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    const dg = await open(doc, id);
+    act(() => btn(dg, "Collapse shapes panel")!.click());
+    const rail = dg.querySelector<HTMLElement>("aside.ocdg-rail")!;
+    act(() => btn(rail, "Icons")!.click());
+    const fly = () => dg.querySelector<HTMLElement>('[role="dialog"][aria-label="Icons"]');
+    expect(fly()).toBeTruthy();
+    expect(btn(rail, "Icons")!.getAttribute("aria-expanded")).toBe("true");
+    expect(fly()!.querySelector('[data-group="compute"] .ocdg-tile')).toBeTruthy();
+    expect(document.activeElement?.classList.contains("ocdg-tile")).toBe(true);
+    act(() => fly()!.querySelector<HTMLButtonElement>(".ocdg-tile")!.click());
+    expect(fly()).toBeNull();
+    expect(all(doc, id)[0]).toMatchObject({ kind: "icon:node" });
   });
 
   it("Shapes and Outline are tabs (arrow keys switch); view-only people get the outline only", async () => {

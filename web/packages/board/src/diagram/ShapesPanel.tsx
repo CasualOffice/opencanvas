@@ -303,7 +303,7 @@ function BetaTag({ id }: { id: string }) {
 }
 
 /** What the panel shows: everything, or one part of it (a flyout from the rail). */
-type Only = { library: string } | "search" | "recent";
+type Only = { library: string } | "search" | "recent" | "icons";
 
 export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { onAdd: AddShape; flags?: PanelFlags; only?: Only; autoFocus?: boolean; onAddOwnIcon?: () => void }) {
   const [q, setQ] = useState("");
@@ -409,6 +409,30 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
       ) : null}
     </section>
   );
+  // The Icons library's groups (Compute and Storage open by default): in the panel and in the rail's flyout.
+  const iconGroups = ICON_CATEGORIES.map((c) => {
+    const items = GENERIC_ICONS.filter((i) => i.category === c.id);
+    const key = `icons:${c.id}`;
+    const on = iconOpen(key);
+    return (
+      <section key={c.id} className="ocdg-ig" data-group={c.id} aria-label={c.name}>
+        <h4 className="ocdg-igh">
+          <button type="button" aria-expanded={on} onClick={() => setOpen(key, !on)}>
+            <ChevronRight size={12} strokeWidth={SW} className="ocdg-chev" aria-hidden="true" />
+            <span>{c.name}</span>
+            <span className="ocdg-cnt">{items.length}</span>
+          </button>
+        </h4>
+        {on ? (
+          <div className="ocdg-tiles">
+            {items.map((i) => (
+              <IconTile key={i.id} icon={i} onAdd={onAdd} />
+            ))}
+          </div>
+        ) : null}
+      </section>
+    );
+  });
   const iconLibrary = (
     <section className="ocdg-lib" data-library="icons">
       <h3 className="ocdg-lh">
@@ -419,31 +443,7 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
           <span className="ocdg-cnt">{GENERIC_ICONS.length}</span>
         </button>
       </h3>
-      {iconOpen("icons")
-        ? ICON_CATEGORIES.map((c) => {
-            const items = GENERIC_ICONS.filter((i) => i.category === c.id);
-            const key = `icons:${c.id}`;
-            const on = iconOpen(key);
-            return (
-              <section key={c.id} className="ocdg-ig" data-group={c.id} aria-label={c.name}>
-                <h4 className="ocdg-igh">
-                  <button type="button" aria-expanded={on} onClick={() => setOpen(key, !on)}>
-                    <ChevronRight size={12} strokeWidth={SW} className="ocdg-chev" aria-hidden="true" />
-                    <span>{c.name}</span>
-                    <span className="ocdg-cnt">{items.length}</span>
-                  </button>
-                </h4>
-                {on ? (
-                  <div className="ocdg-tiles">
-                    {items.map((i) => (
-                      <IconTile key={i.id} icon={i} onAdd={onAdd} />
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-            );
-          })
-        : null}
+      {iconOpen("icons") ? iconGroups : null}
     </section>
   );
 
@@ -503,6 +503,8 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
     );
   } else if (only === "search") {
     body = <p className="ocdg-hint ocdg-pad">Type a shape's name, or a word like “database” or “decision”.</p>;
+  } else if (only === "icons") {
+    body = <section className="ocdg-lib" data-library="icons">{iconGroups}</section>;
   } else if (only === "recent") {
     body = recentShown.length ? (
       <div className="ocdg-tiles">{recentShown.map((k) => <Tile key={k} kind={k} onAdd={add} />)}</div>
@@ -680,13 +682,14 @@ export function LeftPanel({ tab, onTab, shapes, outline, onAdd, flags }: { tab: 
         <I size={16} strokeWidth={SW} />
       </button>
     );
-    const flyName = fly === "search" ? "Search shapes" : fly === "recent" ? "Recent" : fly ? (libs.find((l) => l.id === fly.library)?.name ?? "Shapes") : "";
+    const flyName = fly === "search" ? "Search shapes" : fly === "recent" ? "Recent" : fly === "icons" ? "Icons" : fly ? (libs.find((l) => l.id === fly.library)?.name ?? "Shapes") : "";
     return (
       <aside className="ocdg-side ocdg-left ocdg-rail" data-side="left" aria-label="Shapes">
         {railBtn("Expand shapes panel", PanelLeftOpen, null, () => setRail(false))}
         <span className="ocdg-rsep" />
         {railBtn("Search shapes", Search, "search")}
         {railBtn("Recent", History, "recent")}
+        {railBtn("Icons", ShapesIcon, "icons")}
         {libs.map((l) => railBtn(l.name, ICONS[l.icon] ?? Boxes, { library: l.id }))}
         <span className="ocdg-rsep" />
         {railBtn("Outline", ListTree, null, () => (setRail(false), onTab("outline")))}
