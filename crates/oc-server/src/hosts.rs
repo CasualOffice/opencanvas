@@ -86,6 +86,10 @@ pub struct HostConfig {
     /// issuer, default write mode, admin scope for tokens, rate limits).
     #[serde(default)]
     pub api: toml::Table,
+    /// `[host.webhooks]` (WH-01, ADR-056): `url`, `events`, `secret`, `max_attempts`; read
+    /// through `crate::webhooks::WebhookCfg`.
+    #[serde(default)]
+    pub webhooks: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -392,8 +396,13 @@ impl Hosts {
                 }
                 other => bail!("host {}: unknown storage {other} (host | ephemeral)", h.id),
             }
+            if let Some(toml::Value::String(s)) = h.webhooks.get("secret").cloned() {
+                let s = resolve(Some(s))?.unwrap_or_default();
+                h.webhooks.insert("secret".into(), toml::Value::String(s));
+            }
             if h.wopi_only() {
                 h.callback_base = h.callback_base.trim_end_matches('/').to_string();
+                crate::webhooks::WebhookCfg::of(&h).with_context(|| format!("host {}", h.id))?;
                 list.push(h);
                 continue;
             }
@@ -433,6 +442,7 @@ impl Hosts {
                 h.callback_base = base.to_string();
             }
             h.callback_base = h.callback_base.trim_end_matches('/').to_string();
+            crate::webhooks::WebhookCfg::of(&h).with_context(|| format!("host {}", h.id))?;
             list.push(h);
         }
         Ok(Self::from_list(list))

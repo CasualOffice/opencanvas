@@ -261,6 +261,9 @@ pub struct Metrics {
     pub exports: CounterVec,
     /// HTTP responses by status class.
     pub http_responses: CounterVec,
+    /// Webhook attempts by `(host, result)` and their time by `host` (WH-01).
+    pub webhook_deliveries: CounterVec,
+    pub webhook_seconds: HistogramVec,
 }
 
 impl Metrics {
@@ -407,6 +410,16 @@ impl Metrics {
         self.http_responses.render(
             "oc_http_responses_total",
             "HTTP responses by status class (WebSocket upgrades count as 1xx).",
+            &mut out,
+        );
+        self.webhook_deliveries.render(
+            "oc_webhook_deliveries_total",
+            "Webhook attempts by host and result (ok, retry, rejected, gave_up, refused).",
+            &mut out,
+        );
+        self.webhook_seconds.render(
+            "oc_webhook_delivery_seconds",
+            "Time of one webhook attempt, by host.",
             &mut out,
         );
         // MOD-01: unknown nodes, marks, attributes, field or shape types seen when reading a

@@ -17,6 +17,9 @@ use tokio::sync::{mpsc, oneshot};
 use crate::crypto::{self, Kek};
 use crate::grant::{Grant, Role};
 
+mod webhooks;
+pub use webhooks::{WebhookRow, WebhookState};
+
 static SQLITE: Migrator = sqlx::migrate!("../../migrations/sqlite");
 static MYSQL: Migrator = sqlx::migrate!("../../migrations/mysql");
 
@@ -1110,6 +1113,8 @@ impl Store {
         sqlx::query("DELETE FROM api_idempotency WHERE expires_at < ?")
             .bind(now)
             .execute(&self.pool)
+            .await?;
+        self.webhook_purge(now * 1000 - crate::webhooks::KEEP_MS)
             .await?;
         Ok(())
     }

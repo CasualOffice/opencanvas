@@ -31,6 +31,7 @@ pub mod store;
 pub mod team_templates;
 pub mod unfurl;
 pub mod util;
+pub mod webhooks;
 pub mod wopi;
 
 use std::collections::HashMap;
@@ -71,6 +72,8 @@ pub struct AppState {
     pub history: history::Caches,
     /// One limiter for the API and MCP (HAPI-04); in Redis when there is one.
     pub limiter: ratelimit::Limiter,
+    /// Webhook delivery (WH-01): HTTP client and the worker's wake-up.
+    pub webhooks: Arc<webhooks::Webhooks>,
 }
 
 #[derive(Clone, Copy)]
@@ -161,6 +164,28 @@ impl AppState {
         }
         let unfurl = unfurl::Unfurler::new(cfg.unfurl.clone());
         let clock: Arc<clock::Clock> = Default::default();
+        let webhooks: Arc<webhooks::Webhooks> = Default::default();
+        let hooked: Vec<&str> = hosts
+            .iter()
+            .filter(|h| !h.webhooks.is_empty())
+            .map(|h| h.id.as_str())
+            .collect();
+        if !hooked.is_empty() {
+            if store.is_redis_only() {
+                anyhow::bail!(
+                    "[host.webhooks] ({}) needs a database for its outbox (DATABASE_URL: SQLite, MySQL or MariaDB); Redis-only storage has none (ADR-056)",
+                    hooked.join(", ")
+                );
+            }
+            webhooks::spawn_writer(
+                &rooms.ctx().events,
+                hosts.clone(),
+                store.clone(),
+                clock.clone(),
+                webhooks.clone(),
+            );
+            tracing::info!(hosts = %hooked.join(", "), "webhooks on");
+        }
         let limiter = ratelimit::Limiter::new(clock.clone(), store.redis_wal().map(|w| w.conn()));
         let state = Arc::new(Self {
             unfurl,
@@ -179,6 +204,7 @@ impl AppState {
             clock,
             history: Default::default(),
             limiter,
+            webhooks,
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
@@ -302,6 +328,40 @@ impl AppState {
             attempted += 1;
         }
         Ok(attempted)
+    }
+}
+
+impl AppState {
+    /// Webhook worker (WH-01, ADR-056): sends every delivery due at `now_ms` (server clock),
+    /// at most 8 at a time. Each row is claimed first, so one node sends each attempt.
+    /// Returns how many were attempted.
+    pub async fn deliver_webhooks(&self, now_ms: i64) -> anyhow::Result<usize> {
+        use futures::StreamExt;
+        let mut claimed = Vec::new();
+        for row in self.store.webhook_due(now_ms, 100).await? {
+            if self
+                .store
+                .webhook_claim(&row.id, row.next_try_at, now_ms + webhooks::CLAIM_MS)
+                .await?
+            {
+                claimed.push(row);
+            }
+        }
+        let n = claimed.len();
+        futures::stream::iter(claimed)
+            .for_each_concurrent(webhooks::PARALLEL, |row| async move {
+                let host = self.hosts.get(&row.host_id);
+                self.webhooks
+                    .attempt(&self.store, &self.metrics, host.as_deref(), &row, now_ms)
+                    .await;
+            })
+            .await;
+        Ok(n)
+    }
+
+    /// True when some host has `[host.webhooks]`.
+    pub fn webhooks_on(&self) -> bool {
+        self.hosts.iter().any(|h| !h.webhooks.is_empty())
     }
 }
 

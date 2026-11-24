@@ -57,6 +57,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-053 | Diagram import parsers (DGM-15): `oc-model` gains `roxmltree` 0.21, `flate2` 1 and `percent-encoding` 2 as direct dependencies (all three already in Cargo.lock through resvg/usvg and reqwest; no new crate, no new version). draw.io and Excalidraw are converted on the server only, through FC-10 | Proposed (needs owner sign-off) |
 | ADR-054 | Headless API v1 boundary details (HAPI-01/02): `/api/v1` behind `[host.flags] api_v1`; RFC 9457 types `urn:opencanvas:problem:<code>`; 0.1 host routes kept as aliases with `Deprecation` (RFC 9745) and `Link: rel="successor-version"`; user tokens host-minted (no exchange, no token store), `iss` → one host (`[host.api] issuer`), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, ≤ 15 min; one `authz::Principal` check shared with MCP; `canvas:admin` for tokens only with `[host.api] token_admin` (docs/27 §4.4) | Proposed (2026-11-24) |
 | ADR-055 | In-file bounded history: besides host versions (ADR-051), a host may keep a bounded history inside the `.ocanvas` (`history/index.json` + `history/<id>.deflate`, additive to format 1): each kept version is the compressed reverse structural diff (newer → older, over `document.json`) plus kind, name, authors and time, never a full copy; Yjs GC stays on. Bounds `[host.versions] file_max_kb` (1024) and `file_max_versions` (50): the oldest automatic versions go first, named ones last. `[host.versions] file` (default on for JWT hosts, off for WOPI hosts; never for temporary canvases) turns it off where deleted text must not travel with the file; `prefer_host` picks the list shown first when both exist (docs/30 §13) | Accepted (owner, 2026-11-24, by message) |
+| ADR-056 | Webhooks (WH-01): the HAPI-05 events POSTed to `[host.webhooks] url` (same origin as the host's `callback_base`: the SSRF rule), signed with `X-OpenCanvas-Signature` v2 and the host secret (or `[host.webhooks] secret`), event id as `Idempotency-Key`; a durable `webhook_outbox` (metadata only, rule 5) on SQLite/MySQL/MariaDB written by the room's owner, claimed per row so one node delivers; backoff 10 s → 12 h with `Retry-After`, give-up after `max_attempts` (12) | Proposed |
 | ADR-057 | Icons people add (DGM-17): a server-written document root `icons` `{id → {name, keywords, format, data (cleaned file, base64), width, height, bytes, by, byName, at}}` (exception to ADR-045 §1: a new root, so a document is self-contained and exports never fetch); client updates that touch it are refused, like `comments` for the comment role; `POST /v1/icons` (editors, 20 a minute) cleans the file (`oc_model::icon_clean`: roxmltree pre-scan without DTDs, usvg normalisation, allow-list, 256 KB in / 64 KB cleaned, 2,000 elements, depth 16; PNG by magic bytes, ≤ 256 KB and 1024 px, re-encoded) and writes it through the room; 200 icons and 1 MB per document; every reader checks a stored icon again; the editor and both exporters draw it as `<image href="data:…">`, never inline markup | Accepted (owner approved the design via the prototype, 2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
@@ -744,6 +745,61 @@ default, so no entity expansion and no external entities; node limit), `flate2` 
 read through a size cap) and `percent-encoding` 2. `base64` and `serde_json` were already direct.
 **Consequences.** + No new crate or version in the tree; + parser limits are ours to test (depth,
 nodes, inflated size, image bytes); − three more direct dependencies to keep current with usvg.
+
+### ADR-056 — Webhooks: signed deliveries of change events from a durable outbox (Proposed, 2026-11-24, WH-01)
+**Context.** Hosts want to react to canvas activity (index a saved file, notify on a comment)
+without holding an event stream open. HAPI-05 defined the events (ids, user ids, versions,
+counts; never content). Webhooks must survive restarts and failovers, never deliver one event
+from two nodes, never carry document content into a database (ADR-001, rule 5), and must not
+let a hosts file turn the server into a proxy into the network it runs in (SSRF).
+
+**Design (short).**
+1. *Config.* `[host.webhooks] url, events, secret?, max_attempts?`. `events` lists HAPI-05 types
+   (`edited`, `commented`, `mentioned`, `member.joined`, `member.left`, `session.closed`,
+   `restored`, `saved`) or `"*"`; `secret` accepts `env:`/`file:` like every secret. Checked at
+   startup: an unknown type, a non-http(s) URL or a URL off the callback origin stops the server.
+2. *Source.* The room actor publishes each event once, on the node that owns the room (HAPI-05).
+   That node's hub hands it to a writer task, which inserts a `webhook_outbox` row when the
+   host subscribes to the type. Other nodes receive events over the bus for their streams only,
+   never for webhooks. The row id is the event id (`ev_<ulid>`), so a repeated insert is a no-op.
+3. *Store.* `webhook_outbox (id, host_id, room_id, file_id, event_type, payload, attempts,
+   next_try_at, status, last_status, created_at, done_at)` on SQLite, MySQL and MariaDB
+   (migration `0009`). `payload` is the event JSON: ids and counts only. Finished rows are kept
+   7 days for inspection, then purged with sessions. Redis-only storage (ADR-030) has no outbox
+   in v0.2: webhooks are refused there at startup with a clear message.
+4. *Delivery.* Every node runs the worker: pick due `pending` rows, claim each with a conditional
+   update of `next_try_at` (the notify-outbox pattern: exactly one claimant), POST, record.
+   `POST <url>` with the event JSON, `Content-Type: application/json`, `X-OpenCanvas-Event`,
+   `X-OpenCanvas-Event-Id`, `Idempotency-Key: <event id>`, `X-OpenCanvas-Delivery-Attempt`, and
+   `X-OpenCanvas-Signature: t=…,v1=…,v2=…`: v2 = HMAC-SHA256(secret, `<t>.POST.<path?query>.<body>`)
+   exactly as on callbacks (docs/05 §5), secret = `[host.webhooks] secret` or the host's
+   `callback_secret`/`jwt_secret`. 10 s timeout, redirects never followed.
+5. *Retries.* `2xx` = done. Network errors, timeouts, `408`, `425`, `429` and `5xx` retry after
+   10 s, 30 s, 1 min, 5 min, 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 12 h (a longer `Retry-After`, up
+   to 12 h, wins); after `max_attempts` (default 12, at most 20) the row is `failed` (give-up).
+   Other `3xx`/`4xx` are `rejected` at once (a receiver that refuses will refuse again). The
+   schedule runs on `crate::clock::Clock`, so tests pin time instead of sleeping.
+6. *Ordering and duplicates.* At-least-once: a receiver deduplicates by `Idempotency-Key`.
+   Order is not guaranteed across retries; `at` and the ULID order events of one file.
+7. *Metrics.* `oc_webhook_deliveries_total{host,result}` (`ok`, `retry`, `rejected`, `gave_up`,
+   `refused`) and `oc_webhook_delivery_seconds{host}`, on the OPS-01 dashboard.
+
+**Decision (SSRF): restrict the URL to the origin of the host's `callback_base`** (scheme, host
+and port; with `OC_CALLBACK_BASE_OVERRIDE`, the configured origin is accepted and delivery goes
+through the override, like callbacks). Checked when the hosts file loads and again before every
+delivery (a row whose host config changed is `refused`, never sent). Why this and not the unfurl
+fetcher's private-range blocking: (a) hosts usually run next to OpenCanvas on a private network,
+where private-range blocking would refuse the legitimate receiver and push operators to
+allow-list whole private ranges; (b) the callback origin is already trusted with signed
+callbacks carrying callback tokens, so webhooks add no new destination; (c) an origin check is
+decided from configuration alone, with no DNS lookup to race (no rebinding window); (d) no
+redirects, so the check cannot be bypassed by a `Location`.
+
+**Consequences.** + No new destination and no new secret to manage by default; + restart- and
+failover-safe, one delivery per event; + no document content at rest. − A receiver on another
+domain needs a relay on the host's own origin (or a later opt-in allow-list); − events between
+an owner's crash and its outbox insert are lost (the stream's `resync` covers readers; webhooks
+are at-least-once from the outbox on); − no webhooks with Redis-only storage in v0.2.
 
 ### ADR-057 — Icons people add: a server-written `icons` root and `POST /v1/icons` (Accepted, 2026-11-24, DGM-17)
 **Context.** The owner's policy (2026-11-24, approved prototype `docs/prototypes/icons-approved/`)

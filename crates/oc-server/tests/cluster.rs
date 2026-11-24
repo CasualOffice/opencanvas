@@ -43,6 +43,17 @@ async fn node(
             toml::Value::String("https://oc.example".into()),
         );
         h.ai.insert("default_mode".into(), toml::Value::String("direct".into()));
+        // WH-01: every node may deliver; only the owner queues.
+        let mut hooks = toml::Table::new();
+        hooks.insert(
+            "url".into(),
+            toml::Value::String(format!("{}/hooks", h.callback_base)),
+        );
+        hooks.insert(
+            "events".into(),
+            toml::Value::Array(vec![toml::Value::String("*".into())]),
+        );
+        h.webhooks = hooks;
     })
     .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -569,4 +580,60 @@ async fn change_events_reach_streams_on_every_node() {
         .unwrap();
     let ids: Vec<&str> = again.backlog.iter().map(|e| e.id.as_str()).collect();
     assert_eq!(ids, [got[1].id.as_str(), got[2].id.as_str()]);
+}
+
+/// WH-01: in a cluster the owner queues each event once (the other node only records it for
+/// its streams), and when both nodes run the worker each event is sent once.
+#[tokio::test]
+async fn webhooks_are_sent_once_in_a_cluster() {
+    let (host, _fake, n1, n2) = two_nodes().await;
+    let room = grant("u_a", Role::Edit).room;
+    let mut on_n2 = n2
+        .state
+        .events()
+        .subscribe(&room, FILE, "sample", None)
+        .unwrap();
+    let mut a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let mut b = Peer::join(&n2.state, grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    b.edit(|d| para(d, "from B"));
+    b.settle().await;
+    let mut seen = vec![];
+    while seen.len() < 3 {
+        let e = tokio::time::timeout(Duration::from_secs(10), on_n2.rx.recv())
+            .await
+            .expect("events on n2")
+            .unwrap();
+        seen.push(e.id.clone());
+    }
+    let mut ids = vec![];
+    for _ in 0..400 {
+        ids = n1.state.store.webhook_ids("sample").await.unwrap();
+        if ids.len() >= 3 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert_eq!(
+        ids, seen,
+        "the owner queued exactly the events it published"
+    );
+    let now = n1.state.clock.now_ms();
+    let (x, y) = tokio::join!(
+        n1.state.deliver_webhooks(now),
+        n2.state.deliver_webhooks(now)
+    );
+    assert_eq!(x.unwrap() + y.unwrap(), 3);
+    let sent: Vec<String> = host
+        .lock()
+        .unwrap()
+        .hooks
+        .iter()
+        .map(|h| h.headers["idempotency-key"].to_str().unwrap().to_string())
+        .collect();
+    let mut unique = sent.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!((sent.len(), unique.len()), (3, 3), "{sent:?}");
 }

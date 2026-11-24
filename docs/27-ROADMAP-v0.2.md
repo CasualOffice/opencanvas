@@ -516,6 +516,20 @@ if any lacks a matching operation.
   `change_events_reach_streams_on_every_node`, unit tests in `events`, `room::changes`,
   `routes::v1::events` and `cluster`.
 
+- **WH-01 (2026-11-24, Review; ADR-056 Proposed).** Webhooks for the HAPI-05 events: per-host
+  `[host.webhooks] url, events, secret, max_attempts` (`crate::webhooks::WebhookCfg`, checked at
+  startup); the owner's hub sink queues subscribed events in `webhook_outbox` (migration `0009`,
+  SQLite/MySQL/MariaDB; event JSON only, id = event id); every node runs the delivery worker
+  (`AppState::deliver_webhooks`, woken on insert, else every 5 s), claiming each row with a
+  conditional update so one node sends it; signature `X-OpenCanvas-Signature` v2 with the host
+  secret (or `[host.webhooks] secret`), `Idempotency-Key` = event id; backoff 10 s → 12 h with
+  `Retry-After`, give-up after `max_attempts` (12), other 3xx/4xx final; SSRF: same origin as
+  `callback_base` only (startup and every delivery), no redirects. Metrics
+  `oc_webhook_deliveries_total{host,result}`, `oc_webhook_delivery_seconds{host}`; dashboard row
+  "Webhooks". Tests: `tests/webhooks.rs` (7, on the pinned server clock), storage conformance
+  `webhook_outbox` on SQLite, MySQL 8.4 and MariaDB 10.11, `cluster.rs`
+  `webhooks_are_sent_once_in_a_cluster`, units in `webhooks`.
+
 ---
 
 ## 5. Cross-cutting changes

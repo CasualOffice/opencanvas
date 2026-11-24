@@ -245,6 +245,23 @@ ts(g, "Host error ratio by host",
    unit="percentunit", w=8, desc="5xx, unreachable and error over all calls, 5 min.")
 g.end()
 
+# ---------------------------------------------------------------- webhooks (WH-01)
+row("Webhooks")
+g = Grid()
+ts(g, "Webhook deliveries / s by result",
+   [(f"sum by (host, result) (rate(oc_webhook_deliveries_total{{{S},{HS}}}[{RI}]))",
+     "{{host}} {{result}}")], unit="ops", w=8, stack=True,
+   desc="oc_webhook_deliveries_total{host,result}; result is ok, retry, rejected (3xx/4xx), "
+        "gave_up (out of attempts) or refused (URL off the callback origin).")
+ts(g, "Webhook attempt p95 by host",
+   [(q(0.95, "oc_webhook_delivery_seconds", "host", HS), "{{host}}")], unit="s", w=8,
+   desc="oc_webhook_delivery_seconds{host}: time of one POST to the webhook URL (10 s timeout).")
+ts(g, "Webhooks dropped / s by host",
+   [(f"sum by (host) (rate(oc_webhook_deliveries_total{{{S},{HS},result=~\"gave_up|rejected|refused\"}}[{RI}]))",
+     "{{host}}")], unit="ops", w=8,
+   desc="Events that will not be delivered: given up, refused by the receiver, or not allowed.")
+g.end()
+
 # ---------------------------------------------------------------- exports
 row("Exports")
 g = Grid()

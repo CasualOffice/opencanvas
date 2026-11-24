@@ -72,6 +72,12 @@ pub struct HostState {
     pub version_bodies: HashMap<String, Vec<u8>>,
     /// (path and query, v2 signature ok, bearer) of every version call.
     pub version_calls: Vec<(String, bool, String)>,
+    /// `POST /api/hooks` webhook deliveries (WH-01); `signature_ok` checks v2 with [`SECRET`].
+    pub hooks: Vec<RecordedPut>,
+    /// The next answers of `POST /api/hooks` (status, extra headers); empty = 204.
+    pub hook_answers: std::collections::VecDeque<(u16, Vec<(&'static str, String)>)>,
+    /// Requests that reached `/api/elsewhere` (a redirect target that must never be followed).
+    pub elsewhere: usize,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -265,6 +271,31 @@ async fn mentions(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> i
     StatusCode::NO_CONTENT
 }
 
+async fn hooks(
+    State(s): State<Shared>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> axum::response::Response {
+    let mut st = s.lock().unwrap();
+    let signature_ok = verify_v2(&headers, "/api/hooks", &body);
+    st.hooks.push(RecordedPut {
+        headers,
+        body: body.to_vec(),
+        signature_ok,
+    });
+    let (status, extra) = st.hook_answers.pop_front().unwrap_or((204, vec![]));
+    let mut res = StatusCode::from_u16(status).unwrap().into_response();
+    for (k, v) in extra {
+        res.headers_mut().insert(k, v.parse().unwrap());
+    }
+    res
+}
+
+async fn elsewhere(State(s): State<Shared>) -> StatusCode {
+    s.lock().unwrap().elsewhere += 1;
+    StatusCode::NO_CONTENT
+}
+
 fn bearer(headers: &HeaderMap) -> String {
     headers
         .get("authorization")
@@ -382,6 +413,8 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/files/{id}/versions", get(list_versions))
         .route("/api/files/{id}/versions/{v}", get(get_version))
         .route("/api/mentions", axum::routing::post(mentions))
+        .route("/api/hooks", axum::routing::post(hooks))
+        .route("/api/elsewhere", axum::routing::any(elsewhere))
         .route("/api/access", axum::routing::post(access))
         .route("/assets/{id}", get(asset))
         .with_state(state.clone());
@@ -415,6 +448,7 @@ pub fn host_config(base: &str) -> HostConfig {
         versions: Default::default(),
         ai: Default::default(),
         api: Default::default(),
+        webhooks: Default::default(),
     }
 }
 

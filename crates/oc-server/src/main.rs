@@ -84,6 +84,22 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Webhooks (WH-01): due deliveries at once when a row is queued, else every 5 s.
+    if state.webhooks_on() {
+        let worker = state.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = worker.webhooks.wake.notified() => {}
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+                if let Err(e) = worker.deliver_webhooks(worker.clock.now_ms()).await {
+                    tracing::warn!(error = %e, "webhook sweep failed");
+                }
+            }
+        });
+    }
+
     let janitor = state.clone();
     tokio::spawn(async move {
         let mut every = tokio::time::interval(Duration::from_secs(3600));

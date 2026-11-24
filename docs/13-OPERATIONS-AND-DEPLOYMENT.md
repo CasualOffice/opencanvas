@@ -318,6 +318,8 @@ Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_tota
 | `oc_host_callbacks_total` | counter | `host`, `op`, `result` | `result` = `ok`, `conflict`, `4xx`, `5xx`, `unreachable`, `error` |
 | `oc_export_seconds` | histogram | `format` | One export render (PDF includes Gotenberg) |
 | `oc_exports_total` | counter | `format`, `result` (`ok`, `error`) | Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`) |
+| `oc_webhook_deliveries_total` | counter | `host`, `result` | Webhook attempts (WH-01): `ok`, `retry`, `rejected` (3xx/4xx), `gave_up` (out of attempts), `refused` (URL not allowed) |
+| `oc_webhook_delivery_seconds` | histogram | `host` | Time of one webhook attempt |
 | `oc_awareness_broadcasts_total` / `oc_awareness_coalesced_total` | counter | | Presence frames fanned out / parked on a full room inbox |
 | `oc_schema_warnings_total` | counter | | Unknown content kept on read/write |
 | `oc_ai_requests_total` | counter | `host`, `provider`, `model`, `outcome` | AI model calls (AI on only) |
