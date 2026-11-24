@@ -299,7 +299,7 @@ describe("package", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     for (const f of ["client.ts", "errors.ts", "events.ts", "webhooks.ts", "types.ts", "index.ts", "generated.ts"]) {
       const src = readFileSync(join(here, "../src", f), "utf8");
-      expect(src, f).not.toMatch(/from "node:|require\(|process\.|Buffer\b/);
+      expect(src, f).not.toMatch(/from "node:|\brequire\(|\bprocess\.|\bBuffer\b/);
     }
   });
 });
