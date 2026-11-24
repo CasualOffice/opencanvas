@@ -56,6 +56,8 @@ export interface BlockEnv {
   undoManager?: import("yjs").UndoManager;
   /** The document limit from the session (`maxDocBytes`); boards budget 25 % of it (DGM-14 S9). */
   maxDocBytes?: number;
+  /** EDP-01: `false` hides the board's Diagram button, menu entry and Shift+D (default on). */
+  diagramming?: boolean;
   /**
    * Optional: diagram-mode switches the host or its administrator controls (DGM-14). `bpmn`
    * shows the BPMN shape library (off by default, 2f). BPMN shapes in a document always draw.

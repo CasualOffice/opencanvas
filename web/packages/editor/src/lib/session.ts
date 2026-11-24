@@ -9,6 +9,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import type { Role } from "@opencanvas/ui";
 import { setInstalledBlocks, type BlockPackage } from "../ext/model";
+import { setEditorProfile, type EditorProfile } from "../editor/profile";
 
 export interface Session {
   ticket: string;
@@ -49,6 +50,8 @@ export interface Session {
   templates?: { team?: boolean } | null;
   /** BSDK-01: the SDK block packages this host enables (docs/15 §2). */
   blocks?: BlockPackage[];
+  /** EDP-01: the host's editor profile, insertable blocks and feature switches (docs/15 §2). */
+  editor?: EditorProfile | null;
 }
 
 export class SessionError extends Error {
@@ -78,6 +81,7 @@ export async function fetchSession(ticket: string): Promise<Session> {
   }
   const s = (await r.json()) as Session;
   setInstalledBlocks(s.blocks);
+  setEditorProfile(s.editor);
   return s;
 }
 

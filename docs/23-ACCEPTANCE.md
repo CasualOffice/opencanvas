@@ -218,10 +218,10 @@ is building them, so every row is **pending EDP-01**.
 
 | ID | Criterion | Test | Result |
 |---|---|---|---|
-| EDP-A1 | With no `[host.editor]`, the profile is `full` and the editor behaves exactly as in 0.1.x (same blocks, same menus). | EDP-01 | **pending EDP-01** |
-| EDP-A2 | Each profile's enabled and quick-insert blocks and its feature switches reach the session and the editor. Unknown profile names or blocks are refused at start-up. | EDP-01 | **pending EDP-01** |
-| EDP-A3 | Hide, never delete: a document holding blocks the profile hides round-trips byte-equal through load, edit and save, in the editor and on the server (REST, MCP, `.ocanvas`). The hidden blocks are shown read-only or as a placeholder, never removed. | EDP-01 | **pending EDP-01** |
-| EDP-A4 | A profile is not an access control. A client that sends a block its profile hides gets the same server answer as any other edit; roles stay the only gate. | EDP-01 | **pending EDP-01** |
+| EDP-A1 | With no `[host.editor]`, the profile is `full` and the editor behaves exactly as in 0.1.x (same blocks, same menus). | EDP-01 | PASS (2026-11-25): `editor_profiles::session_carries_the_full_profile_by_default`; `profile.test.ts` "offers everything without a profile (older server, demo) and in full" |
+| EDP-A2 | Each profile's enabled and quick-insert blocks and its feature switches reach the session and the editor. Unknown profile names or blocks are refused at start-up. | EDP-01 | PASS (2026-11-25): `editor_profiles::session_carries_a_meeting_profile_and_its_blocks`, `start_up_refuses_an_unknown_profile_block_or_feature`, the feature tests in `tests/editor_profiles.rs`; `editor::tests::*`; `profile.test.ts` filter tests |
+| EDP-A3 | Hide, never delete: a document holding blocks the profile hides round-trips byte-equal through load, edit and save, in the editor and on the server (REST, MCP, `.ocanvas`). The hidden blocks are shown read-only or as a placeholder, never removed. | EDP-01 | PASS in the editor (2026-11-25): `profile.test.ts` "hide, never delete": every block type opens unchanged, takes an edit and round-trips in all six profiles; hidden blocks stay fully editable (stronger than read-only). Server: no load, save, export, REST or MCP path reads the profile (`grep editor()` in `src/`: only session, features and start-up); e2e `za-editor-profile.spec.ts` opens a full document on a `meeting` host |
+| EDP-A4 | A profile is not an access control. A client that sends a block its profile hides gets the same server answer as any other edit; roles stay the only gate. | EDP-01 | PASS by construction (2026-11-25): the room, patch and tool layers never consult `[host.editor]` blocks; only features with their own routes are enforced (history, AI/MCP, import, team templates, comment writes) |
 
 ### Webhooks (WH-01)
 

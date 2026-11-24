@@ -85,7 +85,14 @@ apply to links minted earlier in the meeting. See the [release notes](../../docs
 
    [host.flags]
    export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"]
+
+   [host.editor]
+   profile         = "meeting"   # agenda, notes, decisions, tasks: text, headings, checklists,
+                                 # lists, callouts, dividers, tables, dates (docs/05 §2b)
    ```
+   The `meeting` profile only trims what the / menu offers; a canvas holding other blocks
+   (a whiteboard pasted in, a database) still opens and edits as usual. Use `"full"` for every
+   block.
    Template ids: `meeting`, `standup`, `retro`, `oneonone`, `brainstorm`, `allhands`, and the
    other built-in templates (an unknown id stops OpenCanvas at startup and lists them all).
    See docs/05 §8a.

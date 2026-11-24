@@ -8,5 +8,7 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const OC = "http://localhost:8280";
 export const HOST = "http://localhost:4200";
 export const HOST_RELOAD = "http://localhost:4201";
+/** A host with `[host.editor] profile = "meeting"` (EDP-01, spec za). */
+export const HOST_MEETING = "http://localhost:4203";
 /** A plain host page that embeds the canvas with the SDK (spec q); a registered origin of "sample". */
 export const SDK_HOST = "http://localhost:4202";

@@ -17,6 +17,15 @@ block discovery metadata land before the tag.
 
 ### Added
 
+- Editor profiles (`[host.editor]`, docs/05 §2b): `notebook`, `meeting`, `project`,
+  `diagramming`, `document` or `full` (default), or an explicit list of stable block ids
+  (`core.*`), decide which blocks the / menu, "+" and phone insert sheets, Turn into and markdown
+  shortcuts offer; intent keywords ("track tasks", "draw architecture", "schedule") find blocks.
+  `[host.editor.features]` switches comments, version history, AI, diagramming, templates and
+  import, enforced on the server where they have routes, and win over the older `[host.flags]`.
+  Profiles only hide: every existing block still opens and edits. The session carries `editor`.
+  The Jitsi sample uses `meeting`, the Matrix sample `notebook`.
+
 - **Headless API is the supported contract.** `/api/v1` with OpenAPI 3.1, RFC 9457 errors,
   scoped user tokens shared with MCP, `Idempotency-Key`, signed cursors, rate limits, the events
   stream and the sync token. Most of it shipped in 0.1.2 behind `[host.flags] api_v1`.

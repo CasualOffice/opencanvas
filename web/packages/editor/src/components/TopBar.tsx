@@ -52,7 +52,8 @@ export function TopBar(props: {
   temporaryTitle?: string;
   /** Click toggles following; a long press (touch) always starts it. */
   onFollow(p: Peer, start?: boolean): void;
-  onComments(): void;
+  /** Absent: comments are off for this host (EDP-01), no button. */
+  onComments?: () => void;
   onWide(): void;
   /** FC-10: "Import…" (only when the host's import flag is on for this person). */
   onImportInto?: () => void;
@@ -174,7 +175,7 @@ export function TopBar(props: {
           </button>
         )
       ) : null}
-      <button
+      {props.onComments ? <button
         className="ib rel"
         onClick={props.onComments}
         title="Comments"
@@ -187,7 +188,7 @@ export function TopBar(props: {
             {props.openThreads}
           </span>
         ) : null}
-      </button>
+      </button> : null}
       {props.temporary && (props.canExport || props.canDownload) ? (
         <button className={compact ? "ib" : "btn primary sm temp-dl"} onClick={open("download")} aria-haspopup="menu" aria-expanded={pop?.kind === "download"} title="Download a copy to keep" aria-label={compact ? "Download a copy" : undefined}>
           <Ic name="download" />

@@ -76,6 +76,13 @@ async fn open(
     ticket: &str,
 ) -> Result<(Arc<HostConfig>, Grant, Sources), ApiError> {
     let (host, grant) = session(state, ticket).await?;
+    if !host.version_history_on() {
+        return Err(err(
+            StatusCode::NOT_FOUND,
+            "HISTORY_OFF",
+            "version history is off for this host",
+        ));
+    }
     if !grant.can_see_history() {
         return Err(err(
             StatusCode::FORBIDDEN,

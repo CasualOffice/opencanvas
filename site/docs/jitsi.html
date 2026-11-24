@@ -75,7 +75,11 @@ storage         = &quot;ephemeral&quot;                    # no host storage; en
 allowed_origins = [&quot;https://meet.acme.example&quot;]
 
 [host.flags]
-export_formats  = [&quot;md&quot;, &quot;html&quot;, &quot;docx&quot;, &quot;pdf&quot;, &quot;ocanvas&quot;, &quot;png&quot;]</code></pre> Template ids: <code>meeting</code>, <code>standup</code>, <code>retro</code>, <code>oneonone</code>, <code>brainstorm</code>, <code>allhands</code>, and the other built-in templates (an unknown id stops OpenCanvas at startup and lists them all). See docs/05 §8a.</li></ol>
+export_formats  = [&quot;md&quot;, &quot;html&quot;, &quot;docx&quot;, &quot;pdf&quot;, &quot;ocanvas&quot;, &quot;png&quot;]
+
+[host.editor]
+profile         = &quot;meeting&quot;   # agenda, notes, decisions, tasks: text, headings, checklists,
+                              # lists, callouts, dividers, tables, dates (docs/05 §2b)</code></pre> The <code>meeting</code> profile only trims what the / menu offers; a canvas holding other blocks (a whiteboard pasted in, a database) still opens and edits as usual. Use <code>&quot;full&quot;</code> for every block. Template ids: <code>meeting</code>, <code>standup</code>, <code>retro</code>, <code>oneonone</code>, <code>brainstorm</code>, <code>allhands</code>, and the other built-in templates (an unknown id stops OpenCanvas at startup and lists them all). See docs/05 §8a.</li></ol>
 <h2 id="debian-packages-jitsi-meet-prosody">Debian packages (jitsi-meet-prosody)</h2>
 <p>Put the file in a plugin path (for example <code>/usr/share/jitsi-meet/prosody-plugins/</code> or a directory added to <code>plugin_paths</code>) and edit <code>/etc/prosody/conf.d/meet.example.com.cfg.lua</code>:</p>
 <pre><code class="language-lua">Component &quot;conference.meet.example.com&quot; &quot;muc&quot;

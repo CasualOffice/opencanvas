@@ -26,11 +26,13 @@ impl HostAi<'_> {
 
     /// `mcp = true` turns the MCP endpoint on for this host. Off by default.
     pub fn mcp(&self) -> bool {
-        self.0
-            .ai
-            .get("mcp")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        self.0.editor().features.ai != Some(false)
+            && self
+                .0
+                .ai
+                .get("mcp")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
     }
 
     /// `mcp_audience`: the public base URL MCP clients reach this host's endpoint on (e.g.
@@ -74,7 +76,8 @@ impl HostAi<'_> {
     /// The agent settings (`enabled`, `provider`, models, `[host.ai.limits]`), or `None` when
     /// the host has no `[host.ai]` table or it does not parse.
     pub fn agent(&self) -> Option<config::HostAi> {
-        if self.0.ai.is_empty() {
+        // EDP-01: `[host.editor.features] ai = false` wins over this table.
+        if self.0.ai.is_empty() || self.0.editor().features.ai == Some(false) {
             return None;
         }
         toml::Value::Table(self.0.ai.clone()).try_into().ok()

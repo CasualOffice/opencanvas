@@ -76,7 +76,10 @@ allowed_origins = [&quot;https://canvas-bridge.acme.example&quot;]
 frame_ancestors = [&quot;https://element.acme.example&quot;, &quot;https://app.element.io&quot;]
 [host.flags]
 temporary_wording = &quot;room&quot;   # room wording in the editor, &quot;Start a new canvas&quot; when it ends
-export_formats  = [&quot;md&quot;, &quot;html&quot;, &quot;docx&quot;, &quot;pdf&quot;, &quot;ocanvas&quot;, &quot;png&quot;]</code></pre></li><li><strong>Bridge</strong>: run it behind TLS, on its own origin.<pre><code class="language-sh">cd integrations/matrix/bridge
+export_formats  = [&quot;md&quot;, &quot;html&quot;, &quot;docx&quot;, &quot;pdf&quot;, &quot;ocanvas&quot;, &quot;png&quot;]
+
+[host.editor]
+profile         = &quot;notebook&quot;  # text, headings, lists, checklists, images, links, callouts</code></pre> A chat room's canvas is a shared notebook (links, notes, pictures people drop in), so the sample uses <code>notebook</code>. A room that runs meetings can use <code>&quot;meeting&quot;</code>; <code>&quot;full&quot;</code> offers every block. Profiles only trim the / menu: existing content of any type always opens and edits (docs/05 §2b).</li><li><strong>Bridge</strong>: run it behind TLS, on its own origin.<pre><code class="language-sh">cd integrations/matrix/bridge
 PORT=8090 \
 MX_PUBLIC_URL=https://canvas-bridge.acme.example \
 OC_URL=https://canvas.acme.example \

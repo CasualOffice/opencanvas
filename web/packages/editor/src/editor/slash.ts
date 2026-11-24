@@ -12,6 +12,7 @@ import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 import { markPending } from "../lib/unfurl";
 import { aiStore, openAssistant } from "../lib/assistant";
 import { importStore, openImport } from "../lib/importflag";
+import { insertable, intentOf } from "./profile";
 import { focusOnReady, installedBlocks, type BlockPackage } from "../ext/model";
 import { blockVisibleInMenus } from "../ext/discovery";
 import { initialAttrs } from "../ext/runtime";
@@ -182,16 +183,21 @@ export function filterSlash(q: string): SlashItem[] {
   // `/assistant` only when the assistant is on for this person (docs/24 §10.2).
   const ai = aiStore.get().on;
   const imp = importStore.get().formats.length > 0;
-  // SDK blocks come last, in `[host.blocks]` order; no group at all when there are none (6c).
-  const all = [...SLASH.filter((x) => (x.id !== "assistant" || ai) && (x.id !== "import" || imp)), ...orgItems()];
+  // EDP-01: the host's editor profile (the shared insertion filter, profile.ts). SDK blocks come
+  // last, in `[host.blocks]` order; no group at all when there are none (6c).
+  const all = [...SLASH, ...orgItems()].filter((x) => (x.id !== "assistant" || ai) && (x.id !== "import" || imp) && insertable(x));
   if (!s) return all;
   const rank = (x: SlashItem) => {
     const t = x.title.toLowerCase();
     if (t.startsWith(s)) return 0;
     if (t.split(/\s+/).some((w) => w.startsWith(s))) return 1;
     if (t.includes(s)) return 2;
-    if ((x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "")).toLowerCase().includes(s)) return 3;
     if (x.ext && x.ext.type.toLowerCase().includes(s)) return 3;
+    const meta = (x.desc + " " + (x.keywords ?? "") + " " + (x.md ?? "") + " " + intentOf(x.id)).toLowerCase();
+    if (meta.includes(s)) return 3;
+    // Intent phrases ("track tasks", "draw architecture"): every word starts a metadata word.
+    const words = (t + " " + meta).split(/\s+/);
+    if (s.split(/\s+/).every((q) => words.some((w) => w.startsWith(q)))) return 4;
     return -1;
   };
   return all.map((x, i) => ({ x, r: rank(x), i }))

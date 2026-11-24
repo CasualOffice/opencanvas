@@ -12,6 +12,7 @@ import { startComment } from "./blockmenu";
 import { blockMenuStore, insertBelowCaret, topBlockAt } from "./blockops";
 import { openLinkEditor } from "./linkstate";
 import { aiStore, openAssistant } from "../lib/assistant";
+import { insertable, profileStore } from "./profile";
 
 export function MobileBar({ editor, role, onComment }: { editor: Editor; role: Role; onComment(id: string): void }) {
   const st = useEditorState({
@@ -24,6 +25,9 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
   const [kb, setKb] = useState(0);
   const turn = !!useStore(blockMenuStore);
   const ai = useStore(aiStore).on;
+  // EDP-01: quick inserts follow the host's editor profile.
+  const prof = useStore(profileStore);
+  const can = (id: string) => insertable({ id }, prof);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -86,9 +90,9 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
           <>
             {b("plus", "Insert block", () => insertBelowCaret(editor))}
             {b("type", "Turn into", openTurn)}
-            {b("list-todo", "Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList"))}
-            {b("list", "Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
-            {b("image", "Image", () => editor.chain().focus().insertContent([{ type: "image", attrs: { src: "" } }, { type: "paragraph" }]).run())}
+            {can("todo") && b("list-todo", "Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList"))}
+            {can("bul") && b("list", "Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
+            {can("image") && b("image", "Image", () => editor.chain().focus().insertContent([{ type: "image", attrs: { src: "" } }, { type: "paragraph" }]).run())}
             {b("at-sign", "Mention someone", () => editor.chain().focus().insertContent("@").run())}
             <span className="sp" />
             {/* Prototypes ToolbarClosed/ToolbarOpen: with the keyboard open the last button hides

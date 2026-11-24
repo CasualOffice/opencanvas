@@ -40,8 +40,16 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
      "import": {"formats":["md","html","csv"]},
      "blocks": [],
+     "editor": {"profile":"full","allowProfileSwitch":false,"blocks":["core.text","…"],"quickInsert":[],
+                "features":{"comments":true,"versionHistory":true,"ai":true,"diagramming":true,"templates":true,"import":true}},
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
+   *(EDP-01)* `editor`: the host's profile (docs/05 §2b), `blocks` the ids insertion surfaces may
+   offer (`core.*` and SDK types; `core.text` always), `quickInsert`, and `features` after the
+   aliases (`ai` and `import` are the host-level switches, server settings included; `ai`,
+   `import` and `perms` above stay what this person may actually use). The editor filters every
+   insertion surface through one function (`editor/profile.ts`); an absent `editor` (older
+   server) means everything. Content of any type always loads and stays editable.
    *(BSDK-01)* `blocks`: the SDK block packages `[host.blocks]` enables, each
    `{type, version, v, title, icon, description, content, attrs, data, export, migrations, entry,
    integrity}` (docs/05 §2a; `v` is the data version the package writes, its SemVer major).

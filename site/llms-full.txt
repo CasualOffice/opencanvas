@@ -907,6 +907,76 @@ People (docs/21 revision 2): the @mention list is the people with access to the 
 for every viewer. Everyone with access sees real names and the `detail` second line. OpenCanvas
 never shows or stores e-mail.
 
+### 2b. Editor profiles (EDP-01, ADR-061; `[host.editor]`)
+
+One engine, many experiences. A profile decides which blocks the editor **offers to insert**;
+`features` turn whole surfaces off. Omit the table for today's behaviour (`full`).
+
+```toml
+[host.editor]
+profile = "meeting"          # notebook | meeting | project | diagramming | document | full (default)
+allow_profile_switch = false # reserved: stored and sent, no UI yet
+
+[host.editor.blocks]         # optional
+enabled      = ["core.text", "core.heading", "core.checklist", "acme.okr"]  # replaces the profile's set
+quick_insert = ["core.checklist"]  # sent to the editor for the coming quick-insert menu; default []
+
+[host.editor.features]       # every key optional
+comments        = true
+version_history = true
+ai              = true
+diagramming     = true
+templates       = true
+import          = true
+```
+
+**Block ids.** `core.text`, `core.heading`, `core.checklist`, `core.bulleted_list`,
+`core.numbered_list`, `core.toggle`, `core.quote`, `core.callout`, `core.divider`, `core.code`,
+`core.database`, `core.kanban`, `core.calendar`, `core.table`, `core.image`, `core.file`,
+`core.date`, `core.link_preview`, `core.embed`, `core.whiteboard`, `core.diagram`,
+`core.shapes`, `core.columns`, `core.import`, `core.assistant`. `kanban` and `calendar` are views
+of a database and insert through the Database entry; `diagram` and `shapes` are modes of a
+whiteboard and insert through the Whiteboard entry. A block list may also name an SDK block type
+that `[host.blocks]` enables for this host.
+
+**Profiles** (the owner's proposal; additions so each profile is usable are marked +):
+
+| Profile | Blocks |
+|---|---|
+| `notebook` | text, lists (bulleted, numbered, checklist), image, link preview, callout; + heading |
+| `meeting` | text, heading, checklist, bulleted and numbered lists, callout, divider, simple table; + date |
+| `project` | database, kanban, calendar, checklist; + text, heading, date |
+| `diagramming` | whiteboard, diagram, shapes; + text, heading |
+| `document` | text, heading, simple table, image; + bulleted and numbered lists, divider |
+| `full` | every block (default) |
+
+`core.text` is always offered, even when `enabled` leaves it out. Every profile keeps the
+`core.import` and `core.assistant` actions; the `import` and `ai` features decide whether they
+show. SDK blocks follow their manifest's `discovery.profiles` (absent: `full` only, the SDK default);
+with an explicit `enabled` list only the SDK types it names are offered.
+
+**Hide, never delete.** A profile only hides blocks from the insertion surfaces: the / menu (and
+the gutter and phone "+", which open it), the phone bar's quick buttons, "Turn into", the empty
+canvas starters and the markdown shortcuts that would create a hidden block (`> ` stays text in
+`meeting`). Paste is not filtered. A document holding any block type opens, renders, stays
+editable and round-trips unchanged in every profile; nothing on the server reads the profile
+when it loads, saves or exports a document.
+
+**Features and the older switches.** An explicit `[host.editor.features]` value wins; an unset
+one leaves the older switch in charge:
+
+| Feature | Off means | Older switch (alias) |
+|---|---|---|
+| `comments` | no new threads, no Comments button; `perms.comment` false; the API and MCP refuse comment writes | none (on) |
+| `version_history` | no history menu (`history: "none"`, `perms.history` false); `/v1/history*` answer `404 HISTORY_OFF`. In-file history already in the file is kept as is | `[host.flags] history`, `[host.versions]` |
+| `ai` | no assistant, no MCP for this host, whatever `[host.ai]` says. `true` cannot turn AI on without a `[host.ai]` agent | `[host.ai] enabled`, `mcp` |
+| `diagramming` | no Diagram button, menu entry or Shift+D on whiteboards (existing boards still open) | none (on) |
+| `templates` | no template gallery or Templates starter; no "From your team" | `[host.flags] team_templates` (that section only) |
+| `import` | no Import entry; `POST /v1/import` answers `403 IMPORT_OFF`. `true` without `import_formats` allows every import format | `[host.flags] import_formats` |
+
+**Start-up checks.** An unknown profile, setting, block id or feature, a non-boolean feature, or a
+`quick_insert` id the profile does not offer refuses to start, naming the host and the bad value.
+
 ## 3. JWT launch token
 
 Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
@@ -1947,7 +2017,14 @@ apply to links minted earlier in the meeting. See the [release notes](../../docs
 
    [host.flags]
    export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"]
+
+   [host.editor]
+   profile         = "meeting"   # agenda, notes, decisions, tasks: text, headings, checklists,
+                                 # lists, callouts, dividers, tables, dates (docs/05 §2b)
    ```
+   The `meeting` profile only trims what the / menu offers; a canvas holding other blocks
+   (a whiteboard pasted in, a database) still opens and edits as usual. Use `"full"` for every
+   block.
    Template ids: `meeting`, `standup`, `retro`, `oneonone`, `brainstorm`, `allhands`, and the
    other built-in templates (an unknown id stops OpenCanvas at startup and lists them all).
    See docs/05 §8a.
@@ -2368,7 +2445,14 @@ and a Matrix bot account.
    [host.flags]
    temporary_wording = "room"   # room wording in the editor, "Start a new canvas" when it ends
    export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"]
+
+   [host.editor]
+   profile         = "notebook"  # text, headings, lists, checklists, images, links, callouts
    ```
+   A chat room's canvas is a shared notebook (links, notes, pictures people drop in), so the
+   sample uses `notebook`. A room that runs meetings can use `"meeting"`; `"full"` offers every
+   block. Profiles only trim the / menu: existing content of any type always opens and edits
+   (docs/05 §2b).
 3. **Bridge**: run it behind TLS, on its own origin.
    ```sh
    cd integrations/matrix/bridge
@@ -2788,8 +2872,16 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
      "ai": {"enabled":true,"modes":["edit","comment","answer"],"mcp":false},
      "import": {"formats":["md","html","csv"]},
      "blocks": [],
+     "editor": {"profile":"full","allowProfileSwitch":false,"blocks":["core.text","…"],"quickInsert":[],
+                "features":{"comments":true,"versionHistory":true,"ai":true,"diagramming":true,"templates":true,"import":true}},
      "wsUrl": "ws://localhost:8080/v1/collab" }
    ```
+   *(EDP-01)* `editor`: the host's profile (docs/05 §2b), `blocks` the ids insertion surfaces may
+   offer (`core.*` and SDK types; `core.text` always), `quickInsert`, and `features` after the
+   aliases (`ai` and `import` are the host-level switches, server settings included; `ai`,
+   `import` and `perms` above stay what this person may actually use). The editor filters every
+   insertion surface through one function (`editor/profile.ts`); an absent `editor` (older
+   server) means everything. Content of any type always loads and stays editable.
    *(BSDK-01)* `blocks`: the SDK block packages `[host.blocks]` enables, each
    `{type, version, v, title, icon, description, content, attrs, data, export, migrations, entry,
    integrity}` (docs/05 §2a; `v` is the data version the package writes, its SemVer major).

@@ -12,6 +12,7 @@ pub mod clock;
 pub mod cluster;
 pub mod config;
 pub mod crypto;
+pub mod editor;
 pub mod events;
 pub mod grant;
 pub mod history;
