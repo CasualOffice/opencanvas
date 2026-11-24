@@ -4,7 +4,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BASE_EXTENSIONS } from "./base";
-import { withInputRules } from "./profile";
+import { profileStore, withInputRules } from "./profile";
 import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
@@ -71,6 +71,10 @@ import { readableOn } from "../lib/color";
 import { tableStore, trackTable } from "./tablestate";
 import { peopleRef } from "../lib/people";
 import { nameWithDetail, accessNote, secondLine } from "@opencanvas/ui";
+
+/** The gallery is for the full workspace. A host profile (meeting, notebook…) gets its short
+ *  list only, with no "Browse all blocks" (approved insert-menu prototype, frame 5a). */
+const browseAll = () => (profileStore.get()?.profile ?? "full") === "full";
 
 /** A cursor label (docs/21): "Asha Rao · Design" when the name is shared, as the viewer sees it. */
 export function caretCaption(u: { id?: string; name?: string; detail?: string }): string {
@@ -505,10 +509,12 @@ function SuggestMenu({ editor }: { editor: Editor }) {
             </button>
           ))}
         </div>
-        <button className="mi browse" onClick={() => (close(), galleryStore.set({ open: true }))}>
-          <Ic name="layout-grid" />
-          Browse all blocks
-        </button>
+        {browseAll() ? (
+          <button className="mi browse" onClick={() => (close(), galleryStore.set({ open: true }))}>
+            <Ic name="layout-grid" />
+            Browse all blocks
+          </button>
+        ) : null}
       </Popover>
     );
   }
@@ -548,15 +554,19 @@ function SuggestMenu({ editor }: { editor: Editor }) {
             No matching blocks
           </div>
         )}
-        <div className="msep" />
-        <button className="mi browse" onClick={() => (close(), galleryStore.set({ open: true }))}>
-          <span className="tile">
-            <Ic name="layout-grid" />
-          </span>
-          <span className="ml">
-            <b>Browse all blocks</b>
-          </span>
-        </button>
+        {browseAll() ? (
+          <>
+            <div className="msep" />
+            <button className="mi browse" onClick={() => (close(), galleryStore.set({ open: true }))}>
+              <span className="tile">
+                <Ic name="layout-grid" />
+              </span>
+              <span className="ml">
+                <b>Browse all blocks</b>
+              </span>
+            </button>
+          </>
+        ) : null}
       </div>
     </Popover>
   );
