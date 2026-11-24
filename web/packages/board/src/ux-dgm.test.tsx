@@ -171,3 +171,20 @@ describe("phone tool bar", { timeout: 30_000 }, () => {
     delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
 });
+
+// SCALE-02 S1: Lucide icons take their size from a px attribute, so at a 24 px default font they
+// stayed small beside 1.5x text. A zero-specificity rule maps each size 1:1 to rem (identical at
+// 16 px), in the board and diagram chrome and in the editor (top bar, menus).
+describe("icons scale with the text size (SCALE-02)", () => {
+  const sizes = [12, 14, 16, 18, 20];
+  it("board and diagram chrome", async () => {
+    const { CSS } = await import("./styles");
+    for (const n of sizes) expect(CSS).toContain(`:where(.ocbd,.ocdg) :where(svg.lucide[width="${n}"]){width:${n / 16}rem;height:${n / 16}rem}`);
+  });
+  it("the editor", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const css = fs.readFileSync(path.resolve(process.cwd(), "../editor/src/styles/app.css"), "utf8");
+    for (const n of sizes) expect(css).toContain(`:where(svg.lucide[width="${n}"]){width:${n / 16}rem;height:${n / 16}rem}`);
+  });
+});
