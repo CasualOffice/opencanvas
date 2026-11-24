@@ -162,6 +162,38 @@ describe("board export: UX pass keys", () => {
   });
 });
 
+describe("icons added to the document (DGM-17 part 3)", () => {
+  it("export as data: URL images, byte for byte with oc-model (board-doc-icons.web.svg)", () => {
+    const f = JSON.parse(readFileSync(FIX + "board-doc-icons.json", "utf8")) as { board: { order: string[]; shapes: Record<string, Record<string, unknown>> }; icons: Record<string, Record<string, unknown>> };
+    const doc = new Y.Doc();
+    doc.transact(() => {
+      const m = new Y.Map<unknown>();
+      doc.getMap("boards").set("b1", m);
+      const shapes = new Y.Map<Y.Map<unknown>>();
+      for (const [id, s] of Object.entries(f.board.shapes)) {
+        const y = new Y.Map<unknown>();
+        for (const [k, v] of Object.entries(s)) y.set(k, v);
+        shapes.set(id, y);
+      }
+      m.set("shapes", shapes);
+      const order = new Y.Array<string>();
+      order.push(f.board.order);
+      m.set("order", order);
+      const icons = doc.getMap<Y.Map<unknown>>("icons");
+      for (const [id, e] of Object.entries(f.icons)) {
+        const y = new Y.Map<unknown>();
+        for (const [k, v] of Object.entries(e)) y.set(k, v);
+        icons.set(id, y);
+      }
+    });
+    const svg = exportBoardSvg(doc, "b1");
+    if (UPDATE) writeFileSync(FIX + "board-doc-icons.web.svg", svg);
+    expect(svg).toBe(readFileSync(FIX + "board-doc-icons.web.svg", "utf8"));
+    expect(svg.match(/<image href="data:image\/(svg\+xml|png);base64,/g)).toHaveLength(2);
+    expect(svg).toContain(">icon</text>");
+  });
+});
+
 describe("icon export (shared fixture with oc-model)", () => {
   it("matches board-icons.web.svg, which the Rust renderer is checked against", () => {
     const svg = exportBoardSvg(fixtureDoc("board-icons.json"), "b1");

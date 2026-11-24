@@ -57,6 +57,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-053 | Diagram import parsers (DGM-15): `oc-model` gains `roxmltree` 0.21, `flate2` 1 and `percent-encoding` 2 as direct dependencies (all three already in Cargo.lock through resvg/usvg and reqwest; no new crate, no new version). draw.io and Excalidraw are converted on the server only, through FC-10 | Proposed (needs owner sign-off) |
 | ADR-054 | Headless API v1 boundary details (HAPI-01/02): `/api/v1` behind `[host.flags] api_v1`; RFC 9457 types `urn:opencanvas:problem:<code>`; 0.1 host routes kept as aliases with `Deprecation` (RFC 9745) and `Link: rel="successor-version"`; user tokens host-minted (no exchange, no token store), `iss` → one host (`[host.api] issuer`), `aud` = `{[host.api] audience or OC_PUBLIC_URL}/api/v1`, ≤ 15 min; one `authz::Principal` check shared with MCP; `canvas:admin` for tokens only with `[host.api] token_admin` (docs/27 §4.4) | Proposed (2026-11-24) |
 | ADR-055 | In-file bounded history: besides host versions (ADR-051), a host may keep a bounded history inside the `.ocanvas` (`history/index.json` + `history/<id>.deflate`, additive to format 1): each kept version is the compressed reverse structural diff (newer → older, over `document.json`) plus kind, name, authors and time, never a full copy; Yjs GC stays on. Bounds `[host.versions] file_max_kb` (1024) and `file_max_versions` (50): the oldest automatic versions go first, named ones last. `[host.versions] file` (default on for JWT hosts, off for WOPI hosts; never for temporary canvases) turns it off where deleted text must not travel with the file; `prefer_host` picks the list shown first when both exist (docs/30 §13) | Accepted (owner, 2026-11-24, by message) |
+| ADR-057 | Icons people add (DGM-17): a server-written document root `icons` `{id → {name, keywords, format, data (cleaned file, base64), width, height, bytes, by, byName, at}}` (exception to ADR-045 §1: a new root, so a document is self-contained and exports never fetch); client updates that touch it are refused, like `comments` for the comment role; `POST /v1/icons` (editors, 20 a minute) cleans the file (`oc_model::icon_clean`: roxmltree pre-scan without DTDs, usvg normalisation, allow-list, 256 KB in / 64 KB cleaned, 2,000 elements, depth 16; PNG by magic bytes, ≤ 256 KB and 1024 px, re-encoded) and writes it through the room; 200 icons and 1 MB per document; every reader checks a stored icon again; the editor and both exporters draw it as `<image href="data:…">`, never inline markup | Accepted (owner approved the design via the prototype, 2026-11-24) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -728,3 +729,35 @@ read through a size cap) and `percent-encoding` 2. `base64` and `serde_json` wer
 **Consequences.** + No new crate or version in the tree; + parser limits are ours to test (depth,
 nodes, inflated size, image bytes); − three more direct dependencies to keep current with usvg.
 
+### ADR-057 — Icons people add: a server-written `icons` root and `POST /v1/icons` (Accepted, 2026-11-24, DGM-17)
+**Context.** The owner's policy (2026-11-24, approved prototype `docs/prototypes/icons-approved/`)
+ships only generic icons; product logos are added by people themselves. An uploaded SVG is
+untrusted markup (scripts, event handlers, `foreignObject`, external references, entity bombs), and
+a document must stay self-contained: exports and the preview never fetch anything.
+**Decision.**
+1. *Root.* Added icons live in a new document root `icons` (exception to ADR-045 §1, decision 1 of
+   the prototype), `{id → {name, keywords, format: svg|png, data, width, height, bytes, by, byName,
+   at}}`, `data` the cleaned file in base64. Only the server writes it: the room refuses any client
+   update that changes the root (`room::filter::touches_root`; a deep observer on a scratch copy,
+   run only when the document has the root or the update names it), like `comments` for the comment
+   role. Server writes go through the room as one transaction with origin `icons`
+   (`Cmd::Icons`, forwarded to the owner in a cluster).
+2. *API.* `POST /v1/icons?ticket=[&dryRun=1][&name=&keywords=][&replace=<id>]` with the file as
+   the body (editors only, 20 uploads a minute per person) and `POST /v1/icons/:id?ticket=` with
+   `{"name","keywords"}` or `{"remove": true}`. A dry run answers with the cleaning report and a
+   preview and stores nothing.
+3. *Cleaning* (`oc_model::icon_clean`). PNG by magic bytes, ≤ 256 KB and 1024 px, decoded and
+   encoded again. SVG ≤ 256 KB: a `roxmltree` pre-scan (DTDs refused, so no entity expansion;
+   ≤ 2,000 elements; depth ≤ 16) counts what will be removed, by name; `usvg` normalises it with
+   every external reference resolving to nothing (inline PNG/JPEG only, text to outlines); the
+   output must pass an allow-list (drawing elements, no `on*`, no `style`, references inside the
+   file or inline rasters only) and be ≤ 64 KB.
+4. *Limits.* 200 icons and 1 MB of icon data per document (`oc_model::doc_icons`).
+5. *Drawing.* The editor and both exporters draw an added icon as `<image href="data:…">`, never
+   inline markup; `oc-model` checks a stored icon against the allow-list again before drawing it.
+   A missing or failing icon draws the empty frame (editor) or the base rect with its label
+   (exports, 0.1.x clients).
+**Consequences.** + Self-contained documents; logos never reach a browser uncleaned; + one
+cleaner for every path. − Documents with icons pay a scratch-copy check per client update (O(doc
+size)); a cheaper check by update structure is a follow-up. − Undo of adding or removing an icon
+is not offered (only the server writes the root); shapes keep working either way.

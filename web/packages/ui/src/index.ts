@@ -69,6 +69,43 @@ export interface BlockEnv {
   exportBoard?: (boardId: string, format: "drawio" | "mmd", ids: string[] | null) => Promise<{ text: string; report: DiagramExportReport }>;
   /** Optional (DGM-14.6): opens the import dialog adding a diagram file to this board. */
   importToBoard?: (boardId: string) => void;
+  /**
+   * Optional (DGM-17, ADR-057): Add your own icon. The server cleans the file
+   * (`POST /v1/icons`) and writes it into the document's `icons` root, which clients can't
+   * write. Absent (no server): Add your own icon is offered but disabled.
+   */
+  icons?: IconApi;
+}
+
+/** What the server's cleaner says about a file (`POST /v1/icons?dryRun=1`). */
+export interface IconCheck {
+  format: "svg" | "png";
+  width: number;
+  height: number;
+  /** Cleaned size in bytes. */
+  bytes: number;
+  /** What was taken out, by name ("Scripts", 2). */
+  removed: { what: string; count: number }[];
+  /** The cleaned file, for the preview. */
+  dataUrl: string;
+}
+
+/** A refused file or change: a stable code and a sentence for the person. */
+export class IconError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export interface IconApi {
+  check(file: Blob): Promise<IconCheck>;
+  add(file: Blob, name: string, keywords: string[]): Promise<{ id: string }>;
+  replace(id: string, file: Blob): Promise<void>;
+  rename(id: string, name: string, keywords: string[]): Promise<void>;
+  remove(id: string): Promise<void>;
 }
 
 /** The server's diagram export report (`oc_model::diagram_export`). */

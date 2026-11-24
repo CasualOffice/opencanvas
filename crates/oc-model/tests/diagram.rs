@@ -38,6 +38,33 @@ fn svg_matches_web_export_for_icon_shapes() {
 }
 
 #[test]
+fn icons_added_to_the_document_export_as_data_url_images_like_the_web() {
+    // DGM-17: `board-doc-icons.web.svg` is the web export of `board-doc-icons.json`. An added icon
+    // draws as `<image href="data:…">` (never inline markup); a stored icon that fails the
+    // allow-list or is gone draws as the rect with its text.
+    let f: Value = serde_json::from_str(include_str!("fixtures/board-doc-icons.json")).unwrap();
+    let mut doc = doc_with(f["board"].clone());
+    doc["icons"] = f["icons"].clone();
+    let svg = oc_model::board::to_svg(&doc, "b1");
+    assert_eq!(
+        svg.replace("ocbd-b1-", "ocbd-x-"),
+        include_str!("fixtures/board-doc-icons.web.svg")
+    );
+    assert_eq!(svg.matches("<image href=\"data:image/").count(), 2);
+    // Only the server writes `icons`, and every reader checks a stored icon again: one that fails
+    // the allow-list draws as the plain rect with its text.
+    let mut forged = doc.clone();
+    forged["boards"]["b1"]["shapes"]["d1"]["props"]["icon"] = json!("doc:forged");
+    let f2 = oc_model::board::to_svg(&forged, "b1");
+    assert_eq!(f2.matches("<image").count(), 1);
+    assert!(f2.contains(
+        r##"<rect x="0" y="0" width="52" height="52" rx="12" fill="#ffffff" stroke="#55555e"##
+    ));
+    // PNG export draws the cleaned SVG and the PNG.
+    assert!(oc_model::board::to_png(&svg, 1.0).is_ok());
+}
+
+#[test]
 fn icon_preview_draws_the_glyph() {
     let html = oc_model::preview::render(&doc_with(icons_board())).html;
     let d = &oc_model::icons::get("object-storage").unwrap().paths[0];

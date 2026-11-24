@@ -132,6 +132,10 @@ export const DIAGRAM_CSS = `
 .ocdg-noicon .ocdg-tiles{width:100%;margin-top:.25rem}
 .ocdg-ei{color:var(--fg-2);margin-bottom:.375rem}
 .ocdg-or{margin-top:.875rem}
+.ocdg-dpv{width:2rem;height:1.5rem;display:grid;place-items:center}
+.ocdg-dpv img{max-width:1.5rem;max-height:1.5rem;object-fit:contain}
+.ocdg-dmng{margin-left:auto;width:1.75rem;height:1.75rem}
+.ocdg-addic{margin:.25rem .5rem .5rem}
 .ocdg-all{padding:0 .25rem}
 .ocdg-allcat{margin:.25rem 0 .375rem;height:1.875rem}
 .ocdg-allg{height:20rem;overflow:auto;border:1px solid var(--line);border-radius:.5rem;overscroll-behavior:contain}

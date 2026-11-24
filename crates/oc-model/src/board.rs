@@ -150,6 +150,8 @@ struct Shape {
     label_pos: String,
     /// A Lucide icon's own path data (`props.paths`), kept only when it is plain path data.
     icon_paths: Vec<String>,
+    /// An icon added to the document (`doc:<id>`): its checked `data:` URL, else empty.
+    icon_img: String,
 }
 
 fn num(v: &Value) -> f64 {
@@ -262,6 +264,7 @@ fn shape(id: &str, v: &Value) -> Shape {
         },
         label_pos: string(&v["props"]["labelPos"]),
         icon_paths: embedded_paths(&v["props"]["paths"]),
+        icon_img: String::new(),
     }
 }
 
@@ -352,6 +355,41 @@ fn icon_label(s: &Shape) -> Option<IconLabel> {
     })
 }
 
+/// An icon added to the document: the tile and the cleaned file as an `<image>` with a `data:`
+/// URL (never inline markup), the label outside. As the web `export.ts`.
+fn doc_icon_svg(s: &Shape, bg: &str) -> String {
+    let size = s.w.min(s.h) * 0.72;
+    let (ix, iy) = (s.x + (s.w - size) / 2.0, s.y + (s.h - size) / 2.0);
+    let label = icon_label(s)
+        .map(|lb| {
+            lines(
+                &lb.lines,
+                lb.x,
+                lb.y,
+                ICON_LABEL_LH,
+                TextOpts {
+                    anchor: lb.middle,
+                    size: ICON_LABEL_SIZE,
+                    weight: Some(600),
+                    fill: p::FG,
+                },
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "<g><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" fill=\"{bg}\"/><image href=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"xMidYMid meet\"/>{label}</g>",
+        n(s.x),
+        n(s.y),
+        n(s.w),
+        n(s.h),
+        esc(&s.icon_img),
+        n(ix),
+        n(iy),
+        n(size),
+        n(size)
+    )
+}
+
 /// An icon shape: tinted tile, the glyph as inline paths (never `<image>`), the label outside.
 fn icon_svg(s: &Shape, paths: &[String], bg: &str, line: &str) -> String {
     let size = s.w.min(s.h) * 0.5;
@@ -402,7 +440,13 @@ fn read_shapes(doc: &Value, board_id: &str) -> Vec<Shape> {
         }
         if let Some(v) = shapes.get(sid).filter(|v| v.is_object()) {
             seen.insert(sid.to_string());
-            out.push(shape(sid, v));
+            let mut s = shape(sid, v);
+            // DGM-17: an icon added to this document, from the server-written `icons` root,
+            // checked again before it is drawn.
+            if let Some(id) = s.icon.strip_prefix("doc:") {
+                s.icon_img = crate::doc_icons::data_url(&doc["icons"][id]).unwrap_or_default();
+            }
+            out.push(s);
         }
     };
     if let Some(order) = board["order"].as_array() {
@@ -1128,6 +1172,7 @@ fn shape_svg(
                 )
             )
         }
+        "rect" if s.kind == "rect" && !s.icon_img.is_empty() => doc_icon_svg(s, bg),
         "rect" if icon_paths(s).is_some() => {
             icon_svg(s, icon_paths(s).unwrap_or_default(), bg, line)
         }
@@ -1386,9 +1431,12 @@ fn export_bounds(resolved: &[Shape]) -> [f64; 4] {
         return [0.0, 0.0, 320.0, 200.0];
     };
     let boxes = resolved.iter().filter_map(|s| {
-        label_box(s)
-            .map(|lb| lb.rect)
-            .or_else(|| icon_paths(s).and_then(|_| icon_label(s)).map(|lb| lb.rect))
+        label_box(s).map(|lb| lb.rect).or_else(|| {
+            (icon_paths(s).is_some() || !s.icon_img.is_empty())
+                .then(|| icon_label(s))
+                .flatten()
+                .map(|lb| lb.rect)
+        })
     });
     for r in boxes {
         b = [
@@ -1505,7 +1553,15 @@ pub fn to_png(svg: &str, scale: f32) -> Result<Vec<u8>, crate::Error> {
         ..usvg::Options::default()
     };
     opt.image_href_resolver = usvg::ImageHrefResolver {
-        resolve_data: Box::new(|_mime: &str, data: Arc<Vec<u8>>, _: &usvg::Options| {
+        resolve_data: Box::new(|mime: &str, data: Arc<Vec<u8>>, opts: &usvg::Options| {
+            // An icon added to the document (DGM-17): a cleaned SVG, checked again.
+            if mime == "image/svg+xml" {
+                let s = std::str::from_utf8(&data).ok()?;
+                if !crate::icon_clean::allowed(s) {
+                    return None;
+                }
+                return usvg::Tree::from_str(s, opts).ok().map(usvg::ImageKind::SVG);
+            }
             match sniff_image(&data)? {
                 "image/png" => Some(usvg::ImageKind::PNG(data)),
                 "image/jpeg" => Some(usvg::ImageKind::JPEG(data)),

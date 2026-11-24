@@ -8,7 +8,7 @@
 // shapes; a product we ship no logo for gets Add your own icon and generic alternatives.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as RKE, type ReactNode } from "react";
 import {
-  Boxes, ChartColumn, ChevronRight, GitBranch, House, MoveRight, Server, TriangleAlert, Zap, GitFork, History, LayoutTemplate, Library as LibraryIcon, ListTree, Network, PanelLeftClose, PanelLeftOpen, Search, Shapes as ShapesIcon, Square, Table, Upload, Users, Workflow, X, type LucideIcon,
+  Boxes, ChartColumn, ChevronRight, GitBranch, House, MoveRight, Server, TriangleAlert, Zap, GitFork, History, LayoutTemplate, Library as LibraryIcon, ListTree, Network, PanelLeftClose, PanelLeftOpen, Search, Settings2, ImagePlus, Shapes as ShapesIcon, Square, Table, Upload, Users, Workflow, X, type LucideIcon,
 } from "lucide-react";
 import { HEADS } from "../heads";
 import { KIND_MIME, LIBRARIES } from "../libraries";
@@ -16,6 +16,8 @@ import { librariesVersion, loadLibrary, panelLibraries, PRESET, presetOf, subscr
 import { descriptorOf, type ResolvedDescriptor } from "../registry";
 import { AllIcons, LucideResults, useLucideIndex } from "./AllIcons";
 import { lucidePaths, searchLucide } from "../lucide";
+import { useDocIcons } from "../iconsContext";
+import { DOC_PREFIX, searchDocIcons, type DocIcon } from "../icons";
 import { GENERIC_ICONS, ICON_CATEGORIES, ICON_KIND, ICON_MIME, iconById, searchIcons, suggestIcons, toneOf, type GenericIcon, type IconHit } from "../icons";
 
 /** Adds a shape of `kind`; for `icon:node`, `icon` is the icon's id (and a Lucide icon's `paths`). */
@@ -257,6 +259,41 @@ function IconTile({ icon, onAdd, hit }: { icon: GenericIcon; onAdd: AddShape; hi
   );
 }
 
+/** An icon added to this document (3a): its cleaned file as a picture. */
+function DocIconTile({ icon, url, onPlace, hit }: { icon: DocIcon; url?: string; onPlace: (id: string) => void; hit?: { at?: [number, number]; keyword?: string } }) {
+  const label = icon.name;
+  const name = hit?.at ? (
+    <>
+      {label.slice(0, hit.at[0])}
+      <mark>{label.slice(hit.at[0], hit.at[1])}</mark>
+      {label.slice(hit.at[1])}
+    </>
+  ) : (
+    label
+  );
+  return (
+    <button
+      type="button"
+      className="ocdg-tile"
+      data-kind={ICON_KIND}
+      data-icon={DOC_PREFIX + icon.id}
+      draggable
+      title={`${label}. Added to this document${icon.byName ? ` by ${icon.byName}` : ""}. Click to add in the middle of the view, or drag onto the canvas`}
+      aria-label={`Add ${label} icon`}
+      onClick={() => onPlace(icon.id)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(KIND_MIME, ICON_KIND);
+        e.dataTransfer.setData(ICON_MIME, DOC_PREFIX + icon.id);
+        e.dataTransfer.effectAllowed = "copy";
+      }}
+    >
+      <span className="ocdg-pv ocdg-dpv" aria-hidden="true">{url ? <img src={url} alt="" /> : null}</span>
+      <span className="ocdg-tl">{name}</span>
+      {hit?.keyword ? <span className="ocdg-tk">{hit.keyword}</span> : null}
+    </button>
+  );
+}
+
 /** Open by default (1a): the Icons library and its Compute and Storage groups. */
 const ICON_OPEN: Record<string, boolean> = { icons: true, "icons:compute": true, "icons:storage": true };
 const matchClass = (score: number) => Math.floor(score / 10_000);
@@ -289,7 +326,10 @@ function BetaTag({ id }: { id: string }) {
 /** What the panel shows: everything, or one part of it (a flyout from the rail). */
 type Only = { library: string } | "search" | "recent";
 
-export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { onAdd: AddShape; flags?: PanelFlags; only?: Only; autoFocus?: boolean; onAddOwnIcon?: () => void }) {
+export function ShapesPanel({ onAdd, flags, only, autoFocus }: { onAdd: AddShape; flags?: PanelFlags; only?: Only; autoFocus?: boolean }) {
+  const docCtx = useDocIcons();
+  const onAddOwnIcon = docCtx.api && docCtx.edit && docCtx.openAdd ? () => docCtx.openAdd!() : undefined;
+  const place = (id: string) => docCtx.place?.(id);
   const [q, setQ] = useState("");
   const [open, setOpenState] = useState(() => load<Record<string, boolean>>(OPEN_KEY, {}));
   const [recent, setRecent] = useState(() => load<string[]>(RECENT_KEY, []).filter((k) => typeof k === "string"));
@@ -307,8 +347,9 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
   const iconHits = useMemo(() => searchIcons(q), [q]);
   const lucide = useLucideIndex(q.trim().length > 0);
   const lucideHits = useMemo(() => (lucide ? searchLucide(lucide, q) : []), [lucide, q]);
-  const suggested = useMemo(() => (hits.length || iconHits.length ? [] : suggestIcons(q)), [q, hits.length, iconHits.length]);
-  const anyHit = hits.length + iconHits.length > 0 || (lucideHits.length > 0 && !suggested.length);
+  const docHits = useMemo(() => searchDocIcons(docCtx.list, q), [docCtx.list, q]);
+  const suggested = useMemo(() => (hits.length || iconHits.length || docHits.length ? [] : suggestIcons(q)), [q, hits.length, iconHits.length, docHits.length]);
+  const anyHit = hits.length + iconHits.length + docHits.length > 0 || (lucideHits.length > 0 && !suggested.length);
   // Icons go first when they match at least as well as the best shape (1d), so Enter adds them.
   const iconsFirst = iconHits.length > 0 && (!hits.length || matchClass(iconHits[0].score) <= shapeClass(hits[0].score));
   const iconOpen = (k: string) => open[k] ?? ICON_OPEN[k] ?? false;
@@ -340,7 +381,8 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
     });
   };
   const addFirst = () => {
-    if (iconsFirst) onAdd(ICON_KIND, iconHits[0].id);
+    if (docHits[0]) place(docHits[0].icon.id);
+    else if (iconsFirst) onAdd(ICON_KIND, iconHits[0].id);
     else if (hits[0]) add(hits[0].kind);
     else if (lucideHits[0]) {
       const name = lucideHits[0].name;
@@ -433,10 +475,20 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
 
   let body: ReactNode;
   if (searching) {
-    const n = hits.length + iconHits.length + lucideHits.length;
+    const n = hits.length + iconHits.length + lucideHits.length + docHits.length;
     body = anyHit ? (
       <>
         <p className="ocdg-sr" role="status">{`${n} ${n === 1 ? "match" : "matches"} found`}</p>
+        {docHits.length ? (
+          <section className="ocdg-lib" aria-label="In this document">
+            <h3 className="ocdg-lh">In this document</h3>
+            <div className="ocdg-tiles">
+              {docHits.map((h) => (
+                <DocIconTile key={h.icon.id} icon={h.icon} url={docCtx.urls.get(h.icon.id)} hit={h} onPlace={place} />
+              ))}
+            </div>
+          </section>
+        ) : null}
         {iconsFirst ? iconResults : null}
         {/* Groups in the order of their best match, so the first tile is what Enter adds. */}
         {libs
@@ -508,7 +560,29 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
             <div className="ocdg-tiles">{recentShown.map((k) => <Tile key={k} kind={k} onAdd={add} />)}</div>
           </section>
         ) : null}
-        {/* In this document (DGM-17 part 3) goes here, above the Icons library. */}
+        {/* In this document (DGM-17 part 3, 3a): icons people added, above the Icons library. */}
+        <section className="ocdg-lib" data-library="doc-icons" aria-labelledby="ocdg-doc-icons">
+          <h3 className="ocdg-lh ocdg-lh-plain" id="ocdg-doc-icons">
+            <span>In this document</span>
+            <span className="ocdg-cnt">{docCtx.list.length}</span>
+            <button type="button" className="ocdg-ib ocdg-dmng" aria-label="Manage icons" title="Manage icons" disabled={!docCtx.openManage} onClick={() => docCtx.openManage?.()}>
+              <Settings2 size={14} strokeWidth={SW} />
+            </button>
+          </h3>
+          {docCtx.list.length ? (
+            <div className="ocdg-tiles">
+              {docCtx.list.map((i) => (
+                <DocIconTile key={i.id} icon={i} url={docCtx.urls.get(i.id)} onPlace={place} />
+              ))}
+            </div>
+          ) : (
+            <p className="ocdg-hint ocdg-pad">Logos and icons you add are kept in this document, so everyone here can reuse them.</p>
+          )}
+          <button type="button" className="ocdg-btn ocdg-addic" disabled={!onAddOwnIcon} title={onAddOwnIcon ? undefined : "Adding icons needs the OpenCanvas server"} onClick={() => onAddOwnIcon?.()}>
+            <ImagePlus size={14} strokeWidth={SW} />
+            Add icon
+          </button>
+        </section>
         {iconLibrary}
         <AllIcons open={!!open.lucide} onToggle={() => setOpen("lucide", !open.lucide)} onAdd={onAdd} />
         {/* Each library in panel order. */}
@@ -559,7 +633,7 @@ export function ShapesPanel({ onAdd, flags, only, autoFocus, onAddOwnIcon }: { o
             aria-keyshortcuts="/"
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (hits[0] || iconHits[0] || lucideHits[0])) {
+              if (e.key === "Enter" && (docHits[0] || hits[0] || iconHits[0] || lucideHits[0])) {
                 e.preventDefault();
                 addFirst();
               } else if (e.key === "Escape" && q) {

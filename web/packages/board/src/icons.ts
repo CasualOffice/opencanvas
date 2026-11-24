@@ -11,6 +11,7 @@
 // right or hides it. The four side ports are the legacy anchors. Older clients and exporters
 // without icon support draw the rect with its text.
 import data from "../../../../icons/generic.json";
+import type * as Y from "yjs";
 import type { Shape } from "./model";
 import { kindOf, registerShape, registeredKinds } from "./registry";
 import { LUCIDE_PREFIX, lucideLabel, readPaths } from "./lucide";
@@ -167,4 +168,96 @@ export function iconLabelLayout(s: Partial<Shape>): { lines: string[]; x: number
     return { lines, x: x + w + gap, y: y0, middle: false, box: [x + w, y + h / 2 - (lines.length * lh) / 2, x + w + gap + lw, y + h / 2 + (lines.length * lh) / 2] };
   }
   return { lines, x: x + w / 2, y: y + h + lh, middle: true, box: [x + w / 2 - lw / 2, y + h, x + w / 2 + lw / 2, y + h + 6 + lines.length * lh] };
+}
+
+/* ---------------------------------------------------------------- icons added to the document */
+
+/** Limits of the `icons` root (enforced by the server, `oc_model::doc_icons`). */
+export const MAX_DOC_ICONS = 200;
+export const MAX_DOC_ICON_BYTES = 1024 * 1024;
+
+/** `props.icon` prefix of an icon added to the document (DGM-17 part 3, ADR-057). */
+export const DOC_PREFIX = "doc:";
+
+/** One icon in the server-written `icons` root. */
+export interface DocIcon {
+  id: string;
+  name: string;
+  keywords: string[];
+  format: "svg" | "png";
+  /** The cleaned file, base64. */
+  data: string;
+  width: number;
+  height: number;
+  bytes: number;
+  by: string;
+  byName: string;
+  at: string;
+}
+
+const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/** The icons people added to this document, newest first. Malformed entries are skipped. */
+export function readDocIcons(doc: Y.Doc): DocIcon[] {
+  const root = doc.share.get("icons") ? (doc.getMap("icons") as Y.Map<unknown>) : null;
+  if (!root) return [];
+  const out: DocIcon[] = [];
+  root.forEach((v, id) => {
+    const o = v && typeof (v as { toJSON?: unknown }).toJSON === "function" ? ((v as Y.Map<unknown>).toJSON() as Record<string, unknown>) : (v as Record<string, unknown>);
+    if (!o || typeof o !== "object") return;
+    const format = o.format === "svg" || o.format === "png" ? o.format : null;
+    if (!format || typeof o.data !== "string" || !B64_RE.test(o.data)) return;
+    out.push({
+      id,
+      name: typeof o.name === "string" ? o.name : id,
+      keywords: Array.isArray(o.keywords) ? o.keywords.filter((k): k is string => typeof k === "string") : [],
+      format,
+      data: o.data,
+      width: Number(o.width) || 0,
+      height: Number(o.height) || 0,
+      bytes: Number(o.bytes) || 0,
+      by: typeof o.by === "string" ? o.by : "",
+      byName: typeof o.byName === "string" ? o.byName : "",
+      at: typeof o.at === "string" ? o.at : "",
+    });
+  });
+  return out.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : a.id.localeCompare(b.id)));
+}
+
+/** A document icon as a `data:` URL; a PNG must carry the PNG signature. */
+export function docIconUrl(i: Pick<DocIcon, "format" | "data">): string | null {
+  if (i.format === "png") return i.data.startsWith("iVBORw0KGgo") ? `data:image/png;base64,${i.data}` : null;
+  return `data:image/svg+xml;base64,${i.data}`;
+}
+
+/** Every document icon's `data:` URL, by id. */
+export function docIconUrls(doc: Y.Doc): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const i of readDocIcons(doc)) {
+    const u = docIconUrl(i);
+    if (u) m.set(i.id, u);
+  }
+  return m;
+}
+
+/** Fields of a new shape for a document icon centred on `at`. */
+export function docIconNodeFields(i: DocIcon, at: [number, number]): Omit<Shape, "id"> {
+  const w = ICON_SIZE, h = ICON_SIZE;
+  return { type: "rect", kind: ICON_KIND, kindVersion: 1, x: Math.round(at[0] - w / 2), y: Math.round(at[1] - h / 2), w, h, text: i.name, props: { icon: DOC_PREFIX + i.id, labelPos: "below" } };
+}
+
+/** Search the document's icons by name and keywords (1f). */
+export function searchDocIcons(list: readonly DocIcon[], q: string): { icon: DocIcon; at?: [number, number]; keyword?: string }[] {
+  const t = q.trim().toLowerCase();
+  if (!t) return [];
+  const out: { icon: DocIcon; at?: [number, number]; keyword?: string; s: number }[] = [];
+  for (const icon of list) {
+    const i = icon.name.toLowerCase().indexOf(t);
+    if (i >= 0) out.push({ icon, at: [i, i + t.length], s: i === 0 ? 0 : 1 });
+    else {
+      const k = icon.keywords.find((w) => w.includes(t));
+      if (k) out.push({ icon, keyword: k, s: 2 });
+    }
+  }
+  return out.sort((a, b) => a.s - b.s).map(({ s: _s, ...h }) => h);
 }

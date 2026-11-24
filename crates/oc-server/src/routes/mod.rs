@@ -7,6 +7,7 @@ mod api;
 pub(crate) mod collab;
 mod export;
 mod history;
+pub mod icons;
 pub mod import;
 mod launch;
 pub mod mcp;
@@ -257,6 +258,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/history/restore/undo", post(history::undo))
         .route("/v1/history/{v}", get(history::version))
         .route("/v1/history/{v}/restore", post(history::restore))
+        .route("/v1/icons", post(icons::upload).layer(DefaultBodyLimit::max(icons::MAX_BODY)))
+        .route("/v1/icons/{id}", post(icons::change))
         .route("/v1/templates", get(templates::index))
         .route("/v1/templates/undo", post(templates::undo))
         .route("/v1/templates/{id}/apply", post(templates::apply))

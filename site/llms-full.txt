@@ -948,6 +948,19 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   `{"boardId","blockIds","shapeIds","shapes","connectors","report"}`. Unreadable, too deep, too
   large after decompression or entity-declaring files get `400 IMPORT_INVALID` /
   `413 IMPORT_TOO_LARGE` with a plain-words reason. Nothing is ever fetched from a file.
+- Add your own icon (DGM-17, ADR-057; editor session, edit role): `POST /v1/icons?ticket=` with an
+  SVG or PNG as the raw body (≤ 256 KB; 20 uploads a minute per person, else `429`). The server
+  cleans it: SVG without DTDs, ≤ 2,000 elements, nesting ≤ 16, normalised by usvg (scripts, event
+  handlers, `foreignObject`, outside references and editor metadata removed), ≤ 64 KB cleaned; PNG
+  checked by its magic bytes, ≤ 1024 px a side, re-encoded. `dryRun=1` answers
+  `{"format","width","height","bytes","removed":[{"what","count"}],"dataUrl"}` and stores nothing;
+  with `name=` (and `keywords=a,b`) the cleaned icon is written into the document's `icons` root and
+  the answer adds `"id"`; `replace=<id>` swaps an existing icon's file. Refusals are
+  `422 {"code","message"}` (`unsupported`, `invalid_svg`, `invalid_png`, `dtd`, `too_many_elements`,
+  `too_deep`, `png_too_large`, `cleaned_too_large`, `empty`, `limit`) or `413` (`too_large`).
+  `POST /v1/icons/:id?ticket=` with `{"name","keywords"}` renames, with `{"remove": true}`
+  removes. Limits: 200 icons and 1 MB of icons per document. Only the server writes `icons`; a
+  client update touching it is refused. Nothing is ever fetched from a file.
 - Stateless conversion: `POST /v1/convert?from=md|html|ocanvas&to=ocanvas|md|html|json|docx|pdf`
   with the file as the raw body. DOCX and PDF embed images only from your `callback_base` origin
   (fetched signed) or an `asset_origins` entry (plain GET) — no redirects, ≤ 10 MB, `image/*`

@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use oc_model::roots;
 use yrs::updates::decoder::Decode;
-use yrs::{BranchID, Doc, ReadTxn, StateVector, Transact, Update, WriteTxn};
+use yrs::{BranchID, DeepObservable, Doc, ReadTxn, StateVector, Transact, Update, WriteTxn};
 
 /// Applies `update` to a scratch copy of `doc` and reports whether every change landed
 /// under the `comments` root. Updates that cannot fully integrate are refused.
@@ -45,6 +45,42 @@ pub fn touches_only_comments(doc: &Doc, update: &[u8]) -> bool {
         .any(|(n, _)| n != roots::COMMENTS && !before.contains(n));
     let pending = txn.store().pending_update().is_some() || txn.store().pending_ds().is_some();
     !foreign_change && !new_root && !pending
+}
+
+/// True when `update` would change anything under the root `root` (DGM-17: the server-written
+/// `icons`). Cheap when the document has no such root and the update doesn't name it: an update
+/// can only reach a subtree through its root's name or items already in it. Otherwise the update
+/// is applied to a scratch copy with a deep observer on the root; updates that can't fully
+/// integrate count as touching it.
+pub fn touches_root(doc: &Doc, update: &[u8], root: &str) -> bool {
+    let present = doc.transact().root_refs().any(|(n, _)| n == root);
+    if !present && !update.windows(root.len()).any(|w| w == root.as_bytes()) {
+        return false;
+    }
+    let Ok(update) = Update::decode_v1(update) else {
+        return true;
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return true;
+    }
+    let hit = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let map = scratch.get_or_insert_map(root);
+    let h = hit.clone();
+    map.observe_deep("oc-root-guard", move |_, _| {
+        h.store(true, std::sync::atomic::Ordering::Relaxed)
+    });
+    let mut txn = scratch.transact_mut();
+    if txn.apply_update(update).is_err() {
+        return true;
+    }
+    txn.commit();
+    let pending = txn.store().pending_update().is_some() || txn.store().pending_ds().is_some();
+    drop(txn);
+    pending && present || hit.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// True when `update` carries nothing the room does not already have. Read-only clients
