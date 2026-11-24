@@ -72,6 +72,7 @@ export class EventStream implements AsyncIterableIterator<OcEvent> {
   private queue: OcEvent[] = [];
   private closed = false;
   private failures = 0;
+  private ended?: Error;
   private readonly decoder = new TextDecoder();
 
   constructor(
@@ -110,6 +111,11 @@ export class EventStream implements AsyncIterableIterator<OcEvent> {
     for (;;) {
       const queued = this.queue.shift();
       if (queued) return { done: false, value: queued };
+      if (this.ended) {
+        const e = this.ended;
+        this.ended = undefined;
+        throw e;
+      }
       if (this.closed) return { done: true, value: undefined };
       if (!this.reader) {
         await this.connect();
@@ -130,7 +136,12 @@ export class EventStream implements AsyncIterableIterator<OcEvent> {
       this.buffer += this.decoder.decode(chunk.value, { stream: true });
       const { frames, rest } = parseFrames(this.buffer);
       this.buffer = rest;
-      for (const f of frames) this.take(f);
+      try {
+        for (const f of frames) this.take(f);
+      } catch (e) {
+        // A final close: hand out the events before it first.
+        this.ended = e as Error;
+      }
     }
   }
 
