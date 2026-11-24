@@ -527,3 +527,46 @@ async fn an_unreachable_owner_answers_503_with_retry_after() {
     assert_eq!(res.status().as_u16(), 503);
     assert_eq!(res.headers()["retry-after"], "2");
 }
+
+/// HAPI-05: a stream on a node that does not own the room gets the owner's events over the
+/// bus, in order, and can resume from that node's own ring.
+#[tokio::test]
+async fn change_events_reach_streams_on_every_node() {
+    let (_host, _fake, n1, n2) = two_nodes().await;
+    let room = grant("u_a", Role::Edit).room;
+    let mut on_n2 = n2
+        .state
+        .events()
+        .subscribe(&room, FILE, "sample", None)
+        .unwrap();
+    let mut a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let mut b = Peer::join(&n2.state, grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    assert!(!n2.state.rooms.is_live(&room), "n2 relays");
+    b.edit(|d| para(d, "from B"));
+    b.settle().await;
+    let mut got = vec![];
+    while got.len() < 3 {
+        let e = tokio::time::timeout(Duration::from_secs(10), on_n2.rx.recv())
+            .await
+            .unwrap_or_else(|_| panic!("got {got:?}"))
+            .unwrap();
+        got.push(e);
+    }
+    let kinds: Vec<&str> = got.iter().map(|e| e.kind.as_str()).collect();
+    assert_eq!(kinds, ["member.joined", "member.joined", "edited"]);
+    assert_eq!(got[2].data["by"], json!(["u_b"]));
+    assert_eq!(
+        got[2].data["untracked"], true,
+        "a paragraph without a blockId"
+    );
+    // n2 kept them: a resume there answers the events after the first.
+    let again = n2
+        .state
+        .events()
+        .subscribe(&room, FILE, "sample", Some(&got[0].id))
+        .unwrap();
+    let ids: Vec<&str> = again.backlog.iter().map(|e| e.id.as_str()).collect();
+    assert_eq!(ids, [got[1].id.as_str(), got[2].id.as_str()]);
+}

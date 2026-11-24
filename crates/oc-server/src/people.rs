@@ -282,6 +282,14 @@ impl Members {
         r.insert((room.to_string(), user.to_string()));
     }
 
+    /// True while the host's revoke of `user` on `room` stands.
+    pub fn is_revoked(&self, room: &str, user: &str) -> bool {
+        self.revoked
+            .lock()
+            .expect("members")
+            .contains(&(room.to_string(), user.to_string()))
+    }
+
     /// `user` has access to `room` again.
     pub fn restore(&self, room: &str, user: &str) {
         self.revoked

@@ -40,6 +40,10 @@
       "name": "files"
     },
     {
+      "name": "events",
+      "description": "Change events (SSE or WebSocket) and the headless CRDT sync ticket (HAPI-05)"
+    },
+    {
       "name": "admin"
     },
     {
@@ -2285,6 +2289,181 @@
         "x-opencanvas-scope": "canvas:admin"
       }
     },
+    "/api/v1/files/{fileId}/events": {
+      "get": {
+        "operationId": "streamEvents",
+        "summary": "Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages",
+        "description": "SSE: `id: <event id>`, `event: <type>`, `data: <Event JSON>`, a keep-alive comment every 15 s. WebSocket: one Event per text message. Resume with `Last-Event-ID` (or `since`): the events after it from this server's in-memory ring (512 per file), or one `resync` event when it is gone. A stream that falls 256 events behind is closed with code 4008 (SSE: a final `close` event `{code, reason}`); a user token's stream closes with 4001 when the token expires, and with 4003 when the host revokes the user. Events carry ids only, never content.",
+        "tags": [
+          "events"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "description": "Resume after this event id",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Same as Last-Event-ID (the header wins)",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated event types to receive (default all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An event stream; each `data:` line is an Event",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "101": {
+            "description": "Switched to a WebSocket (Upgrade: websocket); each text message is an Event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
+    "/api/v1/files/{fileId}/sync-token": {
+      "post": {
+        "operationId": "createSyncToken",
+        "summary": "A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly",
+        "description": "Answers a session ticket with the caller's effective role (min(scope, host role)). Connect to `url` (y-websocket protocol) within 60 s; the session ends at `expiresAt`. Takes no Idempotency-Key: the answer is a credential and is never stored. `Cache-Control: no-store`.",
+        "tags": [
+          "events"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncTicket"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read"
+      }
+    },
     "/api/v1/convert": {
       "post": {
         "operationId": "convert",
@@ -2920,6 +3099,86 @@
           },
           "afterBlockId": {
             "type": "string"
+          }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "fileId",
+          "at",
+          "data"
+        ],
+        "description": "One change event. Ids, user ids, versions and counts only, never document content. The same shape is POSTed to webhooks (docs/05 §7c).",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ev_<ulid>; pass the last one back as Last-Event-ID to resume (also the webhook Idempotency-Key)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "edited",
+              "commented",
+              "mentioned",
+              "member.joined",
+              "member.left",
+              "session.closed",
+              "restored",
+              "saved",
+              "resync"
+            ]
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer",
+            "description": "Unix milliseconds"
+          },
+          "data": {
+            "type": "object",
+            "description": "edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; resync {reason}"
+          }
+        }
+      },
+      "SyncTicket": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "room",
+          "role",
+          "url",
+          "expiresAt",
+          "connectWithinSecs"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "room": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "view",
+              "comment",
+              "edit"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "WebSocket path to connect to (y-websocket protocol): /v1/collab/{room}?ticket=…"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "description": "Unix seconds; the socket closes then (15 min at most, never after the token's exp)"
+          },
+          "connectWithinSecs": {
+            "type": "integer"
           }
         }
       }

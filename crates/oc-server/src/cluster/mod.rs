@@ -165,6 +165,18 @@ struct Envelope {
     sig: String,
 }
 
+/// A signed change event (HAPI-05) on the same bus. Its `event` field (not `ev`) keeps the two
+/// envelope kinds apart: each listener ignores the other's messages.
+#[derive(Serialize, Deserialize)]
+struct EventEnvelope {
+    node: String,
+    ts: i64,
+    event: crate::events::FileEvent,
+    sig: String,
+}
+
+const EVENTS_TOPIC: &str = "oc:events";
+
 impl Cluster {
     pub async fn connect(cfg: ClusterConfig) -> anyhow::Result<Arc<Self>> {
         let redis = Arc::new(
@@ -246,6 +258,42 @@ impl Cluster {
             .verify_slice(&sig)
             .ok()?;
         Some(env.ev)
+    }
+
+    fn event_mac(&self, ts: i64, node: &str, ev: &crate::events::FileEvent) -> Hmac<Sha256> {
+        let body = serde_json::to_vec(ev).expect("event json");
+        self.mac(ts, &format!("{EVENTS_TOPIC}:{node}"), &body)
+    }
+
+    /// Sends a change event of a room this node owns to every other node (best effort, like
+    /// member events: a node that misses one answers a resume with `resync`).
+    pub async fn publish_event(&self, ev: &crate::events::FileEvent) {
+        let ts = now_secs();
+        let node = self.cfg.node_id.clone();
+        let sig = hex::encode(self.event_mac(ts, &node, ev).finalize().into_bytes());
+        let env = EventEnvelope {
+            node,
+            ts,
+            event: ev.clone(),
+            sig,
+        };
+        let msg = serde_json::to_vec(&env).expect("envelope json");
+        if let Err(e) = self.bus.publish(msg).await {
+            tracing::warn!(error = %e, "events bus: publish failed");
+        }
+    }
+
+    /// The change event in a bus message from another node, if signature and time check out.
+    fn open_event(&self, msg: &[u8]) -> Option<crate::events::FileEvent> {
+        let env: EventEnvelope = serde_json::from_slice(msg).ok()?;
+        if env.node == self.cfg.node_id || (now_secs() - env.ts).abs() > MAX_SKEW_SECS {
+            return None;
+        }
+        let sig = hex::decode(&env.sig).ok()?;
+        self.event_mac(env.ts, &env.node, &env.event)
+            .verify_slice(&sig)
+            .ok()?;
+        Some(env.event)
     }
 
     pub async fn redis_ok(&self) -> bool {
@@ -411,9 +459,71 @@ pub fn spawn_members_listener(members: Arc<Members>, cluster: Arc<Cluster>) {
     });
 }
 
+/// Change events (HAPI-05): this node's events go out on the bus in order, and other
+/// nodes' events reach this node's hub.
+pub fn spawn_events(hub: Arc<crate::events::Hub>, cluster: Arc<Cluster>) {
+    let (tx, mut out) = tokio::sync::mpsc::unbounded_channel();
+    hub.set_bus(tx);
+    let c = cluster.clone();
+    tokio::spawn(async move {
+        while let Some(ev) = out.recv().await {
+            c.publish_event(&ev).await;
+        }
+    });
+    let mut rx = cluster.bus.subscribe();
+    tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if let BusMsg::Message(m) = msg
+                && let Some(ev) = cluster.open_event(&m)
+            {
+                hub.remote(ev);
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn change_events_are_signed_and_not_mistaken_for_member_events() {
+        let cfg = |id: &str| {
+            ClusterConfig::build(
+                Some("redis://r".into()),
+                "mysql://db/oc",
+                Some(id.into()),
+                None,
+                Some(SECRET.into()),
+                "0.0.0.0:8080",
+            )
+            .unwrap()
+            .unwrap()
+        };
+        let bus = Arc::new(FakeBus::default());
+        let fake = || Arc::new(lease::FakeLeases::default());
+        let a = Cluster::with_backends(cfg("a"), fake(), bus.clone());
+        let b = Cluster::with_backends(cfg("b"), fake(), bus.clone());
+        let mut rx = bus.subscribe();
+        assert_eq!(rx.recv().await, Some(BusMsg::Resubscribed));
+        let ev = crate::events::FileEvent::new("h", "r_1", "f", "saved", serde_json::json!({}));
+        a.publish_event(&ev).await;
+        let Some(BusMsg::Message(m)) = rx.recv().await else {
+            panic!()
+        };
+        assert_eq!(b.open_event(&m), Some(ev.clone()));
+        assert_eq!(a.open_event(&m), None, "own events are already recorded");
+        assert_eq!(b.open_members(&m), None);
+        let mut tampered: serde_json::Value = serde_json::from_slice(&m).unwrap();
+        tampered["event"]["data"]["x"] = 1.into();
+        assert_eq!(b.open_event(&serde_json::to_vec(&tampered).unwrap()), None);
+        a.publish_members(&MembersEvent::Invalidate { room: "r_1".into() })
+            .await;
+        let Some(BusMsg::Message(m)) = rx.recv().await else {
+            panic!()
+        };
+        assert_eq!(b.open_event(&m), None);
+    }
 
     #[tokio::test]
     async fn member_events_are_signed_and_skip_their_own_node() {

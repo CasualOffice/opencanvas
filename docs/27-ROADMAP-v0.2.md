@@ -497,6 +497,25 @@ if any lacks a matching operation.
   v1 answer, `429` with `Retry-After`. MCP's own per-token bucket is gone: it takes from the
   subject bucket the API uses.
 
+- **HAPI-05 (2026-11-24, Review).** `GET /api/v1/files/{id}/events` (SSE, or JSON text messages
+  over a WebSocket upgrade of the same route) and `POST …/sync-token`. Event types follow the
+  owner's list rather than the §4.2 sketch: `edited` (block ids, debounced; deleted ids in
+  `removedBlockIds`, database and board ids), `commented`, `mentioned`, `member.joined`,
+  `member.left`, `saved`, `restored`, `session.closed`, plus `resync` on the stream; ids and user
+  ids only, never content. The room actor publishes them (`crate::events`): block ids come from
+  deep observers on the `content`, `databases`, `boards` and `comments` roots (`room::changes`,
+  O(change), with a top-level id list for deletions), attributed to the users of the durable WAL
+  batch. `crate::events::Hub` keeps 512 events per room in memory for `Last-Event-ID` resumes
+  (`resync` when the id is gone), fans out to bounded subscriber queues (256; a full one is
+  dropped with close code 4008) and, in a cluster, sends the owner's events over the signed
+  members bus (`Cluster::publish_event`), where other nodes record them for their own streams.
+  Token streams close at `exp` (4001) and after a host revoke (4003). The sync token is a session
+  ticket for the existing room WebSocket with the effective role, ≤ 15 min and ≤ the token's
+  `exp`, never stored for idempotent replays. OpenAPI: `streamEvents`, `createSyncToken`, schemas
+  `Event` and `SyncTicket`. Tests: `tests/api_events.rs` (5), `tests/cluster.rs`
+  `change_events_reach_streams_on_every_node`, unit tests in `events`, `room::changes`,
+  `routes::v1::events` and `cluster`.
+
 ---
 
 ## 5. Cross-cutting changes

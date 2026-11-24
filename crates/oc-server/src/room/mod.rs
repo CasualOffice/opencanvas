@@ -4,6 +4,7 @@
 //! One actor per live room (host, file); the manager hands out handles and restarts closed rooms.
 
 mod actor;
+pub mod changes;
 pub mod filter;
 pub mod mentions;
 pub mod presence;
@@ -240,6 +241,8 @@ pub struct Ctx {
     pub metrics: Arc<Metrics>,
     /// Server-side AI (docs/24, ADR-031/034); `None` when `[ai]` is off.
     pub ai: Option<Arc<crate::ai::agent::AiRuntime>>,
+    /// Change events (HAPI-05): rooms publish here; streams and webhooks read.
+    pub events: Arc<crate::events::Hub>,
 }
 
 struct Entry {

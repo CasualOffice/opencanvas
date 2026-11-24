@@ -15,6 +15,7 @@
 //! `Link: rel="successor-version"` to the v1 operation (docs/27 §9, decision 8).
 
 pub mod cursor;
+pub mod events;
 pub mod idempotency;
 pub mod limits;
 pub mod problem;
@@ -101,6 +102,8 @@ pub fn table() -> Table {
         .op(M::POST, p!("/role"), set_role)
         .op(M::DELETE, p!("/session"), close_session)
         .op(M::POST, p!("/members:invalidate"), invalidate_members)
+        .op(M::GET, p!("/events"), events::events)
+        .op(M::POST, p!("/sync-token"), events::sync_token)
         .op(M::POST, "/api/v1/convert", convert)
 }
 
