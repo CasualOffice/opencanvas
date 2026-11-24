@@ -23,6 +23,13 @@ describe("budget helpers", () => {
     expect(mb(4.3 * 1024 * 1024)).toBe("4.3 MB");
     expect(mb(5 * 1024 * 1024)).toBe("5 MB");
   });
+  it("a small diagram reads in KB, not '0 MB' (UX-DGM-01)", () => {
+    expect(mb(0)).toBe("0 KB");
+    expect(mb(300)).toBe("1 KB");
+    expect(mb(12.4 * 1024)).toBe("12 KB");
+    expect(mb(1023 * 1024)).toBe("1023 KB");
+    expect(mb(1024 * 1024)).toBe("1 MB");
+  });
   it("measures a board's encoded size, by part, with the largest container and image", () => {
     const doc = new Y.Doc();
     const bid = createBoard(doc, "blank");

@@ -22,8 +22,9 @@ const SW = 1.75;
 export type Level = "ok" | "warn" | "over";
 export const levelOf = (bytes: number, limit: number): Level => (bytes > limit ? "over" : bytes >= limit * WARN_AT ? "warn" : "ok");
 
-/** "4.3 MB", "5 MB", "0.2 MB" (one decimal, a whole number without it). */
+/** "4.3 MB", "5 MB" (one decimal, a whole number without it); below 1 MB in whole KB ("12 KB"). */
 export function mb(bytes: number): string {
+  if (bytes < MB) return `${bytes <= 0 ? 0 : Math.min(1023, Math.max(1, Math.round(bytes / 1024)))} KB`;
   const v = Math.round((bytes / MB) * 10) / 10;
   return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)} MB`;
 }
@@ -135,7 +136,7 @@ export function useBudget(doc: Y.Doc, boardId: string, maxDocBytes: number | und
   const chip = level === "ok" ? null : (
     <button type="button" className={"ocdg-chip " + level} onClick={() => setOpen(true)} title="What uses space">
       <Gauge size={12} strokeWidth={SW} aria-hidden="true" />
-      {`${mb(u.bytes).replace(" MB", "")} of ${mb(limit)}`}
+      {`${u.bytes < MB ? mb(u.bytes) : mb(u.bytes).replace(" MB", "")} of ${mb(limit)}`}
     </button>
   );
   const banner =
