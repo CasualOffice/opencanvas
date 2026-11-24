@@ -9,6 +9,7 @@
 // Every query gives exactly what the linear scan it replaces gave, in paint order:
 //   `inBox`   ids whose box meets a box: viewport culling and marquee (`intersects(bbox(s), q)`)
 //   `snap`    the binding an arrow end snaps to (`snapTarget`)
+//   `hitAt`   the topmost shape at a point (DGM-19: the zoomed-out LOD layer has no per-shape DOM)
 // The index stores normalised finite boxes and is only a pre-filter: candidates are checked
 // with the original predicate on the shape's own `bbox`, so inverted boxes behave as before,
 // and shapes whose box isn't finite (bad remote data) are kept in a side list checked on
@@ -17,6 +18,14 @@ import { bbox, type Pt, type Shape } from "./model";
 import { intersects, type Box } from "./ops";
 import { SpatialIndex } from "./spatial";
 import { snapOn, type Binding } from "./connectors";
+
+/** Distance from `p` to the segment `a`-`b`. */
+const segDist = (p: Pt, a: Pt, b: Pt) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const l = dx * dx + dy * dy;
+  const t = l ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+};
 
 const finite = (b: Box) => Number.isFinite(b[0]) && Number.isFinite(b[1]) && Number.isFinite(b[2]) && Number.isFinite(b[3]);
 
@@ -145,5 +154,35 @@ export class SceneIndex {
       }
     }
     return best;
+  }
+
+  /**
+   * The shape at `p` (DGM-19: the zoomed-out LOD layer has no per-shape elements to hit): the
+   * topmost box containing `p`, else the topmost connector or pen stroke within `tol` of it
+   * (zoomed out a line is a hair wide and runs over the boxes it joins, so boxes win).
+   */
+  hitAt(p: Pt, tol: number): string | null {
+    let box: string | null = null, line: string | null = null;
+    let bp = -1, lp = -1;
+    for (const id of this.candidates([p[0] - tol, p[1] - tol, p[0] + tol, p[1] + tol])) {
+      const i = this.pos.get(id)!;
+      const s = this.byId.get(id)!;
+      if (s.type === "arrow" || s.type === "pen") {
+        if (i <= lp || !s.pts) continue;
+        for (let k = 1; k < s.pts.length; k++)
+          if (segDist(p, s.pts[k - 1], s.pts[k]) <= tol) {
+            line = id;
+            lp = i;
+            break;
+          }
+      } else if (i > bp) {
+        const b = this.boxes.get(id)!;
+        if (p[0] >= Math.min(b[0], b[2]) && p[0] <= Math.max(b[0], b[2]) && p[1] >= Math.min(b[1], b[3]) && p[1] <= Math.max(b[1], b[3])) {
+          box = id;
+          bp = i;
+        }
+      }
+    }
+    return box ?? line;
   }
 }

@@ -137,7 +137,8 @@ drags grows the state, which is why drags stay throttled.
 | Wire `SpatialIndex` into culling, `snapTarget` and marquee; profile in a browser (DGM-10) | 2, done (§6.1, §6.2) |
 | Obstacle-aware orthogonal routing (ADR-047) | 2, minimal (§6.4); stored-`pts` export rule: done (DGM-12b, §6.4); worker, Rust router port, narrower commit set: deferred |
 | Per-board budget warning; per-board diagram mode, stencils, inspector, editor placeholder for unknown types: prototypes first (ADR-011) | 2 (prototypes in progress elsewhere) |
-| O(n) per change left: projection and resolver copy the full list (10k `drag20` 20 ms); scene layer separate from React and level-of-detail for the fit view (10k pan 68 ms) | 3 |
+| O(n) per change left: projection and resolver copy the full list (10k `drag20` 20 ms) | 3 |
+| Level of detail for the fit view (10k pan 68 ms) | done (DGM-19, §6.6): 10k pan at the harness floor, 55k → 23 board SVG elements |
 | `syncBoundArrows` reads the whole board on each commit; use the projection and `EdgeIndex` | 2, done (`syncArrows`, §6.2) |
 | Layout (Dagre first; ELK only after a licence review and as a lazy worker chunk), Mermaid import through FC-10 | 3 (draw.io and Excalidraw import: done, §7) |
 | 5k/10k browser stress | 4 |
@@ -298,6 +299,78 @@ winner's update while it still has the document open; a client that closes befor
 loss. Regression tests (both cases) seen failing first. Nothing else was lost: 0.1.1 edits keep
 every diagram field; 0.1.1 connector sync rewrites an `avoid` connector's `pts` to the plain elbow,
 which ADR-047 already allows (`pts` is a snapshot).
+
+### 6.6 Level of detail when zoomed out (DGM-19)
+
+**Measured first** (harness §6.1, `PERF_ONLY=fit`: the whole board on screen; new `zoomFit` scenario:
+20 Ctrl+wheel steps in from the fit view and back; `domNodesFit` = every element in the board SVG).
+The 10k fit-view pan was ~68 ms p50 in §6.1 and 134.6 ms in this run (higher machine load). A Chromium
+trace of the 10k `panFit` with the first LOD cut (grouped paths inside the board SVG: 40 ms p50)
+showed raster, not script: four raster threads busy ~2.35 s each over the 4 s pan (`RasterTask`),
+main-thread script ~1.7 ms per wheel event. DOM size was the first cost, raster of the whole board
+on every pan the second.
+
+**Built** (`src/lod.ts`, `BoardBlock.tsx` `LodLayer`, `scene.ts` `hitAt`). Below **40 % zoom on a
+board of more than 300 shapes** (`LOD.z`, `LOD.min`):
+- every shape is drawn by `lodGroups`: one `<path>` per style group (fill + stroke), boxes as plain
+  rects (core ellipses and diamonds keep their outline), connectors and pen strokes as single
+  polylines, shapes under 2 screen pixels (`LOD.tiny`) collapsed into one path of dots. No text,
+  labels, icons, arrow heads, shadows or hit-target overlays. Memoised on the shapes and a zoom
+  bucket (quarter octaves), so a pan re-renders nothing;
+- the layer is its own `<svg>` under the (then transparent) board SVG, drawn at the bucket zoom and
+  moved by a CSS `transform` with `will-change`, so the compositor pans it without rastering the
+  paths again (the board background moves to that underlay while LOD is on);
+- the selected and edited shapes keep their full views above it (handles, text editor);
+- hit-testing is by position (`SceneIndex.hitAt`: the topmost box containing the point, else a
+  connector within 6 px), for click, drag and double-click; marquee and snapping already used the
+  index.
+At 40 % and above nothing changes (render identity, below). Zooming back in brings the full views
+and their text back.
+
+**Visible below 40 % on boards over 300 shapes** (none at normal zoom): no text, labels, icons, arrow
+heads or sticky shadows; rounded corners square; library kinds draw as plain rects; connectors draw
+under the boxes (paint order is per style group); shapes under 2 px are dots; a zoom between two
+buckets is the bucket's raster scaled by up to ±9 %, slightly soft until the next bucket; no
+per-shape "move" cursor.
+
+**Tests** (`lod.test.tsx`, seen failing first: `./lod` missing): at 100 %, 150 % and 200 % the board
+SVG is byte-identical to a board with LOD switched off (1,200-node fixture), with no LOD layer; at
+the fit view no `g[data-s]`, no `<text>`, under 60 elements in the board SVG and one subpath per
+node and connector in the layer; zoom back to 50 % equals a fresh mount there with text; a click at
+the fit view selects the node under it; tiny shapes collapse; `hitAt` prefers boxes.
+Two existing tests looked at big boards zoomed out and now meet LOD: the DGM-11 culling identity
+test zooms to ~80 % instead of ~37 % (culling is what the board does there), and the nudge-commit
+test in `scene.test.tsx` switches LOD off (it clicks the node's own element; it is about the commit).
+
+**Numbers** (`frames-before-lod.json` = `d51fbe9` build, load 9.3 / 18.4 / 15.6; `frames-after-lod.json`,
+load 9.1 / 12.9 / 13.9; Apple M4, 10 cores, 16 GB, macOS 26.3, headless Chromium 159, 1280 × 900;
+other agents building on the same machine). Latency p50 / p95 / p99 ms, before → after; rAF p95; frames
+over 25 ms; long tasks:
+
+| nodes / edges | scenario | latency p50 / p95 / p99 | rAF p95 | frames > 25 ms | long tasks |
+|---|---|---|---|---|---|
+| 1,000 / 1,500 | panFit | 24.8 / 26.4 / 27.1 → 23.5 / 24.7 / 25.5 | 16.7 → 16.8 | 0 → 0 | 0 → 0 |
+| 1,000 / 1,500 | zoomFit | 41.2 / 42.7 / 43.3 → 23.5 / 25.6 / 34 | 16.7 → 16.7 | 0 → 0 | 0 → 0 |
+| 1,000 / 1,500 | drag1Fit | 6.4 / 22.3 / 22.8 → 5.3 / 19.5 / 20.3 | 16.7 → 16.8 | 0 → 0 | 0 → 0 |
+| 5,000 / 7,500 | panFit | 63.6 / 83.9 / 85.6 → 23.2 / 25.2 / 31.6 | 16.8 → 16.7 | 5 → 0 | 0 → 0 |
+| 5,000 / 7,500 | zoomFit | 78.9 / 199.8 / 218.6 → 27.4 / 40.8 / 40.9 | 50.1 → 16.8 | 25 → 0 | 14 → 0 |
+| 5,000 / 7,500 | drag1Fit | 53.6 / 60.6 / 62.5 → 20.8 / 22.8 / 23.2 | 33.4 → 16.7 | 121 → 0 | 1 → 0 |
+| 10,000 / 15,000 | panFit | 134.6 / 162.7 / 168.6 → 23.6 / 25 / 25.6 | 33.4 → 16.8 | 99 → 0 | 1 → 0 |
+| 10,000 / 15,000 | zoomFit | 66.3 / 197.8 / 228.9 → 27.8 / 41.4 / 41.7 | 50 → 16.8 | 19 → 0 | 8 → 0 |
+| 10,000 / 15,000 | drag1Fit | 57.7 / 77.1 / 82.7 → 21.1 / 23.8 / 32.2 | 50 → 16.8 | 120 → 4 | 57 → 0 |
+
+Board SVG elements at the fit view: 8,215 / 40,976 / 55,451 → 23 (1k / 5k / 10k; the LOD underlay
+adds one `<svg>` with one path per style group). Heap after load 133.9 → 112.2 MB at 10k.
+Commit after the drag (`release`): 39.9 → 28.9 ms at 10k.
+
+**Reading.** The target was a 10k pan with the whole board in view under 16 ms p50. Frames: the rAF
+interval is 16.7 ms p50 and p95 at every size, with no long task. Latency (input to the frame after
+it) is 23.6 ms p50 at 10k, the same as 1k (23.5) and as the harness floor: with no board work the
+metric still measures the wait for the next 60 Hz frame plus input alignment (§6.1), so it cannot
+drop under ~23 ms here. The board adds no measurable time per pan at 10k. Not reached in the
+latency sense; reached in frame time. Per ADR-046 no Canvas2D/WebGL: SVG paths in a composited
+layer sufficed. The drag at the fit view still rebuilds the layer per move (O(n) path strings and a
+re-raster), 21 ms p50 at 10k; splitting moving shapes out of the layer is the next step if needed.
 
 ## 7. Diagram import: draw.io and Excalidraw (DGM-15, built 2026-11-24)
 

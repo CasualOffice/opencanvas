@@ -609,6 +609,14 @@ reconciliation, keeps 1,000 nodes / 1,500 edges from 60 fps pan and drag. Export
 on the web SVG exporter, unaffected by the screen renderer.
 **Consequences.** + No rewrite risk, accessibility (SVG + DOM) kept; − large boards depend on culling
 and a scene split landing in Phase 2/4.
+**Note (DGM-19, 2026-11-24, profiled first).** Zoomed out on a 10k board the cost was DOM size
+(55k elements), then raster: a trace of the first level-of-detail cut (grouped paths in the board
+SVG) showed four raster threads busy for most of each pan, script ~1.7 ms per event. Decision: still
+SVG, no `<canvas>`. Below 40 % zoom on boards over 300 shapes the shapes draw as one `<path>` per
+style group in a separate `<svg>` under the board SVG, moved by a CSS transform (`will-change`) so
+the compositor pans it without re-raster; hit-testing by position through `SceneIndex`. Pixel-identical
+at 40 % and above (test). 10k fit-view pan 134.6 → 23.6 ms latency p50 (harness floor), 16.7 ms
+frames, no long tasks (docs/29 §6.6).
 
 ### ADR-047 — Connector routing and layout (Accepted by the owner 2026-11-24)
 **Context.** Connectors store intent (bindings, `route`, `via`); `pts` is a resolved snapshot kept for

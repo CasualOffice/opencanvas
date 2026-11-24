@@ -7,13 +7,14 @@
 // reads the whole board to refresh connector `pts`.
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import * as Y from "yjs";
 import type { BlockEnv } from "@opencanvas/ui";
 import { BoardBlock } from "./index";
 import { bbox, getBoardMap, readShapes, type Shape } from "./model";
 import { intersects, type Box } from "./ops";
 import { SceneIndex } from "./scene";
+import { LOD } from "./lod";
 import { SpatialIndex } from "./spatial";
 import { snapTarget, syncArrows, syncBoundArrows } from "./connectors";
 import { createArrowResolver } from "./edges";
@@ -171,6 +172,11 @@ describe("board view through the scene index", { timeout: 60_000 }, () => {
   });
 
   it("a nudge commits without reading the whole board", async () => {
+    // The board opens fitted (zoomed out); this is about the commit, so draw full views (no LOD,
+    // DGM-19) to click the node's own element.
+    const lodZ = LOD.z;
+    LOD.z = 0;
+    onTestFinished(() => void (LOD.z = lodZ));
     size.w = 800;
     size.h = 600;
     const fx = makeFixture({ nodes: 1500 });
