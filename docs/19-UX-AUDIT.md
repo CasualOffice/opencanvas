@@ -141,6 +141,11 @@ fixed in SCALE-01, these are the follow-up (SCALE-02):
 | S7 | all | axe `aria-allowed-attr` (1): `aria-multiselectable` on the database `<table>` — also at 100 %, not caused by scaling | move it to a `grid` role or drop it |
 | S8 | not run | WCAG 1.4.12 text-spacing overrides; 400 % zoom; the reflow Playwright checks (no sideways scroll, key controls clickable) at 200 % / 24 px / 320 px | SCALE-02 |
 
+SCALE-02 (2026-11-24, owner scope S1, S2 pills, S5, S6): S1 fixed (Lucide sizes map 1:1 to rem;
+identical at 16 px), S2 pills fixed (ellipsis; stored column widths still px), S5 fixed (panel
+`min(23.75rem, max(380px, 30vw))`), S6 fixed (labels clamped inside the column). S3 needs a
+prototype; S7 and S8 open. Details in the tracker (SCALE-02).
+
 At 320 px wide and at 200 % the top bar keeps every control visible and clickable (compact layout);
 the more menu and comments open as sheets.
 

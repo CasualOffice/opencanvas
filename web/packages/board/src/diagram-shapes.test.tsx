@@ -339,7 +339,7 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     act(() => btn(dg, "Collapse shapes panel")!.click());
     const rail = dg.querySelector<HTMLElement>("aside.ocdg-rail")!;
     const names = [...rail.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-    expect(names.slice(0, 4)).toEqual(["Expand shapes panel", "Search shapes", "Recent", "Test shapes"]);
+    expect(names.slice(0, 5)).toEqual(["Expand shapes panel", "Search shapes", "Recent", "Icons", "Test shapes"]);
     expect(names.at(-1)).toBe("Outline");
     expect(JSON.parse(localStorage.getItem("oc-diagram-rail")!)).toBe(true);
     act(() => btn(rail, "Test shapes")!.click());
@@ -358,6 +358,23 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     expect(dg.querySelector("aside.ocdg-rail")).toBeNull();
   });
 
+  it("the rail has an Icons button: the Icons library as a flyout, by group (UX-DGM-01)", async () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    const dg = await open(doc, id);
+    act(() => btn(dg, "Collapse shapes panel")!.click());
+    const rail = dg.querySelector<HTMLElement>("aside.ocdg-rail")!;
+    act(() => btn(rail, "Icons")!.click());
+    const fly = () => dg.querySelector<HTMLElement>('[role="dialog"][aria-label="Icons"]');
+    expect(fly()).toBeTruthy();
+    expect(btn(rail, "Icons")!.getAttribute("aria-expanded")).toBe("true");
+    expect(fly()!.querySelector('[data-group="compute"] .ocdg-tile')).toBeTruthy();
+    expect(document.activeElement?.classList.contains("ocdg-tile")).toBe(true);
+    act(() => fly()!.querySelector<HTMLButtonElement>(".ocdg-tile")!.click());
+    expect(fly()).toBeNull();
+    expect(all(doc, id)[0]).toMatchObject({ kind: "icon:node" });
+  });
+
   it("Shapes and Outline are tabs (arrow keys switch); view-only people get the outline only", async () => {
     const doc = new Y.Doc();
     const id = createBoard(doc, "blank");
@@ -370,5 +387,49 @@ describe("shapes panel (S2)", { timeout: 60_000 }, () => {
     expect(dg.querySelector('aside[aria-label="Outline"] [role="tree"]')).toBeTruthy();
     act(() => (dg.querySelector('[role="tab"]') as HTMLElement).click());
     expect(dg.querySelector('aside[aria-label="Shapes"] input[aria-label="Search shapes"]')).toBeTruthy();
+  });
+});
+
+/* ---- UX-DGM-01: the panel's search field and tile previews ---- */
+describe("panel polish (UX-DGM-01)", () => {
+  it("the search input fills the 32 px field instead of a 22 px line", async () => {
+    const { DIAGRAM_CSS } = await import("./diagram/styles");
+    const rule = /\.ocdg-search input\{([^}]*)\}/.exec(DIAGRAM_CSS)?.[1] ?? "";
+    expect(rule).toMatch(/align-self:stretch/);
+    expect(rule).toMatch(/height:auto/);
+    expect(/\.ocdg-search\{[^}]*height:2rem/.test(DIAGRAM_CSS)).toBe(true);
+  });
+
+  // A preview is scaled from what it actually draws (its bounding box), not from the shape's
+  // box: a checkbox drawn in the left fifth of a 160 × 30 control was a 5 px speck, and outlines
+  // that reach past 0..100 were clipped.
+  const render = async (d: unknown, box: { x: number; y: number; width: number; height: number }) => {
+    const { Preview } = await import("./diagram/ShapesPanel");
+    const proto = SVGElement.prototype as unknown as { getBBox?: () => unknown };
+    const had = Object.getOwnPropertyDescriptor(proto, "getBBox");
+    Object.defineProperty(proto, "getBBox", { configurable: true, value: () => box });
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+    act(() => root.render(<Preview d={d as never} />));
+    cleanups.push(() => {
+      act(() => root.unmount());
+      if (had) Object.defineProperty(proto, "getBBox", had);
+      else delete proto.getBBox;
+    });
+    const m = /translate\(([-\d.e]+) ([-\d.e]+)\) scale\(([-\d.e]+) ([-\d.e]+)\)/.exec(el.querySelector("svg.ocdg-pv > g")!.getAttribute("transform")!)!;
+    const [tx, ty, sx, sy] = m.slice(1).map(Number) as [number, number, number, number];
+    return { left: tx + box.x * sx, top: ty + box.y * sy, right: tx + (box.x + box.width) * sx, bottom: ty + (box.y + box.height) * sy };
+  };
+  it("a small control fills the tile", async () => {
+    const r = await render({ kind: "tw:check", base: "rect", look: { path: "M2 20H14V80H2Z", w: 160, h: 30 } }, { x: 2, y: 20, width: 12, height: 60 });
+    expect(r.bottom - r.top).toBeGreaterThanOrEqual(20);
+  });
+  it("an outline past its box stays inside the preview", async () => {
+    const r = await render({ kind: "tw:docs", base: "rect", look: { path: "M0 10H96V0H104V100H0Z", w: 140, h: 70 } }, { x: 0, y: 0, width: 108, height: 100 });
+    expect(r.left).toBeGreaterThanOrEqual(0.5);
+    expect(r.right).toBeLessThanOrEqual(31.5);
+    expect(r.top).toBeGreaterThanOrEqual(0.5);
+    expect(r.bottom).toBeLessThanOrEqual(23.5);
   });
 });

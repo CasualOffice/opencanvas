@@ -85,7 +85,7 @@ describe("diagram window", { timeout: 120_000 }, () => {
   });
 });
 
-function selectAllOn(top: number) {
+function selectAllOn(top: number, panX = 0) {
   const doc = new Y.Doc();
   const id = createBoard(doc, "blank");
   addShape(doc, id, { type: "rect", x: 300, y: top, w: 160, h: 80, text: "Shape" });
@@ -96,6 +96,8 @@ function selectAllOn(top: number) {
   const root = el.querySelector<HTMLElement>(".ocbd")!;
   act(() => root.focus());
   key(root, "a", { ctrlKey: true });
+  // A sideways swipe pans the board, taking the shape towards one edge.
+  if (panX) act(() => void svg.dispatchEvent(new WheelEvent("wheel", { deltaX: panX, bubbles: true, cancelable: true })));
   return el.querySelector<HTMLElement>(".ocbd-swatch")!;
 }
 
@@ -111,5 +113,78 @@ describe("selection toolbar", { timeout: 30_000 }, () => {
     const bar = selectAllOn(200);
     expect(parseFloat(bar.style.top)).toBe(186);
     expect(bar.dataset.place).toBeUndefined();
+  });
+
+  // The bar's width depends on the shape (sticky colours, connector tools) and the text size; a
+  // guessed half width let it run off the canvas edge in diagram mode (UX-DGM-01).
+  describe("is measured and kept inside the canvas", () => {
+    const W = 440;
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")!;
+    afterEach(() => Object.defineProperty(HTMLElement.prototype, "offsetWidth", desc));
+    const wide = () =>
+      Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-swatch") ? W : 0; } });
+    it("at the left edge", () => {
+      wide();
+      const bar = selectAllOn(200, 560);
+      expect(parseFloat(bar.style.left) - W / 2).toBeGreaterThanOrEqual(8);
+    });
+    it("at the right edge", () => {
+      wide();
+      const bar = selectAllOn(200, -560);
+      expect(parseFloat(bar.style.left) + W / 2).toBeLessThanOrEqual(1100 - 8);
+    });
+  });
+});
+
+// On a 390 px phone the nine tools do not fit: the last one (Text) was cut off at the right with
+// no sign that the bar scrolls, and the buttons were 40 px (UX-DGM-01).
+describe("phone tool bar", { timeout: 30_000 }, () => {
+  const sw = Object.getOwnPropertyDescriptor(Element.prototype, "scrollWidth")!;
+  const cw = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!;
+  afterEach(() => {
+    Object.defineProperty(Element.prototype, "scrollWidth", sw);
+    Object.defineProperty(Element.prototype, "clientWidth", cw);
+  });
+  it("tools are 44 px and do not shrink", async () => {
+    const { CSS: BOARD_CSS } = await import("./styles");
+    expect(BOARD_CSS).toMatch(/\.ocbd-compact \.ocbd-tool \.ocbd-ib\{[^}]*width:2\.75rem;height:2\.75rem/);
+    expect(BOARD_CSS).toMatch(/\.ocbd-tool>\*,\.ocbd-tool \.ocbd-ib\{[^}]*flex:none/);
+  });
+  it("says which side has more tools, and keeps the chosen tool in view", () => {
+    Object.defineProperty(Element.prototype, "scrollWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-tool") ? 420 : 0; } });
+    Object.defineProperty(Element.prototype, "clientWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-tool") ? 366 : 0; } });
+    const into = vi.fn();
+    (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView = into;
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    const el = mount(<BoardBlock doc={doc} boardId={id} env={{ ...env(), compact: true }} />);
+    const bar = el.querySelector<HTMLElement>('[aria-label="Board tools"]')!;
+    expect(bar.dataset.more).toBe("right");
+    bar.scrollLeft = 54;
+    act(() => void bar.dispatchEvent(new Event("scroll")));
+    expect(bar.dataset.more).toBe("left");
+    bar.scrollLeft = 20;
+    act(() => void bar.dispatchEvent(new Event("scroll")));
+    expect(bar.dataset.more).toBe("both");
+    act(() => bar.querySelector<HTMLButtonElement>('[aria-label="Text"]')!.click());
+    expect(into.mock.contexts.at(-1)).toBe(bar.querySelector('[aria-label="Text"]'));
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+});
+
+// SCALE-02 S1: Lucide icons take their size from a px attribute, so at a 24 px default font they
+// stayed small beside 1.5x text. A zero-specificity rule maps each size 1:1 to rem (identical at
+// 16 px), in the board and diagram chrome and in the editor (top bar, menus).
+describe("icons scale with the text size (SCALE-02)", () => {
+  const sizes = [12, 14, 16, 18, 20];
+  it("board and diagram chrome", async () => {
+    const { CSS } = await import("./styles");
+    for (const n of sizes) expect(CSS).toContain(`:where(.ocbd,.ocdg) :where(svg.lucide[width="${n}"]){width:${n / 16}rem;height:${n / 16}rem}`);
+  });
+  it("the editor", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const css = fs.readFileSync(path.resolve(process.cwd(), "../editor/src/styles/app.css"), "utf8");
+    for (const n of sizes) expect(css).toContain(`:where(svg.lucide[width="${n}"]){width:${n / 16}rem;height:${n / 16}rem}`);
   });
 });

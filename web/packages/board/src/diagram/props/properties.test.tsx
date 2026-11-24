@@ -173,10 +173,44 @@ describe("properties panel", { timeout: 30_000 }, () => {
       [0, 1],
     );
     expect(el.querySelector(".ocpp-title")!.textContent).toBe("2 selected");
-    const colour = input(el, "Colour");
-    expect(colour.placeholder).toBe("Mixed");
-    type(colour, "pink");
+    const colour = el.querySelector<HTMLElement>('[role="radiogroup"][aria-label="Colour"]')!;
+    expect(colour.textContent).toContain("Mixed");
+    act(() => colour.querySelector<HTMLButtonElement>('[aria-label="Pink"]')!.click());
     expect([get(0).fill, get(1).fill]).toEqual(["pink", "pink"]);
+  });
+  it("colour is the 7 swatches of 4c, never a raw code (UX-DGM-01)", () => {
+    const { el, get } = setup([{ type: "rect", x: 0, y: 0, w: 10, h: 10, fill: "blue" }], [0]);
+    expect(input(el, "Colour")).toBeUndefined();
+    const sw = [...el.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Colour"] [role="radio"]')];
+    expect(sw.map((b) => b.getAttribute("aria-label"))).toEqual(["Gray", "Blue", "Green", "Amber", "Purple", "Pink", "Red"]);
+    expect(sw.filter((b) => b.getAttribute("aria-checked") === "true").map((b) => b.getAttribute("aria-label"))).toEqual(["Blue"]);
+    act(() => sw[2]!.click());
+    expect(get(0).fill).toBe("green");
+  });
+  it("a sticky's colour offers the sticky colours, so 'b' reads as Blue (UX-DGM-01)", () => {
+    const { el, get } = setup([{ type: "sticky", x: 0, y: 0, w: 10, h: 10, fill: "b", text: "x" }], [0]);
+    const sw = [...el.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Colour"] [role="radio"]')];
+    expect(sw.map((b) => b.getAttribute("aria-label"))).toEqual(["Yellow", "Pink", "Blue", "Green"]);
+    expect(sw[2]!.getAttribute("aria-checked")).toBe("true");
+    expect(el.textContent).not.toMatch(/\bb\b/);
+    act(() => sw[0]!.click());
+    expect(get(0).fill).toBe("y");
+  });
+  it("shape text keeps its line breaks (UX-DGM-01)", () => {
+    const { el, get } = setup([{ type: "rect", x: 0, y: 0, w: 10, h: 10, text: "Line one\nLine two" }], [0]);
+    const ta = [...el.querySelectorAll<HTMLTextAreaElement>("textarea")].find((t) => t.closest("label")?.querySelector(".ocdg-lbl")?.textContent === "Text")!;
+    expect(ta.value).toBe("Line one\nLine two");
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(ta, "A\nB\nC");
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(get(0).text).toBe("Line one\nLine two");
+    act(() => {
+      ta.focus();
+      ta.blur();
+    });
+    expect(get(0).text).toBe("A\nB\nC");
   });
   it("view only: fields are read only and lists have no add or remove", () => {
     const { el } = setup([umlClass], [0], false);

@@ -37,6 +37,13 @@ export const PROPS_CSS = `
 .ocpp-ends dd{margin:0}
 .ocpp .ocdg-seg{margin-bottom:.5rem}
 .ocpp-xywh{display:grid;grid-template-columns:1fr 1fr;gap:0 .5rem}
+.ocpp-ta{height:auto;min-height:3.25rem;padding:.375rem .5rem;line-height:1.4;resize:vertical}
+.ocpp-sws{display:flex;gap:.375rem;align-items:center;flex-wrap:wrap;min-height:2rem}
+.ocpp-sw{width:1.125rem;height:1.125rem;border-radius:50%;border:0;padding:0;flex:none;cursor:pointer;transition:transform .15s var(--ease,ease)}
+.ocpp-sw:hover:not(:disabled){transform:scale(1.1)}
+.ocpp-sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ocpp-sw:disabled{cursor:default}
+.ocpp-mxl{font-size:.71875rem;color:var(--fg-3,var(--fg-2));font-style:italic}
 .ocpp .ocdg-sw:disabled{cursor:default;opacity:.8}
 `;
 

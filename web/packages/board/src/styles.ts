@@ -4,7 +4,14 @@
 // Styles for the board block. Injected once into document.head on first mount.
 // Uses only design tokens from @opencanvas/ui/tokens.css; light and dark come free.
 
+// Lucide icons take their size from a px attribute; this maps each size 1:1 to rem (identical at
+// 16 px) so icons grow with the reader's text size (SCALE-02). Zero specificity: any rule that sizes
+// an icon on purpose still wins.
+const ICON_SIZES = [9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 32, 40];
+export const ICON_REM = ICON_SIZES.map((n) => `:where(.ocbd,.ocdg) :where(svg.lucide[width="${n}"]){width:${n / 16}rem;height:${n / 16}rem}`).join("\n");
+
 export const CSS = `
+${ICON_REM}
 .ocbd{font-family:var(--font);color:var(--fg);font-size:.875rem;line-height:1.5;-webkit-font-smoothing:antialiased;margin:.875rem 0;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;position:relative;background:var(--panel);outline:none;isolation:isolate}
 .ocbd *{box-sizing:border-box}
 :where(.ocbd) :where(button){font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -16,6 +23,10 @@ export const CSS = `
 .ocbd-svg text{font-family:var(--font)}
 .ocbd-tool{position:absolute;left:50%;bottom:.75rem;transform:translateX(-50%);display:flex;gap:2px;padding:.25rem;border-radius:.75rem;background:var(--pop);box-shadow:var(--sh-pop);z-index:2;max-width:calc(100% - 1.5rem);overflow-x:auto;scrollbar-width:none}
 .ocbd-tool::-webkit-scrollbar{display:none}
+.ocbd-tool>*,.ocbd-tool .ocbd-ib{flex:none}
+.ocbd-tool[data-more="right"]{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 2rem),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 2rem),transparent)}
+.ocbd-tool[data-more="left"]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 2rem);mask-image:linear-gradient(90deg,transparent,#000 2rem)}
+.ocbd-tool[data-more="both"]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 2rem,#000 calc(100% - 2rem),transparent);mask-image:linear-gradient(90deg,transparent,#000 2rem,#000 calc(100% - 2rem),transparent)}
 .ocbd-ib{width:2rem;height:2rem;border:0;background:none;border-radius:.5rem;display:inline-grid;place-items:center;color:var(--fg-2);flex:none;padding:0;transition:background .2s var(--ease),color .2s var(--ease),transform .15s var(--ease)}
 .ocbd-ib:hover{background:var(--hover);color:var(--fg)}
 .ocbd-ib:active{transform:scale(.94);background:var(--press)}
@@ -57,7 +68,7 @@ export const CSS = `
 
 .ocbd-compact .ocbd-svg{height:18.75rem}
 .ocbd-compact:not(.active):not(.ocbd-full) :is(.ocbd-tool,.ocbd-zoom,.ocbd-top,.ocbd-swatch,.ocbd-menu){display:none}
-.ocbd-compact .ocbd-tool .ocbd-ib{width:2.5rem;height:2.5rem}
+.ocbd-compact .ocbd-tool .ocbd-ib{width:2.75rem;height:2.75rem}
 .ocbd-compact .ocbd-ib{width:2.375rem;height:2.375rem}
 .ocbd-compact .ocbd-zoom{bottom:auto;top:.75rem;right:6.25rem}
 .ocbd-compact .ocbd-mi{height:2.75rem;font-size:.9375rem}

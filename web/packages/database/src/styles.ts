@@ -78,7 +78,8 @@ button.ocdb-cin:disabled{cursor:default;background:none}
 .ocdb-newrow:hover{background:var(--hover);color:var(--fg)}
 .ocdb-nomatch{padding:1.375rem .625rem;color:var(--fg-3);font-size:.8438rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 
-.ocdb-pill{display:inline-flex;align-items:center;gap:.375rem;height:1.375rem;padding:0 .5rem;border-radius:.375rem;font-size:.7813rem;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;flex:none}
+.ocdb-pill{display:inline-flex;align-items:center;gap:.375rem;height:1.375rem;padding:0 .5rem;border-radius:.375rem;font-size:.7813rem;font-weight:500;white-space:nowrap;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:none}
+.ocdb-pt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ocdb-pill.st::before{content:"";width:.375rem;height:.375rem;border-radius:50%;background:currentColor;opacity:.85;flex:none}
 .ocdb-c-gray{background:var(--gray-bg);color:var(--gray-fg)} .ocdb-c-blue{background:var(--blue-bg);color:var(--blue-fg)} .ocdb-c-amber{background:var(--amber-bg);color:var(--amber-fg)} .ocdb-c-green{background:var(--green-bg);color:var(--green-fg)}
 .ocdb-c-red{background:var(--red-bg);color:var(--red-fg)} .ocdb-c-purple{background:var(--purple-bg);color:var(--purple-fg)} .ocdb-c-pink{background:var(--pink-bg);color:var(--pink-fg)}

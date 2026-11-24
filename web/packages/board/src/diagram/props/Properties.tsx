@@ -61,6 +61,65 @@ function Text({ label, value, edit, onCommit, placeholder, mono }: { label: stri
   );
 }
 
+/** Multi-line text (shape text): Enter adds a line; ⌘/Ctrl+Enter or blur writes; Esc restores. */
+function Area({ label, value, edit, onCommit }: { label: string; value: Shared<string>; edit: boolean; onCommit: (v: string) => void }) {
+  const cur = show(value);
+  const [v, setV] = useState(cur);
+  useEffect(() => setV(cur), [cur]);
+  const rows = Math.min(6, Math.max(2, v.split("\n").length));
+  return (
+    <label className="ocdg-fld ocpp-fld">
+      <span className="ocdg-lbl">{label}</span>
+      <textarea
+        className="ocdg-inp ocpp-ta"
+        value={v}
+        rows={rows}
+        readOnly={!edit}
+        placeholder={value === MIXED ? MIX : undefined}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => v !== cur && !(value === MIXED && v === "") && onCommit(v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.blur();
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            setV(cur);
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+/** The colours a shape can take (prototype 4c): the 7 tones, or the 4 sticky colours for stickies. */
+const TONE_SW: [string, string][] = [["gray", "Gray"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["purple", "Purple"], ["pink", "Pink"], ["red", "Red"]];
+const STICKY_SW: [string, string][] = [["y", "Yellow"], ["p", "Pink"], ["b", "Blue"], ["g", "Green"]];
+function Swatches({ sel, edit, onChange }: { sel: Shape[]; edit: boolean; onChange: (fill: string) => void }) {
+  const sticky = sel.every((s) => s.type === "sticky");
+  const value = shared(sel, (s) => s.fill ?? (s.type === "sticky" ? "y" : ""));
+  return (
+    <div className="ocdg-fld ocpp-fld">
+      <span className="ocdg-lbl" aria-hidden="true">Colour</span>
+      <div className="ocpp-sws" role="radiogroup" aria-label="Colour">
+        {(sticky ? STICKY_SW : TONE_SW).map(([c, name]) => (
+          <button
+            key={c}
+            type="button"
+            role="radio"
+            className="ocpp-sw"
+            aria-label={name}
+            title={name}
+            aria-checked={value === c}
+            disabled={!edit}
+            style={{ background: sticky ? `var(--sticky-${c})` : `var(--${c}-bg)`, boxShadow: (sticky ? "inset 0 0 0 1px var(--line-2)" : `inset 0 0 0 1.5px var(--${c}-fg)`) + (value === c ? ", 0 0 0 2px var(--app), 0 0 0 3.5px var(--accent)" : "") }}
+            onClick={() => onChange(c)}
+          />
+        ))}
+        {value === MIXED ? <span className="ocpp-mxl">{MIX}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 function Select({ label, value, options, edit, onChange }: { label: string; value: Shared<string>; options: [string, string][]; edit: boolean; onChange: (v: string) => void }) {
   return (
     <label className="ocdg-fld ocpp-fld">
@@ -250,9 +309,9 @@ function ShapeProps({ sel, edit, field }: { sel: Shape[]; edit: boolean } & Pick
   const boxes = sel.filter((s) => s.type !== "arrow" && s.type !== "pen");
   return (
     <Sec title="Text">
-      {sel.length === 1 ? <Text label="Text" value={sel[0]!.text ?? ""} edit={edit} onCommit={(text) => field({ text })} /> : null}
+      {sel.length === 1 ? <Area label="Text" value={sel[0]!.text ?? ""} edit={edit} onCommit={(text) => field({ text })} /> : null}
       {boxes.length ? <Text label="Text size" value={shared(boxes, (s) => (s.size ?? 14) + "")} edit={edit} onCommit={(v) => Number(v) > 0 && field({ size: Math.min(200, Number(v)) })} /> : null}
-      <Text label="Colour" value={shared(sel, (s) => s.fill ?? "")} edit={edit} onCommit={(fill) => field({ fill })} />
+      <Swatches sel={sel} edit={edit} onChange={(fill) => field({ fill })} />
     </Sec>
   );
 }
@@ -352,7 +411,7 @@ function NetworkProps({ sel, edit, prop, field, shapes, byId }: { sel: Shape[]; 
         {/* Changing the kind writes `kind` only: name, colour and connections (bindings by id) stay (4c). */}
         <Select label="Kind" value={shared(sel, (s) => s.kind)} options={NETWORK_KINDS} edit={edit} onChange={(kind) => kind && field({ kind })} />
         <p className="ocdg-hint">Changing the kind keeps the name, colour and connections.</p>
-        <Text label="Colour" value={shared(sel, (s) => s.fill ?? "")} edit={edit} onCommit={(fill) => field({ fill })} />
+        <Swatches sel={sel} edit={edit} onChange={(fill) => field({ fill })} />
       </Sec>
       {one ? (
         <Sec title="Connections" count={conns.length}>

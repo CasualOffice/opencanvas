@@ -29,6 +29,7 @@ import { createStore, useStore } from "../lib/store";
 import { insertUploads } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
 import { Popover, useShell } from "../components/overlay";
+import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
@@ -46,6 +47,7 @@ const CollaborationCaret = CollaborationCaretBase.extend({
         cursorBuilder: (u) => o.render(u as Record<string, string>),
         selectionBuilder: (u) => o.selectionRender(u as Record<string, string>),
       }),
+      caretClampPlugin(),
     ];
   },
 });
