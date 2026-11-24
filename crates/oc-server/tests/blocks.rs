@@ -31,6 +31,8 @@ fn package(root: &Path, dir: &str, ty: &str, bundle: &[u8], integrity: Option<St
                   "properties": {"score": {"type": "integer"}}}},
         "export": {"markdown": "**{{objective}}** ({{progress|percent}})", "text": "{{objective}}"},
         "entry": "block.js",
+        "publisher": "Acme Corp", "keywords": ["goals"],
+        "permissions": {"network": ["https://okr.example", "https://cdn.example"], "members": "read"},
         "integrity": integrity.unwrap_or_else(|| oc_server::blocks::sri_sha384(bundle)),
     });
     std::fs::write(d.join("block.json"), serde_json::to_vec(&m).unwrap()).unwrap();
@@ -54,7 +56,10 @@ fn blocks_dir(name: &str) -> PathBuf {
 fn enable(h: &mut oc_server::hosts::HostConfig) {
     h.api_key = Some(API_KEY.into());
     h.flags.insert("api_v1".into(), toml::Value::Boolean(true));
-    h.blocks = toml::from_str("enabled = [\"srv.okr@^1\", \"srv.bad\"]").unwrap();
+    h.blocks = toml::from_str(
+        "enabled = [\"srv.okr@^1\", \"srv.bad\"]\n[permissions.\"srv.okr\"]\nnetwork = [\"https://okr.example\"]\n",
+    )
+    .unwrap();
 }
 
 async fn serve(name: &str) -> (String, oc_server::SharedState) {
@@ -146,7 +151,10 @@ async fn installed_packages_reach_the_session_and_refused_ones_healthz() {
     assert_eq!(b["type"], "srv.okr");
     assert_eq!(b["version"], "1.2.0");
     assert_eq!(b["v"], 1);
-    assert_eq!(b["entry"], "https://blocks.example/srv.okr/1.2.0/block.js");
+    assert_eq!(
+        b["entry"],
+        "https://blocks.example/blocks/srv.okr/1.2.0/block.js"
+    );
     assert_eq!(
         b["integrity"],
         oc_server::blocks::sri_sha384(b"export default {}")
@@ -408,4 +416,133 @@ async fn room_updates_are_checked_against_the_block_schema() {
         server.contains("Still valid") && server.contains("Kept as written"),
         "{server}"
     );
+fn on(addr: &str, host: &str, path: &str) -> reqwest::RequestBuilder {
+    reqwest::Client::new()
+        .get(format!("http://{addr}{path}"))
+        .header(reqwest::header::HOST, host)
+}
+
+/// BSDK-03: the frame and the package files are served on the block origin only, with the
+/// CSP built from the effective permissions (manifest narrowed by the host).
+#[tokio::test]
+async fn block_frames_are_served_on_the_block_origin_only() {
+    let (addr, _state) = serve("frame").await;
+    let s = session_json(&addr).await;
+    let b = &s["blocks"][0];
+    assert_eq!(
+        b["frame"],
+        "https://blocks.example/blocks/frame/sample/srv.okr"
+    );
+    assert_eq!(b["publisher"], "Acme Corp");
+    assert_eq!(
+        b["permissions"],
+        json!({"network": ["https://okr.example"], "members": "read"})
+    );
+
+    let res = on(&addr, "blocks.example", "/blocks/frame/sample/srv.okr")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let csp = res.headers()["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    let html = res.text().await.unwrap();
+    assert!(
+        csp.starts_with("default-src 'none'; script-src 'sha384-"),
+        "{csp}"
+    );
+    assert!(
+        csp.contains("https://blocks.example/blocks/srv.okr/1.2.0/;"),
+        "{csp}"
+    );
+    assert!(
+        csp.contains("connect-src https://okr.example;"),
+        "host narrowing: {csp}"
+    );
+    assert!(!csp.contains("cdn.example"), "{csp}");
+    assert!(
+        html.contains("integrity=\"sha384-") && html.contains("crossorigin=\"anonymous\""),
+        "{html}"
+    );
+    // The runtime inlined in the page is the one the CSP hash allows.
+    let runtime_hash = oc_server::blocks::sri_sha384(oc_server::blocks::FRAME_RUNTIME.as_bytes());
+    assert!(csp.contains(&format!("'{runtime_hash}'")), "{csp}");
+    assert!(html.contains(oc_server::blocks::FRAME_RUNTIME));
+
+    let file = on(&addr, "blocks.example", "/blocks/srv.okr/1.2.0/block.js")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(file.status(), 200);
+    assert_eq!(file.headers()["access-control-allow-origin"], "*");
+    assert_eq!(file.text().await.unwrap(), "export default {}");
+
+    // Not on the editor's host name, not for a type the host does not enable, no other files.
+    for (host, path) in [
+        ("127.0.0.1", "/blocks/frame/sample/srv.okr"),
+        ("127.0.0.1", "/blocks/srv.okr/1.2.0/block.js"),
+        ("blocks.example", "/blocks/frame/sample/srv.bad"),
+        ("blocks.example", "/blocks/frame/nobody/srv.okr"),
+        ("blocks.example", "/blocks/srv.okr/1.2.0/block.json"),
+        ("blocks.example", "/blocks/srv.okr/9.9.9/block.js"),
+    ] {
+        let r = on(&addr, host, path).send().await.unwrap();
+        assert_eq!(r.status(), 404, "{host}{path}");
+    }
+    // The editor page may frame the block origin (frame-src).
+    let app = reqwest::get(format!("http://{addr}/healthz"))
+        .await
+        .unwrap();
+    let editor_csp = app.headers()["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(editor_csp.contains("frame-src https:"), "{editor_csp}");
+}
+
+/// BSDK-03: a room update that breaks an SDK block's schema is refused, whatever client sent
+/// it; a valid one goes through.
+#[tokio::test]
+async fn room_updates_that_break_a_block_schema_are_refused() {
+    let (addr, state) = serve("ws").await;
+    let mut a = Peer::join(&state, {
+        let mut g = grant("u_a", Role::Edit);
+        g.ext_blocks = true;
+        g
+    })
+    .await;
+    a.settle().await;
+    let (s, out) = batch(&addr, json!([{"op": "append", "blocks": [
+        {"type": "extBlock", "attrs": {"blockId": "b_okr", "type": "srv.okr", "attrs": {"objective": "Ship"}}}
+    ]}]))
+    .await;
+    assert_eq!(s, 200, "{out}");
+    a.settle().await;
+    let set_attrs = |doc: &yrs::Doc, attrs: Value| {
+        let c = doc.get_or_insert_xml_fragment("content");
+        let mut t = doc.transact_mut();
+        let Some(yrs::XmlOut::Element(el)) = c.get(&t, 0) else {
+            panic!("no block")
+        };
+        yrs::Xml::insert_attribute(&el, &mut t, "attrs", oc_model::import::json_to_any(&attrs));
+    };
+    a.edit(|d| set_attrs(d, json!({"objective": 42})));
+    a.settle().await;
+    assert!(a.denied > 0, "the invalid write is refused");
+    assert!(server_json(&state).await.to_string().contains("Ship"));
+    // A refused update leaves that client diverged (its later edits build on it), so the valid
+    // write comes from a fresh connection, as a reloaded editor would send it.
+    let mut b = Peer::join(&state, {
+        let mut g = grant("u_b", Role::Edit);
+        g.ext_blocks = true;
+        g
+    })
+    .await;
+    b.settle().await;
+    b.edit(|d| set_attrs(d, json!({"objective": "Ship v2", "progress": 0.5})));
+    b.settle().await;
+    assert_eq!(b.denied, 0);
+    assert!(server_json(&state).await.to_string().contains("Ship v2"));
 }

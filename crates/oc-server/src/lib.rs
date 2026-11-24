@@ -119,7 +119,9 @@ impl AppState {
         }
         crate::metrics::mark_start();
         // BSDK-01: block packages, installed for validation, exports and writes (oc_model::ext).
-        let blocks = Arc::new(blocks::Installed::load(&cfg.blocks)?);
+        let blocks = Arc::new(
+            blocks::Installed::load(&cfg.blocks)?.with_editor_origin(cfg.public_url.as_deref()),
+        );
         oc_model::ext::install(&blocks.registry);
         blocks::warn_missing(&blocks, &hosts);
         let metrics = Arc::new(Metrics::default());

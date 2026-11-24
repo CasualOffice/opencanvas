@@ -143,12 +143,12 @@ fn frame_ancestors(origins: &[String]) -> String {
 /// Policy for the SPA and every response without its own: scripts only from this origin,
 /// no plugins, no `<base>` hijack, forms post only here. Images and embeds stay open
 /// (documents show images from the host and provider iframes, docs/07 §2).
-fn default_csp(frame_ancestors: &str) -> String {
+fn default_csp(frame_ancestors: &str, blocks_origin: &str) -> String {
     format!(
         "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; \
          form-action 'self'; img-src 'self' https: http: data: blob:; \
          media-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline'; \
-         font-src 'self' data:; connect-src 'self' ws: wss:; frame-src https:; \
+         font-src 'self' data:; connect-src 'self' ws: wss:; frame-src https:{blocks_origin}; \
          worker-src 'self' blob:; {frame_ancestors}"
     )
 }
@@ -206,7 +206,14 @@ async fn security_headers(
 pub fn router(state: SharedState) -> Router {
     let origins = state.hosts.allowed_origins();
     let fa: Arc<str> = frame_ancestors(&origins).into();
-    let default = HeaderValue::from_str(&default_csp(&fa))
+    // BSDK-03: SDK block frames come from the block origin (http only in development).
+    let blocks_src = state
+        .blocks
+        .origin()
+        .filter(|o| o.starts_with("http://"))
+        .map(|o| format!(" {o}"))
+        .unwrap_or_default();
+    let default = HeaderValue::from_str(&default_csp(&fa, &blocks_src))
         .unwrap_or_else(|_| HeaderValue::from_static("frame-ancestors 'self'"));
     // Hosts with their own `frame_ancestors`: the editor page `/app/?h=<id>` gets the
     // server-wide list plus theirs (MX-01). Nothing else changes for anyone.
@@ -218,7 +225,8 @@ pub fn router(state: SharedState) -> Router {
             .filter_map(|h| {
                 let mut o = origins.clone();
                 o.extend(h.frame_ancestors.iter().cloned());
-                let v = HeaderValue::from_str(&default_csp(&frame_ancestors(&o))).ok()?;
+                let v =
+                    HeaderValue::from_str(&default_csp(&frame_ancestors(&o), &blocks_src)).ok()?;
                 Some((h.id.clone(), v))
             })
             .collect(),
@@ -267,6 +275,9 @@ pub fn router(state: SharedState) -> Router {
         .route("/.well-known/oauth-protected-resource/mcp/{host_id}", get(mcp::resource_metadata))
         // Headless API v1 and the 0.1 host routes it keeps as aliases (docs/27 §4).
         .merge(v1::router(state.clone(), body_limit))
+        // BSDK-03: block frames and package files, answered on the block origin only.
+        .route("/blocks/frame/{host}/{ty}", get(crate::blocks::frame))
+        .route("/blocks/{ty}/{version}/{*path}", get(crate::blocks::file))
         .route("/healthz", get(ops::healthz))
         .route("/readyz", get(ops::readyz))
         .route("/metrics", get(ops::metrics))

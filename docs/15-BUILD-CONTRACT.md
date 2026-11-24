@@ -384,7 +384,13 @@ expression). Children are ordinary blocks and export as such after the block's o
 name), `description?`, `content` (`none` | `inline` | `blocks`), `attrs` (JSON Schema, `"type":
 "object"`, no property named `data`), `data?` (`{kind: "map", schema}`), `export?`
 (`{markdown?, text?}` templates), `permissions?` (`network`: https origins, `members`: `"read"`),
-`migrations?`, `entry` (relative `.js` path), `integrity` (`sha384-…`). Unknown keys are logged and
+`migrations?`, `entry` (relative `.js` path), `integrity` (`sha384-…`), and *(BSDK-03)*
+`publisher?` (1-80), `keywords?` (≤ 10 words), `preview?` (a `.png` inside the package, ≤ 512 KB),
+`discovery?` (owner decision for v0.2): `{label?, category?, keywords?, profiles?, complexity?}`
+with `category` one of `content data-planning visual layout extensions` (default `extensions`),
+`profiles` a non-empty subset of `notebook meeting project diagramming document full` (default
+`["full"]`), `complexity` `basic` or `advanced` (default `basic`); an unknown category or profile
+refuses the package; `discovery.keywords` merge into `keywords`. Unknown keys are logged and
 ignored. A major above 1 needs a migration for every version step.
 
 **JSON Schema.** 2020-12 subset, compiled at install; any other keyword refuses the package:
@@ -427,8 +433,58 @@ shared cases). Older data opens migrated (validation, exports) and is written ba
 version on its next write. Data newer than the installed package is kept untouched, read-only,
 and shown as its fallback under "Updated by a newer version".
 
-**Editor (until BSDK-03).** The editor shows every SDK block as its fallback text, read-only, in an
-unstyled container (`.oc-ext`), with its children below; nothing it renders rewrites the block.
+`fallback` may also keep `title` (the package title, for readers without the package, ≤ 80
+characters) and `height` (the last drawn height in px, 0-8000, for the loading skeleton). A
+`comments` thread may carry `block: <blockId>`: a comment on a whole SDK block (decision 5).
+
+### 4.3 The block sandbox and bridge (BSDK-03; docs/27 §3.4)
+
+A block runs in `<iframe sandbox="allow-scripts">` (no `allow-same-origin`, top navigation,
+popups or forms) loaded from `{OC_BLOCKS_ORIGIN}/blocks/frame/{host}/{type}` (docs/05 §2a). The
+frame document inlines the runtime (`crates/oc-server/assets/block-frame.js`, allowed by its
+sha384), then loads the bundle (and a script `migrations`) with SRI.
+
+**Handshake.** The frame posts `{t: "ready"}` to its parent on `load`. The editor accepts it only
+from this iframe's window with origin `"null"` (opaque), and answers once with
+`{t: "connect"}` carrying one end of a `MessageChannel`; the frame accepts that only from its
+parent (and from `OC_PUBLIC_URL`'s origin when set). Everything after goes over the port.
+
+| editor → frame | frame → editor |
+|---|---|
+| `init {type, v, attrs, data, role, theme, permissions, migrate?: {from, to}}` | `rendered`, `resize {h}`, `error {message}` |
+| `update {attrs, data, role}` (any change in the document) | `set-attrs {id, patch}`, `set-data {id, fields}` (`null` removes a field) |
+| `theme {theme: {scheme, tokens}}` (tokens: `fg fg-2 fg-3 app panel sunk line line-2 accent accent-soft accent-fg red-fg green-fg amber-fg blue-fg font mono r-s r r-l`, as `--oc-<name>`) | `members {id}` (only with `members: "read"`: id, name, avatar; never e-mail) |
+| `ping {n}` every second | `pong {n}` |
+| `focus {where: "first" \| "last"}` | `focus-out {dir: "escape" \| "next" \| "prev"}` (Escape; Tab past either end) |
+| `result {id, ok, value?, error?}` | `open-link {url}` (the editor's link rule applies), `migrated {attrs, data}`, `migrate-failed {message}` |
+
+**Writes.** The editor applies `set-attrs` / `set-data` to the Y.Doc on the block's behalf: refused
+unless the person may edit, beyond 60 writes a second (a token bucket), or when the merged value
+breaks the package's schema (the same subset as the server, `src/ext/schema.ts`). The server
+checks every room update again: one that adds a schema error to an SDK block is refused (auth
+frame `an SDK block does not match its schema (…)`). Written attrs carry `v` = the package's
+version and a fallback re-derived from its templates, with `title` and `height`.
+
+**Versions.** Older data opens migrated: declarative steps in the editor, a script in the frame
+(`init.migrate`, `OpenCanvasBlock.defineMigrations({1: (attrs, data) => ({attrs, data})})`). The
+first write stores the migrated attrs and data at the new version. A migration that throws or a
+result that fails the schema shows "This block couldn’t update its saved data", read only (the
+open point, settled).
+
+**Failure.** An uncaught error, no `pong` for 5 s, or no `rendered` within 10 s stops the frame;
+the chrome shows "This block stopped working" with the saved copy and Reload block. Three crashes
+in a minute turn it into "Try again later" for 30 s (decision 4).
+
+**Chrome** (frames 1a-6g): the frame at rest; the badge (puzzle icon, title, publisher) on hover,
+focus and selection, always on fallback states; About this block (dialog, a sheet on a phone);
+the loading skeleton at `fallback.height`; a solid 2 px accent ring with a 2 px gap while focus is
+inside; block menu items About this block and Reload block; a comment count marker; children
+below the frame, full width (the open point, settled). The / menu group "From your organisation"
+lists the enabled packages after the editor's groups (label: `discovery.label`, else the title),
+searchable by title, type, publisher, keywords and category, filtered by the editor profile through
+the one shared function `blockVisibleInMenus(entry, profile)` (`src/ext/discovery.ts`: no profile
+or `full` offers all; another profile offers the blocks whose `discovery.profiles` name it); "Browse all blocks" opens the gallery (categories, cards with a manifest sketch or
+the package's `preview.png`, a detail pane; an empty state only there).
 
 ## 5. Host callbacks (JWT mode). The server calls the host.
 

@@ -1,5 +1,27 @@
 {
-  "about": "Shared cases for SDK block templates and migrations: the Rust engine (crates/oc-model/tests/ext.rs ext_fixtures) and the editor's (web/packages/editor/src/ext/ext.test.ts) must give these exact results.",
+  "about": "Shared cases for SDK block templates, migrations and JSON Schema checks: the Rust engine (crates/oc-model/tests/ext.rs ext_fixtures) and the editor's (web/packages/editor/src/ext/ext.test.ts) must give these exact results.",
+  "schemas": [
+    {"schema": {"type": "object", "additionalProperties": false, "required": ["objective"],
+                "properties": {"objective": {"type": "string", "maxLength": 5}, "progress": {"type": "number", "minimum": 0, "maximum": 1}}},
+     "value": {"progress": 2, "x": 1},
+     "errors": ["/objective: is required", "/progress: must be at most 1", "/x: is not an allowed property"]},
+    {"schema": {"type": "object", "properties": {"objective": {"type": "string", "maxLength": 5}}}, "value": {"objective": "Shipped"},
+     "errors": ["/objective: must be at most 5 characters"]},
+    {"schema": {"$defs": {"tag": {"type": "string", "pattern": "^[a-z]+$"}}, "type": "object",
+                "properties": {"tags": {"type": "array", "items": {"$ref": "#/$defs/tag"}, "uniqueItems": true},
+                               "n": {"oneOf": [{"type": "integer"}, {"type": "string"}]},
+                               "pair": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "number"}], "items": false}}},
+     "value": {"tags": ["a", "a", "B"], "n": 1.5, "pair": ["x", 1, 2]},
+     "errors": ["/n: must match exactly one of oneOf (matches 0)", "/pair/2: no value is allowed here", "/tags: items must be unique", "/tags/2: must match ^[a-z]+$"]},
+    {"schema": {"type": "integer"}, "value": 2.0, "errors": []},
+    {"schema": {"enum": [1, "a"]}, "value": 1, "errors": []},
+    {"schema": {"type": "object", "if": {"properties": {"kind": {"const": "goal"}}}, "then": {"required": ["due"]}, "properties": {"due": {"type": "string"}}},
+     "value": {"kind": "goal"}, "errors": ["/due: is required"]},
+    {"schema": {"type": "object", "patternProperties": {"^k_": {"type": "number"}}, "additionalProperties": false},
+     "value": {"k_a": 1, "k_b": "x", "z": true},
+     "errors": ["/k_b: must be number", "/z: is not an allowed property"]}
+  ],
+  "schemas_refused": [{"$dynamicRef": "#x"}, {"$ref": "https://example.com/s.json"}, {"unevaluatedProperties": false}, {"type": "integr"}],
   "templates": [
     {"template": "**{{objective}}** ({{progress|percent}})", "ctx": {"objective": "Ship v0.2", "progress": 0.42},
      "markdown": "**Ship v0.2** (42%)", "text": "**Ship v0.2** (42%)"},

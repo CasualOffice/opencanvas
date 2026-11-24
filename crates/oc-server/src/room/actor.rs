@@ -1337,12 +1337,14 @@ impl Room {
             }
             return;
         }
-        // SEC-46: SDK block attrs and data are checked against the installed package's schema,
-        // as API, MCP and `.ocanvas` writes are (BSDK-01). A file saved with a broken block
-        // would no longer open.
-        if filter::breaks_ext_schema(&self.doc, &bytes) {
-            tracing::info!(room = %self.id, "update refused: an SDK block breaks its schema");
-            return self.deny(conn, "an SDK block does not match its schema");
+        // BSDK-03: SDK block attrs and data must match their package's schema, whoever writes
+        // them (the editor checks the bridge's writes first; this catches every other client).
+        if let Some(e) = filter::sdk_block_error(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: an SDK block does not match its schema");
+            return self.deny(
+                conn,
+                &format!("an SDK block does not match its schema ({e})"),
+            );
         }
         // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
         if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {

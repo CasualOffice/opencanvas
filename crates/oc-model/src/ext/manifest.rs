@@ -27,7 +27,127 @@ const KEYS: &[&str] = &[
     "entry",
     "integrity",
     "description",
+    "publisher",
+    "keywords",
+    "preview",
+    "discovery",
 ];
+
+/// `discovery.category`: where the insert menus and gallery file a block (owner, v0.2).
+pub const CATEGORIES: &[&str] = &["content", "data-planning", "visual", "layout", "extensions"];
+/// `discovery.profiles`: the editor profiles (`[host.editor]`) that offer the block.
+pub const PROFILES: &[&str] = &[
+    "notebook",
+    "meeting",
+    "project",
+    "diagramming",
+    "document",
+    "full",
+];
+
+/// How menus find and file a block (all optional; owner decision for v0.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Discovery {
+    /// Menu label; the title when absent.
+    pub label: Option<String>,
+    pub category: String,
+    pub profiles: Vec<String>,
+    /// `basic` or `advanced`.
+    pub complexity: String,
+}
+
+impl Default for Discovery {
+    fn default() -> Self {
+        Self {
+            label: None,
+            category: "extensions".into(),
+            profiles: vec!["full".into()],
+            complexity: "basic".into(),
+        }
+    }
+}
+
+fn words(v: &Value, what: &str) -> Result<Vec<String>, String> {
+    let a = v
+        .as_array()
+        .filter(|a| a.len() <= 10)
+        .ok_or_else(|| format!("{what} must be a list of at most 10 words"))?;
+    let mut out = Vec::new();
+    for k in a {
+        match k.as_str().map(str::trim) {
+            Some(k) if !k.is_empty() && k.chars().count() <= 40 => out.push(k.to_lowercase()),
+            _ => return Err(format!("{what} are 1-40 characters each")),
+        }
+    }
+    Ok(out)
+}
+
+fn discovery(
+    v: Option<&Value>,
+    keywords: &mut Vec<String>,
+    unknown: &mut Vec<String>,
+) -> Result<Discovery, String> {
+    let mut d = Discovery::default();
+    let Some(v) = v.filter(|v| !v.is_null()) else {
+        return Ok(d);
+    };
+    let m = v.as_object().ok_or("discovery must be an object")?;
+    for (k, x) in m {
+        match k.as_str() {
+            "label" => match x.as_str().map(str::trim) {
+                Some(l) if !l.is_empty() && l.chars().count() <= 80 => {
+                    d.label = Some(l.to_string())
+                }
+                _ => return Err("discovery.label must be 1-80 characters".into()),
+            },
+            "category" => match x.as_str() {
+                Some(c) if CATEGORIES.contains(&c) => d.category = c.to_string(),
+                _ => {
+                    return Err(format!(
+                        "discovery.category must be one of {}",
+                        CATEGORIES.join(", ")
+                    ));
+                }
+            },
+            "keywords" => {
+                for w in words(x, "discovery.keywords")? {
+                    if !keywords.contains(&w) {
+                        keywords.push(w);
+                    }
+                }
+            }
+            "profiles" => {
+                let a = x
+                    .as_array()
+                    .filter(|a| !a.is_empty())
+                    .ok_or("discovery.profiles must be a non-empty list")?;
+                let mut ps = Vec::new();
+                for p in a {
+                    match p.as_str() {
+                        Some(p) if PROFILES.contains(&p) => {
+                            if !ps.iter().any(|q| q == p) {
+                                ps.push(p.to_string())
+                            }
+                        }
+                        _ => {
+                            return Err(format!(
+                                "discovery.profiles takes {}",
+                                PROFILES.join(", ")
+                            ));
+                        }
+                    }
+                }
+                d.profiles = ps;
+            }
+            "complexity" => match x.as_str() {
+                Some(c @ ("basic" | "advanced")) => d.complexity = c.to_string(),
+                _ => return Err("discovery.complexity must be \"basic\" or \"advanced\"".into()),
+            },
+            other => unknown.push(format!("discovery.{other}")),
+        }
+    }
+    Ok(d)
+}
 
 /// What an `extBlock` holds as children.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -47,6 +167,14 @@ pub struct Manifest {
     pub title: String,
     pub icon: Option<String>,
     pub description: Option<String>,
+    /// Who made the block (shown on the badge and in About, BSDK-03).
+    pub publisher: Option<String>,
+    /// Extra search words for the / menu and the gallery (at most 10).
+    pub keywords: Vec<String>,
+    /// Path of an optional `preview.png` inside the package (gallery card, decision 7).
+    pub preview: Option<String>,
+    /// Menu label, category, editor profiles and complexity (`discovery`).
+    pub discovery: Discovery,
     pub content: ContentKind,
     pub attrs: Schema,
     pub attrs_json: Value,
@@ -179,6 +307,26 @@ impl Manifest {
             Some(Value::String(d)) if d.chars().count() <= 500 => Some(d.clone()),
             Some(_) => return Err("description must be at most 500 characters".into()),
         };
+        let publisher = match v.get("publisher") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(p)) if !p.trim().is_empty() && p.chars().count() <= 80 => {
+                Some(p.trim().to_string())
+            }
+            Some(_) => return Err("publisher must be 1-80 characters".into()),
+        };
+        let mut keywords = match v.get("keywords") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(k) => words(k, "keywords")?,
+        };
+        let preview = match v.get("preview") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(p)) if safe_rel_path(p) && p.ends_with(".png") => Some(p.clone()),
+            Some(_) => {
+                return Err(
+                    "preview must be a relative path to a .png file inside the package".into(),
+                );
+            }
+        };
         let content = match v.get("content").and_then(Value::as_str) {
             None if v.get("content").is_none() => ContentKind::None,
             Some("none") => ContentKind::None,
@@ -292,17 +440,22 @@ impl Manifest {
                 "integrity must be \"sha384-<base64 of 48 bytes>\" (Subresource Integrity)".into(),
             );
         }
-        let unknown_keys = m
+        let mut unknown_keys: Vec<String> = m
             .keys()
             .filter(|k| !KEYS.contains(&k.as_str()))
             .cloned()
             .collect();
+        let discovery = discovery(v.get("discovery"), &mut keywords, &mut unknown_keys)?;
         Ok(Self {
             ty,
             version,
             title,
             icon,
             description,
+            publisher,
+            keywords,
+            preview,
+            discovery,
             content,
             attrs,
             attrs_json,
@@ -336,6 +489,15 @@ impl Manifest {
             "title": self.title,
             "icon": self.icon,
             "description": self.description,
+            "publisher": self.publisher,
+            "keywords": self.keywords,
+            "discovery": {
+                "label": self.discovery.label.as_deref().unwrap_or(&self.title),
+                "category": self.discovery.category,
+                "keywords": self.keywords,
+                "profiles": self.discovery.profiles,
+                "complexity": self.discovery.complexity,
+            },
             "content": self.content,
             "attrs": self.attrs_json,
             "data": self.data_json,
@@ -373,6 +535,37 @@ mod tests {
             "entry": "block.js",
             "integrity": format!("sha384-{}", "A".repeat(64))
         })
+    }
+
+    #[test]
+    fn discovery_defaults_merges_keywords_and_refuses_unknown_names() {
+        let m = Manifest::from_json(&okr(), false).unwrap();
+        assert_eq!(m.discovery, Discovery::default());
+        assert_eq!(m.describe()["discovery"]["label"], "OKR");
+        let mut v = okr();
+        v["keywords"] = json!(["goals"]);
+        v["discovery"] = json!({"label": "Gantt chart", "category": "data-planning",
+            "keywords": ["Timeline", "goals"], "profiles": ["project", "meeting"], "complexity": "advanced"});
+        let m = Manifest::from_json(&v, false).unwrap();
+        assert_eq!(m.keywords, ["goals", "timeline"]);
+        let d = m.describe()["discovery"].clone();
+        assert_eq!(
+            d,
+            json!({"label": "Gantt chart", "category": "data-planning",
+            "keywords": ["goals", "timeline"], "profiles": ["project", "meeting"], "complexity": "advanced"})
+        );
+        for bad in [
+            json!({"category": "games"}),
+            json!({"profiles": ["kiosk"]}),
+            json!({"profiles": []}),
+            json!({"complexity": "expert"}),
+            json!({"label": ""}),
+            json!("notes"),
+        ] {
+            let mut v = okr();
+            v["discovery"] = bad.clone();
+            assert!(Manifest::from_json(&v, false).is_err(), "{bad}");
+        }
     }
 
     #[test]

@@ -259,13 +259,6 @@ fn prepare_ext(
                     v.problem.unwrap_or_default()
                 ));
             }
-            (Status::Older { .. }, Some(_), None) => {
-                return Err(format!(
-                    "{}: {} (write it at the installed version)",
-                    at(),
-                    v.problem.unwrap_or_default()
-                ));
-            }
             (Status::Current | Status::Older { .. }, Some(m), Some((new_attrs, new_data))) => {
                 let findings = crate::ext::schema_findings(m, &new_attrs, &new_data);
                 if let Some((w, p, e)) = findings.first() {
@@ -286,12 +279,21 @@ fn prepare_ext(
                 };
                 let r = crate::ext::render(reg, node, &ext_now);
                 if r.source == "template" {
-                    node["attrs"]["fallback"] = json!({"markdown": r.markdown, "text": r.text});
+                    // Keeps what the client stored with it (the last drawn `height`).
+                    let mut fb = node["attrs"]["fallback"]
+                        .as_object()
+                        .cloned()
+                        .unwrap_or_default();
+                    fb.insert("markdown".into(), Value::String(r.markdown));
+                    fb.insert("text".into(), Value::String(r.text));
+                    fb.insert("title".into(), Value::String(m.title.clone()));
+                    node["attrs"]["fallback"] = Value::Object(fb);
                 }
             }
             _ => {
-                // Not installed here: kept as written; its data is stored as is and its
-                // Markdown fallback sanitised.
+                // Not installed here, or older data whose package migrates it in its sandbox
+                // (BSDK-03: the editor migrates it on the first edit): kept as written; its
+                // data is stored as is and its Markdown fallback sanitised.
                 if let (Some(id), Some(Value::Object(fields))) = (&data_id, data) {
                     writes.push((id.clone(), fields));
                 }
