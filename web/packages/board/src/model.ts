@@ -172,15 +172,66 @@ function mergeProps(s: Y.Map<unknown>, patch: unknown) {
   if (!isPlainObject(patch)) return void s.delete("props");
   let cur = s.get("props");
   if (!(cur instanceof Y.Map)) {
-    const next = propsToY(isPlainObject(cur) ? cur : {});
+    const plain = isPlainObject(cur) ? { ...cur } : {};
+    const next = propsToY(plain);
     s.set("props", next);
     cur = next;
+    if (s.doc) watchProps(s.doc, s, next, plain);
   }
   const m = cur as Y.Map<unknown>;
+  const mine = created.get(m);
   for (const [k, v] of Object.entries(patch)) {
     if (v === undefined) m.delete(k);
     else m.set(k, v);
+    if (mine) {
+      if (v === undefined) delete mine.vals[k];
+      else mine.vals[k] = v;
+    }
   }
+}
+
+/*
+ * Concurrent creation of the nested `props` map (DGM-18). Two clients giving a shape its first
+ * property at the same time (or both converting a 0.1.1 plain-object `props`) each set the key
+ * `props` to a new Y.Map; Yjs keeps one of two concurrent values of a key, so the other client's
+ * fields would be lost. The client whose map lost copies the fields it wrote into the winning map
+ * when the remote update arrives (keys the winner already has keep their value), so the fields
+ * merge as ADR-045 requires. Only maps this client created are watched, until the shape goes.
+ */
+interface Created {
+  shape: Y.Map<unknown>;
+  map: Y.Map<unknown>;
+  vals: Record<string, unknown>;
+}
+/** Transaction origin of the repair writes (not a user edit: no undo entry). */
+export const PROPS_MERGE_ORIGIN = { source: "@opencanvas/board", propsMerge: true };
+const created = new WeakMap<Y.Map<unknown>, Created>();
+const watching = new WeakMap<Y.Doc, Set<Created>>();
+
+function watchProps(doc: Y.Doc, shape: Y.Map<unknown>, map: Y.Map<unknown>, vals: Record<string, unknown>) {
+  const c: Created = { shape, map, vals };
+  created.set(map, c);
+  let set = watching.get(doc);
+  if (!set) {
+    const all = new Set<Created>();
+    watching.set(doc, (set = all));
+    doc.on("afterTransaction", (tr: Y.Transaction) => {
+      if (tr.local || !all.size) return;
+      for (const e of all) {
+        if (e.shape._item?.deleted) {
+          all.delete(e);
+          continue;
+        }
+        if (!e.map._item?.deleted) continue;
+        all.delete(e);
+        const win = e.shape.get("props");
+        if (!(win instanceof Y.Map)) continue;
+        const missing = Object.entries(e.vals).filter(([k]) => !win.has(k));
+        if (missing.length) doc.transact(() => missing.forEach(([k, v]) => win.set(k, v)), PROPS_MERGE_ORIGIN);
+      }
+    });
+  }
+  set.add(c);
 }
 
 function shapeToY(s: Shape): Y.Map<unknown> {
