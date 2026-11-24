@@ -16,6 +16,10 @@ export const CSS = `
 .ocbd-svg text{font-family:var(--font)}
 .ocbd-tool{position:absolute;left:50%;bottom:.75rem;transform:translateX(-50%);display:flex;gap:2px;padding:.25rem;border-radius:.75rem;background:var(--pop);box-shadow:var(--sh-pop);z-index:2;max-width:calc(100% - 1.5rem);overflow-x:auto;scrollbar-width:none}
 .ocbd-tool::-webkit-scrollbar{display:none}
+.ocbd-tool>*,.ocbd-tool .ocbd-ib{flex:none}
+.ocbd-tool[data-more="right"]{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 2rem),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 2rem),transparent)}
+.ocbd-tool[data-more="left"]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 2rem);mask-image:linear-gradient(90deg,transparent,#000 2rem)}
+.ocbd-tool[data-more="both"]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 2rem,#000 calc(100% - 2rem),transparent);mask-image:linear-gradient(90deg,transparent,#000 2rem,#000 calc(100% - 2rem),transparent)}
 .ocbd-ib{width:2rem;height:2rem;border:0;background:none;border-radius:.5rem;display:inline-grid;place-items:center;color:var(--fg-2);flex:none;padding:0;transition:background .2s var(--ease),color .2s var(--ease),transform .15s var(--ease)}
 .ocbd-ib:hover{background:var(--hover);color:var(--fg)}
 .ocbd-ib:active{transform:scale(.94);background:var(--press)}
@@ -57,7 +61,7 @@ export const CSS = `
 
 .ocbd-compact .ocbd-svg{height:18.75rem}
 .ocbd-compact:not(.active):not(.ocbd-full) :is(.ocbd-tool,.ocbd-zoom,.ocbd-top,.ocbd-swatch,.ocbd-menu){display:none}
-.ocbd-compact .ocbd-tool .ocbd-ib{width:2.5rem;height:2.5rem}
+.ocbd-compact .ocbd-tool .ocbd-ib{width:2.75rem;height:2.75rem}
 .ocbd-compact .ocbd-ib{width:2.375rem;height:2.375rem}
 .ocbd-compact .ocbd-zoom{bottom:auto;top:.75rem;right:6.25rem}
 .ocbd-compact .ocbd-mi{height:2.75rem;font-size:.9375rem}

@@ -250,6 +250,20 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /** Active waypoint (index into the selected connector's `via`) for the keyboard and Delete. */
   const [wp, setWpState] = useState<number | null>(null);
+  // The tool bar scrolls when its tools don't fit (390 px phones): fade the side that has more and
+  // keep the chosen tool in view (UX-DGM-01).
+  const toolsRef = useRef<HTMLDivElement>(null);
+  const toolsMore = () => {
+    const el = toolsRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const more = max <= 1 ? "" : el.scrollLeft <= 1 ? "right" : el.scrollLeft >= max - 1 ? "left" : "both";
+    if ((el.dataset.more ?? "") !== more) {
+      if (more) el.dataset.more = more;
+      else delete el.dataset.more;
+    }
+  };
+  useLayoutEffect(toolsMore);
   // The selection toolbar's measured width: its content changes with the shape and the text size.
   const barRef = useRef<HTMLDivElement>(null);
   const [barW, setBarW] = useState(0);
@@ -2140,11 +2154,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         />
       ) : null}
 
-      <div className="ocbd-tool" role="toolbar" aria-label="Board tools">
+      <div ref={toolsRef} className="ocbd-tool" role="toolbar" aria-label="Board tools" onScroll={toolsMore}>
         {TOOLS.filter(([t]) => edit || t === "select" || t === "hand").map(([t, I, label, key], i) => (
           <span key={t} style={{ display: "contents" }}>
             {i === 2 ? <span className="ocbd-vs" /> : null}
-            <button className="ocbd-ib" title={`${label} (${key})`} aria-label={label} aria-keyshortcuts={key} aria-pressed={tool_ === t} onClick={() => setTool(t)}>
+            <button className="ocbd-ib" title={`${label} (${key})`} aria-label={label} aria-keyshortcuts={key} aria-pressed={tool_ === t} onClick={(e) => (setTool(t), e.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }))}>
               <I size={16} strokeWidth={SW} />
             </button>
           </span>
