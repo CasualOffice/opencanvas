@@ -5,6 +5,7 @@
 //   oc-server (release build, OC_DEV=1, temp SQLite)  on :8280
 //   sample host (copy conflict policy)                 on :4200
 //   sample host "reload" (reload conflict policy)      on :4201
+//   sample host "meeting" (editor profile meeting)     on :4203
 //   mock model (Anthropic SSE, mock-model.ts)          on a free port; host "sample" has
 //                                                      `[host.ai]` on it (t-assistant.real)
 // Ports 8080/4000 (the dev defaults) are never touched, and only the processes
@@ -18,7 +19,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { HOST, HOST_RELOAD, OC, ROOT, SDK_HOST } from "./env";
+import { HOST, HOST_MEETING, HOST_RELOAD, OC, ROOT, SDK_HOST } from "./env";
 import { startMockModel, type MockModel } from "./mock-model";
 
 const children: ChildProcess[] = [];
@@ -96,7 +97,7 @@ function stopAll() {
 }
 
 export default async function globalSetup() {
-  for (const port of [8280, 4200, 4201, 4202]) {
+  for (const port of [8280, 4200, 4201, 4202, 4203]) {
     if (!(await portFree(port))) throw new Error(`[e2e] port ${port} is busy. Stop whatever runs there first (the suite never kills processes it didn't start).`);
   }
   if (process.env.E2E_SKIP_BUILD !== "1") {
@@ -126,7 +127,13 @@ ${id === "sample" ? 'import_formats = ["md", "html", "csv", "drawio", "excalidra
 ${id === "sample" ? "team_templates = true" : "# no team_templates: no team section in the gallery (TPL-01)"}
 ${id === "sample" ? "history        = true" : "# no host versions: in-file history only (VH-01, ADR-055)"}
 ${ai}`;
-  fs.writeFileSync(hosts, entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST + BLOCKS_HOST) + entry("sample-reload", "Reload host", HOST_RELOAD, "reload"));
+  fs.writeFileSync(
+    hosts,
+    entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST + BLOCKS_HOST) +
+      entry("sample-reload", "Reload host", HOST_RELOAD, "reload") +
+      // EDP-01 (spec zc): the meeting editor profile.
+      entry("sample-meeting", "Meeting host", HOST_MEETING, "copy", [], '\n[host.editor]\nprofile = "meeting"\n'),
+  );
   const blocksDir = path.join(tmp, "blocks");
   fs.mkdirSync(blocksDir);
   blockPackages(blocksDir);
@@ -171,10 +178,11 @@ ${ai}`;
     }, tmp);
   host("host", 4200, "sample");
   host("host-reload", 4201, "sample-reload");
+  host("host-meeting", 4203, "sample-meeting");
   process.once("exit", stopAll);
 
   try {
-    await Promise.all([waitFor(`${OC}/readyz`), waitFor(`${HOST}/healthz`), waitFor(`${HOST_RELOAD}/healthz`)]);
+    await Promise.all([waitFor(`${OC}/readyz`), waitFor(`${HOST}/healthz`), waitFor(`${HOST_RELOAD}/healthz`), waitFor(`${HOST_MEETING}/healthz`)]);
   } catch (e) {
     stopAll();
     throw e;
