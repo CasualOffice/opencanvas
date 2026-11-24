@@ -7,6 +7,17 @@
   <url><loc>https://canvas.casualoffice.org/api/index.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/pagination.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/rate-limits.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/admin.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/blocks.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/boards.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/canvas.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/comments.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/databases.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/files.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/legacy.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/members.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/meta.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/reference/streams.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/brand.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/changelog.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/docs/ai.html</loc></url>

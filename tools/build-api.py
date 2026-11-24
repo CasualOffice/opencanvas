@@ -314,8 +314,8 @@ def sidebar(spec: dict, root: str, current: str) -> str:
     return out
 
 
-# The resource pages are generated from commit API-DOCS-01 part 2 on.
-REFERENCE_ON = False
+# The resource pages (one per OpenAPI tag, RESOURCES).
+REFERENCE_ON = True
 
 
 def api_page(spec: dict, rel: str, title: str, description: str, article: str, *, current: str,
@@ -394,11 +394,643 @@ def changelog(spec: dict) -> tuple[str, str, str]:
     return "API changelog", "What changed in the OpenCanvas API, release by release, from the project's CHANGELOG.md.", article
 
 
+# ---- Reference: one operation ------------------------------------------------------------
+
+PATH_DEFAULTS = {"fileId": "doc_1", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk", "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+                 "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e", "format": "md"}
+FILE_FOR = {"md": "notes.md", "markdown": "notes.md", "html": "page.html", "csv": "contacts.csv", "ocanvas": "canvas.ocanvas",
+            "json": "canvas.json", "docx": "canvas.docx", "pdf": "canvas.pdf"}
+
+
+def type_label(spec: dict, schema) -> str:
+    s, ref = apilib.deref(spec, schema)
+    if ref and ref not in ("fileId", "IdempotencyKey"):
+        return ref
+    if not isinstance(s, dict):
+        return "any"
+    t = s.get("type")
+    types = [t] if isinstance(t, str) else list(t or [])
+    out = []
+    for x in types:
+        if x == "array":
+            item = s.get("items")
+            out.append(f"array of {type_label(spec, item)}" if isinstance(item, dict) and item else "array")
+        elif x == "string" and s.get("format") == "binary":
+            out.append("binary")
+        else:
+            out.append(x)
+    return " | ".join(out) or ("object" if "properties" in s else "any")
+
+
+def _constraints(s: dict) -> list[str]:
+    out = []
+    if "enum" in s:
+        out.append("One of " + ", ".join(f"<code>{_esc(json.dumps(v) if not isinstance(v, str) else v)}</code>" for v in s["enum"]) + ".")
+    lo, hi = s.get("minimum"), s.get("maximum")
+    if lo is not None and hi is not None:
+        out.append(f"{lo} to {hi}.")
+    elif hi is not None:
+        out.append(f"At most {hi}.")
+    lo, hi = s.get("minLength"), s.get("maxLength")
+    if lo is not None and hi is not None:
+        out.append(f"{lo} to {hi} characters.")
+    elif hi is not None:
+        out.append(f"At most {hi} characters.")
+    lo, hi = s.get("minItems"), s.get("maxItems")
+    if lo is not None and hi is not None:
+        out.append(f"{lo} to {hi} items.")
+    elif lo is not None:
+        out.append(f"At least {lo} item{'s' if lo != 1 else ''}.")
+    elif hi is not None:
+        out.append(f"At most {hi} items.")
+    if s.get("format") and s.get("format") not in ("binary",):
+        out.append(f"Format <code>{_esc(s['format'])}</code>.")
+    return out
+
+
+def schema_rows(spec: dict, schema, name: str, required: bool, depth: int, rows: list, classes: list, seen: tuple = ()) -> None:
+    s, ref = apilib.deref(spec, schema)
+    if not isinstance(s, dict):
+        return
+    desc = " ".join([_inl(s.get("description", ""), "../../")] + _constraints(s)).strip()
+    req = '<span class="req">required</span>' if required else ""
+    rows.append([f"<code>{_esc(name)}</code>{req}", f'<span class="ty">{_esc(type_label(spec, schema))}</span>', desc or '<span class="muted">-</span>'])
+    classes.append(f"d{min(depth, 4)}" if depth else "")
+    if ref and ref in seen:
+        return
+    seen = seen + ((ref,) if ref else ())
+    target = s
+    if "array" in ([s.get("type")] if isinstance(s.get("type"), str) else (s.get("type") or [])) and isinstance(s.get("items"), dict):
+        target, _ = apilib.deref(spec, s["items"])
+    props = (target or {}).get("properties") or {}
+    reqs = set((target or {}).get("required") or [])
+    for k, v in props.items():
+        schema_rows(spec, v, k, k in reqs, depth + 1, rows, classes, seen)
+
+
+def schema_table(spec: dict, schema, label: str) -> str:
+    s, _ = apilib.deref(spec, schema)
+    rows: list = []
+    classes: list = []
+    props = s.get("properties") if isinstance(s, dict) else None
+    if props:
+        reqs = set(s.get("required") or [])
+        for k, v in props.items():
+            schema_rows(spec, v, k, k in reqs, 0, rows, classes)
+    else:
+        schema_rows(spec, schema, "(body)", True, 0, rows, classes)
+    extra = ""
+    if isinstance(s, dict) and s.get("additionalProperties") is True and props:
+        extra = '<p class="note">Other members may appear; ignore the ones you do not know.</p>'
+    return _table(["Field", "Type", "Description"], rows, label, "api-table schema", classes) + extra
+
+
+def _example_text(ctype: str, value) -> str:
+    if isinstance(value, str) and not ctype.endswith("json"):
+        return value
+    return json.dumps(value, indent=2, ensure_ascii=False)
+
+
+def _pre(text: str, lang: str = "json") -> str:
+    return f'<pre><code class="language-{lang}">{html.escape(text)}</code></pre>'
+
+
+def request_example(spec: dict, o: dict) -> dict:
+    """The request the samples send: path, query and header values, and the body."""
+    op = o["op"]
+    out = {"path": {}, "query": {}, "headers": {}, "body": None, "ctype": None}
+    for p in apilib.params(spec, op):
+        s = p.get("schema") or {}
+        has = "example" in p or "example" in s
+        val = p.get("example", s.get("example"))
+        if p["in"] == "path":
+            out["path"][p["name"]] = val if has else PATH_DEFAULTS.get(p["name"], p["name"])
+        elif p["in"] == "query" and (has or p.get("required")):
+            out["query"][p["name"]] = val if has else apilib.synth(s, spec)
+        elif p["in"] == "header" and has:
+            out["headers"][p["name"]] = val
+    ctype, media, _req = apilib.request_media(spec, op)
+    if media is not None:
+        has, val = apilib.media_example(media)
+        out["body"] = val if has else apilib.synth(media.get("schema") or {}, spec)
+        out["ctype"] = ctype
+    return out
+
+
+def _response_kind(spec: dict, op: dict) -> tuple[str, str | None]:
+    """('json' | 'binary' | 'stream' | 'none', content type) of the success answer."""
+    _code, res = apilib.success(spec, op)
+    content = (res or {}).get("content") or {}
+    if "text/event-stream" in content:
+        return "stream", "text/event-stream"
+    for ct in content:
+        return ("json" if ct.endswith("json") else "binary"), ct
+    return "none", None
+
+
+def _url(o: dict, ex: dict) -> str:
+    path = o["path"]
+    for k, v in ex["path"].items():
+        path = path.replace("{" + k + "}", str(v))
+    return BASE + path
+
+
+def _q(s: str) -> str:
+    """A shell word in single quotes."""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def _jsonish(v) -> object:
+    """A string query value that holds JSON (filter, sort) as the JSON itself, else None."""
+    if isinstance(v, str) and v[:1] in "[{":
+        try:
+            return json.loads(v)
+        except ValueError:
+            return None
+    return None
+
+
+def _successor(spec: dict, o: dict) -> dict | None:
+    m = re.search(r"Successor: `([^`]+)`", o["op"].get("description", ""))
+    if not m:
+        return None
+    for x in apilib.operations(spec):
+        if x["path"] == m.group(1) and x["method"] == o["method"]:
+            return x
+    return None
+
+
+def sample_curl(spec: dict, o: dict, ex: dict) -> str:
+    kind, _ct = _response_kind(spec, o["op"])
+    method = o["method"].upper()
+    url = _url(o, ex)
+    lines = []
+    get_query = method == "GET" and any(_jsonish(v) is not None for v in ex["query"].values())
+    if ex["query"] and not get_query:
+        from urllib.parse import urlencode
+        url += "?" + urlencode({k: (v if isinstance(v, str) else json.dumps(v)) for k, v in ex["query"].items()}, safe=",:")
+    first = "curl -s" + (" -N" if kind == "stream" else "") + ("" if method == "GET" else f" -X {method}") + (" -G" if get_query else "") + f' "{url}"'
+    lines.append(first)
+    if get_query:
+        for k, v in ex["query"].items():
+            lines.append(f"--data-urlencode {_q(f'{k}=' + (v if isinstance(v, str) else json.dumps(v)))}")
+    if o["path"] != "/api/v1/openapi.json":
+        lines += ['-H "X-OpenCanvas-Host: acme"', '-H "X-OpenCanvas-Key: $OC_API_KEY"']
+    if kind == "stream":
+        lines.append('-H "Accept: text/event-stream"')
+    for k, v in ex["headers"].items():
+        lines.append(f"-H {_q(f'{k}: {v}')}")
+    if ex["ctype"] and ex["ctype"].endswith("json"):
+        lines.append('-H "Content-Type: application/json"')
+        one = json.dumps(ex["body"], ensure_ascii=False)
+        body = one if len(one) <= 64 else json.dumps(ex["body"], indent=2, ensure_ascii=False).replace("\n", "\n  ")
+        lines.append(f"-d {_q(body)}")
+    elif ex["ctype"]:
+        fmt = ex["query"].get("format") or ex["query"].get("from") or "md"
+        lines.append(f"--data-binary @{FILE_FOR.get(fmt, 'file.bin')}")
+    if kind == "binary":
+        fmt = ex["path"].get("format") or ex["query"].get("to") or "bin"
+        lines.append(f"-o {FILE_FOR.get(fmt, 'out.' + fmt).replace('notes', 'canvas').replace('page', 'canvas').replace('contacts', 'canvas')}")
+    return " \\\n  ".join(lines)
+
+
+def _lit(v, lang: str, indent: int = 0) -> str:
+    """A literal in TypeScript, Rust (inside json!) or Python, on one line when short."""
+    pad = "  " * indent if lang != "rust" else "    " * indent
+    step = "  " if lang != "rust" else "    "
+
+    def key(k: str) -> str:
+        if lang == "ts" and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", k):
+            return k
+        return json.dumps(k, ensure_ascii=False)
+
+    def scalar(x) -> str:
+        if lang == "python":
+            return {True: "True", False: "False", None: "None"}.get(x, json.dumps(x, ensure_ascii=False)) if x is None or isinstance(x, bool) else json.dumps(x, ensure_ascii=False)
+        return json.dumps(x, ensure_ascii=False)
+    if isinstance(v, dict):
+        if not v:
+            return "{}"
+        parts = [f"{key(k)}: {_lit(x, lang, indent + 1)}" for k, x in v.items()]
+        one = "{ " + ", ".join(parts) + " }" if lang == "ts" else "{" + ", ".join(parts) + "}"
+        if len(one) + len(pad) <= 88 and "\n" not in one:
+            return one
+        return "{\n" + "".join(f"{pad}{step}{p},\n" for p in parts) + pad + "}"
+    if isinstance(v, list):
+        if not v:
+            return "[]"
+        parts = [_lit(x, lang, indent + 1) for x in v]
+        one = "[" + ", ".join(parts) + "]"
+        if len(one) + len(pad) <= 88 and "\n" not in one:
+            return one
+        return "[\n" + "".join(f"{pad}{step}{p},\n" for p in parts) + pad + "]"
+    return scalar(v)
+
+
+TS_HEAD = """import { OpenCanvas } from "@opencanvas/client";
+
+const oc = new OpenCanvas({
+  baseUrl: "https://canvas.example.com",
+  auth: { hostId: "acme", key: process.env.OC_API_KEY! },
+});
+"""
+
+RUST_HEAD = """use opencanvas_client::{{{uses}}};
+{extra}
+let oc = Client::builder("https://canvas.example.com")
+    .auth(Auth::host_key("acme", std::env::var("OC_API_KEY").expect("OC_API_KEY")))
+    .build();
+"""
+
+
+def sample_ts(spec: dict, o: dict, ex: dict) -> str:
+    if o["tag"] == "0.1 aliases":
+        nxt = _successor(spec, o)
+        return f"// The client covers /api/v1 only. Use {nxt['id'] if nxt else 'the successor'} instead:\n// await oc.{nxt['id'] if nxt else 'call'}(...);"
+    kind, _ct = _response_kind(spec, o["op"])
+    if kind == "stream":
+        types = (ex["query"].get("types") or "edited,commented").split(",")
+        return TS_HEAD + f"""
+for await (const event of oc.events({{ fileId: {json.dumps(ex["path"].get("fileId", "doc_1"))}, types: {_lit(types, "ts")} }})) {{
+  console.log(event.id, event.type, event.data);
+}}"""
+    params = dict(ex["path"])
+    head = TS_HEAD
+    q = {}
+    for k, v in ex["query"].items():
+        q[k] = v
+    parts = [f"{k}: {json.dumps(v)}" for k, v in params.items()]
+    if q:
+        qparts = []
+        for k, v in q.items():
+            j = _jsonish(v)
+            qparts.append(f"{k}: " + (f"JSON.stringify({_lit(j, 'ts', 2)})" if j is not None else _lit(v, "ts", 2)))
+        parts.append("query: { " + ", ".join(qparts) + " }")
+    if ex["ctype"] and ex["ctype"].endswith("json"):
+        parts.append("body: " + _lit(ex["body"], "ts", 1))
+    elif ex["ctype"]:
+        fmt = ex["query"].get("format") or ex["query"].get("from") or "md"
+        head = 'import { readFile } from "node:fs/promises";\n' + head
+        parts.append(f'body: await readFile("{FILE_FOR.get(fmt, "file.bin")}")')
+    opts = {}
+    for k, v in ex["headers"].items():
+        if k == "If-Match":
+            opts["ifMatch"] = v.strip('"')
+        elif k == "Idempotency-Key":
+            opts["idempotencyKey"] = v
+    arg = "{ " + ", ".join(parts) + " }" if parts else ""
+    if len(arg) > 70 or "\n" in arg:
+        arg = "{\n" + "".join(f"  {p.replace(chr(10), chr(10) + '  ')},\n" for p in parts) + "}"
+    call_args = arg
+    if opts:
+        call_args = (arg or "{}") + ", " + _lit(opts, "ts")
+    var = "bytes" if kind == "binary" else "result"
+    call = f"const {var} = await oc.{o['id']}({call_args});"
+    if kind == "binary":
+        fmt = ex["path"].get("format") or ex["query"].get("to") or "bin"
+        head = 'import { writeFile } from "node:fs/promises";\n' + head
+        return head + f"\n{call}\nawait writeFile(\"canvas.{fmt}\", bytes);"
+    return head + f"\n{call}\nconsole.log(result);"
+
+
+def sample_rust(spec: dict, o: dict, ex: dict) -> str:
+    if o["tag"] == "0.1 aliases":
+        nxt = _successor(spec, o)
+        return f"// The client covers /api/v1 only. Use \"{nxt['id'] if nxt else 'the successor'}\" instead:\n// oc.call(\"{nxt['id'] if nxt else ''}\", &params, &CallOptions::default()).await?;"
+    kind, _ct = _response_kind(spec, o["op"])
+    if kind == "stream":
+        types = (ex["query"].get("types") or "edited,commented").split(",")
+        return RUST_HEAD.format(uses="Auth, Client, EventsOptions", extra="") + f"""
+let mut opts = EventsOptions::new({json.dumps(ex["path"].get("fileId", "doc_1"))});
+opts.types = vec![{", ".join(f'{json.dumps(t)}.into()' for t in types)}];
+let mut stream = oc.events(opts);
+while let Some(event) = stream.next().await {{
+    let event = event?;
+    println!("{{}} {{}} {{:?}}", event.id, event.type_, event.data);
+}}"""
+    uses = ["Auth", "CallOptions", "Client", "Params"]
+    extra = ""
+    chain = []
+    path = dict(ex["path"])
+    if "fileId" in path:
+        start = f"Params::file({json.dumps(path.pop('fileId'))})"
+    else:
+        start = "Params::new()"
+    for k, v in path.items():
+        chain.append(f".path({json.dumps(k)}, {json.dumps(v)})")
+    for k, v in ex["query"].items():
+        j = _jsonish(v)
+        if j is not None:
+            chain.append(f".query({json.dumps(k)}, json!({_lit(j, 'rust', 3)}).to_string())")
+            extra = "use serde_json::json;\n"
+        else:
+            chain.append(f".query({json.dumps(k)}, {json.dumps(v)})")
+    if ex["ctype"] and ex["ctype"].endswith("json"):
+        chain.append(f".json(json!({_lit(ex['body'], 'rust', 3)}))")
+        extra = "use serde_json::json;\n"
+    elif ex["ctype"]:
+        fmt = ex["query"].get("format") or ex["query"].get("from") or "md"
+        name = FILE_FOR.get(fmt, "file.bin")
+        chain.append(f'.binary(std::fs::read("{name}").expect("{name}"))')
+    hdr = {k: v for k, v in ex["headers"].items()}
+    im, key = hdr.get("If-Match"), hdr.get("Idempotency-Key")
+    if im and key:
+        opts = ("CallOptions {\n            if_match: Some(" + json.dumps(im.strip('"')) + ".into()),\n            idempotency_key: Some("
+                + json.dumps(key) + ".into()),\n            ..Default::default()\n        }")
+    elif im:
+        opts = f"CallOptions::if_match({json.dumps(im.strip(chr(34)))})"
+    elif key:
+        opts = f"CallOptions::key({json.dumps(key)})"
+    else:
+        opts = "CallOptions::default()"
+    params = start + "".join(f"\n            {c}" for c in chain)
+    body = f"""
+let res = oc
+    .call(
+        {json.dumps(o['id'])},
+        &{params},
+        &{opts},
+    )
+    .await?;
+"""
+    if kind == "binary":
+        fmt = ex["path"].get("format") or ex["query"].get("to") or "bin"
+        body += f'std::fs::write("canvas.{fmt}", &res.body).expect("written");'
+    else:
+        body += "let answer: serde_json::Value = res.value()?;\nprintln!(\"{answer:#}\");"
+    return RUST_HEAD.format(uses=", ".join(uses), extra=extra) + body
+
+
+def sample_python(spec: dict, o: dict, ex: dict) -> str:
+    kind, _ct = _response_kind(spec, o["op"])
+    method = o["method"]
+    url = _url(o, ex)
+    head = "import os\n\nimport requests\n\n"
+    headers = {}
+    if o["path"] != "/api/v1/openapi.json":
+        headers = {"X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": "@@KEY@@"}
+    headers.update(ex["headers"])
+    if kind == "stream":
+        headers["Accept"] = "text/event-stream"
+    args = [json.dumps(url)]
+    if headers:
+        args.append("headers=" + _lit(headers, "python", 1).replace('"@@KEY@@"', 'os.environ["OC_API_KEY"]'))
+    else:
+        head = "import requests\n\n"
+    if ex["query"]:
+        q = {}
+        jsonq = False
+        for k, v in ex["query"].items():
+            j = _jsonish(v)
+            q[k] = ("@@JSON@@" + json.dumps(j)) if j is not None else v
+            jsonq = jsonq or j is not None
+        lit = _lit(q, "python", 1)
+        lit = re.sub(r'"@@JSON@@((?:[^"\\]|\\.)*)"', lambda m: "json.dumps(" + _lit(json.loads(json.loads('"' + m.group(1) + '"')), "python", 2) + ")", lit)
+        args.append("params=" + lit)
+        if jsonq:
+            head = "import json\n" + head
+    if ex["ctype"] and ex["ctype"].endswith("json"):
+        args.append("json=" + _lit(ex["body"], "python", 1))
+    elif ex["ctype"]:
+        fmt = ex["query"].get("format") or ex["query"].get("from") or "md"
+        args.append(f'data=open("{FILE_FOR.get(fmt, "file.bin")}", "rb")')
+    if kind == "stream":
+        args.append("stream=True")
+        args.append("timeout=(10, 60)")
+    else:
+        args.append("timeout=30")
+    call = f"r = requests.{method}(\n" + "".join(f"    {a},\n" for a in args) + ")\nr.raise_for_status()\n"
+    if kind == "stream":
+        call += """for line in r.iter_lines(decode_unicode=True):
+    if line.startswith("data:"):
+        event = json.loads(line[5:])
+        print(event["id"], event["type"], event["data"])"""
+        if not head.startswith("import json"):
+            head = "import json\n" + head
+    elif kind == "binary":
+        fmt = ex["path"].get("format") or ex["query"].get("to") or "bin"
+        call += f'with open("canvas.{fmt}", "wb") as f:\n    f.write(r.content)'
+    else:
+        call += "print(r.json())"
+    return head + call
+
+
+def operation_section(spec: dict, o: dict, root: str) -> str:
+    op = o["op"]
+    oid = o["id"]
+    cat = apilib.catalogue(spec)
+    legacy = o["tag"] == "0.1 aliases"
+    parts = [f'<h2 id="{oid}" class="op-title">{_esc(op.get("summary", oid))}</h2>',
+             f'<p class="op-line">{method_badge(o["method"])}<code>{_esc(o["path"])}</code></p>']
+    scope = op.get("x-opencanvas-scope")
+    meta = []
+    if o["path"] == "/api/v1/openapi.json":
+        meta.append(("Credentials", "None: the document is public."))
+    elif legacy:
+        meta.append(("Credentials", "Host key (<code>X-OpenCanvas-Host</code> and <code>X-OpenCanvas-Key</code>)."))
+    else:
+        role = SCOPE_ROLE.get(scope or "", "")
+        if scope == "canvas:admin":
+            cred = 'Host key, or a user token with <code>canvas:admin</code> when the host sets <code>[host.api] token_admin</code>.'
+        else:
+            cred = f'Host key, or a user token with <a href="{root}api/authentication.html#scopes"><code>{_esc(scope)}</code></a>.'
+        meta.append(("Credentials", cred))
+        if scope and scope != "canvas:admin":
+            meta.append(("Least role", f"<code>{role}</code> on the file (effective permission <code>min(scope, role)</code>)."))
+    if any(p.get("name") == "Idempotency-Key" for p in apilib.params(spec, op)):
+        meta.append(("Idempotent", f'Send an <a href="{root}api/idempotency.html"><code>Idempotency-Key</code></a> to retry safely.'))
+    if legacy:
+        nxt = _successor(spec, o)
+        if nxt:
+            meta.append(("Deprecated", f'<span class="op-deprecated">Retired in v0.3.</span> Use <a href="{ref_href(spec, nxt["id"], root)}"><code>{nxt["id"]}</code></a>.'))
+    meta.append(("Operation id", f"<code>{_esc(oid)}</code>"))
+    for para in (op.get("description") or "").split("\n\n"):
+        if para.strip():
+            parts.append(f"<p>{_inl(para.strip(), root)}</p>")
+    parts.append('<dl class="op-meta">' + "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in meta) + "</dl>")
+
+    ps = apilib.params(spec, op)
+    if ps:
+        rows = []
+        for p in ps:
+            s = p.get("schema") or {}
+            desc = " ".join([_inl(p.get("description", ""), root)] + _constraints(s)).strip()
+            req = '<span class="req">required</span>' if p.get("required") else ""
+            rows.append([f"<code>{_esc(p['name'])}</code>{req}", p["in"], f'<span class="ty">{_esc(type_label(spec, s))}</span>', desc])
+        parts.append('<h3 data-index="no">Parameters</h3>' + _table(["Name", "In", "Type", "Description"], rows, f"{oid} parameters", "api-table schema"))
+
+    ex = request_example(spec, o)
+    ctype, media, required = apilib.request_media(spec, op)
+    if media is not None:
+        sch = media.get("schema") or {}
+        lead = f'<p>{"Required" if required else "Optional"}, <code>{_esc(ctype)}</code>.</p>'
+        if ctype.endswith("json"):
+            body = lead + schema_table(spec, sch, f"{oid} request body")
+        else:
+            body = lead + f"<p>{_inl(media.get('description', '') or 'The file itself, as the raw body.', root)}</p>"
+        body += '<h4 data-index="no">Example</h4>' + _pre(_example_text(ctype, ex["body"]), "json" if ctype.endswith("json") else "text")
+        parts.append('<h3 data-index="no">Request body</h3>' + body)
+
+    resp = []
+    errors = op.get("x-opencanvas-errors") or []
+    for code, res, comp in apilib.responses(spec, op):
+        st = int(code) if code.isdigit() else 0
+        reason = apilib.REASONS.get(st, "")
+        desc = res.get("description", "")
+        inner = []
+        hdrs = res.get("headers") or {}
+        if hdrs:
+            hr = [[f"<code>{_esc(h)}</code>", _inl(apilib.deref(spec, hv)[0].get("description", ""), root)] for h, hv in hdrs.items()]
+            inner.append('<h4 data-index="no">Headers</h4>' + _table(["Header", "Description"], hr, f"{oid} {code} headers", "api-table"))
+        for ct, m in (res.get("content") or {}).items():
+            sch = m.get("schema") or {}
+            s, _ = apilib.deref(spec, sch)
+            if ct.endswith("json") and isinstance(s, dict) and (s.get("properties") or s.get("$ref")):
+                inner.append(f'<h4 data-index="no">Body <code>{_esc(ct)}</code></h4>' + schema_table(spec, sch, f"{oid} {code} body"))
+            else:
+                inner.append(f'<h4 data-index="no">Body <code>{_esc(ct)}</code></h4><p>{_esc(type_label(spec, sch))}</p>')
+            has, val = apilib.media_example(m)
+            if not has and comp and st >= 400:
+                codes = [c for c in errors if c in cat and st in cat[c]["status"]]
+                if codes:
+                    e = cat[codes[0]]
+                    has, val = True, (apilib.legacy_example(e) if legacy else apilib.problem_example(e, st))
+            if not has:
+                has, val = True, apilib.synth(sch, spec)
+            inner.append('<h4 data-index="no">Example</h4>' + _pre(_example_text(ct, val), "json" if ct.endswith("json") else "text"))
+        codes_here = [c for c in errors if c in cat and st in cat[c]["status"]]
+        if codes_here:
+            inner.append(f'<p class="muted">Codes: {", ".join(f"<code>{c}</code>" for c in codes_here)}.</p>')
+        open_ = " open" if code.startswith("2") or code == "101" else ""
+        resp.append(f'<details class="resp"{open_}><summary><span class="status status-{code[0]}">{code}</span>'
+                    f'<span>{_esc(reason)}{": " if reason and desc and desc != reason else ""}{_inl(desc, root) if desc != reason else ""}</span>'
+                    f'{sitelib.icon("chevron-down", 16)}</summary><div class="resp-body">{"".join(inner)}</div></details>')
+    parts.append('<h3 data-index="no">Responses</h3>' + "".join(resp))
+
+    if errors:
+        common = [c for c in errors if cat.get(c, {}).get("kind") == "common"]
+        own = [c for c in errors if c not in common]
+        er = []
+        for c in own:
+            e = cat[c]
+            er.append([", ".join(str(s) for s in e["status"]), f'<a href="{root}api/errors.html#{c}"><code>{c}</code></a>', _inl(e["description"], root)])
+        block = '<h3 data-index="no">Errors</h3>'
+        if er:
+            block += _table(["Status", "Code", "When"], er, f"{oid} errors", "api-table")
+        if common:
+            block += (f'<p class="err-ops">Also, like every operation on a file: '
+                      + ", ".join(f'<a href="{root}api/errors.html#{c}"><code>{c}</code></a>' for c in common) + ".</p>")
+        parts.append(block)
+
+    blocks = [("curl", sample_curl(spec, o, ex)), ("ts", sample_ts(spec, o, ex)), ("rust", sample_rust(spec, o, ex)),
+              ("python", sample_python(spec, o, ex))]
+    code, res = apilib.success(spec, op)
+    side = sample_group(blocks, "Request")
+    if code:
+        for ct, m in ((res or {}).get("content") or {}).items():
+            has, val = apilib.media_example(m)
+            if not has:
+                val = apilib.synth(m.get("schema") or {}, spec)
+            side += (f'<div class="sample sample-res"><span class="sample-label">Response {code}</span>'
+                     f'{_pre(_example_text(ct, val), "json" if ct.endswith("json") else "text")}</div>')
+            break
+    return (f'<section class="op" aria-labelledby="{oid}"><div class="op-doc">{"".join(parts)}</div>'
+            f'<aside class="op-code" aria-label="{_esc(op.get("summary", oid))}: examples">{side}</aside></section>')
+
+
+def check_examples(spec: dict) -> list[str]:
+    """Every example the reference shows, against its schema (also tools/check-openapi.py)."""
+    errs = []
+    for o in apilib.operations(spec):
+        op = o["op"]
+        for p in apilib.params(spec, op):
+            if "example" in p:
+                errs += [f"{o['id']} parameter {p['name']}: {e}" for e in apilib.validate(p["example"], p.get("schema") or {}, spec)]
+        _ct, media, _r = apilib.request_media(spec, op)
+        if media is not None:
+            has, val = apilib.media_example(media)
+            if has:
+                errs += [f"{o['id']} request: {e}" for e in apilib.validate(val, media.get("schema") or {}, spec)]
+        for code, res, _comp in apilib.responses(spec, op):
+            for _ct2, m in (res.get("content") or {}).items():
+                has, val = apilib.media_example(m)
+                if has:
+                    errs += [f"{o['id']} {code}: {e}" for e in apilib.validate(val, m.get("schema") or {}, spec)]
+    problem = spec["components"]["schemas"]["Problem"]
+    for e in spec.get("x-opencanvas-error-codes", []):
+        if e["status"]:
+            errs += [f"error {e['code']}: {x}" for x in apilib.validate(apilib.problem_example(e), problem, spec)]
+    return errs
+
+
+def reference_pages(spec: dict, order: list) -> dict[str, str]:
+    pages = {}
+    ops = apilib.operations(spec)
+    tags = {t for t, _s, _ti, _l in RESOURCES}
+    missing = sorted({o["tag"] for o in ops} - tags)
+    if missing:
+        raise SystemExit(f"build-api: no reference page for the tag(s) {missing}; add them to RESOURCES")
+    descs = {t["name"]: t.get("description", "") for t in spec.get("tags", [])}
+    for tag, slug, title, lede in RESOURCES:
+        rel = f"api/reference/{slug}.html"
+        root = "../../"
+        mine = [o for o in ops if o["tag"] == tag]
+        intro = f'<p class="lede">{_inl(lede, root)}</p>'
+        if descs.get(tag) and descs[tag] != lede:
+            intro += f"<p>{_inl(descs[tag], root)}</p>"
+        listing = "".join(f'<li><a href="#{o["id"]}">{method_badge(o["method"])} <code class="op-path-s">{_esc(o["path"])}</code></a></li>' for o in mine)
+        article = (f"<h1>{_esc(title)}</h1>\n{intro}\n<ul class=\"op-index\">{listing}</ul>\n"
+                   + "\n".join(operation_section(spec, o, root) for o in mine))
+        desc = f"OpenCanvas API reference, {title}: " + "; ".join(o["op"].get("summary", o["id"]) for o in mine) + "."
+        pages[rel] = api_page(spec, rel, f"{title} API", desc[:300], article, current=f"reference/{slug}", kind="ref", order=order)
+    return pages
+
+
+def reference_text(spec: dict) -> str:
+    """The reference as plain text for llms-full.txt: every operation with its parameters,
+    body, answers, errors and a curl example."""
+    out = []
+    cat = apilib.catalogue(spec)
+    for tag, slug, title, lede in RESOURCES:
+        out.append(f"\n\n# API reference: {title}\n\nURL: {sitelib.BASE_URL}api/reference/{slug}.html\n\n{lede}\n")
+        for o in apilib.operations(spec):
+            if o["tag"] != tag:
+                continue
+            op = o["op"]
+            out.append(f"\n## {op.get('summary', o['id'])}\n\n{o['method'].upper()} {o['path']} (operationId {o['id']}"
+                       + (f", scope {op['x-opencanvas-scope']}" if op.get("x-opencanvas-scope") else "") + ")\n")
+            if op.get("description"):
+                out.append(f"\n{op['description']}\n")
+            ps = apilib.params(spec, op)
+            if ps:
+                out.append("\nParameters:\n" + "".join(
+                    f"- {p['name']} ({p['in']}, {type_label(spec, p.get('schema') or {})}{', required' if p.get('required') else ''}): {p.get('description', '')}\n"
+                    for p in ps))
+            ex = request_example(spec, o)
+            ctype, media, _r = apilib.request_media(spec, op)
+            if media is not None:
+                out.append(f"\nRequest body ({ctype}), example:\n{_example_text(ctype, ex['body'])}\n")
+            code, res = apilib.success(spec, op)
+            for ct, m in ((res or {}).get("content") or {}).items():
+                has, val = apilib.media_example(m)
+                if has:
+                    out.append(f"\nResponse {code} ({ct}), example:\n{_example_text(ct, val)}\n")
+                break
+            errs = op.get("x-opencanvas-errors") or []
+            if errs:
+                out.append("\nErrors: " + ", ".join(f"{c} ({'/'.join(str(s) for s in cat[c]['status'])})" for c in errs if c in cat) + "\n")
+            out.append(f"\nExample:\n{sample_curl(spec, o, ex)}\n")
+    return "".join(out)
+
+
 # ---- Pages -------------------------------------------------------------------------------
 
 def render() -> dict[str, str]:
     """Every page of the API section, relative to site/."""
     spec = apilib.load()
+    bad = check_examples(spec)
+    if bad:
+        raise SystemExit("build-api: examples that do not match their schema:\n  " + "\n  ".join(bad))
     _SAMPLE_SEQ[0] = 0
     pages: dict[str, str] = {}
     order = _order()
@@ -408,6 +1040,8 @@ def render() -> dict[str, str]:
         else:
             title, desc, article = render_guide(slug, spec)
         pages[f"api/{slug}.html"] = api_page(spec, f"api/{slug}.html", title, desc, article, current=slug, order=order)
+    if REFERENCE_ON:
+        pages.update(reference_pages(spec, order))
     return pages
 
 
@@ -422,9 +1056,12 @@ def llms_index(pages: dict[str, str]) -> list[str]:
 
 
 def llms_full(pages: dict[str, str]) -> str:
-    """The API section as text for llms-full.txt: the guides as rendered text."""
+    """The API section as text for llms-full.txt: the guides as rendered text, then every
+    operation from the OpenAPI document."""
     parts = []
     for slug, _label in available_guides():
         rel = f"api/{slug}.html"
         parts.append(f"\n\n# {sitelib.page_title(pages[rel], rel)}\n\nURL: {sitelib.BASE_URL}{rel}\n\n{sitelib.main_text(pages[rel])}\n")
+    if REFERENCE_ON:
+        parts.append(reference_text(apilib.load()))
     return "".join(parts)

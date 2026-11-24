@@ -39,6 +39,17 @@
 - [API overview](https://canvas.casualoffice.org/api/index.html): The OpenCanvas headless API: read and change canvases from programs. Base URL, versioning, the api_v1 switch, request conventions and a first call in curl, TypeScript, Rust and Python.
 - [Pagination](https://canvas.casualoffice.org/api/pagination.html): Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header, expiry and errors.
 - [Rate limits](https://canvas.casualoffice.org/api/rate-limits.html): OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.
+- [Admin API](https://canvas.casualoffice.org/api/reference/admin.html): OpenCanvas API reference, Admin: Save now (200 saved, 202 queued in the outbox, 409 conflict); Change a user's role live (none disconnects them); Final save, disconnect everyone, drop every ticket; The member list changed; drop cached answers.
+- [Blocks API](https://canvas.casualoffice.org/api/reference/blocks.html): OpenCanvas API reference, Blocks: List top-level blocks; Read one block (also nested ones); Find blocks whose text contains q (case-insensitive); Change blocks in one atomic transaction.
+- [Boards API](https://canvas.casualoffice.org/api/reference/boards.html): OpenCanvas API reference, Boards: Read a board's shapes; Add shapes to a board.
+- [Canvas API](https://canvas.casualoffice.org/api/reference/canvas.html): OpenCanvas API reference, Canvas: Read a canvas as JSON blocks, Markdown or an outline.
+- [Comments API](https://canvas.casualoffice.org/api/reference/comments.html): OpenCanvas API reference, Comments: List comment threads; Start a thread on a block or reply to one.
+- [Databases API](https://canvas.casualoffice.org/api/reference/databases.html): OpenCanvas API reference, Databases: List databases with fields, row counts and views; Create a database block; Describe one database; Query rows; Create or update rows (at most 200); Add a field.
+- [Export and import API](https://canvas.casualoffice.org/api/reference/files.html): OpenCanvas API reference, Export and import: Export the canvas; Import Markdown, HTML or CSV into the canvas; Stateless conversion.
+- [0.1 routes (deprecated) API](https://canvas.casualoffice.org/api/reference/legacy.html): OpenCanvas API reference, 0.1 routes (deprecated): Patch blocks (0.1); Save now (0.1); Change a role (0.1); Close the session (0.1); Members changed (0.1); Import (0.1); Convert (0.1).
+- [Members API](https://canvas.casualoffice.org/api/reference/members.html): OpenCanvas API reference, Members: People with access (id, name, detail; never e-mail).
+- [OpenAPI document API](https://canvas.casualoffice.org/api/reference/meta.html): OpenCanvas API reference, OpenAPI document: This document.
+- [Events and sync API](https://canvas.casualoffice.org/api/reference/streams.html): OpenCanvas API reference, Events and sync: Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages; A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly.
 
 ## Source
 - [Repository](https://github.com/CasualOffice/opencanvas)

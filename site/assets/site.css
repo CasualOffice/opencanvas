@@ -623,11 +623,16 @@ a.card:hover { transform: translateY(-2px); color: var(--os-text); box-shadow: 0
 .method-put, .method-patch, .status-4 { color: var(--os-warning); background: color-mix(in srgb, var(--os-warning) 11%, var(--os-bg)); }
 .method-delete, .status-5 { color: var(--os-danger); background: color-mix(in srgb, var(--os-danger) 11%, var(--os-bg)); }
 .op-path-s { font-size: 0.8125rem; overflow-wrap: anywhere; }
+.prose .op-index { list-style: none; padding: 0; display: grid; gap: 0.25rem; }
+.prose .op-index li + li { margin-top: 0; }
+.op-index a { display: inline-flex; gap: 0.75rem; align-items: center; padding: 0.25rem 0; color: var(--os-text-2); text-decoration: none; }
+.op-index a:hover { color: var(--os-text); }
+.prose .op-index code { background: none; box-shadow: none; padding: 0; }
 
 /* One operation: its documentation, and its samples beside it (below it on narrower screens). */
 .prose .op { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 30rem); gap: 1.5rem 2.5rem; align-items: start; margin-top: 3rem; padding-top: 2.5rem; border-top: 1px solid var(--os-border); }
 .op-doc { min-width: 0; display: grid; gap: 1rem; }
-.op-doc > * { margin: 0; }
+.op-doc > *, .prose .op-doc > * { margin: 0; }
 .prose .op-title { margin: 0; padding: 0; font-size: 1.375rem; }
 .prose .op-doc h3 { margin: 0.75rem 0 0; font-size: 1rem; }
 .op-line { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; }
@@ -645,7 +650,7 @@ a.card:hover { transform: translateY(-2px); color: var(--os-text); box-shadow: 0
 .resp > summary .i { margin-left: auto; color: var(--os-muted); transition: transform var(--os-dur) var(--os-ease-out); flex: none; }
 .resp[open] > summary .i { transform: rotate(180deg); }
 .resp-body { display: grid; gap: 0.75rem; padding: 0 0.875rem 0.875rem; min-width: 0; }
-.resp-body > * { margin: 0; }
+.resp-body > *, .prose .resp-body > * { margin: 0; }
 .resp-body h4 { font-size: 0.8125rem; color: var(--os-muted); font-weight: 600; margin: 0.25rem 0 0; }
 
 .prose .schema { font-size: 0.8125rem; }
@@ -693,8 +698,6 @@ a.card:hover { transform: translateY(-2px); color: var(--os-text); box-shadow: 0
 }
 @media (max-width: 52em) {
   .api-layout, .api-layout--ref { grid-template-columns: minmax(0, 1fr); padding-top: 1rem; }
-  .op-meta { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
-  .op-meta dd + dt { margin-top: 0.5rem; }
 }
 /* Phones: each table row becomes a card, every cell after the first labelled. */
 @media (max-width: 40em) {
