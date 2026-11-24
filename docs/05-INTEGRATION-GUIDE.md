@@ -596,7 +596,7 @@ The supported API for programs: bots, integrations, back-office jobs. The websit
 reference, generated from the OpenAPI document: [API reference](https://canvas.casualoffice.org/api/index.html). It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
-per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every
+per host with `[host.flags] api_v1 = true` (off by default in 0.1.2 and 0.2.0; otherwise every
 `/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
 `v1` changes are additive.
 

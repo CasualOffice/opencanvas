@@ -30,6 +30,11 @@ office documents.
 > Version history lets editors compare and restore versions where the host supports it.
 > Read the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md) before deploying.
 > Support is best-effort, with no production SLA. AI and MCP are experimental and off by default.
+>
+> **v0.2.0 is prepared on `main`, not yet tagged.** It brings the stable headless API with
+> TypeScript and Rust clients, webhooks, the block SDK and host editor profiles. The tag waits for
+> the block SDK runtime and the editor profiles. Read the
+> [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) first.
 
 ## Goal
 
@@ -216,7 +221,7 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 |---|---|
 | v0.1.0 | First final release of the collaborative editor, databases, whiteboards and embedding |
 | [v0.1.2](docs/31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
-| v0.2 | Stable headless APIs, an extensible block SDK, version-history follow-ups and webhooks |
+| [v0.2.0](docs/32-RELEASE-v0.2.0.md) (prepared, not yet tagged) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
