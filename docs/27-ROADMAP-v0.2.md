@@ -383,6 +383,26 @@ Third-party renderers run in an iframe per block instance:
   (`older_data_validates_after_migration`, `a_block_from_a_newer_version_is_not_overwritten`,
   migration cases in `ext_fixtures`), `ext/ext.test.ts`, `ext/compat.test.ts`.
 
+- **BSDK-03 (2026-11-25, Review; built to the approved frames, decisions 1-9).** The sandbox:
+  `sandbox="allow-scripts"` iframes from `OC_BLOCKS_ORIGIN` (`crate::blocks::frame` / `file`,
+  answered on the block origin's host name only), the inlined frame runtime
+  (`crates/oc-server/assets/block-frame.js`) allowed by its sha384, the bundle and a script
+  `migrations` loaded with SRI, and a CSP from the effective permissions (manifest narrowed by
+  `[host.blocks.permissions."<type>"]`). Editor runtime (`ext/runtime.ts`, lazy): the
+  `ready`/`connect` handshake (opaque origin and window checks), a MessageChannel RPC, heartbeat
+  (5 s) and render timeout, 60 writes/s, schema checks in TS (`ext/schema.ts`, the server's subset
+  on shared cases), theme tokens, focus in and out, `openLink`, `members` (names and pictures
+  only), and script migrations in the frame (completing ADR-060). The server re-checks every room
+  update touching an SDK block (`filter::sdk_block_error`). Chrome (`ext/Chrome.tsx`): frame,
+  badge (decision 1), loading skeleton at the height kept with the fallback, selected and focus
+  ring (decision 2), About dialog and sheet, Reload block with the crash-loop guard (decision 4),
+  fallbacks 2a-2c in one wording (decision 3), "couldn't update its saved data" for a failed
+  migration, viewers read only, comments on the whole block (decision 5). / menu group "From your
+  organisation", Browse all blocks and the gallery with `preview.png` (decisions 6-7), menu
+  labels at `--fg-2` (decision 8). Manifest `publisher`, `keywords`, `preview` (ADR-058 note).
+  Open points settled: children below the frame, full width; a failed migration is read only with
+  its own sentence; the last height is kept in `fallback.height`.
+
 ## 4. Stable headless API
 
 ### 4.1 Problem and user value

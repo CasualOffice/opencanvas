@@ -277,7 +277,15 @@ pub(crate) fn check(
                 let p = format!("{}/{k}", ap("fallback"));
                 match (k.as_str(), v) {
                     ("markdown" | "text", Value::String(s)) if s.len() <= MAX_FALLBACK_BYTES => {}
-                    ("markdown" | "text", Value::Null) => {}
+                    ("markdown" | "text" | "title" | "height", Value::Null) => {}
+                    ("title", Value::String(s)) if s.chars().count() <= 80 => {}
+                    ("height", Value::Number(n))
+                        if n.as_f64().is_some_and(|h| (0.0..=8000.0).contains(&h)) => {}
+                    ("title", _) => err(
+                        p,
+                        "fallback.title is a string of at most 80 characters".into(),
+                    ),
+                    ("height", _) => err(p, "fallback.height is a number of pixels 0-8000".into()),
                     ("markdown" | "text", Value::String(_)) => err(
                         p,
                         format!("a fallback is at most {MAX_FALLBACK_BYTES} bytes"),
@@ -349,6 +357,47 @@ pub(crate) fn check(
         }
         _ => {}
     }
+}
+
+/// Schema errors of every `extBlock` in a whole document (its data included), as
+/// `path: message`; the room filter compares these before and after an update (BSDK-03).
+pub fn document_errors(reg: &Registry, doc: &Value) -> Vec<String> {
+    fn walk(
+        reg: &Registry,
+        nodes: &[Value],
+        at: &str,
+        ext: &Value,
+        out: &mut Vec<String>,
+        depth: usize,
+    ) {
+        for (i, n) in nodes.iter().enumerate() {
+            let p = format!("{at}/{i}");
+            if n.get("type").and_then(Value::as_str) == Some(NODE) {
+                check(
+                    reg,
+                    &p,
+                    n.get("attrs").and_then(Value::as_object),
+                    Some(ext),
+                    &mut |path, m| out.push(format!("{path}: {m}")),
+                    &mut |_, _| {},
+                );
+            }
+            if let Some(c) = n.get("content").and_then(Value::as_array)
+                && depth < 64
+            {
+                walk(reg, c, &format!("{p}/content"), ext, out, depth + 1);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if reg.is_empty() {
+        return out;
+    }
+    let ext = doc.get("ext").cloned().unwrap_or(Value::Null);
+    if let Some(c) = doc.get("content").and_then(Value::as_array) {
+        walk(reg, c, "/content", &ext, &mut out, 0);
+    }
+    out
 }
 
 /// Checks the `ext` root of `document.json`: `{dataId: {field: value}}`.

@@ -301,7 +301,7 @@ fn patches_write_data_migrate_and_derive_fallbacks() {
     assert_eq!(a["attrs"], json!({"objective": "Q1", "progress": 0.1}));
     assert_eq!(
         a["fallback"],
-        json!({"markdown": "**Q1** (10%)", "text": "Q1"})
+        json!({"markdown": "**Q1** (10%)", "text": "Q1", "title": "OKR"})
     );
     let data_id = a["dataId"].as_str().unwrap();
     assert_eq!(j["ext"][data_id], json!({"score": 4}));
@@ -335,6 +335,18 @@ fn ext_fixtures() {
             c["text"].as_str().unwrap(),
             "{c}"
         );
+    }
+    for c in f["schemas"].as_array().unwrap() {
+        let s = oc_model::ext::schema::Schema::compile(&c["schema"]).unwrap();
+        let got: Vec<String> = s
+            .validate(&c["value"])
+            .into_iter()
+            .map(|(p, m)| format!("{p}: {m}"))
+            .collect();
+        assert_eq!(serde_json::to_value(got).unwrap(), c["errors"], "{c}");
+    }
+    for s in f["schemas_refused"].as_array().unwrap() {
+        assert!(oc_model::ext::schema::Schema::compile(s).is_err(), "{s}");
     }
     for t in f["refused"].as_array().unwrap() {
         assert!(Template::parse(t.as_str().unwrap()).is_err(), "{t}");

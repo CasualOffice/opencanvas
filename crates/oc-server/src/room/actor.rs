@@ -1337,6 +1337,15 @@ impl Room {
             }
             return;
         }
+        // BSDK-03: SDK block attrs and data must match their package's schema, whoever writes
+        // them (the editor checks the bridge's writes first; this catches every other client).
+        if let Some(e) = filter::sdk_block_error(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: an SDK block does not match its schema");
+            return self.deny(
+                conn,
+                &format!("an SDK block does not match its schema ({e})"),
+            );
+        }
         // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
         if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {
             return self.deny(conn, "icons are changed through the server");

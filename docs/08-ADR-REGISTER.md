@@ -853,8 +853,20 @@ list of `type@SemVer requirement`) is the per-host switch the design's `block_sd
 have been. (5) `OC_BLOCKS_ORIGIN` must be a different origin from `OC_PUBLIC_URL`.
 **Consequences.** + one small, audited validator, the same on every write path; + a bad package
 cannot stop a server; − authors cannot use `unevaluatedProperties`, `$dynamicRef`,
-`dependentSchemas` or format assertions; − the editor has no validator yet (BSDK-03 adds the
-bridge's write check).
+`dependentSchemas` or format assertions.
+**Note (BSDK-03, 2026-11-25).** The manifest gains optional `publisher` (1-80 characters),
+`keywords` (≤ 10 words) and `preview` (a `.png` inside the package, ≤ 512 KB, PNG signature
+checked; decision 7), and `[host.blocks]` gains `[host.blocks.permissions."<type>"]` (`network`,
+`members`) that narrows the manifest's permissions per host (decision 9; a host can only take
+away). The editor runs the same schema subset for the bridge's write checks
+(`web/packages/editor/src/ext/schema.ts`, shared cases), and the server checks room updates too.
+**Note (owner decision, 2026-11-25).** Optional `discovery {label, category, keywords, profiles,
+complexity}` before the v0.2 contract freezes: `category` ∈ `content`, `data-planning`, `visual`,
+`layout`, `extensions` (default `extensions`); `profiles` ⊆ `notebook`, `meeting`, `project`,
+`diagramming`, `document`, `full` (default `["full"]`); `complexity` `basic` | `advanced` (default
+`basic`); unknown categories or profiles refuse the package; `discovery.keywords` merge with
+`keywords`. The session lists `discovery` with defaults applied; editor menus filter through
+`blockVisibleInMenus(entry, profile)` for host editor profiles.
 
 ### ADR-059 — SDK blocks in documents and older editors (Accepted by the owner 2026-11-25)
 **Context.** ADR-040/042 assumed that 0.1.x keeps an unknown node. The `.ocanvas` reader does
