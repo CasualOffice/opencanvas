@@ -417,3 +417,28 @@ async fn diff_from_a_version_to_the_live_canvas() {
         (404, Some("VERSION_GONE"))
     );
 }
+
+/// VH-01d: an open history panel lists a save it was just told about (`saved` control) at once,
+/// not after the 30 s list cache: a `known` version the cached list has not seen refreshes it.
+#[tokio::test]
+async fn a_list_that_has_not_seen_the_latest_save_is_fetched_again() {
+    let s = setup(|c| c.checkpoint_every = Duration::ZERO, true).await;
+    let t = ticket(&s.addr, &token("u_1", "edit", ALL())).await;
+    s.mock.lock().unwrap().versions = Some(json!({"versions": [
+        {"version": "1", "at": "2026-11-24T09:00:00Z", "kind": "auto"}
+    ]}));
+    let (st, r) = get(&s.addr, &format!("/v1/history?ticket={t}")).await;
+    assert_eq!(st, 200, "{r}");
+    assert_eq!(r["versions"].as_array().unwrap().len(), 1);
+    // An autosave lands at the host as version 2.
+    s.mock.lock().unwrap().versions = Some(json!({"versions": [
+        {"version": "2", "at": "2026-11-24T09:01:00Z", "kind": "auto"},
+        {"version": "1", "at": "2026-11-24T09:00:00Z", "kind": "auto"}
+    ]}));
+    // Without a hint the cached list answers (30 s, docs/30 §2) ...
+    let (_, r) = get(&s.addr, &format!("/v1/history?ticket={t}")).await;
+    assert_eq!(r["versions"].as_array().unwrap().len(), 1);
+    // ... with the version the editor was told about, the list is fetched again.
+    let (_, r) = get(&s.addr, &format!("/v1/history?ticket={t}&known=2")).await;
+    assert_eq!(r["versions"][0]["version"], "2", "{r}");
+}

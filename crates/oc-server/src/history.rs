@@ -119,6 +119,9 @@ pub struct Caches {
     pub files: oc_model::diff::DiffCache<FileSnapshot>,
     /// Rooms whose host answered the list call with 404/405/501: no host history.
     pub unsupported: std::sync::Mutex<std::collections::HashSet<String>>,
+    /// The newest save each room's editors were told about (`known` on the list call, VH-01d):
+    /// a list cached before it is stale.
+    pub known: std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
 impl Default for Caches {
@@ -130,6 +133,7 @@ impl Default for Caches {
             lists: oc_model::diff::DiffCache::new(8 << 20, Duration::from_secs(30)),
             files: oc_model::diff::DiffCache::new(64 << 20, Duration::from_secs(30)),
             unsupported: Default::default(),
+            known: Default::default(),
         }
     }
 }
@@ -139,5 +143,24 @@ impl Caches {
     pub fn saved(&self, room: &str) {
         self.lists.remove_prefix(room);
         self.files.remove_prefix(room);
+    }
+
+    /// The editor names the newest save it knows of (the `saved` control's version). The first
+    /// time a room sees that version, its cached lists are dropped. Bounded: one entry per room,
+    /// at most 10,000 rooms (then it starts over).
+    pub fn seen(&self, room: &str, version: &str) {
+        if version.is_empty() || version.len() > 200 {
+            return;
+        }
+        let mut k = self.known.lock().expect("lock");
+        if k.get(room).map(String::as_str) == Some(version) {
+            return;
+        }
+        if k.len() >= 10_000 {
+            k.clear();
+        }
+        k.insert(room.to_string(), version.to_string());
+        drop(k);
+        self.saved(room);
     }
 }
