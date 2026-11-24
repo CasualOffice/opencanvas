@@ -9,6 +9,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [0.2.0] - YYYY-MM-DD (draft: date set at the tag)
 
+- The headless API (`/api/v1`) is on by default; `[host.flags] api_v1 = false` turns it off per host.
+
 The release notes and the scope lock are in [docs/32](docs/32-RELEASE-v0.2.0.md); read the
 upgrade notes in it first. The block SDK runtime (BSDK-03/04), host editor profiles (EDP-01) and
 block discovery metadata land before the tag.

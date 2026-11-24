@@ -23,10 +23,10 @@ id      = "acme"
 api_key = "env:ACME_OC_API_KEY"   # the host key, for server-to-server calls
 
 [host.flags]
-api_v1 = true                     # off by default in 0.1.2
+api_v1 = true                     # the default from 0.2.0 (it was off in 0.1.2); false turns it off
 ```
 
-Without the flag, every `/api/v1` call for that host answers `404` with the code `API_OFF`.
+With `api_v1 = false`, every `/api/v1` call for that host answers `404` with the code `API_OFF`.
 User tokens also need a public base URL (`OC_PUBLIC_URL`, or `[host.api] audience`); see
 [authentication](authentication.html).
 

@@ -57,7 +57,7 @@
         404
       ],
       "detail": "the API is not enabled for this host ([host.flags] api_v1)",
-      "description": "The host has not turned the API on. Set `[host.flags] api_v1 = true` in its entry of the hosts file.",
+      "description": "The host has turned the API off (`[host.flags] api_v1 = false` in its entry of the hosts file).",
       "kind": "common"
     },
     {

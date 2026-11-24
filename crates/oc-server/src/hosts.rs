@@ -238,10 +238,11 @@ impl HostConfig {
         }
     }
 
-    /// `[host.flags] api_v1 = true` (docs/27 §5): the headless API under `/api/v1` answers for
-    /// this host. Off by default in 0.2.0-alpha; the 0.1 host routes work either way.
+    /// `[host.flags] api_v1` (docs/27 §5): the headless API under `/api/v1` answers for this
+    /// host. On by default from 0.2.0; `api_v1 = false` turns it off. The 0.1 host routes work
+    /// either way. Every call still needs the host key or a token the host signed.
     pub fn api_v1(&self) -> bool {
-        self.flags.get("api_v1").and_then(|v| v.as_bool()) == Some(true)
+        self.flags.get("api_v1").and_then(|v| v.as_bool()) != Some(false)
     }
 
     /// `[host.api] default_mode = "direct" | "suggest"`: where API writes to existing blocks

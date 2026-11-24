@@ -219,8 +219,16 @@ async fn serves_the_checked_in_document() {
 // ---------- auth, flag and problem details ----------
 
 #[tokio::test]
-async fn off_unless_the_host_turns_it_on() {
+async fn on_by_default_and_off_when_the_host_turns_it_off() {
+    // 0.2.0: on unless the host sets `[host.flags] api_v1 = false` (docs/32 §2).
     let (addr, _, _) = serve(|h| h.api_key = Some(API_KEY.into())).await;
+    let (s, _, b) = call(get(&addr, &f(""))).await;
+    assert_ne!(s, 404, "the API answers without the flag: {b}");
+    let (addr, _, _) = serve(|h| {
+        h.api_key = Some(API_KEY.into());
+        h.flags.insert("api_v1".into(), toml::Value::Boolean(false));
+    })
+    .await;
     let (s, h, b) = call(get(&addr, &f(""))).await;
     assert_problem(s, &h, &b, 404, "API_OFF");
 }

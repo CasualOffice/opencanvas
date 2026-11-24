@@ -356,13 +356,13 @@ first.** Let pending saves finish before you replace the server. Migrations run 
      content.
 
    Start-up checks every section and refuses a bad value with a message that names it.
-3. **`[host.flags] api_v1` stays off by default.** Set `api_v1 = true` per host to serve
-   `/api/v1`. The 0.1 routes (`/v1/files/{id}/patch|commit|role|import|session`,
-   `/v1/convert`) keep working either way. They now carry a `Deprecation` header and a
-   `Link: rel="successor-version"`, and v0.3 retires them (docs/27 §9 decision 8). docs/27 §5
-   planned to turn `api_v1` on by default in 0.2.0. It is kept off for this release so that no
-   host gains an API surface it did not ask for. This is an owner decision to confirm before the
-   tag (§7).
+3. **The headless API is on by default** (owner decision, 2026-11-25). `/api/v1` answers for
+   every host unless it sets `[host.flags] api_v1 = false`. It grants nothing new: every call
+   needs the host key, which the 0.1 routes already accept, or a token of at most 15 minutes that
+   the host signs itself, and user tokens stay off until the host sets a public base URL. The 0.1
+   routes (`/v1/files/{id}/patch|commit|role|import|session`, `/v1/convert`) keep working. They
+   now carry a `Deprecation` header and a `Link: rel="successor-version"`, and v0.3 retires them
+   (docs/27 §9 decision 8), so on by default gives hosts the 0.2 line to move over.
 4. **Editors older than 0.2 on documents with SDK blocks are closed with 4426.** A 0.1.x
    editor deletes every `extBlock` it receives, because its schema has no such node. The room
    refuses that update and closes the session with code 4426 ("editor out of date: reopen the
@@ -441,8 +441,7 @@ A check that ran only on an earlier commit does not count. Results from this pre
 
 ## 7. Open decisions for the owner
 
-1. Should `[host.flags] api_v1` default to on in 0.2.0, as docs/27 §5 planned? This release
-   keeps it off (upgrade note 3).
+1. Decided 2026-11-25: `[host.flags] api_v1` is on by default in 0.2.0 (upgrade note 3).
 2. Approve the scope lock: 0.2.0 = §1, including EDP-01 and the discovery metadata. The
    categorised insert menu goes to 0.2.1.
 
@@ -1281,14 +1280,15 @@ directly and changes to existing content become **suggestions** (stored in the f
 changes that. Deleting more than 5 blocks needs `confirm: true`. Member lists never carry
 e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 
-## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
+## 7b. Headless API v1 (HAPI, ADR-041; on by default, `[host.flags] api_v1 = false` turns it off)
 
 The supported API for programs: bots, integrations, back-office jobs. The website has the full
 reference, generated from the OpenAPI document: [API reference](https://canvas.casualoffice.org/api/index.html). It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
-`crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
-per host with `[host.flags] api_v1 = true` (off by default in 0.1.2 and 0.2.0; otherwise every
-`/api/v1` call answers `404 API_OFF`). The path major changes only for breaking changes; within
+`crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). On by
+default from 0.2.0 (it was off in 0.1.2); turn it off per host with `[host.flags] api_v1 = false`,
+and every `/api/v1` call for that host answers `404 API_OFF`. Every call still needs the host key
+or a token the host signed. The path major changes only for breaking changes; within
 `v1` changes are additive.
 
 **Auth, two kinds, one check** (shared with MCP, §7a):
@@ -6609,7 +6609,7 @@ Every operation is under /api/v1 on your OpenCanvas server. The examples on thes
 
 ## Turn it on
 
-The API is off until you turn it on for your host, in its entry of the hosts file: [[host]] id = "acme" api_key = "env:ACME_OC_API_KEY" # the host key, for server-to-server calls [host.flags] api_v1 = true # off by default in 0.1.2 Without the flag, every /api/v1 call for that host answers 404 with the code API_OFF . User tokens also need a public base URL ( OC_PUBLIC_URL , or [host.api] audience ); see authentication .
+The API is off until you turn it on for your host, in its entry of the hosts file: [[host]] id = "acme" api_key = "env:ACME_OC_API_KEY" # the host key, for server-to-server calls [host.flags] api_v1 = true # the default from 0.2.0 (it was off in 0.1.2); false turns it off With api_v1 = false , every /api/v1 call for that host answers 404 with the code API_OFF . User tokens also need a public base URL ( OC_PUBLIC_URL , or [host.api] audience ); see authentication .
 
 ## Versioning
 
@@ -6689,7 +6689,7 @@ Status What to do 400 Fix the request; detail says what is wrong. Do not retry i
 
 ## Any operation on a file
 
-Authentication, the API switch, rate limits and availability: every /api/v1 operation on a file can answer these. Code Status Meaning TOKEN_EXPIRED 401 The bearer token's exp has passed. Mint a new one; tokens live at most 15 minutes. TOKEN_INVALID 401 A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid ( nbf ). Also answered when the host has no public base URL, so user tokens are off for it. UNAUTHENTICATED 401 No credentials, an unknown host, or a wrong host key. The answer carries WWW-Authenticate: Bearer realm="opencanvas" . FILES_REQUIRED 403 The host does not implement POST /access , so a token's role claim counts only for the files in its files claim, and this token has none. Add files , implement /access , or set [host.api] all_files = true . ROLE_FORBIDDEN 403 The user's role on the file is below what the operation needs (the effective permission is min(scope, role) ), the token does not list the file in files , or the host revoked the user. SCOPE_REQUIRED 403 The token's scope does not cover the operation. Admin operations need canvas:admin , which counts only when the host sets [host.api] token_admin = true . API_OFF 404 The host has not turned the API on. Set [host.flags] api_v1 = true in its entry of the hosts file. RATE_LIMITED 429 A token bucket is empty: the caller's, or the file's write bucket. Wait for Retry-After seconds. The RateLimit header says which bucket and when it refills. INTERNAL 500 An unexpected server error, or the host's POST /access callback failed. The server logs the cause; retrying may help. UNAVAILABLE 503 A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after Retry-After .
+Authentication, the API switch, rate limits and availability: every /api/v1 operation on a file can answer these. Code Status Meaning TOKEN_EXPIRED 401 The bearer token's exp has passed. Mint a new one; tokens live at most 15 minutes. TOKEN_INVALID 401 A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid ( nbf ). Also answered when the host has no public base URL, so user tokens are off for it. UNAUTHENTICATED 401 No credentials, an unknown host, or a wrong host key. The answer carries WWW-Authenticate: Bearer realm="opencanvas" . FILES_REQUIRED 403 The host does not implement POST /access , so a token's role claim counts only for the files in its files claim, and this token has none. Add files , implement /access , or set [host.api] all_files = true . ROLE_FORBIDDEN 403 The user's role on the file is below what the operation needs (the effective permission is min(scope, role) ), the token does not list the file in files , or the host revoked the user. SCOPE_REQUIRED 403 The token's scope does not cover the operation. Admin operations need canvas:admin , which counts only when the host sets [host.api] token_admin = true . API_OFF 404 The host has turned the API off ( [host.flags] api_v1 = false in its entry of the hosts file). RATE_LIMITED 429 A token bucket is empty: the caller's, or the file's write bucket. Wait for Retry-After seconds. The RateLimit header says which bucket and when it refills. INTERNAL 500 An unexpected server error, or the host's POST /access callback failed. The server logs the cause; retrying may help. UNAVAILABLE 503 A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after Retry-After .
 
 ## Operation-specific
 

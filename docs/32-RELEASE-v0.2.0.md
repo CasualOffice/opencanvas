@@ -73,13 +73,13 @@ first.** Let pending saves finish before you replace the server. Migrations run 
      content.
 
    Start-up checks every section and refuses a bad value with a message that names it.
-3. **`[host.flags] api_v1` stays off by default.** Set `api_v1 = true` per host to serve
-   `/api/v1`. The 0.1 routes (`/v1/files/{id}/patch|commit|role|import|session`,
-   `/v1/convert`) keep working either way. They now carry a `Deprecation` header and a
-   `Link: rel="successor-version"`, and v0.3 retires them (docs/27 §9 decision 8). docs/27 §5
-   planned to turn `api_v1` on by default in 0.2.0. It is kept off for this release so that no
-   host gains an API surface it did not ask for. This is an owner decision to confirm before the
-   tag (§7).
+3. **The headless API is on by default** (owner decision, 2026-11-25). `/api/v1` answers for
+   every host unless it sets `[host.flags] api_v1 = false`. It grants nothing new: every call
+   needs the host key, which the 0.1 routes already accept, or a token of at most 15 minutes that
+   the host signs itself, and user tokens stay off until the host sets a public base URL. The 0.1
+   routes (`/v1/files/{id}/patch|commit|role|import|session`, `/v1/convert`) keep working. They
+   now carry a `Deprecation` header and a `Link: rel="successor-version"`, and v0.3 retires them
+   (docs/27 §9 decision 8), so on by default gives hosts the 0.2 line to move over.
 4. **Editors older than 0.2 on documents with SDK blocks are closed with 4426.** A 0.1.x
    editor deletes every `extBlock` it receives, because its schema has no such node. The room
    refuses that update and closes the session with code 4426 ("editor out of date: reopen the
@@ -158,7 +158,6 @@ A check that ran only on an earlier commit does not count. Results from this pre
 
 ## 7. Open decisions for the owner
 
-1. Should `[host.flags] api_v1` default to on in 0.2.0, as docs/27 §5 planned? This release
-   keeps it off (upgrade note 3).
+1. Decided 2026-11-25: `[host.flags] api_v1` is on by default in 0.2.0 (upgrade note 3).
 2. Approve the scope lock: 0.2.0 = §1, including EDP-01 and the discovery metadata. The
    categorised insert menu goes to 0.2.1.

@@ -65,8 +65,8 @@ id      = &quot;acme&quot;
 api_key = &quot;env:ACME_OC_API_KEY&quot;   # the host key, for server-to-server calls
 
 [host.flags]
-api_v1 = true                     # off by default in 0.1.2</code></pre>
-<p>Without the flag, every <code>/api/v1</code> call for that host answers <code>404</code> with the code <code>API_OFF</code>. User tokens also need a public base URL (<code>OC_PUBLIC_URL</code>, or <code>[host.api] audience</code>); see <a href="../api/authentication.html">authentication</a>.</p>
+api_v1 = true                     # the default from 0.2.0 (it was off in 0.1.2); false turns it off</code></pre>
+<p>With <code>api_v1 = false</code>, every <code>/api/v1</code> call for that host answers <code>404</code> with the code <code>API_OFF</code>. User tokens also need a public base URL (<code>OC_PUBLIC_URL</code>, or <code>[host.api] audience</code>); see <a href="../api/authentication.html">authentication</a>.</p>
 <h2 id="versioning">Versioning</h2>
 <ul><li>The path carries the major version. Within <code>v1</code> changes are <strong>additive</strong>: new operations, new optional parameters, new fields in answers. Ignore fields you do not know.</li><li>A breaking change gets a new path (<code>/api/v2</code>), and <code>v1</code> keeps working alongside it.</li><li>The OpenAPI 3.1 document is the contract. A running server serves it at <code>GET /api/v1/openapi.json</code>; it is checked in as [<code>crates/oc-server/api/openapi.json</code>](../../../crates/oc-server/api/openapi.json), and a test keeps it and the server's router identical. This reference is generated from it.</li><li>The 0.1 routes (<code>/v1/files/{fileId}/patch</code> and the others) still work and carry <code>Deprecation</code> and a <code>Link</code> to their successor. They are retired in v0.3; see <a href="../api/reference/legacy.html">0.1 routes</a>.</li></ul>
 <h2 id="your-first-call">Your first call</h2>
