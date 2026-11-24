@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Events | OpenCanvas</title>
+<meta name="description" content="Stream an OpenCanvas file&#x27;s change events over Server-Sent Events or WebSocket: event types and payloads, resuming with Last-Event-ID, close codes, limits, and the CRDT sync ticket.">
+<link rel="canonical" href="https://canvas.casualoffice.org/api/events.html">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas">
+<meta property="og:title" content="Events | OpenCanvas">
+<meta property="og:description" content="Stream an OpenCanvas file&#x27;s change events over Server-Sent Events or WebSocket: event types and payloads, resuming with Last-Event-ID, close codes, limits, and the CRDT sync ticket.">
+<meta property="og:url" content="https://canvas.casualoffice.org/api/events.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html" aria-current="page">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="docs-main api-main">
+<div class="api-layout api-layout--guide">
+  <aside class="api-side docs-side">
+    <details class="docs-nav-toggle"><summary><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></svg>API menu</summary><nav class="docs-nav api-nav" aria-label="API reference (menu)"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/events.html" aria-current="page">Events</a></li><li><a href="../api/webhooks.html">Webhooks</a></li><li><a href="../api/sdks.html">SDKs</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../api/reference/canvas.html">Canvas</a></li><li><a href="../api/reference/blocks.html">Blocks</a></li><li><a href="../api/reference/databases.html">Databases</a></li><li><a href="../api/reference/boards.html">Boards</a></li><li><a href="../api/reference/comments.html">Comments</a></li><li><a href="../api/reference/members.html">Members</a></li><li><a href="../api/reference/files.html">Export and import</a></li><li><a href="../api/reference/streams.html">Events and sync</a></li><li><a href="../api/reference/admin.html">Admin</a></li><li><a href="../api/reference/meta.html">OpenAPI document</a></li><li><a href="../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav></details>
+    <nav class="docs-nav api-nav docs-nav--wide" aria-label="API reference"><h2>Guides</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/authentication.html">Authentication</a></li><li><a href="../api/errors.html">Errors</a></li><li><a href="../api/pagination.html">Pagination</a></li><li><a href="../api/idempotency.html">Idempotency</a></li><li><a href="../api/rate-limits.html">Rate limits</a></li><li><a href="../api/events.html" aria-current="page">Events</a></li><li><a href="../api/webhooks.html">Webhooks</a></li><li><a href="../api/sdks.html">SDKs</a></li><li><a href="../api/changelog.html">Changelog</a></li></ul><h2>Reference</h2><ul><li><a href="../api/reference/canvas.html">Canvas</a></li><li><a href="../api/reference/blocks.html">Blocks</a></li><li><a href="../api/reference/databases.html">Databases</a></li><li><a href="../api/reference/boards.html">Boards</a></li><li><a href="../api/reference/comments.html">Comments</a></li><li><a href="../api/reference/members.html">Members</a></li><li><a href="../api/reference/files.html">Export and import</a></li><li><a href="../api/reference/streams.html">Events and sync</a></li><li><a href="../api/reference/admin.html">Admin</a></li><li><a href="../api/reference/meta.html">OpenAPI document</a></li><li><a href="../api/reference/legacy.html">0.1 routes (deprecated)</a></li></ul></nav>
+  </aside>
+  <article class="api-article prose">
+<h1>Events</h1>
+<p class="lede">GET /api/v1/files/{fileId}/events streams what happens to one file: edits, comments, mentions, people joining and leaving, saves, restores. Events carry ids, user ids, versions and counts, never document text.</p>
+<h2 id="open-a-stream">Open a stream</h2>
+<p>The same URL serves <strong>Server-Sent Events</strong> and, when the request is a WebSocket upgrade, a <strong>WebSocket</strong> with one JSON text message per event. It needs <code>canvas:read</code> and access to the file, checked like every read. <code>?types=</code> keeps only the types you list.</p>
+<div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Stream saves and comments</span><div class="sample-tabs" role="tablist" aria-label="Stream saves and comments: language"><button type="button" role="tab" id="s7-curl-tab" aria-controls="s7-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s7-ts-tab" aria-controls="s7-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s7-rust-tab" aria-controls="s7-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s7-python-tab" aria-controls="s7-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s7-curl" aria-labelledby="s7-curl-tab" data-lang="curl"><pre><code class="language-curl">curl -s -N &quot;https://canvas.example.com/api/v1/files/doc_1/events?types=saved,commented&quot; \
+  -H &quot;X-OpenCanvas-Host: acme&quot; \
+  -H &quot;X-OpenCanvas-Key: $OC_API_KEY&quot; \
+  -H &quot;Accept: text/event-stream&quot;</code></pre></div><div role="tabpanel" id="s7-ts" aria-labelledby="s7-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">// Reconnects with Last-Event-ID when the stream drops, and resumes where it stopped.
+const stream = oc.events({ fileId: &quot;doc_1&quot;, types: [&quot;saved&quot;, &quot;commented&quot;] });
+for await (const event of stream) {
+  console.log(event.id, event.type, event.data);
+}
+// stream.lastEventId: keep it to resume after a restart (lastEventId option).</code></pre></div><div role="tabpanel" id="s7-rust" aria-labelledby="s7-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::EventsOptions;
+
+let mut opts = EventsOptions::new(&quot;doc_1&quot;);
+opts.types = vec![&quot;saved&quot;.into(), &quot;commented&quot;.into()];
+let mut stream = oc.events(opts);
+while let Some(event) = stream.next().await {
+    let event = event?;
+    println!(&quot;{} {} {:?}&quot;, event.id, event.type_, event.data);
+}</code></pre></div><div role="tabpanel" id="s7-python" aria-labelledby="s7-python-tab" data-lang="python" hidden><pre><code class="language-python">import json
+import os
+
+import requests
+
+r = requests.get(
+    &quot;https://canvas.example.com/api/v1/files/doc_1/events&quot;,
+    params={&quot;types&quot;: &quot;saved,commented&quot;},
+    headers={
+        &quot;X-OpenCanvas-Host&quot;: &quot;acme&quot;,
+        &quot;X-OpenCanvas-Key&quot;: os.environ[&quot;OC_API_KEY&quot;],
+        &quot;Accept&quot;: &quot;text/event-stream&quot;,
+    },
+    stream=True,
+    timeout=(10, 60),
+)
+r.raise_for_status()
+for line in r.iter_lines(decode_unicode=True):
+    if line.startswith(&quot;data:&quot;):
+        event = json.loads(line[5:])
+        print(event[&quot;id&quot;], event[&quot;type&quot;], event[&quot;data&quot;])</code></pre></div></div>
+<p>On the wire, each SSE event has an <code>id</code>, an <code>event</code> name (the type) and one <code>data</code> line; a comment line keeps the connection alive every 15 seconds:</p>
+<pre><code class="language-text">id: ev_01m87jv4t3ggvh8n6d6nh38xc0
+event: commented
+data: {&quot;at&quot;:1795550974787,&quot;data&quot;:{&quot;added&quot;:2,&quot;blockId&quot;:&quot;b_01m87jv4rtkdxymn93jwtx35sk&quot;,&quot;by&quot;:[&quot;svc:acme&quot;],&quot;threadId&quot;:&quot;t_01m87jv4sqj5z6jz5q2n5zdtdw&quot;},&quot;fileId&quot;:&quot;doc_1&quot;,&quot;id&quot;:&quot;ev_01m87jv4t3ggvh8n6d6nh38xc0&quot;,&quot;type&quot;:&quot;commented&quot;}
+
+:</code></pre>
+<h2 id="the-event">The event</h2>
+<p>Every event, on a stream, a WebSocket or a <a href="../api/webhooks.html">webhook</a>, is the same JSON:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Member</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>ev_&lt;ulid&gt;</code>: sorts by time. Pass the last one back to resume; webhooks send it as <code>Idempotency-Key</code>.</td></tr><tr><td><code>type</code></td><td>One of the types below.</td></tr><tr><td><code>fileId</code></td><td>Your file id.</td></tr><tr><td><code>at</code></td><td>Unix milliseconds.</td></tr><tr><td><code>data</code></td><td>The type's payload.</td></tr></tbody></table></div>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col"><code>type</code></th><th scope="col"><code>data</code></th><th scope="col">When</th></tr></thead><tbody><tr><td><code>edited</code></td><td><code>{blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}</code></td><td>Changes, debounced: once edits pause for <code>[host.api] events_coalesce_ms</code> (default 250) and at least every 2 seconds during a long burst. <code>blockIds</code> are the deepest blocks with a <code>blockId</code> that changed (at most 500; <code>truncated: true</code> beyond). <code>untracked: true</code> when something changed outside any identified block: re-read. <code>by</code> lists who sent the changes.</td></tr><tr><td><code>commented</code></td><td><code>{threadId, blockId?, added, by}</code></td><td>New comment messages in a thread.</td></tr><tr><td><code>mentioned</code></td><td><code>{mentioned, by, blockId?, threadId?}</code></td><td>New @mentions, as for the mentions callback, without the excerpt.</td></tr><tr><td><code>member.joined</code></td><td><code>{userId, role}</code></td><td>A person's first connection to the live room opened.</td></tr><tr><td><code>member.left</code></td><td><code>{userId}</code></td><td>Their last connection closed.</td></tr><tr><td><code>saved</code></td><td><code>{version}</code></td><td>Your application accepted a save.</td></tr><tr><td><code>restored</code></td><td><code>{restoreId, from, by}</code></td><td>A version was restored.</td></tr><tr><td><code>session.closed</code></td><td><code>{reason: &quot;host&quot; | &quot;idle&quot;}</code></td><td>The live room ended: <code>DELETE .../session</code>, or everyone left.</td></tr><tr><td><code>resync</code></td><td><code>{reason}</code></td><td>Streams only: the resume point is gone; re-read the file.</td></tr></tbody></table></div>
+<h2 id="resume">Resume</h2>
+<p>Send the last id you handled as <code>Last-Event-ID</code> (or <code>?since=</code>; the header wins). The server keeps the last 512 events of each file in memory and answers the ones after your id. When your id is gone (evicted, the server restarted, or another node that was not listening), you get one <code>resync</code> event, whose <code>id</code> is the newest the server has: re-read the file, then carry on from there. In a cluster, the node that runs the file's live room publishes each event to the others, so a stream on any node gets them.</p>
+<h2 id="close-codes">Close codes</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Code</th><th scope="col">SSE</th><th scope="col">Meaning</th><th scope="col">What to do</th></tr></thead><tbody><tr><td><code>4008</code></td><td>a final <code>event: close</code> with <code>{&quot;code&quot;: 4008, &quot;reason&quot;: &quot;...&quot;}</code></td><td>The stream fell 256 events behind.</td><td>Reconnect with your last id.</td></tr><tr><td><code>4001</code></td><td>the same</td><td>The user token expired.</td><td>Mint a new token and reconnect.</td></tr><tr><td><code>4003</code></td><td>the same</td><td>The host revoked the user (<code>role: none</code>). Nothing is sent after the revoke.</td><td>Stop.</td></tr></tbody></table></div>
+<h2 id="limits-and-proxies">Limits and proxies</h2>
+<ul><li>At most 100 streams per file on one server: <code>429 TOO_MANY_STREAMS</code>. Share one stream between your workers.</li><li>Behind nginx the answer sets <code>X-Accel-Buffering: no</code>; keep proxy read timeouts above 15 seconds (the keep-alive interval).</li><li>Events are a notification, not a log: when you need the content, read it with the API.</li></ul>
+<h2 id="sync-the-document-itself">Sync the document itself</h2>
+<p>A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: <code>POST /api/v1/files/{fileId}/sync-token</code> answers a ticket for the room WebSocket.</p>
+<pre><code class="language-json">{&quot;ticket&quot;: &quot;01M87JV4T23GYQ773ZF1WN91VA&quot;, &quot;room&quot;: &quot;r_2whbv4nncveupmqu35cywoidfe&quot;, &quot;role&quot;: &quot;edit&quot;,
+ &quot;url&quot;: &quot;/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA&quot;,
+ &quot;expiresAt&quot;: 1795551874, &quot;connectWithinSecs&quot;: 60}</code></pre>
+<p>Connect a y-websocket client to <code>url</code> within 60 seconds. <code>role</code> is the effective one, <code>min(scope, role)</code>: a <code>canvas:read</code> token gets <code>view</code>, and the room refuses its writes as it would a viewer's. The session ends at <code>expiresAt</code> (at most 15 minutes, never after the token's <code>exp</code>); ask for a new ticket to continue. The answer is a credential: <code>Cache-Control: no-store</code>, and it is never stored for idempotent replays. See <a href="../api/reference/streams.html#createSyncToken">createSyncToken</a>.</p>
+<nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/rate-limits.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Rate limits</span></a><a class="pn pn-next" href="../api/webhooks.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Webhooks</span></a></nav>
+  </article>
+  <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#open-a-stream">Open a stream</a></li><li><a href="#the-event">The event</a></li><li><a href="#resume">Resume</a></li><li><a href="#close-codes">Close codes</a></li><li><a href="#limits-and-proxies">Limits and proxies</a></li><li><a href="#sync-the-document-itself">Sync the document itself</a></li></ul></nav>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p>An open-source collaborative canvas you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

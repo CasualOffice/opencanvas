@@ -6084,7 +6084,7 @@ Read a canvas as Markdown, then append a paragraph, with the host key. The If-Ma
 
 ## Requests and answers
 
-Topic How it works Format JSON in UTF-8, Content-Type: application/json . Import and convert take the file itself as the body; export and convert answer the file. Credentials The host key ( X-OpenCanvas-Host and X-OpenCanvas-Key ) or a user token you mint ( Authorization: Bearer ). See authentication . Errors RFC 9457 problem details with a machine code . See errors . Revisions Reads answer ETag: "<rev>" . Send it back as If-Match on a batch, or a block's rev as ifMatch on one op, and a stale write fails with 412 STALE_BLOCK instead of overwriting. Lists listBlocks and queryRows page with signed cursors. See pagination . Writes Every POST /api/v1/files/... takes Idempotency-Key , so a retry never applies twice. See idempotency . Limits Token buckets per caller and per file, announced in RateLimit headers. See rate limits . Changes Stream them per file (events) or receive them by POST (webhooks).
+Topic How it works Format JSON in UTF-8, Content-Type: application/json . Import and convert take the file itself as the body; export and convert answer the file. Credentials The host key ( X-OpenCanvas-Host and X-OpenCanvas-Key ) or a user token you mint ( Authorization: Bearer ). See authentication . Errors RFC 9457 problem details with a machine code . See errors . Revisions Reads answer ETag: "<rev>" . Send it back as If-Match on a batch, or a block's rev as ifMatch on one op, and a stale write fails with 412 STALE_BLOCK instead of overwriting. Lists listBlocks and queryRows page with signed cursors. See pagination . Writes Every POST /api/v1/files/... takes Idempotency-Key , so a retry never applies twice. See idempotency . Limits Token buckets per caller and per file, announced in RateLimit headers. See rate limits . Changes Stream them per file ( events ) or receive them by POST ( webhooks ).
 
 ## How changes land
 
@@ -6146,7 +6146,7 @@ Every error answer is RFC 9457 problem details, application/problem+json, with a
 
 ## Handling them
 
-Status What to do 400 Fix the request; detail says what is wrong. Do not retry it unchanged. 401 Fix the credentials: the host key, or mint a new token. 403 The scope or the user's role does not allow it. Do not retry. 404 Unknown file part or operation, or the API is off ( API_OFF ). 409 CONFIRMATION_REQUIRED : send again with "confirm": true . IDEMPOTENCY_IN_PROGRESS : retry after Retry-After . CONFLICT : your save callback reported a conflict. 410 CURSOR_EXPIRED : start the walk again without a cursor. 412 STALE_BLOCK : re-read (or use fresh ), apply your change again, send it with the new revision. 413 The body or the resulting document is too large. 422 IDEMPOTENCY_KEY_REUSED : a new request needs a new key. 429 Wait Retry-After seconds, then retry. 5xx 503 and 502 are transient: retry after Retry-After with backoff. 501 : the server is not set up for it (PDF). The TypeScript and Rust clients turn these into typed errors and retry 429 , 503 and 409 IDEMPOTENCY_IN_PROGRESS for you; see SDKs.
+Status What to do 400 Fix the request; detail says what is wrong. Do not retry it unchanged. 401 Fix the credentials: the host key, or mint a new token. 403 The scope or the user's role does not allow it. Do not retry. 404 Unknown file part or operation, or the API is off ( API_OFF ). 409 CONFIRMATION_REQUIRED : send again with "confirm": true . IDEMPOTENCY_IN_PROGRESS : retry after Retry-After . CONFLICT : your save callback reported a conflict. 410 CURSOR_EXPIRED : start the walk again without a cursor. 412 STALE_BLOCK : re-read (or use fresh ), apply your change again, send it with the new revision. 413 The body or the resulting document is too large. 422 IDEMPOTENCY_KEY_REUSED : a new request needs a new key. 429 Wait Retry-After seconds, then retry. 5xx 503 and 502 are transient: retry after Retry-After with backoff. 501 : the server is not set up for it (PDF). The TypeScript and Rust clients turn these into typed errors and retry 429 , 503 and 409 IDEMPOTENCY_IN_PROGRESS for you; see SDKs .
 
 ## Every code
 
@@ -6248,6 +6248,109 @@ The answer is 429 RATE_LIMITED with Retry-After (seconds). Wait that long, then 
 ## Other limits
 
 At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true .
+
+
+# Events
+
+URL: https://canvas.casualoffice.org/api/events.html
+
+## Events
+
+GET /api/v1/files/{fileId}/events streams what happens to one file: edits, comments, mentions, people joining and leaving, saves, restores. Events carry ids, user ids, versions and counts, never document text.
+
+## Open a stream
+
+The same URL serves Server-Sent Events and, when the request is a WebSocket upgrade, a WebSocket with one JSON text message per event. It needs canvas:read and access to the file, checked like every read. ?types= keeps only the types you list. Stream saves and comments curl TypeScript Rust Python curl -s -N "https://canvas.example.com/api/v1/files/doc_1/events?types=saved,commented" \ -H "X-OpenCanvas-Host: acme" \ -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Accept: text/event-stream" // Reconnects with Last-Event-ID when the stream drops, and resumes where it stopped. const stream = oc.events({ fileId: "doc_1", types: ["saved", "commented"] }); for await (const event of stream) { console.log(event.id, event.type, event.data); } // stream.lastEventId: keep it to resume after a restart (lastEventId option). use opencanvas_client::EventsOptions; let mut opts = EventsOptions::new("doc_1"); opts.types = vec!["saved".into(), "commented".into()]; let mut stream = oc.events(opts); while let Some(event) = stream.next().await { let event = event?; println!("{} {} {:?}", event.id, event.type_, event.data); } import json import os import requests r = requests.get( "https://canvas.example.com/api/v1/files/doc_1/events", params={"types": "saved,commented"}, headers={ "X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"], "Accept": "text/event-stream", }, stream=True, timeout=(10, 60), ) r.raise_for_status() for line in r.iter_lines(decode_unicode=True): if line.startswith("data:"): event = json.loads(line[5:]) print(event["id"], event["type"], event["data"]) On the wire, each SSE event has an id , an event name (the type) and one data line; a comment line keeps the connection alive every 15 seconds: id: ev_01m87jv4t3ggvh8n6d6nh38xc0 event: commented data: {"at":1795550974787,"data":{"added":2,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["svc:acme"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"} :
+
+## The event
+
+Every event, on a stream, a WebSocket or a webhook , is the same JSON: Member Meaning id ev_<ulid> : sorts by time. Pass the last one back to resume; webhooks send it as Idempotency-Key . type One of the types below. fileId Your file id. at Unix milliseconds. data The type's payload. type data When edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?} Changes, debounced: once edits pause for [host.api] events_coalesce_ms (default 250) and at least every 2 seconds during a long burst. blockIds are the deepest blocks with a blockId that changed (at most 500; truncated: true beyond). untracked: true when something changed outside any identified block: re-read. by lists who sent the changes. commented {threadId, blockId?, added, by} New comment messages in a thread. mentioned {mentioned, by, blockId?, threadId?} New @mentions, as for the mentions callback, without the excerpt. member.joined {userId, role} A person's first connection to the live room opened. member.left {userId} Their last connection closed. saved {version} Your application accepted a save. restored {restoreId, from, by} A version was restored. session.closed {reason: "host" | "idle"} The live room ended: DELETE .../session , or everyone left. resync {reason} Streams only: the resume point is gone; re-read the file.
+
+## Resume
+
+Send the last id you handled as Last-Event-ID (or ?since= ; the header wins). The server keeps the last 512 events of each file in memory and answers the ones after your id. When your id is gone (evicted, the server restarted, or another node that was not listening), you get one resync event, whose id is the newest the server has: re-read the file, then carry on from there. In a cluster, the node that runs the file's live room publishes each event to the others, so a stream on any node gets them.
+
+## Close codes
+
+Code SSE Meaning What to do 4008 a final event: close with {"code": 4008, "reason": "..."} The stream fell 256 events behind. Reconnect with your last id. 4001 the same The user token expired. Mint a new token and reconnect. 4003 the same The host revoked the user ( role: none ). Nothing is sent after the revoke. Stop.
+
+## Limits and proxies
+
+At most 100 streams per file on one server: 429 TOO_MANY_STREAMS . Share one stream between your workers. Behind nginx the answer sets X-Accel-Buffering: no ; keep proxy read timeouts above 15 seconds (the keep-alive interval). Events are a notification, not a log: when you need the content, read it with the API.
+
+## Sync the document itself
+
+A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: POST /api/v1/files/{fileId}/sync-token answers a ticket for the room WebSocket. {"ticket": "01M87JV4T23GYQ773ZF1WN91VA", "room": "r_2whbv4nncveupmqu35cywoidfe", "role": "edit", "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA", "expiresAt": 1795551874, "connectWithinSecs": 60} Connect a y-websocket client to url within 60 seconds. role is the effective one, min(scope, role) : a canvas:read token gets view , and the room refuses its writes as it would a viewer's. The session ends at expiresAt (at most 15 minutes, never after the token's exp ); ask for a new ticket to continue. The answer is a credential: Cache-Control: no-store , and it is never stored for idempotent replays. See createSyncToken .
+
+
+# Webhooks
+
+URL: https://canvas.casualoffice.org/api/webhooks.html
+
+## Webhooks
+
+OpenCanvas POSTs a file's change events to one URL of yours, so you can react without holding a stream open: index a saved file, notify on a comment. Deliveries are signed, retried, and survive restarts.
+
+## Turn them on
+
+Webhooks are off unless the host's entry has a [host.webhooks] table: [host.webhooks] url = "https://host.example.com/opencanvas/hooks" # must be on your callback_base origin events = ["saved", "commented", "mentioned"] # or ["*"]; the event types below # secret = "env:OC_WEBHOOK_SECRET" # default: callback_secret, else jwt_secret # max_attempts = 12 # 1-20 Setting Meaning url Where to POST. It must be on the same origin (scheme, host and port) as your callback_base ; anything else stops the server at start-up and is refused again before every delivery. To receive on another domain, relay from your callback origin. events The event types to send, or ["*"] for all. secret The signing secret. Default: the host's callback secret, else its jwt_secret . max_attempts Attempts before an event is dropped, 1 to 20 (default 12, about a day). Webhooks need a database (SQLite, MySQL or MariaDB): with Redis-only storage the server refuses to start with [host.webhooks] .
+
+## The request
+
+One POST per event. The body is the event, the same JSON as on the events stream : ids, user ids, versions and counts, never document text. POST /opencanvas/hooks HTTP/1.1 Content-Type: application/json X-OpenCanvas-Event: commented X-OpenCanvas-Event-Id: ev_01m87jv4t3ggvh8n6d6nh38xc0 Idempotency-Key: ev_01m87jv4t3ggvh8n6d6nh38xc0 X-OpenCanvas-Delivery-Attempt: 1 X-OpenCanvas-Signature: t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57 {"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"} Header Meaning X-OpenCanvas-Event The event type. X-OpenCanvas-Event-Id The event id ( ev_<ulid> ). Idempotency-Key The event id again: deduplicate on it. X-OpenCanvas-Delivery-Attempt 1 for the first attempt, then 2, 3, ... X-OpenCanvas-Signature t=<unix seconds>,v1=<hex>,v2=<hex> . Verify v2 . No bearer token is sent; the signature is the credential.
+
+## Payloads
+
+type Example data edited {"blockIds": ["b_01m87jv4rtkdxymn93jwtx35sk"], "removedBlockIds": [], "databaseIds": ["db_01m87jv4sc2twxjhzzxzh7mene"], "by": ["u_42"]} commented {"threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk", "added": 1, "by": ["u_42"]} mentioned {"mentioned": ["u_7"], "by": "u_42", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"} member.joined {"userId": "u_42", "role": "edit"} member.left {"userId": "u_42"} saved {"version": "18"} restored {"restoreId": "01m87k0a2b3c4d5e6f7g8h9j0k", "from": "17", "by": "u_42"} session.closed {"reason": "host"} or {"reason": "idle"} resync is never sent to webhooks; it only exists on streams.
+
+## Verify the signature
+
+v2 is HMAC-SHA256 of "<t>.POST.<path?query>.<body>" with your secret, in lower-case hex: Read the raw body bytes before any JSON parsing; a re-serialised body does not match. Use the path and query as your server received them (behind a proxy that rewrites paths, the path OpenCanvas sent to). Compare in constant time, and reject a t more than 5 minutes from your clock. t is the time of the attempt, so each retry has a new signature. v1 (timestamp and body only) is kept for old callback verifiers; do not use it for webhooks. Verify a delivery openssl TypeScript Rust Python # A sketch of the check: compare the hex in constant time in real code. secret='whsec_test_example' signature='t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57' path_query='/opencanvas/hooks' body='{"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"}' t=$(printf '%s' "$signature" | tr ',' '\n' | sed -n 's/^t=//p') v2=$(printf '%s' "$signature" | tr ',' '\n' | sed -n 's/^v2=//p') expected=$(printf '%s.POST.%s.%s' "$t" "$path_query" "$body" \ | openssl dgst -sha256 -hmac "$secret" -hex | sed 's/^.*= //') [ "$expected" = "$v2" ] && echo "signature ok" || echo "signature WRONG" # Then reject it if t is more than 300 seconds from now: # [ $(( $(date +%s) - t )) -le 300 ] && [ $(( t - $(date +%s) )) -le 300 ] import { verifyWebhook } from "@opencanvas/client"; // In your receiver: the raw body (before JSON parsing) and the path and query as received. const ok = await verifyWebhook({ secret: process.env.OC_WEBHOOK_SECRET!, // "whsec_test_example" for the test vector signature: req.headers["x-opencanvas-signature"] as string, body: rawBody, // string or Uint8Array, exactly as received pathQuery: req.originalUrl, // "/opencanvas/hooks" // nowSecs: 1795550974, // pin the clock to check the test vector }); if (!ok) return res.status(401).end(); res.status(204).end(); // answer fast, then do the work const event = JSON.parse(rawBody); use opencanvas_client::{verify_webhook, WebhookRequest}; let ok = verify_webhook( secret.as_bytes(), // b"whsec_test_example" for the test vector WebhookRequest { signature: &signature_header, // X-OpenCanvas-Signature method: "POST", path_query: &path_and_query, // "/opencanvas/hooks" body: &raw_body, // the bytes as received }, now_secs, // 1795550974 for the test vector ); if !ok { return StatusCode::UNAUTHORIZED; } import hashlib import hmac import time def verify_webhook(secret: bytes, signature: str, path_query: str, body: bytes, now=None, tolerance=300) -> bool: parts = {} for item in signature.split(","): k, _, v = item.strip().partition("=") parts.setdefault(k, v) try: t = int(parts["t"]) v2 = parts["v2"] except (KeyError, ValueError): return False if abs((time.time() if now is None else now) - t) > tolerance: return False mac = hmac.new(secret, f"{t}.POST.{path_query}.".encode() + body, hashlib.sha256).hexdigest() return hmac.compare_digest(mac, v2) # The test vector: assert verify_webhook( b"whsec_test_example", "t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57", "/opencanvas/hooks", "{\"at\":1795550974787,\"data\":{\"added\":1,\"blockId\":\"b_01m87jv4rtkdxymn93jwtx35sk\",\"by\":[\"u_42\"],\"threadId\":\"t_01m87jv4sqj5z6jz5q2n5zdtdw\"},\"fileId\":\"doc_1\",\"id\":\"ev_01m87jv4t3ggvh8n6d6nh38xc0\",\"type\":\"commented\"}".encode(), now=1795550974, )
+
+## Test vector
+
+Your verifier must accept this delivery (with the clock at t ) and refuse it when any byte of the body, the path or the signature changes: Input Value Secret whsec_test_example Time (Unix seconds, also t ) 1795550974 Path and query /opencanvas/hooks Body (exact bytes) {"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"} X-OpenCanvas-Signature t=1795550974,v1=4c430dee70e32585ea42f8f640c4f9197fd3f8d781cbaca4294566f61d08f656,v2=d85e216af3489979b6aaadd7c54574683679cfa8e0dee639e3d229db0e650f57
+
+## Answer and retries
+
+Answer any 2xx quickly (10-second timeout) and do the work afterwards. Your answer What OpenCanvas does 2xx Delivered. Network error, timeout, 408 , 425 , 429 , 5xx Retried after 10 s, 30 s, 1 min, 5 min, 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, then every 12 h, until max_attempts ; then dropped. A longer Retry-After (seconds, up to 12 h) wins. Any other 3xx or 4xx Dropped at once. Redirects are never followed. At least once. An event can arrive twice: deduplicate on Idempotency-Key . Order is not guaranteed across retries: order a file's events by at and the id (a ULID). Durable. Events are written to a database outbox ( webhook_outbox ) by the server that runs the file's live room before they are sent, so they survive restarts, and exactly one server of a cluster sends each. An event can be lost only if that server dies between the change and the outbox write.
+
+## Metrics
+
+oc_webhook_deliveries_total{host,result} ( ok , retry , rejected , gave_up , refused ) and oc_webhook_delivery_seconds{host} (one attempt's time), on the operations dashboard's "Webhooks" row.
+
+
+# SDKs
+
+URL: https://canvas.casualoffice.org/api/sdks.html
+
+## SDKs
+
+Two clients wrap the API with the same behaviour: typed operations generated from the OpenAPI document, an Idempotency-Key on every write, retries after Retry-After, cursor paging, resumable events, typed errors and the webhook signature check. Both are Apache-2.0 and versioned with the server.
+
+## Install
+
+Both clients live in the OpenCanvas repository and are not yet published to npm or crates.io. Client Where Runs on TypeScript @opencanvas/client [ web/packages/client ](../../../web/packages/client) Node 20+, browsers, Deno, edge runtimes. No runtime dependency beyond fetch . Rust opencanvas-client (library opencanvas_client ) [ crates/oc-client ](../../../crates/oc-client) Tokio, reqwest and serde . Add the client Shell TypeScript Rust Python # TypeScript: build the package from a checkout, then depend on the folder. git clone https://github.com/CasualOffice/opencanvas cd opencanvas/web && pnpm install && pnpm --filter @opencanvas/client build cd /path/to/your/app && npm install /path/to/opencanvas/web/packages/client # Rust: a git dependency. cargo add opencanvas-client --git https://github.com/CasualOffice/opencanvas // package.json, after building web/packages/client in a checkout: // "dependencies": { "@opencanvas/client": "file:../opencanvas/web/packages/client" } import { OpenCanvas } from "@opencanvas/client"; // Cargo.toml: // [dependencies] // opencanvas-client = { git = "https://github.com/CasualOffice/opencanvas" } // tokio = { version = "1", features = ["macros", "rt-multi-thread"] } use opencanvas_client::{Auth, Client}; # No Python client yet: the samples on these pages use requests. # pip install requests import requests
+
+## Create a client
+
+Host key or user token curl TypeScript Rust Python # curl: send the headers yourself (see Authentication). curl -s "https://canvas.example.com/api/v1/files/doc_1" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" import { OpenCanvas } from "@opencanvas/client"; const oc = new OpenCanvas({ baseUrl: "https://canvas.example.com", auth: { hostId: "acme", key: process.env.OC_API_KEY!, author: "u_42" }, // or a user token, minted before every request so it never expires mid-job: // auth: { token: () => mintUserToken("u_42", "canvas:read canvas:write", ["doc_1"]) }, maxRetries: 3, }); use opencanvas_client::{Auth, Client}; let oc = Client::builder("https://canvas.example.com") .auth(Auth::host_key("acme", std::env::var("OC_API_KEY").expect("OC_API_KEY"))) // or .auth(Auth::Token(token)), or Auth::TokenFn(...) to mint one per request .max_retries(3) .build(); import os import requests api = requests.Session() api.headers.update({"X-OpenCanvas-Host": "acme", "X-OpenCanvas-Key": os.environ["OC_API_KEY"]})
+
+## What both do
+
+Feature Behaviour Typed operations One method per operation, with the types of its parameters, body and answer, generated from openapi.json (TypeScript scripts/gen.mjs , Rust tests/models.rs ; CI fails when they drift). The generic call(operationId, params, options) answers status, headers, etag , replayed and rateLimit too. Credentials The host key (with optional author and callback token) or a user token; a token callback runs before every request. Idempotency Every write carries an Idempotency-Key : a random one per call, the same on each retry of that call. Pass your own to survive a process restart, or none. Retries 429 , 503 and 409 IDEMPOTENCY_IN_PROGRESS , after Retry-After (else 500 ms doubling, at most 30 s), 3 times by default. Network errors are retried for reads and keyed writes only. The wait is injectable, so tests never sleep. Errors Problem details as typed errors, by code first, then status: stale block (412, with fresh ), rate limited ( retryAfterSecs ), key reused, key in progress, cursor expired, bad request, unauthorized, forbidden, not found, conflict, gone, precondition failed, too large, unprocessable, unavailable, server. Paging paginate follows next_cursor through listBlocks and queryRows , item by item. Events The SSE stream of a file. A dropped stream (or close code 4008) reconnects with Last-Event-ID and gets what it missed, or a resync event; 4001 and 4003 end it with an error. Webhooks verifyWebhook / verify_webhook : the v2 check, in constant time, with a 5-minute window.
+
+## Typed errors
+
+Handle a stale write curl TypeScript Rust Python # 412 with "code": "STALE_BLOCK": re-read, apply your change again, send it with the new rev. curl -s -o answer.json -w '%{http_code}\n' -X POST \ "https://canvas.example.com/api/v1/files/doc_1/blocks:batch" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" -H 'If-Match: "c465d27bcd7e"' \ -d '{"ops": [{"op": "append", "markdown": "Shipped."}]}' jq -r .code answer.json import { RateLimitedError, StaleBlockError } from "@opencanvas/client"; try { await oc.batchBlocks( { fileId: "doc_1", body: { ops: [{ op: "append", markdown: "Shipped." }] } }, { ifMatch: doc.rev }, ); } catch (e) { if (e instanceof StaleBlockError) console.log("changed meanwhile", e.fresh); else if (e instanceof RateLimitedError) console.log("retry in", e.retryAfterSecs, "s"); else throw e; } use opencanvas_client::ProblemKind; match oc.batch_blocks("doc_1", &req, &CallOptions::if_match(rev)).await { Ok(result) => println!("{:?}", result.block_ids), Err(e) if e.kind() == Some(ProblemKind::StaleBlock) => { println!("changed meanwhile: {:?}", e.api().and_then(|a| a.fresh())); } Err(e) => return Err(e), } r = api.post(f"{BASE}/files/doc_1/blocks:batch", json={"ops": [{"op": "append", "markdown": "Shipped."}]}, headers={"If-Match": f'"{rev}"'}, timeout=30) if r.status_code == 412 and r.json().get("code") == "STALE_BLOCK": print("changed meanwhile", r.json()["fresh"]) else: r.raise_for_status()
+
+## Paging, events and webhooks
+
+See pagination , events and webhooks : each page has the client samples beside curl and Python.
+
+## The conformance suite
+
+crates/oc-server/api/conformance.json is one list of scenarios that both clients run against a real server: a read, a block batch with If-Match , idempotent replay, paging, a rate limit, an events resume and a webhook signature, plus offline webhook signature vectors. The server pins its clock, so no scenario sleeps. A third-party client can run the same scenarios; the format is in the integration guide .
 
 
 # API changelog

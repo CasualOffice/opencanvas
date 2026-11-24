@@ -3,6 +3,7 @@
   <url><loc>https://canvas.casualoffice.org/api/authentication.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/changelog.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/errors.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/events.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/idempotency.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/index.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/pagination.html</loc></url>
@@ -18,6 +19,8 @@
   <url><loc>https://canvas.casualoffice.org/api/reference/members.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/reference/meta.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/api/reference/streams.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/sdks.html</loc></url>
+  <url><loc>https://canvas.casualoffice.org/api/webhooks.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/brand.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/changelog.html</loc></url>
   <url><loc>https://canvas.casualoffice.org/docs/ai.html</loc></url>

@@ -78,17 +78,18 @@ def read_guide(slug: str) -> tuple[dict, str]:
 _SAMPLE_SEQ = [0]
 
 
-def sample_group(blocks: list[tuple[str, str]], label: str = "Example") -> str:
-    """One code sample with a language switch: blocks are (language key, code)."""
+def sample_group(blocks: list[tuple], label: str = "Example") -> str:
+    """One code sample with a language switch: blocks are (language key, code[, tab name]).
+    The key is what the reader's choice remembers; the tab name defaults to the language's."""
     _SAMPLE_SEQ[0] += 1
     n = _SAMPLE_SEQ[0]
     labels = dict(LANGS)
     tabs, panels = [], []
-    for i, (lang, code) in enumerate(blocks):
+    for i, (lang, code, *name) in enumerate(blocks):
         tid, pid = f"s{n}-{lang}-tab", f"s{n}-{lang}"
         sel = "true" if i == 0 else "false"
         tabs.append(f'<button type="button" role="tab" id="{tid}" aria-controls="{pid}" aria-selected="{sel}" '
-                    f'tabindex="{0 if i == 0 else -1}" data-lang="{lang}">{_esc(labels.get(lang, lang))}</button>')
+                    f'tabindex="{0 if i == 0 else -1}" data-lang="{lang}">{_esc(name[0] if name else labels.get(lang, lang))}</button>')
         hidden = "" if i == 0 else " hidden"
         panels.append(f'<div role="tabpanel" id="{pid}" aria-labelledby="{tid}" data-lang="{lang}"{hidden}>'
                       f'<pre><code class="language-{lang}">{html.escape(code)}</code></pre></div>')
@@ -103,7 +104,8 @@ def _samples_blocks(body: str) -> list[tuple[str, str]]:
         lang = FENCE_LANG.get(m.group(1).lower())
         if not lang:
             raise SystemExit(f"build-api: unknown sample language {m.group(1)!r}")
-        out.append((lang, m.group(2).rstrip("\n")))
+        name = "Shell" if m.group(1).lower() in ("sh", "shell") else None
+        out.append((lang, m.group(2).rstrip("\n")) + ((name,) if name else ()))
     return out
 
 
@@ -226,7 +228,125 @@ def block_operations(spec: dict) -> str:
     return _table(["Resource", "Operation", "Summary"], rows, "Operations", "api-table")
 
 
+# A webhook delivery to check a verifier against, signed here at build time (so the page and
+# the signature cannot disagree; tools/check-openapi.py signs it again independently).
+VECTOR = {
+    "secret": "whsec_test_example",
+    "ts": 1795550974,
+    "pathQuery": "/opencanvas/hooks",
+    "body": ('{"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],'
+             '"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"}'),
+}
+
+
+def vector_signature() -> str:
+    import hashlib
+    import hmac
+    msg = f"{VECTOR['ts']}.POST.{VECTOR['pathQuery']}.{VECTOR['body']}".encode()
+    v2 = hmac.new(VECTOR["secret"].encode(), msg, hashlib.sha256).hexdigest()
+    v1 = hmac.new(VECTOR["secret"].encode(), f"{VECTOR['ts']}.{VECTOR['body']}".encode(), hashlib.sha256).hexdigest()
+    return f"t={VECTOR['ts']},v1={v1},v2={v2}"
+
+
+def block_webhook_request(spec: dict) -> str:
+    sig = vector_signature()
+    text = (f"POST {VECTOR['pathQuery']} HTTP/1.1\nContent-Type: application/json\nX-OpenCanvas-Event: commented\n"
+            f"X-OpenCanvas-Event-Id: ev_01m87jv4t3ggvh8n6d6nh38xc0\nIdempotency-Key: ev_01m87jv4t3ggvh8n6d6nh38xc0\n"
+            f"X-OpenCanvas-Delivery-Attempt: 1\nX-OpenCanvas-Signature: {sig}\n\n{VECTOR['body']}")
+    return _pre(text, "http")
+
+
+def block_webhook_vector(spec: dict) -> str:
+    sig = vector_signature()
+    rows = [["Secret", f"<code>{VECTOR['secret']}</code>"], ["Time (Unix seconds, also <code>t</code>)", f"<code>{VECTOR['ts']}</code>"],
+            ["Path and query", f"<code>{VECTOR['pathQuery']}</code>"], ["Body (exact bytes)", f"<code>{_esc(VECTOR['body'])}</code>"],
+            ["<code>X-OpenCanvas-Signature</code>", f"<code>{sig}</code>"]]
+    return _table(["Input", "Value"], rows, "Webhook test vector", "api-table vector")
+
+
+def block_webhook_verify(spec: dict) -> str:
+    sig = vector_signature()
+    v2 = sig.split("v2=")[1]
+    body = VECTOR["body"]
+    bash = f"""# A sketch of the check: compare the hex in constant time in real code.
+secret='{VECTOR['secret']}'
+signature='{sig}'
+path_query='{VECTOR['pathQuery']}'
+body='{body}'
+
+t=$(printf '%s' "$signature" | tr ',' '\\n' | sed -n 's/^t=//p')
+v2=$(printf '%s' "$signature" | tr ',' '\\n' | sed -n 's/^v2=//p')
+expected=$(printf '%s.POST.%s.%s' "$t" "$path_query" "$body" \\
+  | openssl dgst -sha256 -hmac "$secret" -hex | sed 's/^.*= //')
+[ "$expected" = "$v2" ] && echo "signature ok" || echo "signature WRONG"
+# Then reject it if t is more than 300 seconds from now:
+# [ $(( $(date +%s) - t )) -le 300 ] && [ $(( t - $(date +%s) )) -le 300 ]"""
+    ts = f"""import {{ verifyWebhook }} from "@opencanvas/client";
+
+// In your receiver: the raw body (before JSON parsing) and the path and query as received.
+const ok = await verifyWebhook({{
+  secret: process.env.OC_WEBHOOK_SECRET!,      // "{VECTOR['secret']}" for the test vector
+  signature: req.headers["x-opencanvas-signature"] as string,
+  body: rawBody,                                // string or Uint8Array, exactly as received
+  pathQuery: req.originalUrl,                   // "{VECTOR['pathQuery']}"
+  // nowSecs: {VECTOR['ts']},                         // pin the clock to check the test vector
+}});
+if (!ok) return res.status(401).end();
+res.status(204).end();                          // answer fast, then do the work
+const event = JSON.parse(rawBody);"""
+    rust = f"""use opencanvas_client::{{verify_webhook, WebhookRequest}};
+
+let ok = verify_webhook(
+    secret.as_bytes(),                          // b"{VECTOR['secret']}" for the test vector
+    WebhookRequest {{
+        signature: &signature_header,           // X-OpenCanvas-Signature
+        method: "POST",
+        path_query: &path_and_query,            // "{VECTOR['pathQuery']}"
+        body: &raw_body,                        // the bytes as received
+    }},
+    now_secs,                                   // {VECTOR['ts']} for the test vector
+);
+if !ok {{
+    return StatusCode::UNAUTHORIZED;
+}}"""
+    py = f"""import hashlib
+import hmac
+import time
+
+
+def verify_webhook(secret: bytes, signature: str, path_query: str, body: bytes,
+                   now=None, tolerance=300) -> bool:
+    parts = {{}}
+    for item in signature.split(","):
+        k, _, v = item.strip().partition("=")
+        parts.setdefault(k, v)
+    try:
+        t = int(parts["t"])
+        v2 = parts["v2"]
+    except (KeyError, ValueError):
+        return False
+    if abs((time.time() if now is None else now) - t) > tolerance:
+        return False
+    mac = hmac.new(secret, f"{{t}}.POST.{{path_query}}.".encode() + body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(mac, v2)
+
+
+# The test vector:
+assert verify_webhook(
+    b"{VECTOR['secret']}",
+    "{sig}",
+    "{VECTOR['pathQuery']}",
+    {json.dumps(body)}.encode(),
+    now={VECTOR['ts']},
+)"""
+    assert v2 in py
+    return sample_group([("curl", bash, "openssl"), ("ts", ts), ("rust", rust), ("python", py)], "Verify a delivery")
+
+
 BLOCKS = {
+    "webhook-request": block_webhook_request,
+    "webhook-vector": block_webhook_vector,
+    "webhook-verify": block_webhook_verify,
     "scopes": block_scopes,
     "errors": block_errors,
     "problem": block_problem,
