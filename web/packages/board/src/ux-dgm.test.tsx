@@ -85,7 +85,7 @@ describe("diagram window", { timeout: 120_000 }, () => {
   });
 });
 
-function selectAllOn(top: number) {
+function selectAllOn(top: number, panX = 0) {
   const doc = new Y.Doc();
   const id = createBoard(doc, "blank");
   addShape(doc, id, { type: "rect", x: 300, y: top, w: 160, h: 80, text: "Shape" });
@@ -96,6 +96,8 @@ function selectAllOn(top: number) {
   const root = el.querySelector<HTMLElement>(".ocbd")!;
   act(() => root.focus());
   key(root, "a", { ctrlKey: true });
+  // A sideways swipe pans the board, taking the shape towards one edge.
+  if (panX) act(() => void svg.dispatchEvent(new WheelEvent("wheel", { deltaX: panX, bubbles: true, cancelable: true })));
   return el.querySelector<HTMLElement>(".ocbd-swatch")!;
 }
 
@@ -111,5 +113,25 @@ describe("selection toolbar", { timeout: 30_000 }, () => {
     const bar = selectAllOn(200);
     expect(parseFloat(bar.style.top)).toBe(186);
     expect(bar.dataset.place).toBeUndefined();
+  });
+
+  // The bar's width depends on the shape (sticky colours, connector tools) and the text size; a
+  // guessed half width let it run off the canvas edge in diagram mode (UX-DGM-01).
+  describe("is measured and kept inside the canvas", () => {
+    const W = 440;
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")!;
+    afterEach(() => Object.defineProperty(HTMLElement.prototype, "offsetWidth", desc));
+    const wide = () =>
+      Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-swatch") ? W : 0; } });
+    it("at the left edge", () => {
+      wide();
+      const bar = selectAllOn(200, 560);
+      expect(parseFloat(bar.style.left) - W / 2).toBeGreaterThanOrEqual(8);
+    });
+    it("at the right edge", () => {
+      wide();
+      const bar = selectAllOn(200, -560);
+      expect(parseFloat(bar.style.left) + W / 2).toBeLessThanOrEqual(1100 - 8);
+    });
   });
 });

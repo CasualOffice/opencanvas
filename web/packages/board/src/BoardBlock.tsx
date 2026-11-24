@@ -250,6 +250,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /** Active waypoint (index into the selected connector's `via`) for the keyboard and Delete. */
   const [wp, setWpState] = useState<number | null>(null);
+  // The selection toolbar's measured width: its content changes with the shape and the text size.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barW, setBarW] = useState(0);
+  useLayoutEffect(() => {
+    const w = barRef.current?.offsetWidth ?? 0;
+    if (w && Math.abs(w - barW) > 0.5) setBarW(w);
+  });
   const [mini, setMini] = useState(false);
 
   // Always-fresh values for event handlers.
@@ -1814,9 +1821,13 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   let swatch: ReactNode = null;
   if (selList.length && edit && !editing && !dragging && !marquee) {
     const u = unionBox(selList)!;
-    const Wd = svgRef.current?.clientWidth ?? 600;
-    const half = selList.length > 1 ? 200 : 150;
-    const sx = Math.max(Math.min(half, Wd / 2), Math.min(Wd - Math.min(half, Wd / 2), ((u[0] + u[2]) / 2) * z + tx));
+    const Wd = svgRef.current?.clientWidth || 600;
+    // Kept inside the canvas (8 px gutter; past the ruler in diagram mode) by its measured width;
+    // the guess only holds for the first frame.
+    const edgeL = 8 + (dgm && dp.rulers ? 20 : 0), edgeR = 8;
+    const half = (barW || (selList.length > 1 ? 400 : 300)) / 2;
+    const lo = edgeL + half, hi = Wd - edgeR - half;
+    const sx = lo > hi ? (edgeL + Wd - edgeR) / 2 : Math.max(lo, Math.min(hi, ((u[0] + u[2]) / 2) * z + tx));
     // Above the selection. Without room there it would sit on the board's own buttons and over the
     // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
     const minTop = compact ? 64 : 56;
@@ -1902,7 +1913,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
     items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
     swatch = (
-      <div className="ocbd-swatch" style={{ left: sx, top: sy }} data-place={flip ? "below" : undefined} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
+      <div ref={barRef} className="ocbd-swatch" style={{ left: sx, top: sy }} data-place={flip ? "below" : undefined} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
         {items}
       </div>
     );
