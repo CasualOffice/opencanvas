@@ -318,6 +318,11 @@ impl LiveTools {
                 ctx.user.role.as_str()
             )));
         }
+        if spec.scope == Scope::Comment && !host.comments_on() {
+            return Err(ToolError::Forbidden(
+                "comments are off for this host".into(),
+            ));
+        }
         if spec.scope == Scope::Comment && !ctx.user.perms.comment {
             return Err(ToolError::Forbidden(
                 "comments are off for this user".into(),

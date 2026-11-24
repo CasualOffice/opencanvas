@@ -11,6 +11,7 @@ import { flashBlock } from "./editor/blockId";
 import { loadDatabase } from "./editor/blockdata";
 import type { TB } from "./editor/content";
 import type { EmptyAction } from "./editor/CanvasEditor";
+import { featureOn, insertable } from "./editor/profile";
 import { resolveAsset, setAssetTicket } from "./lib/assets";
 import { setUnfurl } from "./lib/unfurl";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
@@ -551,7 +552,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     // A temporary canvas (a meeting's shared document) opens blank: people join it mid-meeting
     // and expect to type at once. A host that already asked for the kind launches with
     // `"start": "page"` (ADR-048). Templates stay one click away on the blank page.
-    if (showsGallery({ isNew: session.isNew, storage: session.storage, role, empty: editor.isEmpty, hash: window.location.hash })) setScreen("gallery");
+    if (featureOn("templates") && showsGallery({ isNew: session.isNew, storage: session.storage, role, empty: editor.isEmpty, hash: window.location.hash })) setScreen("gallery");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
@@ -682,6 +683,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       importToBoard: impFormats.some((f) => DIAGRAM_FORMATS.includes(f)) ? (id) => (setImportBoard(id), setImportInto(true)) : undefined,
       // DGM-17: Add your own icon, cleaned by the server (demo: the local doc stands in for the room).
       icons: session.demo ? demoIcons(doc, me) : serverIcons(session.ticket),
+      // EDP-01: `[host.editor.features] diagramming`.
+      diagramming: featureOn("diagramming"),
     }),
     [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, doc],
   );
@@ -920,7 +923,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       { id: "db", icon: "database", label: "Database", run: () => start("dbblank") },
       { id: "board", icon: "shapes", label: "Whiteboard", run: () => start("boardblank") },
       { id: "import", icon: "upload", label: "Import", run: () => start("import") },
-    ],
+      // EDP-01: the host's editor profile and feature switches (profile.ts).
+    ].filter((a) => (a.id === "tpl" ? featureOn("templates") : insertable({ id: a.id }))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [editor, meta.title, compact],
   );
@@ -1085,7 +1089,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               canDownload={session.perms.download !== false}
               temporary={temporary}
               onFollow={follow}
-              onComments={() => (side === "comments" ? closeSide() : setSide("comments"))}
+              onComments={featureOn("comments") ? () => (side === "comments" ? closeSide() : setSide("comments")) : undefined}
               onImportInto={impFormats.length ? openImport : undefined}
               onWide={() =>
                 setWide((w) => {

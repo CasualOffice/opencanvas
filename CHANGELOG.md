@@ -9,6 +9,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Editor profiles (`[host.editor]`, docs/05 §2b): `notebook`, `meeting`, `project`,
+  `diagramming`, `document` or `full` (default), or an explicit list of stable block ids
+  (`core.*`), decide which blocks the / menu, "+" and phone insert sheets, Turn into and markdown
+  shortcuts offer; intent keywords ("track tasks", "draw architecture", "schedule") find blocks.
+  `[host.editor.features]` switches comments, version history, AI, diagramming, templates and
+  import, enforced on the server where they have routes, and win over the older `[host.flags]`.
+  Profiles only hide: every existing block still opens and edits. The session carries `editor`.
+  The Jitsi sample uses `meeting`, the Matrix sample `notebook`.
+
 - API reference on the website (`/api/`): guides for authentication, errors, pagination,
   idempotency, rate limits, events, webhooks and the SDKs, and one page per resource generated
   from the OpenAPI document, with samples in curl, TypeScript, Rust and Python.

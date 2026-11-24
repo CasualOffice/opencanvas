@@ -4,6 +4,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BASE_EXTENSIONS } from "./base";
+import { withInputRules } from "./profile";
 import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
@@ -251,7 +252,7 @@ export function CanvasEditor(p: EditorProps) {
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       editorProps: { attributes: { class: "oc-prose", spellcheck: "true", "aria-label": "Canvas" } },
-      extensions: [
+      ...withInputRules([
         ...BASE_EXTENSIONS,
         OcCodeBlock,
         BlockId,
@@ -310,7 +311,7 @@ export function CanvasEditor(p: EditorProps) {
         FileDrop,
         PasteUrl,
         EditorKeys,
-      ],
+      ]),
     },
     [p.doc],
   );

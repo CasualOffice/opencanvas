@@ -450,6 +450,7 @@ pub fn host_config(base: &str) -> HostConfig {
         api: Default::default(),
         webhooks: Default::default(),
         blocks: Default::default(),
+        editor: Default::default(),
     }
 }
 

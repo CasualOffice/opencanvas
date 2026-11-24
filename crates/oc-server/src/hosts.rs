@@ -94,6 +94,10 @@ pub struct HostConfig {
     /// block packages this host's editors may load; read through `crate::blocks::HostBlocks`.
     #[serde(default)]
     pub blocks: toml::Table,
+    /// `[host.editor]` (EDP-01, docs/05 §2b, ADR-061): the editor profile, its block list and
+    /// feature switches; read through [`HostConfig::editor`].
+    #[serde(default)]
+    pub editor: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -123,6 +127,24 @@ pub enum ConflictPolicy {
 }
 
 impl HostConfig {
+    /// `[host.editor]` parsed (EDP-01). Checked by `Hosts::parse` at start-up, so this cannot
+    /// fail later; a host built in code without the check falls back to `full`.
+    pub fn editor(&self) -> crate::editor::EditorCfg {
+        crate::editor::EditorCfg::parse(&self.editor, &crate::editor::sdk_types(&self.blocks))
+            .unwrap_or_default()
+    }
+
+    /// `[host.editor.features] version_history` (default on): off hides the history menu and
+    /// answers every history route `404 HISTORY_OFF`. The file's own history is kept as it is.
+    pub fn version_history_on(&self) -> bool {
+        self.editor().features.version_history != Some(false)
+    }
+
+    /// `[host.editor.features] comments` (default on).
+    pub fn comments_on(&self) -> bool {
+        self.editor().features.comments != Some(false)
+    }
+
     /// `[host.flags] history = true`: the JWT host implements the version callbacks (docs/30 §3).
     pub fn host_history(&self) -> bool {
         !self.ephemeral() && self.flags.get("history").and_then(|v| v.as_bool()) == Some(true)
@@ -197,6 +219,14 @@ impl HostConfig {
     /// `[host.flags] import_formats = ["md", "html", "csv"]`: the formats this host lets
     /// editors import (docs/05 §2, docs/23 FC-10). Absent or empty means import is off.
     pub fn import_formats(&self) -> Vec<String> {
+        // EDP-01: `[host.editor.features] import` wins over the flag (true without a list: all).
+        match self.editor().features.import {
+            Some(false) => return vec![],
+            Some(true) if !self.flags.contains_key("import_formats") => {
+                return IMPORT_FORMATS.iter().map(|f| f.to_string()).collect();
+            }
+            _ => {}
+        }
         self.flags
             .get("import_formats")
             .and_then(|v| v.as_array())
@@ -224,6 +254,7 @@ impl HostConfig {
     /// `callback_base` and JWT callbacks (not `mode = "wopi"`).
     pub fn team_templates(&self) -> bool {
         self.flags.get("team_templates").and_then(|v| v.as_bool()) == Some(true)
+            && self.editor().features.templates != Some(false)
             && !self.callback_base.is_empty()
             && !self.wopi_only()
     }
@@ -345,6 +376,8 @@ impl Hosts {
                 bail!("host {}: [host.flags] api_v1 takes true or false", h.id);
             }
             crate::blocks::HostBlocks::parse(&h.blocks)
+                .with_context(|| format!("host {}", h.id))?;
+            crate::editor::EditorCfg::parse(&h.editor, &crate::editor::sdk_types(&h.blocks))
                 .with_context(|| format!("host {}", h.id))?;
             if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] unfurl takes true or false", h.id);

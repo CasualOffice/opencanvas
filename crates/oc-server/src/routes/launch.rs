@@ -402,11 +402,23 @@ pub async fn session_info(
         (true, crate::grant::Role::Comment) => &["answer", "comment"],
         (true, crate::grant::Role::Edit) => &["edit", "comment", "answer"],
     };
-    let history = crate::history::Sources::of(&host, &grant).session_json(&host);
+    let history = if host.version_history_on() {
+        crate::history::Sources::of(&host, &grant).session_json(&host)
+    } else {
+        json!({"history": "none"})
+    };
+    let hist = host.version_history_on();
+    let import_formats = super::import::formats(&state, &host, grant.role);
+    // EDP-01: the profile, its insertable blocks and the feature switches (aliases applied).
+    let editor = host.editor().session_json(
+        server_ai && host_ai.agent().is_some_and(|a| a.enabled),
+        !state.cfg.import_off && !host.import_formats().is_empty(),
+    );
     let mut body = json!({
         "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": super::mcp::mcp_enabled(&state, &host)},
         // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
-        "import": {"formats": super::import::formats(&state, &host, grant.role)},
+        "import": {"formats": import_formats},
+        "editor": editor,
         // UNF-01: link cards may ask the server for previews.
         "unfurl": super::unfurl::enabled(&state, &host),
         // TPL-01: whether the gallery shows "From your team" (applying needs the edit role).
@@ -420,8 +432,8 @@ pub async fn session_info(
         // docs/30 §7: what this person may do with history (effective, role included).
         "perms": {
             "export": grant.perms.export, "download": grant.perms.download,
-            "comment": grant.perms.comment, "print": grant.perms.print,
-            "history": grant.can_see_history(), "restore": grant.can_restore(),
+            "comment": grant.perms.comment && host.comments_on(), "print": grant.perms.print,
+            "history": hist && grant.can_see_history(), "restore": hist && grant.can_restore(),
             "commitMessage": grant.can_name_version(),
         },
         // ADR-043: "ephemeral" = nothing is saved; users export to keep anything.

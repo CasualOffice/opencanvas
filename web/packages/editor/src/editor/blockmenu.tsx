@@ -17,6 +17,7 @@ import { toast } from "../lib/store";
 import { Popover, type Anchor } from "../components/overlay";
 import { deleteBlock, duplicateBlock, indexAt, moveBlock } from "./blockops";
 import { TURN, kindOfNode, turnInto } from "./slash";
+import { featureOn, insertable } from "./profile";
 import { fileActions } from "./files/actions";
 import { newBlockId } from "./blockId";
 import { addColumn, MAX_COLUMNS, MIN_COLUMNS, setColumnTitles } from "./columns";
@@ -27,6 +28,8 @@ import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
 export function startComment(editor: Editor, role: Role, onComment: (id: string) => void, range?: { from: number; to: number }) {
   const { from, to } = range ?? editor.state.selection;
   const quote = editor.state.doc.textBetween(from, to, " ").trim();
+  // EDP-01: `[host.editor.features] comments = false`: no new threads (existing ones stay).
+  if (!featureOn("comments")) return toast("Comments are off here", { icon: "message-square-plus" });
   if (!quote) return toast("Select some text to comment on", { icon: "message-square-plus" });
   const id = newThreadId();
   createThread(bridge.doc, id, quote);
@@ -97,7 +100,7 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
       {texty ? (
         <>
           <div className="mh">Turn into</div>
-          {TURN.map(([id, icon, label]) => (
+          {TURN.filter(([id]) => id === kind || insertable({ id })).map(([id, icon, label]) => (
             <button key={id} className="mi" onClick={() => run(() => (selectInside(), turnInto(editor, id)))} aria-current={kind === id ? "true" : undefined}>
               <Ic name={icon} />
               {label}

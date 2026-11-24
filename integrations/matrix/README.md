@@ -71,7 +71,14 @@ and a Matrix bot account.
    [host.flags]
    temporary_wording = "room"   # room wording in the editor, "Start a new canvas" when it ends
    export_formats  = ["md", "html", "docx", "pdf", "ocanvas", "png"]
+
+   [host.editor]
+   profile         = "notebook"  # text, headings, lists, checklists, images, links, callouts
    ```
+   A chat room's canvas is a shared notebook (links, notes, pictures people drop in), so the
+   sample uses `notebook`. A room that runs meetings can use `"meeting"`; `"full"` offers every
+   block. Profiles only trim the / menu: existing content of any type always opens and edits
+   (docs/05 §2b).
 3. **Bridge**: run it behind TLS, on its own origin.
    ```sh
    cd integrations/matrix/bridge

@@ -1396,7 +1396,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       return;
     }
     // Shift+D: open this board as a diagram (1b).
-    if (e.shiftKey && !mod && !e.altKey && k === "d" && !dgm) {
+    if (e.shiftKey && !mod && !e.altKey && k === "d" && !dgm && env.diagramming !== false) {
       e.preventDefault();
       void openDiagram();
       return;
@@ -2144,7 +2144,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             </button>
           </>
         ) : null}
-        {W >= 560 || !W ? (
+        {(W >= 560 || !W) && env.diagramming !== false ? (
           <button ref={dgmBtn} className="ocbd-dbtn" title="Open as a diagram (Shift+D). Full screen, with shape libraries, ports and auto-layout" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
             <Workflow size={15} strokeWidth={SW} />
             Diagram
@@ -2162,14 +2162,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <>
           <div className="ocbd-scrim" onPointerDown={() => setMenu(false)} />
           <div className="ocbd-menu" role="menu" aria-label="Board options">
-            {!dgm ? (
+            {!dgm && env.diagramming !== false ? (
               <button role="menuitem" className="ocbd-mi" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
                 <Workflow size={16} strokeWidth={SW} />
                 Open as diagram
                 <kbd className="ocbd-kbd" aria-hidden="true">⇧D</kbd>
               </button>
             ) : null}
-            {!dgm ? <span className="ocbd-msep" /> : null}
+            {!dgm && env.diagramming !== false ? <span className="ocbd-msep" /> : null}
             {edit ? (
               <button role="menuitem" className="ocbd-mi" onClick={() => { setMenu(false); fileRef.current?.click(); }}>
                 <ImagePlus size={16} strokeWidth={SW} />
