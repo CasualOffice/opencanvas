@@ -159,7 +159,18 @@ export interface Operations {
       limit?: number;
     };
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      matches: Array<{
+        blockId?: string;
+        rev?: string;
+        type?: string;
+        /** Indexes from the top, dot-separated */
+        path?: string;
+        excerpt?: string;
+        [key: string]: unknown;
+      }>;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/blocks:batch: Change blocks in one atomic transaction */
   batchBlocks: {
@@ -173,21 +184,63 @@ export interface Operations {
     path: { fileId: string; };
     query: {};
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      databases: Array<{
+        dbId: string;
+        name: string;
+        fields: Array<{
+          id?: string;
+          name?: string;
+          /** title, text, status, select, tags, person, date, number, checkbox, url or progress */
+          type?: string;
+          /** Choices of select, status and tags fields: {v, c} */
+          options?: Array<unknown>;
+          description?: string | null;
+          [key: string]: unknown;
+        }>;
+        rowCount?: number;
+        views?: Array<unknown>;
+        [key: string]: unknown;
+      }>;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/databases: Create a database block */
   createDatabase: {
     path: { fileId: string; };
     query: {};
     body: CreateDatabase;
-    response: Record<string, unknown>;
+    response: {
+      /** The new database block */
+      blockId?: string;
+      dbId: string;
+      fieldIds?: Array<string>;
+      rowIds?: Array<string>;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/databases/{dbId}: Describe one database */
   getDatabase: {
     path: { fileId: string; dbId: string; };
     query: {};
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      dbId: string;
+      name: string;
+      fields: Array<{
+        id?: string;
+        name?: string;
+        /** title, text, status, select, tags, person, date, number, checkbox, url or progress */
+        type?: string;
+        /** Choices of select, status and tags fields: {v, c} */
+        options?: Array<unknown>;
+        description?: string | null;
+        [key: string]: unknown;
+      }>;
+      rowCount?: number;
+      views?: Array<unknown>;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/databases/{dbId}/rows: Query rows */
   queryRows: {
@@ -206,7 +259,12 @@ export interface Operations {
     };
     body: never;
     response: {
-      rows?: Array<unknown>;
+      rows?: Array<{
+        rowId?: string;
+        /** Values by field id */
+        values?: Record<string, unknown>;
+        [key: string]: unknown;
+      }>;
       has_more?: boolean;
       next_cursor?: string | null;
     };
@@ -218,7 +276,13 @@ export interface Operations {
     body: {
       rows: Array<Record<string, unknown>>;
     };
-    response: Record<string, unknown>;
+    response: {
+      created: number;
+      updated: number;
+      /** The created and updated rows, in request order */
+      rowIds: Array<string>;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/databases/{dbId}/fields: Add a field */
   addField: {
@@ -230,14 +294,36 @@ export interface Operations {
       options?: Array<unknown>;
       description?: string;
     };
-    response: Record<string, unknown>;
+    response: {
+      fieldId: string;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/boards/{boardId}/shapes: Read a board's shapes */
   readBoard: {
     path: { fileId: string; boardId: string; };
     query: {};
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      boardId: string;
+      shapes: Array<{
+        id?: string;
+        /** sticky, rect, ellipse, diamond, text or arrow */
+        kind?: string;
+        text?: string | null;
+        x?: number | null;
+        y?: number | null;
+        w?: number | null;
+        h?: number | null;
+        tone?: string | null;
+        /** Arrows: the shape it starts at */
+        from?: string | null;
+        /** Arrows: the shape it ends at */
+        to?: string | null;
+        [key: string]: unknown;
+      }>;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/boards/{boardId}/shapes: Add shapes to a board */
   addShapes: {
@@ -247,7 +333,14 @@ export interface Operations {
       shapes: Array<Record<string, unknown>>;
       layout?: "grid" | "flow" | "cluster";
     };
-    response: Record<string, unknown>;
+    response: {
+      boardId: string;
+      blockId?: string | null;
+      /** Your refs to the new shape ids */
+      shapeIds?: Record<string, unknown>;
+      created: Array<string>;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/comments: List comment threads */
   listComments: {
@@ -257,7 +350,25 @@ export interface Operations {
       resolved?: boolean;
     };
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      threads: Array<{
+        threadId?: string;
+        blockId?: string | null;
+        quote?: string | null;
+        resolved?: boolean;
+        messages?: Array<{
+          userId?: string;
+          /** Display name */
+          by?: string;
+          text?: string;
+          /** Unix milliseconds */
+          at?: number;
+          [key: string]: unknown;
+        }>;
+        [key: string]: unknown;
+      }>;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/comments: Start a thread on a block or reply to one */
   addComment: {
@@ -269,7 +380,10 @@ export interface Operations {
       quote?: string;
       threadId?: string;
     };
-    response: Record<string, unknown>;
+    response: {
+      threadId: string;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/members: People with access (id, name, detail; never e-mail) */
   listMembers: {
@@ -281,7 +395,15 @@ export interface Operations {
       limit?: number;
     };
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      members: Array<{
+        id?: string;
+        name?: string;
+        detail?: string | null;
+        [key: string]: unknown;
+      }>;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/export/{format}: Export the canvas */
   exportFile: {
@@ -304,14 +426,32 @@ export interface Operations {
       types?: string;
     };
     body: BinaryBody;
-    response: Record<string, unknown>;
+    response: {
+      format: string;
+      /** Markdown and HTML: blocks added */
+      blocks?: number;
+      /** CSV: rows imported */
+      rows?: number;
+      /** CSV: the new database */
+      dbId?: string;
+      blockIds: Array<string>;
+      live?: boolean;
+      /** When nobody had the file open: the version your save callback answered */
+      version?: string;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/commit: Save now (200 saved, 202 queued in the outbox, 409 conflict) */
   commitFile: {
     path: { fileId: string; };
     query: {};
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      live: boolean;
+      saved?: boolean;
+      version?: string | null;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/role: Change a user's role live (none disconnects them) */
   setRole: {
@@ -321,21 +461,32 @@ export interface Operations {
       userId: string;
       role: "view" | "comment" | "edit" | "none";
     };
-    response: Record<string, unknown>;
+    response: {
+      connections: number;
+      sessions: number;
+      [key: string]: unknown;
+    };
   };
   /** DELETE /api/v1/files/{fileId}/session: Final save, disconnect everyone, drop every ticket */
   closeSession: {
     path: { fileId: string; };
     query: {};
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      closed: boolean;
+      sessions: number;
+      [key: string]: unknown;
+    };
   };
   /** POST /api/v1/files/{fileId}/members:invalidate: The member list changed; drop cached answers */
   invalidateMembers: {
     path: { fileId: string; };
     query: {};
     body: never;
-    response: Record<string, unknown>;
+    response: {
+      invalidated: boolean;
+      [key: string]: unknown;
+    };
   };
   /** GET /api/v1/files/{fileId}/events: Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages */
   streamEvents: {

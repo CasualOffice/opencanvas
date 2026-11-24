@@ -1010,7 +1010,7 @@ def operation_section(spec: dict, o: dict, root: str) -> str:
             else:
                 inner.append(f'<h4 data-index="no">Body <code>{_esc(ct)}</code></h4><p>{_esc(type_label(spec, sch))}</p>')
             has, val = apilib.media_example(m)
-            if not has and comp and st >= 400:
+            if not has and st >= 400:
                 codes = [c for c in errors if c in cat and st in cat[c]["status"]]
                 if codes:
                     e = cat[codes[0]]
@@ -1056,31 +1056,6 @@ def operation_section(spec: dict, o: dict, root: str) -> str:
             break
     return (f'<section class="op" aria-labelledby="{oid}"><div class="op-doc">{"".join(parts)}</div>'
             f'<aside class="op-code" aria-label="{_esc(op.get("summary", oid))}: examples">{side}</aside></section>')
-
-
-def check_examples(spec: dict) -> list[str]:
-    """Every example the reference shows, against its schema (also tools/check-openapi.py)."""
-    errs = []
-    for o in apilib.operations(spec):
-        op = o["op"]
-        for p in apilib.params(spec, op):
-            if "example" in p:
-                errs += [f"{o['id']} parameter {p['name']}: {e}" for e in apilib.validate(p["example"], p.get("schema") or {}, spec)]
-        _ct, media, _r = apilib.request_media(spec, op)
-        if media is not None:
-            has, val = apilib.media_example(media)
-            if has:
-                errs += [f"{o['id']} request: {e}" for e in apilib.validate(val, media.get("schema") or {}, spec)]
-        for code, res, _comp in apilib.responses(spec, op):
-            for _ct2, m in (res.get("content") or {}).items():
-                has, val = apilib.media_example(m)
-                if has:
-                    errs += [f"{o['id']} {code}: {e}" for e in apilib.validate(val, m.get("schema") or {}, spec)]
-    problem = spec["components"]["schemas"]["Problem"]
-    for e in spec.get("x-opencanvas-error-codes", []):
-        if e["status"]:
-            errs += [f"error {e['code']}: {x}" for x in apilib.validate(apilib.problem_example(e), problem, spec)]
-    return errs
 
 
 def reference_pages(spec: dict, order: list) -> dict[str, str]:
@@ -1148,7 +1123,7 @@ def reference_text(spec: dict) -> str:
 def render() -> dict[str, str]:
     """Every page of the API section, relative to site/."""
     spec = apilib.load()
-    bad = check_examples(spec)
+    bad = apilib.check_examples(spec)
     if bad:
         raise SystemExit("build-api: examples that do not match their schema:\n  " + "\n  ".join(bad))
     _SAMPLE_SEQ[0] = 0

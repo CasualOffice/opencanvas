@@ -7,6 +7,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Added
+
+- API reference on the website (`/api/`): guides for authentication, errors, pagination,
+  idempotency, rate limits, events, webhooks and the SDKs, and one page per resource generated
+  from the OpenAPI document, with samples in curl, TypeScript, Rust and Python.
+- `tools/check-openapi.py`: every API operation is documented with examples and its error codes.
+
 ## [0.1.2] - 2026-11-24
 
 See the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md).

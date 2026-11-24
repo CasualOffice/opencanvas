@@ -1058,7 +1058,8 @@ e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 
 ## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
 
-The supported API for programs: bots, integrations, back-office jobs. It is described by an
+The supported API for programs: bots, integrations, back-office jobs. The website has the full
+reference, generated from the OpenAPI document: [API reference](https://canvas.casualoffice.org/api/index.html). It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
 per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every
@@ -6156,7 +6157,7 @@ Authentication, the API switch, rate limits and availability: every /api/v1 oper
 
 ## Operation-specific
 
-Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. ROLE_INVALID 400 role is not view , comment , edit or none . EXPORT_OFF 403 The host's export settings do not allow this format. IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). DB_NOT_FOUND 404 The canvas has no database with that dbId . FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry.
+Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. readFile , findBlocks , batchBlocks , createDatabase , queryRows , upsertRows , addField , addShapes , addComment , setRole , streamEvents CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. listBlocks , queryRows IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. batchBlocks , createDatabase , upsertRows , addField , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. importFile , legacyImport INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. convert , legacyConvert ROLE_INVALID 400 role is not view , comment , edit or none . setRole , legacySetRole EXPORT_OFF 403 The host's export settings do not allow this format. exportFile IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . importFile , legacyImport BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). getBlock , batchBlocks , createDatabase , addComment , importFile , legacyPatch , legacyImport DB_NOT_FOUND 404 The canvas has no database with that dbId . getDatabase FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. exportFile , convert , legacyConvert NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. getDatabase , queryRows , upsertRows , addField , readBoard , addShapes , addComment CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . batchBlocks CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. importFile , commitFile , legacyPatch , legacyCommit , legacyImport IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. batchBlocks , createDatabase , upsertRows , addField , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. listBlocks , queryRows STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. batchBlocks BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). batchBlocks , createDatabase , upsertRows , addField , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers , convert DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. importFile , legacyPatch , legacyImport IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. importFile , legacyImport IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. batchBlocks , createDatabase , upsertRows , addField , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. streamEvents PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . exportFile , convert , legacyConvert HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. readFile , batchBlocks , createDatabase , upsertRows , addField , addShapes , addComment , exportFile , importFile , legacyPatch , legacyImport ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry. importFile , legacyPatch , legacyImport
 
 ## Router fallbacks
 
@@ -6361,6 +6362,10 @@ URL: https://canvas.casualoffice.org/api/changelog.html
 
 The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
 
+## Unreleased
+
+Added API reference on the website ( /api/ ): guides for authentication, errors, pagination, idempotency, rate limits, events, webhooks and the SDKs, and one page per resource generated from the OpenAPI document, with samples in curl, TypeScript, Rust and Python. Added tools/check-openapi.py : every API operation is documented with examples and its error codes.
+
 ## 0.1.2 (2026-11-24)
 
 Added Version history with named versions, preview and comparison, restore and temporary undo where supported by the host. Added Headless API under /api/v1 with OpenAPI 3.1, scoped tokens, and idempotency keys on file writes. Added API events stream (SSE and WebSocket) with resume, and a headless sync token. Fixed A Jitsi role change takes precedence over launch tokens issued before the change.
@@ -6388,12 +6393,89 @@ Read a whole canvas as JSON blocks, Markdown or a heading outline.
 
 GET /api/v1/files/{fileId} (operationId readFile, scope canvas:read)
 
+The canvas as JSON blocks (default), Markdown or a heading outline. Every block carries its `blockId` and a `rev` hash; the document `rev` comes back as `ETag`. Pass a block's `rev` as `ifMatch`, or the document's as `If-Match`, when you change it.
+
+If nobody has the file open, OpenCanvas loads it from your load callback first.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - format (query, string): json (default), markdown or outline
 
+Response 200 (application/json), example:
+{
+  "blocks": [
+    {
+      "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "Launch plan",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      "rev": "689ac3d33e18"
+    },
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+        },
+        "content": [
+          {
+            "text": "Ship on Friday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      "rev": "5641be1fd2cb"
+    },
+    {
+      "blockId": "b_01m87jv4rtngbs1n2p5aypa4mz",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtngbs1n2p5aypa4mz"
+        },
+        "content": [
+          {
+            "attrs": {
+              "checked": false
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Write the release notes",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "taskItem"
+          }
+        ],
+        "type": "taskList"
+      },
+      "rev": "92c98e698f58"
+    }
+  ],
+  "rev": "fc3a67f52c7b",
+  "title": null,
+  "truncated": false
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400), HOST_UNAVAILABLE (502)
+
 Example:
-curl -s "https://canvas.example.com/api/v1/files/doc_1" \
+curl -s "https://canvas.example.com/api/v1/files/doc_1?format=json" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY"
 
@@ -6408,13 +6490,59 @@ List, read and find blocks, and change them in one atomic batch.
 
 GET /api/v1/files/{fileId}/blocks (operationId listBlocks, scope canvas:read)
 
+Top-level blocks in document order, a page at a time. Each page answers `has_more` and `next_cursor` (and a `Link` header when more follow); pass the cursor back unchanged. Cursors are signed Yjs positions: paging survives concurrent edits, and every block that exists for the whole walk comes back exactly once.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - limit (query, integer): 1-100, default 100
 - cursor (query, string): Opaque, signed cursor from next_cursor (bound to this file and query, valid 1 h)
 
+Response 200 (application/json), example:
+{
+  "blocks": [
+    {
+      "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtz1wkrv27pzmqk64r",
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "Launch plan",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      "rev": "689ac3d33e18"
+    },
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "node": {
+        "attrs": {
+          "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+        },
+        "content": [
+          {
+            "text": "Ship on Friday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      "rev": "5641be1fd2cb"
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "eyJmIjoiZG9jXzEiLCJpIjoiQU1XcW5aRHpfZThKRDBFIiwiayI6ImJsb2NrcyIsInEiOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0YzgiLCJ4IjoxODAwMDAzNjAwfQ.pdHAPcfzMM5tjJk54UBrTS9TIqKP3xtJR9yZRY1bPv4",
+  "rev": "fc3a67f52c7b"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), CURSOR_INVALID (400), CURSOR_EXPIRED (410)
+
 Example:
-curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks" \
+curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks?limit=2" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY"
 
@@ -6422,9 +6550,31 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks" \
 
 GET /api/v1/files/{fileId}/blocks/{blockId} (operationId getBlock, scope canvas:read)
 
+One block by its `blockId`, top-level or nested (a paragraph in a column, a task in a list). The block's `rev` comes back as `ETag`.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - blockId (path, string, required): The block's blockId attribute
+
+Response 200 (application/json), example:
+{
+  "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+  "node": {
+    "attrs": {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+    },
+    "content": [
+      {
+        "text": "Ship on Friday.",
+        "type": "text"
+      }
+    ],
+    "type": "paragraph"
+  },
+  "rev": "5641be1fd2cb"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BLOCK_NOT_FOUND (404)
 
 Example:
 curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks/b_01m87jv4rtkdxymn93jwtx35sk" \
@@ -6435,14 +6585,31 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks/b_01m87jv4rtkdxymn
 
 GET /api/v1/files/{fileId}/blocks:find (operationId findBlocks, scope canvas:read)
 
+Blocks whose text contains `q`, case-insensitively, in document order, with an excerpt and the block's position (`path`, indexes from the top). `types` keeps only those block types (`paragraph`, `heading`, `taskList`, ...).
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - q (query, string): Text to find
 - types (query, string): Comma-separated block types
 - limit (query, integer): 1-100
 
+Response 200 (application/json), example:
+{
+  "matches": [
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "excerpt": "Ship on Friday.",
+      "path": "1",
+      "rev": "5641be1fd2cb",
+      "type": "paragraph"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400)
+
 Example:
-curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks:find" \
+curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks:find?q=friday" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY"
 
@@ -6450,7 +6617,9 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/blocks:find" \
 
 POST /api/v1/files/{fileId}/blocks:batch (operationId batchBlocks, scope canvas:write)
 
-Ops apply in one Yjs transaction or not at all. A block op with ifMatch whose block changed answers 412 with the fresh block. Deleting more than 5 blocks needs confirm: true (409 CONFIRMATION_REQUIRED otherwise).
+Change blocks in one Yjs transaction: all ops apply, or none. Ops: `append` and `insertAfter` (with `markdown` or Tiptap `blocks`), `replace`, `delete`, and `editText` (`textEdits: [{find, replace}]`). An op with `ifMatch` whose block changed since you read it answers `412 STALE_BLOCK` with the fresh block, and the `If-Match` header does the same for the whole document. Deleting more than 5 blocks needs `"confirm": true`.
+
+New content lands directly. Changes to existing blocks land directly too, unless the call sends `"mode": "suggest"` or the host sets `[host.api] default_mode = "suggest"`: then they become a suggestion (`suggestionId`) for a person to accept. The answer's `rev` is the new document revision (also the `ETag`).
 
 Parameters:
 - fileId (path, string, required): The host's file id
@@ -6461,17 +6630,63 @@ Request body (application/json), example:
 {
   "ops": [
     {
-      "op": "append"
+      "op": "append",
+      "markdown": "## Decisions\n\nShip on Friday."
+    },
+    {
+      "op": "editText",
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "ifMatch": "5641be1fd2cb",
+      "textEdits": [
+        {
+          "find": "Friday",
+          "replace": "Monday"
+        }
+      ]
     }
   ]
 }
+
+Response 200 (application/json), example:
+{
+  "applied": 2,
+  "blockIds": [
+    "b_01m87jv4s4hw2f9n0k3q6t8y1v",
+    "b_01m87jv4s4p7d2m5c8x0z3r6tb",
+    "b_01m87jv4rtkdxymn93jwtx35sk"
+  ],
+  "mode": "direct",
+  "rev": "27ae51518968",
+  "stale": []
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), BLOCK_NOT_FOUND (404), STALE_BLOCK (412), CONFIRMATION_REQUIRED (409), HOST_UNAVAILABLE (502)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/blocks:batch" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H 'If-Match: "fc3a67f52c7b"' \
   -H "Content-Type: application/json" \
-  -d '{"ops": [{"op": "append"}]}'
+  -d '{
+    "ops": [
+      {
+        "op": "append",
+        "markdown": "## Decisions\n\nShip on Friday."
+      },
+      {
+        "op": "editText",
+        "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+        "ifMatch": "5641be1fd2cb",
+        "textEdits": [
+          {
+            "find": "Friday",
+            "replace": "Monday"
+          }
+        ]
+      }
+    ]
+  }'
 
 
 # API reference: Databases
@@ -6484,8 +6699,60 @@ Describe databases, query rows with filters and sorts, create databases and fiel
 
 GET /api/v1/files/{fileId}/databases (operationId listDatabases, scope canvas:read)
 
+Every database block in the canvas: its fields (id, name, type, options), row count and views.
+
 Parameters:
 - fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "databases": [
+    {
+      "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+      "fields": [
+        {
+          "description": null,
+          "id": "f_01m87jv4scpzrpdkt85ph5kftr",
+          "name": "Task",
+          "options": [],
+          "type": "title"
+        },
+        {
+          "description": null,
+          "id": "f_01m87jv4schbq8mwrxbq9m31wr",
+          "name": "Status",
+          "options": [
+            {
+              "c": "gray",
+              "v": "Todo"
+            },
+            {
+              "c": "gray",
+              "v": "Doing"
+            },
+            {
+              "c": "gray",
+              "v": "Done"
+            }
+          ],
+          "type": "select"
+        },
+        {
+          "description": null,
+          "id": "f_01m87jv4scmq5tffb8z3jfphjv",
+          "name": "Due",
+          "options": [],
+          "type": "date"
+        }
+      ],
+      "name": "Tasks",
+      "rowCount": 1,
+      "views": []
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
 
 Example:
 curl -s "https://canvas.example.com/api/v1/files/doc_1/databases" \
@@ -6496,32 +6763,153 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/databases" \
 
 POST /api/v1/files/{fileId}/databases (operationId createDatabase, scope canvas:write)
 
+Add a database block, after `afterBlockId` or at the end, with its fields and optional first rows. Field types: `title`, `text`, `status`, `select`, `tags`, `person`, `date`, `number`, `checkbox`, `url`, `progress`; `options` lists the choices of `select`, `status` and `tags`. Rows are `{values: {<field name or id>: value}}`.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
 
 Request body (application/json), example:
 {
-  "name": "string",
+  "name": "Tasks",
   "fields": [
-    {}
+    {
+      "name": "Task",
+      "type": "title"
+    },
+    {
+      "name": "Status",
+      "type": "select",
+      "options": [
+        "Todo",
+        "Doing",
+        "Done"
+      ]
+    },
+    {
+      "name": "Due",
+      "type": "date"
+    }
+  ],
+  "rows": [
+    {
+      "values": {
+        "Task": "Write the release notes",
+        "Status": "Doing",
+        "Due": "2026-11-27"
+      }
+    }
   ]
 }
+
+Response 200 (application/json), example:
+{
+  "blockId": "b_01m87jv4sc1ya7yxpfn918vty9",
+  "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+  "fieldIds": [
+    "f_01m87jv4scpzrpdkt85ph5kftr",
+    "f_01m87jv4schbq8mwrxbq9m31wr",
+    "f_01m87jv4scmq5tffb8z3jfphjv"
+  ],
+  "rowIds": [
+    "r_01m87jv4scp2q5qt8k4r4mchy8"
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), BLOCK_NOT_FOUND (404), HOST_UNAVAILABLE (502)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/databases" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "string", "fields": [{}]}'
+  -d '{
+    "name": "Tasks",
+    "fields": [
+      {
+        "name": "Task",
+        "type": "title"
+      },
+      {
+        "name": "Status",
+        "type": "select",
+        "options": [
+          "Todo",
+          "Doing",
+          "Done"
+        ]
+      },
+      {
+        "name": "Due",
+        "type": "date"
+      }
+    ],
+    "rows": [
+      {
+        "values": {
+          "Task": "Write the release notes",
+          "Status": "Doing",
+          "Due": "2026-11-27"
+        }
+      }
+    ]
+  }'
 
 ## Describe one database
 
 GET /api/v1/files/{fileId}/databases/{dbId} (operationId getDatabase, scope canvas:read)
 
+One database: its fields, row count and views. Use the field ids (or names) in `queryRows` and `rows:upsert`.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - dbId (path, string, required): Database id
+
+Response 200 (application/json), example:
+{
+  "dbId": "db_01m87jv4sc2twxjhzzxzh7mene",
+  "fields": [
+    {
+      "description": null,
+      "id": "f_01m87jv4scpzrpdkt85ph5kftr",
+      "name": "Task",
+      "options": [],
+      "type": "title"
+    },
+    {
+      "description": null,
+      "id": "f_01m87jv4schbq8mwrxbq9m31wr",
+      "name": "Status",
+      "options": [
+        {
+          "c": "gray",
+          "v": "Todo"
+        },
+        {
+          "c": "gray",
+          "v": "Doing"
+        },
+        {
+          "c": "gray",
+          "v": "Done"
+        }
+      ],
+      "type": "select"
+    },
+    {
+      "description": null,
+      "id": "f_01m87jv4scmq5tffb8z3jfphjv",
+      "name": "Due",
+      "options": [],
+      "type": "date"
+    }
+  ],
+  "name": "Tasks",
+  "rowCount": 1,
+  "views": []
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), NOT_FOUND (404), DB_NOT_FOUND (404)
 
 Example:
 curl -s "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene" \
@@ -6532,6 +6920,8 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2t
 
 GET /api/v1/files/{fileId}/databases/{dbId}/rows (operationId queryRows, scope canvas:read)
 
+Rows of a database, filtered, sorted and paged. `filter` is a JSON array of `{f, op, v}` (`op`: `eq`, `ne`, `contains`, `gt`, `lt`, `ge`, `le`, `empty`, `notEmpty`), `sort` a JSON array of `{f, dir}` (`asc`, `desc`), `fields` the fields to return; fields by id or name. Values come back keyed by field id. Pages of at most 200 rows, with a cursor bound to this database, filter, sort and fields.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - dbId (path, string, required): Database id
@@ -6541,14 +6931,37 @@ Parameters:
 - limit (query, integer): 1-200
 - cursor (query, string): Opaque, signed cursor from next_cursor (bound to this database, filter, sort and fields, valid 1 h)
 
+Response 200 (application/json), example:
+{
+  "has_more": true,
+  "next_cursor": "eyJmIjoiZG9jXzEiLCJpIjp7ImFmdGVyIjoicl8wMW04N2p2NHNjcDJxNXF0OGs0cjRtY2h5OCIsIm8iOiIxIn0sImsiOiJyb3dzIiwicSI6IjI4MGMzOGFjNTM4NTYyN2FmMWFhZGE5ZiIsIngiOjE4MDAwMDM2MDB9.ZAFcDhTGnqZklHMuAINEeogPeSpmm29T1AbRmxg-rRU",
+  "rows": [
+    {
+      "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+      "values": {
+        "f_01m87jv4schbq8mwrxbq9m31wr": "Doing",
+        "f_01m87jv4scmq5tffb8z3jfphjv": "2026-11-27",
+        "f_01m87jv4scpzrpdkt85ph5kftr": "Write the release notes"
+      }
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400), NOT_FOUND (404), CURSOR_INVALID (400), CURSOR_EXPIRED (410)
+
 Example:
-curl -s "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/rows" \
+curl -s -G "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/rows" \
+  --data-urlencode 'filter=[{"f": "Status", "op": "ne", "v": "Done"}]' \
+  --data-urlencode 'sort=[{"f": "Due", "dir": "asc"}]' \
+  --data-urlencode 'limit=1' \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY"
 
 ## Create or update rows (at most 200)
 
 POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert (operationId upsertRows, scope canvas:write)
+
+Create or update up to 200 rows in one transaction. `values` maps field names or ids to values; a row with an existing `rowId` is updated, any other row is created.
 
 Parameters:
 - fileId (path, string, required): The host's file id
@@ -6558,20 +6971,62 @@ Parameters:
 Request body (application/json), example:
 {
   "rows": [
-    {}
+    {
+      "values": {
+        "Task": "Tag the release",
+        "Status": "Todo",
+        "Due": "2026-11-28"
+      }
+    },
+    {
+      "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+      "values": {
+        "Status": "Done"
+      }
+    }
   ]
 }
+
+Response 200 (application/json), example:
+{
+  "created": 1,
+  "rowIds": [
+    "r_01m87jv4sg668wqdmpx9n1frsj",
+    "r_01m87jv4scp2q5qt8k4r4mchy8"
+  ],
+  "updated": 1
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/rows:upsert" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"rows": [{}]}'
+  -d '{
+    "rows": [
+      {
+        "values": {
+          "Task": "Tag the release",
+          "Status": "Todo",
+          "Due": "2026-11-28"
+        }
+      },
+      {
+        "rowId": "r_01m87jv4scp2q5qt8k4r4mchy8",
+        "values": {
+          "Status": "Done"
+        }
+      }
+    ]
+  }'
 
 ## Add a field
 
 POST /api/v1/files/{fileId}/databases/{dbId}/fields (operationId addField, scope canvas:write)
+
+Add a field to a database. `type` as in `createDatabase`; `options` for `select`, `status` and `tags`.
 
 Parameters:
 - fileId (path, string, required): The host's file id
@@ -6580,16 +7035,23 @@ Parameters:
 
 Request body (application/json), example:
 {
-  "name": "string",
-  "type": "string"
+  "name": "Owner",
+  "type": "person"
 }
+
+Response 200 (application/json), example:
+{
+  "fieldId": "f_01m87jv4shsxrhbw3cyfhpgz91"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/databases/db_01m87jv4sc2twxjhzzxzh7mene/fields" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "string", "type": "string"}'
+  -d '{"name": "Owner", "type": "person"}'
 
 
 # API reference: Boards
@@ -6602,9 +7064,56 @@ Read a board's shapes and add shapes to a board.
 
 GET /api/v1/files/{fileId}/boards/{boardId}/shapes (operationId readBoard, scope canvas:read)
 
+The shapes of a board block in drawing order: kind, text, position and size, tone, and for arrows the shapes they connect.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - boardId (path, string, required): Board id
+
+Response 200 (application/json), example:
+{
+  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+  "shapes": [
+    {
+      "id": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+      "kind": "sticky",
+      "text": "Idea",
+      "x": 0,
+      "y": 0,
+      "w": 180,
+      "h": 120,
+      "tone": "y",
+      "from": null,
+      "to": null
+    },
+    {
+      "id": "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+      "kind": "rect",
+      "text": "Plan",
+      "x": 240,
+      "y": 0,
+      "w": 180,
+      "h": 100,
+      "tone": null,
+      "from": null,
+      "to": null
+    },
+    {
+      "id": "s_01m87jv4t1v2w3x4y5z6a7b8c9",
+      "kind": "arrow",
+      "text": null,
+      "x": null,
+      "y": null,
+      "w": null,
+      "h": null,
+      "tone": null,
+      "from": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+      "to": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), NOT_FOUND (404)
 
 Example:
 curl -s "https://canvas.example.com/api/v1/files/doc_1/boards/bd_01m87jv4t0h5kq8r2x9w3c4d5e/shapes" \
@@ -6615,6 +7124,8 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/boards/bd_01m87jv4t0h5kq8
 
 POST /api/v1/files/{fileId}/boards/{boardId}/shapes (operationId addShapes, scope canvas:write)
 
+Add shapes to a board: `sticky`, `rect`, `ellipse`, `diamond`, `text` and `arrow` (`from` and `to` name other shapes by their `ref` in the same call, or by id). Shapes without `x` and `y` are laid out (`grid`, `flow` or `cluster`) below what the board already holds. `shapeIds` maps your `ref`s to the new ids.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - boardId (path, string, required): Board id
@@ -6623,16 +7134,67 @@ Parameters:
 Request body (application/json), example:
 {
   "shapes": [
-    {}
+    {
+      "ref": "a",
+      "kind": "sticky",
+      "text": "Idea"
+    },
+    {
+      "ref": "b",
+      "kind": "rect",
+      "text": "Plan"
+    },
+    {
+      "kind": "arrow",
+      "from": "a",
+      "to": "b"
+    }
+  ],
+  "layout": "flow"
+}
+
+Response 200 (application/json), example:
+{
+  "boardId": "bd_01m87jv4t0h5kq8r2x9w3c4d5e",
+  "blockId": null,
+  "shapeIds": {
+    "a": "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+    "b": "s_01m87jv4t1k2m3n4p5q6r7s8t9"
+  },
+  "created": [
+    "s_01m87jv4t1a2b3c4d5e6f7g8h9",
+    "s_01m87jv4t1k2m3n4p5q6r7s8t9",
+    "s_01m87jv4t1v2w3x4y5z6a7b8c9"
   ]
 }
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), NOT_FOUND (404), HOST_UNAVAILABLE (502)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/boards/bd_01m87jv4t0h5kq8r2x9w3c4d5e/shapes" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"shapes": [{}]}'
+  -d '{
+    "shapes": [
+      {
+        "ref": "a",
+        "kind": "sticky",
+        "text": "Idea"
+      },
+      {
+        "ref": "b",
+        "kind": "rect",
+        "text": "Plan"
+      },
+      {
+        "kind": "arrow",
+        "from": "a",
+        "to": "b"
+      }
+    ],
+    "layout": "flow"
+  }'
 
 
 # API reference: Comments
@@ -6645,12 +7207,42 @@ List comment threads, start a thread on a block or reply to one.
 
 GET /api/v1/files/{fileId}/comments (operationId listComments, scope canvas:read)
 
+Comment threads with their messages: the block (or quote) each is on, whether it is resolved, and who wrote each message (user id and name, never an e-mail address). `resolved=false` keeps the open ones.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - resolved (query, boolean): Only resolved (true) or open (false) threads
 
+Response 200 (application/json), example:
+{
+  "threads": [
+    {
+      "blockId": "b_01m87jv4rtkdxymn93jwtx35sk",
+      "messages": [
+        {
+          "at": 1795550974775,
+          "by": "u_42",
+          "text": "Is Friday still right?",
+          "userId": "u_42"
+        },
+        {
+          "at": 1795550974778,
+          "by": "u_42",
+          "text": "Yes, confirmed.",
+          "userId": "u_42"
+        }
+      ],
+      "quote": "Ship on Monday.",
+      "resolved": false,
+      "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
+
 Example:
-curl -s "https://canvas.example.com/api/v1/files/doc_1/comments" \
+curl -s "https://canvas.example.com/api/v1/files/doc_1/comments?resolved=false" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY"
 
@@ -6658,21 +7250,34 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/comments" \
 
 POST /api/v1/files/{fileId}/comments (operationId addComment, scope canvas:comment)
 
+Start a thread on a block (`blockId`, optionally with the `quote` it is about) or on a quote alone, or reply to a thread with `threadId`. Needs `canvas:comment`. Mentions in the text notify people as in the editor.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
 
 Request body (application/json), example:
 {
-  "text": "string"
+  "text": "Is Friday still right?",
+  "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
 }
+
+Response 200 (application/json), example:
+{
+  "threadId": "t_01m87jv4sqj5z6jz5q2n5zdtdw"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), BLOCK_NOT_FOUND (404), NOT_FOUND (404), HOST_UNAVAILABLE (502)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"text": "string"}'
+  -d '{
+    "text": "Is Friday still right?",
+    "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"
+  }'
 
 
 # API reference: Members
@@ -6685,10 +7290,30 @@ The people with access to a canvas: id, name and detail, never an e-mail address
 
 GET /api/v1/files/{fileId}/members (operationId listMembers, scope canvas:read)
 
+The people with access to the canvas, from your members callback and the people in the document: id, name and a `detail` line (team, title). Never an e-mail address. `q` filters by name.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - q (query, string): Name filter
 - limit (query, integer): 1-500
+
+Response 200 (application/json), example:
+{
+  "members": [
+    {
+      "id": "u_42",
+      "name": "Ada Lovelace",
+      "detail": "Engineering"
+    },
+    {
+      "id": "u_7",
+      "name": "Lin Chen",
+      "detail": "Design"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
 
 Example:
 curl -s "https://canvas.example.com/api/v1/files/doc_1/members" \
@@ -6706,9 +7331,28 @@ Export a canvas, import Markdown, HTML or CSV into it, and convert files without
 
 GET /api/v1/files/{fileId}/export/{format} (operationId exportFile, scope canvas:read)
 
+The canvas as a file: `md`, `html`, `json` (the document JSON), `ocanvas` (the native file), `docx` or `pdf`. The host's `export_formats` decides which are allowed. Images in DOCX and PDF come only from your `callback_base` or `asset_origins`; PDF needs the operator's Gotenberg sidecar. Answers `Cache-Control: no-store`.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - format (path, string, required): md, html, json, ocanvas, docx or pdf
+
+Response 200 (application/octet-stream), example:
+## Launch plan
+
+Ship on Monday.
+
+- [ ] Write the release notes
+
+### Tasks
+
+| Task | Status | Due | Owner |
+| --- | --- | --- | --- |
+| Write the release notes | Doing | 2026-11-27 |  |
+| Tag the release | Todo | 2026-11-28 |  |
+
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), FORMAT_UNSUPPORTED (404/400), EXPORT_OFF (403), HOST_UNAVAILABLE (502), PDF_RENDERER_NOT_CONFIGURED (501)
 
 Example:
 curl -s "https://canvas.example.com/api/v1/files/doc_1/export/md" \
@@ -6720,6 +7364,8 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/export/md" \
 
 POST /api/v1/files/{fileId}/import (operationId importFile, scope canvas:write)
 
+Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - format (query, string): md, html or csv
@@ -6729,10 +7375,29 @@ Parameters:
 - Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
 
 Request body (application/octet-stream), example:
-string
+## Notes
+
+Imported from Markdown.
+
+- First point
+- Second point
+
+
+Response 200 (application/json), example:
+{
+  "format": "md",
+  "blocks": 2,
+  "blockIds": [
+    "b_01m87jw2k3m4n5p6q7r8s9t0v1",
+    "b_01m87jw2k3w4x5y6z7a8b9c0d1"
+  ],
+  "live": true
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), IMPORT_OFF (403), IMPORT_INVALID (400), IMPORT_TOO_LARGE (413), BLOCK_NOT_FOUND (404), DOC_TOO_LARGE (413), CONFLICT (409), ROOM_UNAVAILABLE (503), HOST_UNAVAILABLE (502)
 
 Example:
-curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/import" \
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/import?format=md" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   --data-binary @notes.md
@@ -6741,19 +7406,29 @@ curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/import" \
 
 POST /api/v1/convert (operationId convert, scope canvas:read)
 
+Convert a file without a canvas: `from` Markdown, HTML or `.ocanvas`, `to` `ocanvas`, `md`, `html`, `json`, `docx` or `pdf`. Send the file as the raw body; the answer is the converted file. Changes nothing, so it takes no `Idempotency-Key`. Images in DOCX and PDF come only from your `callback_base` or `asset_origins`; boards become pictures.
+
 Parameters:
 - from (query, string): md, html or ocanvas
 - to (query, string): ocanvas, md, html, json, docx or pdf
 
 Request body (application/octet-stream), example:
-string
+<h1>Hello</h1><p>From <strong>HTML</strong>.</p>
+
+Response 200 (application/octet-stream), example:
+# Hello
+
+From **HTML**.
+
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), RATE_LIMITED (429), INTERNAL (500), BODY_TOO_LARGE (413), FORMAT_UNSUPPORTED (404/400), INPUT_INVALID (400), PDF_RENDERER_NOT_CONFIGURED (501)
 
 Example:
-curl -s -X POST "https://canvas.example.com/api/v1/convert" \
+curl -s -X POST "https://canvas.example.com/api/v1/convert?from=html&to=md" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
-  --data-binary @notes.md \
-  -o out.bin
+  --data-binary @page.html \
+  -o canvas.md
 
 
 # API reference: Events and sync
@@ -6774,8 +7449,17 @@ Parameters:
 - since (query, string): Same as Last-Event-ID (the header wins)
 - types (query, string): Comma-separated event types to receive (default all)
 
+Response 200 (text/event-stream), example:
+id: ev_01m87jv4t3ggvh8n6d6nh38xc0
+event: commented
+data: {"at":1795550974787,"data":{"added":1,"blockId":"b_01m87jv4rtkdxymn93jwtx35sk","by":["u_42"],"threadId":"t_01m87jv4sqj5z6jz5q2n5zdtdw"},"fileId":"doc_1","id":"ev_01m87jv4t3ggvh8n6d6nh38xc0","type":"commented"}
+
+
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), BAD_INPUT (400), TOO_MANY_STREAMS (429)
+
 Example:
-curl -s -N "https://canvas.example.com/api/v1/files/doc_1/events" \
+curl -s -N "https://canvas.example.com/api/v1/files/doc_1/events?types=saved,commented" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Accept: text/event-stream"
@@ -6788,6 +7472,18 @@ Answers a session ticket with the caller's effective role (min(scope, host role)
 
 Parameters:
 - fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "connectWithinSecs": 60,
+  "expiresAt": 1795551874,
+  "role": "edit",
+  "room": "r_2whbv4nncveupmqu35cywoidfe",
+  "ticket": "01M87JV4T23GYQ773ZF1WN91VA",
+  "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/sync-token" \
@@ -6805,9 +7501,20 @@ Host operations: save now, change a user's role live, close the session, drop ca
 
 POST /api/v1/files/{fileId}/commit (operationId commitFile, scope canvas:admin)
 
+Save the canvas to your application now, for example before you back it up. `200` once your save callback answered (`saved: false` when there was nothing new), `202` when the save failed and waits in the outbox to be retried, `409` when your callback reported a conflict.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Response 200 (application/json), example:
+{
+  "live": true,
+  "saved": true,
+  "version": "18"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), CONFLICT (409)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/commit" \
@@ -6818,29 +7525,49 @@ curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/commit" \
 
 POST /api/v1/files/{fileId}/role (operationId setRole, scope canvas:admin)
 
+Change a user's role on the file, live: their open sessions switch at once (`view` makes them read-only, `none` disconnects them and drops them from the member list). The role also applies to launch tokens issued before the call. Answers how many live connections switched and sessions were updated.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
 
 Request body (application/json), example:
 {
-  "userId": "string",
+  "userId": "u_42",
   "role": "view"
 }
+
+Response 200 (application/json), example:
+{
+  "connections": 1,
+  "sessions": 2
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), ROLE_INVALID (400)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/role" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"userId": "string", "role": "view"}'
+  -d '{"userId": "u_42", "role": "view"}'
 
 ## Final save, disconnect everyone, drop every ticket
 
 DELETE /api/v1/files/{fileId}/session (operationId closeSession, scope canvas:admin)
 
+For a file deleted or moved in your application: a final save, then every connection is closed and every ticket for the file is dropped.
+
 Parameters:
 - fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "closed": true,
+  "sessions": 3
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500)
 
 Example:
 curl -s -X DELETE "https://canvas.example.com/api/v1/files/doc_1/session" \
@@ -6851,9 +7578,18 @@ curl -s -X DELETE "https://canvas.example.com/api/v1/files/doc_1/session" \
 
 POST /api/v1/files/{fileId}/members:invalidate (operationId invalidateMembers, scope canvas:admin)
 
+Tell OpenCanvas the file's member list changed outside a role call: the cached members answer is dropped and open editors fetch it again.
+
 Parameters:
 - fileId (path, string, required): The host's file id
 - Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Response 200 (application/json), example:
+{
+  "invalidated": true
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413)
 
 Example:
 curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/members:invalidate" \
@@ -6870,6 +7606,18 @@ The OpenAPI 3.1 document this reference is generated from.
 ## This document
 
 GET /api/v1/openapi.json (operationId getOpenApi)
+
+The OpenAPI 3.1 document of this server's API, the same file as `crates/oc-server/api/openapi.json` in the repository. Public: no credentials, not rate limited.
+
+Response 200 (application/json), example:
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenCanvas headless API",
+    "version": "1.0.0"
+  },
+  "paths": {}
+}
 
 Example:
 curl -s "https://canvas.example.com/api/v1/openapi.json"
@@ -6890,10 +7638,48 @@ POST /v1/files/{fileId}/patch (operationId legacyPatch)
 Parameters:
 - fileId (path, string, required): The host's file id
 
+Request body (application/json), example:
+{
+  "ops": [
+    {
+      "op": "append",
+      "markdown": "Shipped on Friday."
+    }
+  ],
+  "author": {
+    "id": "u_42",
+    "name": "Ada Lovelace"
+  }
+}
+
+Response 200 (application/json), example:
+{
+  "applied": 1,
+  "blockIds": [
+    "b_01m87jv4s4hw2f9n0k3q6t8y1v"
+  ],
+  "live": true
+}
+
+Errors: API_KEY_INVALID (401), PATCH_INVALID (400), BLOCK_NOT_FOUND (404), DOC_TOO_LARGE (413), CONFLICT (409), ROOM_UNAVAILABLE (503), HOST_UNAVAILABLE (502)
+
 Example:
 curl -s -X POST "https://canvas.example.com/v1/files/doc_1/patch" \
   -H "X-OpenCanvas-Host: acme" \
-  -H "X-OpenCanvas-Key: $OC_API_KEY"
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ops": [
+      {
+        "op": "append",
+        "markdown": "Shipped on Friday."
+      }
+    ],
+    "author": {
+      "id": "u_42",
+      "name": "Ada Lovelace"
+    }
+  }'
 
 ## Save now (0.1)
 
@@ -6903,6 +7689,15 @@ POST /v1/files/{fileId}/commit (operationId legacyCommit)
 
 Parameters:
 - fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "live": true,
+  "saved": true,
+  "version": "18"
+}
+
+Errors: API_KEY_INVALID (401), CONFLICT (409), INTERNAL (500)
 
 Example:
 curl -s -X POST "https://canvas.example.com/v1/files/doc_1/commit" \
@@ -6918,10 +7713,26 @@ POST /v1/files/{fileId}/role (operationId legacySetRole)
 Parameters:
 - fileId (path, string, required): The host's file id
 
+Request body (application/json), example:
+{
+  "userId": "u_42",
+  "role": "view"
+}
+
+Response 200 (application/json), example:
+{
+  "connections": 1,
+  "sessions": 2
+}
+
+Errors: API_KEY_INVALID (401), ROLE_INVALID (400)
+
 Example:
 curl -s -X POST "https://canvas.example.com/v1/files/doc_1/role" \
   -H "X-OpenCanvas-Host: acme" \
-  -H "X-OpenCanvas-Key: $OC_API_KEY"
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "u_42", "role": "view"}'
 
 ## Close the session (0.1)
 
@@ -6931,6 +7742,14 @@ DELETE /v1/files/{fileId}/session (operationId legacyCloseSession)
 
 Parameters:
 - fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "closed": true,
+  "sessions": 3
+}
+
+Errors: API_KEY_INVALID (401)
 
 Example:
 curl -s -X DELETE "https://canvas.example.com/v1/files/doc_1/session" \
@@ -6946,6 +7765,13 @@ POST /v1/files/{fileId}/members/invalidate (operationId legacyInvalidateMembers)
 Parameters:
 - fileId (path, string, required): The host's file id
 
+Response 200 (application/json), example:
+{
+  "invalidated": true
+}
+
+Errors: API_KEY_INVALID (401)
+
 Example:
 curl -s -X POST "https://canvas.example.com/v1/files/doc_1/members/invalidate" \
   -H "X-OpenCanvas-Host: acme" \
@@ -6959,11 +7785,33 @@ POST /v1/files/{fileId}/import (operationId legacyImport)
 
 Parameters:
 - fileId (path, string, required): The host's file id
+- format (query, string, required): 
+- author (query, string): 
+
+Request body (application/octet-stream), example:
+## Notes
+
+Imported from Markdown.
+
+
+Response 200 (application/json), example:
+{
+  "format": "md",
+  "blocks": 2,
+  "blockIds": [
+    "b_01m87jw2k3m4n5p6q7r8s9t0v1",
+    "b_01m87jw2k3w4x5y6z7a8b9c0d1"
+  ],
+  "live": true
+}
+
+Errors: API_KEY_INVALID (401), IMPORT_OFF (403), IMPORT_INVALID (400), IMPORT_TOO_LARGE (413), BLOCK_NOT_FOUND (404), DOC_TOO_LARGE (413), CONFLICT (409), ROOM_UNAVAILABLE (503), HOST_UNAVAILABLE (502)
 
 Example:
-curl -s -X POST "https://canvas.example.com/v1/files/doc_1/import" \
+curl -s -X POST "https://canvas.example.com/v1/files/doc_1/import?format=md&author=u_42" \
   -H "X-OpenCanvas-Host: acme" \
-  -H "X-OpenCanvas-Key: $OC_API_KEY"
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  --data-binary @notes.md
 
 ## Convert (0.1)
 
@@ -6971,7 +7819,24 @@ POST /v1/convert (operationId legacyConvert)
 
 0.1 route, kept through 0.x with its answers and `{error:{code,message}}` errors. Successor: `/api/v1/convert` (sent in `Link: rel="successor-version"`, with `Deprecation`).
 
+Parameters:
+- from (query, string, required): 
+- to (query, string, required): 
+
+Request body (application/octet-stream), example:
+<h1>Hello</h1><p>From <strong>HTML</strong>.</p>
+
+Response 200 (application/octet-stream), example:
+# Hello
+
+From **HTML**.
+
+
+Errors: API_KEY_INVALID (401), FORMAT_UNSUPPORTED (404/400), INPUT_INVALID (400), PDF_RENDERER_NOT_CONFIGURED (501)
+
 Example:
-curl -s -X POST "https://canvas.example.com/v1/convert" \
+curl -s -X POST "https://canvas.example.com/v1/convert?from=html&to=md" \
   -H "X-OpenCanvas-Host: acme" \
-  -H "X-OpenCanvas-Key: $OC_API_KEY"
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  --data-binary @page.html \
+  -o canvas.md

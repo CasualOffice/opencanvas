@@ -541,7 +541,8 @@ e-mail addresses. Errors are tool results with `isError: true` and a `code`.
 
 ## 7b. Headless API v1 (HAPI, ADR-041; `[host.flags] api_v1 = true`)
 
-The supported API for programs: bots, integrations, back-office jobs. It is described by an
+The supported API for programs: bots, integrations, back-office jobs. The website has the full
+reference, generated from the OpenAPI document: [API reference](https://canvas.casualoffice.org/api/index.html). It is described by an
 OpenAPI 3.1 document served at `GET /api/v1/openapi.json` (checked in as
 `crates/oc-server/api/openapi.json`; a contract test keeps it and the router identical). Turn it on
 per host with `[host.flags] api_v1 = true` (off by default in 0.1.2; otherwise every

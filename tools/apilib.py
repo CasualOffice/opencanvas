@@ -137,6 +137,31 @@ def legacy_example(entry: dict) -> dict:
     return {"error": {"code": entry["code"], "message": entry["detail"]}}
 
 
+def check_examples(spec: dict) -> list[str]:
+    """Every example the reference shows, against its schema (also tools/check-openapi.py)."""
+    errs = []
+    for o in operations(spec):
+        op = o["op"]
+        for p in params(spec, op):
+            if "example" in p:
+                errs += [f"{o['id']} parameter {p['name']}: {e}" for e in validate(p["example"], p.get("schema") or {}, spec)]
+        _ct, media, _r = request_media(spec, op)
+        if media is not None:
+            has, val = media_example(media)
+            if has:
+                errs += [f"{o['id']} request: {e}" for e in validate(val, media.get("schema") or {}, spec)]
+        for code, res, _comp in responses(spec, op):
+            for _ct2, m in (res.get("content") or {}).items():
+                has, val = media_example(m)
+                if has:
+                    errs += [f"{o['id']} {code}: {e}" for e in validate(val, m.get("schema") or {}, spec)]
+    problem = spec["components"]["schemas"]["Problem"]
+    for e in spec.get("x-opencanvas-error-codes", []):
+        if e["status"]:
+            errs += [f"error {e['code']}: {x}" for x in validate(problem_example(e), problem, spec)]
+    return errs
+
+
 # ---- A validator for the schema subset the document uses ------------------------------
 
 _TYPES = {
