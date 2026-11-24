@@ -116,6 +116,9 @@ async fn dashboard_series_are_exported() {
         "# TYPE oc_draining gauge\noc_draining 0\n",
         "# TYPE oc_commit_outbox_pending gauge\noc_commit_outbox_pending 1\n",
         "# TYPE process_start_time_seconds gauge",
+        // WH-01: the dashboard's "Webhooks" row (series appear once a delivery is attempted).
+        "# TYPE oc_webhook_deliveries_total counter",
+        "# TYPE oc_webhook_delivery_seconds histogram",
     ];
     let deadline = Instant::now() + Duration::from_secs(30);
     let text = loop {

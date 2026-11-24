@@ -1214,6 +1214,52 @@ part, operation or `API_OFF`, `409` conflict or confirmation, `412` a stale `ifM
 `{"error":{"code","message"}}` shape. They now carry `Deprecation: @1795478400` (RFC 9745,
 2026-11-24) and `Link: </api/v1/…>; rel="successor-version"`; they are retired in v0.3.
 
+## 7c. Webhooks (WH-01, ADR-056; `[host.webhooks]`)
+
+OpenCanvas POSTs the change events of §7b to one URL of yours, so you can react without holding
+a stream open (index a saved file, notify on a comment). Off unless the host entry has a
+`[host.webhooks]` table:
+
+```toml
+[host.webhooks]
+url          = "https://host.example.com/opencanvas/hooks"  # must be on your callback_base origin
+events       = ["saved", "commented", "mentioned"]          # or ["*"]; see the §7b event table
+# secret     = "env:OC_WEBHOOK_SECRET"                      # default: callback_secret, else jwt_secret
+# max_attempts = 12                                         # 1-20
+```
+
+**Request.** `POST <url>` with the event as the body (`{"id","type","fileId","at","data"}`, the
+same JSON as the events stream: ids, user ids, versions and counts, never document text) and the
+headers `Content-Type: application/json`, `X-OpenCanvas-Event: <type>`,
+`X-OpenCanvas-Event-Id: <id>`, `Idempotency-Key: <id>`, `X-OpenCanvas-Delivery-Attempt: <n>` and
+`X-OpenCanvas-Signature: t=<ts>,v1=<hex>,v2=<hex>`, signed exactly like callbacks (§5): verify
+`v2` = HMAC-SHA256(secret, `"<ts>.POST.<path?query>.<body>"`) in constant time and reject
+timestamps more than 5 minutes off. `<ts>` is the time of the attempt, so a retry carries a new
+signature. No bearer token is sent.
+
+**Delivery.** Answer any `2xx` quickly (10 s timeout) and do the work afterwards. Network errors,
+timeouts, `408`, `425`, `429` and `5xx` are retried after 10 s, 30 s, 1 min, 5 min, 15 min, 30 min,
+1 h, 2 h, 4 h, 8 h, then every 12 h (a longer `Retry-After` in seconds, up to 12 h, wins), until
+`max_attempts` (default 12, about a day); then the event is dropped (`gave_up` in the metrics).
+Any other `3xx` or `4xx` drops it at once: redirects are never followed. Delivery is
+**at least once**: deduplicate by `Idempotency-Key`. Order is not guaranteed across retries; use
+`at` and the id (a ULID) to order events of one file. Events are written to a database outbox
+(`webhook_outbox`) by the server that runs the file's live room before they are sent, so they
+survive restarts and are sent by exactly one server of a cluster; an event can be lost only if
+that server dies in the moment between the change and the outbox write. Webhooks need a database
+(SQLite, MySQL or MariaDB): with Redis-only storage the server refuses to start with
+`[host.webhooks]`.
+
+**Where it may point (SSRF).** The URL must be on the same origin (scheme, host, port) as your
+`callback_base`; anything else stops the server at startup and is refused again before every
+delivery. With `OC_CALLBACK_BASE_OVERRIDE`, a URL on the configured origin is sent through the
+override, like callbacks. To receive webhooks on another domain, relay them from your callback
+origin.
+
+**Metrics.** `oc_webhook_deliveries_total{host,result}` (`ok`, `retry`, `rejected`, `gave_up`,
+`refused`) and `oc_webhook_delivery_seconds{host}` (time of one attempt), on the OPS-01
+dashboard's "Webhooks" row.
+
 ## 8. Lifecycle & guarantees
 
 - **One live room per (host, file).** Users who open the same file join the
@@ -3197,6 +3243,8 @@ Metrics: `oc_ai_requests_total{host,provider,model,outcome}`, `oc_ai_tokens_tota
 | `oc_host_callbacks_total` | counter | `host`, `op`, `result` | `result` = `ok`, `conflict`, `4xx`, `5xx`, `unreachable`, `error` |
 | `oc_export_seconds` | histogram | `format` | One export render (PDF includes Gotenberg) |
 | `oc_exports_total` | counter | `format`, `result` (`ok`, `error`) | Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`) |
+| `oc_webhook_deliveries_total` | counter | `host`, `result` | Webhook attempts (WH-01): `ok`, `retry`, `rejected` (3xx/4xx), `gave_up` (out of attempts), `refused` (URL not allowed) |
+| `oc_webhook_delivery_seconds` | histogram | `host` | Time of one webhook attempt |
 | `oc_awareness_broadcasts_total` / `oc_awareness_coalesced_total` | counter | | Presence frames fanned out / parked on a full room inbox |
 | `oc_schema_warnings_total` | counter | | Unknown content kept on read/write |
 | `oc_ai_requests_total` | counter | `host`, `provider`, `model`, `outcome` | AI model calls (AI on only) |

@@ -168,6 +168,89 @@ async fn outbox_and_notification_ids_are_idempotency_keys() {
     }
 }
 
+/// WH-01 (ADR-056): `webhook_outbox` on SQLite and MySQL/MariaDB (migration 0009): queued once
+/// per event id, due by time, claimed by exactly one worker, retried, finished, purged.
+/// Redis-only storage has no outbox and says so.
+#[tokio::test]
+async fn webhook_outbox_contract() {
+    use oc_server::store::WebhookRow;
+    for (b, store) in backends().await {
+        let id = uid("ev");
+        let row = WebhookRow {
+            id: id.clone(),
+            host_id: "sample".into(),
+            room_id: "r_1".into(),
+            file_id: "f".repeat(600),
+            event_type: "saved".into(),
+            payload: format!("{{\"id\":\"{id}\",\"data\":{{\"version\":\"7\"}}}}"),
+            attempts: 0,
+            next_try_at: 1_000,
+        };
+        if b == "redis" {
+            let err = store.webhook_insert(&row, 1_000).await.unwrap_err();
+            assert!(err.to_string().contains("need a database"), "{err}");
+            continue;
+        }
+        assert!(store.webhook_insert(&row, 1_000).await.unwrap(), "{b}");
+        assert!(
+            !store.webhook_insert(&row, 1_000).await.unwrap(),
+            "{b}: once per id"
+        );
+        assert!(
+            !store
+                .webhook_due(999, 1_000)
+                .await
+                .unwrap()
+                .iter()
+                .any(|r| r.id == id),
+            "{b}: not due yet"
+        );
+        let due = store.webhook_due(1_000, 1_000).await.unwrap();
+        let got = due.iter().find(|r| r.id == id).expect("due");
+        assert_eq!(got, &row, "{b}: read back as written (long file id too)");
+        assert!(
+            store.webhook_claim(&id, 1_000, 61_000).await.unwrap(),
+            "{b}"
+        );
+        assert!(
+            !store.webhook_claim(&id, 1_000, 61_000).await.unwrap(),
+            "{b}: a second claimant loses"
+        );
+        store.webhook_retry(&id, 11_000, 503).await.unwrap();
+        let s = store.webhook_state(&id).await.unwrap().unwrap();
+        assert_eq!(
+            (s.status.as_str(), s.attempts, s.next_try_at, s.last_status),
+            ("pending", 1, 11_000, 503),
+            "{b}"
+        );
+        assert!(store.webhook_pending().await.unwrap() >= 1, "{b}");
+        store
+            .webhook_finish(&id, "done", 204, 12_000)
+            .await
+            .unwrap();
+        let s = store.webhook_state(&id).await.unwrap().unwrap();
+        assert_eq!(
+            (s.status.as_str(), s.attempts, s.last_status),
+            ("done", 2, 204),
+            "{b}"
+        );
+        assert!(
+            !store
+                .webhook_due(i64::MAX, 1_000)
+                .await
+                .unwrap()
+                .iter()
+                .any(|r| r.id == id),
+            "{b}: finished rows are never due"
+        );
+        store.webhook_purge(1_001).await.unwrap();
+        assert!(
+            store.webhook_state(&id).await.unwrap().is_none(),
+            "{b}: purged"
+        );
+    }
+}
+
 #[tokio::test]
 async fn outbox_claim_is_a_lease_held_by_one_node() {
     for (b, s) in backends().await {
