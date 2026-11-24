@@ -69,8 +69,9 @@ export const DIAGRAM_CSS = `
 .ocdg-lp{display:flex;flex-direction:column;min-height:0;flex:1}
 .ocdg-search{display:flex;align-items:center;gap:.375rem;margin:.75rem .75rem .5rem;height:2rem;padding:0 .5rem;border:1px solid var(--line-2);border-radius:.5rem;color:var(--fg-2);background:var(--app)}
 .ocdg-search:focus-within{border-color:var(--accent);outline:2px solid var(--accent-ring)}
-.ocdg-search input{flex:1;min-width:0;border:0;background:none;outline:none;font:inherit;font-size:.8125rem;color:var(--fg)}
+.ocdg-search input{flex:1;min-width:0;align-self:stretch;height:auto;padding:0;border:0;background:none;outline:none;font:inherit;font-size:.8125rem;color:var(--fg)}
 .ocdg-search input::-webkit-search-cancel-button{display:none}
+.ocdg .ocdg-search input:focus-visible{outline:none}
 .ocdg-search kbd{font-family:var(--font);font-size:.6875rem;color:var(--fg-2);border:1px solid var(--line-2);border-radius:.25rem;padding:0 .3125rem;line-height:1.1rem}
 .ocdg-lscroll{overflow:auto;flex:1;padding:0 .5rem .75rem}
 .ocdg-lib{margin-top:.25rem}

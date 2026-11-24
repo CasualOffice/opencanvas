@@ -6,7 +6,7 @@
 // Shapes / Outline tabs. Every tile is registry data (libraries.ts); nothing here defines a shape.
 // The Icons library (DGM-17, frames 1a-1e): built-in generic icons (icons.ts), searched with the
 // shapes; a product we ship no logo for gets Add your own icon and generic alternatives.
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as RKE, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as RKE, type ReactNode } from "react";
 import {
   Boxes, ChartColumn, ChevronRight, GitBranch, House, MoveRight, Server, TriangleAlert, Zap, GitFork, History, LayoutTemplate, Library as LibraryIcon, ListTree, Network, PanelLeftClose, PanelLeftOpen, Search, Shapes as ShapesIcon, Square, Table, Upload, Users, Workflow, X, type LucideIcon,
 } from "lucide-react";
@@ -118,9 +118,25 @@ export function searchShapes(q: string, index: readonly IndexEntry[] = searchInd
 /** A small drawing of the kind: its outline path or its base type. */
 export function Preview({ d }: { d: ResolvedDescriptor }) {
   const w = d.look?.w ?? (d.base === "sticky" ? 150 : 140), h = d.look?.h ?? (d.base === "sticky" ? 110 : 70);
-  // Drawn in a 32 × 24 box: the outline stays readable at 24 px (non-scaling strokes).
-  const k = Math.min(30 / w, 22 / h);
-  const pw = w * k, ph = h * k;
+  // Drawn in a 32 × 24 box: the outline stays readable at 24 px (non-scaling strokes). It is
+  // scaled from what it actually draws (its bounding box, in the 0..100 drawing units), so a small
+  // control fills the tile and an outline that reaches past its box is not clipped (UX-DGM-01).
+  const ref = useRef<SVGGElement>(null);
+  const [bb, setBb] = useState<[number, number, number, number]>([0, 0, 100, 100]);
+  useLayoutEffect(() => {
+    const g = ref.current;
+    if (!g || typeof g.getBBox !== "function") return;
+    try {
+      const r = g.getBBox();
+      if (r.width > 0 || r.height > 0) setBb((o) => (o[0] === r.x && o[1] === r.y && o[2] === r.width && o[3] === r.height ? o : [r.x, r.y, r.width, r.height]));
+    } catch {
+      // Not rendered (display:none): keep the shape's box.
+    }
+  }, [d.kind]);
+  const ax = w / 100, ay = h / 100;
+  const k = Math.min(30 / Math.max(bb[2] * ax, 1e-6), 22 / Math.max(bb[3] * ay, 1e-6));
+  const sx = ax * k, sy = ay * k;
+  const ox = 16 - (bb[0] + bb[2] / 2) * sx, oy = 12 - (bb[1] + bb[3] / 2) * sy;
   const tone = d.look?.tone ?? (d.base === "sticky" ? "amber" : undefined);
   const common = { fill: tone ? `var(--${tone}-bg)` : "var(--app)", stroke: tone ? `var(--${tone}-fg)` : "var(--fg-2)", strokeWidth: 1.25, vectorEffect: "non-scaling-stroke" as const, strokeLinejoin: "round" as const };
   if (d.base === "text") {
@@ -132,7 +148,7 @@ export function Preview({ d }: { d: ResolvedDescriptor }) {
   }
   return (
     <svg className="ocdg-pv" width={32} height={24} viewBox="0 0 32 24" aria-hidden="true">
-      <g transform={`translate(${(32 - pw) / 2} ${(24 - ph) / 2}) scale(${pw / 100} ${ph / 100})`}>
+      <g ref={ref} transform={`translate(${ox} ${oy}) scale(${sx} ${sy})`}>
         {d.look?.icon && iconById(d.look.icon) ? (
           <>
             <rect width={100} height={100} rx={12} {...common} />
