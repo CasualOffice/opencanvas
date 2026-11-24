@@ -22,6 +22,7 @@ import { exportBoardPng, exportBoardSvg } from "./export";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
+import { lodBucket, lodGroups, lodOn, type LodGroup } from "./lod";
 import { AvoidRouter, RouteScheduler } from "./routing";
 import { bindingTo, nearestPort, portPoint, portsOf } from "./ports";
 import { CONTAINER, isContainer } from "./kinds";
@@ -881,7 +882,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (e.pointerType === "mouse" && e.button !== 0 && e.button !== 1) return;
     const [x, y] = toWorld(e.clientX, e.clientY);
     const target = (e.target as Element).closest?.("[data-s]") as Element | null;
-    const sid = target?.getAttribute("data-s") ?? null;
+    // Zoomed out (LOD) the shapes have no elements of their own: hit-test by position.
+    const sid = target?.getAttribute("data-s") ?? (lodOn(S.current.view.z, S.current.shapes.length) ? scene.hitAt([x, y], 6 / S.current.view.z) : null);
     const t = S.current.tool;
     const cap = () => {
       try { svg.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
@@ -1234,7 +1236,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // Pointer capture retargets click/dblclick to the <svg>, so hit-test by position.
     const hit = typeof document.elementFromPoint === "function" ? document.elementFromPoint(e.clientX, e.clientY) : null;
     const target = (hit ?? (e.target as Element)).closest?.("[data-s]");
-    const sid = target?.getAttribute("data-s");
+    const sid = target?.getAttribute("data-s") ?? (lodOn(S.current.view.z, S.current.shapes.length) ? scene.hitAt(toWorld(e.clientX, e.clientY), 6 / S.current.view.z) : null);
     const s = sid ? S.current.shapes.find((q) => q.id === sid) : null;
     if (s) {
       // On a connector: double-click a waypoint to remove it, the line to add one there.
@@ -1621,12 +1623,38 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   // Viewport culling for big boards (selected / edited shapes always render).
   const [W, H] = size;
   // Through the scene index: the same shapes, in the same order, as filtering the board.
+  // Level of detail (DGM-19): zoomed out on a big board, every shape is drawn by the grouped
+  // paths of <LodLayer> (memoised on the shapes and a zoom bucket, so a pan re-renders nothing);
+  // only the selected and edited shapes keep their full views, above it.
+  const lod = lodOn(z, shapes.length);
+  const zb = lod ? lodBucket(z) : 0;
   const visible = useMemo(() => {
+    if (lod) {
+      const keep = new Set(editing ? [...sel, editing.id] : sel);
+      return [...keep].map((id) => byId.get(id)).filter((s): s is Shape => !!s).sort((a, b) => scene.posOf(a.id)! - scene.posOf(b.id)!);
+    }
     if (shapes.length <= CULL_AT || !W) return shapes;
     const m = 200 / z;
     const vb: Box = [-tx / z - m, -ty / z - m, (W - tx) / z + m, (H - ty) / z + m];
     return scene.visible(vb, editing ? [...sel, editing.id] : sel);
-  }, [shapes, scene, W, H, tx, ty, z, sel, editing]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapes, scene, W, H, tx, ty, z, sel, editing, lod]);
+
+  // Where the board SVG sits in the root (the LOD underlay is placed there).
+  const lodAt: [number, number] = (() => {
+    const r = rootRef.current?.getBoundingClientRect(), v = svgRef.current?.getBoundingClientRect();
+    return lod && r && v ? [v.left - r.left, v.top - r.top] : [0, 0];
+  })();
+  const background: ReactNode = dgm ? (
+    dp.grid ? (
+      <g data-grid="" pointerEvents="none">
+        {dp.gridSize * z >= 6 ? <rect width="100%" height="100%" fill={`url(#${dots}-g)`} /> : null}
+        <rect width="100%" height="100%" fill={`url(#${dots}-G)`} />
+      </g>
+    ) : null
+  ) : (
+    <rect width="100%" height="100%" fill={`url(#${dots})`} />
+  );
 
   let selection: ReactNode = null;
   if (selList.length && !editing) {
@@ -1936,6 +1964,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ? "Tab moves through shapes. Arrow keys move the selection, Alt with arrows resizes, Enter edits text. Pick a tool with its letter and press Enter to place it. Control C, X, V, D copy, cut, paste and duplicate. On a connector, W adds a waypoint, Alt with left or right arrow picks one, arrows move it, Delete removes it. Shift 1 fits the board, Shift 2 zooms to the selection, M shows the minimap."
           : "Tab moves through shapes. Use the zoom buttons or Control plus and minus to zoom. Shift 1 fits the board, Shift 2 zooms to the selection, M shows the minimap."}
       </span>
+      {lod ? (
+        // Zoomed out (DGM-19): the background and the level-of-detail layer sit under the
+        // (then transparent) board SVG, in their own composited layer moved by a CSS transform,
+        // so a pan does not raster the whole board again (ADR-046 note).
+        <div aria-hidden="true" style={{ position: "absolute", left: lodAt[0], top: lodAt[1], width: W, height: H, overflow: "hidden", zIndex: -1, pointerEvents: "none" }}>
+          <svg width={W} height={H} style={{ position: "absolute", left: 0, top: 0 }}>{background}</svg>
+          <LodLayer shapes={shapes} zb={zb} view={view} />
+        </div>
+      ) : null}
       <svg
         ref={svgRef}
         className="ocbd-svg"
@@ -1974,16 +2011,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             </marker>
           ))}
         </defs>
-        {dgm ? (
-          dp.grid ? (
-            <g data-grid="" pointerEvents="none">
-              {dp.gridSize * z >= 6 ? <rect width="100%" height="100%" fill={`url(#${dots}-g)`} /> : null}
-              <rect width="100%" height="100%" fill={`url(#${dots}-G)`} />
-            </g>
-          ) : null
-        ) : (
-          <rect width="100%" height="100%" fill={`url(#${dots})`} />
-        )}
+        {lod ? null : background}
         <g transform={`translate(${tx} ${ty}) scale(${z})`}>
           {visible.map((s) => (
             <ShapeView
@@ -2231,6 +2259,38 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 }
 
 /* ------------------------------------------------------------ minimap */
+
+/**
+ * The zoomed-out board (DGM-19): one path per style group, no text, not hit-tested (the board
+ * hit-tests by position). Drawn at the zoom bucket `zb` into an SVG the size of the board's
+ * box; the view moves and scales it (by z / zb, within 10 %) with a CSS transform, which the
+ * compositor applies without rastering the paths again.
+ */
+function LodLayer({ shapes, zb, view }: { shapes: Shape[]; zb: number; view: View }) {
+  const { groups, box } = useMemo(() => ({ groups: lodGroups(shapes, zb, STICKY, SWATCH), box: unionBox(shapes) ?? ([0, 0, 0, 0] as Box) }), [shapes, zb]);
+  const [x0, y0, x1, y1] = box;
+  const k = view.z / zb;
+  return (
+    <svg
+      data-lod=""
+      width={Math.ceil((x1 - x0) * zb) + 4}
+      height={Math.ceil((y1 - y0) * zb) + 4}
+      style={{ position: "absolute", left: 0, top: 0, transformOrigin: "0 0", willChange: "transform", transform: `translate(${view.tx + (x0 * zb - 2) * k}px, ${view.ty + (y0 * zb - 2) * k}px) scale(${k})` }}
+    >
+      <LodPaths groups={groups} zb={zb} x0={x0} y0={y0} />
+    </svg>
+  );
+}
+
+const LodPaths = memo(function LodPaths({ groups, zb, x0, y0 }: { groups: LodGroup[]; zb: number; x0: number; y0: number }) {
+  return (
+    <g transform={`translate(2 2) scale(${zb}) translate(${-x0} ${-y0})`}>
+      {groups.map((g) => (
+        <path key={g.key} d={g.d} fill={g.fill} stroke={g.stroke} strokeWidth={g.width || undefined} strokeLinejoin="round" />
+      ))}
+    </g>
+  );
+});
 
 const MM = { w: 200, h: 132, pad: 8 };
 

@@ -12,6 +12,8 @@
 //   PERF_SIZES=1000,5000,10000   node counts (edges = 1.5 × nodes, bench/fixtures.ts)
 //   PERF_LABEL=<name>  results/frames-<name>.json
 //   PERF_TRACE=1       also save a Chromium performance trace per scenario under results/traces
+//   PERF_ONLY=fit      only the fit-view scenarios (panFit, zoomFit, drag1Fit)
+//   PERF_SHOT=1        also save a screenshot of the fit view under results/shots
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({

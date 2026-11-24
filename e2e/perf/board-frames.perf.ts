@@ -43,6 +43,8 @@ const DIST = path.resolve(process.env.PERF_DIST ?? path.join(ROOT, "web/packages
 const OUT = path.join(ROOT, "e2e/perf/results");
 const TRACE = process.env.PERF_TRACE === "1";
 const PACE = 8;
+/** PERF_ONLY=fit runs only the fit-view scenarios (panFit, zoomFit, drag1Fit): the LOD numbers (DGM-19). */
+const ONLY_FIT = process.env.PERF_ONLY === "fit";
 
 const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".json": "application/json", ".woff2": "font/woff2", ".woff": "font/woff", ".png": "image/png", ".ico": "image/x-icon", ".map": "application/json", ".webmanifest": "application/manifest+json" };
 
@@ -295,8 +297,10 @@ test("DGM-10 board frame times", async ({ browser }) => {
       expect(Math.abs(v1.z - 1)).toBeLessThan(0.01);
       const dom100 = await page.locator(".ocbd-full g[data-s]").count();
 
-      const row: Record<string, unknown> = { nodes, edges: list.length - nodes, fillMs: r2(fill.ms), openMs, heapLoadedMB: heapLoaded, fitZoom: r2(fitView.z), domShapesFit: domFit, domShapes100: dom100 };
+      const domNodes = () => page.evaluate(() => document.querySelectorAll(".ocbd-full svg.ocbd-svg *").length);
+      const row: Record<string, unknown> = { nodes, edges: list.length - nodes, fillMs: r2(fill.ms), openMs, heapLoadedMB: heapLoaded, fitZoom: r2(fitView.z), domShapesFit: domFit, domShapes100: dom100, domNodes100: await domNodes() };
 
+      if (!ONLY_FIT) {
       row.pan = await measure(browser, page, "pan", nodes, panBy);
 
       row.zoom = await measure(browser, page, "zoom", nodes, async () => {
@@ -374,18 +378,41 @@ test("DGM-10 board frame times", async ({ browser }) => {
           { n: nodes, pad },
         ),
       );
+      }
       // The whole board on screen (fit view): every shape in the viewport is drawn.
-      // Shift+1 fits the board again.
+      // Shift+1 fits the board again (focus the board first: with PERF_ONLY=fit nothing clicked it).
+      await page.locator(".ocbd.ocbd-full").focus();
       await page.keyboard.press("Shift+Digit1");
       await frames(page, 4);
       expect(Math.abs((await view(page)).z - fitView.z)).toBeLessThan(0.01);
-      const rowFit: Record<string, unknown> = {};
+      if (process.env.PERF_SHOT === "1") {
+        fs.mkdirSync(path.join(OUT, "shots"), { recursive: true });
+        await page.screenshot({ path: path.join(OUT, "shots", `${LABEL}-${nodes}-fit.png`) });
+      }
+      const rowFit: Record<string, unknown> = { domNodesFit: await domNodes() };
       rowFit.panFit = await measure(browser, page, "panFit", nodes, panBy);
+      // Zoom at the fit view: 20 Ctrl+wheel steps in (to ~2.5 × the fit zoom) and back out.
+      rowFit.zoomFit = await measure(browser, page, "zoomFit", nodes, async () => {
+        await page.mouse.move(cx, cy);
+        await page.keyboard.down("Control");
+        for (let i = 0; i < 40; i++) {
+          await page.mouse.wheel(0, i < 20 ? -18.5 : 18.5);
+          await page.waitForTimeout(PACE);
+        }
+        await page.keyboard.up("Control");
+      });
+      await page.keyboard.press("Shift+Digit1");
+      await frames(page, 4);
       {
         const cols = Math.ceil(Math.sqrt(nodes)), pad = String(nodes).length;
         const mid = "n" + String(Math.floor(Math.ceil(nodes / cols) / 2) * cols + Math.floor(cols / 2) - 1).padStart(pad, "0");
-        const p = await grab(page, mid);
-        if (!p) throw new Error("no grabbable node at fit");
+        // Zoomed out the board draws level of detail (DGM-19): no element per shape, so the
+        // node's centre comes from its geometry and the view transform.
+        let p = await grab(page, mid);
+        if (!p) {
+          const sh = list.find((q) => q.id === mid)!, v = await view(page);
+          p = { x: svg.x + v.tx + ((sh.x ?? 0) + (sh.w ?? 0) / 2) * v.z, y: svg.y + v.ty + ((sh.y ?? 0) + (sh.h ?? 0) / 2) * v.z };
+        }
         rowFit.drag1Fit = await measure(browser, page, "drag1Fit", nodes, () => drag(p, 1));
       }
 

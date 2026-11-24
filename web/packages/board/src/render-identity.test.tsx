@@ -72,7 +72,8 @@ describe("incremental board rendering", { timeout: 240_000 }, () => {
     Object.defineProperty(SVGElement.prototype, "clientHeight", { configurable: true, get() { return (this as Element).classList.contains("ocbd-svg") ? 700 : 0; } });
     const fx = makeFixture({ nodes: 1200, seed: 21 });
     const live = await mount(fx.doc, fx.boardId);
-    const zoomIn = (h: HTMLElement) => act(async () => void h.querySelector("svg.ocbd-svg")!.dispatchEvent(new WheelEvent("wheel", { deltaY: -500, ctrlKey: true, clientX: 300, clientY: 200, bubbles: true, cancelable: true })));
+    // From the fit view (~11 %) to ~80 %: culled, above the level-of-detail zoom (DGM-19).
+    const zoomIn = (h: HTMLElement) => act(async () => void h.querySelector("svg.ocbd-svg")!.dispatchEvent(new WheelEvent("wheel", { deltaY: -800, ctrlKey: true, clientX: 300, clientY: 200, bubbles: true, cancelable: true })));
     await edits(fx, 90, 14000);
     // Same view on both: fit (Shift+1), then the same zoom step.
     await act(async () => void live.host.querySelector(".ocbd")!.dispatchEvent(new KeyboardEvent("keydown", { key: "!", code: "Digit1", shiftKey: true, bubbles: true, cancelable: true })));
