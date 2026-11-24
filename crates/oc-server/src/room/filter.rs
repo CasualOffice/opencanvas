@@ -137,6 +137,88 @@ pub fn removes_ext_block(doc: &Doc, update: &[u8]) -> bool {
     ext_block_count(&txn) < before
 }
 
+/// Schema findings of every installed SDK block in a `document.json`, as
+/// `"<block>|<attrs or data>|<path>|<message>"` (the block by `blockId`, else `dataId`, else its
+/// position). Blocks of types that are not installed, or written by a newer package, are not
+/// checked (MOD-02, BSDK-05).
+fn ext_findings(doc: &serde_json::Value, reg: &oc_model::ext::Registry) -> HashSet<String> {
+    fn walk(
+        nodes: &serde_json::Value,
+        at: &str,
+        ext: &serde_json::Value,
+        reg: &oc_model::ext::Registry,
+        out: &mut HashSet<String>,
+        depth: usize,
+    ) {
+        let Some(nodes) = nodes.as_array() else {
+            return;
+        };
+        for (i, n) in nodes.iter().enumerate() {
+            let path = format!("{at}/{i}");
+            if n["type"] == oc_model::ext::NODE {
+                let view = oc_model::ext::view(reg, n, ext);
+                if let (Some(m), Some((attrs, data))) = (&view.manifest, &view.current) {
+                    let a = oc_model::ext::attrs_of(n);
+                    let key = a["blockId"]
+                        .as_str()
+                        .or(a["dataId"].as_str())
+                        .unwrap_or(&path);
+                    for (w, p, msg) in oc_model::ext::schema_findings(m, attrs, data) {
+                        out.insert(format!("{key}|{w}|{p}|{msg}"));
+                    }
+                }
+            }
+            if depth < 64 {
+                walk(&n["content"], &path, ext, reg, out, depth + 1);
+            }
+        }
+    }
+    let mut out = HashSet::new();
+    walk(&doc["content"], "", &doc["ext"], reg, &mut out, 0);
+    out
+}
+
+/// SEC-46: true when `update` leaves an installed SDK block whose attrs or data break its
+/// package's schema, and that finding was not there before (data a newer or older package
+/// wrote stays editable around). The same check as API, MCP and `.ocanvas` writes (BSDK-01);
+/// the editor validates before writing, so only a forged or broken client is refused. Cheap
+/// when no package is installed, or when the document has no SDK block and the update adds
+/// none; otherwise O(document), like the comment-role check (SEC-23). Updates that cannot be
+/// decoded or fully integrated count as breaking it.
+pub fn breaks_ext_schema(doc: &Doc, update: &[u8]) -> bool {
+    let reg = oc_model::ext::installed();
+    if reg.is_empty() {
+        return false;
+    }
+    let tag = oc_model::ext::NODE.as_bytes();
+    if ext_block_count(&doc.transact()) == 0 && !update.windows(tag.len()).any(|w| w == tag) {
+        return false;
+    }
+    let Ok(update) = Update::decode_v1(update) else {
+        return true;
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return true;
+    }
+    {
+        let mut txn = scratch.transact_mut();
+        if txn.apply_update(update).is_err() {
+            return true;
+        }
+        txn.commit();
+    }
+    let after = ext_findings(&oc_model::doc_to_json(&scratch), &reg);
+    if after.is_empty() {
+        return false;
+    }
+    let before = ext_findings(&oc_model::doc_to_json(doc), &reg);
+    after.iter().any(|f| !before.contains(f))
+}
+
 /// True when `update` carries nothing the room does not already have. Read-only clients
 /// send their (empty or stale) state as sync step 2 on every connect; that is not a write.
 pub fn adds_nothing(doc: &Doc, update: &[u8]) -> bool {

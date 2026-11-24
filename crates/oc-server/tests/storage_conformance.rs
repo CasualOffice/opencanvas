@@ -16,6 +16,39 @@ fn kek() -> Option<Kek> {
     Some(Kek::from_b64(TEST_KEK).unwrap())
 }
 
+/// SEC-47: cluster nodes (or a rolling deploy) that start together on an empty database all
+/// start. Two nodes running the migrations at once made one fail with a duplicate migration
+/// row (seen on MariaDB 10.11), so a node stopped at start-up.
+#[tokio::test]
+async fn nodes_starting_together_on_an_empty_database_all_start() {
+    let mut urls = vec![format!("sqlite://{}?mode=rwc", temp_db().display())];
+    if let Ok(url) = std::env::var("OC_TEST_MYSQL_URL") {
+        sqlx::any::install_default_drivers();
+        let name = format!("oc_mig_{}", ulid::Ulid::new().to_string().to_lowercase());
+        let admin = sqlx::AnyPool::connect(&url).await.unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+        let base = url.rsplit_once('/').unwrap().0;
+        urls.push(format!("{base}/{name}"));
+    }
+    for url in urls {
+        let starts: Vec<_> = (0..8)
+            .map(|_| {
+                let url = url.clone();
+                tokio::spawn(async move { Store::connect(&url, kek()).await.map(|_| ()) })
+            })
+            .collect();
+        for s in starts {
+            s.await
+                .unwrap()
+                .map_err(|e| format!("{url}: {e:#}"))
+                .unwrap();
+        }
+    }
+}
+
 async fn backends() -> Vec<(String, Store)> {
     let mut out = vec![(
         "sqlite".to_string(),

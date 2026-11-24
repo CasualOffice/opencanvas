@@ -37,6 +37,9 @@ pub const TIMEOUT: Duration = Duration::from_secs(10);
 pub const KEEP_MS: i64 = 7 * 86_400_000;
 /// Deliveries attempted at once by one node.
 pub const PARALLEL: usize = 8;
+/// Rows one sweep claims: few enough that the last is sent before its claim ends, even when
+/// every attempt runs to [`TIMEOUT`] (SEC-48; a lapsed claim let another node send it again).
+pub const SWEEP_ROWS: i64 = 40;
 
 /// `[host.webhooks]`, checked.
 #[derive(Debug, Clone, PartialEq)]
@@ -413,6 +416,15 @@ pub fn spawn_writer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sweep_is_sent_before_its_claims_end() {
+        let rounds = (SWEEP_ROWS as u128).div_ceil(PARALLEL as u128);
+        assert!(
+            rounds * TIMEOUT.as_millis() < CLAIM_MS as u128,
+            "{rounds} rounds of {TIMEOUT:?} outlast a {CLAIM_MS} ms claim"
+        );
+    }
 
     fn host(base: &str, hooks: &str) -> HostConfig {
         let mut h: HostConfig = toml::from_str(&format!(

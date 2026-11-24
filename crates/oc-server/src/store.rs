@@ -245,12 +245,27 @@ impl Store {
             });
         }
         let pool = opts.connect(url).await.context("connecting to database")?;
-        if sqlite {
-            SQLITE.run(&pool).await
-        } else {
-            MYSQL.run(&pool).await
+        // Nodes that start together on an empty database race on the migrations: the loser
+        // fails on the migration row the winner wrote (before running its SQL), or sees the
+        // winner's migration still marked unfinished. It waits and runs them again; by then
+        // they are applied (SEC-47). A database left dirty for good still fails, after ~30 s.
+        let mut attempt = 0;
+        loop {
+            let run = if sqlite {
+                SQLITE.run(&pool).await
+            } else {
+                MYSQL.run(&pool).await
+            };
+            match run {
+                Ok(()) => break,
+                Err(e) if attempt < 60 => {
+                    attempt += 1;
+                    tracing::info!(error = %e, attempt, "migrations raced another node; retrying");
+                    tokio::time::sleep(Duration::from_millis(250 + 250 * attempt.min(2))).await;
+                }
+                Err(e) => return Err(e).context("running migrations"),
+            }
         }
-        .context("running migrations")?;
         let write_lock = sqlite.then(|| Arc::new(tokio::sync::Mutex::new(())));
         let group = (sqlite && group_commit_enabled()).then(|| {
             let (tx, rx) = mpsc::unbounded_channel();

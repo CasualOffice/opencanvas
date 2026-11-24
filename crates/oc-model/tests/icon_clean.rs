@@ -124,3 +124,32 @@ fn the_output_passes_the_allow_list() {
         r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="https://x.example/a.png"/></svg>"#
     ));
 }
+
+/// SEC-50: usvg expands each `<use>` into a copy of its target. Six levels of ten uses each is
+/// about 70 elements in the file but millions of nodes once expanded. Such a file is refused
+/// before usvg sees it, and quickly.
+#[test]
+fn use_chains_that_expand_past_the_element_limit_are_refused() {
+    let mut body = String::from(r##"<defs><path id="l0" d="M0 0L1 1"/>"##);
+    for level in 1..=6 {
+        body.push_str(&format!("<g id=\"l{level}\">"));
+        for _ in 0..10 {
+            body.push_str(&format!("<use href=\"#l{}\"/>", level - 1));
+        }
+        body.push_str("</g>");
+    }
+    body.push_str(r##"</defs><use href="#l6"/><use xlink:href="#l6"/>"##);
+    let t = std::time::Instant::now();
+    let r = clean(&svg(&body));
+    let took = t.elapsed();
+    assert_eq!(r.unwrap_err().code, "too_many_elements");
+    assert!(took.as_millis() < 500, "took {took:?}");
+    // Uses that refer to each other through groups are refused, not followed forever.
+    let cycle = svg(r##"<g id="a"><use href="#b"/></g><g id="b"><use href="#a"/></g>"##);
+    assert!(clean(&cycle).is_err());
+    // A few plain uses are still fine.
+    let ok = svg(
+        r##"<defs><circle id="c" cx="4" cy="4" r="3"/></defs><use href="#c"/><use href="#c" x="10"/>"##,
+    );
+    assert!(clean(&ok).is_ok());
+}

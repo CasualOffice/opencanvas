@@ -1337,6 +1337,13 @@ impl Room {
             }
             return;
         }
+        // SEC-46: SDK block attrs and data are checked against the installed package's schema,
+        // as API, MCP and `.ocanvas` writes are (BSDK-01). A file saved with a broken block
+        // would no longer open.
+        if filter::breaks_ext_schema(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: an SDK block breaks its schema");
+            return self.deny(conn, "an SDK block does not match its schema");
+        }
         // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
         if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {
             return self.deny(conn, "icons are changed through the server");
@@ -1630,11 +1637,16 @@ impl Room {
                 };
                 let origin = format!("restore:{restore_id}:{author}");
                 // Only the latest restore per person stays undoable.
-                let mine = format!(":{author}");
-                self.ai_undo
-                    .retain(|o, _| !(o.starts_with("restore:") && o.ends_with(&mine)));
-                self.restore_until
-                    .retain(|o, _| !(o.starts_with("restore:") && o.ends_with(&mine)));
+                // Exactly `restore:<26-character id>:<author>`: user ids may contain `:`, so a
+                // suffix match would drop another person's entry (SEC-51).
+                let mine = |o: &str| {
+                    o.strip_prefix("restore:")
+                        .and_then(|r| r.get(26..))
+                        .and_then(|r| r.strip_prefix(':'))
+                        == Some(&*author)
+                };
+                self.ai_undo.retain(|o, _| !mine(o));
+                self.restore_until.retain(|o, _| !mine(o));
                 self.ai_track(&origin);
                 let changed = match self.apply_server_update(update, &origin, author).await {
                     Ok(c) => c,

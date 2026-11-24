@@ -13,7 +13,7 @@ use common::*;
 use jsonwebtoken::{EncodingKey, Header, encode};
 use oc_server::grant::Role;
 use serde_json::{Value, json};
-use yrs::{Transact, XmlFragment};
+use yrs::{Transact, Xml, XmlFragment};
 
 const API_KEY: &str = "test-api-key";
 
@@ -298,4 +298,114 @@ async fn an_editor_older_than_0_2_cannot_delete_sdk_blocks() {
     new.settle().await;
     assert_eq!(new.closed, None);
     assert!(!server_json(&state).await.to_string().contains("Keep me"));
+}
+
+/// SEC-46: the WebSocket is a write path like the API: a room update that leaves an installed
+/// SDK block breaking its schema is refused (docs/27 §3.5, docs/23 SDK-A1b). Blocks of types
+/// that are not installed are still kept as written.
+#[tokio::test]
+async fn room_updates_are_checked_against_the_block_schema() {
+    let (addr, state) = serve("ws").await;
+    let (s, out) = batch(&addr, json!([{"op": "append", "blocks": [
+        {"type": "extBlock", "attrs": {"blockId": "b_okr", "type": "srv.okr", "attrs": {"objective": "Valid"}},
+         "data": {"score": 1}}
+    ]}]))
+    .await;
+    assert_eq!(s, 200, "{out}");
+    let join = || {
+        Peer::join(&state, {
+            let mut g = grant("u_ws", Role::Edit);
+            g.ext_blocks = true;
+            g
+        })
+    };
+    let ext_el = |d: &yrs::Doc| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let t = d.transact();
+        (0..c.len(&t))
+            .find_map(|i| match c.get(&t, i) {
+                Some(yrs::XmlOut::Element(e)) if e.tag().as_ref() == "extBlock" => Some(e),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let any = |v: Value| oc_model::import::json_to_any(&v);
+
+    // Out-of-range attrs on the existing block.
+    let mut p = join().await;
+    p.settle().await;
+    p.edit(|d| {
+        let el = ext_el(d);
+        el.insert_attribute(
+            &mut d.transact_mut(),
+            "attrs",
+            any(json!({"objective": "Broken", "progress": 7})),
+        );
+    });
+    p.settle().await;
+    assert!(p.denied > 0, "an out-of-range attr is refused");
+    assert!(!server_json(&state).await.to_string().contains("Broken"));
+
+    // A new block that misses a required attr.
+    let mut p = join().await;
+    p.settle().await;
+    p.edit(|d| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let el = c.push_back(&mut t, yrs::XmlElementPrelim::empty("extBlock"));
+        el.insert_attribute(&mut t, "type", "srv.okr");
+        el.insert_attribute(&mut t, "attrs", any(json!({"note": "Missing objective"})));
+    });
+    p.settle().await;
+    assert!(p.denied > 0, "a block without its required attr is refused");
+    assert!(
+        !server_json(&state)
+            .await
+            .to_string()
+            .contains("Missing objective")
+    );
+
+    // Data of the wrong type in the `ext` root.
+    let mut p = join().await;
+    p.settle().await;
+    p.edit(|d| {
+        let el = ext_el(d);
+        let id = match el.get_attribute(&d.transact(), "dataId") {
+            Some(yrs::Out::Any(yrs::Any::String(s))) => s.to_string(),
+            other => panic!("dataId: {other:?}"),
+        };
+        let ext = d.get_or_insert_map("ext");
+        let mut t = d.transact_mut();
+        let Some(yrs::Out::YMap(m)) = yrs::Map::get(&ext, &t, &id) else {
+            panic!("no data map")
+        };
+        yrs::Map::insert(&m, &mut t, "score", "lots");
+    });
+    p.settle().await;
+    assert!(p.denied > 0, "data that breaks the data schema is refused");
+    assert!(!server_json(&state).await.to_string().contains("lots"));
+
+    // Valid edits, and a type this server did not install, go through.
+    let mut p = join().await;
+    p.settle().await;
+    p.edit(|d| {
+        let el = ext_el(d);
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        el.insert_attribute(
+            &mut t,
+            "attrs",
+            any(json!({"objective": "Still valid", "progress": 0.5})),
+        );
+        let other = c.push_back(&mut t, yrs::XmlElementPrelim::empty("extBlock"));
+        other.insert_attribute(&mut t, "type", "other.thing");
+        other.insert_attribute(&mut t, "attrs", any(json!({"anything": "Kept as written"})));
+    });
+    p.settle().await;
+    assert_eq!(p.denied, 0);
+    let server = server_json(&state).await.to_string();
+    assert!(
+        server.contains("Still valid") && server.contains("Kept as written"),
+        "{server}"
+    );
 }

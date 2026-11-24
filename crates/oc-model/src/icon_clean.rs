@@ -258,7 +258,64 @@ fn scan(doc: &roxmltree::Document) -> Result<Scan, Refusal> {
             s.external += external_urls(n.text().unwrap_or_default());
         }
     }
+    if expanded_size(doc) > MAX_ELEMENTS {
+        return Err(refuse(
+            "too_many_elements",
+            "This SVG has more than 2,000 elements once its reused parts are drawn. Simplify it, or export it as PNG.",
+        ));
+    }
     Ok(s)
+}
+
+/// The element count once every `<use>` is replaced by a copy of its target, as usvg draws it
+/// (SEC-50: a chain of uses multiplies at every level). Counting stops past
+/// [`MAX_ELEMENTS`]; a use cycle, or a chain deeper than 32, counts as too many.
+fn expanded_size(doc: &roxmltree::Document) -> usize {
+    use std::collections::HashMap;
+    const OVER: usize = MAX_ELEMENTS + 1;
+    let ids: HashMap<&str, roxmltree::NodeId> = doc
+        .descendants()
+        .filter_map(|n| n.attribute("id").map(|id| (id, n.id())))
+        .collect();
+    let mut memo: HashMap<roxmltree::NodeId, usize> = HashMap::new();
+    fn size(
+        doc: &roxmltree::Document,
+        node: roxmltree::Node,
+        ids: &HashMap<&str, roxmltree::NodeId>,
+        memo: &mut HashMap<roxmltree::NodeId, usize>,
+        active: &mut Vec<roxmltree::NodeId>,
+    ) -> usize {
+        if let Some(&n) = memo.get(&node.id()) {
+            return n;
+        }
+        if active.contains(&node.id()) || active.len() > 32 {
+            return OVER;
+        }
+        active.push(node.id());
+        let mut n = 1usize;
+        if node.tag_name().name() == "use" {
+            let target = node
+                .attributes()
+                .find(|a| a.name() == "href")
+                .and_then(|a| a.value().trim().strip_prefix('#'))
+                .and_then(|id| ids.get(id))
+                .and_then(|&id| doc.get_node(id));
+            if let Some(t) = target {
+                n = n.saturating_add(size(doc, t, ids, memo, active));
+            }
+        }
+        for c in node.children().filter(|c| c.is_element()) {
+            if n > MAX_ELEMENTS {
+                break;
+            }
+            n = n.saturating_add(size(doc, c, ids, memo, active));
+        }
+        active.pop();
+        let n = n.min(OVER);
+        memo.insert(node.id(), n);
+        n
+    }
+    size(doc, doc.root_element(), &ids, &mut memo, &mut Vec::new())
 }
 
 fn report(s: &Scan) -> Vec<Removed> {
