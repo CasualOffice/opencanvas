@@ -138,6 +138,7 @@ NAV = [
 DOCS = [
     ("index", "Documentation", "Start", None),
     ("getting-started", "Getting started", "Start", "README.md"),
+    ("release-012", "Release notes 0.1.2", "Start", "docs/31-RELEASE-v0.1.2.md"),
     ("release", "Release notes 0.1.0", "Start", "docs/28-RELEASE-v0.1.0.md"),
     ("faq", "FAQ", "Start", None),
     ("integration", "Integration guide", "Integrate", "docs/05-INTEGRATION-GUIDE.md"),
@@ -161,6 +162,7 @@ DOCS = [
 # the page, everything else to GitHub.
 DOC_PAGES = {
     "README.md": "getting-started",
+    "docs/31-RELEASE-v0.1.2.md": "release-012",
     "docs/28-RELEASE-v0.1.0.md": "release",
     "docs/05-INTEGRATION-GUIDE.md": "integration",
     "docs/15-BUILD-CONTRACT.md": "protocol",
@@ -230,7 +232,7 @@ def footer(root: str) -> str:
     {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>
-  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Pre-release software: P1 alpha, for evaluation, not yet for production.</p></div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
 </footer>"""
 
 

@@ -1,14 +1,17 @@
 # 13 — Operations and deployment
 
-**Status:** draft v0.1, 2026-11-21. Implemented in SCAF-01 / OPS-01.
+For upgrades, see the [v0.1.2 release notes](31-RELEASE-v0.1.2.md#upgrade-notes).
 
 ## Single node (default, SQLite)
+
+Prepare a host registry for your deployment using the [integration guide](05-INTEGRATION-GUIDE.md).
+
 ```sh
 docker run -p 8080:8080 -v oc-data:/data \
+  -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
-  opencanvas/server:0.1
+  ghcr.io/casualoffice/opencanvas:0.1.2
 ```
 SQLite file at `/data/opencanvas.db` (WAL mode). Back it up only if you care
 about un-committed edits surviving a disk loss — committed content is in the host.

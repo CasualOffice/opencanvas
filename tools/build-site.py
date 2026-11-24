@@ -103,6 +103,7 @@ def screens(raw: pathlib.Path) -> None:
 
 DOC_DESCRIPTIONS = {
     "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
+    "release-012": "OpenCanvas 0.1.2 release and upgrade notes for host integrations, diagramming, version history, and the headless API.",
     "release": "OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.",
     "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
@@ -191,7 +192,7 @@ def jsonld() -> dict:
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Collaborative editor",
         "operatingSystem": "Linux (Docker image); the editor runs in a web browser",
-        "softwareVersion": "0.1.1",
+        "softwareVersion": "0.1.2",
         "license": sitelib.BLOB + "LICENSE",
         "isAccessibleForFree": True,
         "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"},
@@ -272,6 +273,8 @@ def changelog() -> str:
   <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.1.2</h2>
+<p>Nextcloud, Mattermost, and Element / Matrix integrations, plus diagram mode, version history, and the headless API. See the <a href="docs/release-012.html">release and upgrade notes</a>.</p>
 <h2>Release 0.1.1</h2>
 <p>Jitsi Meet integration and temporary canvases. One Prosody plugin and config give every Jitsi meeting a shared canvas under Shared document, like Etherpad, with no Docker changes; tested against a stock docker-jitsi-meet with two browsers. Hosts without file storage can set <code>storage = "ephemeral"</code>: canvases start blank or from a built-in template, survive a server restart, and are deleted when the meeting ends. Also: the block handle no longer disappears before you reach it, and the template button inside an open canvas is gone. See <a href="docs/jitsi.html">Jitsi Meet</a> and <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Release 0.1.0</h2>
@@ -314,7 +317,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible "
         "server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. "
         "Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). "
-        "Status: P1 alpha, pre-release.",
+        "Status: 0.1.2, with best-effort support and no production SLA.",
         "",
         "## Site",
         line("index.html"),

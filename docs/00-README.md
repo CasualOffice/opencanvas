@@ -19,3 +19,6 @@
 | 21 | [Users and identity](21-USERS-AND-IDENTITY.md) | How hosts provide people, duplicate names, mentions that stay correct |
 | 22 | [Capacity and sizing](22-CAPACITY-AND-SIZING.md) | Load benchmark (`scripts/bench.sh`), measured limits, sizing table for self-hosters |
 | 24 | [AI, agents and MCP](24-AI-AND-MCP.md) | The assistant (plan, approve, act, review, undo), the MCP endpoint, model providers (Claude Platform or a self-hosted OpenAI-compatible server), safety and limits |
+| 29 | [Diagramming](29-DIAGRAMMING.md) | Board formats, interaction, compatibility, and performance |
+| 30 | [Version history](30-VERSION-HISTORY.md) | Host capabilities, comparing versions, restore, and undo |
+| 31 | [Release notes v0.1.2](31-RELEASE-v0.1.2.md) | Changes, upgrade guidance, and limitations |

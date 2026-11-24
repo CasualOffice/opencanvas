@@ -5,6 +5,12 @@ status moves. **No untracked work.**
 
 Status: `Todo` · `In progress` · `Review` (awaiting user approval) · `Done` · `Blocked`.
 
+## Release preparation
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| REL-012 | Prepare OpenCanvas v0.1.2 | Done | Version metadata, release notes, and regenerated public site |
+
 ## P0 — Foundation
 
 | ID | Item | Status | Notes |
