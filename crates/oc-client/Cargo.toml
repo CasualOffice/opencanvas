@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+[package]
+name = "opencanvas-client"
+description = "Rust client of the OpenCanvas headless API (/api/v1): typed operations, idempotent writes, retries, cursor paging, events and webhook verification."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "opencanvas_client"
+
+[dependencies]
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+futures.workspace = true
+tokio = { workspace = true }
+hmac.workspace = true
+sha2.workspace = true
+hex.workspace = true
+ulid.workspace = true
+
+[dev-dependencies]
+# The conformance suite starts a real server in-process (crates/oc-server/tests/conformance).
+oc-server = { path = "../oc-server" }
+oc-model.workspace = true
+axum.workspace = true
+yrs.workspace = true
+toml.workspace = true
+jsonwebtoken.workspace = true

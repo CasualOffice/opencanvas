@@ -1269,6 +1269,11 @@ and in this repository (not yet published to npm or crates.io):
   runtimes; no runtime dependency beyond `fetch`. Types, the operation table and one method per
   operation are generated from `crates/oc-server/api/openapi.json` by
   `web/packages/client/scripts/gen.mjs` (CI runs it with `--check`).
+- **Rust** `opencanvas-client` (`crates/oc-client`, library `opencanvas_client`): `reqwest`
+  and `serde`, no dependency the server does not already have. The models and the operation
+  table (`opencanvas_client::models`) are generated from the same document; the test
+  `tests/models.rs` regenerates them and fails when they drift
+  (`OC_BLESS=1 cargo test -p opencanvas-client --test models` rewrites them).
 
 What both do:
 
@@ -1317,8 +1322,40 @@ const ok = await verifyWebhook({ secret, signature: req.headers["x-opencanvas-si
   pathQuery: req.originalUrl });
 ```
 
+```rust
+use opencanvas_client::{Auth, CallOptions, Client, EventsOptions, Params, ProblemKind, models};
+use futures::StreamExt;
+
+let oc = Client::builder("https://canvas.example.com")
+    .auth(Auth::host_key("acme", std::env::var("OC_API_KEY")?))   // or Auth::Token / Auth::TokenFn
+    .build();
+let doc = oc.read_file("doc_1", None).await?;                       // models::CanvasRead
+let req = models::BatchRequest {
+    ops: vec![models::BatchOp { op: "append".into(), markdown: Some("Ship Friday.".into()), ..Default::default() }],
+    ..Default::default()
+};
+match oc.batch_blocks("doc_1", &req, &CallOptions::if_match(doc.rev.unwrap_or_default())).await {
+    Err(e) if e.kind() == Some(ProblemKind::StaleBlock) => println!("changed: {:?}", e.api().unwrap().fresh()),
+    other => { other?; }
+}
+let mut rows = oc.paginate("queryRows", Params::file("doc_1").path("dbId", "db_1"), CallOptions::default());
+while let Some(row) = rows.next().await { println!("{}", row?); }
+
+let mut events = oc.events(EventsOptions { types: vec!["edited".into()], ..EventsOptions::new("doc_1") });
+while let Some(e) = events.next().await { handle(e?); }              // events.last_event_id() to resume
+
+// Webhook receiver: the raw body and the path and query you received.
+let ok = opencanvas_client::verify_webhook(secret, opencanvas_client::WebhookRequest {
+    signature: &sig_header, method: "POST", path_query: "/hooks/opencanvas", body: &raw }, now_secs);
+```
+
+`Client::call(op_id, &Params, &CallOptions)` sends any operation by `operationId` and answers
+an `ApiResponse` (`etag`, `replayed`, `rate_limit`, `idempotency_key`, body); the retry wait is a
+`Sleeper` you can replace (`ClientBuilder::sleeper`).
+
 **Conformance suite.** `crates/oc-server/api/conformance.json` is one list of scenarios that both
-clients run against a real server (`crates/oc-server/tests/conformance/server.rs`; the TypeScript
+clients run against a real server (`crates/oc-server/tests/conformance/server.rs`; the Rust
+client starts it in-process in `crates/oc-client/tests/conformance.rs`, the TypeScript
 client starts it as the `conformance_server` example, built with cargo unless
 `OC_CONFORMANCE_BIN` names it; `OC_CONFORMANCE=skip` runs the unit tests only): read, a block
 batch with `If-Match`, idempotent replay, paging, a rate limit, an events resume and a webhook
