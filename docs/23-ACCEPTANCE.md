@@ -129,3 +129,104 @@ unknown attr and unknown meta/database keys, and CJK, RTL and emoji text.
   `acceptance::fc_reads_variant_archives`.
 - `scripts/e2e-wopi.sh` honours `CARGO_TARGET_DIR` (it looked for `target/release` in the
   checkout) and accepts any `HOST_PORT` (temporary hosts file with the allow-list moved).
+
+## v0.2 acceptance (ACC-V2)
+
+These rows cover [docs/27](27-ROADMAP-v0.2.md) §2.6 (live blocks), §3.5 (block SDK) and §4.3
+(headless API), plus version history ([docs/30](30-VERSION-HISTORY.md)) and webhooks (WH-01).
+Each row names the test file and test. A result comes from running that test.
+
+**Run.** 2026-11-25, branch `worktree-agent-a1106dbc1b8b0f9f0` off main `2cf01ec`, with
+`CARGO_TARGET_DIR=$HOME/.cache/oc-rel-target CARGO_INCREMENTAL=0 OC_DEV=1`. MySQL 8.4 and
+MariaDB 10.11 ran in Docker; Redis 7 ran locally. Rust tests are in `crates/oc-server/tests/`
+unless the row says otherwise.
+
+Commands. Each row marks the one it used:
+
+- **(S)** `cargo test -p oc-server --test <file>`
+- **(M)** `cargo test -p oc-model --test <file>`
+- **(C)** `cargo test -p opencanvas-client`
+- **(W)** `cd web/packages/<pkg> && npx vitest run <path>`
+- **(DB)** `OC_TEST_MYSQL_URL=mysql://root:root@127.0.0.1:<port>/opencanvas OC_TEST_REDIS_URL=redis://127.0.0.1:6391/ cargo test -p oc-server --test storage_conformance`, once for MySQL 8.4 and once for MariaDB 10.11. The SQLite backend always runs.
+
+### Portable live blocks (docs/27 §2.6): deferred to v0.3
+
+The owner moved live blocks out of v0.2 on 2026-11-24 (docs/27 §0, LIVE-01 to LIVE-06). These
+rows are the v0.3 gate and are not run for v0.2.
+
+| ID | Criterion | Test | Result |
+|---|---|---|---|
+| LIVE-A1 | Two browsers, canvases A and B both embed live file L. Typing in A's embed shows in B's within the p95 target, and the presence of both users shows in L. | not built | **Deferred (v0.3)** |
+| LIVE-A2 | A user with edit on B and view on L cannot change L (server role filter). Revoking access to L turns every embed read-only or "No access" within 1 s. | not built | **Deferred (v0.3)** |
+| LIVE-A3 | With snapshot policy `"title"`, B's `.ocanvas` contains no L content (byte search in the zip). | not built | **Deferred (v0.3)** |
+| LIVE-A4 | An export by a user without access to L contains no L content. | not built | **Deferred (v0.3)** |
+| LIVE-A5 | A live file that contains a `liveBlock` is refused by validation. | not built | **Deferred (v0.3)** |
+| LIVE-A6 | Cluster: A's room and L's room have different owners and edits converge. A chaos kill of L's owner loses no acknowledged edit. | not built | **Deferred (v0.3)** |
+| LIVE-A7 | A 0.1.x reader keeps a `liveBlock` and round-trips it byte-equal. | not built | **Deferred (v0.3)** |
+
+### Block SDK (docs/27 §3.5)
+
+BSDK-01, -02 and -05 are built. BSDK-03 (sandbox runtime) and BSDK-04 (SDK package and samples)
+are in progress. Rows that depend on them are marked **pending BSDK-03/04** and get filled in
+when that work lands.
+
+| ID | Criterion | Test | Result |
+|---|---|---|---|
+| SDK-A1 | Schema-invalid `attrs` or `data` are refused on `.ocanvas` load, REST patch and `blocks:batch`, and MCP `canvas_patch`. Types that are not installed are kept and not checked. | (M) `ext.rs::a_schema_invalid_block_refuses_the_file`, `ext.rs::validation_checks_installed_blocks_and_keeps_unknown_ones`, `ext.rs::patches_write_data_migrate_and_derive_fallbacks`; (S) `blocks.rs::api_writes_are_checked_against_the_block_schema` | PASS |
+| SDK-A1b | The same refusal applies to room updates over the WebSocket, in the role filter's scratch-document step. | (S) `blocks.rs::room_updates_are_checked_against_the_block_schema` | See SEC-46 (docs/18 §6) |
+| SDK-A2 | The sandbox cannot read `document.cookie`, `localStorage` or the editor DOM. It cannot navigate the top-level window or `fetch` outside its allow-list (Playwright with a hostile sample block). | BSDK-03 | **pending BSDK-03/04** |
+| SDK-A3 | Exports of a canvas with an SDK block carry the template output in Markdown, HTML, DOCX and the preview (PDF is rendered from the HTML). Without the package they carry the sanitised fallback. | (M) `ext.rs::exports_render_templates_or_fallbacks`, `ext.rs::ext_fixtures`; (W) editor `src/ext/ext.test.ts` "renders every template case" | PASS with the test package `srv.okr`. The rerun with the `acme.okr` sample is **pending BSDK-04** |
+| SDK-A4 | A 0.1.x build opens a v0.2 file with an `extBlock`, saves it back and loses nothing. A 0.1.x editor in a live room cannot delete SDK blocks; its session is closed with 4426. | (M) `ext.rs::ocanvas_round_trips_blocks_data_and_unknown_types`; (W) editor `src/ext/compat.test.ts` (3 tests on the v0.1.1 editor schema); (S) `blocks.rs::an_editor_older_than_0_2_cannot_delete_sdk_blocks` | PASS |
+| SDK-A5 | Version skew, data side. Data at v2 with the package at v1 stays read-only: server writes are refused and readers get the fallback. Older data is migrated declaratively, validated against the installed version, and written back on the next server write. | (M) `ext.rs::a_block_from_a_newer_version_is_not_overwritten`, `ext.rs::older_data_validates_after_migration`; (W) editor `src/ext/ext.test.ts` "classifies stored versions against the installed package", "runs every migration case" | PASS |
+| SDK-A5b | Version skew in the editor: the "Updated by a newer version" read-only chrome, and script migrations that run in the sandbox on first edit. | BSDK-03 | **pending BSDK-03/04** |
+| SDK-A6 | Two editors, one with the package and one without (enabled for one host only). The document converges and the second editor shows the placeholder. | BSDK-03/04. The data-field merge is covered by (W) `src/ext/ext.test.ts` "merges concurrent edits of different data fields (per-field LWW)" | **pending BSDK-03/04** (data merge PASS) |
+| SDK-A7 | Only the operator installs packages. A bad manifest, or a bundle whose sha384 SRI does not match, is refused (logged, and counted in `/healthz` `blocks.refused`). `[host.blocks]` selects what the session lists. | (S) `blocks.rs::installed_packages_reach_the_session_and_refused_ones_healthz`; unit tests in `ext::manifest`, `ext::schema` and `blocks` | PASS |
+
+### Headless API (docs/27 §4.3)
+
+| ID | Criterion | Test | Result |
+|---|---|---|---|
+| API-A1 | The OpenAPI document is valid 3.1. Every router route is in the document and every documented route is in the router. The server serves the checked-in document. | (S) `api_v1.rs::openapi_document_is_valid_3_1`, `openapi_matches_the_router`, `serves_the_checked_in_document`, `openapi_documents_idempotency_on_every_file_write` | PASS |
+| API-A2 | Errors are RFC 9457 problems with a `code`. The API is off unless the host sets `[host.flags] api_v1`. | (S) `api_v1.rs::errors_are_problem_details`, `off_unless_the_host_turns_it_on` | PASS |
+| API-A3 | Idempotency: the same `blocks:batch` sent twice, or concurrently, applies once, and the replay is marked. A different body with the same key gets 422, and a failure frees the key. The store contract holds on every backend. | (S) `api_idempotency.rs::a_key_applies_once_replays_and_refuses_another_body`, `concurrent_duplicates_apply_once_and_failures_free_the_key`; (DB) `storage_conformance.rs::idempotency_keys_claim_once_replay_and_expire` (SQLite, MySQL 8.4, MariaDB 10.11, Redis-only); (S) `mcp_api_parity.rs::mcp_writes_use_the_api_idempotency_store` | PASS. Cluster nodes share the store, so the store contract on each backend is the cluster check. The first MariaDB run on an empty database failed because of concurrent migrations (SEC-47, docs/18 §6) |
+| API-A4 | Cursors: paging through blocks while another client inserts and deletes returns every surviving block exactly once. Cursors are signed, bound to their file and query, and expire after 1 h (410). | (S) `api_paging_limits.rs::cursors_survive_concurrent_inserts_and_deletes`, `cursors_are_signed_bound_and_expire` | PASS |
+| API-A5 | Rate limits: every answer has `RateLimit-Policy` and `RateLimit` headers. A burst over the limit gets 429 with `Retry-After`, and buckets refill by the clock. MCP and the API share one bucket, and nodes share buckets through Redis. | (S) `api_paging_limits.rs::rate_limits_answer_headers_429_and_refill_by_the_clock`, `mcp_and_the_api_share_the_subjects_bucket`, `redis_buckets_are_shared_between_nodes` (with `OC_TEST_REDIS_URL`) | PASS |
+| API-A6 | Permissions: a `canvas:read` token cannot write. A token whose host role is `view` cannot write, even with `canvas:write`. A file outside `files` is refused when the host has no `/access`. When it has one, `/access` overrides the claim and a revoke applies at once. Expired, too-long, foreign and forged tokens are refused. Admin operations need the host key unless `token_admin` is set. API and MCP tokens are not interchangeable. | (S) `api_tokens.rs` (6 tests); `mcp.rs` (10 tests) | PASS |
+| API-A7 | MCP parity: every MCP tool maps to a documented operation with the same scope, and reads and writes answer the same through both. The 0.1 routes still answer with their old shape, plus `Deprecation`. | (S) `mcp_api_parity.rs` (4 tests); `api_v1.rs::old_routes_still_answer_with_their_shape_and_a_deprecation`; `host_api.rs` (6 tests) | PASS |
+| API-A8 | The TS and Rust clients pass the shared conformance suite against a real server: read, batch with `If-Match`, idempotent replay, paging, rate limit, events resume and the webhook signature vectors. | (C) `conformance.rs::scenarios_against_a_real_server`, `conformance.rs::webhook_vectors`, `models.rs`, `unit.rs`; (W) client `test/conformance.test.ts`, `test/client.test.ts` (36 tests) | PASS on SQLite. The clients have no backend-specific code; API-A3 and (DB) cover the server backends |
+| API-A9 | Events stream (SSE and WebSocket) reports every kind of change with ids only, never content. `Last-Event-ID` resumes from the ring or asks for a resync. Scope is checked, a revoked user's stream closes, and the stream works on every cluster node. | (S) `api_events.rs::sse_reports_every_kind_of_change_without_content`, `last_event_id_resumes_from_the_ring_or_asks_for_a_resync`, `websocket_events_and_scope_checks`, `a_revoked_user_stream_is_closed`; `cluster.rs::change_events_reach_streams_on_every_node` | PASS |
+| API-A10 | The sync token opens the room WebSocket with the effective role, `min(scope, host role)`. It lives at most 15 min and never past the token's `exp`. | (S) `api_events.rs::sync_token_opens_the_room_websocket_with_the_effective_role` | PASS |
+
+### Version history (VH, docs/30)
+
+| ID | Criterion | Test | Result |
+|---|---|---|---|
+| VH-A1 | Naming a version saves at once with the name, even when nothing changed. Named saves and restore saves carry their headers. | (S) `history_api.rs::naming_saves_now_with_the_name_even_without_changes`; `history.rs::named_and_restore_saves_carry_their_headers` | PASS |
+| VH-A2 | The list merges host versions with recent in-file versions. It falls back to in-file history when the host has no list call, and it is fetched again when it has not seen the latest save. | (S) `history_api.rs::list_merges_host_versions_and_recent_in_file_ones`, `a_host_without_the_list_call_falls_back_to_in_file_history`, `a_list_that_has_not_seen_the_latest_save_is_fetched_again` | PASS |
+| VH-A3 | Permissions: viewers need `perms.history` and can never name or restore. The session says where history comes from and who may use it. Temporary canvases have no history. | (S) `history_api.rs::viewers_need_the_history_perm_and_never_name_or_restore`; `history.rs::session_says_where_history_comes_from_and_who_may_use_it`, `temporary_canvases_have_no_history_and_wopi_hosts_no_in_file_history` | PASS |
+| VH-A4 | Restore saves first, applies the version, saves the result and tells everyone. Only the restorer may undo, and only within the window. Restore keeps comments and concurrent edits. | (S) `history_api.rs::restore_saves_first_applies_the_version_saves_it_and_tells_everyone`, `only_the_restorer_may_undo_and_only_within_the_window`; (M) `restore.rs` (2 tests) | PASS |
+| VH-A5 | Diff from a version to the live canvas. The structural diff covers blocks, text, databases and boards, within its limits. | (S) `history_api.rs::diff_from_a_version_to_the_live_canvas`; (M) `diff.rs` (18 tests) | PASS |
+| VH-A6 | In-file history: reverse diffs rebuild every kept version, the count bounds and the byte budget hold, and old readers ignore the history. Saves carry it, a loaded file keeps it, and hosts can turn it off. | (M) `file_history.rs` (6 tests); (S) `history.rs::saves_carry_in_file_history`, `a_loaded_file_keeps_its_history_and_becomes_a_version`, `hosts_can_turn_in_file_history_off`, `autosaves_are_checkpoints_only_when_the_room_empties_or_after_a_while`, `first_save_after_the_checkpoint_interval_is_a_checkpoint`, `version_callbacks_are_signed_and_normalized` | PASS |
+| VH-A7 | The history panel works against the real server and sample host, on desktop and phone, and passes axe in light and dark. | `e2e/specs/z-version-history.spec.ts`, `z-version-history.phone.spec.ts`, in the full Playwright run | See the docs/32 verification checklist |
+
+### Webhooks (WH-01)
+
+| ID | Criterion | Test | Result |
+|---|---|---|---|
+| WH-A1 | Deliveries are signed (`X-OpenCanvas-Signature` v2) and carry ids only. A `[host.webhooks] secret` replaces the host secret. Both clients verify the shared vectors. | (S) `webhooks.rs::deliveries_are_signed_and_carry_ids_only`, `a_webhook_secret_replaces_the_host_secret`; (C) `conformance.rs::webhook_vectors`; (W) client `test/conformance.test.ts` | PASS |
+| WH-A2 | Retries back off on the server clock and honour `Retry-After`. Delivery gives up after `max_attempts`. | (S) `webhooks.rs::retries_back_off_on_the_server_clock`, `gives_up_after_max_attempts` | PASS |
+| WH-A3 | SSRF: only the `callback_base` origin is allowed, checked at start-up and on every delivery. A refusal or a redirect is final and is never followed. | (S) `webhooks.rs::urls_off_the_callback_origin_are_refused`, `a_refusal_or_a_redirect_is_final_and_never_followed` | PASS |
+| WH-A4 | Each event is delivered once in a cluster. | (S) `webhooks.rs::two_nodes_deliver_each_event_once`; `cluster.rs::webhooks_are_sent_once_in_a_cluster` | PASS (claims that outlive their lease: SEC-48) |
+| WH-A5 | The outbox contract holds on every SQL backend. | (DB) `storage_conformance.rs::webhook_outbox_contract` on SQLite, MySQL 8.4 and MariaDB 10.11 | PASS |
+
+**Tests run, all passing.**
+
+- oc-server:
+  - `api_v1` 10, `api_tokens` 6, `api_idempotency` 2, `api_paging_limits` 5, `api_events` 5
+  - `mcp_api_parity` 4, `webhooks` 7, `history_api` 8, `history` 9
+  - `blocks` 3, `icons` 3, `host_api` 6, `mcp` 10, `import` 13
+  - `storage_conformance` 10: on SQLite, and again with MySQL 8.4, MariaDB 10.11 and Redis
+  - `cluster`: the 2 tests named above
+- oc-model: `ext` 8, `file_history` 6, `restore` 2, `diff` 18.
+- opencanvas-client: 17.
+- Web: editor `src/ext` 9, client 36.
