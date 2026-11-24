@@ -407,6 +407,8 @@ async fn room_updates_are_checked_against_the_block_schema() {
         );
         let other = c.push_back(&mut t, yrs::XmlElementPrelim::empty("extBlock"));
         other.insert_attribute(&mut t, "type", "other.thing");
+        // Every extBlock carries its data version, installed or not (BSDK-01).
+        other.insert_attribute(&mut t, "v", any(json!(1)));
         other.insert_attribute(&mut t, "attrs", any(json!({"anything": "Kept as written"})));
     });
     p.settle().await;
@@ -416,6 +418,8 @@ async fn room_updates_are_checked_against_the_block_schema() {
         server.contains("Still valid") && server.contains("Kept as written"),
         "{server}"
     );
+}
+
 fn on(addr: &str, host: &str, path: &str) -> reqwest::RequestBuilder {
     reqwest::Client::new()
         .get(format!("http://{addr}{path}"))
