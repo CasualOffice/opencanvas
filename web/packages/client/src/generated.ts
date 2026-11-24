@@ -232,6 +232,18 @@ export interface Operations {
     };
     response: Record<string, unknown>;
   };
+  /** POST /api/v1/files/{fileId}/boards: Create a board block with shapes */
+  createBoard: {
+    path: { fileId: string; };
+    query: {};
+    body: {
+      /** [{ref?, kind: sticky|rect|ellipse|diamond|text|arrow, text?, tone?, x?, y?, from?, to?}] */
+      shapes: Array<Record<string, unknown>>;
+      afterBlockId?: string;
+      layout?: "grid" | "flow" | "cluster";
+    };
+    response: Record<string, unknown>;
+  };
   /** GET /api/v1/files/{fileId}/boards/{boardId}/shapes: Read a board's shapes */
   readBoard: {
     path: { fileId: string; boardId: string; };
@@ -401,6 +413,7 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   queryRows: {"method": "GET", "path": "/api/v1/files/{fileId}/databases/{dbId}/rows", "scope": "canvas:read", "pathParams": ["fileId", "dbId"], "query": ["filter", "sort", "fields", "limit", "cursor"], "body": null, "response": "json", "paged": "rows", "idempotent": false},
   upsertRows: {"method": "POST", "path": "/api/v1/files/{fileId}/databases/{dbId}/rows:upsert", "scope": "canvas:write", "pathParams": ["fileId", "dbId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
   addField: {"method": "POST", "path": "/api/v1/files/{fileId}/databases/{dbId}/fields", "scope": "canvas:write", "pathParams": ["fileId", "dbId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
+  createBoard: {"method": "POST", "path": "/api/v1/files/{fileId}/boards", "scope": "canvas:write", "pathParams": ["fileId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
   readBoard: {"method": "GET", "path": "/api/v1/files/{fileId}/boards/{boardId}/shapes", "scope": "canvas:read", "pathParams": ["fileId", "boardId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
   addShapes: {"method": "POST", "path": "/api/v1/files/{fileId}/boards/{boardId}/shapes", "scope": "canvas:write", "pathParams": ["fileId", "boardId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
   listComments: {"method": "GET", "path": "/api/v1/files/{fileId}/comments", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["resolved"], "body": null, "response": "json", "paged": null, "idempotent": false},
@@ -491,6 +504,11 @@ export abstract class GeneratedApi {
   /** Add a field (`POST /api/v1/files/{fileId}/databases/{dbId}/fields`, canvas:write). */
   async addField(params: Params<"addField">, options?: CallOptions): Promise<Operations["addField"]["response"]> {
     return (await this.call("addField", params, options)).data;
+  }
+
+  /** Create a board block with shapes (`POST /api/v1/files/{fileId}/boards`, canvas:write). */
+  async createBoard(params: Params<"createBoard">, options?: CallOptions): Promise<Operations["createBoard"]["response"]> {
+    return (await this.call("createBoard", params, options)).data;
   }
 
   /** Read a board's shapes (`GET /api/v1/files/{fileId}/boards/{boardId}/shapes`, canvas:read). */

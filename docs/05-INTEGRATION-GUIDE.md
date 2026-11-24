@@ -530,7 +530,13 @@ the headless API (§7b; default 10 requests/s, burst 30, `[host.api] rate_per_se
 
 **Tools** (each takes `fileId`): `canvas_read`, `canvas_find`, `db_describe`, `db_query`,
 `board_read`, `comment_list`, `members_list` (read); `comment_add` (comment);
-`canvas_patch`, `db_upsert_rows`, `db_create`, `db_add_field`, `board_add_shapes` (write). Edits
+`canvas_patch`, `db_upsert_rows`, `db_create`, `db_add_field`, `board_add_shapes` (write). Each
+tool is an adapter over the §7b operation it stands for (HAPI-08; docs/24 §5.3 lists them) and
+answers what that operation answers, wrapped as untrusted data for reads. A write also takes from
+the file's write bucket shared with the API, and may carry `"_meta": {"idempotencyKey": "…"}` in
+its `tools/call` params: the API's idempotency store then replays the stored result for 24 h
+(`_meta.idempotencyReplayed: true`) and refuses the key with other arguments
+(`IDEMPOTENCY_KEY_REUSED`). Edits
 are live Yjs transactions, broadcast and autosaved like a person's. Canvas content comes back
 wrapped as untrusted data. Changes to existing blocks carry `ifMatch` (the block `rev` from a
 read; a mismatch returns `STALE_BLOCK` with the fresh block). By default new content lands
@@ -603,7 +609,7 @@ same tool layer as MCP, §7a):
 | Find | `GET …/blocks:find?q=&types=a,b&limit=` | case-insensitive text match |
 | Change blocks | `POST …/blocks:batch {ops, mode?, confirm?}` | ops `append`, `insertAfter`, `replace`, `delete`, `editText`, each with optional `ifMatch` (block `rev`); `If-Match: "<doc rev>"` for the whole document. One transaction or none. Answer `{applied, mode, blockIds, rev}` |
 | Databases | `GET …/databases`, `POST …/databases`, `GET …/databases/{dbId}`, `GET …/databases/{dbId}/rows?filter=&sort=&fields=&limit=`, `POST …/databases/{dbId}/rows:upsert`, `POST …/databases/{dbId}/fields` | `filter` / `sort` are JSON arrays (`[{"f","op","v"}]`, `[{"f","dir"}]`) |
-| Boards | `GET` / `POST …/boards/{boardId}/shapes` | |
+| Boards | `POST …/boards {shapes, afterBlockId?, layout?}` (a new board block), `GET` / `POST …/boards/{boardId}/shapes` | |
 | Comments | `GET …/comments?resolved=`, `POST …/comments {text, blockId\|quote, threadId?}` | |
 | Members | `GET …/members?q=&limit=` | never e-mail addresses |
 | Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |

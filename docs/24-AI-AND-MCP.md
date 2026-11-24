@@ -434,6 +434,21 @@ fresh block), `BLOCK_NOT_FOUND`, `ROLE_FORBIDDEN`, `SCOPE_REQUIRED`, `DOC_TOO_LA
 `CONFLICT` (room in a save conflict), `RATE_LIMITED` (with `retryAfterMs`), `BUDGET_EXHAUSTED`.
 Protocol-level auth failures are HTTP 401 or 403 as §7 describes.
 
+**MCP on the API (HAPI-08, 2026-11-25).** Each canvas tool is an adapter over the headless API
+operation it stands for (`routes::v1::ops::MCP_TOOLS`: `canvas_read` → `readFile`,
+`canvas_find` → `findBlocks`, `db_describe` → `listDatabases`, `db_query` → `queryRows`,
+`board_read` → `readBoard`, `comment_list` → `listComments`, `members_list` → `listMembers`,
+`canvas_patch` → `batchBlocks`, `db_upsert_rows` → `upsertRows`, `db_create` →
+`createDatabase`, `db_add_field` → `addField`, `board_add_shapes` → `addShapes`, or
+`createBoard` without a `boardId`, `comment_add` → `addComment`), run by the same function as the
+API (`ops::invoke`): one permission check, the same subject bucket and, for writes, the same
+per-file write bucket (`429` with `Retry-After` like the subject limit), and the API's
+idempotency store when the call carries `params._meta.idempotencyKey` (a replay answers the
+stored result with `_meta.idempotencyReplayed: true`; the same key with other arguments is a
+`BAD_INPUT` tool error whose message starts `IDEMPOTENCY_KEY_REUSED`). Calls without a key behave
+as before. `tests/mcp_api_parity.rs` holds the mapping to the tool list and the OpenAPI document
+and checks that a tool and its operation answer the same for the same input.
+
 ### 5.4 Cluster forwarding (implemented 2026-11-23)
 
 A `tools/call` (or an agent step) for a room owned by another node is forwarded to the owner over

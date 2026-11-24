@@ -268,6 +268,18 @@ pub const OPERATIONS: &[Operation] = &[
         idempotent: false,
     },
     Operation {
+        id: "createBoard",
+        method: "POST",
+        path: "/api/v1/files/{fileId}/boards",
+        scope: Some("canvas:write"),
+        path_params: &["fileId"],
+        query: &[],
+        body: BodyKind::Json,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: true,
+    },
+    Operation {
         id: "readBoard",
         method: "GET",
         path: "/api/v1/files/{fileId}/boards/{boardId}/shapes",
