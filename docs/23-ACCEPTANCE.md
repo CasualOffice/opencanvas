@@ -173,7 +173,7 @@ when that work lands.
 | ID | Criterion | Test | Result |
 |---|---|---|---|
 | SDK-A1 | Schema-invalid `attrs` or `data` are refused on `.ocanvas` load, REST patch and `blocks:batch`, and MCP `canvas_patch`. Types that are not installed are kept and not checked. | (M) `ext.rs::a_schema_invalid_block_refuses_the_file`, `ext.rs::validation_checks_installed_blocks_and_keeps_unknown_ones`, `ext.rs::patches_write_data_migrate_and_derive_fallbacks`; (S) `blocks.rs::api_writes_are_checked_against_the_block_schema` | PASS |
-| SDK-A1b | The same refusal applies to room updates over the WebSocket, in the role filter's scratch-document step. | (S) `blocks.rs::room_updates_are_checked_against_the_block_schema` | See SEC-46 (docs/18 §6) |
+| SDK-A1b | The same refusal applies to room updates over the WebSocket, in the role filter's scratch-document step. | (S) `blocks.rs::room_updates_are_checked_against_the_block_schema` | PASS after fix (was FAIL: room updates were not checked; SEC-46, docs/18 §6; seen failing with the check off) |
 | SDK-A2 | The sandbox cannot read `document.cookie`, `localStorage` or the editor DOM. It cannot navigate the top-level window or `fetch` outside its allow-list (Playwright with a hostile sample block). | BSDK-03 | **pending BSDK-03/04** |
 | SDK-A3 | Exports of a canvas with an SDK block carry the template output in Markdown, HTML, DOCX and the preview (PDF is rendered from the HTML). Without the package they carry the sanitised fallback. | (M) `ext.rs::exports_render_templates_or_fallbacks`, `ext.rs::ext_fixtures`; (W) editor `src/ext/ext.test.ts` "renders every template case" | PASS with the test package `srv.okr`. The rerun with the `acme.okr` sample is **pending BSDK-04** |
 | SDK-A4 | A 0.1.x build opens a v0.2 file with an `extBlock`, saves it back and loses nothing. A 0.1.x editor in a live room cannot delete SDK blocks; its session is closed with 4426. | (M) `ext.rs::ocanvas_round_trips_blocks_data_and_unknown_types`; (W) editor `src/ext/compat.test.ts` (3 tests on the v0.1.1 editor schema); (S) `blocks.rs::an_editor_older_than_0_2_cannot_delete_sdk_blocks` | PASS |
@@ -181,6 +181,7 @@ when that work lands.
 | SDK-A5b | Version skew in the editor: the "Updated by a newer version" read-only chrome, and script migrations that run in the sandbox on first edit. | BSDK-03 | **pending BSDK-03/04** |
 | SDK-A6 | Two editors, one with the package and one without (enabled for one host only). The document converges and the second editor shows the placeholder. | BSDK-03/04. The data-field merge is covered by (W) `src/ext/ext.test.ts` "merges concurrent edits of different data fields (per-field LWW)" | **pending BSDK-03/04** (data merge PASS) |
 | SDK-A7 | Only the operator installs packages. A bad manifest, or a bundle whose sha384 SRI does not match, is refused (logged, and counted in `/healthz` `blocks.refused`). `[host.blocks]` selects what the session lists. | (S) `blocks.rs::installed_packages_reach_the_session_and_refused_ones_healthz`; unit tests in `ext::manifest`, `ext::schema` and `blocks` | PASS |
+| SDK-A8 | Manifest `discovery` metadata (label, category, keywords, profiles, complexity) is validated, and reaches the session and `GET /api/v1/block-types`. | Being added by the SDK agent | **pending (SDK discovery metadata)** |
 
 ### Headless API (docs/27 §4.3)
 
@@ -208,6 +209,19 @@ when that work lands.
 | VH-A5 | Diff from a version to the live canvas. The structural diff covers blocks, text, databases and boards, within its limits. | (S) `history_api.rs::diff_from_a_version_to_the_live_canvas`; (M) `diff.rs` (18 tests) | PASS |
 | VH-A6 | In-file history: reverse diffs rebuild every kept version, the count bounds and the byte budget hold, and old readers ignore the history. Saves carry it, a loaded file keeps it, and hosts can turn it off. | (M) `file_history.rs` (6 tests); (S) `history.rs::saves_carry_in_file_history`, `a_loaded_file_keeps_its_history_and_becomes_a_version`, `hosts_can_turn_in_file_history_off`, `autosaves_are_checkpoints_only_when_the_room_empties_or_after_a_while`, `first_save_after_the_checkpoint_interval_is_a_checkpoint`, `version_callbacks_are_signed_and_normalized` | PASS |
 | VH-A7 | The history panel works against the real server and sample host, on desktop and phone, and passes axe in light and dark. | `e2e/specs/z-version-history.spec.ts`, `z-version-history.phone.spec.ts`, in the full Playwright run | See the docs/32 verification checklist |
+
+### Host editor profiles (EDP-01)
+
+`[host.editor]` profiles (notebook, meeting, project, diagramming, document, full): the enabled
+blocks, quick-insert blocks and feature switches, and the hide-never-delete rule. Another agent
+is building them, so every row is **pending EDP-01**.
+
+| ID | Criterion | Test | Result |
+|---|---|---|---|
+| EDP-A1 | With no `[host.editor]`, the profile is `full` and the editor behaves exactly as in 0.1.x (same blocks, same menus). | EDP-01 | **pending EDP-01** |
+| EDP-A2 | Each profile's enabled and quick-insert blocks and its feature switches reach the session and the editor. Unknown profile names or blocks are refused at start-up. | EDP-01 | **pending EDP-01** |
+| EDP-A3 | Hide, never delete: a document holding blocks the profile hides round-trips byte-equal through load, edit and save, in the editor and on the server (REST, MCP, `.ocanvas`). The hidden blocks are shown read-only or as a placeholder, never removed. | EDP-01 | **pending EDP-01** |
+| EDP-A4 | A profile is not an access control. A client that sends a block its profile hides gets the same server answer as any other edit; roles stay the only gate. | EDP-01 | **pending EDP-01** |
 
 ### Webhooks (WH-01)
 

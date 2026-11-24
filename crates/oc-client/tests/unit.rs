@@ -434,3 +434,23 @@ fn params_from_json_take_path_query_and_body() {
     )));
     assert_eq!(op.paged, Some("rows"));
 }
+
+/// SEC-52: the timestamp comes from an unauthenticated header. `now - t` overflowed (a panic
+/// with overflow checks) for extreme values; such a header is simply not authentic.
+#[test]
+fn webhook_timestamps_at_the_edges_are_refused_not_a_panic() {
+    for (t, now) in [
+        (i64::MIN.to_string(), 1i64),
+        (i64::MAX.to_string(), -1),
+        ("-1".to_string(), i64::MAX),
+    ] {
+        let sig = format!("t={t},v2=00");
+        let req = opencanvas_client::WebhookRequest {
+            signature: &sig,
+            method: "POST",
+            path_query: "/hook",
+            body: b"{}",
+        };
+        assert!(!opencanvas_client::verify_webhook(b"secret", req, now));
+    }
+}

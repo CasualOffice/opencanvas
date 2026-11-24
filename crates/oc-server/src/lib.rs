@@ -347,7 +347,7 @@ impl AppState {
     pub async fn deliver_webhooks(&self, now_ms: i64) -> anyhow::Result<usize> {
         use futures::StreamExt;
         let mut claimed = Vec::new();
-        for row in self.store.webhook_due(now_ms, 100).await? {
+        for row in self.store.webhook_due(now_ms, webhooks::SWEEP_ROWS).await? {
             if self
                 .store
                 .webhook_claim(&row.id, row.next_try_at, now_ms + webhooks::CLAIM_MS)

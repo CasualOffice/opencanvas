@@ -88,14 +88,22 @@ async fn main() -> anyhow::Result<()> {
     if state.webhooks_on() {
         let worker = state.clone();
         tokio::spawn(async move {
+            let mut full = false;
             loop {
-                tokio::select! {
-                    _ = worker.webhooks.wake.notified() => {}
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                // A full sweep leaves more due rows: take the next batch at once (SEC-48).
+                if !full {
+                    tokio::select! {
+                        _ = worker.webhooks.wake.notified() => {}
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                    }
                 }
-                if let Err(e) = worker.deliver_webhooks(worker.clock.now_ms()).await {
-                    tracing::warn!(error = %e, "webhook sweep failed");
-                }
+                full = match worker.deliver_webhooks(worker.clock.now_ms()).await {
+                    Ok(n) => n as i64 >= oc_server::webhooks::SWEEP_ROWS,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "webhook sweep failed");
+                        false
+                    }
+                };
             }
         });
     }
