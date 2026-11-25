@@ -110,6 +110,7 @@ export default function Gallery({ editor, category, onClose }: { editor: Editor;
                   tabIndex={i === sel ? 0 : -1}
                   className={"oc-gal-card" + (i === sel ? " on" : "")}
                   onClick={() => setSel(i)}
+                  onFocus={() => setSel(i)}
                   onDoubleClick={() => insert(b)}
                 >
                   <Preview b={b} />
