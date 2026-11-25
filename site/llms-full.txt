@@ -75,17 +75,13 @@ The terms these pages use.
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
-> **New in v0.1.2.** OpenCanvas now integrates with [Nextcloud](integrations/nextcloud/README.md),
-> [Mattermost](integrations/mattermost/README.md) and [Element / Matrix](integrations/matrix/README.md).
-> Diagramming adds shape libraries, connector routing, auto-layout, and import and export.
-> Version history lets editors compare and restore versions where the host supports it.
-> Read the [release and upgrade notes](docs/31-RELEASE-v0.1.2.md) before deploying.
-> Support is best-effort, with no production SLA. AI and MCP are experimental and off by default.
->
-> **v0.2.0 is prepared on `main`, not yet tagged.** It brings the stable headless API with
-> TypeScript and Rust clients, webhooks, the block SDK and host editor profiles. The tag waits for
-> the block SDK runtime and the editor profiles. Read the
-> [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) first.
+> **New in v0.2.0.** The stable headless API (`/api/v1`, on by default) with TypeScript and Rust
+> clients, signed webhooks, the [block SDK](docs/33-BLOCK-SDK.md) for your own blocks, and host
+> editor profiles (notebook, meeting, project, diagramming, document or the full workspace).
+> Read the [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) before upgrading.
+> v0.1.2 brought the Nextcloud, Mattermost and Element / Matrix integrations, diagramming and
+> version history. Support is best-effort, with no production SLA. AI and MCP are experimental
+> and off by default.
 
 ## Goal
 
@@ -116,6 +112,35 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 - **OpenCanvas keeps nothing** once a session is saved and idle. Its database only
   holds the transient room log and the save outbox.
 
+## Build your own blocks
+
+A block is a small web component that lives inside a canvas: an OKR tracker, a ticket card, a
+chart from your own service. You write it once with `@opencanvas/block-sdk`; OpenCanvas runs it in
+a sandbox, keeps its data in the document, lets people edit it together and exports it.
+
+```ts
+import { defineBlock, h } from "@opencanvas/block-sdk";
+
+defineBlock<{ value: number }>({
+  render(el, ctx) {
+    const slider = h("input", { type: "range", min: "0", max: "100" });
+    slider.addEventListener("change", () => ctx.setAttrs({ value: Number(slider.value) / 100 }));
+    el.append(slider);
+  },
+});
+```
+
+Describe it in a `block.json`, bundle it, and the host turns it on:
+
+```toml
+[host.blocks]
+enabled = ["oc.progress", "acme.okr@^1"]
+```
+
+Block code never runs on the server and only reaches what the host allows. Read the
+[Block SDK guide](docs/33-BLOCK-SDK.md); the samples are in
+[`web/packages/block-sdk/samples`](web/packages/block-sdk/samples).
+
 ## What works today
 
 | Area | Status |
@@ -130,6 +155,8 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 | Jitsi Meet | A shared canvas in every meeting, like Etherpad: one Prosody plugin and config, no Docker changes. Temporary: blank or from a chosen template, deleted when the meeting ends. Tested against a stock docker-jitsi-meet. [Guide](integrations/jitsi/README.md) |
 | Nextcloud, Mattermost and Element / Matrix | Host integrations for WOPI files, channel canvases and room widgets. See the [release notes](docs/31-RELEASE-v0.1.2.md). |
 | Diagramming | Shape libraries, ports, connector routing, layout and interchange. [Diagram guide](docs/29-DIAGRAMMING.md) |
+| Your own blocks (v0.2) | The [block SDK](docs/33-BLOCK-SDK.md) (`@opencanvas/block-sdk`): write a block once and it runs sandboxed in every canvas, with live co-editing, comments, export and a saved copy when it is missing. Samples: Progress and an OKR tracker |
+| Editor profiles (v0.2) | Each host picks what its users see: notebook, meeting, project, diagramming, document or the full workspace. Hidden blocks are never deleted. [Guide](docs/05-INTEGRATION-GUIDE.md) |
 | Version history | Named versions, comparison, restore and a short undo window. Availability depends on the host and permissions. [History guide](docs/30-VERSION-HISTORY.md) |
 | Storage | SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set. |
 | Mobile | Side-panel and phone layouts, bottom sheets, an editing toolbar above the keyboard, and touch-friendly whiteboard and kanban |
@@ -263,7 +290,7 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 |---|---|
 | v0.1.0 | First final release of the collaborative editor, databases, whiteboards and embedding |
 | [v0.1.2](docs/31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
-| [v0.2.0](docs/32-RELEASE-v0.2.0.md) (prepared, not yet tagged) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
+| [v0.2.0](docs/32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
 | v0.3 | Portable live blocks, offline-first editing, search and automation |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
@@ -7000,6 +7027,10 @@ See pagination , events and webhooks : each page has the client samples beside c
 
 crates/oc-server/api/conformance.json is one list of scenarios that both clients run against a real server: a read, a block batch with If-Match , idempotent replay, paging, a rate limit, an events resume and a webhook signature, plus offline webhook signature vectors. The server pins its clock, so no scenario sleeps. A third-party client can run the same scenarios; the format is in the integration guide .
 
+## Block SDK
+
+To add your own block types to the editor rather than call the API, use @opencanvas/block-sdk . It is a different package: blocks run sandboxed inside the canvas, not on your server. See the Block SDK guide .
+
 
 # API changelog
 
@@ -7008,6 +7039,10 @@ URL: https://canvas.casualoffice.org/api/changelog.html
 ## API changelog
 
 The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
+
+## 0.2.0 (2026-11-25)
+
+Added Headless API is the supported contract. /api/v1 with OpenAPI 3.1, RFC 9457 errors, scoped user tokens shared with MCP, Idempotency-Key , signed cursors, rate limits, the events stream and the sync token. Most of it shipped in 0.1.2 behind [host.flags] api_v1 . Added Webhooks for the events-stream events (WH-01): [host.webhooks] , signed deliveries ( X-OpenCanvas-Signature v2, Idempotency-Key = event id) from a durable outbox (migration 0009_webhook_outbox ), retries with backoff, each sent once per cluster, same origin as callback_base only. Added Clients: TypeScript @opencanvas/client and Rust opencanvas-client , generated from the OpenAPI document, with retries, idempotency keys, paging, events resume and webhook verification. They share a conformance suite (HAPI-06, HAPI-07). Added MCP canvas tools are adapters over the API operations, with one scope check, limiter and idempotency store, and a parity contract test (HAPI-08). New operation: POST /api/v1/files/{id}/boards . Added Block SDK (data side): - block.json manifests installed by the operator ( OC_BLOCKS_DIR , sha384 integrity, OC_BLOCKS_ORIGIN ) and enabled per host with [host.blocks] ; - JSON Schema validation of attrs and data on every write path; - one generic extBlock node and an ext root; - declarative export templates and fallbacks; - data versions with declarative migrations (BSDK-01, -02, -05). Added API reference on the website ( /api/ ): guides for authentication, errors, pagination, idempotency, rate limits, events, webhooks and the SDKs, and one page per resource generated from the OpenAPI document, with samples in curl, TypeScript, Rust and Python. Added tools/check-openapi.py : every API operation is documented with examples and its error codes. Changed An editor older than 0.2 that would delete an SDK block is closed with 4426 ("editor out of date: reopen the canvas"). Changed A webhook sweep claims at most 40 deliveries, and the next sweep starts at once (SEC-48). Security SEC-46: room updates over the WebSocket are checked against installed SDK block schemas, as API and MCP writes are. A broken block could otherwise make the file unopenable. Security SEC-51: a restore's undo cannot be reached with a crafted restoreId by a user whose id is a suffix of the restorer's.
 
 ## 0.1.2 (2026-11-24)
 

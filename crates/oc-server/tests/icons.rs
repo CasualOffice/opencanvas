@@ -137,6 +137,18 @@ async fn refusals_view_role_and_the_rate_limit() {
     assert_eq!(s, 429);
 }
 
+/// Settles until `f` holds. `settle` stops after 150 ms of quiet, which a loaded CI runner can
+/// exceed before the initial sync or a denial arrives (seen failing on CI, run for 9d707eb).
+async fn settle_until(p: &mut Peer, f: impl Fn(&Peer) -> bool) {
+    for _ in 0..200 {
+        if f(p) {
+            return;
+        }
+        p.settle().await;
+    }
+    panic!("condition not reached");
+}
+
 #[tokio::test]
 async fn clients_cannot_write_the_icons_root() {
     let (addr, state) = serve().await;
@@ -155,12 +167,11 @@ async fn clients_cannot_write_the_icons_root() {
         let m = d.transact_mut().get_or_insert_map("icons");
         m.insert(&mut d.transact_mut(), "evil", "<svg onload=alert(1)>");
     });
-    peer.settle().await;
-    assert!(peer.denied >= 1);
+    settle_until(&mut peer, |p| p.denied >= 1).await;
     assert_eq!(server_json(&state).await["icons"], before);
 
     let mut p2 = Peer::join(&state, grant("u_c", Role::Edit)).await;
-    p2.settle().await;
+    settle_until(&mut p2, |p| json_of(&p.doc)["icons"][&id].is_object()).await;
     p2.edit(|d| {
         let mut txn = d.transact_mut();
         let root = txn.get_or_insert_map("icons");
@@ -168,19 +179,17 @@ async fn clients_cannot_write_the_icons_root() {
             e.insert(&mut txn, "data", "PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+");
         }
     });
-    p2.settle().await;
-    assert!(p2.denied >= 1);
+    settle_until(&mut p2, |p| p.denied >= 1).await;
     assert_eq!(server_json(&state).await["icons"], before);
 
     let mut p3 = Peer::join(&state, grant("u_d", Role::Edit)).await;
-    p3.settle().await;
+    settle_until(&mut p3, |p| json_of(&p.doc)["icons"][&id].is_object()).await;
     p3.edit(|d| {
         let mut txn = d.transact_mut();
         let root = txn.get_or_insert_map("icons");
         root.remove(&mut txn, &id);
     });
-    p3.settle().await;
-    assert!(p3.denied >= 1);
+    settle_until(&mut p3, |p| p.denied >= 1).await;
     assert_eq!(server_json(&state).await["icons"], before);
 
     // Ordinary edits still go through in a document that has icons.

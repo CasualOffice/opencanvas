@@ -186,6 +186,11 @@ export default function Chrome({ node, editor, getPos, selected, updateAttribute
     }
     setSlow(false);
     const slowT = window.setTimeout(() => setSlow(true), 2000);
+    const stillSelected = () => {
+      const pos = getPos();
+      const sel = editor.state.selection;
+      return typeof pos === "number" && sel.from === pos && sel.to === pos + (editor.state.doc.nodeAt(pos)?.nodeSize ?? -1);
+    };
     const f = new BlockFrame(el, pkg, {
       read: () => read() as never,
       role: () => role,
@@ -205,7 +210,10 @@ export default function Chrome({ node, editor, getPos, selected, updateAttribute
           const lock = crashLoop(id || a.type);
           setLockedUntil(lock.locked ? lock.until : 0);
         }
-        if (s.s === "ready" && id && focusOnReady.delete(id)) f.focus();
+        // 6g: focus goes into a newly inserted block once its frame is ready, but only while
+        // the block is still what is selected. A slow frame must not take the keyboard from
+        // someone who has already moved on and is typing elsewhere.
+        if (s.s === "ready" && id && focusOnReady.delete(id) && stillSelected()) f.focus();
       },
       resize: (h) => setHeight(h),
       focusOut: (dir) => {

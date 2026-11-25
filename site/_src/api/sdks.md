@@ -150,3 +150,9 @@ a real server: a read, a block batch with `If-Match`, idempotent replay, paging,
 events resume and a webhook signature, plus offline webhook signature vectors. The server pins
 its clock, so no scenario sleeps. A third-party client can run the same scenarios; the format is
 in the [integration guide](../../../docs/05-INTEGRATION-GUIDE.md).
+
+## Block SDK
+
+To add your own block types to the editor rather than call the API, use `@opencanvas/block-sdk`.
+It is a different package: blocks run sandboxed inside the canvas, not on your server. See the
+[Block SDK guide](../docs/block-sdk.html).
