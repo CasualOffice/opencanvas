@@ -193,7 +193,7 @@ Proposed 2026-11-26. Owner asked to start v0.3 on 2026-11-26. Every `*` UI row w
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| V3UI-01 | Prototypes for v0.3 UI (docs/34 §6): live-blocks, offline, search, automation pages; owner approval | Review | 2026-11-26: four pages built in the approved format, each checked in headless Chromium (no console errors, no horizontal scroll at 390 px, axe 0 in light and dark). Awaiting the owner. Gates LIVE-03, OFF-06, SRCH-01, SRCH-04, AUTO-06 |
+| V3UI-01 | Prototypes for v0.3 UI (docs/34 §6): live-blocks, offline, search, automation pages; owner approval | Done | Approved by the owner 2026-11-26 (all four pages and their decisions); copies in docs/prototypes/v03-approved/ |
 | LIVE-01 | Live blocks host contract: `POST /files`, `/access` required, `perms.live`, derived grants | Todo | v0.3 (docs/34 §2); M; after MOD-01; ADR-039. Unchanged from docs/27 §2 |
 | LIVE-02 | `liveBlock` node, per-block room sessions (lazy, ≤ 8), depth rule | Todo | v0.3; L; after LIVE-01. Plus: awareness `from {fileId, title}` written by the server (ADR-069) |
 | LIVE-03 | Editor live block chrome and "Make live" to the approved prototype | Todo | v0.3; L; after LIVE-02 and V3UI-01 (live-blocks.html replaces the V2UI-01 live items). Adds the always-visible header, host picker (`UI_PickLiveBlock`) and paste-as menu (ADR-069) |

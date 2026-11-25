@@ -64,13 +64,13 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-060 | Block versions (BSDK-05): `v` is the package's SemVer major; `migrations` may be declarative steps (`set default remove move copy map scale` over `{attrs, data}`) run by the server and the editor, or a script for the sandbox; older data is validated, exported and written back migrated; data newer than the installed package is kept read-only (fallback, "Updated by a newer version"), and server writes to it are refused | Accepted (owner, 2026-11-25) |
 | ADR-061 | Editor profiles (EDP-01): `[host.editor]` picks a profile (`notebook meeting project diagramming document full`, default `full`) or an explicit list of stable block ids (`core.*`, SDK types), plus `features` (`comments version_history ai diagramming templates import`) that win over the older `[host.flags]`/`[host.ai]` switches; the session carries `editor`; profiles only hide blocks from insertion surfaces, never from loading, rendering, editing, paste or round trips; features with a server surface are enforced there (history routes, AI and MCP, import, team templates, comment writes); unknown values refuse start-up | Accepted (owner, 2026-11-25) |
 | ADR-062 | Insert menu model (INS-01): one insert engine and one catalogue (block, variants, aliases, intent phrases, a "why" line) behind the "/" menu, the phone sheet and the gallery; five categories (Content, Data & planning, Visual & diagrams, Layout, Extensions); six blocks carry variants (inline: Heading, List, Callout, Columns; second step: Database view, Diagram type); offers filtered by the EDP-01 profile (`blockAllowed`), 8 or fewer blocks a flat list; local keyword intent matching only; Recent and remembered variants in `localStorage` only (24 entries); `[host.editor] intents`/`chips` the only new host keys; SDK blocks by `discovery.category`, `discovery.keywords` as intents (no new manifest field) | Accepted (owner, 2026-11-25; prototype approved) |
-| ADR-063 | Offline cache on the person's device (OFF-01/02, docs/34 §3): off unless `[host.offline] enabled` and the launch token's `perms.offline`, then opt-in per canvas per device (or the host's `auto_recent`); Yjs updates in IndexedDB (y-indexeddb scheme) encrypted under a per-host-and-user device key kept for crypto-shredding; a server-signed offline grant (ES256 JWS: host, user, file, role ≤ `max_role`, `exp` ≤ `grant_days` (7, max 30), `gen`) used only locally, never as a server credential; locked after expiry; no document content on the server (one `offline_generation` metadata row per host and user) | Proposed (2026-11-26) |
-| ADR-064 | Offline reconnect and merge (OFF-04/05/07, docs/34 §3.3, §3.6): every reconnect is a fresh host launch (token refresh), never the grant; role view → pending changes held (download or discard), access gone → local copy and pending changes deleted; queued uploads first, then pending updates in frames ≤ 1 MB within the rate limit, each re-checked by the role filter and MOD-01; a checkpoint save before merges over 10 min or 200 transactions; a merge summary only for edits in deleted blocks and both-sides cell changes; `oc-pending:` asset scheme; host-wide revoke by generation (`POST /api/v1/offline/revoke`); logout through `OpenCanvas.clearOffline()` or the `/v1/offline/clear` iframe (key first, then data); JWT hosts only in v0.3 | Proposed (2026-11-26) |
-| ADR-065 | Cross-canvas search: the host indexes (SRCH-02/03, docs/34 §4.3). Every save carries `search.json` (plain-text projection with block ids; comments only with `[host.search] comments`; no in-file history; ≤ 2 MB) inside the `.ocanvas` (additive to format 1); stateless `POST /api/v1/extract`; optional host callback `GET /search` (ACL-filtered by the host) behind the editor's "Search all canvases", `GET /api/v1/search` and MCP `canvas_search`; OpenCanvas keeps no index. Rejected: an OpenCanvas index (ADR-001), open-rooms-only search, a candidate-file callback, text in webhook payloads (outbox at rest) | Proposed (2026-11-26) |
-| ADR-066 | Find and replace in a canvas (SRCH-01, docs/34 §4.2): client-side over the live Y.Doc (text, database cells, board text; comments find-only as an option; SDK blocks by fallback text; readable live blocks labelled); match case, whole word, regex with a 50 ms budget; replace for editors only, replace all as one transaction and one undo step; matches in a live block replaced in its own room with edit there; server role filter unchanged | Proposed (2026-11-26) |
-| ADR-067 | Automation rules (AUTO-01..03, AUTO-05, docs/34 §5.2–5.5): stored in a new `automations` document root (additive; disabled and ownerless on copy); run by the room's owner node as the collaborator "Automation" on behalf of the rule owner, whose role is re-checked through `/access` at each run (paused below edit); creating rules needs `perms.automate` (default false); saving a rule makes the saver its owner ("Run it as me" on a paused rule); writes through the canvas tool layer (role filter, MOD-01), one transaction per run; loop guard (never itself, chain depth 3); time triggers via a metadata-only `automation_schedule` table with claimed rows; run log `automation_runs` (ids, results, codes, counts; 30 days); events `automation.ran`/`automation.failed` | Proposed (2026-11-26) |
-| ADR-068 | Automation outbound calls and limits (AUTO-04, docs/34 §5.6–5.7): `http.post` signed like webhooks (v2, `Idempotency-Key` = run id), 10 s, no redirects, 3 tries (now, 1 min, 10 min); destination = the host's callback origin or an operator `[host.automation] allow_origins` entry, checked at save and before every call; only the fields a rule names are sent; `notify` only through the host's `POST /mentions`; limits 25 rules per canvas, 60 runs/min per rule, 1,000 runs/day per canvas, 50 changes per run, schedules ≥ 15 min; auto-pause after 10 consecutive failures | Proposed (2026-11-26) |
-| ADR-069 | Live blocks in v0.3, deltas to ADR-039 (LIVE-03, LIVE-07, docs/34 §2): an always-visible header; insert through the host's picker (`UI_PickLiveBlock` → `Action_InsertLiveBlock`) and paste-as (live / reference / link); unlink to a plain copy; `live.embedded`/`live.removed` events for the host's usage index (OpenCanvas keeps none); server-written presence `from {fileId, title}`, omitted for viewers who cannot read that title; cached offline only with its own offline grant | Proposed (2026-11-26) |
+| ADR-063 | Offline cache on the person's device (OFF-01/02, docs/34 §3): off unless `[host.offline] enabled` and the launch token's `perms.offline`, then opt-in per canvas per device (or the host's `auto_recent`); Yjs updates in IndexedDB (y-indexeddb scheme) encrypted under a per-host-and-user device key kept for crypto-shredding; a server-signed offline grant (ES256 JWS: host, user, file, role ≤ `max_role`, `exp` ≤ `grant_days` (7, max 30), `gen`) used only locally, never as a server credential; locked after expiry; no document content on the server (one `offline_generation` metadata row per host and user) | Accepted (owner, 2026-11-26) |
+| ADR-064 | Offline reconnect and merge (OFF-04/05/07, docs/34 §3.3, §3.6): every reconnect is a fresh host launch (token refresh), never the grant; role view → pending changes held (download or discard), access gone → local copy and pending changes deleted; queued uploads first, then pending updates in frames ≤ 1 MB within the rate limit, each re-checked by the role filter and MOD-01; a checkpoint save before merges over 10 min or 200 transactions; a merge summary only for edits in deleted blocks and both-sides cell changes; `oc-pending:` asset scheme; host-wide revoke by generation (`POST /api/v1/offline/revoke`); logout through `OpenCanvas.clearOffline()` or the `/v1/offline/clear` iframe (key first, then data); JWT hosts only in v0.3 | Accepted (owner, 2026-11-26) |
+| ADR-065 | Cross-canvas search: the host indexes (SRCH-02/03, docs/34 §4.3). Every save carries `search.json` (plain-text projection with block ids; comments only with `[host.search] comments`; no in-file history; ≤ 2 MB) inside the `.ocanvas` (additive to format 1); stateless `POST /api/v1/extract`; optional host callback `GET /search` (ACL-filtered by the host) behind the editor's "Search all canvases", `GET /api/v1/search` and MCP `canvas_search`; OpenCanvas keeps no index. Rejected: an OpenCanvas index (ADR-001), open-rooms-only search, a candidate-file callback, text in webhook payloads (outbox at rest) | Accepted (owner, 2026-11-26) |
+| ADR-066 | Find and replace in a canvas (SRCH-01, docs/34 §4.2): client-side over the live Y.Doc (text, database cells, board text; comments find-only as an option; SDK blocks by fallback text; readable live blocks labelled); match case, whole word, regex with a 50 ms budget; replace for editors only, replace all as one transaction and one undo step; matches in a live block replaced in its own room with edit there; server role filter unchanged | Accepted (owner, 2026-11-26) |
+| ADR-067 | Automation rules (AUTO-01..03, AUTO-05, docs/34 §5.2–5.5): stored in a new `automations` document root (additive; disabled and ownerless on copy); run by the room's owner node as the collaborator "Automation" on behalf of the rule owner, whose role is re-checked through `/access` at each run (paused below edit); creating rules needs `perms.automate` (default false); saving a rule makes the saver its owner ("Run it as me" on a paused rule); writes through the canvas tool layer (role filter, MOD-01), one transaction per run; loop guard (never itself, chain depth 3); time triggers via a metadata-only `automation_schedule` table with claimed rows; run log `automation_runs` (ids, results, codes, counts; 30 days); events `automation.ran`/`automation.failed` | Accepted (owner, 2026-11-26) |
+| ADR-068 | Automation outbound calls and limits (AUTO-04, docs/34 §5.6–5.7): `http.post` signed like webhooks (v2, `Idempotency-Key` = run id), 10 s, no redirects, 3 tries (now, 1 min, 10 min); destination = the host's callback origin or an operator `[host.automation] allow_origins` entry, checked at save and before every call; only the fields a rule names are sent; `notify` only through the host's `POST /mentions`; limits 25 rules per canvas, 60 runs/min per rule, 1,000 runs/day per canvas, 50 changes per run, schedules ≥ 15 min; auto-pause after 10 consecutive failures | Accepted (owner, 2026-11-26) |
+| ADR-069 | Live blocks in v0.3, deltas to ADR-039 (LIVE-03, LIVE-07, docs/34 §2): an always-visible header; insert through the host's picker (`UI_PickLiveBlock` → `Action_InsertLiveBlock`) and paste-as (live / reference / link); unlink to a plain copy; `live.embedded`/`live.removed` events for the host's usage index (OpenCanvas keeps none); server-written presence `from {fileId, title}`, omitted for viewers who cannot read that title; cached offline only with its own offline grant | Accepted (owner, 2026-11-26) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -910,7 +910,7 @@ version" read-only, and server writes or replaces of it are refused.
 server can check migrated data against the new schema; − complex migrations still need the
 script form and a client with the package.
 
-### ADR-063 — Offline cache on the person's device (Proposed, 2026-11-26)
+### ADR-063 — Offline cache on the person's device (Accepted by the owner 2026-11-26)
 **Context.** v0.3 adds offline-first editing (docs/34 §3). ADR-001 forbids the server from
 persisting documents; the host owns files and decides who may hold a copy.
 **Decision.** Offline copies live only on the person's device, in IndexedDB, and only when the
@@ -926,7 +926,7 @@ no expiry or revocation).
 partitioning and Safari eviction mean a copy can disappear; − the device key does not protect
 against someone who controls the browser profile (the OS lock does).
 
-### ADR-064 — Offline reconnect, merge and revocation (Proposed, 2026-11-26)
+### ADR-064 — Offline reconnect, merge and revocation (Accepted by the owner 2026-11-26)
 **Context.** Offline edits must merge without loss and without bypassing permissions that changed
 while the person was away.
 **Decision.** Reconnect is a fresh host launch; the server's role decides before any pending update
@@ -938,7 +938,7 @@ generation number. Logout clears through the SDK or a clear iframe on the host's
 **Consequences.** + the host's current ACL always wins; + history can undo a bad merge; − WOPI hosts
 (no refresh callback) get session resilience only in v0.3.
 
-### ADR-065 — Cross-canvas search: the host indexes (Proposed, 2026-11-26)
+### ADR-065 — Cross-canvas search: the host indexes (Accepted by the owner 2026-11-26)
 **Context.** Cross-canvas search spans files the host owns under the host's ACL; OpenCanvas may not
 keep their content (ADR-001).
 **Decision.** Every save includes `search.json` in the `.ocanvas`; `POST /api/v1/extract` produces it
@@ -952,13 +952,13 @@ payloads are stored in the outbox.
 alike; − results are as fresh as the last save; − hosts must do the indexing (sample host and
 Nextcloud app show how).
 
-### ADR-066 — Find and replace in a canvas (Proposed, 2026-11-26)
+### ADR-066 — Find and replace in a canvas (Accepted by the owner 2026-11-26)
 **Decision.** Client-side over the live document; replace for editors only and as one transaction;
 live blocks replaced in their own rooms. The server needs no new code beyond the role filter.
 **Consequences.** + instant and current; + no server load; − regex across very large canvases is
 bounded by a time budget and a 10,000-match display cap.
 
-### ADR-067 — Automation rules in the document, run by the server (Proposed, 2026-11-26)
+### ADR-067 — Automation rules in the document, run by the server (Accepted by the owner 2026-11-26)
 **Context.** People want rules ("when an item is done, move it") without running their own
 service; the server may not store documents.
 **Decision.** Rules are document data in an `automations` root, so the host stores them with the
@@ -971,14 +971,14 @@ the engine); client-side rules (rejected: need an open browser).
 **Consequences.** + rules travel with the file and history; + no write path beyond the API's; − time
 rules need the server to open closed files with the host key.
 
-### ADR-068 — Automation outbound calls and limits (Proposed, 2026-11-26)
+### ADR-068 — Automation outbound calls and limits (Accepted by the owner 2026-11-26)
 **Decision.** URL calls follow the webhook rules (signature, origin, no redirects) plus an operator
 allow-list, send only the named fields, and run under per-rule, per-canvas and chain limits with
 auto-pause. Notifications go through the host's mentions callback only.
 **Consequences.** + no new SSRF surface beyond what the operator lists; − calling a third-party
 service needs the operator's allow-list or a relay on the host's origin.
 
-### ADR-069 — Live blocks in v0.3 (Proposed, 2026-11-26)
+### ADR-069 — Live blocks in v0.3 (Accepted by the owner 2026-11-26)
 **Decision.** ADR-039 holds; v0.3 adds an always-visible header, the host picker and paste-as flow,
 unlink to a copy, usage events for the host, server-written presence origin, and the offline rule
 (a live block is cached only with its own grant). See docs/34 §2.
