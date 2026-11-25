@@ -340,8 +340,17 @@ server nothing.
    host's ACL allows: `{items:[{fileId, title, path, blockId?, snippet, updatedAt}], next}`. The
    editor shows "Search all canvases" (⌘⇧F) only when the host has it; results open the canvas at
    the block (`#block=<id>`), which scrolls into view and flashes.
-4. **For programs.** `GET /api/v1/search?q=` proxies the same callback for the API principal, and
-   an MCP tool `canvas_search` adapts it (ADR-041 parity).
+4. **For programs.** `GET /api/v1/search?q=` proxies the same callback, and an MCP tool
+   `canvas_search` adapts it (ADR-041 parity). It needs a **user** token (a host key gets 400
+   `USER_TOKEN_REQUIRED`: no "search as everyone"), 10 requests a minute per user.
+
+Host config `[host.search]`: `callback` (on/off), `comments` (default false), `timeout_ms` (8,000).
+The callback returns at most 50 items per page, may group them in up to 4 host scopes and may set
+`partial: true` (the editor says some results are missing). Results are never cached by
+OpenCanvas. Opening a result in another canvas sends the new postMessage event
+`UI_OpenFile {fileId, blockId}` so the host navigates (docs/05 gains the row); the editor opened
+with `#block=<id>` scrolls to the block and flashes it. `POST /api/v1/extract` accepts
+`application/vnd.opencanvas+zip` (or Markdown) up to 100 MB and answers 413 or 422.
 
 ```json
 // search.json (in the .ocanvas zip; ≤ 2 MB, then "truncated": true)
@@ -426,8 +435,13 @@ up rules themselves, inside the canvas, safely bounded.
   `/access {fileId, ownerId}` (cached 30 s): with less than `edit` the rule **pauses** ("Paused:
   Lea no longer has edit access") and the run is recorded as skipped. Without `/access` the rule
   uses the role from the owner's last session and pauses after 30 days without one.
-- **Who may create rules:** editors whose token has `perms.automate` (default true for editors
-  when `[host.automation] enabled`). Viewers see rules read-only.
+- **Who may create rules:** editors whose token has `perms.automate` (default false). Viewers
+  see rules read-only; the run history is shown to editors only.
+- **Taking over a rule.** Saving a rule makes the saver its owner, so the editor says so ("Runs as
+  you from now on"); a paused rule offers "Run it as me" to any editor. Accountability moves
+  with an explicit action, never silently.
+- Automation needs a database (SQLite, MySQL or MariaDB): with Redis-only storage the server
+  refuses `[host.automation]` at start-up, as it does webhooks.
 
 ### 5.3 Rule model
 
@@ -444,12 +458,15 @@ automations[ruleId] = {
 
 | Triggers | Conditions | Actions (same canvas only in v0.3) |
 |---|---|---|
-| `todo.checked` (any or one checklist) | field is / is not / contains / is empty / is before / is after | `field.set` (value, person, date, today) |
+| `checklist.checked` (any or one checklist) | field is / is not / contains / is empty / is before / is after | `field.set` (value, person, date, today) |
 | `row.added` | person is (field or actor) | `row.move` (another database in the canvas, or another group) |
 | `field.changed` (to a value) | in database / view | `todo.set` (check, uncheck), `todo.add` |
 | `date.reached` (a date field, offset, time, canvas time zone) | | `comment.add` |
 | `schedule` (cron subset: daily, weekly, monthly; at least every 15 min) | | `notify` (people or a person field; through the host's `POST /mentions`; OpenCanvas sends no mail) |
 | `comment.added`, `mention.added` | | `http.post` (call a URL, §5.6) |
+
+Conditions are "all of" by default, with one "any of" group as an option; no nested groups in
+v0.3. `row.move` works between databases of the same canvas that share the moved fields.
 
 Templates in actions (`{row.title}`, `{field.status}`, `{actor.name}`, `{canvas.title}`) are plain
 substitutions, escaped, no expressions.
@@ -462,7 +479,10 @@ substitutions, escaped, no expressions.
 - **Loop guard:** writes made by a rule never trigger that same rule; a chain of rules triggered
   by automation writes stops at depth 3 (recorded as `stopped`).
 - **Idempotency:** each run has an id from the trigger (event id or schedule slot); a run that
-  crashed is retried once by the next owner; actions use the API idempotency store.
+  crashed is retried once by the next owner; actions use the API idempotency store. A date or
+  schedule run whose file cannot be loaded is retried for an hour, then recorded as failed.
+- **Attribution:** `edited` events from a run carry `by: "automation:<ruleId>"`; the person whose
+  change triggered the run gets a toast with Undo.
 - **Dry run.** "Test run" in the editor evaluates the rule against current data and returns what
   would change without changing it (the tool layer's dry-run mode).
 
@@ -481,8 +501,8 @@ substitutions, escaped, no expressions.
 
 `http.post` sends `{ruleId, runId, fileId, trigger, row?: {id, fields}}` (only the fields the rule
 names) as JSON, signed exactly like webhooks (`X-OpenCanvas-Signature` v2, the host secret,
-`Idempotency-Key: <runId>`), 10 s timeout, no redirects, retried on the webhook schedule up to 3
-times. **Destination rule:** the host's callback origin (as webhooks, ADR-056) or an origin listed
+`Idempotency-Key: <runId>`), 10 s timeout, no redirects, 3 tries (now, after 1 minute, after 10
+minutes), `X-OpenCanvas-Event: automation.url`. **Destination rule:** the host's callback origin (as webhooks, ADR-056) or an origin listed
 in `[host.automation] allow_origins` by the operator; the editor shows the allowed origins and
 refuses others before saving the rule, and the server checks again before every call. This
 payload is the one place where field values leave the canvas through automation, so it is named
@@ -490,10 +510,11 @@ in the rule editor ("Sends the row's Status and Owner to hooks.acme.example").
 
 ### 5.7 Limits
 
-`[host.automation]`: `enabled = false`, `max_rules = 25` per canvas, `runs_per_minute = 60` per
-rule, `runs_per_day = 1000` per canvas, `max_changes = 50` per run, `chain_depth = 3`,
-`min_interval = "15m"`, `allow_origins = []`, `actions = ["field.set", "row.move", "todo.set",
-"todo.add", "comment.add", "notify", "http.post"]`. Over a limit a run is `skipped` with the
+`[host.automation]`: `enabled = false`, `max_rules = 25` per canvas (at most 100),
+`runs_per_minute = 60` per rule, `runs_per_day = 1000` per canvas, `max_changes = 50` per run,
+`max_depth = 3`, `min_interval_min = 15`, `time_zone` (default for canvases without one),
+`allow_origins = []`, `actions = ["field.set", "row.move", "todo.set", "todo.add", "comment.add",
+"notify", "http.post"]`. Over a limit a run is `skipped` with the
 reason; the editor shows the limit before it is hit (25th rule).
 
 ### 5.8 Security
@@ -501,8 +522,10 @@ reason; the editor shows the limit before it is hit (25th rule).
 - Server writes from automation go through the role filter as the owner's role, MOD-01 and SDK
   schemas: an automation can never do what its owner could not.
 - SSRF: §5.6. No other outbound network.
-- Rules are document data: a person who can edit the canvas can see every rule and its owner;
-  `perms.automate` governs creating and enabling.
+- Rules are document data: anyone who can **read** the file (inside or outside OpenCanvas) can
+  read every rule, its owner, its URL targets and the fields it sends. URL actions therefore must
+  not carry secrets (signing uses the host secret, never a value in the rule), and the rule
+  editor says so. `perms.automate` governs creating and enabling.
 - A copied canvas keeps rules disabled and with no owner until an editor turns them on.
 - The schedule and run tables hold ids, times, counts and codes only (rule 5, rule 9).
 
