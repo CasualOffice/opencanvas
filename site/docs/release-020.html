@@ -6,14 +6,14 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Release notes 0.2.0 | OpenCanvas</title>
-<meta name="description" content="OpenCanvas 0.2.0 scope lock, upgrade notes (migrations, new host config sections, 4426 for old editors), known limitations and the release checklist.">
+<meta name="description" content="OpenCanvas 0.2.0 release notes: scope, upgrade notes (migrations, new host config sections, 4426 for old editors), known limitations and the release checklist.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/release-020.html">
 <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OpenCanvas">
 <meta property="og:title" content="Release notes 0.2.0 | OpenCanvas">
-<meta property="og:description" content="OpenCanvas 0.2.0 scope lock, upgrade notes (migrations, new host config sections, 4426 for old editors), known limitations and the release checklist.">
+<meta property="og:description" content="OpenCanvas 0.2.0 release notes: scope, upgrade notes (migrations, new host config sections, 4426 for old editors), known limitations and the release checklist.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/release-020.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -54,7 +54,7 @@
   <article class="docs-article prose">
 <h1>Release notes 0.2.0</h1>
 
-<p><strong>Status:</strong> locked and prepared on 2026-11-25 (tracker REL-04). Not tagged yet: the tag waits for the block SDK runtime (BSDK-03/04), host editor profiles (EDP-01) and block discovery metadata. <strong>Licence:</strong> Apache-2.0 (ADR-037). <strong>Plan:</strong> <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/27-ROADMAP-v0.2.md">docs/27</a>. <strong>Acceptance:</strong> <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/23-ACCEPTANCE.md#v02-acceptance-acc-v2">docs/23 §v0.2</a>. <strong>Security audit:</strong> <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/18-SECURITY-AUDIT.md#6-release-audit-v020-2026-11-25-rel-04">docs/18 §6</a>.</p>
+<p><strong>Status:</strong> released 2026-11-25, tag <code>v0.2.0</code> (tracker REL-04). Includes the block SDK runtime (BSDK-03/04), host editor profiles (EDP-01) and block discovery metadata. <strong>Licence:</strong> Apache-2.0 (ADR-037). <strong>Plan:</strong> <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/27-ROADMAP-v0.2.md">docs/27</a>. <strong>Acceptance:</strong> <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/23-ACCEPTANCE.md#v02-acceptance-acc-v2">docs/23 §v0.2</a>. <strong>Security audit:</strong> <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/18-SECURITY-AUDIT.md#6-release-audit-v020-2026-11-25-rel-04">docs/18 §6</a>.</p>
 <p>OpenCanvas 0.2.0 makes the headless API the supported way for programs to read and write canvases. It also adds webhooks, version history and a block SDK. The host still owns users, permissions and files; OpenCanvas never stores documents (ADR-001). Support is best effort, with no SLA.</p>
 <h2 id="1-what-020-contains-frozen">1. What 0.2.0 contains (frozen)</h2>
 <p>v0.2 = the stable headless API (docs/27 §4), the block SDK (§3), version history and webhooks (§0). The owner moved portable live blocks (§2, LIVE-01..06) to v0.3 on 2026-11-24. On 2026-11-25 the owner added host editor profiles and block discovery metadata.</p>

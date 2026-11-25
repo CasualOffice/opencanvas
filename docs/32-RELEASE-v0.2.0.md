@@ -1,7 +1,7 @@
 # 32 — Release v0.2.0: scope lock and release notes
 
-**Status:** locked and prepared on 2026-11-25 (tracker REL-04). Not tagged yet: the tag waits for
-the block SDK runtime (BSDK-03/04), host editor profiles (EDP-01) and block discovery metadata.
+**Status:** released 2026-11-25, tag `v0.2.0` (tracker REL-04). Includes the block SDK runtime
+(BSDK-03/04), host editor profiles (EDP-01) and block discovery metadata.
 **Licence:** Apache-2.0 (ADR-037).
 **Plan:** [docs/27](27-ROADMAP-v0.2.md).
 **Acceptance:** [docs/23 §v0.2](23-ACCEPTANCE.md#v02-acceptance-acc-v2).
