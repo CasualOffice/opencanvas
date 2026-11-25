@@ -41,6 +41,8 @@ async function slash(p: Person) {
 
 async function axe(p: Person, include: string[]) {
   const frame = p.page.frame({ name: "oc" })!;
+  // Theme switches transition colours; axe must not sample mid-fade.
+  await p.page.emulateMedia({ reducedMotion: "reduce" });
   for (const theme of ["light", "dark"]) {
     await frame.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
     const r = await new AxeBuilder({ page: p.page }).include(include).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();

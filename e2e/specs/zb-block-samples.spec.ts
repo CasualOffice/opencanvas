@@ -70,6 +70,8 @@ test("the gallery shows the package's preview.png, and axe passes on the samples
   await priya.page.keyboard.press("Enter");
   await expect(frameOf(priya, "acme.okr").getByLabel("Objective")).toBeVisible({ timeout: 10_000 });
   await expect(frameOf(priya, "oc.progress").getByRole("progressbar")).toBeVisible({ timeout: 10_000 });
+  // Theme switches transition colours (.btn: background .2s); axe must not sample mid-fade.
+  await priya.page.emulateMedia({ reducedMotion: "reduce" });
   const frame = priya.page.frame({ name: "oc" })!;
   for (const theme of ["light", "dark"]) {
     await frame.evaluate((t) => (document.documentElement.dataset.theme = t), theme);

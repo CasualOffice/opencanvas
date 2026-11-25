@@ -171,6 +171,8 @@ test("axe: block chrome, fallbacks and the gallery in light and dark", async ({ 
   ]);
   await expect(frameOf(priya, "e2e.okr").locator(".status")).toHaveText("Ready", { timeout: 10_000 });
   await block(priya, "e2e.okr").hover();
+  // Theme switches transition colours (.btn: background .2s); axe must not sample mid-fade.
+  await priya.page.emulateMedia({ reducedMotion: "reduce" });
   const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
   const frame = priya.page.frame({ name: "oc" })!;
   for (const theme of ["light", "dark"]) {
