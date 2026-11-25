@@ -93,6 +93,11 @@ pub fn callback_token_of(headers: &axum::http::HeaderMap) -> String {
     api::callback_token(headers)
 }
 
+/// The collaboration WebSocket base URL for a request (as `/v1/sessions` answers it).
+pub fn ws_url_of(state: &SharedState, headers: &axum::http::HeaderMap) -> String {
+    launch::ws_url(state, headers)
+}
+
 /// Resolves a ticket into its grant and host; expired or unknown tickets are rejected.
 pub async fn session(
     state: &SharedState,
@@ -268,6 +273,9 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/history/{v}/restore", post(history::restore))
         .route("/v1/icons", post(icons::upload).layer(DefaultBodyLimit::max(icons::MAX_BODY)))
         .route("/v1/icons/{id}", post(icons::change))
+        // LIVE-01: derived sessions and "Make live" (docs/27 §2).
+        .route("/v1/live/session", post(crate::live::open_session))
+        .route("/v1/live/make", post(crate::live::make))
         .route("/v1/templates", get(templates::index))
         .route("/v1/templates/undo", post(templates::undo))
         .route("/v1/templates/{id}/apply", post(templates::apply))

@@ -98,6 +98,11 @@ pub struct HostConfig {
     /// feature switches; read through [`HostConfig::editor`].
     #[serde(default)]
     pub editor: toml::Table,
+    /// `[host.live]` (LIVE-01, docs/05 §2c, docs/27 §2.5): the snapshot policy, the source link
+    /// and the open live block limit; read through [`crate::live::LiveCfg`]. The feature itself
+    /// is `[host.flags] live_blocks`.
+    #[serde(default)]
+    pub live: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -276,6 +281,12 @@ impl HostConfig {
         self.flags.get("api_v1").and_then(|v| v.as_bool()) != Some(false)
     }
 
+    /// `[host.flags] live_blocks` (LIVE-01, docs/27 §5): portable live blocks. Off by default in
+    /// 0.3.0-alpha.
+    pub fn live_blocks(&self) -> bool {
+        self.flags.get("live_blocks").and_then(|v| v.as_bool()) == Some(true)
+    }
+
     /// `[host.api] default_mode = "direct" | "suggest"`: where API writes to existing blocks
     /// land when the call does not say. Default `direct` (a program asked for the change).
     pub fn api_default_mode(&self) -> crate::ai::tools::WriteMode {
@@ -380,6 +391,7 @@ impl Hosts {
                 .with_context(|| format!("host {}", h.id))?;
             crate::editor::EditorCfg::parse(&h.editor, &crate::editor::sdk_types(&h.blocks))
                 .with_context(|| format!("host {}", h.id))?;
+            crate::live::check_host(&h).with_context(|| format!("host {}", h.id))?;
             if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] unfurl takes true or false", h.id);
             }

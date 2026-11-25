@@ -19,6 +19,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   fits; no results offers "Did you mean". Recent stays in the browser. The gallery takes the same
   categories with variant chips. `[host.editor] intents` and `chips` turn off or replace the
   goal chips (docs/05 §2b). Profiles with 8 or fewer blocks get a flat list.
+- Portable live blocks, server side (v0.3, behind `[host.flags] live_blocks`, off by default):
+  the host contract (LIVE-01, docs/05 §2c, ADR-070): `[host.live]` checked at start-up, the
+  `POST /files` callback, `/access` required (with optional `name` and `callbackToken`), the
+  token's `perms.live` and `live` claims, derived sessions for embedded live files
+  (`POST /v1/live/session`) and "Make live" (`POST /v1/live/make`).
 
 ## [0.2.0] - 2026-11-25
 

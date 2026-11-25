@@ -543,6 +543,15 @@ rows and ≤ 200 columns, else `413 IMPORT_TOO_LARGE`) → `{"format","blockIds"
 through the room; the session response's `import.formats` lists what the editor may offer (empty for
 non-editors or when off) · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
+*Live blocks (LIVE-01, ADR-039, ADR-070; `[host.flags] live_blocks`, else `404 LIVE_OFF`):*
+`POST /v1/live/session` `{ticket, fileId}` → `201 {ticket, room, fileId, role, name, exp, wsUrl, maxOpen}`:
+a derived session for a live file the canvas embeds (`404 LIVE_NOT_EMBEDDED` otherwise), role from the
+host's `/access` (`403 LIVE_NO_ACCESS` with nothing about the file), expiry and perms bounded by the
+parent session, `403 LIVE_DEPTH` from a derived session; 2 opens/s per person (burst 60, `429`). ·
+`POST /v1/live/make` `{ticket, blockIds, name}` (edit + `perms.live`; header `Idempotency-Key` is
+passed to the host's `POST /files`) → `201 {liveFileId, blockId, kind}`; `501 LIVE_CREATE_UNSUPPORTED`
+when the host does not create files.
+
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
 `POST /v1/files/:fileId/role {"userId","role":"view|comment|edit|none"}` → `{"connections","sessions"}`;

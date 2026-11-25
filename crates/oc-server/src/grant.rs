@@ -73,6 +73,49 @@ pub struct Perms {
     /// docs/30 §4: name a version (with the edit role). Default true.
     #[serde(default = "yes", rename = "commitMessage")]
     pub commit_message: bool,
+    /// LIVE-01 (docs/27 §2.3): may make live blocks and embed them (insert a `liveBlock` or
+    /// `blockRef`). Default false: a host turns it on per person.
+    #[serde(default)]
+    pub live: bool,
+}
+
+/// A launch token's `live: [{fileId, role}]` entry (LIVE-01): a live file this person may
+/// see read-only when the host has no `/access` callback.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveClaim {
+    pub file_id: String,
+    pub role: Role,
+}
+
+/// Where a derived grant (LIVE-01) came from: the embedding canvas and a hash of the ticket of
+/// the session that asked for it (the open live blocks are counted per parent session).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveParent {
+    pub file_id: String,
+    pub session: String,
+    /// The embedding canvas's name: presence `from` (ADR-069), shown only to viewers from
+    /// the same canvas.
+    #[serde(default)]
+    pub title: String,
+}
+
+/// The live block parts of a grant (LIVE-01, LIVE-02).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveGrant {
+    /// The launch token's `live` claim (at most 50 entries).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub claims: Vec<LiveClaim>,
+    /// Set on a derived grant for a live file: the session that embeds it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<LiveParent>,
+    /// The connection said it keeps `liveBlock` and `blockRef` nodes (`caps=live`). Editors
+    /// before 0.3 delete nodes their schema lacks; an update from a connection without it
+    /// that removes one is refused and the connection closed with 4426 (as ADR-059).
+    #[serde(default)]
+    pub caps: bool,
 }
 
 fn yes() -> bool {
@@ -101,6 +144,9 @@ pub struct Grant {
     /// with 4426.
     #[serde(default)]
     pub ext_blocks: bool,
+    /// LIVE-01/02: live block claims, the parent of a derived grant, and `caps=live`.
+    #[serde(default)]
+    pub live: LiveGrant,
 }
 
 /// CheckFileInfo `OpenCanvas_SupportsVersions`, `FileVersionUrl`, `FileVersionPostMessage`.
@@ -208,6 +254,7 @@ mod tests {
     fn debug_output_redacts_the_callback_token() {
         let g = super::Grant {
             ext_blocks: false,
+            live: Default::default(),
             wopi_history: None,
             host_id: "h".into(),
             room: "r".into(),

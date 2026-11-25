@@ -86,6 +86,10 @@ pub struct LaunchClaims {
     /// picker. Any other value is ignored. Read leniently: a non-string never fails a launch.
     #[serde(default)]
     start: Option<Value>,
+    /// LIVE-01: `[{fileId, role}]`, live files this person may see read-only when the host has
+    /// no `/access` callback. Read leniently: bad entries are dropped, at most 50 kept.
+    #[serde(default)]
+    live: Option<Value>,
 }
 
 impl LaunchClaims {
@@ -108,6 +112,7 @@ impl LaunchClaims {
             download: true,
             comment: true,
             print: true,
+            live: false,
         });
         if self.role == Role::View {
             perms.comment = false;
@@ -120,6 +125,10 @@ impl LaunchClaims {
         let members = crate::people::members_from_json(self.members.as_ref());
         Grant {
             ext_blocks: false,
+            live: crate::grant::LiveGrant {
+                claims: live_claims(self.live.as_ref()),
+                ..Default::default()
+            },
             wopi_history: None,
             members,
             room: room_id(&self.iss, &self.file.id),
@@ -150,6 +159,28 @@ impl LaunchClaims {
 }
 
 use crate::grant::is_hex_color;
+
+/// The token's `live` claim (LIVE-01): `[{fileId, role}]`, entries with a 1-1024 byte file id
+/// and a known role; anything else is dropped, at most 50 kept.
+fn live_claims(v: Option<&Value>) -> Vec<crate::grant::LiveClaim> {
+    v.and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|e| {
+                    let file_id = e["fileId"].as_str()?;
+                    let role = Role::parse(e["role"].as_str()?)?;
+                    (!file_id.is_empty() && file_id.len() <= 1024).then(|| {
+                        crate::grant::LiveClaim {
+                            file_id: file_id.to_string(),
+                            role,
+                        }
+                    })
+                })
+                .take(50)
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 pub fn peek_issuer(token: &str) -> Result<String, JwtError> {
     let payload = token.split('.').nth(1).ok_or(JwtError::Malformed)?;

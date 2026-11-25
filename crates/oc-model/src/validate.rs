@@ -144,6 +144,11 @@ pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
             }
         }
     }
+    // LIVE-02: the depth rule (a live file holds no references) and the reference limit.
+    // The snapshot policy is the host's; the room checks it (docs/27 §2.5).
+    for e in crate::live::rule_errors(v, crate::live::Snapshot::Content) {
+        cx.r.err("/content", e);
+    }
     // Blocks that point at a database or board the document doesn't have.
     for (path, id) in std::mem::take(&mut cx.db_refs) {
         if !dbs.is_some_and(|d| d.contains_key(&id)) {
@@ -367,6 +372,32 @@ fn spec(ty: &str) -> Option<Spec> {
             C::Blocks(0),
             true,
         ),
+        // LIVE-02 (docs/15 §4.4, ADR-039): references to content in another host file.
+        "liveBlock" => s(
+            Block,
+            &[
+                ("fileId", A::Id),
+                ("hostId", A::Str),
+                ("kind", A::Soft(crate::live::KINDS)),
+                ("title", A::Str),
+                ("snapshot", A::Any),
+                ("snapshotAt", A::Str),
+            ],
+            C::None,
+            true,
+        ),
+        "blockRef" => s(
+            Block,
+            &[
+                ("fileId", A::Id),
+                ("refBlockId", A::Id),
+                ("title", A::Str),
+                ("snapshot", A::Any),
+                ("snapshotAt", A::Str),
+            ],
+            C::None,
+            true,
+        ),
         _ => return None,
     })
 }
@@ -526,6 +557,18 @@ impl Cx {
         };
         if let Some(a) = attrs {
             self.attrs(path, ty, a, spec.attrs, spec.block_id);
+        }
+        if crate::live::is_ref_node(ty)
+            && let Some(snap) = attrs.and_then(|a| a.get("snapshot"))
+            && snap.to_string().len() > crate::live::SNAPSHOT_MAX
+        {
+            self.r.err(
+                &format!("{path}/attrs/snapshot"),
+                format!(
+                    "a snapshot is at most {} KB",
+                    crate::live::SNAPSHOT_MAX / 1024
+                ),
+            );
         }
         if ty == crate::ext::NODE {
             let reg = self.reg.take().unwrap_or_default();

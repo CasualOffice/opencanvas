@@ -236,6 +236,7 @@ impl FileInfo {
             download: !self.disable_export,
             comment: self.role() != Role::View,
             print: !(self.disable_export || self.disable_print),
+            live: false,
         }
     }
 
@@ -254,6 +255,7 @@ impl FileInfo {
         let role = self.role();
         Grant {
             ext_blocks: false,
+            live: Default::default(),
             wopi_history: Some(crate::grant::WopiHistory {
                 supports: self.supports_versions,
                 url: self.file_version_url.clone(),

@@ -19,6 +19,7 @@ pub mod history;
 pub mod host_client;
 pub mod hosts;
 pub mod jwt;
+pub mod live;
 pub mod metrics;
 pub mod notify;
 pub mod pdf;
@@ -289,6 +290,7 @@ impl AppState {
             };
             let grant = grant::Grant {
                 ext_blocks: false,
+                live: Default::default(),
                 wopi_history: None,
                 host_id: row.host_id.clone(),
                 room: row.room_id.clone(),

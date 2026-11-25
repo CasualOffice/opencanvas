@@ -361,6 +361,7 @@ impl Principal {
         };
         Ok(Grant {
             ext_blocks: false,
+            live: Default::default(),
             wopi_history: None,
             host_id: self.host.id.clone(),
             room: room_id(&self.host.id, file_id),
@@ -385,6 +386,7 @@ impl Principal {
                 // The role decides; `Perms::default()` would turn comments off for everyone.
                 comment: role != Role::View,
                 print: true,
+                live: false,
             },
             callback_token: self.callback_token.clone(),
             members: vec![],

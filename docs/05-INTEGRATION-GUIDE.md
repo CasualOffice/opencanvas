@@ -189,6 +189,49 @@ kept in the browser's `localStorage` per host and person (`oc.insert.v1:<host>:<
 empty or over 40 characters, and `chips` with `intents = false` refuse to start, naming the host
 and the bad value.
 
+### 2c. Portable live blocks (LIVE-01, docs/27 §2, docs/34 §2, ADR-039, ADR-069, ADR-070)
+
+A live block is written once and shown live in many canvases: its content is **its own host file**
+(a small `.ocanvas` with `meta.kind = "live"`), embedded by file id and opened as its own room. You
+keep that file like any other, under your ACL; OpenCanvas stores nothing new.
+
+```toml
+[host.flags]
+live_blocks = true                         # off by default in 0.3.0-alpha
+
+[host.live]
+snapshot = "title"                         # "none" | "title" (default) | "content": what of a live
+                                           # file the canvases that embed it may keep (§2c below)
+link     = "https://app.acme.example/files/{fileId}"   # optional: exports link a live block here
+max_open = 8                               # 1-8: live block rooms one editor session may have open
+```
+
+You implement two callbacks (§5): **`POST /files`** (create the backing file for "Make live";
+without it "Make live" answers 501 and the editor hides it) and **`POST /access`**, which is
+**required** for live blocks: every person who meets a live block is checked against it (cached
+30 s). Without `/access`, only the files your launch token lists in `live` open, and only
+read-only.
+
+- **Who may make and embed.** The token's `perms.live` (default false) lets a person make live
+  blocks and insert `liveBlock`/`blockRef` nodes; the room refuses such an insert from anyone else.
+- **Derived grants.** When an editor meets a live block it asks
+  `POST /v1/live/session {ticket, fileId}`: the canvas must really embed that file, then your
+  `/access` answer decides the role (`none`: 403, nothing about the file is shown). The new session
+  expires with the parent, has the parent's perms at most (never `live`), and cannot derive
+  again. It is an ordinary room session: your role API (§7) and revocations reach it at once.
+- **Snapshots.** `snapshot = "title"` keeps only the title in the embedding canvas; `"none"` keeps
+  not even that; `"content"` (for hosts whose ACL treats embedding as sharing) also keeps a
+  Markdown snapshot (≤ 64 KB), written by the server, never by a client. Exports inline what the
+  exporting person can read and show "Live block: <title> (no access)" for the rest.
+- **Depth.** A live file cannot contain live blocks or references, and a canvas holds at most 50.
+- **Usage.** OpenCanvas keeps no index of where a live block is used: the `live.embedded` and
+  `live.removed` events (§7b, webhooks §7c) tell you, so you can keep your own.
+
+**Start-up checks.** A `live_blocks` that is not a boolean, an unknown `[host.live]` key, a bad
+`snapshot`, `max_open` outside 1-8, a `link` that is not http(s) or lacks `{fileId}`, and
+`live_blocks = true` on a WOPI-only host, a temporary-canvas host or a host without
+`callback_base` refuse to start, naming the host.
+
 ## 3. JWT launch token
 
 Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
@@ -224,8 +267,12 @@ exchanged for a session ticket on open).
     "commitMessage": true,          // editors may name a version (default true)
     "history": true,                // see version history (default: editors yes, others no; docs/30 §7)
     "restore": true,                // editors may restore a version (default true)
-    "mention": true
+    "mention": true,
+    "live": true                    // may make live blocks and embed them (default false, §2c)
   },
+  "live": [                         // optional (§2c): live files to show read-only when you
+    { "fileId": "doc_9001", "role": "view" }   // have no POST /access; at most 50
+  ],
   "mode": "edit",                   // edit | view | preview
   "callbackToken": "opaque-…",      // we send it back on every callback; you validate it
   "start": "page"                   // optional (ADR-048): open a new canvas straight into the page
@@ -337,7 +384,8 @@ OpenCanvas:
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
-| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none"}`. Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
+| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none", "name"?, "callbackToken"?}`. **Required for live blocks** (§2c): each person who opens one is checked here; `name` titles the live file and `callbackToken` is the bearer for that file's load and save (else the embedding session's). Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
+| **Create file** *(live blocks, §2c)* `POST /files` | JSON `{name, parentFileId, kind: "ocanvas"}`, signed, with the `callbackToken` of whoever makes the live block and an `Idempotency-Key` | `201 {"fileId":"doc_9001"}`: create it where you like with the ACL you like (by default the parent's) and give that person edit on it. OpenCanvas writes the content and saves it through `PUT /files/{fileId}`. `404`/`405`/`501` = not implemented ("Make live" is hidden) |
 | **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
 | **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
 | **List versions** *(optional, `history = true`, docs/30 §3.1)* `GET /files/{fileId}/versions?cursor=&limit=` | signed like every callback, with the `callbackToken` of whoever opened history; `limit` ≤ 100 | `{"versions":[{"version":"18","at":"2026-11-24T10:14:03Z","authors":["u_123"],"name":"Before the board review","kind":"named","size":182344}],"next":"<opaque>"}`, newest first; `kind` `auto`\|`named`\|`restore`, `name` only for named and restore versions. List only what this user may see. `404`/`405`/`501` = not implemented |
