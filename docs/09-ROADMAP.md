@@ -29,7 +29,7 @@ open to a broad developer ecosystem (ADR-038).
 | v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
 | [v0.1.2](31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
 | [v0.2.0](32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
-| v0.3 | Portable live blocks, offline-first editing, search and automation |
+| [v0.3](34-ROADMAP-v0.3.md) | Portable live blocks, offline-first editing, search and automation (plan proposed 2026-11-26) |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
 
@@ -70,6 +70,10 @@ and security fixes go into 0.1.x and features go to 0.2.0. Exit criteria and lim
 ## v0.2 detail
 
 The detailed design plan for v0.2 is [docs/27](27-ROADMAP-v0.2.md): portable live blocks as host files embedded by reference and opened as their own rooms (ADR-039), a block SDK with one generic sandboxed block node and server-side schema validation (ADR-040), and a stable, versioned headless API shared with the MCP tools (ADR-041), keeping `.ocanvas` at format version 1 (ADR-042). Its delivery rows are the P3 section of the tracker.
+
+## v0.3 detail
+
+The detailed design plan for v0.3 is [docs/34](34-ROADMAP-v0.3.md): live blocks as designed in docs/27 §2 with small deltas (ADR-069), offline copies kept only on the person's device under host and per-canvas opt-in with fresh host launches on reconnect (ADR-063, ADR-064), find and replace in the client and cross-canvas search indexed by the host from a `search.json` in every save (ADR-065, ADR-066), and automation rules stored in the document and run by the server on the rule owner's behalf (ADR-067, ADR-068). Its delivery rows are the P3 v0.3 section of the tracker; prototypes (V3UI-01) gate the UI rows.
 
 ## Milestone sequence (P0 → P1)
 
