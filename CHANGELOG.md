@@ -7,6 +7,19 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Added
+
+- The categorised insert menu (INS-01, v0.2.1, [approved prototype](docs/prototypes/insert-menu-approved/)):
+  "/" opens Quick insert, Recent, goal chips and five categories (Content, Data & planning,
+  Visual & diagrams, Layout, Extensions) with flyouts on desktop and drill-in on phones.
+  Heading, List, Callout and Columns pick their variant inline (Tab); Database and Diagram have
+  a second step with previews (Board, Calendar and Gallery views; Flowchart, UML, ERD, network,
+  mind map, org chart, wireframe). `/h2`, `/todo`, `/board`, `/kanban`, `/uml` and the old ids
+  land on the variant; intent search ("track tasks", "plan a sprint") shows why each result
+  fits; no results offers "Did you mean". Recent stays in the browser. The gallery takes the same
+  categories with variant chips. `[host.editor] intents` and `chips` turn off or replace the
+  goal chips (docs/05 §2b). Profiles with 8 or fewer blocks get a flat list.
+
 ## [0.2.0] - YYYY-MM-DD (draft: date set at the tag)
 
 - The headless API (`/api/v1`) is on by default; `[host.flags] api_v1 = false` turns it off per host.

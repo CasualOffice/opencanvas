@@ -13,6 +13,8 @@ import { blockMenuStore, insertBelowCaret, topBlockAt } from "./blockops";
 import { openLinkEditor } from "./linkstate";
 import { aiStore, openAssistant } from "../lib/assistant";
 import { insertable, profileStore } from "./profile";
+import { installedBlocks } from "../ext/model";
+import { nothingToInsert, profileCtx } from "./insert/model";
 
 export function MobileBar({ editor, role, onComment }: { editor: Editor; role: Role; onComment(id: string): void }) {
   const st = useEditorState({
@@ -88,7 +90,7 @@ export function MobileBar({ editor, role, onComment }: { editor: Editor; role: R
           </>
         ) : edit ? (
           <>
-            {b("plus", "Insert block", () => insertBelowCaret(editor))}
+            {!nothingToInsert(profileCtx(prof, installedBlocks())) && b("plus", "Insert block", () => insertBelowCaret(editor))}
             {b("type", "Turn into", openTurn)}
             {can("todo") && b("list-todo", "Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList"))}
             {can("bul") && b("list", "Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}

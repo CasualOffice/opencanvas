@@ -34,11 +34,10 @@ import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
 import { ExtBlock } from "../ext/node";
-import { ExtIcon } from "../ext/ExtIcon";
 import { galleryStore } from "../ext/model";
 const BlockGallery = lazy(() => import("../ext/Gallery"));
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
-import type { SlashItem } from "./slash";
+const InsertMenu = lazy(() => import("./insert/InsertMenu"));
 
 /** Carets with the agent-safe awareness filter (lib/assistant.ts caretFilter). */
 const CollaborationCaret = CollaborationCaretBase.extend({
@@ -493,72 +492,13 @@ function SuggestMenu({ editor }: { editor: Editor }) {
     );
   }
 
-  const items = s.items as SlashItem[];
-  if (compact && !s.query) {
-    return (
-      <Popover anchor={s.rect} onClose={close} title="Insert" kind="listbox">
-        <div className="sgrid" onMouseDown={hold}>
-          {items.map((x, i) => (
-            <button key={x.id} className={(i === s.sel ? "on" : "") + (x.ext ? " ext" : "")} onClick={() => s.pick(x)}>
-              {x.ext ? <ExtIcon pkg={x.ext} size={20} /> : <Ic name={x.icon} size={20} />}
-              {x.title}
-            </button>
-          ))}
-        </div>
-        <button className="mi browse" onClick={() => (close(), galleryStore.set({ open: true }))}>
-          <Ic name="layout-grid" />
-          Browse all blocks
-        </button>
-      </Popover>
-    );
-  }
-  let group = "";
+  // INS-01: the categorised insert menu (lazy, with its own keyboard model).
   void editor;
+  void compact;
   return (
-    <Popover anchor={s.rect} onClose={close} title="Insert" minWidth={300} kind="listbox">
-      <div ref={listRef} onMouseDown={hold}>
-        {items.length ? (
-          items.map((x, i) => {
-            const head =
-              x.group !== group ? (
-                ((group = x.group),
-                (
-                  <div className="mh">
-                    {x.ext ? <Ic name="building-2" size={12} /> : null}
-                    {x.group}
-                  </div>
-                ))
-              ) : null;
-            return (
-              <div key={x.id}>
-                {head}
-                <button className={"mi" + (i === s.sel ? " on" : "")} onClick={() => s.pick(x)} onMouseEnter={() => suggestStore.set({ ...s, sel: i })}>
-                  <span className={"tile" + (x.ext ? " ext" : "")}>{x.ext ? <ExtIcon pkg={x.ext} /> : <Ic name={x.icon} />}</span>
-                  <span className="ml">
-                    <b>{x.title}</b>
-                    <span>{x.desc}</span>
-                  </span>
-                  {x.md ? <span className="mk">{x.md}</span> : null}
-                </button>
-              </div>
-            );
-          })
-        ) : (
-          <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: ".8125rem" }}>
-            No matching blocks
-          </div>
-        )}
-        <div className="msep" />
-        <button className="mi browse" onClick={() => (close(), galleryStore.set({ open: true }))}>
-          <span className="tile">
-            <Ic name="layout-grid" />
-          </span>
-          <span className="ml">
-            <b>Browse all blocks</b>
-          </span>
-        </button>
-      </div>
-    </Popover>
+    <Suspense fallback={null}>
+      <InsertMenu editor={editor} />
+    </Suspense>
   );
 }
 

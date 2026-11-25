@@ -18,8 +18,17 @@ export interface EditorProfile {
   /** Insertable block ids (`core.*` and SDK types). */
   blocks: string[];
   quickInsert?: string[];
+  /** INS-01: goal chips in the insert menu (`[host.editor] intents`, default on) and the host's
+   *  own chips (`chips`, replacing the built-in ones). */
+  intents?: boolean;
+  chips?: string[];
   features?: Partial<Record<"comments" | "versionHistory" | "ai" | "diagramming" | "templates" | "import", boolean>>;
 }
+
+/** INS-01: whose Recent this browser keeps (`host:user`), set from the session. */
+let insertScope = "local";
+export const setInsertScope = (s: string) => void (insertScope = s);
+export const getInsertScope = () => insertScope;
 
 /** `null`: no profile from the server (older server, demo): everything, as before. */
 export const profileStore = createStore<EditorProfile | null>(null);

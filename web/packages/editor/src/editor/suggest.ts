@@ -12,6 +12,8 @@ export interface SuggestState {
   sel: number;
   rect: DOMRect | null;
   pick(item: unknown): void;
+  /** Replaces the typed "/query" with "/" + text (goal chips, the phone search field). */
+  replace(text: string): void;
 }
 
 export const suggestStore = createStore<SuggestState | null>(null);
@@ -23,7 +25,9 @@ export function dismissSuggest() {
   suggestStore.set(null);
 }
 
-export function suggestRender(kind: SuggestState["kind"]) {
+/** `onKey`: a menu with its own keyboard model (the insert menu, INS-01) handles keys first;
+ *  `true` handled, `false` not, `undefined` the default list keys below. */
+export function suggestRender(kind: SuggestState["kind"], onKey?: (e: KeyboardEvent) => boolean | undefined) {
   return () => {
     const push = (p: SuggestionProps<any, any>, keepSel: boolean) => {
       const prev = suggestStore.get();
@@ -34,6 +38,9 @@ export function suggestRender(kind: SuggestState["kind"]) {
         sel: keepSel && prev ? Math.min(prev.sel, Math.max(0, p.items.length - 1)) : 0,
         rect: p.clientRect?.() ?? null,
         pick: (item) => p.command(item),
+        replace: (text) => {
+          p.editor.chain().focus().insertContentAt(p.range, kind === "slash" ? "/" + text : text).run();
+        },
       });
     };
     return {
@@ -43,13 +50,18 @@ export function suggestRender(kind: SuggestState["kind"]) {
       },
       onUpdate: (p: SuggestionProps<any, any>) => {
         // Remote edits elsewhere re-run the plugin; don't resurrect a dismissed menu.
-        if (dismissed !== null && p.query === dismissed) return;
+        // The insert menu takes phrases with spaces: Esc keeps it closed while the text grows (6a).
+        if (dismissed !== null && (p.query === dismissed || (kind === "slash" && p.query.startsWith(dismissed)))) return;
         dismissed = null;
         push(p, p.query === suggestStore.get()?.query);
       },
       onKeyDown: ({ event }: SuggestionKeyDownProps) => {
         const s = suggestStore.get();
         if (!s) return false;
+        if (onKey) {
+          const r = onKey(event);
+          if (r !== undefined) return r;
+        }
         const n = s.items.length;
         if (event.key === "ArrowDown") {
           if (n) suggestStore.set({ ...s, sel: (s.sel + 1) % n });

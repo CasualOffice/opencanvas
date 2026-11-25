@@ -10,7 +10,8 @@ import { expect, test } from "@playwright/test";
 import { HOST, HOST_MEETING } from "../env";
 import { applyTemplate, blocksReady, clickEndOf, createFile, editor, expectSaved, openFile, person } from "../helpers";
 
-const MEETING_MENU = ["Text", "Heading 1", "Heading 2", "Heading 3", "Checklist", "Bulleted list", "Numbered list", "Callout", "Divider", "Simple table", "Date"];
+// INS-01: one flat list (8 or fewer blocks), variants consolidated (Heading, List, Callout).
+const MEETING_MENU = ["Text", "Heading", "List", "Callout", "Simple table", "Date", "Divider"];
 
 test("meeting profile: / shows only its blocks, and a full document opens intact", async ({ browser }) => {
   const priya = await person(browser, "u_priya");

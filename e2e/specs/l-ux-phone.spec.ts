@@ -18,6 +18,8 @@ test("phone: + inserts below without touching the text; link sheet", async ({ pa
   await bar.getByRole("button", { name: "Insert block" }).tap();
   await expect(page.locator(".sheet[aria-label=Insert]")).toBeVisible();
   await expect(para).toHaveText(before!);
+  // INS-01: Divider is in Layout (the phone drills in, 7b).
+  await page.locator(".sheet[aria-label=Insert]").getByRole("button", { name: /^Layout/ }).tap();
   await page.locator(".sheet[aria-label=Insert]").getByRole("button", { name: "Divider" }).tap();
   await expect(para).toHaveText(before!);
 

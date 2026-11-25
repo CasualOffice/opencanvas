@@ -21,6 +21,9 @@ import { startComment } from "./blockmenu";
 import { blockMenuStore, insertBelow } from "./blockops";
 import { linkStore, openLinkEditor } from "./linkstate";
 import { aiStore, aiUiStore, openAssistant } from "../lib/assistant";
+import { profileStore } from "./profile";
+import { installedBlocks } from "../ext/model";
+import { nothingToInsert, profileCtx } from "./insert/model";
 
 // ---------- block gutter: + and grip, with the block menu ----------
 
@@ -45,6 +48,8 @@ export function Gutter({ editor }: { editor: Editor }) {
     return { placement: "left-start" as const, strategy: "absolute" as const, middleware: [offset({ mainAxis: 0, crossAxis: 3 }), atWideEdge] };
   }, [editor]);
   const menu = useStore(blockMenuStore);
+  // INS-01 (5d): with nothing but Text to insert, no "+".
+  const plus = !nothingToInsert(profileCtx(useStore(profileStore), installedBlocks()));
   // Keep the handle on its block while the menu is open; release it after.
   useEffect(() => {
     editor.commands.setMeta("lockDragHandle", !!menu);
@@ -53,7 +58,7 @@ export function Gutter({ editor }: { editor: Editor }) {
   return (
     <DragHandle editor={editor} computePositionConfig={pos} onNodeChange={({ node, pos }) => (cur.current = { node, pos })}>
       <div className="gut">
-        <button
+        {plus ? <button
           title="Insert below"
           aria-label="Insert block below"
           onMouseDown={(e) => e.preventDefault()}
@@ -64,7 +69,7 @@ export function Gutter({ editor }: { editor: Editor }) {
           }}
         >
           <Ic name="plus" size={15} />
-        </button>
+        </button> : null}
         <button
           className="grip"
           title={`Drag to move, click for options (${keyLabel("Mod-/")})`}

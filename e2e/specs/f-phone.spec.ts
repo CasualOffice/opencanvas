@@ -32,6 +32,8 @@ test("phone: bottom-sheet slash menu, mobile toolbar, tap-to-activate board", as
   expect(Math.round(box.y + box.height)).toBeGreaterThanOrEqual(Math.round(frame.y + frame.height) - 2);
 
   // Insert a whiteboard from the sheet: it shows a cover until tapped.
+  // INS-01: Whiteboard is in Visual & diagrams (the phone drills in, 7b).
+  await sheet.getByRole("button", { name: /^Visual & diagrams/ }).tap();
   await sheet.getByRole("button", { name: "Whiteboard" }).tap();
   await expect(sheet).toHaveCount(0);
   const cover = priya.oc.locator(".ocbd-cover");

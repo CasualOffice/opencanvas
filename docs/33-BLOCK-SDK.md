@@ -102,7 +102,10 @@ expect(t.attrs().value).toBe(0.2);
 - **Discovery** files the block in the / menu and the gallery: `category` is one of `content`,
   `data-planning`, `visual`, `layout`, `extensions`; `profiles` the editor profiles that offer
   it (`notebook`, `meeting`, `project`, `diagramming`, `document`, `full`); `complexity` `basic`
-  or `advanced`. Unknown names refuse the package.
+  or `advanced`. Unknown names refuse the package. The block is listed in its category and
+  also under Extensions ("From your organisation"). `keywords` may be short phrases
+  (`"plan sprint"`, `"set goals"`): the insert menu matches them as intents, so "plan a sprint"
+  finds your block, with your `description` as its "why" line.
 - **Versions.** A breaking change is a new major with a migration for every step: declarative
   steps (`set default remove move copy map scale`, run by the server and the editor) or a script
   (`"migrations": "migrations.js"` calling `defineMigrations({1: (attrs, data) => ({attrs, data})})`,

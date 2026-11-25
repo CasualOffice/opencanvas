@@ -112,10 +112,12 @@ One engine, many experiences. A profile decides which blocks the editor **offers
 [host.editor]
 profile = "meeting"          # notebook | meeting | project | diagramming | document | full (default)
 allow_profile_switch = false # reserved: stored and sent, no UI yet
+intents = true               # INS-01: goal chips in the insert menu (default true)
+chips   = ["Track tasks", "Plan a sprint", "Draw architecture"]  # replaces the built-in chips
 
 [host.editor.blocks]         # optional
 enabled      = ["core.text", "core.heading", "core.checklist", "acme.okr"]  # replaces the profile's set
-quick_insert = ["core.checklist"]  # sent to the editor for the coming quick-insert menu; default []
+quick_insert = ["core.checklist"]  # the insert menu's Quick insert tiles, in order; default []
 
 [host.editor.features]       # every key optional
 comments        = true
@@ -170,8 +172,22 @@ one leaves the older switch in charge:
 | `templates` | no template gallery or Templates starter; no "From your team" | `[host.flags] team_templates` (that section only) |
 | `import` | no Import entry; `POST /v1/import` answers `403 IMPORT_OFF`. `true` without `import_formats` allows every import format | `[host.flags] import_formats` |
 
-**Start-up checks.** An unknown profile, setting, block id or feature, a non-boolean feature, or a
-`quick_insert` id the profile does not offer refuses to start, naming the host and the bad value.
+**The insert menu (INS-01, ADR-062).** "/" (and the gutter and phone "+") opens one menu:
+*Quick insert* (`quick_insert`, else Text, Heading, List, Image, Table; at most five; an id like
+`core.checklist` or `core.kanban` inserts that variant), *Recent* (this browser only), *Start from
+a goal* (the goal chips) and *Explore* (Content, Data & planning, Visual & diagrams, Layout,
+Extensions). A profile with 8 or fewer blocks (counting List, Heading, Callout, Columns, Database
+and Diagram once each) gets one flat list in `quick_insert` order instead, with no bands and no
+"Browse all blocks"; `meeting` lists Text, Heading, List (Checklist), Callout (Decision), Simple
+table, Date and Divider. `intents = false` removes the goal chips; `chips` (at most 6 phrases of
+1-40 characters) replaces the built-in "Track tasks", "Draw architecture", "Write notes". A chip
+only fills the search; matching is local keyword matching, nothing is sent anywhere. Recent is
+kept in the browser's `localStorage` per host and person (`oc.insert.v1:<host>:<user>`).
+
+**Start-up checks.** An unknown profile, setting, block id or feature, a non-boolean feature or
+`intents`, a `quick_insert` id the profile does not offer, more than 6 `chips` or a chip that is
+empty or over 40 characters, and `chips` with `intents = false` refuse to start, naming the host
+and the bad value.
 
 ## 3. JWT launch token
 

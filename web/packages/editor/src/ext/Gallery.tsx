@@ -1,32 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-// The insert gallery, "Browse all blocks" (BSDK-03, frames 6e-6f): categories on the left (the
-// editor's groups, then "From your organisation" last), cards with a static preview (a sketch
-// drawn from the manifest, or the package's `preview.png`, decision 7: a block is never run to
-// make a thumbnail), and a detail pane with what the selected block can do. Arrow keys move
-// between cards, Enter inserts, Escape closes. The organisation category is the one place with
-// an empty state (6f). Lazy.
+// The insert gallery, "Browse all blocks" (BSDK-03 frames 6e-6f; INS-01 frame 8a): All blocks and
+// the insert menu's five categories on the left, with counts after the editor profile; cards with
+// a static preview (a sketch, or the package's `preview.png`, decision 7: a block is never run to
+// make a thumbnail); a detail pane with a variant block's choices as chips and what an SDK block
+// can do. Arrow keys move between cards, Enter inserts, Escape closes. Extensions is the one
+// category with an empty state (6f). Lazy.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Ic } from "../icons";
 import { Modal, ModalHead } from "../components/overlay";
-import { filterSlash, ORG_GROUP, type SlashItem } from "../editor/slash";
 import { ExtIcon } from "./ExtIcon";
 import { canDo } from "./Chrome";
+import { CATS, ORG_HEAD } from "../editor/insert/catalogue";
+import { catBlocks, cats, currentVariant, offered, variantsOf, type Block } from "../editor/insert/model";
+import { insertCtx, insertRowAtSelection } from "../editor/insert/controller";
+import { DiagramSketch } from "../editor/insert/InsertMenu";
 
-const CATS = ["Basic", "Data", "Media", "Layout", ORG_GROUP] as const;
-const CAT_ICON: Record<string, string> = { Basic: "type", Data: "database", Media: "image", Layout: "columns-2", [ORG_GROUP]: "building-2" };
-
-/** Docs for admins: how SDK blocks are added (the site page of docs/32). */
+/** Docs for admins: how SDK blocks are added (the site page of docs/33). */
 export const BLOCKS_DOCS = "https://github.com/CasualOffice/opencanvas/blob/main/docs/33-BLOCK-SDK.md";
 
-function Preview({ x }: { x: SlashItem }) {
+const ALL = "all";
+
+function Preview({ b }: { b: Block }) {
   const [broken, setBroken] = useState(false);
-  if (x.ext?.preview && !broken) return <img className="oc-gal-img" src={x.ext.preview} alt="" onError={() => setBroken(true)} />;
+  if (b.ext?.preview && !broken) return <img className="oc-gal-img" src={b.ext.preview} alt="" onError={() => setBroken(true)} />;
+  if (b.key === "diagram")
+    return (
+      <div className="oc-gal-sketch dg" aria-hidden="true">
+        <DiagramSketch id="flowchart" lg />
+      </div>
+    );
   return (
     <div className="oc-gal-sketch" aria-hidden="true">
-      <span className={"tile" + (x.ext ? " ext" : "")}>{x.ext ? <ExtIcon pkg={x.ext} size={20} /> : <Ic name={x.icon} size={20} />}</span>
+      <span className={"tile" + (b.ext ? " ext" : "")}>{b.ext ? <ExtIcon pkg={b.ext} size={20} /> : <Ic name={b.icon} size={20} />}</span>
       <i />
       <i />
       <i className="s" />
@@ -35,20 +43,34 @@ function Preview({ x }: { x: SlashItem }) {
 }
 
 export default function Gallery({ editor, category, onClose }: { editor: Editor; category?: string; onClose(): void }) {
-  const all = useMemo(() => filterSlash(""), []);
-  const [cat, setCat] = useState<string>(category ?? (all.some((x) => x.group === ORG_GROUP) ? ORG_GROUP : "Basic"));
-  const items = all.filter((x) => x.group === cat);
+  const ctx = useMemo(() => insertCtx(), []);
+  const all = useMemo(() => offered(ctx).filter((b) => b.action !== "assistant"), [ctx]);
+  const navCats = useMemo(() => {
+    const c = cats(ctx);
+    // Extensions stays listed (with its empty state) even with no SDK blocks (6f).
+    return c.some((x) => x.id === "ext") ? c : [...c, CATS.find((x) => x.id === "ext")!];
+  }, [ctx]);
+  const [cat, setCat] = useState<string>(category ?? ALL);
+  const items = useMemo(() => {
+    if (cat === ALL) return all;
+    const { own, org } = catBlocks(cat as (typeof CATS)[number]["id"], ctx);
+    return [...own, ...org];
+  }, [cat, all, ctx]);
   const [sel, setSel] = useState(0);
+  const [vsel, setVsel] = useState<Record<string, string>>({});
   const grid = useRef<HTMLDivElement>(null);
   const cur = items[Math.min(sel, items.length - 1)];
+  const curVariants = cur ? variantsOf(cur, ctx) : [];
+  const curVariant = cur ? curVariants.find((v) => v.id === vsel[cur.key]) ?? currentVariant(cur, ctx) : undefined;
   useEffect(() => setSel(0), [cat]);
   useEffect(() => {
     grid.current?.querySelector<HTMLElement>(`[data-i="${sel}"]`)?.focus();
   }, [sel, cat]);
 
-  const insert = (x: SlashItem) => {
+  const insert = (b: Block) => {
     onClose();
-    x.run(editor, null);
+    const v = b === cur ? curVariant : currentVariant(b, ctx);
+    insertRowAtSelection(editor, { key: b.key, block: b, variant: v, fixed: true });
   };
   const key = (e: React.KeyboardEvent) => {
     const cols = grid.current ? Math.max(1, Math.round(grid.current.clientWidth / 180)) : 3;
@@ -61,43 +83,44 @@ export default function Gallery({ editor, category, onClose }: { editor: Editor;
       insert(cur);
     }
   };
+  const count = (id: string) => (id === ALL ? all.filter((b) => !b.action).length : catBlocks(id as (typeof CATS)[number]["id"], ctx).own.filter((b) => !b.action).length + catBlocks(id as (typeof CATS)[number]["id"], ctx).org.length);
 
   return (
     <Modal onClose={onClose} wide label="Insert a block">
       <ModalHead title="Insert a block" onClose={onClose} />
       <div className="oc-gal">
         <nav className="oc-gal-cats" aria-label="Categories">
-          {CATS.map((c) => (
-            <button key={c} className={"mi" + (c === cat ? " on" : "")} aria-pressed={c === cat} onClick={() => setCat(c)}>
-              <Ic name={CAT_ICON[c]} />
-              {c}
-              <span className="cnt">{all.filter((x) => x.group === c).length}</span>
+          {[{ id: ALL, icon: "layout-grid", title: "All blocks" }, ...navCats].map((c) => (
+            <button key={c.id} className={"mi" + (c.id === cat ? " on" : "")} aria-pressed={c.id === cat} onClick={() => setCat(c.id)}>
+              <Ic name={c.icon} />
+              {c.title}
+              <span className="cnt">{count(c.id)}</span>
             </button>
           ))}
         </nav>
         {items.length ? (
           <>
-            <div className="oc-gal-grid" ref={grid} role="listbox" aria-label={cat} onKeyDown={key}>
-              {items.map((x, i) => (
+            <div className="oc-gal-grid" ref={grid} role="listbox" aria-label={cat === ALL ? "All blocks" : CATS.find((c) => c.id === cat)?.title} onKeyDown={key}>
+              {items.map((b, i) => (
                 <button
-                  key={x.id}
+                  key={b.key}
                   data-i={i}
                   role="option"
                   aria-selected={i === sel}
                   tabIndex={i === sel ? 0 : -1}
                   className={"oc-gal-card" + (i === sel ? " on" : "")}
                   onClick={() => setSel(i)}
-                  onDoubleClick={() => insert(x)}
+                  onDoubleClick={() => insert(b)}
                 >
-                  <Preview x={x} />
-                  <b>{x.title}</b>
-                  <span>{x.desc}</span>
+                  <Preview b={b} />
+                  <b>{b.title}</b>
+                  <span>{b.desc}</span>
                 </button>
               ))}
             </div>
             {cur ? (
               <aside className="oc-gal-detail">
-                <Preview x={cur} />
+                <Preview b={cur} />
                 <h3>{cur.title}</h3>
                 {cur.ext ? (
                   <>
@@ -120,8 +143,21 @@ export default function Gallery({ editor, category, onClose }: { editor: Editor;
                 ) : (
                   <p>{cur.desc}</p>
                 )}
+                {curVariants.length > 1 ? (
+                  <>
+                    <h4>{cur.segLabel ? cur.segLabel[0].toUpperCase() + cur.segLabel.slice(1) : "Variant"}</h4>
+                    <div className="oc-gal-vars" role="radiogroup" aria-label={cur.segLabel ?? "Variant"}>
+                      {curVariants.map((v) => (
+                        <button key={v.id} role="radio" aria-checked={v.id === curVariant?.id} className={"oc-gal-var" + (v.id === curVariant?.id ? " on" : "")} onClick={() => setVsel({ ...vsel, [cur.key]: v.id })}>
+                          {v.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
                 <button className="btn primary" onClick={() => insert(cur)}>
-                  Insert
+                  <Ic name="plus" size={15} />
+                  {curVariants.length > 1 && curVariant ? `Insert ${curVariant.label}` : "Insert"}
                 </button>
               </aside>
             ) : null}
@@ -129,7 +165,7 @@ export default function Gallery({ editor, category, onClose }: { editor: Editor;
         ) : (
           <div className="empty oc-gal-empty">
             <Ic name="building-2" size={28} />
-            <b>Nothing from your organisation yet</b>
+            <b>Nothing {ORG_HEAD.toLowerCase()} yet</b>
             <p>Blocks your organisation adds for this app show up here. If you expected one, ask your administrator.</p>
             <a href={BLOCKS_DOCS} target="_blank" rel="noopener noreferrer">
               How blocks are added

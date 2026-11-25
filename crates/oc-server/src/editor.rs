@@ -155,8 +155,17 @@ pub struct EditorCfg {
     /// enabled`; always with `core.text`.
     pub blocks: Vec<String>,
     pub quick_insert: Vec<String>,
+    /// INS-01: goal chips in the insert menu (`intents`, default on) and the host's own chips
+    /// (`chips`, replacing the built-in ones; empty = the built-in ones).
+    pub intents: bool,
+    pub chips: Vec<String>,
     pub features: Features,
 }
+
+/// At most this many goal chips (they share one row of the menu).
+pub const MAX_CHIPS: usize = 6;
+/// A chip is a short phrase.
+pub const MAX_CHIP_CHARS: usize = 40;
 
 impl Default for EditorCfg {
     fn default() -> Self {
@@ -168,6 +177,8 @@ impl Default for EditorCfg {
                 .map(String::from)
                 .collect(),
             quick_insert: vec![],
+            intents: true,
+            chips: vec![],
             features: Features::default(),
         }
     }
@@ -200,10 +211,10 @@ impl EditorCfg {
         for k in t.keys() {
             if !matches!(
                 k.as_str(),
-                "profile" | "allow_profile_switch" | "blocks" | "features"
+                "profile" | "allow_profile_switch" | "blocks" | "features" | "intents" | "chips"
             ) {
                 bail!(
-                    "[host.editor] {k} is not a setting (profile, allow_profile_switch, blocks, features)"
+                    "[host.editor] {k} is not a setting (profile, allow_profile_switch, blocks, features, intents, chips)"
                 );
             }
         }
@@ -219,6 +230,32 @@ impl EditorCfg {
         }
         if let Some(v) = t.get("allow_profile_switch") {
             cfg.allow_profile_switch = bool_of(v, "allow_profile_switch")?;
+        }
+        if let Some(v) = t.get("intents") {
+            cfg.intents = bool_of(v, "intents")?;
+        }
+        if let Some(v) = t.get("chips") {
+            let list = v.as_array().context(
+                "[host.editor] chips takes a list of short phrases, like [\"Track tasks\"]",
+            )?;
+            if list.len() > MAX_CHIPS {
+                bail!("[host.editor] chips: at most {MAX_CHIPS} goal chips");
+            }
+            for c in list {
+                let c = c
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|c| !c.is_empty() && c.chars().count() <= MAX_CHIP_CHARS)
+                    .with_context(|| {
+                        format!(
+                            "[host.editor] chips: each chip is a phrase of 1-{MAX_CHIP_CHARS} characters"
+                        )
+                    })?;
+                cfg.chips.push(c.to_string());
+            }
+            if !cfg.intents && !cfg.chips.is_empty() {
+                bail!("[host.editor] chips has no effect with intents = false (remove one)");
+            }
         }
         cfg.blocks = profile_blocks(&cfg.profile)
             .into_iter()
@@ -303,6 +340,8 @@ impl EditorCfg {
             "allowProfileSwitch": self.allow_profile_switch,
             "blocks": self.blocks,
             "quickInsert": self.quick_insert,
+            "intents": self.intents,
+            "chips": self.chips,
             "features": {
                 "comments": self.features.comments.unwrap_or(true),
                 "versionHistory": self.features.version_history.unwrap_or(true),

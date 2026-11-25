@@ -9,7 +9,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import type { Role } from "@opencanvas/ui";
 import { setInstalledBlocks, type BlockPackage } from "../ext/model";
-import { setEditorProfile, type EditorProfile } from "../editor/profile";
+import { setEditorProfile, setInsertScope, type EditorProfile } from "../editor/profile";
 
 export interface Session {
   ticket: string;
@@ -82,6 +82,8 @@ export async function fetchSession(ticket: string): Promise<Session> {
   const s = (await r.json()) as Session;
   setInstalledBlocks(s.blocks);
   setEditorProfile(s.editor);
+  // INS-01: Recent is kept per host and person, in this browser only.
+  setInsertScope(`${s.host?.id ?? "host"}:${s.user?.id ?? "me"}`);
   return s;
 }
 

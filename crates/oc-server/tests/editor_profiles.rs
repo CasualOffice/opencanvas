@@ -243,3 +243,56 @@ async fn templates_and_comments_off() {
         "{e}"
     );
 }
+
+/// INS-01: the insert menu's goal chips. `[host.editor] intents = false` turns them off, `chips`
+/// replaces the built-in ones; both are checked at start-up and reach the session's `editor`.
+#[tokio::test]
+async fn insert_menu_goal_chips_are_checked_at_start_up_and_reach_the_session() {
+    let ok = parse("[host.editor]\nchips = [\"Track tasks\", \"Plan a sprint\"]\n").unwrap();
+    assert_eq!(
+        ok.get("h").unwrap().editor().chips,
+        ["Track tasks", "Plan a sprint"]
+    );
+    assert!(ok.get("h").unwrap().editor().intents);
+    let off = parse("[host.editor]\nintents = false\n").unwrap();
+    assert!(!off.get("h").unwrap().editor().intents);
+    for (extra, says) in [
+        (
+            "[host.editor]\nintents = \"no\"\n",
+            "intents takes true or false",
+        ),
+        (
+            "[host.editor]\nchips = \"Track tasks\"\n",
+            "chips takes a list",
+        ),
+        ("[host.editor]\nchips = [\"\"]\n", "chips"),
+        (
+            "[host.editor]\nchips = [\"a\", \"b\", \"c\", \"d\", \"e\", \"f\", \"g\"]\n",
+            "at most 6",
+        ),
+        (
+            "[host.editor]\nintents = false\nchips = [\"Track tasks\"]\n",
+            "intents = false",
+        ),
+    ] {
+        let Err(e) = parse(extra) else {
+            panic!("{extra} was accepted")
+        };
+        let err = format!("{e:#}");
+        assert!(
+            err.contains("host h") && err.contains(says),
+            "{extra}: {err}"
+        );
+    }
+
+    let (st, addr) = state(|h| h.editor = editor("chips = [\"Draw architecture\"]\n")).await;
+    let t = ticket(&st, Role::Edit).await;
+    let (_, j) = get(&addr, &format!("/v1/sessions/{t}")).await;
+    assert_eq!(j["editor"]["intents"], true, "{j}");
+    assert_eq!(j["editor"]["chips"], json!(["Draw architecture"]));
+    let (st, addr) = state(|h| h.editor = editor("intents = false\n")).await;
+    let t = ticket(&st, Role::Edit).await;
+    let (_, j) = get(&addr, &format!("/v1/sessions/{t}")).await;
+    assert_eq!(j["editor"]["intents"], false);
+    assert_eq!(j["editor"]["chips"], json!([]));
+}

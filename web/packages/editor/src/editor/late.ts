@@ -16,8 +16,15 @@ import { gapCursor } from "@tiptap/pm/gapcursor";
 import { PluginKey, type Plugin } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { LINK_OPTIONS } from "./link";
-import { filterSlash, type SlashItem } from "./slash";
 import { suggestRender } from "./suggest";
+import type { Editor as CoreEditor, Range } from "@tiptap/core";
+import { insertCtx, insertKey } from "./insert/controller";
+import { nothingToInsert } from "./insert/model";
+
+/** What the insert menu hands the "/" plugin: anything that inserts at the typed range. */
+interface InsertRun {
+  run(editor: CoreEditor, range: Range): void;
+}
 
 export interface MentionItem {
   id: string;
@@ -62,18 +69,20 @@ function linkPlugins(editor: Editor): Plugin[] {
 }
 
 function slashPlugin(editor: Editor): Plugin {
-  return Suggestion<SlashItem, SlashItem>({
+  // INS-01: the insert menu (insert/) draws its own bands and results from the query; goal
+  // phrases have spaces ("/track tasks"). With only Text to insert there is no menu (5d).
+  return Suggestion<InsertRun, InsertRun>({
     editor,
     pluginKey: new PluginKey("slash"),
     char: "/",
-    allowSpaces: false,
+    allowSpaces: true,
     allow: ({ state, range }) => {
       const $f = state.doc.resolve(range.from);
-      return $f.parent.type.name === "paragraph" && !$f.node(1)?.type.spec.code;
+      return $f.parent.type.name === "paragraph" && !$f.node(1)?.type.spec.code && !nothingToInsert(insertCtx());
     },
-    items: ({ query }) => filterSlash(query),
+    items: () => [],
     command: ({ editor, range, props }) => props.run(editor, range),
-    render: suggestRender("slash"),
+    render: suggestRender("slash", insertKey),
   });
 }
 
