@@ -7,7 +7,7 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
-## [0.2.0] - YYYY-MM-DD (draft: date set at the tag)
+## [0.2.0] - 2026-11-25
 
 - The headless API (`/api/v1`) is on by default; `[host.flags] api_v1 = false` turns it off per host.
 
@@ -258,6 +258,7 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.2...v0.2.0
 [0.1.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1
