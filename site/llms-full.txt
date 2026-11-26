@@ -9,7 +9,7 @@ URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
-How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.1.2. These pages describe what is built and say so where something is planned. The roadmap has the full picture.
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.2.1, released 2026-11-26. They describe what is built and say so where something is planned. The roadmap has the full picture.
 
 ## Start
 
@@ -20,6 +20,10 @@ The server, the editor and the sample host on your machine.
 ## FAQ
 
 Status, the licence, data and sign-in.
+
+## Facts
+
+Release, licence, stack and capacity, with sources.
 
 ## The demo
 
@@ -67,7 +71,7 @@ Scope, personas and targets.
 
 ## Glossary
 
-The terms these pages use. Last changed 2026-11-24 .
+The terms these pages use. Last changed 2026-11-26 .
 
 
 # Getting started
@@ -785,47 +789,96 @@ URL: https://canvas.casualoffice.org/docs/faq.html
 
 ## FAQ
 
-Short answers, with links to the pages that say more.
+Short, direct answers, each followed by the page that says more. Numbers link to where they were measured.
+
+## What is OpenCanvas?
+
+OpenCanvas is an open-source, real-time collaborative canvas that other applications embed, the way they embed Collabora Online for office files. One document holds rich text, databases and whiteboards, with live cursors and comments. Your application keeps the users, the permissions and the file; OpenCanvas does the editing and saves the file back to it. See the facts for the release, the stack and the measured capacity.
 
 ## Can I use it in production today?
 
-OpenCanvas 0.1.2 has best-effort support and no production SLA. Review the deployment limits before committing it to a production workflow.
+OpenCanvas 0.2.1 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.2.1] - 2026-11-26” The limits are in the release notes and on the home page .
+
+## Is OpenCanvas free?
+
+Yes. OpenCanvas is open source under the Apache-2.0 licence, so you may use, modify, self-host, embed and redistribute it, including in commercial and closed-source products, at no cost. The one duty when you redistribute it is to keep the NOTICE file and the licence with it.
 
 ## What does the licence allow?
 
-OpenCanvas is open source under the Apache License 2.0, copyright 2026 CasualOffice. Allowed: using, modifying, self-hosting, embedding and redistributing it, in open or closed, commercial or non-commercial products and services. Attribution: when you redistribute OpenCanvas or a work derived from it, keep the NOTICE file and the licence. Fonts: the bundled fonts are under the SIL Open Font License 1.1. The LICENSE file states the exact terms and is the authority; this summary is not legal advice.
+OpenCanvas is under the Apache License, copyright CasualOffice. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products and services. When you redistribute OpenCanvas or a work derived from it, keep the NOTICE file and the licence. The bundled fonts are under the SIL Open Font License. The LICENSE file states the exact terms and is the authority; this summary is not legal advice.
 
 ## Does OpenCanvas keep my documents?
 
-Only while a session is live. The server keeps a snapshot and the recent updates so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file lives in your app; OpenCanvas writes it back there. See Architecture .
+Only while a session is live. The server keeps a snapshot and the recent updates of an open canvas so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file itself lives in your application, and OpenCanvas writes every change back there. See Architecture .
 
 ## How do users sign in?
 
-To your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role (view, comment or edit). OpenCanvas trusts that decision for the life of the token, enforces it on every edit, and switches a user's role live when your app calls the role API. See the integration guide .
+They sign in to your application, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role: view, comment or edit. OpenCanvas trusts that decision for the life of the token, enforces it on every edit, and switches a role live when your app calls the role API. See the integration guide .
 
 ## Is there a Save button?
 
-No. Every change saves to your app on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Saves go through a durable outbox, so a restart resends them. If your copy of the file changed elsewhere, your chosen policy runs: save a copy, or reload.
+No. Every change saves to your application on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Each save goes through a durable outbox, so a restart resends it. If your copy of the file changed elsewhere, the policy you chose runs: save a copy, or reload.
 
 ## We already use Collabora through WOPI. Can we reuse that?
 
-Yes. OpenCanvas is a WOPI client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc URLs it will call. Proof keys are not supported yet. See WOPI mode .
+Yes. OpenCanvas is a WOPI client: it uses discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, calls only the WOPISrc URLs on its allow-list, and signs every call to your WOPI host with the WOPI proof headers. Nextcloud's integration works this way. See WOPI mode and Nextcloud .
+
+## How is OpenCanvas different from Collabora Online?
+
+They share an integration model and edit different things. Collabora Online edits office documents: text, spreadsheets and presentations. OpenCanvas edits a canvas: blocks, databases and whiteboards in one document. In both, the host application keeps the file and the permissions, and the editor runs the live session and saves back to the host. The project's research note studies Collabora's integration in detail.
+
+## How does it compare with Slack Canvas, Zoom Canvas and Microsoft Loop?
+
+Those canvases live inside their vendor's product and the vendor stores the file: Slack, Zoom, or OneDrive and SharePoint for Loop. OpenCanvas is built to be embedded in your own application, stores the file in your application through callbacks, and runs on your own servers. Loop's portable live components have no OpenCanvas equivalent yet; they are planned. The comparison table on the home page has the details, from the vendors' public documentation.
+
+## Which apps does it integrate with?
+
+There are ready integrations for Jitsi Meet (a temporary canvas in every meeting), Nextcloud (.ocanvas files through WOPI), Mattermost (canvases in channels) and Element / Matrix (a room widget). Any other web application can embed OpenCanvas with a launch token signed by its backend, or open it as a WOPI client. See Jitsi Meet , Nextcloud , Mattermost , Element / Matrix and the integration guide .
 
 ## What can it import and export?
 
-Export: Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG. Import: Markdown, HTML and CSV. See Operations .
+It exports Markdown, HTML, JSON, its native .ocanvas file and Word, and PDF when the operator runs the optional Gotenberg sidecar; otherwise the editor prints to PDF. Whiteboards export as SVG and PNG. It imports Markdown, HTML and CSV into a canvas, when the host turns import on: it is off by default. See Operations .
+
+## How many users can one server handle?
+
+The project's sizing guide gives up to 1,000 concurrent users on 1 vCPU and 512 MB, and up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, run cluster mode. These figures come from load tests on one laptop, with most people watching and some typing, so measure on your own hardware. Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” See Capacity and sizing , which also has the nonstop-typing, crash and cluster runs.
 
 ## How does it scale?
 
-One node runs on SQLite. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, other nodes relay to it, and if the owner dies another node takes the room over from its log. See Operations and Architecture .
+One node runs on SQLite with no database to set up. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, the other nodes relay to it, and if the owner dies another node takes the room over from its log. See Operations and Architecture .
+
+## What is it built with?
+
+The server is written in Rust, on tokio and axum, and ships as one binary or a Docker image. The editor runs in the browser and is built on Tiptap (ProseMirror) with Yjs, the CRDT that merges everyone's edits. Storage is SQLite by default, or MySQL or MariaDB, with Redis for a cluster. See Architecture .
 
 ## Does the demo send anything anywhere?
 
-No. The demo is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so. Its assistant plays a scripted run: no model is called.
+No. The demo is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so. Its assistant plays a scripted run: no model is called and nothing leaves your browser.
 
 ## Where does the assistant send my content?
 
-Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser, and it keeps no prompts or answers. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer. See AI and MCP . Last changed 2026-11-24 .
+Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer. See AI and MCP . Last changed 2026-11-26 .
+
+
+# Facts
+
+URL: https://canvas.casualoffice.org/docs/facts.html
+
+## Facts
+
+OpenCanvas in short, for people and for tools that quote it. Each row links to the repository file, test or tracker entry it comes from; the release and its date are read from Cargo.toml and CHANGELOG.md when the site is built.
+
+## What is OpenCanvas?
+
+OpenCanvas is an open-source, real-time collaborative canvas that other applications embed. One document holds rich text, databases and whiteboards, with live cursors and comments. The host application keeps the users, the permissions and the file; OpenCanvas does the editing, merges every change live and saves the file back to the host. Source: README.md, “An embeddable, real-time collaborative canvas for your app.”
+
+## At a glance
+
+Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.2.1, released 2026-11-26 Source: CHANGELOG.md, “## [0.2.1] - 2026-11-26” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
+
+## Where to check
+
+The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-26 .
 
 
 # Integration guide

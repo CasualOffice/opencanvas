@@ -1,0 +1,42 @@
+<!--meta {"title": "Facts", "description": "OpenCanvas at a glance: what it is, the current release, licence, stack, storage, integrations, API and measured capacity, each with its source."} -->
+<h1>Facts</h1>
+<p class="lede">OpenCanvas in short, for people and for tools that quote it. Each row links to the repository file, test or tracker entry it comes from; the release and its date are read from <code>Cargo.toml</code> and <code>CHANGELOG.md</code> when the site is built.</p>
+
+<h2 id="what-is-opencanvas">What is OpenCanvas?</h2>
+<p data-claim>OpenCanvas is an open-source, real-time collaborative canvas that other applications embed. One document holds rich text, databases and whiteboards, with live cursors and comments. The host application keeps the users, the permissions and the file; OpenCanvas does the editing, merges every change live and saves the file back to the host. {{claim:source|An embeddable, real-time collaborative canvas for your app.|README.md}}</p>
+
+<h2 id="at-a-glance">At a glance</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="OpenCanvas facts"><table>
+<thead><tr><th scope="col">Fact</th><th scope="col">Value</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr data-claim><th scope="row">Name</th><td>OpenCanvas, made by CasualOffice</td><td>{{claim:source|Copyright 2026 CasualOffice|NOTICE}}</td></tr>
+<tr data-claim><th scope="row">Current release</th><td>{{version}}, released {{released}}</td><td>{{claim:source|## [{{version}}] - {{released}}|CHANGELOG.md}}</td></tr>
+<tr data-claim><th scope="row">First release</th><td>0.1.0-alpha.1, released 2026-11-23</td><td>{{claim:source|## [0.1.0-alpha.1] - 2026-11-23|CHANGELOG.md}}</td></tr>
+<tr data-claim><th scope="row">Licence</th><td>Apache License 2.0; keep the NOTICE file when you redistribute it</td><td>{{claim:source|Licensed under the Apache License, Version 2.0 (LICENSE).|NOTICE}}</td></tr>
+<tr data-claim><th scope="row">Support</th><td>Best-effort, with no production SLA</td><td>{{claim:source|Support is best-effort, with no production SLA.|README.md}}</td></tr>
+<tr data-claim><th scope="row">Who owns the data</th><td>The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox.</td><td>{{claim:source|it keeps only a transient room log and a save outbox.|README.md}}</td></tr>
+<tr data-claim><th scope="row">Server</th><td>Rust, on tokio and axum</td><td>{{claim:source|Rust, tokio, axum|docs/03-HLD-ARCHITECTURE.md}}</td></tr>
+<tr data-claim><th scope="row">Editor</th><td>Tiptap (ProseMirror) with y-prosemirror, in the browser</td><td>{{claim:source|Tiptap (ProseMirror) + y-prosemirror|docs/03-HLD-ARCHITECTURE.md}}</td></tr>
+<tr data-claim><th scope="row">Real-time merge</th><td>A CRDT (Yjs); roles are enforced on the server</td><td>{{claim:source|Edits merge in real time with a CRDT (Yjs)|README.md}}</td></tr>
+<tr data-claim><th scope="row">Storage</th><td>SQLite by default; MySQL 8.4 or MariaDB 11.4 when <code>DATABASE_URL</code> is set</td><td>{{claim:source|SQLite by default. MySQL 8.4 and MariaDB 11.4 work when|README.md}}</td></tr>
+<tr data-claim><th scope="row">Cluster</th><td>Several nodes on MySQL or MariaDB with Redis</td><td>{{claim:source|One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.|README.md}}</td></tr>
+<tr data-claim><th scope="row">Launch</th><td>JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI</td><td>{{claim:source|HS256, RS256, EdDSA and JWKS launch tokens|README.md}}</td></tr>
+<tr data-claim><th scope="row">Integrations</th><td>Jitsi Meet, Nextcloud, Mattermost and Element / Matrix</td><td>{{claim:source|Host integrations for WOPI files, channel canvases and room widgets.|README.md}}</td></tr>
+<tr data-claim><th scope="row">API</th><td>REST under <code>/api/v1</code>, described by an OpenAPI 3.1 document</td><td>{{claim:source|`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`|docs/32-RELEASE-v0.2.0.md}}</td></tr>
+<tr data-claim><th scope="row">Exports</th><td>Markdown, HTML, JSON, the native <code>.ocanvas</code> file, Word, and PDF with the optional Gotenberg sidecar</td><td>{{claim:source|Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)|docs/13-OPERATIONS-AND-DEPLOYMENT.md}}</td></tr>
+<tr data-claim><th scope="row">Templates</th><td>40 templates in 9 categories</td><td>{{claim:source|40 templates in 9 categories|README.md}}</td></tr>
+<tr data-claim><th scope="row">Sizing</th><td>Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode</td><td>{{claim:source|In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.|docs/22-CAPACITY-AND-SIZING.md}}</td></tr>
+<tr data-claim><th scope="row">One canvas</th><td>550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores</td><td>{{claim:source|at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores|docs/22-CAPACITY-AND-SIZING.md}}</td></tr>
+<tr data-claim><th scope="row">Measured on</th><td>An Apple M4 laptop, 10 cores, 16 GB RAM</td><td>{{claim:source|Apple M4, 10 cores, 16 GB RAM|docs/22-CAPACITY-AND-SIZING.md}}</td></tr>
+<tr data-claim><th scope="row">AI</th><td>Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server</td><td>{{claim:source|Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)|README.md}}</td></tr>
+</tbody>
+</table></div>
+
+<h2 id="where-to-check">Where to check</h2>
+<ul>
+  <li>The code and every document: <a href="https://github.com/CasualOffice/opencanvas">github.com/CasualOffice/opencanvas</a>.</li>
+  <li>What each release changed: <a href="https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md">CHANGELOG.md</a> and the site's <a href="../changelog.html">changelog</a>, with how each change was verified.</li>
+  <li>How the numbers were measured: <a href="capacity.html">Capacity and sizing</a>.</li>
+  <li>What is not built yet: the <a href="../roadmap.html">roadmap</a> and the <a href="release-020.html">release notes</a>.</li>
+  <li>The same facts as plain text: <a href="../llms.txt">llms.txt</a>.</li>
+</ul>

@@ -194,6 +194,7 @@ DOCS = [
     ("release-012", "Release notes 0.1.2", "Start", "docs/31-RELEASE-v0.1.2.md"),
     ("release", "Release notes 0.1.0", "Start", "docs/28-RELEASE-v0.1.0.md"),
     ("faq", "FAQ", "Start", None),
+    ("facts", "Facts", "Start", None),
     ("integration", "Integration guide", "Integrate", "docs/05-INTEGRATION-GUIDE.md"),
     ("wopi", "WOPI mode", "Integrate", "docs/05-INTEGRATION-GUIDE.md#6"),
     ("jitsi", "Jitsi Meet", "Integrate", "integrations/jitsi/README.md"),
@@ -285,7 +286,7 @@ def footer(root: str) -> str:
     </div>
     {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
     {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("API reference", "api/index.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
-    {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html")])}
+    {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html"), ("Facts", "docs/facts.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>
   <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>

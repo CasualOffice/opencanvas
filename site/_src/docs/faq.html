@@ -1,39 +1,68 @@
-<!--meta {"title": "FAQ", "description": "Answers about OpenCanvas: its status, what the Apache 2.0 licence allows, what data it keeps, how users sign in, WOPI, exports and scaling."} -->
+<!--meta {"title": "FAQ", "description": "Answers about OpenCanvas: what it is, its status, the Apache-2.0 licence, the data it keeps, sign-in, WOPI, integrations, exports, scaling and AI."} -->
 <h1>FAQ</h1>
-<p class="lede">Short answers, with links to the pages that say more.</p>
+<p class="lede">Short, direct answers, each followed by the page that says more. Numbers link to where they were measured.</p>
+
+<h2>What is OpenCanvas?</h2>
+<p data-answer>OpenCanvas is an open-source, real-time collaborative canvas that other applications embed, the way they embed Collabora Online for office files. One document holds rich text, databases and whiteboards, with live cursors and comments. Your application keeps the users, the permissions and the file; OpenCanvas does the editing and saves the file back to it.</p>
+<p>See the <a href="facts.html">facts</a> for the release, the stack and the measured capacity.</p>
 
 <h2>Can I use it in production today?</h2>
-<p>OpenCanvas 0.1.2 has best-effort support and no production SLA. Review the <a href="release-012.html#known-limitations">deployment limits</a> before committing it to a production workflow.</p>
+<p data-answer data-claim>OpenCanvas {{version}} is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. {{claim:source|## [{{version}}] - {{released}}|CHANGELOG.md}}</p>
+<p>The limits are in the <a href="release-020.html#4-known-limitations">release notes</a> and on the <a href="../index.html#limits">home page</a>.</p>
+
+<h2>Is OpenCanvas free?</h2>
+<p data-answer>Yes. OpenCanvas is open source under the Apache-2.0 licence, so you may use, modify, self-host, embed and redistribute it, including in commercial and closed-source products, at no cost. The one duty when you redistribute it is to keep the NOTICE file and the licence with it.</p>
 
 <h2>What does the licence allow?</h2>
-<p>OpenCanvas is open source under the Apache License 2.0, copyright 2026 CasualOffice.</p>
-<ul>
-  <li><strong>Allowed:</strong> using, modifying, self-hosting, embedding and redistributing it, in open or closed, commercial or non-commercial products and services.</li>
-  <li><strong>Attribution:</strong> when you redistribute OpenCanvas or a work derived from it, keep the NOTICE file and the licence.</li>
-  <li><strong>Fonts:</strong> the bundled fonts are under the SIL Open Font License 1.1.</li>
-</ul>
+<p data-answer>OpenCanvas is under the Apache License, copyright CasualOffice. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products and services. When you redistribute OpenCanvas or a work derived from it, keep the NOTICE file and the licence. The bundled fonts are under the SIL Open Font License.</p>
 <p>The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file states the exact terms and is the authority; this summary is not legal advice.</p>
 
 <h2>Does OpenCanvas keep my documents?</h2>
-<p>Only while a session is live. The server keeps a snapshot and the recent updates so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file lives in your app; OpenCanvas writes it back there. See <a href="architecture.html">Architecture</a>.</p>
+<p data-answer>Only while a session is live. The server keeps a snapshot and the recent updates of an open canvas so it survives a restart and late joiners can catch up, and deletes them after the session is saved and idle. The file itself lives in your application, and OpenCanvas writes every change back there.</p>
+<p>See <a href="architecture.html">Architecture</a>.</p>
 
 <h2>How do users sign in?</h2>
-<p>To your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role (view, comment or edit). OpenCanvas trusts that decision for the life of the token, enforces it on every edit, and switches a user's role live when your app calls the role API. See the <a href="integration.html">integration guide</a>.</p>
+<p data-answer>They sign in to your application, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role: view, comment or edit. OpenCanvas trusts that decision for the life of the token, enforces it on every edit, and switches a role live when your app calls the role API.</p>
+<p>See the <a href="integration.html">integration guide</a>.</p>
 
 <h2>Is there a Save button?</h2>
-<p>No. Every change saves to your app on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Saves go through a durable outbox, so a restart resends them. If your copy of the file changed elsewhere, your chosen policy runs: save a copy, or reload.</p>
+<p data-answer>No. Every change saves to your application on a short timer, when the canvas goes idle, when the last person leaves and when the server shuts down. Each save goes through a durable outbox, so a restart resends it. If your copy of the file changed elsewhere, the policy you chose runs: save a copy, or reload.</p>
 
 <h2>We already use Collabora through WOPI. Can we reuse that?</h2>
-<p>Yes. OpenCanvas is a WOPI client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc URLs it will call. Proof keys are not supported yet. See <a href="wopi.html">WOPI mode</a>.</p>
+<p data-answer>Yes. OpenCanvas is a WOPI client: it uses discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, calls only the WOPISrc URLs on its allow-list, and signs every call to your WOPI host with the WOPI proof headers. Nextcloud's integration works this way.</p>
+<p>See <a href="wopi.html">WOPI mode</a> and <a href="nextcloud.html">Nextcloud</a>.</p>
+
+<h2>How is OpenCanvas different from Collabora Online?</h2>
+<p data-answer>They share an integration model and edit different things. Collabora Online edits office documents: text, spreadsheets and presentations. OpenCanvas edits a canvas: blocks, databases and whiteboards in one document. In both, the host application keeps the file and the permissions, and the editor runs the live session and saves back to the host.</p>
+<p>The project's <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/01-RESEARCH-COMPETITIVE-ANALYSIS.md">research note</a> studies Collabora's integration in detail.</p>
+
+<h2>How does it compare with Slack Canvas, Zoom Canvas and Microsoft Loop?</h2>
+<p data-answer>Those canvases live inside their vendor's product and the vendor stores the file: Slack, Zoom, or OneDrive and SharePoint for Loop. OpenCanvas is built to be embedded in your own application, stores the file in your application through callbacks, and runs on your own servers. Loop's portable live components have no OpenCanvas equivalent yet; they are planned.</p>
+<p>The <a href="../index.html#compare-h">comparison table</a> on the home page has the details, from the vendors' public documentation.</p>
+
+<h2>Which apps does it integrate with?</h2>
+<p data-answer>There are ready integrations for Jitsi Meet (a temporary canvas in every meeting), Nextcloud (.ocanvas files through WOPI), Mattermost (canvases in channels) and Element / Matrix (a room widget). Any other web application can embed OpenCanvas with a launch token signed by its backend, or open it as a WOPI client.</p>
+<p>See <a href="jitsi.html">Jitsi Meet</a>, <a href="nextcloud.html">Nextcloud</a>, <a href="mattermost.html">Mattermost</a>, <a href="matrix.html">Element / Matrix</a> and the <a href="integration.html">integration guide</a>.</p>
 
 <h2>What can it import and export?</h2>
-<p>Export: Markdown, HTML, JSON, the native <code>.ocanvas</code> file, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG. Import: Markdown, HTML and CSV. See <a href="operations.html">Operations</a>.</p>
+<p data-answer>It exports Markdown, HTML, JSON, its native .ocanvas file and Word, and PDF when the operator runs the optional Gotenberg sidecar; otherwise the editor prints to PDF. Whiteboards export as SVG and PNG. It imports Markdown, HTML and CSV into a canvas, when the host turns import on: it is off by default.</p>
+<p>See <a href="operations.html">Operations</a>.</p>
+
+<h2>How many users can one server handle?</h2>
+<p data-answer data-claim>The project's sizing guide gives up to 1,000 concurrent users on 1 vCPU and 512 MB, and up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, run cluster mode. These figures come from load tests on one laptop, with most people watching and some typing, so measure on your own hardware. {{claim:source|In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.|docs/22-CAPACITY-AND-SIZING.md}}</p>
+<p>See <a href="capacity.html">Capacity and sizing</a>, which also has the nonstop-typing, crash and cluster runs.</p>
 
 <h2>How does it scale?</h2>
-<p>One node runs on SQLite. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, other nodes relay to it, and if the owner dies another node takes the room over from its log. See <a href="operations.html">Operations</a> and <a href="architecture.html">Architecture</a>.</p>
+<p data-answer>One node runs on SQLite with no database to set up. For more users, run several nodes against MySQL or MariaDB with Redis: each room has one owner node, the other nodes relay to it, and if the owner dies another node takes the room over from its log.</p>
+<p>See <a href="operations.html">Operations</a> and <a href="architecture.html">Architecture</a>.</p>
+
+<h2>What is it built with?</h2>
+<p data-answer>The server is written in Rust, on tokio and axum, and ships as one binary or a Docker image. The editor runs in the browser and is built on Tiptap (ProseMirror) with Yjs, the CRDT that merges everyone's edits. Storage is SQLite by default, or MySQL or MariaDB, with Redis for a cluster.</p>
+<p>See <a href="architecture.html">Architecture</a>.</p>
 
 <h2>Does the demo send anything anywhere?</h2>
-<p>No. The <a href="../app/#demo">demo</a> is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so. Its assistant plays a scripted run: no model is called.</p>
+<p data-answer>No. The <a href="../app/#demo">demo</a> is the real editor running against a document in your browser, with simulated collaborators. There is no server behind it, and exports that need a server say so. Its assistant plays a scripted run: no model is called and nothing leaves your browser.</p>
 
 <h2>Where does the assistant send my content?</h2>
-<p>Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser, and it keeps no prompts or answers. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer. See <a href="ai.html">AI and MCP</a>.</p>
+<p data-answer>Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer.</p>
+<p>See <a href="ai.html">AI and MCP</a>.</p>

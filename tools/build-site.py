@@ -421,7 +421,11 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). "
         f"Status: {version} released {released}; best-effort support and no production SLA.",
         "",
-        f"Made by CasualOffice ({sitelib.ORG}). This file was last updated {updated}.",
+        f"Made by CasualOffice ({sitelib.ORG}). This file was last updated {updated}. The facts below are from "
+        f"{base}docs/facts.html, where each one links to the repository file, test or tracker entry it comes from.",
+        "",
+        "## Facts",
+        *facts_lines(pages["docs/facts.html"]),
         "",
         "## Site",
         line("index.html"),

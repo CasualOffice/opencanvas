@@ -46,6 +46,17 @@
   </div>
 </section>
 
+<section class="section-tight" id="what" aria-labelledby="what-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">In short</span>
+      <h2 id="what-h">What is OpenCanvas?</h2>
+      <p data-answer>OpenCanvas is an open-source, real-time collaborative canvas that other applications embed, the way they embed Collabora Online for office files. One document holds rich text, databases and whiteboards, with live cursors and comments. Your application keeps the users, the permissions and the file; OpenCanvas does the editing and saves the file back to it.</p>
+      <p>The <a href="docs/facts.html">facts page</a> has the release, the licence, the stack and the measured capacity, each with its source; the <a href="docs/faq.html">FAQ</a> has short answers.</p>
+    </div>
+  </div>
+</section>
+
 <section class="section-tight" id="fit" aria-labelledby="fit-h">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -461,13 +472,13 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
       <p>More in the <a href="docs/faq.html">documentation FAQ</a>.</p>
     </div>
     <div class="faq reveal reveal-d1">
-      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div><p>OpenCanvas 0.2.0 has best-effort support and no production SLA. Review the <a href="docs/release-020.html#4-known-limitations">deployment limits</a> before committing it to a production workflow.</p></div></details>
-      <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div><p>OpenCanvas is open source under the Apache License 2.0. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products. When you redistribute it, keep the NOTICE file. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
-      <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
-      <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
-      <details><summary>Can we use it in Jitsi Meet, like Etherpad?{{icon:chevron-down}}</summary><div><p>Yes. Add one Prosody plugin and a few <code>.env</code> lines to your Jitsi deployment, with no Docker image or compose changes. Everyone in the meeting opens the same canvas from Shared document. The canvas is temporary: it starts blank or from a template you choose, nothing is stored, and it is deleted when the meeting ends, so people download what they want to keep. See <a href="docs/jitsi.html">Jitsi Meet</a>.</p></div></details>
-      <details><summary>We already use Collabora through WOPI. Can we reuse that?{{icon:chevron-down}}</summary><div><p>Yes. OpenCanvas speaks WOPI as a client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc it will call. See <a href="docs/wopi.html">WOPI mode</a>.</p></div></details>
-      <details><summary>What can it export?{{icon:chevron-down}}</summary><div><p>Markdown, HTML, JSON, its native <code>.ocanvas</code>, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG.</p></div></details>
+      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div data-answer><p>The current release has best-effort support and no production SLA. Review the <a href="docs/release-020.html#4-known-limitations">deployment limits</a> before committing it to a production workflow.</p></div></details>
+      <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div data-answer><p>OpenCanvas is open source under the Apache-2.0 licence. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products. When you redistribute it, keep the NOTICE file. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
+      <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div data-answer><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
+      <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div data-answer><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
+      <details><summary>Can we use it in Jitsi Meet, like Etherpad?{{icon:chevron-down}}</summary><div data-answer><p>Yes. Add one Prosody plugin and a few <code>.env</code> lines to your Jitsi deployment, with no Docker image or compose changes. Everyone in the meeting opens the same canvas from Shared document. The canvas is temporary: it starts blank or from a template you choose, nothing is stored, and it is deleted when the meeting ends, so people download what they want to keep. See <a href="docs/jitsi.html">Jitsi Meet</a>.</p></div></details>
+      <details><summary>We already use Collabora through WOPI. Can we reuse that?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas speaks WOPI as a client: discovery, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE, with an allow-list for the WOPISrc it will call. See <a href="docs/wopi.html">WOPI mode</a>.</p></div></details>
+      <details><summary>What can it export?{{icon:chevron-down}}</summary><div data-answer><p>Markdown, HTML, JSON, its native <code>.ocanvas</code>, Word, and PDF when the operator runs the optional Gotenberg sidecar (otherwise the editor prints to PDF). Whiteboards export as SVG and PNG.</p></div></details>
     </div>
   </div>
 </section>

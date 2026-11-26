@@ -69,7 +69,7 @@ jobs:
           python3 -I tools/build-site.py --publish _site
           for f in index.html 404.html roadmap.html changelog.html brand.html docs/index.html docs/getting-started.html \
                    docs/integration.html docs/wopi.html docs/protocol.html docs/operations.html docs/security.html \
-                   docs/architecture.html docs/faq.html search-index.json sitemap.xml robots.txt llms.txt llms-full.txt \
+                   docs/architecture.html docs/faq.html docs/facts.html search-index.json sitemap.xml robots.txt llms.txt llms-full.txt \
                    assets/site.css assets/tokens.css assets/site.js assets/theme-init.js assets/logo.svg \
                    assets/screens/canvas-light.png assets/screens/canvas-light.webp app/index.html; do
             [ -s "_site/$f" ] || { echo "::error::_site/$f is missing or empty"; exit 1; }
