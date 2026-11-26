@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario R, unchanged: run by `scripts/bench.sh R` (old numbers stay comparable).
+name = "R"
+legacy = "R"
+description = "crash recovery on SQLite: 200 rooms x 2 typing, kill -9, restart, verify every acknowledged edit"
+mix_note = "oc-bench verify: a unique token every 250 ms per client"
+
+[load]
+connections = 400
+rooms = 200
+docs = "empty"
+
+[mix]
+idle = 0
+presence = 0
+typing = 1
+typing_hz = 4
+
+[run]
+minutes = 1

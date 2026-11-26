@@ -1,0 +1,790 @@
+{
+  "bucketSecs": 30,
+  "buckets": [
+    {
+      "awarenessOutPerSec": 2596.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 43471.0,
+      "latMs": {
+        "max": 49.6,
+        "p50": 9.4,
+        "p95": 31.7,
+        "p99": 40.6,
+        "samples": 38545
+      },
+      "live": 550,
+      "loadgenCpuPct": 56.0,
+      "reconnects": 0,
+      "refusedFull": 1669,
+      "server": {
+        "cpuPct": 56.4,
+        "rssMb": 126.8
+      },
+      "tSecs": 30,
+      "updatesOutPerSec": 128.0
+    },
+    {
+      "awarenessOutPerSec": 2597.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 40523.0,
+      "latMs": {
+        "max": 48.5,
+        "p50": 9.7,
+        "p95": 32.7,
+        "p99": 41.2,
+        "samples": 38295
+      },
+      "live": 550,
+      "loadgenCpuPct": 54.0,
+      "reconnects": 0,
+      "refusedFull": 1670,
+      "server": {
+        "cpuPct": 53.7,
+        "rssMb": 130.9
+      },
+      "tSecs": 60,
+      "updatesOutPerSec": 128.0
+    },
+    {
+      "awarenessOutPerSec": 2601.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 41082.0,
+      "latMs": {
+        "max": 48.1,
+        "p50": 9.6,
+        "p95": 31.8,
+        "p99": 40.8,
+        "samples": 39434
+      },
+      "live": 550,
+      "loadgenCpuPct": 51.0,
+      "reconnects": 0,
+      "refusedFull": 1682,
+      "server": {
+        "cpuPct": 50.7,
+        "rssMb": 130.6
+      },
+      "tSecs": 90,
+      "updatesOutPerSec": 132.0
+    },
+    {
+      "awarenessOutPerSec": 2594.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 38736.0,
+      "latMs": {
+        "max": 48.1,
+        "p50": 9.8,
+        "p95": 33.1,
+        "p99": 41.2,
+        "samples": 37523
+      },
+      "live": 550,
+      "loadgenCpuPct": 57.0,
+      "reconnects": 0,
+      "refusedFull": 1685,
+      "server": {
+        "cpuPct": 59.2,
+        "rssMb": 108.7
+      },
+      "tSecs": 120,
+      "updatesOutPerSec": 125.0
+    },
+    {
+      "awarenessOutPerSec": 2593.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 39343.0,
+      "latMs": {
+        "max": 57.7,
+        "p50": 10.7,
+        "p95": 32.4,
+        "p99": 40.6,
+        "samples": 37581
+      },
+      "live": 551,
+      "loadgenCpuPct": 61.0,
+      "reconnects": 0,
+      "refusedFull": 1692,
+      "server": {
+        "cpuPct": 62.5,
+        "rssMb": 106.5
+      },
+      "tSecs": 150,
+      "updatesOutPerSec": 125.0
+    },
+    {
+      "awarenessOutPerSec": 2599.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 40135.0,
+      "latMs": {
+        "max": 49.2,
+        "p50": 10.2,
+        "p95": 31.8,
+        "p99": 41.8,
+        "samples": 38967
+      },
+      "live": 552,
+      "loadgenCpuPct": 54.0,
+      "reconnects": 0,
+      "refusedFull": 1713,
+      "server": {
+        "cpuPct": 60.3,
+        "rssMb": 110.6
+      },
+      "tSecs": 180,
+      "updatesOutPerSec": 130.0
+    },
+    {
+      "awarenessOutPerSec": 2596.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 40048.0,
+      "latMs": {
+        "max": 129.8,
+        "p50": 10.3,
+        "p95": 34.6,
+        "p99": 45.5,
+        "samples": 38519
+      },
+      "live": 550,
+      "loadgenCpuPct": 64.0,
+      "reconnects": 0,
+      "refusedFull": 1702,
+      "server": {
+        "cpuPct": 64.4,
+        "rssMb": 154.7
+      },
+      "tSecs": 210,
+      "updatesOutPerSec": 129.0
+    },
+    {
+      "awarenessOutPerSec": 2595.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 36418.0,
+      "latMs": {
+        "max": 50.4,
+        "p50": 9.9,
+        "p95": 30.9,
+        "p99": 41.8,
+        "samples": 38158
+      },
+      "live": 550,
+      "loadgenCpuPct": 53.0,
+      "reconnects": 0,
+      "refusedFull": 1672,
+      "server": {
+        "cpuPct": 62.2,
+        "rssMb": 126.7
+      },
+      "tSecs": 240,
+      "updatesOutPerSec": 127.0
+    }
+  ],
+  "closes": {
+    "close 1013 room full": 22859
+  },
+  "commit": "451a526",
+  "date": "2026-11-26",
+  "description": "1 room of 1,000 peers: 100 typing at 2 edits/s, 900 moving cursors at 5 moves/s; 15 min",
+  "dirty": true,
+  "errors": {},
+  "faults": [],
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "host": {
+    "loads": 1,
+    "saves": 38
+  },
+  "liveEnd": 550,
+  "load": {
+    "connectRate": 100.0,
+    "connections": 1000,
+    "docs": "demo",
+    "probesPerRoom": 10,
+    "rooms": 1,
+    "sourceAddrs": []
+  },
+  "machine": "local",
+  "minutes": 4.0,
+  "mix": {
+    "roles": {
+      "idle": 0,
+      "presence": 900,
+      "typing": 100
+    },
+    "stated": {
+      "idle": 0.0,
+      "presence": 0.9,
+      "presence_hz": 5.0,
+      "typing": 0.1,
+      "typing_hz": 2.0
+    },
+    "typist": "types steadily at typing_hz chars/s with no pauses; 6% of its edits are database cells and 2% start a 10-step board drag"
+  },
+  "notMeasured": [
+    "all clients converge (state vectors and text equal): oc-bench verify checks convergence, this load run does not"
+  ],
+  "overrides": {
+    "bucket_secs": null,
+    "connections": null,
+    "fault_at_min": null,
+    "minutes": null,
+    "rooms": null
+  },
+  "pass": [
+    {
+      "rule": "all 1000 clients connected",
+      "value": {
+        "liveEnd": 550,
+        "refusedFull": 13485
+      },
+      "pass": false,
+      "note": "rule added after this run, computed from its liveEnd and buckets"
+    },
+    {
+      "pass": true,
+      "rule": "p99 < 500 ms in every bucket (except 0 s after a fault)",
+      "value": 45.5
+    },
+    {
+      "pass": true,
+      "rule": "RSS within \u00b1 10% after warm-up (first bucket to last)",
+      "value": -0.1
+    },
+    {
+      "pass": true,
+      "rule": "no drops outside the fault buckets",
+      "value": 0
+    }
+  ],
+  "passed": false,
+  "ramp": {
+    "connectMs": {
+      "max": 11,
+      "p50": 2.0,
+      "p95": 6.0
+    },
+    "ready": 550,
+    "secs": 158.4
+  },
+  "reconnectMs": {
+    "max": 0,
+    "n": 0,
+    "p50": null,
+    "p95": null
+  },
+  "rssMaxMb": 154.7,
+  "scenario": "R1K",
+  "scenarioFile": "bench/scenarios/r1k.toml",
+  "scenarioSha256": "3808b8ffdd9576965047ef3d86edbfbefe5bdd3bde989e022d277fc8a84ce2b6",
+  "serverEnv": {},
+  "size": "short",
+  "store": "sqlite",
+  "targetMachine": {
+    "nodes": 1,
+    "ram_gb": 8,
+    "vcpu": 4
+  },
+  "timeline": [
+    {
+      "cpuPct": 0.0,
+      "live": 0,
+      "rssMb": 20,
+      "t": 0
+    },
+    {
+      "cpuPct": 51.0,
+      "live": 449,
+      "rssMb": 95,
+      "t": 5
+    },
+    {
+      "cpuPct": 81.0,
+      "live": 550,
+      "rssMb": 120,
+      "t": 10
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 552,
+      "rssMb": 123,
+      "t": 15
+    },
+    {
+      "cpuPct": 53.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 20
+    },
+    {
+      "cpuPct": 57.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 25
+    },
+    {
+      "cpuPct": 56.0,
+      "live": 550,
+      "rssMb": 118,
+      "t": 30
+    },
+    {
+      "cpuPct": 57.0,
+      "live": 550,
+      "rssMb": 117,
+      "t": 35
+    },
+    {
+      "cpuPct": 75.0,
+      "live": 550,
+      "rssMb": 116,
+      "t": 40
+    },
+    {
+      "cpuPct": 67.0,
+      "live": 550,
+      "rssMb": 119,
+      "t": 45
+    },
+    {
+      "cpuPct": 52.0,
+      "live": 550,
+      "rssMb": 120,
+      "t": 50
+    },
+    {
+      "cpuPct": 51.0,
+      "live": 550,
+      "rssMb": 121,
+      "t": 55
+    },
+    {
+      "cpuPct": 58.0,
+      "live": 550,
+      "rssMb": 121,
+      "t": 60
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 65
+    },
+    {
+      "cpuPct": 64.0,
+      "live": 550,
+      "rssMb": 121,
+      "t": 70
+    },
+    {
+      "cpuPct": 61.0,
+      "live": 550,
+      "rssMb": 121,
+      "t": 75
+    },
+    {
+      "cpuPct": 53.0,
+      "live": 550,
+      "rssMb": 120,
+      "t": 80
+    },
+    {
+      "cpuPct": 51.0,
+      "live": 550,
+      "rssMb": 121,
+      "t": 85
+    },
+    {
+      "cpuPct": 54.0,
+      "live": 550,
+      "rssMb": 120,
+      "t": 90
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 95
+    },
+    {
+      "cpuPct": 62.0,
+      "live": 550,
+      "rssMb": 120,
+      "t": 100
+    },
+    {
+      "cpuPct": 63.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 105
+    },
+    {
+      "cpuPct": 64.0,
+      "live": 550,
+      "rssMb": 121,
+      "t": 110
+    },
+    {
+      "cpuPct": 58.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 115
+    },
+    {
+      "cpuPct": 59.0,
+      "live": 550,
+      "rssMb": 122,
+      "t": 120
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 125
+    },
+    {
+      "cpuPct": 64.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 130
+    },
+    {
+      "cpuPct": 58.0,
+      "live": 550,
+      "rssMb": 126,
+      "t": 135
+    },
+    {
+      "cpuPct": 62.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 140
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 145
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 150
+    },
+    {
+      "cpuPct": 63.0,
+      "live": 550,
+      "rssMb": 123,
+      "t": 155
+    },
+    {
+      "cpuPct": 61.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 160
+    },
+    {
+      "cpuPct": 57.0,
+      "live": 550,
+      "rssMb": 123,
+      "t": 165
+    },
+    {
+      "cpuPct": 58.0,
+      "live": 550,
+      "rssMb": 124,
+      "t": 170
+    },
+    {
+      "cpuPct": 56.0,
+      "live": 551,
+      "rssMb": 124,
+      "t": 175
+    },
+    {
+      "cpuPct": 54.0,
+      "live": 550,
+      "rssMb": 125,
+      "t": 180
+    },
+    {
+      "cpuPct": 63.0,
+      "live": 550,
+      "rssMb": 125,
+      "t": 185
+    },
+    {
+      "cpuPct": 55.0,
+      "live": 550,
+      "rssMb": 127,
+      "t": 190
+    },
+    {
+      "cpuPct": 64.0,
+      "live": 550,
+      "rssMb": 125,
+      "t": 195
+    },
+    {
+      "cpuPct": 55.0,
+      "live": 550,
+      "rssMb": 127,
+      "t": 200
+    },
+    {
+      "cpuPct": 50.0,
+      "live": 550,
+      "rssMb": 127,
+      "t": 205
+    },
+    {
+      "cpuPct": 50.0,
+      "live": 550,
+      "rssMb": 127,
+      "t": 210
+    },
+    {
+      "cpuPct": 49.0,
+      "live": 550,
+      "rssMb": 129,
+      "t": 215
+    },
+    {
+      "cpuPct": 50.0,
+      "live": 550,
+      "rssMb": 130,
+      "t": 220
+    },
+    {
+      "cpuPct": 46.0,
+      "live": 550,
+      "rssMb": 129,
+      "t": 225
+    },
+    {
+      "cpuPct": 48.0,
+      "live": 550,
+      "rssMb": 129,
+      "t": 230
+    },
+    {
+      "cpuPct": 49.0,
+      "live": 550,
+      "rssMb": 128,
+      "t": 235
+    },
+    {
+      "cpuPct": 50.0,
+      "live": 550,
+      "rssMb": 129,
+      "t": 240
+    },
+    {
+      "cpuPct": 51.0,
+      "live": 550,
+      "rssMb": 128,
+      "t": 245
+    },
+    {
+      "cpuPct": 67.0,
+      "live": 550,
+      "rssMb": 130,
+      "t": 250
+    },
+    {
+      "cpuPct": 64.0,
+      "live": 550,
+      "rssMb": 130,
+      "t": 255
+    },
+    {
+      "cpuPct": 52.0,
+      "live": 551,
+      "rssMb": 132,
+      "t": 260
+    },
+    {
+      "cpuPct": 60.0,
+      "live": 550,
+      "rssMb": 131,
+      "t": 265
+    },
+    {
+      "cpuPct": 56.0,
+      "live": 550,
+      "rssMb": 132,
+      "t": 270
+    },
+    {
+      "cpuPct": 61.0,
+      "live": 550,
+      "rssMb": 131,
+      "t": 275
+    },
+    {
+      "cpuPct": 62.0,
+      "live": 550,
+      "rssMb": 109,
+      "t": 280
+    },
+    {
+      "cpuPct": 61.0,
+      "live": 550,
+      "rssMb": 108,
+      "t": 285
+    },
+    {
+      "cpuPct": 56.0,
+      "live": 550,
+      "rssMb": 108,
+      "t": 290
+    },
+    {
+      "cpuPct": 63.0,
+      "live": 550,
+      "rssMb": 107,
+      "t": 295
+    },
+    {
+      "cpuPct": 67.0,
+      "live": 550,
+      "rssMb": 109,
+      "t": 300
+    },
+    {
+      "cpuPct": 66.0,
+      "live": 550,
+      "rssMb": 106,
+      "t": 305
+    },
+    {
+      "cpuPct": 62.0,
+      "live": 550,
+      "rssMb": 108,
+      "t": 310
+    },
+    {
+      "cpuPct": 53.0,
+      "live": 550,
+      "rssMb": 108,
+      "t": 315
+    },
+    {
+      "cpuPct": 61.0,
+      "live": 550,
+      "rssMb": 112,
+      "t": 320
+    },
+    {
+      "cpuPct": 62.0,
+      "live": 550,
+      "rssMb": 109,
+      "t": 325
+    },
+    {
+      "cpuPct": 67.0,
+      "live": 550,
+      "rssMb": 111,
+      "t": 330
+    },
+    {
+      "cpuPct": 54.0,
+      "live": 550,
+      "rssMb": 110,
+      "t": 335
+    },
+    {
+      "cpuPct": 64.0,
+      "live": 550,
+      "rssMb": 112,
+      "t": 340
+    },
+    {
+      "cpuPct": 66.0,
+      "live": 550,
+      "rssMb": 110,
+      "t": 345
+    },
+    {
+      "cpuPct": 67.0,
+      "live": 550,
+      "rssMb": 111,
+      "t": 350
+    },
+    {
+      "cpuPct": 68.0,
+      "live": 550,
+      "rssMb": 111,
+      "t": 355
+    },
+    {
+      "cpuPct": 55.0,
+      "live": 550,
+      "rssMb": 109,
+      "t": 360
+    },
+    {
+      "cpuPct": 65.0,
+      "live": 550,
+      "rssMb": 113,
+      "t": 365
+    },
+    {
+      "cpuPct": 67.0,
+      "live": 552,
+      "rssMb": 132,
+      "t": 370
+    },
+    {
+      "cpuPct": 63.0,
+      "live": 550,
+      "rssMb": 139,
+      "t": 375
+    },
+    {
+      "cpuPct": 61.0,
+      "live": 550,
+      "rssMb": 138,
+      "t": 380
+    },
+    {
+      "cpuPct": 63.0,
+      "live": 550,
+      "rssMb": 135,
+      "t": 385
+    },
+    {
+      "cpuPct": 59.0,
+      "live": 550,
+      "rssMb": 131,
+      "t": 390
+    },
+    {
+      "cpuPct": 66.0,
+      "live": 550,
+      "rssMb": 128,
+      "t": 395
+    }
+  ]
+}

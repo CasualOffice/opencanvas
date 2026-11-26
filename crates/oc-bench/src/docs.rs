@@ -18,6 +18,13 @@ pub enum DocKind {
     Empty,
     Demo,
     Big,
+    /// Benchmark fixtures (docs/36 §2.3, §3.3 MEM): S 20 pages; M 5 databases × 2,000 rows and
+    /// 3 boards; L 10 databases × 2,000 rows, 5 boards × 1,000, 2 diagrams; X50 the 50 MB canvas
+    /// (200 pages, 20 databases × 5,000 rows × 12 fields, 10 boards × 2,000, 5 diagrams).
+    S,
+    M,
+    L,
+    X50,
 }
 
 impl DocKind {
@@ -26,7 +33,11 @@ impl DocKind {
             "empty" => Self::Empty,
             "demo" => Self::Demo,
             "big" => Self::Big,
-            _ => anyhow::bail!("--doc must be empty | demo | big"),
+            "s" => Self::S,
+            "m" => Self::M,
+            "l" => Self::L,
+            "50mb" => Self::X50,
+            _ => anyhow::bail!("--doc must be empty | demo | big | s | m | l | 50mb"),
         })
     }
 
@@ -35,6 +46,25 @@ impl DocKind {
             Self::Empty => "empty",
             Self::Demo => "demo",
             Self::Big => "big",
+            Self::S => "s",
+            Self::M => "m",
+            Self::L => "l",
+            Self::X50 => "50mb",
+        }
+    }
+
+    pub fn fixtures() -> [Self; 4] {
+        [Self::S, Self::M, Self::L, Self::X50]
+    }
+
+    /// (pages, databases, rows per database, boards, items per board, diagrams)
+    fn shape(self) -> (usize, usize, usize, usize, usize, usize) {
+        match self {
+            Self::S => (20, 1, 50, 1, 50, 0),
+            Self::M => (20, 5, 2_000, 3, 500, 0),
+            Self::L => (60, 10, 2_000, 5, 1_000, 2),
+            Self::X50 => (200, 20, 5_000, 10, 2_000, 5),
+            _ => (0, 0, 0, 0, 0, 0),
         }
     }
 }
@@ -179,8 +209,128 @@ fn board(shapes: usize) -> Value {
     json!({"shapes": map, "order": order})
 }
 
+/// `demo:3,big:1` (or `demo`): the seeds rooms cycle through, by weight.
+pub fn parse_mix(s: &str) -> anyhow::Result<Vec<DocKind>> {
+    let mut v = Vec::new();
+    for part in s.split(',').filter(|p| !p.is_empty()) {
+        let (k, w) = part.split_once(':').unwrap_or((part, "1"));
+        let kind = DocKind::parse(k.trim())?;
+        for _ in 0..w.trim().parse::<usize>()? {
+            v.push(kind);
+        }
+    }
+    anyhow::ensure!(!v.is_empty(), "no seed document given");
+    Ok(v)
+}
+
+pub fn mix_name(v: &[DocKind]) -> String {
+    let mut out: Vec<(String, usize)> = Vec::new();
+    for k in v {
+        match out.iter_mut().find(|(n, _)| n == k.name()) {
+            Some(e) => e.1 += 1,
+            None => out.push((k.name().to_string(), 1)),
+        }
+    }
+    out.iter()
+        .map(|(n, w)| {
+            if out.len() == 1 {
+                n.clone()
+            } else {
+                format!("{n}:{w}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// A database of `n` rows and 12 fields (deterministic, seeded by `seed`).
+fn wide_db(name: &str, n: usize, seed: usize) -> Value {
+    let st: Value = serde_json::from_str(ST4).expect("static json");
+    let areas: Value = serde_json::from_str(AREAS).expect("static json");
+    let fields = json!([
+        {"id": "title", "name": "Task", "type": "title"},
+        {"id": "status", "name": "Status", "type": "status", "options": st},
+        {"id": "owner", "name": "Owner", "type": "person"},
+        {"id": "due", "name": "Due", "type": "date"},
+        {"id": "pts", "name": "Points", "type": "number"},
+        {"id": "area", "name": "Area", "type": "tags", "options": areas},
+        {"id": "notes", "name": "Notes", "type": "text"},
+        {"id": "link", "name": "Link", "type": "url"},
+        {"id": "mail", "name": "Contact", "type": "email"},
+        {"id": "done", "name": "Done", "type": "checkbox"},
+        {"id": "start", "name": "Start", "type": "date"},
+        {"id": "est", "name": "Estimate", "type": "number"},
+    ]);
+    let statuses = ["Backlog", "In progress", "In review", "Done"];
+    let owners = ["u_asha", "u_ravi", "u_lin", "u_priya"];
+    let area = ["API", "Editor", "Board", "Infra", "Docs"];
+    let mut order = Vec::with_capacity(n);
+    let mut map = serde_json::Map::new();
+    for i in 0..n {
+        let k = i * 7 + seed * 13;
+        let id = format!("r{seed:02}{i:05}");
+        order.push(json!(id));
+        map.insert(id, json!({
+            "title": format!("Item {i} of {name}: tighten the fan-out"),
+            "status": statuses[k % 4], "owner": owners[k % 4],
+            "due": format!("2026-12-{:02}", 1 + k % 28), "pts": (k % 13) as i64,
+            "area": [area[k % 5]],
+            "notes": format!("Measured on run {k}; follow up."),
+            "link": format!("https://tracker.example/items/{k}"),
+            "mail": format!("owner{}@example.com", k % 97),
+            "done": k.is_multiple_of(3), "start": format!("2026-11-{:02}", 1 + k % 28), "est": (k % 40) as i64,
+        }));
+    }
+    json!({"name": name, "icon": "list-todo", "tone": "blue", "fields": fields,
+           "order": order, "rows": map, "notes": {}, "view": "table", "views": {}})
+}
+
+/// A benchmark fixture's `document.json` (docs/36 §2.3): pages of text, then the databases,
+/// boards and diagrams, each under its own heading.
+fn fixture(kind: DocKind) -> Value {
+    let (pages, dbs, rows, boards_n, items, diagrams) = kind.shape();
+    const LINE: &str = "The room keeps one Y.Doc per file; every update is appended to the WAL before it fans out to the peers, and the host saves on idle. ";
+    let mut content = Vec::new();
+    let mut databases = serde_json::Map::new();
+    let mut boards = serde_json::Map::new();
+    for pg in 0..pages {
+        content.push(h2(&format!("Page {}: design notes", pg + 1)));
+        for i in 0..12 {
+            content.push(p(&format!("{} {}", LINE.repeat(2), pg * 12 + i)));
+        }
+        content.push(bullets(&[
+            "Owner signs off",
+            "Bench numbers attached",
+            "Rollout plan agreed",
+        ]));
+        // Spread the large blocks over the pages, the first ones near the top.
+        let at = |count: usize| (0..count).filter(move |j| j * pages.max(1) / count.max(1) == pg);
+        for d in at(dbs) {
+            let id = format!("db{d:02}");
+            content.push(json!({"type": "database", "attrs": {"dbId": id}}));
+            databases.insert(id.clone(), wide_db(&id, rows, d));
+        }
+        for b in at(boards_n) {
+            let id = format!("board{b:02}");
+            content.push(json!({"type": "board", "attrs": {"boardId": id}}));
+            boards.insert(id, board(items));
+        }
+        for g in at(diagrams) {
+            let id = format!("diagram{g:02}");
+            content.push(json!({"type": "board", "attrs": {"boardId": id}}));
+            boards.insert(id, board(400));
+        }
+    }
+    json!({"type": "doc", "content": content,
+           "meta": {"title": format!("Bench fixture {}", kind.name()), "icon": "rocket", "tone": "blue"},
+           "databases": databases, "boards": boards})
+}
+
 /// The logical `document.json` of a seed document.
 pub fn document(kind: DocKind) -> Value {
+    if kind.shape().0 > 0 {
+        return fixture(kind);
+    }
     if kind == DocKind::Empty {
         return json!({"type": "doc", "content": []});
     }

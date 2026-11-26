@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario C, unchanged: run by `scripts/bench.sh C` (old numbers stay comparable).
+name = "C"
+legacy = "C"
+description = "idle memory: rooms of empty / demo / big docs with one idle viewer, then idle viewers over 100 rooms"
+mix_note = "idle viewers only"
+
+[load]
+connections = 1000
+rooms = 100
+docs = "empty,demo,big"
+
+[mix]
+idle = 1
+presence = 0
+typing = 0
+typing_hz = 0
+
+[run]
+minutes = 10

@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+#
+# Browser budgets (docs/36 §3.5, ADR-079). Budgets change only in a reviewed commit that says
+# why; the baseline is never refreshed automatically.
+#
+#   [start]            checked on every push and PR (scripts/bench/check-fast.sh): the initial JS
+#                      (entry + static imports, gzip) and no advanced module in that graph
+#   [heap_mb]          JS heap after a forced GC, per fixture (Chromium, e2e/perf/first-screen.bench.ts)
+#   [first_screen_ms]  launch → first block painted and caret placeable, median of the runs,
+#                      Chromium, 4× CPU throttle, 40 Mbit/s, 40 ms RTT
+#   heap and first screen are checked by the nightly job (scripts/bench/check-browser.mjs).
+
+[start]
+# The gate today. It steps 300 → 260 → 240 → 220 KB gzip as the lazy-loading work lands (LAZY-01);
+# lower it here in the commit that makes room.
+initial_js_kb = 300
+steps_kb = [300, 260, 240, 220]
+target_kb = 220
+# Advanced modules that must load lazily (regular expressions on the source paths in each
+# initial chunk's source map).
+forbid = [
+  "packages/database/src/",
+  "packages/board/src/",
+  "node_modules/.*/pdfjs-dist/",
+  "node_modules/.*/marked/",
+  "node_modules/.*/(lowlight|highlight\\.js)/",
+  "node_modules/.*/prosemirror-tables/",
+  "node_modules/.*/lucide-static/",
+  "packages/editor/src/lib/exports",
+  "packages/editor/src/lib/demo",
+  "packages/editor/src/offline/(ui|controller)",
+  "packages/editor/src/history/",
+]
+
+[heap_mb]
+s = 0
+m = 0
+l = 0
+50mb = 0
+
+[first_screen_ms]
+s = 0
+m = 0
+l = 0
+50mb = 2000

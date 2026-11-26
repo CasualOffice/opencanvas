@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario T, unchanged: run by `scripts/bench.sh T` (old numbers stay comparable).
+name = "T"
+legacy = "T"
+description = "throughput 1 node vs 3 nodes, clients of a room on different nodes, host latency 20-50 ms"
+mix_note = "editors type 3-6 chars/s in bursts, active 60% of the time, plus caret awareness; 6% cell edits, 2% board drags"
+
+[load]
+connections = 5000
+rooms = 1000
+docs = "demo"
+
+[mix]
+idle = 0.8
+presence = 0
+typing = 0.2
+typing_hz = 2.7
+
+[run]
+minutes = 6

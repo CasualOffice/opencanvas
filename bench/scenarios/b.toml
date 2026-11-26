@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario B, unchanged: run by `scripts/bench.sh B` (old numbers stay comparable).
+name = "B"
+legacy = "B"
+description = "many small rooms: 5 users per room, 500 to 5,000 connections (B_STEPS up to 10,000), 20% editors, demo doc"
+mix_note = "editors type 3-6 chars/s in bursts, active 60% of the time, plus caret awareness; 6% cell edits, 2% board drags"
+
+[load]
+connections = 5000
+rooms = 1000
+docs = "demo"
+
+[mix]
+idle = 0.8
+presence = 0
+typing = 0.2
+typing_hz = 2.7
+
+[run]
+minutes = 4

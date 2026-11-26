@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# STORM (docs/36 §3.3): every client loses the node at once and reconnects.
+name = "STORM"
+description = "X10K's 10,000 clients and mix lose the node at once (kill -9, restart) at minute 2"
+not_measured = [
+  "no client retries faster than its backoff: the load client's backoff is its own (0.5 s doubling to 8 s, ±50% jitter)",
+]
+
+[machine]
+nodes = 1
+vcpu = 4
+ram_gb = 8
+
+[load]
+connections = 10000
+rooms = 500
+docs = "demo:3,big:1"
+connect_rate = 250
+probes_per_room = 2
+
+[mix]
+idle = 0.80
+presence = 0.15
+typing = 0.05
+presence_hz = 2
+typing_hz = 1
+
+[run]
+minutes = 5
+bucket_secs = 10
+
+[[faults]]
+kind = "kill-restart"
+at_min = 2
+
+[pass]
+recover_secs = 90
+reconnect_secs = 60
+
+[size.quick]
+connections = 1000
+rooms = 50
+minutes = 4

@@ -46,6 +46,7 @@ jobs:
       - run: pnpm -r test
         env: { OC_CONFORMANCE: skip }   # the server conformance run is the clients job
       - run: pnpm --filter @opencanvas/editor build
+      - run: bash ../scripts/bench/check-fast.sh --no-build   # ADR-079 START: initial JS budget and --forbid (bench/budgets.toml)
       - uses: actions/upload-artifact@v4
         with: { name: editor-dist, path: web/packages/editor/dist }
 

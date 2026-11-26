@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+# Benchmark entry point (docs/36 §3, ADR-079):
+#
+#   scripts/bench/run <scenario> [--size quick|short|full] [--store sqlite|mysql|mariadb] [oc-bench options…]
+#   scripts/bench/run x10k --size short                  # the full mix on a laptop, 4 minutes
+#   scripts/bench/run r1k --size quick                   # the pull-request size
+#   scripts/bench/run x10k --size short --connections 5000 --rooms 250   # scaled down (say so)
+#   scripts/bench/run fixtures                           # bench/fixtures/canvas-{s,m,l,50mb}.ocanvas
+#   scripts/bench/run a                                  # a docs/22 scenario: scripts/bench.sh A
+#
+# Scenarios are bench/scenarios/<name>.toml and state their load mix. A native scenario runs in
+# `oc-bench scenario`: it starts the release server (SQLite in a temp dir, or DATABASE_URL with
+# --store mysql|mariadb), drives the clients, injects the faults, and writes
+# bench/results/<date>-<scenario>-<size>-<machine>.json with the hardware and the mix.
+# BENCH_MACHINE (default "local") names the machine; BENCH_PORT / BENCH_HOST_PORT (9201 / 9202,
+# shifted by E2E_PORT_SHIFT) the server and mock-host ports. SKIP_BUILD=1 reuses the binaries.
+# The load runs at background CPU priority (nice 10), no fixed waits.
+set -u
+ROOT=$(cd "$(dirname "$0")/../.." && pwd); cd "$ROOT"
+[ $# -ge 1 ] || { sed -n '5,20p' "$0"; exit 2; }
+NAME=$(echo "$1" | tr '[:upper:]' '[:lower:]'); shift
+TGT=${CARGO_TARGET_DIR:-target}; case $TGT in /*) ;; *) TGT=$ROOT/$TGT ;; esac
+BIN=$TGT/release/opencanvas; LG=$TGT/release/oc-bench
+if [ -z "${SKIP_BUILD:-}" ]; then
+  cargo build -q --release -p oc-server --bin opencanvas -p oc-bench --bin oc-bench || exit 1
+fi
+if [ "$NAME" = fixtures ]; then exec "$LG" fixture all --out-dir bench/fixtures "$@"; fi
+FILE=bench/scenarios/$NAME.toml
+[ -f "$FILE" ] || { echo "no scenario $FILE (have: $(ls bench/scenarios | sed 's/\.toml//' | tr '\n' ' '))"; exit 2; }
+
+LEGACY=$(sed -n 's/^legacy *= *"\(.*\)"/\1/p' "$FILE")
+if [ -n "$LEGACY" ]; then
+  echo "$NAME is a docs/22 scenario: scripts/bench.sh $LEGACY"
+  OC_BIN=$BIN OC_LG=$LG exec bash scripts/bench.sh "$LEGACY"
+fi
+
+ARGS=(); STORE=sqlite
+while [ $# -gt 0 ]; do
+  case $1 in
+    --store) STORE=$2; shift 2 ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
+if [ "$STORE" != sqlite ]; then
+  [ -n "${DATABASE_URL:-}" ] || { echo "--store $STORE needs DATABASE_URL"; exit 2; }
+  ARGS+=(--database-url "$DATABASE_URL")
+fi
+
+# One fd per socket in the server and in the load generator.
+ulimit -n "$(sysctl -n kern.maxfilesperproc 2>/dev/null || echo 65536)" 2>/dev/null || ulimit -n 65536 2>/dev/null || true
+SHIFT=${E2E_PORT_SHIFT:-0}
+PORT=${BENCH_PORT:-$((9201 + SHIFT))}; HOST_PORT=${BENCH_HOST_PORT:-$((9202 + SHIFT))}
+for p in "$PORT" "$HOST_PORT"; do
+  if nc -z 127.0.0.1 "$p" 2>/dev/null; then echo "port $p is in use (set BENCH_PORT / BENCH_HOST_PORT)"; exit 1; fi
+done
+WORK=${WORK:-$(mktemp -d)}
+echo "fd limit $(ulimit -n); work dir $WORK"
+exec nice -n 10 "$LG" scenario "$FILE" --bin "$BIN" --port "$PORT" --host-port "$HOST_PORT" \
+  --machine "${BENCH_MACHINE:-local}" --results-dir bench/results --work "$WORK" ${ARGS[@]+"${ARGS[@]}"}

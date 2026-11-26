@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario S2, unchanged: run by `scripts/bench.sh S2` (old numbers stay comparable).
+name = "S2"
+legacy = "S2"
+description = "sustained: 1,000 rooms x 5, 100% editors, no pauses, 10 one-minute buckets"
+mix_note = "every client types with no pauses"
+
+[load]
+connections = 5000
+rooms = 1000
+docs = "demo"
+
+[mix]
+idle = 0
+presence = 0
+typing = 1
+typing_hz = 4.5
+
+[run]
+minutes = 10

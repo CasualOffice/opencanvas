@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 CasualOffice
 
-# Capacity benchmark (docs/22-CAPACITY-AND-SIZING.md). One command on your own hardware:
+# Capacity benchmark (docs/22-CAPACITY-AND-SIZING.md): the docs/22 scenarios, unchanged. The v0.4
+# entry point is scripts/bench/run (bench/README.md), which runs these through this script.
+# One command on your own hardware:
 #
 #   scripts/bench.sh                    # quick check: small A + B on SQLite (~3 min)
 #   scripts/bench.sh all                # A B C D on SQLite, then A B D on MariaDB (~45 min)
