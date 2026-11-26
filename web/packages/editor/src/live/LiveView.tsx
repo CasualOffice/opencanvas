@@ -89,7 +89,7 @@ function Nested({ room, editable, onEditor, onLocalEdit }: { room: LiveRoom; edi
       unreg.current = null;
       if (e) {
         nestedEditors.add(e);
-        unreg.current = registerLiveEditor(room.fileId, { editor: e, title: room.name, path: room.path });
+        unreg.current = registerLiveEditor(room.fileId, { editor: e, get title() { return room.name; }, get path() { return room.path; } });
         e.on("transaction", ({ transaction }) => {
           if (transaction.docChanged && !transaction.getMeta("y-sync$")) onLocalEdit();
         });
