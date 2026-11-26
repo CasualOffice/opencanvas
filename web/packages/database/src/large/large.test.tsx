@@ -6,7 +6,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { BlockEnv } from "@opencanvas/ui";
 import { DatabaseBlock } from "../index";
@@ -115,6 +115,31 @@ describe("large table", () => {
     expect(rendered).toBeLessThan(200);
     expect(el.querySelector(".ocdb-lt-hd .ocdb-lt-fz")).toBeTruthy();
     expect(el.querySelector(".ocdb-hcb")?.textContent).toBe("20,000 rows");
+  });
+
+  it("phone: a long press selects the card, and the click that ends it does not undo that", async () => {
+    const { doc, id } = big(2000);
+    const el = await mount(<DatabaseBlock doc={doc} dbId={id} env={env(true)} />);
+    const cards = () => [...el.querySelectorAll<HTMLButtonElement>(".ocdb-lt-card")];
+    const bar = () => el.querySelector(".ocdb-lt-selbar");
+    vi.useFakeTimers();
+    try {
+      const c = cards()[1];
+      await act(async () => {
+        c.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        vi.advanceTimersByTime(600);
+      });
+      await act(async () => {
+        c.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+        c.click();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(bar()?.querySelector(".ocdb-lt-cnt")?.textContent).toBe("1 selected");
+    // Then taps toggle further cards.
+    await act(async () => cards()[2].click());
+    expect(bar()?.querySelector(".ocdb-lt-cnt")?.textContent).toBe("2 selected");
   });
 
   it("row numbers are row headers holding a toggle (no aria-pressed on the rowheader)", async () => {
