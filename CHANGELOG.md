@@ -14,12 +14,16 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   open on another node could be put off for five minutes at a time; the node holding the canvas
   now runs it. A run cut off by a node that stopped is logged as failed (`INTERRUPTED`) after an
   hour instead of staying "running".
+- Nextcloud app: unified search hits no longer end in ".ocanvas" (NC-03).
 
 ### Tests
 
 - `tests/automation_cluster.rs`: three nodes on Redis and MySQL/MariaDB (schedule once, also
   when a node dies; row changes once; loop guard, daily limit and auto-pause cluster-wide; no
   duplicate runs). CI job `automation-cluster` (MySQL 8.4, MariaDB 10.11).
+- `integrations/nextcloud/test/e2e.sh`: a real Nextcloud 31 in Docker with the app, driven
+  through Files, sharing, unified search and delete (NC-03); CI job `nextcloud-e2e`, nightly and
+  on demand.
 
 ## [0.3.0] - 2026-11-26
 
