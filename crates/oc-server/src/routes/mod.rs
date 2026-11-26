@@ -45,6 +45,16 @@ pub struct ApiError {
     status: StatusCode,
     code: &'static str,
     message: String,
+    /// `Retry-After` seconds (503 answers).
+    retry_after: Option<u64>,
+}
+
+/// A spread of 1..=5 s for `Retry-After`, so refused clients do not come back together.
+pub fn retry_jitter() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let n = N.fetch_add(1, Ordering::Relaxed) ^ (crate::util::now_ms() as u64);
+    1 + n.wrapping_mul(2_654_435_761) % 5
 }
 
 impl ApiError {
@@ -53,7 +63,15 @@ impl ApiError {
             status,
             code,
             message: message.into(),
+            retry_after: None,
         }
+    }
+    /// 503 BUSY with a jittered `Retry-After`: the server cannot take this request right now
+    /// (database pool saturated, rooms recovering after a restart; RLB-01b).
+    pub fn busy(message: &str) -> Self {
+        let mut e = Self::new(StatusCode::SERVICE_UNAVAILABLE, "BUSY", message);
+        e.retry_after = Some(retry_jitter());
+        e
     }
     pub fn ticket() -> Self {
         Self::new(
@@ -66,6 +84,11 @@ impl ApiError {
         Self::new(StatusCode::FORBIDDEN, "FORBIDDEN", message)
     }
     pub fn internal(e: impl std::fmt::Display) -> Self {
+        // No connection within the pool's wait: an overload, not a bug. Clients retry (RLB-01b).
+        if format!("{e:#}").contains("pool timed out") {
+            tracing::warn!(error = %e, "busy: database pool saturated");
+            return Self::busy("the server is busy; retry");
+        }
         tracing::error!(error = %e, "internal error");
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -80,11 +103,16 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (
+        let mut r = (
             self.status,
             axum::Json(json!({"error": {"code": self.code, "message": self.message}})),
         )
-            .into_response()
+            .into_response();
+        if let Some(s) = self.retry_after {
+            r.headers_mut()
+                .insert(axum::http::header::RETRY_AFTER, s.into());
+        }
+        r
     }
 }
 

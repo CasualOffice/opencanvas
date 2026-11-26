@@ -6,6 +6,7 @@
 // (`Action_RefreshToken`) does so quietly; if it hasn't within GRACE_MS the amber bar shows. At
 // `exp` the canvas turns read only (local edits stay in the Y.Doc) until access is renewed.
 import type { Session } from "./session";
+import { fetchBusy } from "./busy";
 
 export const WARN_S = 60;
 export const GRACE_MS = 5_000;
@@ -14,14 +15,14 @@ export type AccessState = "ok" | "warn" | "expired";
 
 /** Swaps the session onto the ticket for the host's fresh token (POST /v1/launch, JSON). */
 export async function renewSession(token: string): Promise<{ ticket: string; exp: number | null }> {
-  const r = await fetch("/v1/launch", {
+  const r = await fetchBusy("/v1/launch", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ token }),
   });
   if (!r.ok) throw new Error("renew failed: " + r.status);
   const { ticket } = (await r.json()) as { ticket: string };
-  const s = await fetch(`/v1/sessions/${encodeURIComponent(ticket)}`, { headers: { Accept: "application/json" } });
+  const s = await fetchBusy(`/v1/sessions/${encodeURIComponent(ticket)}`, { headers: { Accept: "application/json" } });
   if (!s.ok) throw new Error("session failed: " + s.status);
   const j = (await s.json()) as Session;
   return { ticket, exp: typeof j.exp === "number" ? j.exp : null };

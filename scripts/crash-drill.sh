@@ -112,7 +112,8 @@ for d in "${DRILLS[@]}"; do
     edits|save)
       db=$(fresh_db "ocdrill_$d"); start "$db" "$WORK/$d.log"
       ready || { echo "FAIL: $d: server not ready"; tail -5 "$WORK/$d.log"; FAIL=1; continue; }
-      if [ "$d" = save ]; then verify_crash "$d" "$db" --host-latency-ms 1500,2500
+      # Every host save takes ~2 s: the last saves need longer than the default 15 s to land.
+      if [ "$d" = save ]; then verify_crash "$d" "$db" --host-latency-ms 1500,2500 --save-wait-secs 120
       else verify_crash "$d" "$db"; fi ;;
     migration)
       # Delays from "before the first statement" to "after the last migration".

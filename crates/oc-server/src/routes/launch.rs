@@ -102,9 +102,15 @@ pub async fn launch_post(
     headers: HeaderMap,
     Form(p): Form<LaunchForm>,
 ) -> Response {
-    let res = match q.wopi_src {
-        Some(src) => launch_wopi(&state, &src, &p).await,
-        None => launch(&state, &p.token).await,
+    let res = if crate::room::recovering() {
+        Err(ApiError::busy(
+            "rooms are recovering after a restart; retry",
+        ))
+    } else {
+        match q.wopi_src.as_deref() {
+            Some(src) => launch_wopi(&state, src, &p).await,
+            None => launch(&state, &p.token).await,
+        }
     };
     // docs/23 PERM-07: the editor renews access with the host's fresh token (`Action_RefreshToken`)
     // and asks for JSON, `{"ticket"}`, instead of the redirect that loads the app.
@@ -113,6 +119,17 @@ pub async fn launch_post(
         .and_then(|v| v.to_str().ok())
         .is_some_and(|a| a.contains("application/json"));
     let res = res.unwrap_or_else(IntoResponse::into_response);
+    // RLB-01b: a busy server answers the browser's form post with a page that says
+    // "Reconnecting…" and posts the same form again after `Retry-After`, never an error page.
+    if !wants_json && res.status() == StatusCode::SERVICE_UNAVAILABLE {
+        let secs = res
+            .headers()
+            .get(header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(3);
+        return retry_page(secs, &q, &p);
+    }
     if wants_json && res.status() == StatusCode::SEE_OTHER {
         let ticket = res
             .headers()
@@ -138,10 +155,78 @@ pub async fn launch_get(
     State(state): State<SharedState>,
     Query(p): Query<LaunchParams>,
 ) -> Response {
+    if crate::room::recovering() {
+        return ApiError::busy("rooms are recovering after a restart; retry").into_response();
+    }
     let res = launch(&state, &p.token)
         .await
         .unwrap_or_else(IntoResponse::into_response);
     with_view(with_block(res, p.block.as_deref()), p.view.as_deref())
+}
+
+fn attr(v: &str) -> String {
+    v.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// The "Reconnecting…" page of a launch the server could not take yet (503, RLB-01b): the same
+/// form is posted again after `secs`, plus up to 2 s of spread. Values are escaped; nothing from
+/// the request reaches the script.
+fn retry_page(secs: u64, q: &LaunchQuery, p: &LaunchForm) -> Response {
+    let mut fields = String::new();
+    let mut put = |k: &str, v: Option<&str>| {
+        if let Some(v) = v.filter(|v| !v.is_empty()) {
+            fields.push_str(&format!(
+                r#"<input type="hidden" name="{k}" value="{}">"#,
+                attr(v)
+            ));
+        }
+    };
+    put("token", Some(&p.token));
+    put("access_token", Some(&p.access_token));
+    put("access_token_ttl", p.access_token_ttl.as_deref());
+    put("block", p.block.as_deref());
+    put("view", p.view.as_deref());
+    let mut query = vec![];
+    for (k, v) in [
+        ("WOPISrc", &q.wopi_src),
+        ("block", &q.block),
+        ("view", &q.view),
+    ] {
+        if let Some(v) = v {
+            query.push(
+                url::form_urlencoded::Serializer::new(String::new())
+                    .append_pair(k, v)
+                    .finish(),
+            );
+        }
+    }
+    let action = if query.is_empty() {
+        "launch".to_string()
+    } else {
+        format!("launch?{}", query.join("&"))
+    };
+    let ms = secs.clamp(1, 30) * 1000;
+    let html = format!(
+        r#"<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Reconnecting</title><style>body{{font:1rem system-ui,sans-serif;display:grid;place-items:center;height:100vh;margin:0;color:#555}}</style><p role="status">Reconnecting…</p><form id="f" method="post" action="{}">{fields}</form><script>setTimeout(function(){{document.getElementById("f").submit()}},{ms}+Math.floor(Math.random()*2000))</script>"#,
+        attr(&action)
+    );
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        [
+            (header::RETRY_AFTER, secs.to_string()),
+            (header::CACHE_CONTROL, "no-store".to_string()),
+            (header::CONTENT_TYPE, "text/html; charset=utf-8".to_string()),
+            (
+                header::CONTENT_SECURITY_POLICY,
+                "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; form-action 'self'".to_string(),
+            ),
+        ],
+        html,
+    )
+        .into_response()
 }
 
 fn rejected(state: &SharedState, status: StatusCode, code: &'static str, msg: String) -> ApiError {
@@ -320,14 +405,7 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
         ));
     }
     let exp = claims.exp;
-    if !state
-        .store
-        .use_jti(&host.id, &claims.jti, exp)
-        .await
-        .map_err(ApiError::internal)?
-    {
-        return Err(reject("TOKEN_REUSED", "launch token already used".into()));
-    }
+    let jti = claims.jti.clone();
     let iat = claims.iat;
     let start_page = claims.start_page();
     let mut grant = claims.into_grant();
@@ -351,6 +429,17 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
         .insert_session(&ticket, &grant, exp, now_ms())
         .await
         .map_err(ApiError::internal)?;
+    // The token is spent last (RLB-01b/SEC-59): a 503 on a busy database before this point
+    // leaves it unused, so the client's retry with the same token is accepted. A session row
+    // written for a reused token is never handed out and expires with it.
+    if !state
+        .store
+        .use_jti(&host.id, &jti, exp)
+        .await
+        .map_err(ApiError::internal)?
+    {
+        return Err(reject("TOKEN_REUSED", "launch token already used".into()));
+    }
     Metrics::inc(&state.metrics.launches_total);
     tracing::info!(host = %host.id, room = %grant.room, role = grant.role.as_str(), "launch accepted");
     // ADR-048: the host chose the kind already, so the editor skips its template picker.

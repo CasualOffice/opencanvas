@@ -4696,6 +4696,17 @@ launches and saves keep connections during the storm. Before this, 52 of 100 lau
 answered 500 ("pool timed out") for about 21 s after a restart on MySQL; now 100 rooms recover
 in 0.6 s with no error (RLB-01b).
 
+**Admission while recovering.** If more than `OC_ROOM_LOAD_QUEUE` rooms (default 32) wait for a
+load slot, new launches (`/v1/launch`) and WebSocket upgrades answer **503 with a
+`Retry-After` of 1–5 s**. So does any request that gets no database connection within the
+pool's wait. A server never answers 500 for overload.
+
+- The browser's launch form gets a small "Reconnecting…" page that posts the same form again
+  after the delay.
+- The editor (`fetchBusy`) and the SDK clients wait out `Retry-After` for up to 60 s before
+  they show an error.
+- Load balancers should treat 503 + `Retry-After` as "try again", not as a dead node.
+
 The reduced drill (100 rooms × 2, 30 s) runs nightly on SQLite and MySQL 8.4
 (`.github/workflows/reliability-nightly.yml`).
 
@@ -7606,7 +7617,7 @@ Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JS
 
 ## No "try it" console
 
-This reference has no console that sends requests from the page. The site is static (GitHub Pages) with no OpenCanvas server behind it, and a console would mean pasting a host key or a user token into a web page. Use the samples with your own server: every one of them can be copied, and the language you pick is remembered on your device. Last changed 2026-11-26 .
+This reference has no console that sends requests from the page. The site is static (GitHub Pages) with no OpenCanvas server behind it, and a console would mean pasting a host key or a user token into a web page. Use the samples with your own server: every one of them can be copied, and the language you pick is remembered on your device. Last changed 2026-11-27 .
 
 
 # Authentication
@@ -7639,7 +7650,7 @@ Tokens live at most 15 minutes: an exp further ahead than that is refused ( 401 
 
 ## Errors
 
-Status Code When 401 UNAUTHENTICATED No credentials, an unknown host, or a wrong host key. 401 TOKEN_INVALID Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host. 401 TOKEN_EXPIRED The token's exp has passed. 403 SCOPE_REQUIRED The operation needs a scope the token lacks (admin operations: canvas:admin and token_admin ). 403 ROLE_FORBIDDEN The user's role on the file is too low, the file is not in files , or access was revoked. 403 FILES_REQUIRED No POST /access callback, and the token lists no files . 401 answers carry WWW-Authenticate: Bearer realm="opencanvas" (with error="invalid_token" for token problems). The MCP endpoint uses the same check with its own audience; see AI and MCP . Last changed 2026-11-26 .
+Status Code When 401 UNAUTHENTICATED No credentials, an unknown host, or a wrong host key. 401 TOKEN_INVALID Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host. 401 TOKEN_EXPIRED The token's exp has passed. 403 SCOPE_REQUIRED The operation needs a scope the token lacks (admin operations: canvas:admin and token_admin ). 403 ROLE_FORBIDDEN The user's role on the file is too low, the file is not in files , or access was revoked. 403 FILES_REQUIRED No POST /access callback, and the token lists no files . 401 answers carry WWW-Authenticate: Bearer realm="opencanvas" (with error="invalid_token" for token problems). The MCP endpoint uses the same check with its own audience; see AI and MCP . Last changed 2026-11-27 .
 
 
 # Errors
@@ -7662,7 +7673,7 @@ Status What to do 400 Fix the request; detail says what is wrong. Do not retry i
 
 ## Any operation on a file
 
-Authentication, the API switch, rate limits and availability: every /api/v1 operation on a file can answer these. Code Status Meaning TOKEN_EXPIRED 401 The bearer token's exp has passed. Mint a new one; tokens live at most 15 minutes. TOKEN_INVALID 401 A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid ( nbf ). Also answered when the host has no public base URL, so user tokens are off for it. UNAUTHENTICATED 401 No credentials, an unknown host, or a wrong host key. The answer carries WWW-Authenticate: Bearer realm="opencanvas" . FILES_REQUIRED 403 The host does not implement POST /access , so a token's role claim counts only for the files in its files claim, and this token has none. Add files , implement /access , or set [host.api] all_files = true . ROLE_FORBIDDEN 403 The user's role on the file is below what the operation needs (the effective permission is min(scope, role) ), the token does not list the file in files , or the host revoked the user. SCOPE_REQUIRED 403 The token's scope does not cover the operation. Admin operations need canvas:admin , which counts only when the host sets [host.api] token_admin = true . API_OFF 404 The host has turned the API off ( [host.flags] api_v1 = false in its entry of the hosts file). RATE_LIMITED 429 A token bucket is empty: the caller's, or the file's write bucket. Wait for Retry-After seconds. The RateLimit header says which bucket and when it refills. INTERNAL 500 An unexpected server error, or the host's POST /access callback failed. The server logs the cause; retrying may help. UNAVAILABLE 503 A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after Retry-After .
+Authentication, the API switch, rate limits and availability: every /api/v1 operation on a file can answer these. Code Status Meaning TOKEN_EXPIRED 401 The bearer token's exp has passed. Mint a new one; tokens live at most 15 minutes. TOKEN_INVALID 401 A bearer token failed a check: signature, issuer, audience, a lifetime over 15 minutes, or not yet valid ( nbf ). Also answered when the host has no public base URL, so user tokens are off for it. UNAUTHENTICATED 401 No credentials, an unknown host, or a wrong host key. The answer carries WWW-Authenticate: Bearer realm="opencanvas" . FILES_REQUIRED 403 The host does not implement POST /access , so a token's role claim counts only for the files in its files claim, and this token has none. Add files , implement /access , or set [host.api] all_files = true . ROLE_FORBIDDEN 403 The user's role on the file is below what the operation needs (the effective permission is min(scope, role) ), the token does not list the file in files , or the host revoked the user. SCOPE_REQUIRED 403 The token's scope does not cover the operation. Admin operations need canvas:admin , which counts only when the host sets [host.api] token_admin = true . API_OFF 404 The host has turned the API off ( [host.flags] api_v1 = false in its entry of the hosts file). RATE_LIMITED 429 A token bucket is empty: the caller's, or the file's write bucket. Wait for Retry-After seconds. The RateLimit header says which bucket and when it refills. INTERNAL 500 An unexpected server error, or the host's POST /access callback failed. The server logs the cause; retrying may help. BUSY 503 The server cannot take the request right now: rooms are recovering after a restart, or no database connection is free. The answer carries Retry-After (1-5 s); send the same request again after it. Never a 500 for overload (RLB-01b). UNAVAILABLE 503 A dependency is briefly unavailable: the idempotency store, the node that runs the file's live room, or the ticket store. Retry after Retry-After .
 
 ## Operation-specific
 
@@ -7678,7 +7689,7 @@ The deprecated /v1/... routes answer {"error": {"code", "message"}} with these a
 
 ## The 0.1 routes
 
-The deprecated /v1/files/{fileId}/... routes keep their old error shape, {"error": {"code": "...", "message": "..."}} , with the same codes. Only /api/v1 answers problem details. Last changed 2026-11-26 .
+The deprecated /v1/files/{fileId}/... routes keep their old error shape, {"error": {"code": "...", "message": "..."}} , with the same codes. Only /api/v1 answers problem details. Last changed 2026-11-27 .
 
 
 # Pagination
@@ -7703,7 +7714,7 @@ Opaque and signed. Do not build or change them; a changed cursor answers 400 CUR
 
 ## Errors
 
-Status Code When 400 CURSOR_INVALID Not a cursor this server signed for this file and query. 410 CURSOR_EXPIRED Older than an hour. 400 BAD_INPUT filter or sort is not a JSON array. Last changed 2026-11-26 .
+Status Code When 400 CURSOR_INVALID Not a cursor this server signed for this file and query. 410 CURSOR_EXPIRED Older than an hour. 400 BAD_INPUT filter or sort is not a JSON array. Last changed 2026-11-27 .
 
 
 # Idempotency
@@ -7732,7 +7743,7 @@ The request's hash and the write's answer: ids, counts and revisions. Never docu
 
 ## In the clients
 
-The TypeScript and Rust clients send a random key on every write and reuse it for each retry of that call. Pass your own key when a retry may come from another process (a job queue that re-runs a job after a crash): Your own key curl TypeScript Rust Python curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H "Idempotency-Key: remind-2026-11-25-doc_1" \ -d '{"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}' const res = await oc.call( "addComment", { fileId: "doc_1", body: { text: "Is Friday still right?", blockId: "b_01m87jv4rtkdxymn93jwtx35sk" } }, { idempotencyKey: "remind-2026-11-25-doc_1" }, ); console.log(res.replayed); // true when the server answered from the stored result use opencanvas_client::{CallOptions, Params}; use serde_json::json; let res = oc .call( "addComment", &Params::file("doc_1").json(json!({"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"})), &CallOptions::key("remind-2026-11-25-doc_1"), ) .await?; println!("replayed: {}", res.replayed); r = api.post( f"{BASE}/files/doc_1/comments", json={"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}, headers={"Idempotency-Key": "remind-2026-11-25-doc_1"}, timeout=30, ) replayed = r.headers.get("Idempotency-Replayed") == "true" Last changed 2026-11-26 .
+The TypeScript and Rust clients send a random key on every write and reuse it for each retry of that call. Pass your own key when a retry may come from another process (a job queue that re-runs a job after a crash): Your own key curl TypeScript Rust Python curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H "Idempotency-Key: remind-2026-11-25-doc_1" \ -d '{"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}' const res = await oc.call( "addComment", { fileId: "doc_1", body: { text: "Is Friday still right?", blockId: "b_01m87jv4rtkdxymn93jwtx35sk" } }, { idempotencyKey: "remind-2026-11-25-doc_1" }, ); console.log(res.replayed); // true when the server answered from the stored result use opencanvas_client::{CallOptions, Params}; use serde_json::json; let res = oc .call( "addComment", &Params::file("doc_1").json(json!({"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"})), &CallOptions::key("remind-2026-11-25-doc_1"), ) .await?; println!("replayed: {}", res.replayed); r = api.post( f"{BASE}/files/doc_1/comments", json={"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}, headers={"Idempotency-Key": "remind-2026-11-25-doc_1"}, timeout=30, ) replayed = r.headers.get("Idempotency-Replayed") == "true" Last changed 2026-11-27 .
 
 
 # Rate limits
@@ -7757,7 +7768,7 @@ The answer is 429 RATE_LIMITED with Retry-After (seconds). Wait that long, then 
 
 ## Other limits
 
-At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true . Last changed 2026-11-26 .
+At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true . Last changed 2026-11-27 .
 
 
 # Events
@@ -7790,7 +7801,7 @@ At most 100 streams per file on one server: 429 TOO_MANY_STREAMS . Share one str
 
 ## Sync the document itself
 
-A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: POST /api/v1/files/{fileId}/sync-token answers a ticket for the room WebSocket. {"ticket": "01M87JV4T23GYQ773ZF1WN91VA", "room": "r_2whbv4nncveupmqu35cywoidfe", "role": "edit", "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA", "expiresAt": 1795551874, "connectWithinSecs": 60} Connect a y-websocket client to url within 60 seconds. role is the effective one, min(scope, role) : a canvas:read token gets view , and the room refuses its writes as it would a viewer's. The session ends at expiresAt (at most 15 minutes, never after the token's exp ); ask for a new ticket to continue. The answer is a credential: Cache-Control: no-store , and it is never stored for idempotent replays. See createSyncToken . Last changed 2026-11-26 .
+A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: POST /api/v1/files/{fileId}/sync-token answers a ticket for the room WebSocket. {"ticket": "01M87JV4T23GYQ773ZF1WN91VA", "room": "r_2whbv4nncveupmqu35cywoidfe", "role": "edit", "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA", "expiresAt": 1795551874, "connectWithinSecs": 60} Connect a y-websocket client to url within 60 seconds. role is the effective one, min(scope, role) : a canvas:read token gets view , and the room refuses its writes as it would a viewer's. The session ends at expiresAt (at most 15 minutes, never after the token's exp ); ask for a new ticket to continue. The answer is a credential: Cache-Control: no-store , and it is never stored for idempotent replays. See createSyncToken . Last changed 2026-11-27 .
 
 
 # Webhooks
@@ -7827,7 +7838,7 @@ Answer any 2xx quickly (10-second timeout) and do the work afterwards. Your answ
 
 ## Metrics
 
-oc_webhook_deliveries_total{host,result} ( ok , retry , rejected , gave_up , refused ) and oc_webhook_delivery_seconds{host} (one attempt's time), on the operations dashboard's "Webhooks" row. Last changed 2026-11-26 .
+oc_webhook_deliveries_total{host,result} ( ok , retry , rejected , gave_up , refused ) and oc_webhook_delivery_seconds{host} (one attempt's time), on the operations dashboard's "Webhooks" row. Last changed 2026-11-27 .
 
 
 # SDKs
@@ -7864,7 +7875,7 @@ crates/oc-server/api/conformance.json is one list of scenarios that both clients
 
 ## Block SDK
 
-To add your own block types to the editor rather than call the API, use @opencanvas/block-sdk . It is a different package: blocks run sandboxed inside the canvas, not on your server. See the Block SDK guide . Last changed 2026-11-26 .
+To add your own block types to the editor rather than call the API, use @opencanvas/block-sdk . It is a different package: blocks run sandboxed inside the canvas, not on your server. See the Block SDK guide . Last changed 2026-11-27 .
 
 
 # API changelog
@@ -7877,7 +7888,7 @@ The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is
 
 ## Unreleased
 
-Added Backup and restore (RLB-03, docs/13): a runbook for SQLite, MySQL/MariaDB and Redis, scripts/restore-drill.sh , and a restore epoch. Start once with OC_RESTORED=1 after a restore. Devices revoked after the backup stay revoked (every offline copy is dropped once), and schedule slots due before the restore are skipped instead of running twice. Migration 0013 adds the restore_epoch table. Added Partial sync in the room (PSYNC-02, ADR-076), behind [host.flags] partial_sync ( off by default ; leave it off until the 0.4 editor ships): databases and boards become subdocuments on the room socket (message type 101, docs/15 §3.2), loaded when a connection asks, the role checked per request, evicted when unheld; the API, MCP, history, templates, AI tools, automation and saves work on a whole view flattened with the original item ids, so saves stay .ocanvas format v1. Editors without caps=subdoc are closed with 4426 on a split room. Room memory on the 50 MB fixture with 20 viewers (caps=subdoc, first page, no edits; release build, Apple M4, local; one process per figure, test-process RSS): split room opened from its WAL 220 MB (a high-water mark: opening walks every part once, one at a time, to index its ids) against 4,401 MB for the same room whole (2,382 MB in a second run), 5-9%, under the 30% bar (tests/partial_sync.rs room_memory_on_the_fixture). Fixed After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room reopened at once (connection pool exhausted). Rooms now load at most 8 at a time ( OC_ROOM_LOADS ), and the pool is 32 connections ( OC_DB_MAX_CONNECTIONS ; RLB-01b). Fixed Load generator: a client refused by a full room retried every 0.5 s and counted as a drop; it now backs off and is counted as refused. Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running". Added Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): scripts/bench/run <scenario> with scenario files in bench/scenarios/ that state their load mix (X10K, R1K, STORM, SOAK, and the docs/22 scenarios run unchanged), oc-bench scenario (idle, presence-only and typing peers, latency per bucket, kill -9 and restart mid-run with reconnect timing, source addresses), JSON results with hardware, load average and mix in bench/results/ , seeded fixtures ( oc-bench fixture s|m|l|50mb ), bench/budgets.toml , the initial-JS and --forbid gate in scripts/prepush.sh and CI, and a nightly benchmark workflow. Added OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board objects, block deletes and moves, comments; the real replay frames, cut connections, the pending log and the merge summary; seeds 1, 7, 42 and OC_FUZZ_SEED , a long run behind OC_FUZZ_LONG=1 ), and Playwright zf-offline-2 (expiry by the browser clock, queued upload end to end, the 5 MB pause).
+Added Backup and restore (RLB-03, docs/13): a runbook for SQLite, MySQL/MariaDB and Redis, scripts/restore-drill.sh , and a restore epoch. Start once with OC_RESTORED=1 after a restore. Devices revoked after the backup stay revoked (every offline copy is dropped once), and schedule slots due before the restore are skipped instead of running twice. Migration 0013 adds the restore_epoch table. Added Partial sync in the room (PSYNC-02, ADR-076), behind [host.flags] partial_sync ( off by default ; leave it off until the 0.4 editor ships): databases and boards become subdocuments on the room socket (message type 101, docs/15 §3.2), loaded when a connection asks, the role checked per request, evicted when unheld; the API, MCP, history, templates, AI tools, automation and saves work on a whole view flattened with the original item ids, so saves stay .ocanvas format v1. Editors without caps=subdoc are closed with 4426 on a split room. Room memory on the 50 MB fixture with 20 viewers (caps=subdoc, first page, no edits; release build, Apple M4, local; one process per figure, test-process RSS): split room opened from its WAL 220 MB (a high-water mark: opening walks every part once, one at a time, to index its ids) against 4,401 MB for the same room whole (2,382 MB in a second run), 5-9%, under the 30% bar (tests/partial_sync.rs room_memory_on_the_fixture). Fixed Overload never answers 500: while rooms recover after a restart (more than OC_ROOM_LOAD_QUEUE , default 32, waiting to load) or when no database connection is free, launches, session lookups and WebSocket upgrades answer 503 with a Retry-After of 1-5 s. The browser launch shows "Reconnecting…" and posts again; the editor waits out Retry-After for up to 60 s instead of showing an error (RLB-01b). Fixed A launch that failed after its token was recorded (database timeout, server killed mid-launch) spent the token, so every retry was refused as a replay. The token is now spent last (SEC-59). Fixed Partial sync (off by default): one client id writing both the main document and a block's document made the whole view drop the block's content (SEC-54); block edits now count against the document size limit (SEC-55). Fixed After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room reopened at once (connection pool exhausted). Rooms now load at most 8 at a time ( OC_ROOM_LOADS ), and the pool is 32 connections ( OC_DB_MAX_CONNECTIONS ; RLB-01b). Fixed Load generator: a client refused by a full room retried every 0.5 s and counted as a drop; it now backs off and is counted as refused. Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running". Added Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): scripts/bench/run <scenario> with scenario files in bench/scenarios/ that state their load mix (X10K, R1K, STORM, SOAK, and the docs/22 scenarios run unchanged), oc-bench scenario (idle, presence-only and typing peers, latency per bucket, kill -9 and restart mid-run with reconnect timing, source addresses), JSON results with hardware, load average and mix in bench/results/ , seeded fixtures ( oc-bench fixture s|m|l|50mb ), bench/budgets.toml , the initial-JS and --forbid gate in scripts/prepush.sh and CI, and a nightly benchmark workflow. Added OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board objects, block deletes and moves, comments; the real replay frames, cut connections, the pending log and the merge summary; seeds 1, 7, 42 and OC_FUZZ_SEED , a long run behind OC_FUZZ_LONG=1 ), and Playwright zf-offline-2 (expiry by the browser clock, queued upload end to end, the 5 MB pause).
 
 ## 0.3.0 (2026-11-26)
 

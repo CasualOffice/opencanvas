@@ -533,6 +533,15 @@
       ],
       "detail": "RULE_NOT_FOUND: no rule \"au_x\"",
       "description": "No rule with that id in this canvas."
+    },
+    {
+      "code": "BUSY",
+      "status": [
+        503
+      ],
+      "detail": "the server is busy; retry",
+      "description": "The server cannot take the request right now: rooms are recovering after a restart, or no database connection is free. The answer carries `Retry-After` (1-5 s); send the same request again after it. Never a 500 for overload (RLB-01b).",
+      "kind": "common"
     }
   ],
   "paths": {

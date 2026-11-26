@@ -159,7 +159,13 @@ pub fn mint(cfg: &RunCfg, idx: usize, room: usize, editor: bool) -> anyhow::Resu
         aud: "opencanvas",
         iat: now,
         exp: now + 4 * 3600,
-        jti: format!("{}-{idx}", cfg.run_id),
+        // A fresh jti per launch, as a host mints a token per page load: a relaunch after a
+        // failed one (server killed mid-launch) must not be refused as a replay.
+        jti: format!(
+            "{}-{idx}-{}",
+            cfg.run_id,
+            JTI_SEQ.fetch_add(1, Ordering::Relaxed)
+        ),
         file: json!({"id": file_id(cfg, room), "name": format!("Bench room {room}")}),
         user: json!({"id": format!("u{idx}"), "name": format!("Bench user {idx}")}),
         role: if editor { "edit" } else { "view" },
@@ -173,6 +179,52 @@ pub fn mint(cfg: &RunCfg, idx: usize, room: usize, editor: bool) -> anyhow::Resu
 }
 
 /// Launch + session lookup, as the SPA does. Returns (ticket, room id).
+/// RLB-01b: HTTP answers of launches and session lookups, process-wide: 503 with a
+/// `Retry-After`, 503 without one, and any other 5xx. The crash drill requires the last two
+/// to stay 0.
+pub static HTTP_503_RETRY: AtomicU64 = AtomicU64::new(0);
+pub static HTTP_503_BARE: AtomicU64 = AtomicU64::new(0);
+pub static HTTP_5XX: AtomicU64 = AtomicU64::new(0);
+static JTI_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Sends `req` like a client honouring `503` + `Retry-After` (the editor's `fetchBusy`): waits
+/// the server's delay and sends again, for at most 60 s. Counts the 5xx answers it sees.
+async fn send_busy(req: impl Fn() -> reqwest::RequestBuilder) -> anyhow::Result<reqwest::Response> {
+    let start = std::time::Instant::now();
+    loop {
+        let res = req().send().await?;
+        let s = res.status().as_u16();
+        if s == 503 {
+            let ra = res
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok());
+            match ra {
+                Some(secs) if start.elapsed().as_secs() + secs < 60 => {
+                    HTTP_503_RETRY.fetch_add(1, Ordering::Relaxed);
+                    tokio::time::sleep(std::time::Duration::from_millis(
+                        secs.clamp(1, 30) * 1000
+                            + u64::from(
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .subsec_millis(),
+                            ),
+                    ))
+                    .await;
+                    continue;
+                }
+                Some(_) => HTTP_503_RETRY.fetch_add(1, Ordering::Relaxed),
+                None => HTTP_503_BARE.fetch_add(1, Ordering::Relaxed),
+            };
+        } else if s >= 500 {
+            HTTP_5XX.fetch_add(1, Ordering::Relaxed);
+        }
+        return Ok(res);
+    }
+}
+
 pub async fn launch(
     sh: &Shared,
     base: &str,
@@ -181,13 +233,13 @@ pub async fn launch(
     editor: bool,
 ) -> anyhow::Result<(String, String)> {
     let token = mint(&sh.cfg, idx, room, editor)?;
-    let res = sh
-        .http
-        .post(format!("{base}/v1/launch"))
-        .header("content-type", "application/x-www-form-urlencoded")
-        .body(format!("token={token}"))
-        .send()
-        .await?;
+    let res = send_busy(|| {
+        sh.http
+            .post(format!("{base}/v1/launch"))
+            .header("content-type", "application/x-www-form-urlencoded")
+            .body(format!("token={token}"))
+    })
+    .await?;
     let loc = res
         .headers()
         .get("location")
@@ -202,11 +254,7 @@ pub async fn launch(
         anyhow::bail!("launch {}", res.status());
     };
     let ticket = ticket.to_string();
-    let res = sh
-        .http
-        .get(format!("{base}/v1/sessions/{ticket}"))
-        .send()
-        .await?;
+    let res = send_busy(|| sh.http.get(format!("{base}/v1/sessions/{ticket}"))).await?;
     if !res.status().is_success() {
         anyhow::bail!("session {}", res.status());
     }
@@ -528,7 +576,7 @@ pub async fn run_user(sh: Arc<Shared>, spec: Spec) {
             return;
         }
     };
-    let url = format!("{ws_base}/v1/collab/{room}?ticket={ticket}");
+    let url = format!("{ws_base}/v1/collab/{room}?ticket={ticket}&caps=ext,live,subdoc");
     // With `reconnect`, a dropped client comes back with the same ticket after an exponential
     // full-jitter backoff (0–5 s, doubling to 60 s), as the editor does; `dropped_at` times it.
     let mut dropped_at: Option<Instant> = None;
