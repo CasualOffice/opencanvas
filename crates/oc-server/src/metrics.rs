@@ -244,6 +244,8 @@ pub struct Metrics {
     pub awareness_broadcasts_total: AtomicI64,
     /// Awareness frames parked because a room's inbox was full (latest per connection kept).
     pub awareness_coalesced_total: AtomicI64,
+    /// WebSocket upgrades refused by reconnect storm control (PERF-11, `OC_UPGRADE_RATE`).
+    pub upgrades_refused_total: AtomicI64,
     /// AI (docs/24 §8.2): model calls by `(host, provider, model, outcome)`; no content.
     pub ai_requests: Mutex<BTreeMap<(String, String, String, String), i64>>,
     pub ai_tokens_input_total: AtomicI64,
@@ -315,7 +317,7 @@ impl Metrics {
     }
 
     pub fn render(&self) -> String {
-        let rows: [(&str, &str, &AtomicI64); 12] = [
+        let rows: [(&str, &str, &AtomicI64); 13] = [
             ("oc_wal_batches_total", "counter", &self.wal_batches_total),
             ("oc_wal_rows_total", "counter", &self.wal_rows_total),
             ("oc_rooms_active", "gauge", &self.rooms_active),
@@ -343,6 +345,11 @@ impl Metrics {
                 "oc_awareness_coalesced_total",
                 "counter",
                 &self.awareness_coalesced_total,
+            ),
+            (
+                "oc_upgrades_refused_total",
+                "counter",
+                &self.upgrades_refused_total,
             ),
         ];
         let mut out: String = rows

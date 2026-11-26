@@ -530,7 +530,7 @@ pub async fn run_user(sh: Arc<Shared>, spec: Spec) {
     };
     let url = format!("{ws_base}/v1/collab/{room}?ticket={ticket}");
     // With `reconnect`, a dropped client comes back with the same ticket after an exponential
-    // backoff with jitter (0.5 s doubling to 8 s), as the editor does; `dropped_at` times it.
+    // full-jitter backoff (0–5 s, doubling to 60 s), as the editor does; `dropped_at` times it.
     let mut dropped_at: Option<Instant> = None;
     let mut attempt = 0u32;
     let mut rng = Rng::new(spec.idx as u64 + 7);
@@ -572,9 +572,11 @@ pub async fn run_user(sh: Arc<Shared>, spec: Spec) {
         if !sh.cfg.reconnect || sh.stopping.load(Ordering::Relaxed) {
             return;
         }
-        let base = (500u64 << attempt.min(4)) as f64;
+        // As the editor does (PERF-11, STORM): full jitter, 0–5 s first, the ceiling doubling
+        // to 60 s.
+        let ceiling = (5_000u64 << attempt.min(4)).min(60_000) as f64;
         attempt += 1;
-        let wait = Duration::from_millis(rng.range(base * 0.5, base * 1.5) as u64);
+        let wait = Duration::from_millis(rng.range(0.0, ceiling) as u64);
         tokio::time::sleep(wait.saturating_sub(t.elapsed().min(wait))).await;
         if sh.stopping.load(Ordering::Relaxed) {
             return;

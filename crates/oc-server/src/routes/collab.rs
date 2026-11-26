@@ -149,6 +149,18 @@ pub async fn upgrade(
         )
             .into_response());
     }
+    // STORM: refused before the ticket is looked up (cheap), so a refused client keeps its
+    // connect window.
+    let admitted = state.upgrades.lock().expect("upgrades lock").admit();
+    if let Err(secs) = admitted {
+        Metrics::inc(&state.metrics.upgrades_refused_total);
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            [(header::RETRY_AFTER, secs.to_string())],
+            axum::Json(json!({"error": {"code": "BUSY", "message": "too many connections at once; retry"}})),
+        )
+            .into_response());
+    }
     let (host, mut grant) = session(&state, &p.ticket).await?;
     grant.ext_blocks = p.caps.split(',').any(|c| c.trim() == "ext");
     // LIVE-02: `caps=live` keeps `liveBlock`/`blockRef` nodes (editors from 0.3).
@@ -221,6 +233,41 @@ impl Bucket {
         } else {
             false
         }
+    }
+}
+
+/// Reconnect storm control (PERF-11, STORM, docs/36 §4.1): WebSocket upgrades admitted per
+/// second on this node (`OC_UPGRADE_RATE`, default 1,000, burst twice that; 0 turns it off).
+/// The rest get `503` with a `Retry-After` of 1–5 s, spread so they do not return together.
+pub struct Admission {
+    bucket: Option<Bucket>,
+    refused: u64,
+}
+
+impl Admission {
+    pub fn new(rate: f64) -> Self {
+        Self {
+            bucket: (rate > 0.0).then(|| Bucket::new(rate, rate * 2.0)),
+            refused: 0,
+        }
+    }
+
+    pub fn from_env() -> Self {
+        let rate = std::env::var("OC_UPGRADE_RATE")
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .unwrap_or(1000.0);
+        Self::new(rate)
+    }
+
+    /// `Err(seconds)`: refused, retry after that long.
+    pub fn admit(&mut self) -> Result<(), u64> {
+        if self.bucket.as_mut().is_none_or(Bucket::take) {
+            return Ok(());
+        }
+        self.refused = self.refused.wrapping_add(1);
+        // A cheap spread over 1..=5 s (no RNG needed for this).
+        Err(1 + self.refused.wrapping_mul(2_654_435_761) % 5)
     }
 }
 
@@ -324,6 +371,23 @@ async fn serve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PERF-11 (STORM): after a restart every client reconnects at once. Past the burst the
+    /// node refuses upgrades with a jittered Retry-After (1–5 s) instead of accepting them all.
+    #[test]
+    fn upgrades_past_the_burst_are_refused_with_a_jittered_retry_after() {
+        let mut a = Admission::new(100.0);
+        let admitted = (0..1000).filter(|_| a.admit().is_ok()).count();
+        assert!((200..=210).contains(&admitted), "{admitted}");
+        let waits: std::collections::BTreeSet<u64> =
+            (0..50).filter_map(|_| a.admit().err()).collect();
+        assert!(
+            waits.len() > 1 && waits.iter().all(|w| (1..=5).contains(w)),
+            "{waits:?}"
+        );
+        let mut off = Admission::new(0.0);
+        assert!((0..10_000).all(|_| off.admit().is_ok()));
+    }
 
     /// docs/22 §7: an idle connection must not keep tungstenite's 128 KiB default read buffer
     /// (zero-filled, so resident). Guard against the override being dropped or raised.

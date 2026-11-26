@@ -62,6 +62,8 @@ pub struct AppState {
     pub jwks: jwt::Jwks,
     /// First `GET /v1/sessions` per ticket, for the 60 s WebSocket connect window.
     pub tickets: Mutex<HashMap<String, TicketUse>>,
+    /// Reconnect storm control: WebSocket upgrades admitted per second (PERF-11).
+    pub upgrades: Mutex<routes::collab::Admission>,
     /// Members callback answers per room (docs/21 revision 2).
     pub members: Arc<people::Members>,
     /// Host team-template lists (TPL-01), per host for a minute.
@@ -236,6 +238,7 @@ impl AppState {
             metrics,
             jwks: jwt::Jwks::new(),
             tickets: Mutex::default(),
+            upgrades: Mutex::new(routes::collab::Admission::from_env()),
             members,
             ai_status,
             team_templates: Default::default(),

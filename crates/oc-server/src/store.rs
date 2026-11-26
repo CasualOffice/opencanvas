@@ -46,7 +46,24 @@ pub struct Store {
     snapshot_gate: Arc<tokio::sync::RwLock<()>>,
     /// Redis-only storage (ADR-030): every method dispatches here, and `pool` is never used.
     kv: Option<crate::redis_store::RedisStore>,
+    /// SQLite: the snapshot writer that commits many rooms' dumps in one transaction (PERF-11).
+    dumps: Option<mpsc::UnboundedSender<DumpJob>>,
+    /// Snapshot transactions committed (a test counts them).
+    dump_commits: Arc<std::sync::atomic::AtomicU64>,
 }
+
+/// One room's snapshot waiting for the SQLite snapshot writer.
+struct DumpJob {
+    room: String,
+    epoch: i64,
+    seq: i64,
+    state: Vec<u8>,
+    at: i64,
+    reply: oneshot::Sender<anyhow::Result<()>>,
+}
+
+/// Snapshot bytes per group transaction: bounds how long the writer holds the write turn.
+const DUMP_GROUP_BYTES: usize = 8 * 1024 * 1024;
 
 /// What [`Store::idem_begin`] found for an `Idempotency-Key` (docs/27 §4.2, HAPI-03).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,14 +300,29 @@ impl Store {
             ));
             tx
         });
+        let snapshot_gate = Arc::new(tokio::sync::RwLock::new(()));
+        let dump_commits = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let dumps = (sqlite && group_commit_enabled()).then(|| {
+            let (tx, rx) = mpsc::unbounded_channel();
+            tokio::spawn(dump_writer(
+                pool.clone(),
+                rx,
+                write_lock.clone(),
+                snapshot_gate.clone(),
+                dump_commits.clone(),
+            ));
+            tx
+        });
         Ok(Self {
             pool,
             kek,
             group,
             redis: None,
             write_lock,
-            snapshot_gate: Arc::new(tokio::sync::RwLock::new(())),
+            snapshot_gate,
             kv: None,
+            dumps,
+            dump_commits,
         })
     }
 
@@ -313,6 +345,8 @@ impl Store {
             write_lock: None,
             snapshot_gate: Arc::new(tokio::sync::RwLock::new(())),
             kv: Some(kv),
+            dumps: None,
+            dump_commits: Default::default(),
         })
     }
 
@@ -1523,6 +1557,24 @@ impl Store {
         if let Some(kv) = &self.kv {
             return kv.compact(room, epoch, seq, state, now_ms).await;
         }
+        if let Some(dumps) = &self.dumps
+            && self.redis.is_none()
+        {
+            let (reply, done) = oneshot::channel();
+            dumps
+                .send(DumpJob {
+                    room: room.into(),
+                    epoch,
+                    seq,
+                    state: state.to_vec(),
+                    at: now_ms,
+                    reply,
+                })
+                .map_err(|_| anyhow::anyhow!("snapshot writer stopped"))?;
+            return done
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("snapshot writer stopped")));
+        }
         retry_transient("compaction", move || {
             self.compact_once(room, epoch, seq, state, now_ms)
         })
@@ -1547,22 +1599,40 @@ impl Store {
         let _g = self.snapshot_gate.write().await;
         let _w = self.write_turn().await;
         let mut tx = self.pool.begin().await?;
-        hold_epoch(&mut tx, room, epoch).await?;
+        compact_in(&mut tx, room, epoch, seq, state, now_ms).await?;
+        tx.commit().await?;
+        self.dump_commits
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    }
+}
+
+/// One room's snapshot written inside `tx`: epoch-guarded, never over a newer one, WAL rows
+/// it covers removed.
+async fn compact_in(
+    tx: &mut Tx<'_>,
+    room: &str,
+    epoch: i64,
+    seq: i64,
+    state: &[u8],
+    now_ms: i64,
+) -> anyhow::Result<()> {
+    {
+        hold_epoch(tx, room, epoch).await?;
         // A dump that finishes late never replaces a newer one (memory durability runs
         // dumps in the background, ADR-029).
         let newer: Option<i64> = sqlx::query("SELECT seq FROM room_snapshots WHERE room_id = ?")
             .bind(room)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await?
             .map(|r| r.try_get::<i64, _>(0))
             .transpose()?;
         if newer.is_some_and(|s| s > seq) {
-            tx.commit().await?;
             return Ok(());
         }
         sqlx::query("DELETE FROM room_snapshots WHERE room_id = ?")
             .bind(room)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
         sqlx::query(
             "INSERT INTO room_snapshots (room_id, seq, state, updated_at) VALUES (?, ?, ?, ?)",
@@ -1571,17 +1641,18 @@ impl Store {
         .bind(seq)
         .bind(state.to_vec())
         .bind(now_ms)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
         sqlx::query("DELETE FROM room_updates WHERE room_id = ? AND doc_id = '' AND seq <= ?")
             .bind(room)
             .bind(seq)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
-        tx.commit().await?;
         Ok(())
     }
+}
 
+impl Store {
     /// PSYNC-02: the WAL keeps parts per document id only in a database (not with the Redis
     /// WAL or in Redis only); a room splits only when this is true.
     pub fn supports_parts(&self) -> bool {
@@ -2134,6 +2205,81 @@ async fn group_writer(
     }
 }
 
+/// The SQLite snapshot writer (PERF-11): takes every dump queued (up to
+/// [`DUMP_GROUP_BYTES`]) and writes them in one transaction under one write turn. Each dump
+/// is still epoch-guarded on its own: a fenced room is refused, the rest commit. Any other
+/// failure retries each dump alone.
+async fn dump_writer(
+    pool: AnyPool,
+    mut rx: mpsc::UnboundedReceiver<DumpJob>,
+    write_lock: Option<Arc<tokio::sync::Mutex<()>>>,
+    gate: Arc<tokio::sync::RwLock<()>>,
+    commits: Arc<std::sync::atomic::AtomicU64>,
+) {
+    use std::sync::atomic::Ordering::Relaxed;
+    while let Some(first) = rx.recv().await {
+        let mut bytes = first.state.len();
+        let mut jobs = vec![first];
+        while bytes < DUMP_GROUP_BYTES
+            && let Ok(j) = rx.try_recv()
+        {
+            bytes += j.state.len();
+            jobs.push(j);
+        }
+        let _g = gate.write().await;
+        let _w = match &write_lock {
+            Some(l) => Some(l.clone().lock_owned().await),
+            None => None,
+        };
+        let together = async {
+            let mut tx = pool.begin().await?;
+            let mut out = Vec::with_capacity(jobs.len());
+            for j in &jobs {
+                match compact_in(&mut tx, &j.room, j.epoch, j.seq, &j.state, j.at).await {
+                    Err(e) if !is_fenced(&e) => return Err(e),
+                    r => out.push(r),
+                }
+            }
+            tx.commit().await?;
+            anyhow::Ok(out)
+        }
+        .await;
+        match together {
+            Ok(out) => {
+                commits.fetch_add(1, Relaxed);
+                for (j, r) in jobs.into_iter().zip(out) {
+                    let _ = j.reply.send(r);
+                }
+            }
+            Err(e) => {
+                tracing::warn!(rooms = jobs.len(), error = %e, "snapshot group failed; writing each room alone");
+                for j in jobs {
+                    let (pool, j_ref) = (&pool, &j);
+                    let r = retry_transient("compaction", move || async move {
+                        let mut tx = pool.begin().await?;
+                        compact_in(
+                            &mut tx,
+                            &j_ref.room,
+                            j_ref.epoch,
+                            j_ref.seq,
+                            &j_ref.state,
+                            j_ref.at,
+                        )
+                        .await?;
+                        tx.commit().await?;
+                        Ok(())
+                    })
+                    .await;
+                    if r.is_ok() {
+                        commits.fetch_add(1, Relaxed);
+                    }
+                    let _ = j.reply.send(r);
+                }
+            }
+        }
+    }
+}
+
 /// Commits a group and answers each room. When the shared transaction fails for a reason
 /// other than fencing, each room's batch is retried alone, so one bad batch cannot fail the
 /// rooms it happened to share a transaction with.
@@ -2232,6 +2378,51 @@ mod tests {
         .await;
         assert!(out.is_err());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    /// PERF-11 (X10K): 500 rooms dumping every 2 s each took the snapshot gate and committed
+    /// alone; dumps queued for 5.6 s on average. Dumps queued together commit together, each
+    /// still epoch-guarded on its own.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn queued_dumps_commit_in_groups_and_stay_fenced_per_room() {
+        let dir = std::env::temp_dir().join(format!("oc-dumps-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let url = format!("sqlite://{}/t.db?mode=rwc", dir.display());
+        let store = Arc::new(Store::connect(&url, None).await.unwrap());
+        const ROOMS: usize = 100;
+        let mut epochs = Vec::new();
+        for i in 0..ROOMS {
+            let id = format!("r{i}");
+            store.put_room(&id, "h", &id, None, true, 1).await.unwrap();
+            epochs.push(store.claim_epoch(&id, 1).await.unwrap());
+        }
+        // Room 0 moved to another owner: its dump is fenced, the others land.
+        store.claim_epoch("r0", 2).await.unwrap();
+        let state = vec![7u8; 100_000];
+        let mut tasks = Vec::new();
+        for (i, epoch) in epochs.iter().copied().enumerate() {
+            let (s, st) = (store.clone(), state.clone());
+            tasks.push(tokio::spawn(async move {
+                s.compact(&format!("r{i}"), epoch, 5, &st, 2).await
+            }));
+        }
+        let mut fenced = 0;
+        for t in tasks {
+            if let Err(e) = t.await.unwrap() {
+                assert!(is_fenced(&e), "{e}");
+                fenced += 1;
+            }
+        }
+        let commits = store
+            .dump_commits
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(fenced, 1);
+        assert!(
+            commits < ROOMS as u64 / 4,
+            "{commits} commits for {ROOMS} dumps"
+        );
     }
 
     #[test]

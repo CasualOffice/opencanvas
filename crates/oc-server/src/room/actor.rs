@@ -436,6 +436,185 @@ fn doc_from_host_inner(room: &str, fetched: Fetched) -> anyhow::Result<(Doc, Opt
     }
 }
 
+/// A document rebuilt from a room's encoded state (a save built off the actor, PERF-11).
+fn doc_from_state(state: &[u8]) -> anyhow::Result<Doc> {
+    let doc = oc_model::new_doc();
+    let update = Update::decode_v1(state).context("decoding the room state")?;
+    doc.transact_mut()
+        .apply_update(update)
+        .context("applying the room state")?;
+    Ok(doc)
+}
+
+/// Moves the in-file history forward to `doc` (ADR-055) and writes the `.ocanvas` body.
+/// CPU only: runs on a blocking thread for a background save.
+fn build_save_body(
+    doc: &Doc,
+    commit: &oc_model::CommitInfo,
+    meta: &SaveMeta,
+    history: Option<(crate::hosts::FileHistoryLimits, &mut FileHist)>,
+    search: oc_model::search::Options,
+) -> Result<Vec<u8>, String> {
+    let fh = history.map(|(limits, fh)| {
+        let cur = oc_model::doc_to_json(doc);
+        fh.history.advance(
+            &fh.prev,
+            &fh.prev_meta,
+            fh.keep_prev,
+            &cur,
+            oc_model::history::Limits {
+                max_bytes: limits.max_bytes,
+                max_versions: limits.max_versions,
+            },
+        );
+        fh.prev = cur;
+        fh.prev_meta = oc_model::history::VersionMeta {
+            id: commit.id.clone(),
+            kind: commit.kind,
+            name: commit.message.clone(),
+            authors: commit.authors.clone(),
+            at: commit.at.clone(),
+            restored_from: commit.restored_from.clone(),
+        };
+        fh.keep_prev = meta.checkpoint;
+        fh.history.clone()
+    });
+    oc_model::ocanvas::write_ocanvas_opts(doc, commit, fh.as_ref(), search)
+        .map_err(|e| e.to_string())
+}
+
+/// Everything a save needs, taken from the room so that the JSON, `.ocanvas` and history work
+/// and the outbox write run off the actor while it keeps taking edits (PERF-11: saves built
+/// inline were the X10K latency spike).
+struct SaveBuild {
+    state: Vec<u8>,
+    commit: oc_model::CommitInfo,
+    meta: SaveMeta,
+    /// The history limits and the room's in-file history (`None`: recover it from the host).
+    history: Option<(crate::hosts::FileHistoryLimits, Option<FileHist>)>,
+    search: oc_model::search::Options,
+    row: OutboxRow,
+    epoch: i64,
+    /// Memory durability: the database gets this state before the host is asked to.
+    dump: bool,
+    host: Arc<HostConfig>,
+}
+
+/// A background save build's result, back on the actor.
+pub(crate) struct SaveBuilt {
+    seq: i64,
+    pending: Result<Pending, (String, Option<anyhow::Error>)>,
+    file_hist: Option<FileHist>,
+    dumped: Option<Result<(), super::DumpError>>,
+}
+
+impl SaveBuild {
+    async fn run(self, ctx: Arc<Ctx>) -> SaveBuilt {
+        let SaveBuild {
+            state,
+            commit,
+            meta,
+            history,
+            search,
+            mut row,
+            epoch,
+            dump,
+            host,
+        } = self;
+        let seq = row.seq;
+        let mut out = SaveBuilt {
+            seq,
+            pending: Err((String::new(), None)),
+            file_hist: None,
+            dumped: None,
+        };
+        if dump {
+            let r = ctx
+                .store
+                .compact(&row.room_id, epoch, seq, &state, now_ms())
+                .await;
+            let fenced = r.as_ref().is_err_and(crate::store::is_fenced);
+            out.dumped = Some(r.map_err(|e| {
+                if crate::store::is_fenced(&e) {
+                    super::DumpError::Fenced(e)
+                } else {
+                    super::DumpError::Other(e.to_string())
+                }
+            }));
+            if fenced {
+                out.file_hist = history.and_then(|(_, h)| h);
+                out.pending = Err(("the room moved".into(), None));
+                return out;
+            }
+        }
+        let history = match history {
+            Some((limits, Some(h))) => Some((limits, h, None)),
+            Some((limits, None)) => {
+                let read = ctx
+                    .host
+                    .get_file(&host, &row.token, &row.file_id)
+                    .await
+                    .map_err(anyhow::Error::from)
+                    .and_then(|f| loaded_from_host(&row.room_id, f));
+                match read {
+                    Ok((_, _, h)) => Some((limits, h, None)),
+                    Err(e) => Some((
+                        limits,
+                        FileHist::from_file(&oc_model::new_doc(), None),
+                        Some(e),
+                    )),
+                }
+            }
+            None => None,
+        };
+        let room = row.room_id.clone();
+        let built = tokio::task::spawn_blocking(move || {
+            let mut history = history;
+            let body = doc_from_state(&state)
+                .map_err(|e| e.to_string())
+                .and_then(|doc| {
+                    if let Some((_, h, Some(e))) = history.as_mut() {
+                        tracing::warn!(room = %room, error = %e, "in-file history not recovered; starting a new one");
+                        *h = FileHist::from_file(&doc, None);
+                    }
+                    build_save_body(
+                        &doc,
+                        &commit,
+                        &meta,
+                        history.as_mut().map(|(l, h, _)| (*l, h)),
+                        search,
+                    )
+                });
+            (body, history.map(|(_, h, _)| h), meta)
+        })
+        .await;
+        let (body, hist, meta) = match built {
+            Ok(b) => b,
+            Err(e) => {
+                out.pending = Err((format!("building the save failed: {e}"), None));
+                return out;
+            }
+        };
+        out.file_hist = hist;
+        row.payload = match body {
+            Ok(b) => b,
+            Err(e) => {
+                out.pending = Err((e, None));
+                return out;
+            }
+        };
+        // No outbox row, no save (docs/22 §8 weakness 5).
+        if let Err(e) = ctx.store.outbox_insert(&row, epoch, now_ms()).await {
+            out.pending = Err((format!("writing the commit outbox failed: {e}"), Some(e)));
+            return out;
+        }
+        let mut pending = Pending::from(row);
+        pending.meta = meta;
+        out.pending = Ok(pending);
+        out
+    }
+}
+
 fn encoded_len(doc: &Doc) -> usize {
     doc.transact()
         .encode_state_as_update_v1(&StateVector::default())
@@ -661,6 +840,7 @@ impl Room {
             Cmd::SaveDone { id, result } => self.save_done(&id, result).await,
             Cmd::ConflictDone { result } => self.conflict_done(result).await,
             Cmd::Dumped { seq, result } => self.dumped(seq, result),
+            Cmd::SaveBuilt(b) => self.save_built(*b),
             Cmd::SetRole {
                 user_id,
                 role,
@@ -2383,6 +2563,10 @@ impl Room {
 
     fn dumped(&mut self, seq: i64, result: Result<(), super::DumpError>) {
         self.dump_in_flight = false;
+        self.dump_result(seq, result);
+    }
+
+    fn dump_result(&mut self, seq: i64, result: Result<(), super::DumpError>) {
         match result {
             Ok(()) => self.compacted_seq = self.compacted_seq.max(seq),
             Err(super::DumpError::Fenced(e)) => self.fail(&e, "state dump failed"),
@@ -2411,70 +2595,15 @@ impl Room {
         self.last_compact = Instant::now();
     }
 
-    /// ADR-055: moves in-file history forward to the state about to be saved and returns it.
-    /// After a WAL recovery the history is first read back from the host's file (one load);
-    /// when that fails the room starts a new history rather than block the save.
-    async fn advance_file_history(
-        &mut self,
-        commit: &oc_model::CommitInfo,
-        meta: &SaveMeta,
-        limits: crate::hosts::FileHistoryLimits,
-    ) -> oc_model::history::FileHistory {
-        let cur = oc_model::doc_to_json(&self.doc);
-        if self.file_hist.is_none() {
-            let token = self
-                .save_tokens(None)
-                .into_iter()
-                .next()
-                .unwrap_or_default();
-            let read = self
-                .ctx
-                .host
-                .get_file(&self.host, &token, &self.file_id)
-                .await
-                .map_err(anyhow::Error::from)
-                .and_then(|f| loaded_from_host(&self.id, f));
-            self.file_hist = Some(match read {
-                Ok((_, _, h)) => h,
-                Err(e) => {
-                    tracing::warn!(room = %self.id, error = %e, "in-file history not recovered; starting a new one");
-                    FileHist::from_file(&self.doc, None)
-                }
-            });
-        }
-        let fh = self.file_hist.as_mut().expect("set above");
-        fh.history.advance(
-            &fh.prev,
-            &fh.prev_meta,
-            fh.keep_prev,
-            &cur,
-            oc_model::history::Limits {
-                max_bytes: limits.max_bytes,
-                max_versions: limits.max_versions,
-            },
-        );
-        fh.prev = cur;
-        fh.prev_meta = oc_model::history::VersionMeta {
-            id: commit.id.clone(),
-            kind: commit.kind,
-            name: commit.message.clone(),
-            authors: commit.authors.clone(),
-            at: commit.at.clone(),
-            restored_from: commit.restored_from.clone(),
-        };
-        fh.keep_prev = meta.checkpoint;
-        fh.history.clone()
-    }
-
-    /// The commit to send: the pending outbox row when it still matches the doc, else a new
-    /// one, written to `commit_outbox` before anything goes to the host.
-    async fn prepare_save(&mut self) -> Result<Pending, String> {
+    /// The commit to send: the pending outbox row when it still matches the doc (`Ok`), else
+    /// the build of a new one (`Err`), taken from the room so it can run off the actor.
+    async fn save_build(&mut self, dump: bool) -> Result<Result<Pending, SaveBuild>, String> {
         if let Some(p) = &self.save.pending
             && p.seq == self.seq
             && self.next_meta.is_none()
         {
             if !self.revoked_tokens.contains(&p.token) {
-                return Ok(p.clone());
+                return Ok(Ok(p.clone()));
             }
             // The row was written with a grant that has since been revoked: replace it with
             // one carrying a current editor's token (so a restart's resume cannot use it).
@@ -2503,26 +2632,13 @@ impl Room {
             message: meta.message.clone(),
             restored_from: meta.restored_from.clone(),
         };
-        let body = match self.host.file_history() {
-            Some(limits) => {
-                let fh = self.advance_file_history(&commit, &meta, limits).await;
-                oc_model::ocanvas::write_ocanvas_opts(
-                    &self.doc,
-                    &commit,
-                    Some(&fh),
-                    self.host.search().model_options(),
-                )
-            }
-            None => oc_model::ocanvas::write_ocanvas_opts(
-                &self.doc,
-                &commit,
-                None,
-                self.host.search().model_options(),
-            ),
-        }
-        .map_err(|e| e.to_string())?;
+        let state = self
+            .doc
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default());
+        self.doc_bytes = state.len();
         let row = OutboxRow {
-            id: id.clone(),
+            id,
             room_id: self.id.clone(),
             host_id: self.host.id.clone(),
             file_id: self.file_id.clone(),
@@ -2533,55 +2649,108 @@ impl Room {
                 .into_iter()
                 .next()
                 .unwrap_or_default(),
-            payload: body,
+            payload: Vec::new(),
             authors,
             attempts: 0,
             status: "pending".into(),
         };
-        // No outbox row, no save: a commit the host may have but the outbox does not know
-        // about would break the crash guarantee (docs/22 §8 weakness 5).
-        if let Err(e) = self
-            .ctx
-            .store
-            .outbox_insert(&row, self.epoch, now_ms())
-            .await
-        {
-            if crate::store::is_fenced(&e) {
-                self.fail(&e, "writing the commit outbox failed");
-            }
-            return Err(format!("writing the commit outbox failed: {e}"));
+        if dump {
+            self.last_compact = Instant::now();
         }
-        let mut pending = Pending::from(row);
-        pending.meta = meta;
-        self.save.pending = Some(pending.clone());
-        Ok(pending)
+        Ok(Err(SaveBuild {
+            state,
+            commit,
+            meta,
+            history: self
+                .host
+                .file_history()
+                .map(|limits| (limits, self.file_hist.take())),
+            search: self.host.search().model_options(),
+            row,
+            epoch: self.epoch,
+            dump,
+            host: self.host.clone(),
+        }))
+    }
+
+    /// Takes a finished build back: the in-file history, the dump, the pending row.
+    fn take_built(&mut self, b: SaveBuilt) -> Result<Pending, String> {
+        if let Some(h) = b.file_hist {
+            self.file_hist = Some(h);
+        }
+        if let Some(r) = b.dumped {
+            self.dump_result(b.seq, r);
+        }
+        match b.pending {
+            Ok(p) => {
+                self.save.pending = Some(p.clone());
+                Ok(p)
+            }
+            Err((msg, err)) => {
+                if let Some(e) = err.filter(crate::store::is_fenced) {
+                    self.fail(&e, "writing the commit outbox failed");
+                }
+                Err(msg)
+            }
+        }
+    }
+
+    /// The commit to send, built in place (role changes and shutdown wait for it).
+    async fn prepare_save(&mut self) -> Result<Pending, String> {
+        match self.save_build(false).await? {
+            Ok(p) => Ok(p),
+            Err(build) => {
+                let built = build.run(self.ctx.clone()).await;
+                self.take_built(built)
+            }
+        }
     }
 
     async fn start_save(&mut self) {
-        // Memory durability: the database holds this state before the host is asked to.
-        if self.memory && self.seq > self.compacted_seq {
-            self.compact().await;
-            if self.lost.is_some() {
-                return;
+        // Memory durability: the database holds this state before the host is asked to; the
+        // dump runs with the build, off the actor.
+        let dump = self.memory && self.seq > self.compacted_seq;
+        match self.save_build(dump).await {
+            Ok(Ok(pending)) => self.send_save(pending),
+            Ok(Err(build)) => {
+                // In flight from now on: no second save starts while this one builds.
+                self.save.in_flight = true;
+                let (ctx, tx) = (self.ctx.clone(), self.self_tx.clone());
+                tokio::spawn(async move {
+                    let built = build.run(ctx).await;
+                    let _ = tx.send(Cmd::SaveBuilt(Box::new(built)));
+                });
             }
+            Err(e) => self.save_not_started(e),
         }
-        let pending = match self.prepare_save().await {
-            Ok(p) => p,
-            Err(e) => {
-                // Loud, and retried with the save backoff (not on every tick).
-                tracing::error!(room = %self.id, error = %e, "save not started");
-                Metrics::inc(&self.ctx.metrics.save_errors_total);
-                let delay = backoff(self.save.attempt);
-                self.save.attempt += 1;
-                self.save.retry_at = Some(Instant::now() + Duration::from_secs(delay));
-                if self.lost.is_none() {
-                    self.set_status(
-                        json!({"t": "save_error", "retryInMs": delay * 1000, "message": e}),
-                    );
-                }
-                return;
-            }
-        };
+    }
+
+    /// A background build came back: send it, or retry with the save backoff.
+    fn save_built(&mut self, b: SaveBuilt) {
+        self.save.in_flight = false;
+        let res = self.take_built(b);
+        if self.lost.is_some() {
+            return;
+        }
+        match res {
+            Ok(p) => self.send_save(p),
+            Err(e) => self.save_not_started(e),
+        }
+    }
+
+    fn save_not_started(&mut self, e: String) {
+        // Loud, and retried with the save backoff (not on every tick).
+        tracing::error!(room = %self.id, error = %e, "save not started");
+        Metrics::inc(&self.ctx.metrics.save_errors_total);
+        let delay = backoff(self.save.attempt);
+        self.save.attempt += 1;
+        self.save.retry_at = Some(Instant::now() + Duration::from_secs(delay));
+        if self.lost.is_none() {
+            self.set_status(json!({"t": "save_error", "retryInMs": delay * 1000, "message": e}));
+        }
+    }
+
+    fn send_save(&mut self, pending: Pending) {
         self.save.in_flight = true;
         self.set_status(json!({"t": "saving"}));
         let payload = self.put_payload(&pending);
@@ -2595,7 +2764,6 @@ impl Room {
             });
         });
     }
-
     fn put_payload(&self, p: &Pending) -> PutPayload {
         PutPayload {
             host: self.host.clone(),
@@ -2928,6 +3096,8 @@ impl Room {
         while self.save.in_flight {
             match tokio::time::timeout(Duration::from_secs(15), rx.recv()).await {
                 Ok(Some(Cmd::SaveDone { id, result })) => self.save_done(&id, result).await,
+                // A save still building: send it now (or give up and save below).
+                Ok(Some(Cmd::SaveBuilt(b))) => self.save_built(*b),
                 Ok(Some(_)) => {}
                 _ => break,
             }
@@ -2995,5 +3165,47 @@ impl PutPayload {
             }
         }
         Err(last)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// PERF-11: a save is built from a snapshot of the room's state, off the actor. The body
+    /// (and the in-file history it carries) must be exactly what the live document gives.
+    #[test]
+    fn a_save_built_from_a_snapshot_equals_one_built_from_the_live_doc() {
+        let doc = oc_model::new_doc();
+        {
+            let m = doc.get_or_insert_map("meta");
+            let mut t = doc.transact_mut();
+            m.insert(&mut t, "title", "Plan");
+            m.insert(&mut t, "n", 3);
+        }
+        let commit = oc_model::CommitInfo {
+            id: "c1".into(),
+            authors: vec!["u1".into()],
+            at: "2026-11-26T00:00:00Z".into(),
+            ..Default::default()
+        };
+        let meta = SaveMeta::default();
+        let limits = crate::hosts::FileHistoryLimits {
+            max_bytes: 1 << 20,
+            max_versions: 10,
+        };
+        let opts = oc_model::search::Options::default();
+        let mut live_hist = FileHist::from_file(&doc, None);
+        let mut snap_hist = FileHist::from_file(&doc, None);
+        let live =
+            build_save_body(&doc, &commit, &meta, Some((limits, &mut live_hist)), opts).unwrap();
+        let state = doc
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default());
+        let copy = doc_from_state(&state).unwrap();
+        let snap =
+            build_save_body(&copy, &commit, &meta, Some((limits, &mut snap_hist)), opts).unwrap();
+        assert_eq!(live, snap);
+        assert_eq!(live_hist.prev, snap_hist.prev);
     }
 }
