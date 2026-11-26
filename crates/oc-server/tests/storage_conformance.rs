@@ -778,11 +778,17 @@ async fn automation_schedule_and_runs() {
                 "h",
                 "f",
                 &[("au_a".into(), 1_000), ("au_b".into(), 5_000)],
+                0,
             )
             .await
             .unwrap();
         store
-            .automation_schedule_set(&room, "h", "f", &[("au_a".into(), 1_000)])
+            .automation_schedule_set(&room, "h", "f", &[("au_a".into(), 1_000)], 0)
+            .await
+            .unwrap();
+        // RLB-04: a slot already due is not moved to a later time before a sweep runs it.
+        store
+            .automation_schedule_set(&room, "h", "f", &[("au_a".into(), 9_000)], 2_000)
             .await
             .unwrap();
         assert_eq!(

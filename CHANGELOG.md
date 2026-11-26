@@ -9,6 +9,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Flaky-test policy (RLB-04, docs/13 "Flaky tests"): a tracker row and a root-cause fix for every
+  flake, no timeout raises, a dated quarantine list that must be empty at release. A reliability
+  nightly runs the Rust tests five times (`scripts/repeat-tests.sh`) and the browser suite with
+  `--repeat-each=3`; CI runs new or changed specs five times.
+- Fixed: a date or recurring automation skipped its run when the canvas was opened after the
+  slot's time and before the next sweep (the room moved the due slot to the next day).
 - Benchmark results after PERF-11/12: X10K short passes (p99 ≤ 64 ms per bucket, was 11.3 s);
   R1K short at `OC_MAX_PEERS=1000` (scenario now sets it) passes latency (p99 ≤ 81 ms) and fails
   its RSS drift rule (docs/36 §4.1).

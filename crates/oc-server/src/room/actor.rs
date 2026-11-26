@@ -754,17 +754,16 @@ impl Room {
             && ctx.store.automation_supported()
             && let Some(rows) = auto.schedule(&doc, &host, ctx.clock.now_ms())
         {
-            let (store, room, h, f) = (
-                ctx.store.clone(),
-                id.clone(),
-                host.id.clone(),
-                seed.file.id.clone(),
-            );
-            tokio::spawn(async move {
-                if let Err(e) = store.automation_schedule_set(&room, &h, &f, &rows).await {
-                    tracing::warn!(room = %room, error = %e, "automation schedule not written");
-                }
-            });
+            // Awaited, not spawned: the room is open only once its schedule is written, so a
+            // later write (a rule change) can never be overtaken by this one.
+            let now = ctx.clock.now_ms();
+            if let Err(e) = ctx
+                .store
+                .automation_schedule_set(&id, &host.id, &seed.file.id, &rows, now)
+                .await
+            {
+                tracing::warn!(room = %id, error = %e, "automation schedule not written");
+            }
         }
         Ok(Self {
             auto,
@@ -2007,10 +2006,8 @@ impl Room {
                 crate::automation::runner::run(&deps, &applier, job).await;
             });
         }
-        if let Some(rows) = self
-            .auto
-            .schedule(&self.doc, &self.host, self.ctx.clock.now_ms())
-        {
+        let now = self.ctx.clock.now_ms();
+        if let Some(rows) = self.auto.schedule(&self.doc, &self.host, now) {
             let (store, room, h, f) = (
                 self.ctx.store.clone(),
                 self.id.clone(),
@@ -2018,7 +2015,10 @@ impl Room {
                 self.file_id.clone(),
             );
             tokio::spawn(async move {
-                if let Err(e) = store.automation_schedule_set(&room, &h, &f, &rows).await {
+                if let Err(e) = store
+                    .automation_schedule_set(&room, &h, &f, &rows, now)
+                    .await
+                {
                     tracing::warn!(room = %room, error = %e, "automation schedule not written");
                 }
             });

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+# Reliability nightly (docs/36 §5.1, docs/13 "Flaky tests" and "Crash drills").
+# RLB-04: the Rust tests five times and the browser suite with --repeat-each=3, at background CPU
+# priority. A failure here is a flake to fix at its root (tracker row, no timeout raise).
+# RLB-01: the reduced single-node crash drill (kill -9 under edits, during a save, during a
+# migration) on SQLite and MySQL 8.4.
+
+name: Reliability nightly
+
+on:
+  schedule:
+    - cron: "07 4 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  OC_DEV: "1"
+
+jobs:
+  rust-repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: bash scripts/repeat-tests.sh 5 --workspace
+
+  browser-repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: npm ci && npx playwright install --with-deps chromium webkit
+        working-directory: e2e
+      - run: nice npx playwright test --repeat-each=3
+        working-directory: e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-repeat-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results

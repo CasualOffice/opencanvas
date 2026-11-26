@@ -205,6 +205,15 @@ jobs:
         working-directory: e2e
       - run: npm run e2e
         working-directory: e2e
+      - name: new or changed specs, five times (RLB-04)
+        # Against the PR base, or the previous main commit on a push. Background CPU priority.
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE" 2>/dev/null || exit 0
+          specs=$(git diff --name-only --diff-filter=AM "$BASE" HEAD -- 'e2e/specs/*.spec.ts' | sed 's#^e2e/##')
+          [ -z "$specs" ] && { echo "no changed specs"; exit 0; }
+          cd e2e && nice npx playwright test --repeat-each=5 $specs
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
