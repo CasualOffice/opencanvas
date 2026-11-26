@@ -18,6 +18,11 @@ use serde_json::{Value, json};
 
 use engine::BookSheet;
 
+thread_local! {
+    /// Open blocks' workbooks, by block id: one WASM instance serves every spreadsheet block.
+    static BOOKS: std::cell::RefCell<std::collections::HashMap<String, engine::Book>> = Default::default();
+}
+
 /// Sheets from the bridge's JSON: `[{id, name, rows: [id], cols: [id], cells: {"row:col": input}}]`.
 fn sheets_of(v: &Value) -> Vec<BookSheet> {
     let strs = |x: &Value| -> Vec<String> {
@@ -57,15 +62,37 @@ fn sheets_of(v: &Value) -> Vec<BookSheet> {
 /// The bridge's operations (JSON in, JSON out), the same natively and in WASM:
 /// 1 compute `{sheets}` → `{values: [[sheet, row, col, text]]}`;
 /// 2 to A1 `{src, here, sheets}` → `{a1}`; 3 to ids `{src, here, sheets}` → `{stored}`;
-/// 4 shift `{src, dr, dc}` → `{a1}`.
+/// 4 shift `{src, dr, dc}` → `{a1}`;
+/// 5 open `{block, sheets}` → `{values}` (keeps the block's workbook);
+/// 6 set `{block, sheet, row, col, stored}` → `{values}` (only the cells whose display changed);
+/// 7 close `{block}`.
 pub fn dispatch(op: u32, input: &Value) -> Value {
+    let rows = |out: Vec<engine::Shown>| json!({ "values": out.into_iter().map(|s| json!([s.sheet, s.row, s.col, s.text])).collect::<Vec<_>>() });
+    let s = |k: &str| input[k].as_str().unwrap_or_default().to_string();
     match op {
         1 => match engine::compute(&sheets_of(&input["sheets"])) {
-            Ok(out) => json!({
-                "values": out.into_iter().map(|s| json!([s.sheet, s.row, s.col, s.text])).collect::<Vec<_>>()
-            }),
+            Ok(out) => rows(out),
             Err(e) => json!({ "error": e.0 }),
         },
+        5 => match engine::Book::open(sheets_of(&input["sheets"])) {
+            Ok(book) => {
+                let out = rows(book.values());
+                BOOKS.with(|b| b.borrow_mut().insert(s("block"), book));
+                out
+            }
+            Err(e) => json!({ "error": e.0 }),
+        },
+        6 => BOOKS.with(|b| match b.borrow_mut().get_mut(&s("block")) {
+            Some(book) => match book.set(&s("sheet"), &s("row"), &s("col"), &s("stored")) {
+                Ok(out) => rows(out),
+                Err(e) => json!({ "error": e.0 }),
+            },
+            None => json!({ "error": "not open" }),
+        }),
+        7 => {
+            BOOKS.with(|b| b.borrow_mut().remove(&s("block")));
+            json!({})
+        }
         2 | 3 => {
             let grid = engine::grid_of(&sheets_of(&input["sheets"]));
             let src = input["src"].as_str().unwrap_or_default();
