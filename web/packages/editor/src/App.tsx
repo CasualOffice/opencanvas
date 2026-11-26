@@ -20,6 +20,7 @@ import type { Demo } from "./lib/demo";
 import { demoIcons, serverIcons } from "./lib/icons";
 import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
+import { installLiveHost } from "./live/state";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { isMac } from "./lib/keys";
 import { aiAvailability, aiStore, openAssistant } from "./lib/assistant";
@@ -55,6 +56,9 @@ const HistoryRoot = lazy(() => import("./history/root"));
 // SRCH-01/04: the find bar and "Search all canvases" load when first opened (initial JS budget).
 const FindBar = lazy(() => import("./find/FindBar").then((m) => ({ default: m.FindBar })));
 const SearchAll = lazy(() => import("./search/SearchAll").then((m) => ({ default: m.SearchAll })));
+// LIVE-06: `<open-canvas view="block">`, the compact embed of one live file.
+const BlockEmbed = lazy(() => import("./live/embed"));
+const blockView = () => new URLSearchParams(window.location.hash.replace(/^#/, "")).get("view") === "block";
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
  *  Workspace shows the banner once (docs/23 PERM-03). Per room, in sessionStorage, so it
@@ -195,6 +199,12 @@ export default function App() {
           )}
         </div>
       </div>
+    );
+  if (blockView() && !boot.demo)
+    return (
+      <Suspense fallback={<Splash />}>
+        <BlockEmbed session={boot.session} collab={boot.collab} />
+      </Suspense>
     );
   return <Workspace key={gen} session={boot.session} collab={boot.collab} demo={boot.demo} onReboot={() => setGen((g) => g + 1)} />;
 }
@@ -525,6 +535,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   useEffect(() => {
     const offs = [
       onHost("Host_PostmessageReady", () => postToHost("App_LoadingStatus", { Status: "Document_Loaded" })),
+      // LIVE-03 (1e): the host's picker answers with `Action_InsertLiveBlock {fileId}`.
+      installLiveHost(),
       onHost("Action_SetReadOnly", (v) => setForcedReadOnly(!!v.readOnly)),
       onHost("Action_Commit", (v) => collab.sendControl({ t: "save", message: v.message ?? null })),
       onHost("Action_Export", (v) => doExport(String(v.format ?? "md"))),

@@ -1,0 +1,93 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 CasualOffice */
+
+/* Live blocks and references (LIVE-03/04), to docs/prototypes/v03-approved/live-blocks.html. */
+.lb{position:relative;margin:.75rem 0 1rem;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--line-2);background:var(--app)}
+.lb.sel,.rf.sel{box-shadow:inset 0 0 0 1px var(--line-2),0 0 0 2px var(--accent-ring)}
+.lb-h,.rf-h{display:flex;align-items:center;gap:.5rem;min-height:2.25rem;padding:.25rem .375rem .25rem .75rem;border-bottom:1px solid var(--line);font-size:.78125rem;color:var(--fg-2);background:var(--panel);border-radius:var(--r-l) var(--r-l) 0 0;user-select:none;outline:none}
+.lb-h:focus-visible{box-shadow:0 0 0 2px var(--accent-ring)}
+.lb-live,.rf-k{display:inline-flex;align-items:center;gap:.25rem;height:1.375rem;padding:0 .4375rem;border-radius:62.4375rem;font-weight:600;font-size:.71875rem;flex:none}
+.lb-live{background:var(--green-bg);color:var(--green-fg)}
+.rf-k{background:var(--gray-bg);color:var(--gray-fg)}
+.lb-t{color:var(--fg);font-weight:600;font-size:.84375rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lb-src{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lb-sp{flex:1}
+.lb-ro,.rf-up{display:inline-flex;gap:.25rem;align-items:center;white-space:nowrap;font-weight:500}
+.rf-up.ok{color:var(--green-fg)}
+.lb-ppl{display:inline-flex;align-items:center;padding:0 .25rem}
+.lb-ppl .av{margin-left:-.25rem;box-shadow:0 0 0 2px var(--panel)}
+.lb-more{margin-left:.25rem;font-size:.6875rem;font-weight:600}
+.lb-h .ib,.rf-h .ib{width:1.75rem;height:1.75rem}
+.lb-h .ib.on,.rf-h .ib.on{background:var(--hover);color:var(--fg)}
+.lb-b{padding:.25rem 1rem .5rem}
+.lb-b .oc-prose{padding:0;min-height:1.5rem}
+.lb-b.fade{color:var(--fg-2)}
+.lb-hint{display:flex;gap:.375rem;align-items:center;padding:.5rem 1rem;border-bottom:1px dashed var(--line);font-size:.78125rem;color:var(--fg-2)}
+.lb-st{display:flex;gap:.625rem;align-items:flex-start;padding:.625rem .875rem;font-size:.8125rem;line-height:1.5;border-bottom:1px solid var(--line)}
+.lb-st.warn{background:var(--amber-bg);color:var(--amber-fg)}
+.lb-st svg{flex:none;margin-top:.125rem}
+.lb-st>span{flex:1}
+.lb-a{display:inline-flex;gap:.3125rem;align-items:center;font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px;white-space:nowrap;background:none;border:0;padding:0;color:inherit;cursor:pointer;min-height:1.5rem}
+.lb-na{display:flex;gap:.75rem;align-items:center;padding:.875rem 1rem;font-size:.8125rem;color:var(--fg-2);line-height:1.45}
+.lb-na>svg{flex:none}
+.lb-na>div{flex:1;min-width:0}
+.lb-na b{display:block;color:var(--fg);font-weight:600;font-size:.875rem}
+.lb.noaccess-none{background:var(--panel)}
+.lb-na.solo{padding:.75rem 1rem}
+.lb.c .lb-na,.rf.c .lb-na{flex-wrap:wrap}
+.lb.c .lb-na .btn,.rf.c .lb-na .btn{flex:1 1 100%;min-height:2.75rem;justify-content:center}
+.lb.c .lb-st{flex-wrap:wrap}
+.lb.c .lb-h .ib{width:2.75rem;height:2.75rem}
+.lb.c .lb-h{cursor:pointer}
+.lb-pop-b{padding:.875rem 1rem;max-width:22rem;font-size:.8125rem;color:var(--fg-2);line-height:1.5}
+.lb-pop-b h3{margin:0 0 .375rem;font-size:.9375rem;color:var(--fg)}
+.lb-pop-b p{margin:0 0 .5rem}
+.lb-pop-b b{color:var(--fg);font-weight:600}
+.lb-acc{display:flex;gap:.5rem;align-items:flex-start;color:var(--fg)}
+.lb-acc svg{flex:none;margin-top:.1875rem;color:var(--fg-2)}
+.lb-pop-b .btn{margin-top:.5rem}
+.lb-sheet-sub{margin:0 1rem .5rem;font-size:.8125rem;color:var(--fg-2)}
+.rf{margin:.75rem 0 1rem;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--line);background:var(--panel);transition:box-shadow .3s var(--ease)}
+.rf .rf-h{background:var(--panel)}
+.rf.flash{box-shadow:inset 0 0 0 1px var(--line),0 0 0 2px var(--accent-ring)}
+.rf-b{padding:.625rem 1rem .75rem}
+@media (prefers-reduced-motion:reduce){.rf{transition:none}}
+/* projections */
+.lv{font-size:.9375rem;line-height:1.55;color:var(--fg)}
+.lv.fade{color:var(--fg-2)}
+.lv p{margin:.25rem 0}
+.lv h3,.lv h4,.lv h5{margin:.5rem 0 .25rem;font-weight:650}
+.lv ul,.lv ol{margin:.25rem 0;padding-left:1.5rem}
+.lv ul.lv-tasks{list-style:none;padding-left:0}
+.lv-tasks li{display:flex;align-items:center;gap:.625rem;min-height:2rem}
+.lv-tasks li.done .lv-tx{color:var(--fg-2);text-decoration:line-through}
+.lv-check{width:1rem;height:1rem;border-radius:.25rem;box-shadow:inset 0 0 0 1.5px var(--line-2);display:inline-grid;place-items:center;flex:none}
+.lv-check.on{background:var(--accent);color:var(--accent-fg);box-shadow:none}
+.lv pre{background:var(--sunk);border-radius:var(--r);padding:.5rem .75rem;overflow:auto;font-family:var(--mono);font-size:.8125rem}
+.lv blockquote{margin:.25rem 0;padding-left:.75rem;border-left:3px solid var(--line-2)}
+.lv-ph,.lv-empty,.lv-stale{display:flex;gap:.375rem;align-items:center;color:var(--fg-2);font-size:.8125rem}
+.lv-stale{color:var(--amber-fg)}
+.lv-db{overflow:auto}
+.lv-tbl{border-collapse:collapse;width:100%;font-size:.8125rem}
+.lv-tbl th,.lv-tbl td{text-align:left;padding:.375rem .75rem .375rem 0;border-bottom:1px solid var(--line)}
+.lv-tbl th{color:var(--fg-2);font-weight:600}
+.lv-more{font-size:.78125rem;color:var(--fg-2)}
+.lv-skel{display:flex;flex-direction:column;gap:.5rem;padding:.25rem 0}
+.lv-skel i{display:block;height:.75rem;border-radius:.25rem;background:var(--sunk);width:80%}
+.lv-skel i:nth-child(2){width:60%}
+.lv-skel i:nth-child(3){width:70%}
+/* make live (1b, 6c) */
+.lb-facts{margin-top:1rem;display:flex;flex-direction:column;gap:.625rem;font-size:.8125rem;color:var(--fg-2)}
+.lb-facts p{display:flex;gap:.5rem;align-items:flex-start;line-height:1.5;margin:0}
+.lb-facts svg{flex:none;margin-top:.1875rem}
+.lb-facts b{color:var(--fg);font-weight:550}
+.lb-field{display:flex;flex-direction:column;gap:.375rem;font-size:.8125rem;font-weight:600;color:var(--fg)}
+.lb-field input{height:2.25rem;border-radius:var(--r);border:1px solid var(--line-2);background:var(--app);color:var(--fg);padding:0 .625rem;font:inherit;font-weight:400}
+.lb-err{color:var(--red-fg);font-size:.8125rem;margin:.75rem 0 0}
+/* compact embed (LIVE-06, 4a-4b) */
+.lb.embed{margin:0;border-radius:var(--r-l)}
+/* the compact embed's page: its height is the content's (UI_Resize) */
+:root.oc-block-view,:root.oc-block-view body,:root.oc-block-view #root{height:auto;min-height:0;overflow:visible;background:transparent}
+.oc-embed-root{padding:0}
+.lb.embed .lb-h h1{margin:0}
+.lb.embed .lb-b{padding:.25rem 1rem .75rem}

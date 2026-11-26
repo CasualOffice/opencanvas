@@ -28,6 +28,9 @@ pub struct LaunchParams {
     /// Open the canvas at this block (UX-02); passed on as `&block=` in the app fragment.
     #[serde(default)]
     block: Option<String>,
+    /// LIVE-06: `view=block`, the compact embed of one live file (`&view=block` in the fragment).
+    #[serde(default)]
+    view: Option<String>,
 }
 
 /// Form fields of a launch POST: a JWT `token`, or WOPI `access_token` + `access_token_ttl`.
@@ -42,6 +45,8 @@ pub struct LaunchForm {
     access_token_ttl: Option<String>,
     #[serde(default)]
     block: Option<String>,
+    #[serde(default)]
+    view: Option<String>,
 }
 
 /// Query of a launch POST; `WOPISrc` selects WOPI mode. Other WOPI placeholders hosts append
@@ -52,11 +57,23 @@ pub struct LaunchQuery {
     wopi_src: Option<String>,
     #[serde(default)]
     block: Option<String>,
+    #[serde(default)]
+    view: Option<String>,
 }
 
 /// Appends `&block=<id>` to a launch redirect when `block` is a plain id (`[A-Za-z0-9_-]`,
 /// at most 64); anything else is dropped.
-fn with_block(mut res: Response, block: Option<&str>) -> Response {
+fn with_block(res: Response, block: Option<&str>) -> Response {
+    with_fragment(res, "block", block)
+}
+
+/// LIVE-06: `&view=block` (the only view there is) for the compact embed of one live file.
+fn with_view(res: Response, view: Option<&str>) -> Response {
+    with_fragment(res, "view", view.filter(|v| *v == "block"))
+}
+
+/// Appends `&<key>=<value>` to a launch redirect's fragment when the value is a plain id.
+fn with_fragment(mut res: Response, key: &str, block: Option<&str>) -> Response {
     let Some(b) = block.filter(|b| {
         !b.is_empty()
             && b.len() <= 64
@@ -72,7 +89,7 @@ fn with_block(mut res: Response, block: Option<&str>) -> Response {
         .headers()
         .get(header::LOCATION)
         .and_then(|v| v.to_str().ok())
-        .map(|l| format!("{l}&block={b}"));
+        .map(|l| format!("{l}&{key}={b}"));
     if let Some(v) = loc.and_then(|l| header::HeaderValue::from_str(&l).ok()) {
         res.headers_mut().insert(header::LOCATION, v);
     }
@@ -113,7 +130,8 @@ pub async fn launch_post(
         }
     }
     let block = p.block.as_deref().or(q.block.as_deref());
-    with_block(res, block)
+    let view = p.view.as_deref().or(q.view.as_deref());
+    with_view(with_block(res, block), view)
 }
 
 pub async fn launch_get(
@@ -123,7 +141,7 @@ pub async fn launch_get(
     let res = launch(&state, &p.token)
         .await
         .unwrap_or_else(IntoResponse::into_response);
-    with_block(res, p.block.as_deref())
+    with_view(with_block(res, p.block.as_deref()), p.view.as_deref())
 }
 
 fn rejected(state: &SharedState, status: StatusCode, code: &'static str, msg: String) -> ApiError {
@@ -461,6 +479,9 @@ pub async fn session_info(
         "isNew": info.is_new,
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,
+        // LIVE-03 (ADR-069/070): whether live blocks show, and whether "Make live" may (the host
+        // may still answer 501 to `POST /files`, and the editor then hides it for the session).
+        "live": crate::live::session_json(&host, &grant),
     });
     if let (Some(b), Some(h)) = (body.as_object_mut(), history.as_object()) {
         b.extend(h.clone());

@@ -19,6 +19,8 @@ export interface Ctx {
   imp: boolean;
   /** The SDK blocks this host enables (the session's `blocks`). */
   pkgs: BlockPackage[];
+  /** LIVE-03: the host's live block picker may be offered (`live.insert`, not inside a live block). */
+  live?: boolean;
   rec: RecentRec;
   now: number;
 }
@@ -69,6 +71,7 @@ export function offered(ctx: Ctx): Block[] {
   const own = BLOCKS.filter((b) => {
     if (b.action === "assistant" && !ctx.ai) return false;
     if (b.action === "import" && !ctx.imp) return false;
+    if (b.action === "live") return !!ctx.live;
     if (b.variants) return variantsOf(b, ctx).length > 0;
     return needOk(b.needs, ctx.profile);
   });

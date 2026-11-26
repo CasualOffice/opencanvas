@@ -584,6 +584,11 @@ non-editors or when off) · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 a derived session for a live file the canvas embeds (`404 LIVE_NOT_EMBEDDED` otherwise), role from the
 host's `/access` (`403 LIVE_NO_ACCESS` with nothing about the file), expiry and perms bounded by the
 parent session, `403 LIVE_DEPTH` from a derived session; 2 opens/s per person (burst 60, `429`). ·
+`404 LIVE_GONE` when the host answered 410 (deleted or moved, ADR-073). ·
+`GET /v1/live/audience?ticket=&fileId=` → `{role, cannotOpen, members}` (LIVE-07: other members of the
+canvas whose `/access` answer is `none`; `cannotOpen` null without a member list, above 200 or on a host
+failure). The session answer carries `live {enabled, make, insert, snapshot, maxOpen, link}`. A launch
+may carry `view=block` (form field or query; anything else is dropped), passed on as `&view=block`. ·
 `POST /v1/live/make` `{ticket, blockIds, name}` (edit + `perms.live`; header `Idempotency-Key` is
 passed to the host's `POST /files`) → `201 {liveFileId, blockId, kind}`; `501 LIVE_CREATE_UNSUPPORTED`
 when the host does not create files.

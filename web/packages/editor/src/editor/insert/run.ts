@@ -9,6 +9,7 @@ import { bridge } from "../../lib/bridge";
 import { loadBoard, loadDatabase } from "../blockdata";
 import { columnsJSON, insertBlock, insertExtBlock, SLASH } from "../slash";
 import type { Row } from "./model";
+import { pickLiveBlock } from "../../live/state";
 
 const slash = (id: string) => SLASH.find((x) => x.id === id)!;
 
@@ -39,6 +40,7 @@ function later(editor: Editor, range: Range | null, make: () => Promise<JSONCont
 export function runRow(editor: Editor, range: Range | null, row: Row): void {
   const b = row.block;
   if (b.ext) return insertExtBlock(editor, range, b.ext);
+  if (b.key === "live") return pickLiveBlock(editor, range);
   const key = b.key + (row.variant ? ":" + row.variant.id : "");
   const legacy = LEGACY[key] ?? LEGACY[b.key];
   if (legacy) return slash(legacy).run(editor, range);

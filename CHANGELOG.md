@@ -15,6 +15,20 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   the device, a revocation generation per host and person (migration 0011; Redis `oc:offgen:`)
   raised by `POST /api/v1/offline/revoke`, and the `GET /v1/offline/clear` sign-out page. The server
   stores one number per host and person, never content.
+- Live blocks in the editor (LIVE-03, LIVE-07, [approved prototype](docs/prototypes/v03-approved/live-blocks.html),
+  ADR-073): an always-visible header (Live mark, title, the people in it, Open source, options),
+  editing in place with presence labels that say where a person is, a one-time hint on the first
+  edit, view only, and every failure state (connecting, not up to date, no access with or without
+  the title, deleted or moved, access removed, limits). "Make live…" in the block menu, "Live
+  block" in the insert menu through the host's own picker (`UI_PickLiveBlock` →
+  `Action_InsertLiveBlock`), and paste a block link as a live block, a reference or a link.
+  References refresh on their own and flash once. "Convert to a copy" and "Who can see this"
+  (`GET /v1/live/audience`). A host answers `/access` with 410 for a deleted live file. Phones get
+  a compact header and an options sheet. The live block code loads only when a canvas shows one.
+- `<open-canvas view="block">` (LIVE-06): one live block with compact chrome for chats and side
+  panels; its height follows the content (`UI_Resize`, `oc:resize`). The SDK gains
+  `insertLiveBlock()`, `livePicker()`, `liveBlockUsage()` and the `oc:pick-live-block`,
+  `oc:live-block-open` and `oc:live-block-usage` events.
 
 ## [0.2.1] - 2026-11-26
 

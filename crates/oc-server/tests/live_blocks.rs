@@ -1167,3 +1167,130 @@ async fn presence_says_where_a_person_is_only_to_people_from_the_same_canvas() {
     assert!(seen_c.iter().all(|v| v.get("from").is_none()), "{seen_c:?}");
     assert!(!format!("{seen_b:?}{seen_c:?}").contains("Spoof"));
 }
+
+/// LIVE-03: the session answer says whether live blocks show and whether "Make live" and the
+/// host picker may be offered.
+#[tokio::test]
+async fn the_session_answer_says_what_the_editor_may_offer() {
+    let (addr, _state, _host) = serve().await;
+    let info = async |addr: &str, t: String| -> Value {
+        get(addr, &format!("/v1/sessions/{t}"))
+            .await
+            .json()
+            .await
+            .unwrap()
+    };
+    let s = info(&addr, launch(&addr, "u_1", json!({})).await).await;
+    assert_eq!(s["live"]["enabled"], true, "{s}");
+    assert_eq!(s["live"]["make"], true);
+    assert_eq!(s["live"]["insert"], true);
+    assert_eq!(s["live"]["snapshot"], "title");
+    assert_eq!(s["live"]["maxOpen"], 8);
+    let s = info(&addr, launch(&addr, "u_1", json!({"perms": {}})).await).await;
+    assert_eq!(
+        (s["live"]["enabled"].as_bool(), s["live"]["make"].as_bool()),
+        (Some(true), Some(false))
+    );
+    let s = info(&addr, launch(&addr, "u_1", json!({"role": "view"})).await).await;
+    assert_eq!(s["live"]["make"], false);
+    let (addr2, _, _) = serve_with(|_| {}).await;
+    let s = info(&addr2, launch(&addr2, "u_1", json!({})).await).await;
+    assert_eq!(
+        (s["live"]["enabled"].as_bool(), s["live"]["make"].as_bool()),
+        (Some(false), Some(false))
+    );
+}
+
+/// LIVE-06: `view=block` reaches the app fragment; anything else is dropped.
+#[tokio::test]
+async fn a_launch_carries_the_compact_view() {
+    let (addr, _state, _host) = serve().await;
+    let loc = async |view: &str| -> String {
+        let res = http()
+            .post(format!("http://{addr}/v1/launch"))
+            .form(&[
+                ("token", token("u_1", json!({}))),
+                ("view", view.to_string()),
+            ])
+            .send()
+            .await
+            .unwrap();
+        res.headers()["location"].to_str().unwrap().to_string()
+    };
+    assert!(loc("block").await.ends_with("&view=block"));
+    assert!(!loc("page<script>").await.contains("view="));
+    assert!(!loc("full").await.contains("view="));
+}
+
+/// LIVE-07, prototype 2d: "Who can see this" counts the canvas's other members the host would
+/// not let open the live file, and returns no names.
+#[tokio::test]
+async fn who_can_see_this_counts_members_without_access() {
+    let (addr, _state, host) = serve().await;
+    embed(&addr, &["L_a"]).await;
+    grant_access(&host, "L_a", "u_1", "edit");
+    grant_access(&host, "L_a", "u_2", "view");
+    let members = json!([
+        {"id": "u_1", "name": "One"}, {"id": "u_2", "name": "Two"},
+        {"id": "u_3", "name": "Three"}, {"id": "u_4", "name": "Four"}
+    ]);
+    let ticket = launch(&addr, "u_1", json!({"members": members})).await;
+    let r = get(
+        &addr,
+        &format!("/v1/live/audience?ticket={ticket}&fileId=L_a"),
+    )
+    .await;
+    assert_eq!(r.status(), 200);
+    let out: Value = r.json().await.unwrap();
+    assert_eq!(out["role"], "edit", "{out}");
+    assert_eq!(out["cannotOpen"], 2, "u_3 and u_4 cannot open it: {out}");
+    assert_eq!(out["members"], 3);
+    assert!(!out.to_string().contains("Three"), "{out}");
+    // Not embedded: refused like every live route.
+    let r = get(
+        &addr,
+        &format!("/v1/live/audience?ticket={ticket}&fileId=L_other"),
+    )
+    .await;
+    assert_eq!(r.status(), 404);
+    // Without a member list there is no count.
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    let out: Value = get(
+        &addr,
+        &format!("/v1/live/audience?ticket={ticket}&fileId=L_a"),
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(out["cannotOpen"], Value::Null, "{out}");
+}
+
+/// LIVE-03, prototype 5e: a host that answers 410 for the live file (deleted or moved) gives
+/// `404 LIVE_GONE`, distinct from no access, and nothing else about the file.
+#[tokio::test]
+async fn a_deleted_live_file_is_reported_as_gone() {
+    let (addr, _state, host) = serve().await;
+    embed(&addr, &["L_gone", "L_none"]).await;
+    grant_access(&host, "L_gone", "u_1", "gone");
+    grant_access(&host, "L_none", "u_2", "edit");
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    let (s, out) = live_session(&addr, &ticket, "L_gone").await;
+    assert_eq!(
+        (s, out["error"]["code"].as_str()),
+        (404, Some("LIVE_GONE")),
+        "{out}"
+    );
+    let (s, out) = live_session(&addr, &ticket, "L_none").await;
+    assert_eq!(
+        (s, out["error"]["code"].as_str()),
+        (403, Some("LIVE_NO_ACCESS")),
+        "{out}"
+    );
+    let r = get(
+        &addr,
+        &format!("/v1/live/projection?ticket={ticket}&fileId=L_gone"),
+    )
+    .await;
+    assert_eq!(r.status(), 404);
+}

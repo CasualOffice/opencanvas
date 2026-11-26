@@ -228,6 +228,15 @@ fn no_access() -> ApiError {
     )
 }
 
+fn gone() -> ApiError {
+    // Prototype 5e: the host says the file was deleted or moved (410). Nothing else about it.
+    err(
+        StatusCode::NOT_FOUND,
+        "LIVE_GONE",
+        "this live block was deleted or moved",
+    )
+}
+
 /// The feature flag (404 when off: the routes do not exist for this host).
 pub fn require_on(host: &HostConfig) -> Result<(), ApiError> {
     if host.live_blocks() {
@@ -276,6 +285,7 @@ pub async fn access(
                 name: d.name,
                 callback_token: d.callback_token,
             },
+            None if d.gone => return Err(gone()),
             None => Access::Denied,
         }),
         // `/access` is required for live blocks; without it, only files the token lists open,
@@ -804,6 +814,89 @@ pub async fn make(
     )
     .await?;
     Ok((StatusCode::CREATED, Json(out)).into_response())
+}
+
+/// The session answer's `live` object (LIVE-03): `{enabled, make, insert, snapshot, maxOpen,
+/// link}`. `make` and `insert` = the flag, `perms.live`, the edit role and not itself a live
+/// file's session (the server checks every write again, ADR-071).
+pub fn session_json(host: &HostConfig, grant: &Grant) -> Value {
+    let on = host.live_blocks();
+    let cfg = LiveCfg::of(host);
+    let can = on && grant.perms.live && grant.role == Role::Edit && grant.live.parent.is_none();
+    json!({
+        "enabled": on && grant.live.parent.is_none(),
+        "make": can,
+        "insert": can,
+        "snapshot": cfg.snapshot.as_str(),
+        "maxOpen": cfg.max_open,
+        "link": cfg.link,
+    })
+}
+
+/// Most canvas members "Who can see this" counts (ADR-069: off above 200).
+pub const AUDIENCE_MAX: usize = 200;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudienceQuery {
+    #[serde(default)]
+    ticket: String,
+    #[serde(default)]
+    file_id: String,
+}
+
+/// `GET /v1/live/audience?ticket&fileId` (LIVE-07, "Who can see this", prototype 2d): this
+/// person's role on the embedded live file and how many of the canvas's other members cannot
+/// open it, from the host's `/access` answers (cached 30 s each). `cannotOpen` is `null` without
+/// a member list, above [`AUDIENCE_MAX`] members, or when the host fails. Only a count.
+pub async fn audience(
+    State(state): State<SharedState>,
+    axum::extract::Query(q): axum::extract::Query<AudienceQuery>,
+) -> Result<Response, ApiError> {
+    use futures::StreamExt;
+    let (host, parent, _) = parent_session(&state, &q.ticket).await?;
+    embedded(&state, &host, &parent, &q.file_id, None).await?;
+    admit_open(&state, &host, &parent.user.id).await?;
+    let mine = access(&state, &host, &parent, &q.file_id).await?;
+    let members = match state
+        .members
+        .callback(&state.host, &host, &parent, "")
+        .await
+    {
+        Some(m) => m,
+        None => parent.members.clone(),
+    };
+    let others: Vec<_> = members
+        .into_iter()
+        .filter(|m| m.id != parent.user.id)
+        .collect();
+    let count = others.len();
+    let mut cannot = None;
+    if count > 0 && count <= AUDIENCE_MAX {
+        let checks = futures::stream::iter(others.into_iter().map(|m| {
+            let mut who = parent.clone();
+            who.user = m;
+            let (state, host, file) = (state.clone(), host.clone(), q.file_id.clone());
+            async move { access(&state, &host, &who, &file).await }
+        }))
+        .buffer_unordered(8)
+        .collect::<Vec<_>>()
+        .await;
+        // A host failure gives no count rather than a wrong one.
+        if checks.iter().all(Result::is_ok) {
+            cannot = Some(
+                checks
+                    .iter()
+                    .filter(|c| matches!(c, Ok(Access::Denied)))
+                    .count(),
+            );
+        }
+    }
+    Ok((
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({"role": mine.word(), "cannotOpen": cannot, "members": count})),
+    )
+        .into_response())
 }
 
 #[cfg(test)]

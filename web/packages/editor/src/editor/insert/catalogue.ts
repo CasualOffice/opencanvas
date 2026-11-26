@@ -66,7 +66,7 @@ export interface BlockDef {
   why: string;
   needs: string[];
   /** Import and the assistant: actions, not blocks (no tile, not counted for the flat list). */
-  action?: "import" | "assistant";
+  action?: "import" | "assistant" | "live";
 }
 
 const v = (id: string, label: string, icon: string, needs: string[], names: string[], intents: string[], why: string, more: Partial<Variant> = {}): Variant => ({
@@ -118,6 +118,8 @@ export const BLOCKS: BlockDef[] = [
   { key: "table", icon: "table", title: "Simple table", desc: "Rows and columns", cat: "data", needs: ["core.table"], names: ["table", "grid", "rows"], intents: ["compare options", "matrix", "rows and columns"], why: "rows and columns" },
   { key: "date", icon: "calendar", title: "Date", desc: "A date chip, like @today", cat: "data", needs: ["core.date"], names: ["today", "tomorrow", "due", "deadline"], intents: ["due date", "track tasks", "deadline", "schedule"], why: "a due date in a line of text" },
   { key: "csv", icon: "file-spreadsheet", title: "Import CSV", desc: "Turn a CSV into a database", cat: "data", needs: ["core.database", "core.kanban", "core.calendar"], names: ["csv", "spreadsheet"], intents: ["import data"], why: "a database from a CSV" },
+  // LIVE-03 (1e): the host's own picker (`UI_PickLiveBlock`); offered only with `perms.live`.
+  { key: "live", icon: "radio", title: "Live block", desc: "Pick one from your app; edits show everywhere", cat: "data", action: "live", needs: [], names: ["live", "live block", "synced block", "sync", "reuse"], intents: ["reuse a block", "show it in many places"], why: "one block, kept the same everywhere" },
   { key: "import", icon: "upload", title: "Import…", desc: "Markdown, HTML or CSV into this canvas", cat: "data", action: "import", needs: ["core.import"], names: ["import", "markdown", "html"], intents: ["import a file"], why: "bring in another document" },
   // ---------- Visual & diagrams ----------
   {

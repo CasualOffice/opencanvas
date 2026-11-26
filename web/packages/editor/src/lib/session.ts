@@ -10,6 +10,7 @@ import * as decoding from "lib0/decoding";
 import type { Role } from "@opencanvas/ui";
 import { setInstalledBlocks, type BlockPackage } from "../ext/model";
 import { setEditorProfile, setInsertScope, type EditorProfile } from "../editor/profile";
+import { setLiveCfg, type LiveCfg } from "../live/state";
 
 export interface Session {
   ticket: string;
@@ -54,6 +55,8 @@ export interface Session {
   blocks?: BlockPackage[];
   /** EDP-01: the host's editor profile, insertable blocks and feature switches (docs/15 §2). */
   editor?: EditorProfile | null;
+  /** LIVE-03: live blocks here (`enabled`), "Make live" and the host picker (docs/15 §2). */
+  live?: Partial<LiveCfg> | null;
 }
 
 export class SessionError extends Error {
@@ -84,6 +87,7 @@ export async function fetchSession(ticket: string): Promise<Session> {
   const s = (await r.json()) as Session;
   setInstalledBlocks(s.blocks);
   setEditorProfile(s.editor);
+  setLiveCfg(s.live);
   // INS-01: Recent is kept per host and person, in this browser only.
   setInsertScope(`${s.host?.id ?? "host"}:${s.user?.id ?? "me"}`);
   return s;

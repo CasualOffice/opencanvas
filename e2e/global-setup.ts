@@ -131,6 +131,8 @@ on_conflict    = "${policy}"
 ${id === "sample" ? 'import_formats = ["md", "html", "csv", "drawio", "excalidraw"]' : "# no import_formats: import stays off (FC-10)"}
 ${id === "sample" ? "team_templates = true" : "# no team_templates: no team section in the gallery (TPL-01)"}
 ${id === "sample" ? "history        = true" : "# no host versions: in-file history only (VH-01, ADR-055)"}
+${id === "sample" ? "live_blocks    = true" : "# no live_blocks (LIVE-01)"}
+${id === "sample" ? `\n[host.live]\nlink = "${origin}/files/{fileId}"\n` : ""}
 ${ai}`;
   fs.writeFileSync(
     hosts,

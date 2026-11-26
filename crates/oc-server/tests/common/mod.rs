@@ -352,6 +352,10 @@ async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> imp
     let mut st = s.lock().unwrap();
     st.access_calls.push((file.clone(), user.clone(), ok));
     if let Some(role) = st.access_files.get(&(file.clone(), user.clone())) {
+        // LIVE-03 (5e): "gone" stands for a deleted file, answered 410.
+        if role == "gone" {
+            return (StatusCode::GONE, axum::Json(json!({})));
+        }
         return (
             StatusCode::OK,
             axum::Json(json!({"role": role, "name": format!("Name of {file}")})),

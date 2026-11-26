@@ -15,6 +15,7 @@ import { dismissSuggest, suggestStore } from "../suggest";
 import { announce, autoClosed, initialNav, menuKey, type Action, type Ctx, type Nav, type Row } from "./model";
 import { clearRecent, loadRecent, recordUse, saveRecent, type RecentRec } from "./recent";
 import { runRow } from "./run";
+import { liveCfg, pickerGone } from "../../live/state";
 
 export const navStore = createStore<Nav>(initialNav());
 /** What a screen reader hears next (a polite live region in the menu). */
@@ -34,7 +35,7 @@ function rec(): RecentRec {
 }
 
 export function insertCtx(): Ctx {
-  return { profile: profileStore.get(), ai: aiStore.get().on, imp: importStore.get().formats.length > 0, pkgs: installedBlocks(), rec: rec(), now: Date.now() };
+  return { profile: profileStore.get(), ai: aiStore.get().on, imp: importStore.get().formats.length > 0, live: liveCfg.get().insert && !pickerGone.get(), pkgs: installedBlocks(), rec: rec(), now: Date.now() };
 }
 
 /** The nav for the current query (a new query starts again at the top). */

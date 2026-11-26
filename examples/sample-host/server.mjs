@@ -126,7 +126,7 @@ function launchToken(fileId, userId) {
     user: { id: userId, name: u.name, detail: u.detail },
     ...(members ? { members } : {}),
     role, mode: role === "view" ? "view" : "edit",
-    perms: { export: true, download: true, comment: role !== "view", mention: true },
+    perms: { export: true, download: true, comment: role !== "view", mention: true, live: true },
     callbackToken: callbackToken(fileId, userId),
   });
 }
@@ -192,6 +192,47 @@ const TEAM_TEMPLATES = [
 
 /** Like checkCallback, for calls that are not about one file: the bearer must be a callback
  *  token we issued to this user for any file. */
+/** A signed callback without a bearer (`POST /access`): the signature is the proof. */
+function checkSigned(req, body) {
+  const sigHdr = req.headers["x-opencanvas-signature"] || "";
+  const t = /t=(\d+)/.exec(sigHdr)?.[1], v2 = /v2=([0-9a-f]+)/.exec(sigHdr)?.[1];
+  if (!t || !v2 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+  const want = crypto.createHmac("sha256", SECRET).update(Buffer.concat([Buffer.from(`${t}.${req.method}.${req.url}.`), body])).digest("hex");
+  return want.length === v2.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(v2));
+}
+
+// Live blocks (docs/05 §2c, LIVE-01/03): `/access` answers for any file and person; `POST /files`
+// creates a live block's file next to its canvas, with the canvas's people.
+async function accessCallback(req, res) {
+  const body = await readBody(req);
+  if (!checkSigned(req, body)) return send(res, 401, { error: "bad signature" });
+  let q; try { q = JSON.parse(body.toString("utf8")); } catch { return send(res, 400, { error: "expected JSON" }); }
+  if (meta.deleted?.[q.fileId]) return send(res, 410, { error: "deleted" });
+  const f = meta.files[q.fileId];
+  const role = f?.acl[q.userId] || "none";
+  if (role === "none") return send(res, 200, { role: "none" });
+  return send(res, 200, { role, name: f.name, callbackToken: callbackToken(f.id, q.userId) });
+}
+
+async function createFileCallback(req, res) {
+  const body = await readBody(req);
+  let q; try { q = JSON.parse(body.toString("utf8")); } catch { return send(res, 400, { error: "expected JSON" }); }
+  const parent = meta.files[q.parentFileId];
+  if (!parent) return send(res, 404, { error: "no such canvas" });
+  const auth = checkCallback(req, parent.id, body);
+  if (!auth.ok) return send(res, 401, { error: auth.why });
+  if (parent.acl[auth.userId] !== "edit") return send(res, 403, { error: "read only" });
+  const key = req.headers["idempotency-key"];
+  meta.created ??= {};
+  if (key && meta.created[key]) return send(res, 201, { fileId: meta.created[key] });
+  const id = "doc_" + crypto.randomBytes(4).toString("hex");
+  meta.files[id] = { id, name: String(q.name || "Live block").slice(0, 200), version: 0, updatedAt: null, acl: { ...parent.acl }, live: true, parent: parent.id };
+  if (key) meta.created[key] = id;
+  saveMeta();
+  console.log(`live block file ${id} for ${parent.id}`);
+  return send(res, 201, { fileId: id });
+}
+
 function checkUserCallback(req) {
   const auth = (req.headers.authorization || "").replace(/^Bearer /, "");
   const fileId = Object.keys(meta.files).find(id => auth === callbackToken(id, auth.split(".")[0]));
@@ -276,6 +317,8 @@ async function callbacks(req, res, url) {
     const items = search(userId, url.searchParams.get("q") || "", Math.min(50, Number(url.searchParams.get("limit")) || 20));
     return send(res, 200, { items, scopes: [{ id: "all", label: "All canvases" }], partial: false, next: null });
   }
+  if (url.pathname === "/api/opencanvas/access" && req.method === "POST") return accessCallback(req, res);
+  if (url.pathname === "/api/opencanvas/files" && req.method === "POST") return createFileCallback(req, res);
   // The member list (docs/21 revision 2): everyone with access to this file, filtered by `q`.
   const mem = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)\/members$/);
   if (mem && req.method === "GET") {
@@ -455,6 +498,7 @@ function openFile(res, me, id) {
   ${userPicker(me, "/files/" + id)}</header>
   <section class="panel" id="mpanel" hidden aria-label="Mentions"><h2>Mentions in this canvas</h2><ol id="mlist"></ol></section>
   <div class="toast" id="toast" role="status" hidden></div>
+  <dialog id="livepick" aria-label="Insert a live block"><h2>Insert a live block</h2><ul style="list-style:none;padding:0;display:grid;gap:6px"></ul><button class="btn" data-cancel>Cancel</button></dialog>
   <form id="oc" method="post" target="oc" action="${OC_SERVER}/v1/launch"><input type="hidden" name="token" value="${token}"><input type="hidden" name="block" id="block"></form>
   <div class="frame"><iframe name="oc" title="Canvas" allow="clipboard-read; clipboard-write; fullscreen"></iframe></div>
   <script>
@@ -485,12 +529,26 @@ function openFile(res, me, id) {
       if (Values.newTab) window.open(href, '_blank', 'noopener'); else location.href = href;
     }
     // "Copy link to block": we own the URLs, so we build the link (docs/05 §4).
+    // Live blocks (docs/05 §4): our own picker lists the live blocks this person can open.
+    if (MessageId === 'UI_PickLiveBlock') { post('Action_LiveBlockPicker', { state: 'open' }); pickLive(); }
+    if (MessageId === 'UI_LiveBlockOpen') { document.body.dataset.liveOpen = Values.fileId + (Values.blockId ? '#' + Values.blockId : '') + (Values.reason ? ':' + Values.reason : ''); say('Opening ' + Values.fileId); }
     if (MessageId === 'UI_BlockLink' && Values.fileId === FILE && /^[A-Za-z0-9_-]{1,64}$/.test(Values.blockId || '')) {
       const url = location.origin + '/files/' + FILE + '#block=' + Values.blockId;
       navigator.clipboard?.writeText(url).catch(() => {});
       document.body.dataset.blockLink = url;
       say('Link copied: ' + url);
     }
+  });
+  const dlg = document.getElementById('livepick');
+  async function pickLive() {
+    const r = await fetch('/files/live.json', { cache: 'no-store' }); const files = await r.json();
+    dlg.querySelector('ul').innerHTML = files.map(f => '<li><button class="btn" data-id="' + escH(f.id) + '" data-name="' + escH(f.name) + '">' + escH(f.name) + '</button></li>').join('') || '<li class="mut">No live blocks yet.</li>';
+    dlg.showModal();
+  }
+  dlg.addEventListener('click', e => {
+    const b = e.target.closest('button[data-id]');
+    if (b) { dlg.close(); post('Action_InsertLiveBlock', { fileId: b.dataset.id, title: b.dataset.name }); }
+    if (e.target.closest('button[data-cancel]')) { dlg.close(); post('Action_LiveBlockPicker', { state: 'cancel' }); }
   });
   // Mentions list (our callback stores them; a real app would notify people).
   const btn = document.getElementById('mbtn'), panel = document.getElementById('mpanel'), list = document.getElementById('mlist'), cnt = document.getElementById('mcnt');
@@ -573,6 +631,11 @@ http.createServer(async (req, res) => {
       if (changed.length) await invalidateMembers(file.id);
       res.writeHead(303, { location: "/" }); return res.end();
     }
+    // The live blocks this person can open, for our picker (LIVE-03, 1e).
+    if (url.pathname === "/files/live.json") return send(res, 200, Object.values(meta.files).filter(f => f.live && f.acl[me] && f.acl[me] !== "none").map(f => ({ id: f.id, name: f.name })), { "cache-control": "no-store" });
+    // e2e only: the host deletes a file (its /access answers 410 from now on).
+    const del = TEST_HOOKS && req.method === "POST" && url.pathname.match(/^\/__test\/files\/([\w-]+)\/delete$/);
+    if (del) { meta.deleted ??= {}; meta.deleted[del[1]] = true; delete meta.files[del[1]]; saveMeta(); return send(res, 200, { ok: true }); }
     const ml = url.pathname.match(/^\/files\/([\w-]+)\/mentions\.json$/);
     if (ml && meta.files[ml[1]]?.acl[me]) return send(res, 200, mentionsFor(ml[1]), { "cache-control": "no-store" });
     // docs/05 §4 Token_Expiring: a fresh launch token for the same person and file (PERM-07).

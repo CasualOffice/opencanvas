@@ -16,6 +16,10 @@
     UI_Link_Click: (v) => ["oc:link-click", v],
     UI_FileVersions: (v) => ["oc:versions", v],
     UI_Close: (v) => ["oc:close", v],
+    UI_Resize: (v) => ["oc:resize", { height: v.height }],
+    UI_PickLiveBlock: (v) => ["oc:pick-live-block", v],
+    UI_LiveBlockOpen: (v) => ["oc:live-block-open", v],
+    UI_LiveBlockUsage: (v) => ["oc:live-block-usage", v],
     Error: (v) => ["oc:error", v],
   };
 
@@ -23,7 +27,7 @@
 
   class OpenCanvas extends HTMLElement {
     static get observedAttributes() {
-      return ["server", "token", "theme"];
+      return ["server", "token", "theme", "view"];
     }
 
     constructor() {
@@ -32,7 +36,7 @@
       this._onMessage = this._onMessage.bind(this);
       const root = this.attachShadow({ mode: "open" });
       root.innerHTML =
-        '<style>:host{display:block;position:relative;min-height:320px}iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent}</style>';
+        '<style>:host{display:block;position:relative;min-height:320px}:host([view="block"]){min-height:3rem}iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent}</style>';
       this._frame = document.createElement("iframe");
       this._frame.name = this._name;
       this._frame.title = "OpenCanvas";
@@ -52,7 +56,10 @@
     attributeChangedCallback(name, oldV, newV) {
       if (oldV === newV || !this.isConnected) return;
       if (name === "theme") this._post("Action_Theme", { theme: newV || "auto" });
-      else this._launch();
+      else {
+        if (name === "view") this._launched = null;
+        this._launch();
+      }
     }
 
     get origin() {
@@ -67,8 +74,9 @@
     _launch() {
       const server = this.getAttribute("server");
       const token = this.getAttribute("token");
-      if (!server || !token || this._launched === server + "|" + token) return;
-      this._launched = server + "|" + token;
+      const view = this.getAttribute("view") === "block" ? "block" : "";
+      if (!server || !token || this._launched === server + "|" + token + "|" + view) return;
+      this._launched = server + "|" + token + "|" + view;
       const form = document.createElement("form");
       form.method = "POST";
       form.action = server.replace(/\/$/, "") + "/v1/launch";
@@ -79,6 +87,14 @@
       input.name = "token";
       input.value = token;
       form.appendChild(input);
+      // LIVE-06: view="block" is the compact embed of one live file; its height follows the content.
+      if (view) {
+        const v = document.createElement("input");
+        v.type = "hidden";
+        v.name = "view";
+        v.value = view;
+        form.appendChild(v);
+      }
       this.shadowRoot.appendChild(form);
       form.submit();
       form.remove();
@@ -101,6 +117,11 @@
         }
       }
       if (!d || typeof d.MessageId !== "string") return;
+      // LIVE-06: the compact view reports its content height; the element follows it.
+      if (d.MessageId === "UI_Resize" && this.getAttribute("view") === "block") {
+        const h = Number(d.Values && d.Values.height);
+        if (Number.isFinite(h) && h > 0 && h < 100000) this.style.height = Math.ceil(h) + "px";
+      }
       if (d.MessageId === "App_LoadingStatus" && d.Values && d.Values.Status === "Frame_Ready") {
         this._post("Host_PostmessageReady", {});
         const theme = this.getAttribute("theme");
@@ -135,6 +156,18 @@
     }
     setTheme(theme) {
       this._post("Action_Theme", { theme });
+    }
+    /** Answers `oc:pick-live-block` (LIVE-03): insert this live block where the person was. */
+    insertLiveBlock(fileId, title) {
+      this._post("Action_InsertLiveBlock", { fileId, title });
+    }
+    /** Tells the editor the host's picker opened (`open`) or was dismissed (`cancel`). */
+    livePicker(state) {
+      this._post("Action_LiveBlockPicker", { state });
+    }
+    /** Answers `oc:live-block-usage`: where a live block is shown (titles). */
+    liveBlockUsage(fileId, places) {
+      this._post("Action_LiveBlockUsage", { fileId, places });
     }
   }
 
