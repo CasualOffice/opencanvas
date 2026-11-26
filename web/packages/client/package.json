@@ -1,6 +1,6 @@
 {
   "name": "@opencanvas/client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TypeScript client of the OpenCanvas headless API (/api/v1): typed operations, idempotent writes, retries, cursor paging, events and webhook verification.",
   "license": "Apache-2.0",
   "private": true,

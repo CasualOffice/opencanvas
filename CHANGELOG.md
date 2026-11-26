@@ -7,9 +7,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-26
+
 ### Added
 
-- The categorised insert menu (INS-01, v0.2.1, [approved prototype](docs/prototypes/insert-menu-approved/)):
+- The categorised insert menu (INS-01, [approved prototype](docs/prototypes/insert-menu-approved/)):
   "/" opens Quick insert, Recent, goal chips and five categories (Content, Data & planning,
   Visual & diagrams, Layout, Extensions) with flyouts on desktop and drill-in on phones.
   Heading, List, Callout and Columns pick their variant inline (Tab); Database and Diagram have
@@ -19,6 +21,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   fits; no results offers "Did you mean". Recent stays in the browser. The gallery takes the same
   categories with variant chips. `[host.editor] intents` and `chips` turn off or replace the
   goal chips (docs/05 §2b). Profiles with 8 or fewer blocks get a flat list.
+
+### Fixed
+
+- Gallery: Enter inserts the focused card, not the first one.
+- A newly inserted SDK block takes focus when its frame is ready only while it is still selected.
+- "Browse all blocks" shows only in the full workspace profile.
 
 ## [0.2.0] - 2026-11-25
 
@@ -271,7 +279,8 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/CasualOffice/opencanvas/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.2...v0.2.0
 [0.1.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1

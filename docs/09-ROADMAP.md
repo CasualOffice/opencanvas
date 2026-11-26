@@ -28,6 +28,7 @@ open to a broad developer ecosystem (ADR-038).
 |---|---|
 | v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
 | [v0.1.2](31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
+| v0.2.1 (released 2026-11-26) | The categorised insert menu (INS-01) and three fixes |
 | [v0.2.0](32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
 | [v0.3](34-ROADMAP-v0.3.md) | Portable live blocks, offline-first editing, search and automation (plan proposed 2026-11-26) |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |

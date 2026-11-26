@@ -196,7 +196,7 @@ def jsonld() -> dict:
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Collaborative editor",
         "operatingSystem": "Linux (Docker image); the editor runs in a web browser",
-        "softwareVersion": "0.2.0",
+        "softwareVersion": "0.2.1",
         "license": sitelib.BLOB + "LICENSE",
         "isAccessibleForFree": True,
         "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"},
@@ -278,6 +278,8 @@ def changelog() -> str:
   <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.2.1</h2>
+<p>Released 2026-11-26. A new insert menu: Quick insert, Recent, goals like "track tasks", and five categories, with heading, list, callout, column, database-view and diagram-type variants in one place. Shortcuts like <code>/h2</code> still work. See <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Release 0.2.0</h2>
 <p>Released 2026-11-25. Stable headless API under <code>/api/v1</code>, on by default, with TypeScript and Rust clients; signed webhooks; the <a href="docs/block-sdk.html">block SDK</a> for your own blocks; and host editor profiles. See the <a href="docs/release-020.html">release and upgrade notes</a>.</p>
 <h2>Release 0.1.2</h2>
@@ -325,7 +327,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible "
         "server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. "
         "Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). "
-        "Status: 0.2.0 released; best-effort support and no production SLA.",
+        "Status: 0.2.1 released; best-effort support and no production SLA.",
         "",
         "## Site",
         line("index.html"),
