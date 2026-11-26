@@ -8,7 +8,7 @@ import type { Awareness } from "y-protocols/awareness";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
-  Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Map as MapIcon, Maximize2, Minimize2, Minus, MousePointer2, MoveUpRight, Pencil, Plus,
+  Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
   Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
@@ -17,6 +17,8 @@ import {
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
+import { Dock } from "./Dock";
+import { readToolsLeft, writeToolsLeft } from "./toolbar";
 import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { exportBoardPng, exportBoardSvg } from "./export";
 import { createArrowResolver } from "./edges";
@@ -59,16 +61,17 @@ import {
 } from "./ops";
 
 type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text";
+// SCALE-02 / UX4-01: the priority order is the visual order; overflow takes from the end (Pan first).
 const TOOLS: [Tool, LucideIcon, string, string][] = [
   ["select", MousePointer2, "Select", "V"],
-  ["hand", Hand, "Pan", "H"],
-  ["pen", Pencil, "Pen", "P"],
   ["sticky", StickyNote, "Sticky note", "N"],
+  ["pen", Pencil, "Pen", "P"],
+  ["text", Type, "Text", "T"],
   ["rect", Square, "Rectangle", "R"],
+  ["arrow", ArrowUpRight, "Arrow", "A"],
   ["ellipse", Circle, "Ellipse", "O"],
   ["diamond", Diamond, "Diamond", "D"],
-  ["arrow", ArrowUpRight, "Arrow", "A"],
-  ["text", Type, "Text", "T"],
+  ["hand", Hand, "Pan", "H"],
 ];
 const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "sticky", r: "rect", o: "ellipse", d: "diamond", a: "arrow", t: "text" };
 const STICKY: Record<string, string> = { y: "var(--sticky-y)", p: "var(--sticky-p)", b: "var(--sticky-b)", g: "var(--sticky-g)" };
@@ -264,20 +267,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /** Active waypoint (index into the selected connector's `via`) for the keyboard and Delete. */
   const [wp, setWpState] = useState<number | null>(null);
-  // The tool bar scrolls when its tools don't fit (390 px phones): fade the side that has more and
-  // keep the chosen tool in view (UX-DGM-01).
-  const toolsRef = useRef<HTMLDivElement>(null);
-  const toolsMore = () => {
-    const el = toolsRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    const more = max <= 1 ? "" : el.scrollLeft <= 1 ? "right" : el.scrollLeft >= max - 1 ? "left" : "both";
-    if ((el.dataset.more ?? "") !== more) {
-      if (more) el.dataset.more = more;
-      else delete el.dataset.more;
-    }
-  };
-  useLayoutEffect(toolsMore);
+  // "Tools on the left": a personal setting, kept per device (UX4-01, option B as a rail).
+  const [rail, setRailState] = useState(readToolsLeft);
+  const setRail = (on: boolean) => (writeToolsLeft(on), setRailState(on));
   // The selection toolbar's measured width: its content changes with the shape and the text size.
   const barRef = useRef<HTMLDivElement>(null);
   const [barW, setBarW] = useState(0);
@@ -2005,6 +1997,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     <div
       ref={rootRef}
       className={"ocbd" + (compact ? " ocbd-compact" : "") + (full ? " ocbd-full" : "") + (active ? " active" : "")}
+      data-rail={rail ? "" : undefined}
       tabIndex={0}
       role="group"
       aria-roledescription="whiteboard"
@@ -2216,32 +2209,21 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         />
       ) : null}
 
-      <div ref={toolsRef} className="ocbd-tool" role="toolbar" aria-label="Board tools" onScroll={toolsMore}>
-        {TOOLS.filter(([t]) => edit || t === "select" || t === "hand").map(([t, I, label, key], i) => (
-          <span key={t} style={{ display: "contents" }}>
-            {i === 2 ? <span className="ocbd-vs" /> : null}
-            <button className="ocbd-ib" title={`${label} (${key})`} aria-label={label} aria-keyshortcuts={key} aria-pressed={tool_ === t} onClick={(e) => (setTool(t), e.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }))}>
-              <I size={16} strokeWidth={SW} />
-            </button>
-          </span>
-        ))}
-      </div>
-
-      <div className="ocbd-zoom">
-        <button className="ocbd-ib" aria-label="Zoom out" onClick={() => zoomCenter(1 / 1.2)} disabled={z <= ZMIN + 1e-6}>
-          <Minus size={14} strokeWidth={SW} />
-        </button>
-        <button className="ocbd-zl" title="Zoom to fit (Shift+1)" aria-label={`Zoom ${Math.round(z * 100)}%. Zoom to fit`} aria-keyshortcuts="Shift+1" onClick={fit}>
-          {Math.round(z * 100)}%
-        </button>
-        <button className="ocbd-ib" aria-label="Zoom in" onClick={() => zoomCenter(1.2)} disabled={z >= ZMAX - 1e-6}>
-          <Plus size={14} strokeWidth={SW} />
-        </button>
-        <span className="ocbd-zs" />
-        <button className="ocbd-ib" title="Minimap (M)" aria-label="Minimap" aria-keyshortcuts="M" aria-pressed={mini} onClick={() => setMini((v) => !v)}>
-          <MapIcon size={14} strokeWidth={SW} />
-        </button>
-      </div>
+      <Dock
+        tools={TOOLS.filter(([t]) => edit || t === "select" || t === "hand")}
+        tool={tool_}
+        onTool={(t) => setTool(t as Tool)}
+        compact={compact}
+        rail={rail}
+        onRail={setRail}
+        z={z}
+        canOut={z > ZMIN + 1e-6}
+        canIn={z < ZMAX - 1e-6}
+        onZoom={zoomCenter}
+        onFit={fit}
+        mini={mini}
+        onMini={() => setMini((v) => !v)}
+      />
       {mini && W ? <Minimap shapes={shapes} view={view} size={size} onView={setView} /> : null}
 
       {swatch}

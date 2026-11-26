@@ -150,26 +150,7 @@ describe("phone tool bar", { timeout: 30_000 }, () => {
     expect(BOARD_CSS).toMatch(/\.ocbd-compact \.ocbd-tool \.ocbd-ib\{[^}]*width:2\.75rem;height:2\.75rem/);
     expect(BOARD_CSS).toMatch(/\.ocbd-tool>\*,\.ocbd-tool \.ocbd-ib\{[^}]*flex:none/);
   });
-  it("says which side has more tools, and keeps the chosen tool in view", () => {
-    Object.defineProperty(Element.prototype, "scrollWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-tool") ? 420 : 0; } });
-    Object.defineProperty(Element.prototype, "clientWidth", { configurable: true, get() { return (this as Element).classList.contains("ocbd-tool") ? 366 : 0; } });
-    const into = vi.fn();
-    (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView = into;
-    const doc = new Y.Doc();
-    const id = createBoard(doc, "blank");
-    const el = mount(<BoardBlock doc={doc} boardId={id} env={{ ...env(), compact: true }} />);
-    const bar = el.querySelector<HTMLElement>('[aria-label="Board tools"]')!;
-    expect(bar.dataset.more).toBe("right");
-    bar.scrollLeft = 54;
-    act(() => void bar.dispatchEvent(new Event("scroll")));
-    expect(bar.dataset.more).toBe("left");
-    bar.scrollLeft = 20;
-    act(() => void bar.dispatchEvent(new Event("scroll")));
-    expect(bar.dataset.more).toBe("both");
-    act(() => bar.querySelector<HTMLButtonElement>('[aria-label="Text"]')!.click());
-    expect(into.mock.contexts.at(-1)).toBe(bar.querySelector('[aria-label="Text"]'));
-    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
-  });
+  // The sideways scroll behind a fade is replaced by overflow into More (UX4-01): toolbar.test.tsx.
 });
 
 // SCALE-02 S1: Lucide icons take their size from a px attribute, so at a 24 px default font they

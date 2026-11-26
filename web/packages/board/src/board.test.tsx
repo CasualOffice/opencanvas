@@ -111,7 +111,7 @@ describe("BoardBlock render", { timeout: 60_000 }, () => {
     const id = createBoard(doc, p);
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     expect(el.querySelectorAll("[data-s]").length).toBe(shapes(doc, id).length);
-    expect(el.querySelectorAll(".ocbd-tool .ocbd-ib")).toHaveLength(9);
+    expect(el.querySelectorAll(".ocbd-tool [data-tool]")).toHaveLength(9);
     expect(document.head.querySelector("style[data-ocbd]")).toBeTruthy();
   });
 
@@ -129,7 +129,7 @@ describe("BoardBlock render", { timeout: 60_000 }, () => {
     const doc = new Y.Doc();
     const id = createBoard(doc, "flow");
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env("view")} />);
-    const labels = [...el.querySelectorAll(".ocbd-tool .ocbd-ib")].map((b) => b.getAttribute("aria-label"));
+    const labels = [...el.querySelectorAll(".ocbd-tool [data-tool]")].map((b) => b.getAttribute("aria-label"));
     expect(labels).toEqual(["Select", "Pan"]);
   });
 

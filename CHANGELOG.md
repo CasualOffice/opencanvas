@@ -27,6 +27,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Board tool bar for narrow boards, 200% zoom and large text (UX4-01): tools and the zoom pill in one
+  bottom row, so they never overlap; tools that do not fit move into "More" (Pan first), measured
+  on the board's own width, and the zoom pill becomes one "100%" button last. Keyboard: one Tab
+  stop for the tools and one for zoom, arrow keys inside. "Tools on the left" in More puts the
+  tools in a rail (a personal setting, off by default). The tool order is now Select, Sticky note,
+  Pen, Text, Rectangle, Arrow, Ellipse, Diamond, Pan.
 - Backup and restore (RLB-03, docs/13): a runbook for SQLite, MySQL/MariaDB and Redis,
   `scripts/restore-drill.sh`, and a restore epoch. Start once with `OC_RESTORED=1` after a
   restore. Devices revoked after the backup stay revoked (every offline copy is dropped once),
