@@ -22,8 +22,10 @@ async fn main() -> anyhow::Result<()> {
     let [_, ws_url, room, ticket, text] = &args[..] else {
         anyhow::bail!("usage: smoke <wsUrl> <room> <ticket> <text>");
     };
-    let (mut ws, _) =
-        tokio_tungstenite::connect_async(format!("{ws_url}/{room}?ticket={ticket}&caps=ext,live,subdoc")).await?;
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!(
+        "{ws_url}/{room}?ticket={ticket}&caps=ext,live,subdoc"
+    ))
+    .await?;
     let doc = Doc::new();
     ws.send(WsMessage::Binary(
         protocol::step1(doc.transact().state_vector()).into(),
