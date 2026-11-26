@@ -580,7 +580,13 @@ async fn the_daily_limit_is_counted_cluster_wide() {
         "actions": [{"kind": "notify", "people": ["field:Owner"], "text": "{row.title} is done"}]})).await;
     let flip = async |via: usize, want: usize| {
         set_status(&nodes[via].addr, &db, &row, "Done").await;
-        eventually("logged", async || runs(&nodes).await.len() >= want).await;
+        // Finished, not just logged: a run's row is written ("running") before it reads the
+        // room, and closing the room under it fails it FILE_UNAVAILABLE (MariaDB on CI).
+        eventually("finished", async || {
+            let r = runs(&nodes).await;
+            r.len() >= want && count(&r, "running") == 0
+        })
+        .await;
         set_status(&nodes[via].addr, &db, &row, "Open").await;
     };
     flip(0, 1).await;
