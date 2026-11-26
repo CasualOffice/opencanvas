@@ -23,6 +23,7 @@ import { newBlockId } from "./blockId";
 import { addColumn, MAX_COLUMNS, MIN_COLUMNS, setColumnTitles } from "./columns";
 import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
 import { EXT_ACTION, blockTitle, type ExtAttrs } from "../ext/model";
+import { canOfferMake, copyBlockLink, makeStore } from "../live/state";
 
 // ---------- comments from the editor ----------
 
@@ -220,7 +221,10 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
             const url = new URL(window.location.href);
             url.hash = "";
             const link = bridge.session?.demo ? `${url.toString()}#demo&block=${id}` : `#block=${id}`;
-            void navigator.clipboard?.writeText(link).catch(() => undefined);
+            // With the editor's marker, so pasting it in another canvas offers a reference (1d).
+            const fileId = bridge.session?.file?.id;
+            if (fileId && !bridge.session?.demo) void copyBlockLink({ fileId, blockId: id }, link);
+            else void navigator.clipboard?.writeText(link).catch(() => undefined);
             toast(bridge.session?.demo ? "Link to block copied" : "Block link copied. Paste it in a comment or a message.", { icon: "link" });
           })
         }
@@ -228,6 +232,12 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
         <Ic name="link" />
         Copy link to block
       </button>
+      {canOfferMake(editor) && !["liveBlock", "blockRef", "extBlock"].includes(node.type.name) ? (
+        <button className="mi" onClick={() => run(() => makeStore.set({ editor, pos }))}>
+          <Ic name="radio" />
+          Make live…
+        </button>
+      ) : null}
       <button
         className="mi"
         onClick={() =>

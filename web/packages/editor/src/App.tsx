@@ -20,6 +20,7 @@ import type { Demo } from "./lib/demo";
 import { demoIcons, serverIcons } from "./lib/icons";
 import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
+import { installLiveHost } from "./live/state";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { isMac } from "./lib/keys";
 import { aiAvailability, aiStore, openAssistant } from "./lib/assistant";
@@ -519,6 +520,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   useEffect(() => {
     const offs = [
       onHost("Host_PostmessageReady", () => postToHost("App_LoadingStatus", { Status: "Document_Loaded" })),
+      // LIVE-03 (1e): the host's picker answers with `Action_InsertLiveBlock {fileId}`.
+      installLiveHost(),
       onHost("Action_SetReadOnly", (v) => setForcedReadOnly(!!v.readOnly)),
       onHost("Action_Commit", (v) => collab.sendControl({ t: "save", message: v.message ?? null })),
       onHost("Action_Export", (v) => doExport(String(v.format ?? "md"))),

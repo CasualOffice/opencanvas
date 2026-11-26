@@ -278,6 +278,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/live/projection", get(crate::live::projection))
         .route("/v1/live/refresh", post(crate::live::refresh))
         .route("/v1/live/make", post(crate::live::make))
+        .route("/v1/live/audience", get(crate::live::audience))
         .route("/v1/templates", get(templates::index))
         .route("/v1/templates/undo", post(templates::undo))
         .route("/v1/templates/{id}/apply", post(templates::apply))

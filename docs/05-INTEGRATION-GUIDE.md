@@ -226,6 +226,20 @@ read-only.
 - **Depth.** A live file cannot contain live blocks or references, and a canvas holds at most 50.
 - **Usage.** OpenCanvas keeps no index of where a live block is used: the `live.embedded` and
   `live.removed` events (§7b, webhooks §7c) tell you, so you can keep your own.
+- **Deleted files.** Answer `/access` with **410** (or `{"role": "none", "gone": true}`) for a
+  live file you deleted or moved: the block then says "This live block was deleted or moved" and
+  offers Remove (and, under `snapshot = "content"`, Keep last copy). A plain `none` reads as "no
+  access".
+- **In the editor (LIVE-03, ADR-069).** The session answer's `live` says what to offer
+  (`{enabled, make, insert, snapshot, maxOpen, link}`). "Make live…" is in the block menu; "Live
+  block" in the insert menu asks **your** picker (`UI_PickLiveBlock`, below): OpenCanvas keeps no
+  list of live files. Pasting a block link (the editor's own "Copy link", or a URL matching
+  `[host.live] link`, with `#block=<id>` for one block or `#live` for a live file) asks Live block
+  / Reference / Link. A live block shows an always-visible header (Live mark, title, the people in
+  it, Open source, options) and is edited in place; references refresh on their own.
+- **Who can see this.** `GET /v1/live/audience?ticket&fileId` counts the canvas's other members
+  (your members callback, else the token's `members`; at most 200) that your `/access` would not
+  let open the live file. One `/access` call per member per 30 s; never names.
 
 **Start-up checks.** A `live_blocks` that is not a boolean, an unknown `[host.live]` key, a bad
 `snapshot`, `max_open` outside 1-8, a `link` that is not http(s) or lacks `{fileId}`, and
@@ -341,6 +355,11 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
 | canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
 | canvas → host | `Error` | `{ code, message }`. `code: "SESSION_CLOSED"` (message `revoked`, `host` or `other`) when the editor shows its closed screen, so your chrome can offer to reopen (ADR-048) |
+| canvas → host | `UI_PickLiveBlock` | `{}` (LIVE-03, 1e): "Live block" in the insert menu. Show your own picker of live blocks this person can open, answer `Action_LiveBlockPicker {state: "open"}` at once (or `"cancel"`), then `Action_InsertLiveBlock`. No answer within 2 s hides the entry for the session |
+| canvas → host | `UI_LiveBlockOpen` | `{ fileId, blockId?, reason? }`: "Open source" (and Enter on a reference): open the live file, or the canvas at `blockId`. `reason: "request"` = Request access (5c), `"share"` = Change access (2d) |
+| canvas → host | `UI_LiveBlockUsage` | `{ fileId, show? }`: "Where it's used" (`show: true`: show your list), or the first-edit hint asking for a count: answer `Action_LiveBlockUsage {fileId, places: [title…]}` within 1.5 s, or the hint has no count |
+| canvas → host | `UI_LiveBlockLink` | `{ fileId }`: "Copy link" on a live block (the editor copies `[host.live] link` when set) |
+| canvas → host | `UI_Resize` | `{ height }`: the compact `view="block"` embed's content height in CSS px, at most once per animation frame (LIVE-06) |
 | canvas → host | `UI_StartNew` | `{}`: "Start a new canvas" on the ended screen of a temporary canvas with room wording (§8a, ADR-049). Open a fresh canvas, for example by reloading your page |
 | host → canvas | `Host_PostmessageReady` | `{}` |
 | host → canvas | `Action_Commit` | `{ message? }` |
@@ -348,6 +367,9 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_RefreshToken` | `{ token }` |
 | host → canvas | `Action_Export` | `{ format }` |
 | host → canvas | `Action_Theme` | `{ theme: "light"\|"dark"\|tokens }` |
+| host → canvas | `Action_InsertLiveBlock` | `{ fileId, title? }`: insert this live block where the person was (after `UI_PickLiveBlock`). The editor checks the 50-reference limit and depth first |
+| host → canvas | `Action_LiveBlockPicker` | `{ state: "open" \| "cancel" }`: your picker opened or was dismissed |
+| host → canvas | `Action_LiveBlockUsage` | `{ fileId, places: [string] }`: the canvases and places a live block is shown in (your index from `live.embedded`) |
 | host → canvas | `Action_ScrollToBlock` | `{ blockId }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". |
 
 Origins are checked against `allowed_origins` both ways.

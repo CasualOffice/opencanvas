@@ -35,6 +35,8 @@ import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
 import { ExtBlock } from "../ext/node";
 import { BlockRef, LiveBlock } from "../live/node";
+import { liveCfg, makeStore, parseBlockLink, insertRef, type BlockLink } from "../live/state";
+const MakeLive = lazy(() => import("../live/make"));
 import { galleryStore } from "../ext/model";
 const BlockGallery = lazy(() => import("../ext/Gallery"));
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
@@ -49,7 +51,11 @@ const CollaborationCaret = CollaborationCaretBase.extend({
       ...(listener ? [listener] : []),
       yCursorPlugin(o.provider.awareness, {
         awarenessStateFilter: caretFilter,
-        cursorBuilder: (u) => o.render(u as Record<string, string>),
+        // LIVE-02/03 (ADR-069): the server's `from {fileId, title}` says where a person is.
+        cursorBuilder: (u, clientId: number) => {
+          const from = o.provider.awareness.getStates().get(clientId)?.from as { fileId?: unknown; title?: unknown } | undefined;
+          return o.render({ ...(u as Record<string, string>), ...(from && typeof from.title === "string" && from.fileId !== bridge.session?.file?.id ? { fromTitle: from.title } : {}) });
+        },
         selectionBuilder: (u) => o.selectionRender(u as Record<string, string>),
       }),
       caretClampPlugin(),
@@ -73,11 +79,12 @@ import { peopleRef } from "../lib/people";
 import { nameWithDetail, accessNote, secondLine } from "@opencanvas/ui";
 
 /** A cursor label (docs/21): "Asha Rao · Design" when the name is shared, as the viewer sees it. */
-export function caretCaption(u: { id?: string; name?: string; detail?: string }): string {
+export function caretCaption(u: { id?: string; name?: string; detail?: string; fromTitle?: string }): string {
   const name = u.name ?? "";
   const people = peopleRef.current;
-  if (!people || !u.detail) return name;
-  return nameWithDetail({ id: u.id ?? "", name, detail: u.detail }, people.dupes());
+  const base = !people || !u.detail ? name : nameWithDetail({ id: u.id ?? "", name, detail: u.detail }, people.dupes());
+  // 2b: "Amara · in Leadership weekly" inside a live block.
+  return u.fromTitle ? `${base} · in ${u.fromTitle}` : base;
 }
 
 export interface EditorProps {
@@ -91,6 +98,9 @@ export interface EditorProps {
   onComment(threadId: string): void;
   /** Quick starts shown under an empty canvas (templates, database, whiteboard, import). */
   emptyState?: EmptyAction[];
+  /** LIVE-03: the editor of a live file inside a live block. No menus, gutter, slash menu or
+   *  pasting and dropping of files: those act on the canvas (their stores are the page's). */
+  nested?: boolean;
 }
 
 export interface EmptyAction {
@@ -103,6 +113,8 @@ export interface EmptyAction {
 // ---------- paste a URL → offer link / card / embed ----------
 
 interface PasteOffer {
+  /** A link to a live file or to a block of a canvas (1d). */
+  block?: BlockLink;
   url: string;
   from: number;
   to: number;
@@ -120,6 +132,17 @@ const PasteUrl = Extension.create({
         props: {
           handlePaste(view, event) {
             const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+            const html = event.clipboardData?.getData("text/html") ?? null;
+            // 1d: a block link asks Live block / Reference / Link.
+            const block = liveCfg.get().enabled && view.state.selection.empty ? parseBlockLink(text, html, liveCfg.get().link) : null;
+            if (block && text && !/\s/.test(text) && !view.state.selection.$from.parent.type.spec.code) {
+              const { from } = view.state.selection;
+              editor.chain().insertContent({ type: "text", text, marks: /^https?:\/\//.test(text) ? [{ type: "link", attrs: { href: text } }] : [] }).run();
+              const to = from + text.length;
+              const c = view.coordsAtPos(to);
+              pasteStore.set({ url: text, from, to, block, rect: new DOMRect(c.left, c.top, 1, c.bottom - c.top) });
+              return true;
+            }
             if (!/^https?:\/\/\S+$/.test(text) || !view.state.selection.empty) return false;
             const { from } = view.state.selection;
             if (view.state.selection.$from.parent.type.spec.code) return false;
@@ -313,9 +336,7 @@ export function CanvasEditor(p: EditorProps) {
         LiveBlock,
         BlockRef,
         CommentMark,
-        FileDrop,
-        PasteUrl,
-        EditorKeys,
+        ...(p.nested ? [] : [FileDrop, PasteUrl, EditorKeys]),
       ]),
     },
     [p.doc],
@@ -327,6 +348,7 @@ export function CanvasEditor(p: EditorProps) {
 
   // Slash menu, @mentions, autolink and link-on-paste: plugins only, right after first paint.
   useEffect(() => {
+    if (p.nested) return;
     let off = false;
     const t = window.setTimeout(() => {
       void import("./late")
@@ -386,8 +408,9 @@ export function CanvasEditor(p: EditorProps) {
   }, [editor, p.awareness]);
 
   // Table tools follow the caret into a table (WEB-02).
-  useEffect(() => trackTable(editor), [editor]);
+  useEffect(() => (p.nested ? undefined : trackTable(editor)), [editor, p.nested]);
 
+  const make = useStore(makeStore);
   const menu = useStore(blockMenuStore);
   const link = useStore(linkStore);
   const table = useStore(tableStore);
@@ -399,9 +422,21 @@ export function CanvasEditor(p: EditorProps) {
     }
   }, [editable]);
 
+  if (p.nested)
+    return (
+      <>
+        <EditorContent editor={editor} />
+        <PeerBars editor={editor} awareness={p.awareness} />
+      </>
+    );
   return (
     <>
       <EditorContent editor={editor} />
+      {make && make.editor === editor ? (
+        <Suspense fallback={null}>
+          <MakeLive editor={editor} pos={make.pos} />
+        </Suspense>
+      ) : null}
       {editable && p.emptyState ? <EmptyState editor={editor} actions={p.emptyState} /> : null}
       <Suspense fallback={null}>
         {editable && !compact ? <Gutter editor={editor} /> : null}
@@ -520,6 +555,7 @@ function PasteMenu({ editor }: { editor: Editor }) {
   const o = useStore(pasteStore);
   if (!o) return null;
   const close = () => pasteStore.set(null);
+  if (o.block) return <PasteBlock editor={editor} o={o} />;
   const embed = resolveEmbed(o.url);
   const replace = (node: object) => {
     close();
@@ -549,6 +585,67 @@ function PasteMenu({ editor }: { editor: Editor }) {
         <button className="mi" disabled={!embed} title={embed ? undefined : "Only YouTube, Vimeo, Loom, Figma and Maps can be embedded"} onClick={() => embed && replace({ type: "embed", attrs: { provider: embed.provider, url: o.url, title: hostOf(o.url) } })}>
           <Ic name="circle-play" />
           Embed
+        </button>
+      </div>
+    </Popover>
+  );
+}
+
+/** 1d: a pasted block link becomes a live block, a reference or stays a link. */
+function PasteBlock({ editor, o }: { editor: Editor; o: PasteOffer }) {
+  const close = () => pasteStore.set(null);
+  const l = o.block!;
+  // A link to a block of an ordinary canvas cannot become a live block (1d).
+  const liveOk = !l.blockId || !!l.live;
+  const refOk = !!l.blockId;
+  const first = liveOk && (l.live || !l.blockId) ? "live" : refOk ? "ref" : "link";
+  const take = (what: "live" | "ref" | "link") => {
+    close();
+    if (what === "link") return;
+    const $p = editor.state.doc.resolve(o.from);
+    const blockEmpty = editor.state.doc.textBetween($p.before(1), $p.after(1)).trim() === o.url;
+    const range = blockEmpty ? { from: $p.before(1), to: $p.after(1) } : { from: o.from, to: o.to };
+    insertRef(editor, what === "ref" ? { fileId: l.fileId, refBlockId: l.blockId } : { fileId: l.fileId }, range);
+  };
+  const takeRef = useRef(take);
+  takeRef.current = take;
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault();
+        e.stopPropagation();
+        takeRef.current(first);
+      }
+    };
+    window.addEventListener("keydown", k, true);
+    return () => window.removeEventListener("keydown", k, true);
+  }, [first]);
+  return (
+    <Popover anchor={o.rect} onClose={close} title="Paste link" minWidth={260} autoFocus={false} className="lb-paste">
+      <div onMouseDown={(e) => e.preventDefault()}>
+        <div className="mh">Paste as</div>
+        <button className="mi" disabled={!liveOk} onClick={() => take("live")}>
+          <Ic name="radio" />
+          <span className="pl">
+            <span>Live block</span>
+            <span className="p2">{liveOk ? "Edit it here; changes show everywhere" : "Make it live in its canvas first"}</span>
+          </span>
+          {first === "live" ? <span className="mk">↵</span> : null}
+        </button>
+        <button className="mi" disabled={!refOk} onClick={() => take("ref")}>
+          <Ic name="link-2" />
+          <span className="pl">
+            <span>Reference</span>
+            <span className="p2">{refOk ? "Read only, updates when the source changes" : "Copy a link to one block for a reference"}</span>
+          </span>
+          {first === "ref" ? <span className="mk">↵</span> : null}
+        </button>
+        <button className="mi" onClick={() => take("link")}>
+          <Ic name="link" />
+          <span className="pl">
+            <span>Link</span>
+            <span className="p2">Just the address</span>
+          </span>
         </button>
       </div>
     </Popover>

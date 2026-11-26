@@ -40,7 +40,7 @@ SOURCES = ["routes/v1/*.rs", "routes/api.rs", "routes/import.rs", "routes/export
 # exports (editor routes), the room's own
 # restore answers, CSV values, and the editor-only live block session routes (LIVE-01).
 NOT_API = {"TICKET_INVALID", "TRUE", "VERSION_INVALID", "BOARD_NOT_FOUND", "LIVE_NOT_EMBEDDED",
-           "LIVE_NO_ACCESS"}
+           "LIVE_NO_ACCESS", "LIVE_GONE"}
 
 
 def source_codes() -> set[str]:
