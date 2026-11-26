@@ -10,7 +10,7 @@ import type { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { bridge } from "./bridge";
 import { createStore, toast } from "./store";
-import { pendingPreviews } from "./assets";
+import { pendingPreviews, pendingSizes } from "./assets";
 
 /** OFF-05: while offline with a kept copy, uploads wait on the device (`oc-pending:<id>`). */
 export const offlineUploads: { queue: ((f: File) => Promise<{ ref: string; by: string } | null>) | null } = { queue: null };
@@ -63,6 +63,7 @@ async function run(id: string) {
   if (queued) {
     const base = u.kind === "image" ? { src: queued.ref } : { url: queued.ref, mime: u.file.type, size: u.file.size, name: u.file.name };
     if (u.preview) pendingPreviews.set(queued.ref, u.preview);
+    pendingSizes.set(queued.ref, u.file.size);
     finish(u.editor, id, { ...base, pendingBy: queued.by });
     patch(id, null);
     return;

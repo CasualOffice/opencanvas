@@ -222,6 +222,35 @@ describe("the merge summary", () => {
     sync(me, them);
     expect(analyze(before, me, t)).toEqual([]);
   });
+
+  // OFF-08 fuzz: a move (y-prosemirror deletes the block and inserts a copy with the same
+  // blockId) dropped the offline edit without a word.
+  it("offers back text edited inside a block someone moved", () => {
+    const me = new Y.Doc();
+    const them = new Y.Doc();
+    para(me, "b_goal", "Sprint goal");
+    para(me, "b_risk", "The sandbox is shared");
+    sync(me, them);
+    const t = track(me, () => true);
+    ((me.getXmlFragment("content").get(1) as Y.XmlElement).get(0) as Y.XmlText).insert(21, ". Noor confirmed");
+    t.stop();
+    const before = Y.encodeStateAsUpdate(me);
+    // Them: move "b_risk" to the top.
+    const theirs = them.getXmlFragment("content");
+    const copy = (theirs.get(1) as Y.XmlElement).clone();
+    them.transact(() => {
+      theirs.delete(1, 1);
+      theirs.insert(0, [copy]);
+    });
+    sync(me, them);
+    expect(me.getXmlFragment("content").toString()).not.toContain("Noor confirmed");
+    const items = analyze(before, me, t);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "deleted", blockId: "b_risk", moved: true, prevId: "b_goal", text: "The sandbox is shared. Noor confirmed" });
+    if (items[0].kind !== "deleted") throw new Error("deleted");
+    expect(restoreBlock(before, me, items[0], "b_new", "Priya")).toBe("b_new");
+    expect(me.getXmlFragment("content").toString()).toContain("Noor confirmed");
+  });
 });
 
 describe("download my version", () => {

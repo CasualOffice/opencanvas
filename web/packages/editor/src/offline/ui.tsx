@@ -319,8 +319,8 @@ function Merge({ m, me, doc, onClose, onHistory, nameOf }: { m: MergeSummary; me
               </section>
             ) : (
               <section key={i} className="off-card">
-                <b>You edited a block that was deleted</b>
-                <p>“{it.title}” was removed while you were offline. Your edit to it is not in the canvas:</p>
+                <b>{it.moved ? "You edited a block that was moved" : "You edited a block that was deleted"}</b>
+                <p>{it.moved ? <>“{it.title}” was moved while you were offline, and your edit didn’t go with it:</> : <>“{it.title}” was removed while you were offline. Your edit to it is not in the canvas:</>}</p>
                 <blockquote>{it.text.length > 240 ? "… " + it.text.slice(-240) : it.text}</blockquote>
                 <div className="off-acts">
                   <button className="btn sm primary" onClick={() => restore(it, i)}>

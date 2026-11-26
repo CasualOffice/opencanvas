@@ -17,7 +17,7 @@ import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from 
 import { createStore, toast, useStore } from "../lib/store";
 import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
-import { resolveAsset } from "../lib/assets";
+import { pendingPreviews, pendingSizes, resolveAsset } from "../lib/assets";
 import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
 import { Popover } from "../components/overlay";
 import { keyLabel } from "../lib/keys";
@@ -786,6 +786,7 @@ function ImageView({ node, updateAttributes, editor, selected, getPos }: ReactNo
     }
   };
   const shown = up?.preview ?? src;
+  const pendingMine = pendingPreviews.has(src) || (!!node.attrs.pendingBy && node.attrs.pendingBy === b.session?.user?.id);
   const width = clampWidth(node.attrs.width);
   const align = (["left", "center", "right"].includes(String(node.attrs.align)) ? node.attrs.align : "center") as ImageAlign;
   const figRef = useRef<HTMLElement>(null);
@@ -908,6 +909,13 @@ function ImageView({ node, updateAttributes, editor, selected, getPos }: ReactNo
             </button>
           )}
         </div>
+        {typeof src === "string" && src.startsWith("oc-pending:") ? (
+          // OFF-05, prototype 1b/4a: an image added offline says where its bytes are.
+          <figcaption className={"fpending" + (pendingMine ? "" : " r")} contentEditable={false}>
+            <Ic name={pendingMine ? "hard-drive" : "loader-circle"} size={14} />
+            {pendingMine ? ["Waiting to upload", fmtSize(pendingSizes.get(src) ?? 0), "kept on this device"].filter(Boolean).join(" · ") : "Uploading from the device it was added on…"}
+          </figcaption>
+        ) : null}
         <CaptionInput value={caption} editable={editor.isEditable} onChange={(v) => updateAttributes({ caption: v })} />
       </figure>
     </NodeViewWrapper>

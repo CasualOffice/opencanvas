@@ -20,6 +20,26 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 - `tests/automation_cluster.rs`: three nodes on Redis and MySQL/MariaDB (schedule once, also
   when a node dies; row changes once; loop guard, daily limit and auto-pause cluster-wide; no
   duplicate runs). CI job `automation-cluster` (MySQL 8.4, MariaDB 10.11).
+- Offline (OFF-08): a canvas kept offline whose copy had expired lost its unsent changes on
+  reconnect. The locked copy was never read into the document, so the replay sent nothing and
+  then dropped the changes as sent. It is now read before anything is sent or held.
+- Offline (OFF-08): a canvas locked by expiry while open kept its content in the page, hidden.
+  The locked view (5c) now renders the title only, and drops the "You can view this canvas"
+  banner while locked or paused.
+- Offline merge summary (OFF-08): text you edited offline in a block someone else moved was lost
+  without a word, because a move deletes the block and inserts a copy with the same id. The
+  summary now compares blocks by their Yjs item, offers the text back ("You edited a block that
+  was moved"), and no longer counts deleting a block as editing it.
+- Offline uploads (OFF-08): an image added offline shows the prototype's caption, "Waiting to
+  upload · size · kept on this device" (others see "Uploading from the device it was added on").
+
+### Added
+
+- OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board
+  objects, block deletes and moves, comments; the real replay frames, cut connections, the
+  pending log and the merge summary; seeds 1, 7, 42 and `OC_FUZZ_SEED`, a long run behind
+  `OC_FUZZ_LONG=1`), and Playwright `zf-offline-2` (expiry by the browser clock, queued upload end
+  to end, the 5 MB pause).
 
 ## [0.3.0] - 2026-11-26
 

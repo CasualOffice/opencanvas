@@ -7429,7 +7429,7 @@ The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is
 
 ## Unreleased
 
-Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running".
+Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running". Added OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board objects, block deletes and moves, comments; the real replay frames, cut connections, the pending log and the merge summary; seeds 1, 7, 42 and OC_FUZZ_SEED , a long run behind OC_FUZZ_LONG=1 ), and Playwright zf-offline-2 (expiry by the browser clock, queued upload end to end, the 5 MB pause).
 
 ## 0.3.0 (2026-11-26)
 
