@@ -9,6 +9,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Crash drills (RLB-01, docs/13 "Crash drills"): `scripts/crash-drill.sh` kills the server
+  with `kill -9` during edits, during in-flight saves and during migrations, on SQLite and
+  MySQL/MariaDB, and checks that no acknowledged edit is lost. A reduced drill runs nightly.
 - Benchmarks page on the site (BENCH-05): every result in `bench/results/` with its hardware, store and
   load mix beside the numbers; `local` runs marked as such. `/metrics` adds `oc_alloc_allocated_bytes`
   and `oc_alloc_resident_bytes`. The server raises its soft open-file limit to the hard limit at start
@@ -18,8 +21,6 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   flake, no timeout raises, a dated quarantine list that must be empty at release. A reliability
   nightly runs the Rust tests five times (`scripts/repeat-tests.sh`) and the browser suite with
   `--repeat-each=3`; CI runs new or changed specs five times.
-- Fixed: a date or recurring automation skipped its run when the canvas was opened after the
-  slot's time and before the next sweep (the room moved the due slot to the next day).
 - Benchmark results after PERF-11/12: X10K short passes (p99 ≤ 64 ms per bucket, was 11.3 s);
   R1K short at `OC_MAX_PEERS=1000` (scenario now sets it) passes latency (p99 ≤ 81 ms) and fails
   its RSS drift rule (docs/36 §4.1).
@@ -47,6 +48,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- MySQL/MariaDB: a server killed in the middle of a migration never started again ("migration
+  N is partially applied"); the next start now finishes the migration (RLB-01).
+- A date or recurring automation skipped its run when the canvas was opened after the slot's
+  time and before the next sweep (the room moved the due slot to the next day; RLB-04).
 - Memory stayed resident after rooms closed (alloc_release, PERF-11): the grouped snapshot writer
   committed up to 8 MB per transaction (now 1 MB), and save builds left their freed blocks in
   idle blocking threads' caches (now flushed).

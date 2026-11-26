@@ -42,6 +42,46 @@ async fn nodes_starting_together_on_an_empty_database_all_start() {
     }
 }
 
+/// RLB-01: `kill -9` in the middle of a MySQL migration (DDL commits statement by statement)
+/// left `_sqlx_migrations` with a dirty row, and every later start failed with "migration N is
+/// partially applied" (scripts/crash-drill.sh, kill at 60-500 ms). The next start must finish
+/// the migration: here 0012 ran its first statement only.
+#[tokio::test]
+async fn a_migration_killed_halfway_is_finished_at_the_next_start() {
+    let Ok(url) = std::env::var("OC_TEST_MYSQL_URL") else {
+        eprintln!("OC_TEST_MYSQL_URL not set: MySQL only (SQLite migrations are transactional)");
+        return;
+    };
+    let db = fresh_mysql_db(&url).await;
+    drop(Store::connect(&db, kek()).await.unwrap());
+    let pool = sqlx::AnyPool::connect(&db).await.unwrap();
+    for sql in [
+        "DROP TABLE room_part_snapshots",
+        "UPDATE _sqlx_migrations SET success = FALSE WHERE version = 12",
+    ] {
+        sqlx::query(sql).execute(&pool).await.unwrap();
+    }
+    pool.close().await;
+    let store = Store::connect(&db, kek())
+        .await
+        .map_err(|e| format!("{e:#}"))
+        .unwrap();
+    // The table the kill cut off exists again.
+    store.purge_expired(0).await.unwrap();
+    let pool = sqlx::AnyPool::connect(&db).await.unwrap();
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM room_part_snapshots")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+    let dirty: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE success = FALSE")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(dirty, 0);
+}
+
 /// A new, empty database on the MySQL/MariaDB server of `url`. Each test gets its own, as
 /// each gets its own SQLite file: tests run in parallel, and one that sweeps tables (for
 /// example `purge_expired`, which drops week-old `room_epochs` rows, and every test's rows
