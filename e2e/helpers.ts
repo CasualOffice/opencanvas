@@ -91,6 +91,9 @@ export async function setAccess(owner: Person, fileId: string, user: UserId, rol
 export async function openFile(p: Person, fileId: string, host = HOST) {
   await p.page.goto(`${host}/files/${fileId}?as=${p.user}`);
   await expect(p.oc.locator(".ProseMirror, .tgrid").first()).toBeVisible({ timeout: 15_000 });
+  // A reopened canvas gives its blocks their ids in a second render (VH-00); text typed before
+  // that lands in replaced nodes, and an "@" typed there never keeps its picker (p-people on CI).
+  if (await p.oc.locator(".ProseMirror").first().isVisible()) await blocksReady(p.oc);
 }
 
 export const editor = (p: Person) => p.oc.locator(".ProseMirror");
