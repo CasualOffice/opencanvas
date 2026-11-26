@@ -174,6 +174,18 @@ pub fn process_metrics() -> String {
             ));
         }
     }
+    // Live heap vs pages the allocator holds (docs/22 §9.6): tells a leak from retained pages.
+    #[cfg(feature = "jemalloc")]
+    {
+        use tikv_jemalloc_ctl::{epoch, stats};
+        if epoch::advance().is_ok()
+            && let (Ok(a), Ok(r)) = (stats::allocated::read(), stats::resident::read())
+        {
+            out.push_str(&format!(
+                "# TYPE oc_alloc_allocated_bytes gauge\noc_alloc_allocated_bytes {a}\n# TYPE oc_alloc_resident_bytes gauge\noc_alloc_resident_bytes {r}\n"
+            ));
+        }
+    }
     out
 }
 

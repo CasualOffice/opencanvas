@@ -15,6 +15,7 @@ pub mod config;
 pub mod crypto;
 pub mod editor;
 pub mod events;
+pub mod fdlimit;
 pub mod grant;
 pub mod history;
 pub mod host_client;

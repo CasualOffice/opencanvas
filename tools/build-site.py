@@ -122,6 +122,7 @@ DOC_DESCRIPTIONS = {
     "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
     "ai": "The OpenCanvas assistant and MCP endpoint: what they may do, what is sent to the model server, the threat model, limits and operator configuration.",
+    "benchmarks": "Benchmark results for OpenCanvas with the hardware, store and load mix of every run: edit latency, memory and reconnect times per scenario.",
     "capacity": "Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.",
     "architecture": "How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.",
     "collaboration": "How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.",
@@ -200,6 +201,105 @@ def howto_run_it() -> dict:
             "description": "Build the editor, start the OpenCanvas server and the sample host, and open a file in two tabs.",
             "url": url, "inLanguage": "en",
             "step": [{"@type": "HowToStep", "position": i + 1, "text": t, "url": url} for i, t in enumerate(steps)]}
+
+
+BENCH = ROOT / "bench" / "results"
+
+
+def _num(v) -> str:
+    if isinstance(v, float):
+        return f"{v:,.1f}".rstrip("0").rstrip(".")
+    if isinstance(v, int):
+        return f"{v:,}"
+    if isinstance(v, dict):
+        return ", ".join(f"{k} {_num(x)}" for k, x in v.items())
+    return str(v)
+
+
+def _hardware(d: dict) -> str:
+    h = d.get("hardware", {})
+    return (f"{h.get('cpu', '?')}, {h.get('vcpu', '?')} vCPU, {h.get('ramGb', '?')} GB RAM, "
+            f"{h.get('os', '?')}, {h.get('storage', '?')}; machine `{d.get('machine', '?')}`")
+
+
+def benchmark_markdown() -> str:
+    """BENCH-05: every result in bench/results/, newest first, each with its hardware and load
+    mix beside its numbers. Results marked `local` ran on a developer machine, not the 4 vCPU /
+    8 GB reference node."""
+    out = [
+        "Every number below comes from a result file in `bench/results/`, produced by "
+        "`scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, "
+        "the store and the load mix. **Results marked `local` ran on a developer laptop in short "
+        "form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** "
+        "The capacity page has the sizing guidance.",
+        "",
+    ]
+    def added(p: pathlib.Path) -> int:
+        # When the result was committed (newest first); not yet committed counts as newest.
+        import subprocess
+        out = subprocess.run(["git", "log", "-1", "--format=%ct", "--", p.relative_to(ROOT).as_posix()],
+                             cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        return int(out) if out else 1 << 62
+
+    files = sorted(BENCH.glob("*.json"), key=lambda p: (added(p), p.name), reverse=True)
+    for f in files:
+        d = json.loads(f.read_text(encoding="utf8"))
+        name = d.get("scenario", f.stem)
+        size = d.get("size", "")
+        out += [f"## {name} {size} — {f.stem}".replace("  ", " "), ""]
+        out.append(f"- **Run:** {d.get('date', '?')}, commit `{d.get('commit', '?')}`"
+                   f"{' (uncommitted changes)' if d.get('dirty') else ''}; {_hardware(d)}; store `{d.get('store', '?')}`")
+        if d.get("serverEnv"):
+            out.append(f"- **Server settings:** " + ", ".join(f"`{k}={v}`" for k, v in d["serverEnv"].items()))
+        if "mix" in d:
+            load, mix = d.get("load", {}), d["mix"]
+            st = mix.get("stated", {})
+            out.append(f"- **Load mix:** {_num(load.get('connections', 0))} connections over "
+                       f"{_num(load.get('rooms', 0))} rooms (docs {load.get('docs', '?')}); roles "
+                       f"{_num(mix.get('roles', {}))}; presence {_num(st.get('presence_hz', 0))}/s, "
+                       f"typing {_num(st.get('typing_hz', 0))} edits/s; {_num(d.get('minutes', 0))} min, "
+                       f"{_num(d.get('bucketSecs', 0))} s buckets"
+                       + (f"; faults: " + ", ".join(f"{x['kind']} at {_num(x['atSecs'])} s" for x in d.get("faults", [])) if d.get("faults") else ""))
+        elif "profile" in d:
+            p = d["profile"]
+            out.append(f"- **Load:** {d.get('load', '')}; {d.get('browser', '')}, CPU throttle "
+                       f"{p.get('cpuThrottle', '?')}×, {p.get('downMbit', '?')} Mbit/s, {p.get('rttMs', '?')} ms RTT")
+        out.append("")
+        if "pass" in d:
+            out += [f"Verdict: **{'pass' if d.get('passed') else 'fail'}**.", "",
+                    "| Rule | Measured | Verdict |", "|---|---|---|"]
+            for r in d["pass"]:
+                out.append(f"| {r['rule']} | {_num(r['value'])} | {'pass' if r['pass'] else 'fail'} |")
+            out.append("")
+        if d.get("buckets"):
+            out += ["| t (s) | live | p50 ms | p99 ms | server RSS MB | fault |", "|---|---|---|---|---|---|"]
+            for b in d["buckets"]:
+                lat = b.get("latMs", {})
+                out.append(f"| {b.get('tSecs')} | {_num(b.get('live', 0))} | {_num(lat.get('p50', 0))} | "
+                           f"{_num(lat.get('p99', 0))} | {_num(b.get('server', {}).get('rssMb') or 0)} | {b.get('fault') or ''} |")
+            out.append("")
+        if d.get("fixtures"):
+            out += ["| Fixture | First screen median ms | Worst ms | Heap MB |", "|---|---|---|---|"]
+            for k, v in d["fixtures"].items():
+                fs = v.get("firstScreenMs", {})
+                out.append(f"| {k} | {_num(fs.get('median', 0))} | {_num(fs.get('worst', 0))} | {_num(v.get('heapMb', 0))} |")
+            out.append("")
+        if d.get("initialJs"):
+            j = d["initialJs"]
+            out += [f"Initial JavaScript: {_num(j.get('gzipBytes', 0))} bytes gzip (budget {_num(j.get('budgetKb', 0))} KB).", ""]
+        for n in d.get("notMeasured", []):
+            out.append(f"- Not measured: {n}")
+        out.append("")
+    return "\n".join(out)
+
+
+def benchmarks_doc(slug: str, title: str) -> str:
+    body = sitelib.markdown(benchmark_markdown(), root="../")
+    lede = f'<p class="lede">{html.escape(DOC_DESCRIPTIONS[slug])}</p>'
+    article = f"<h1>{html.escape(title)}</h1>\n{lede}\n{body}"
+    files = [p.relative_to(ROOT).as_posix() for p in BENCH.glob("*.json")]
+    return sitelib.docs_page(slug, title, DOC_DESCRIPTIONS[slug], article, source="bench/results",
+                             modified=sitelib.git_date(*files))
 
 
 def markdown_doc(slug: str, title: str, source: str) -> str:
@@ -288,7 +388,9 @@ def build() -> dict[str, bytes]:
                                   graph=graph, trail=trail, modified=modified, seo_title=meta.get("seo_title", ""),
                                   noindex=rel == "404.html")
     for slug, title, _group, source in sitelib.available_docs():
-        if source:
+        if source == "bench/results":
+            pages[f"docs/{slug}.html"] = benchmarks_doc(slug, title)
+        elif source:
             pages[f"docs/{slug}.html"] = markdown_doc(slug, title, source)
         else:
             src = SRC / "docs" / f"{slug}.html"
@@ -455,7 +557,9 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
     full = [f"# OpenCanvas documentation (full text)\n\nSource: {sitelib.REPO}. Generated from the repository's README.md and docs/*.md. "
             f"OpenCanvas {version}, released {released}; last updated {updated}.\n"]
     for slug, title, _g, source in sitelib.available_docs():
-        if source:
+        if source == "bench/results":
+            full.append(f"\n\n# {title}\n\nURL: {base}docs/{slug}.html\nSource files: bench/results/*.json\n\n{benchmark_markdown().strip()}\n")
+        elif source:
             file, text = _md_body(source)
             full.append(f"\n\n# {title}\n\nURL: {base}docs/{slug}.html\nSource file: {file}\n\n{text.strip()}\n")
         else:

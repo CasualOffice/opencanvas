@@ -361,6 +361,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-26 | BENCH-05 benchmarks page; allocator gauges; open-file limit raised at start (PERF-11) | Site checks (links, claims, SEO) green. R1K at 1,000: live heap (`oc_alloc_allocated_bytes`) grows in 50–80 MB steps (186 → 420 MB in 4 min), cause open |
 | 2026-11-26 | X10K short and R1K short (`OC_MAX_PEERS=1000`) after PERF-11/12 (601d2a7), quiet Mac | X10K PASS: p99 50–64 ms per bucket (baseline 11,329 ms), back in 37 s, RSS peak 3.2 GB. R1K: 1,000 joined, p99 53–81 ms, RSS drift FAIL (+62%: one step at the last sample; reruns −25%, +27%). Fan-out sharding not needed for latency |
 | 2026-11-26 | PERF-11 alloc_release regression after 641d74f | RSS after eviction 82–86 MB (limit 75) → 63–70 MB: snapshot groups capped at 1 MB, blocking-thread cache flushed after a save build; alloc_release, rooms, durability, partial_sync, cluster green |
 | 2026-11-26 | PERF-11 X10K profile (short, local, loaded Mac) and `OC_MAX_PEERS` | Baseline re-run worst p99 20,044 ms; autosave out of window 1,747 ms; sample: ~50% of actor CPU in inline `prepare_save`. Cap configurable to 1,000 (default 550); config unit test seen failing first |
