@@ -27,7 +27,13 @@ pub use webhooks::{WebhookRow, WebhookState};
 /// A person would need this many revokes between the backup and the restore to get past it.
 const RESTORE_GEN_JUMP: u64 = 1_000_000;
 
-static SQLITE: Migrator = sqlx::migrate!("../../migrations/sqlite");
+/// RLB-08: migrations are additive within a release pair, so a release starts on a database a
+/// newer release migrated (a downgrade) instead of refusing its unknown versions.
+fn sqlite_migrator() -> Migrator {
+    let mut m = sqlx::migrate!("../../migrations/sqlite");
+    m.set_ignore_missing(true);
+    m
+}
 
 /// MySQL/MariaDB migrations under one named lock with a finite wait, taken and released on the
 /// connection that runs them. sqlx's own lock did not hold on MariaDB: nodes starting together
@@ -43,6 +49,7 @@ async fn mysql_migrate(pool: &AnyPool) -> Result<(), sqlx::migrate::MigrateError
     }
     let mut m = sqlx::migrate!("../../migrations/mysql");
     m.set_locking(false);
+    m.set_ignore_missing(true);
     let r = match finish_dirty_mysql(&m, &mut conn).await {
         Ok(()) => m.run_direct(None, &mut *conn, false).await,
         Err(e) => Err(e.into()),
@@ -403,7 +410,7 @@ impl Store {
         let mut attempt = 0;
         loop {
             let run = if sqlite {
-                SQLITE.run(&pool).await
+                sqlite_migrator().run(&pool).await
             } else {
                 mysql_migrate(&pool).await
             };

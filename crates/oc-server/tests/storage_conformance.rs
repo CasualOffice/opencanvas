@@ -82,6 +82,28 @@ async fn a_migration_killed_halfway_is_finished_at_the_next_start() {
     assert_eq!(dirty, 0);
 }
 
+/// RLB-08: a downgrade. A newer release applied a migration this one does not know (additive,
+/// by policy); this release must still start on that database instead of refusing with
+/// "migration 999 was previously applied but is missing".
+#[tokio::test]
+async fn a_database_migrated_by_a_newer_release_still_opens() {
+    let url = format!("sqlite://{}?mode=rwc", temp_db().display());
+    drop(Store::connect(&url, kek()).await.unwrap());
+    let pool = sqlx::AnyPool::connect(&url).await.unwrap();
+    sqlx::query(
+        "INSERT INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time) \
+         VALUES (999, 'from a newer release', CURRENT_TIMESTAMP, TRUE, X'00', 0)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    pool.close().await;
+    Store::connect(&url, kek())
+        .await
+        .map_err(|e| format!("{e:#}"))
+        .unwrap();
+}
+
 /// RLB-03 restore epoch: the backup has u_a at generation 1 and no row for u_b; after it was
 /// taken, u_a was revoked twice more (devices hold grants up to 2) and u_b once. Restored, both
 /// must read a generation above anything issued before the restore, so those devices stay

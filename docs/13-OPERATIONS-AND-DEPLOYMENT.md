@@ -443,6 +443,22 @@ under load (50 rooms × 2), revokes devices after the backup, restores, starts w
 `OC_RESTORED=1`, and checks that the server is ready, the database is intact, the epoch is set
 above every generation issued before, and a new load converges and reaches the host (RLB-A4).
 
+## Upgrades and downgrades (RLB-08)
+
+Migrations are additive within a release pair: new tables, new columns with defaults, new
+indexes. Nothing an older release reads is dropped or renamed. From 0.4 on, a release starts
+on a database that a newer release migrated, ignoring the migrations it does not know. A
+rolling downgrade from 0.5 to 0.4 then needs no database step.
+
+**0.4 to 0.3** is the exception. 0.3.x refuses a database with migrations 0012 and 0013
+("previously applied but is missing"). Before you upgrade, take a backup (see "Backup and
+restore"). To downgrade, either restore it and start once with `OC_RESTORED=1`, or delete the
+two rows (`DELETE FROM _sqlx_migrations WHERE version IN (12, 13)`). Both migrations are
+additive, so 0.3 runs on the newer schema.
+
+Status: the 0.3 ↔ 0.4 rolling drill under load is not yet run (it needs the cluster on
+Docker). Only the start-on-a-newer-database rule is tested.
+
 ## Crash drills (RLB-01)
 
 `scripts/crash-drill.sh [--reduced] [edits|save|migration]` runs single-node `kill -9` drills
