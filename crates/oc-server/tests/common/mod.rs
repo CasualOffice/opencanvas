@@ -657,6 +657,7 @@ pub fn grant(user: &str, role: Role) -> Grant {
             print: true,
             live: false,
             offline: false,
+            automate: false,
             offline_reason: None,
         },
         callback_token: format!("cb-{user}"),

@@ -436,6 +436,13 @@ pub async fn session_info(
         "templates": {"team": host.team_templates()},
         // SRCH-04 (ADR-065): "Search all canvases" only when the host has the callback.
         "search": {"enabled": state.search_probe.available(&host)},
+        // AUTO-06 (ADR-067): the automation panel; `canEdit` = edit access and perms.automate.
+        "automation": {
+            "enabled": crate::automation::AutomationCfg::of(&host).enabled,
+            "canEdit": grant.role == crate::grant::Role::Edit && grant.perms.automate,
+            "history": grant.role == crate::grant::Role::Edit,
+            "limits": super::v1::automation::limits_json(&host),
+        },
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,

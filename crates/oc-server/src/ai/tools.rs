@@ -139,7 +139,7 @@ impl std::fmt::Display for ToolError {
 mod forward;
 mod live;
 mod read;
-mod write;
+pub mod write;
 
 pub use forward::{ToolForward, serve_forward};
 pub use live::{LiveTools, phase1_specs, role_allows};

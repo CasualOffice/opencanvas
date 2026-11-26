@@ -3,6 +3,7 @@
 
 //! OpenCanvas document model: Y.Doc layout helpers, `.ocanvas` files and exports.
 
+pub mod automation;
 pub mod board;
 pub mod diagram_export;
 pub mod diagram_import;
@@ -50,5 +51,16 @@ pub mod roots {
     pub const ICONS: &str = "icons";
     /// BSDK-02 (ADR-040): SDK block data, `{dataId → Y.Map}` with one key per field.
     pub const EXT: &str = "ext";
-    pub const MAPS: [&str; 7] = [META, DATABASES, BOARDS, COMMENTS, ASSETS, PEOPLE, EXT];
+    /// AUTO-01 (ADR-067): automation rules, `{ruleId → Y.Map}` with one key per rule field.
+    pub const AUTOMATIONS: &str = "automations";
+    pub const MAPS: [&str; 8] = [
+        META,
+        DATABASES,
+        BOARDS,
+        COMMENTS,
+        ASSETS,
+        PEOPLE,
+        EXT,
+        AUTOMATIONS,
+    ];
 }

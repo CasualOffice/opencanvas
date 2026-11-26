@@ -1105,6 +1105,60 @@ unsent_mb    = 5          # unsent changes per canvas before editing pauses (1-5
 `auto_recent` above `max_canvases`, and `enabled = true` on a WOPI-only host refuse to start,
 naming the host.
 
+### 2e. Automation (AUTO-01..07, docs/34 §5, ADR-067, ADR-068; `[host.automation]`)
+
+Rules such as "when Status changes to Done, move the row to Archive and notify the owner" are
+**stored in the canvas** (the `automations` root, additive to format 1), so you store them with
+the file and they travel with copies (a copy's rules are switched off and ownerless). The
+OpenCanvas server runs them as the collaborator "Automation" **on behalf of the person who last
+saved or switched on the rule**, re-checking that person's role with your `POST /access` at every
+run (cached 30 s): below edit, the rule pauses. Without `/access`, the owner must have opened the
+canvas in the last 30 days. Automation is off until you add the table:
+
+```toml
+[host.automation]
+enabled          = true
+actions          = ["field.set", "row.move", "todo.set", "todo.add", "comment.add", "notify", "http.post"]
+allow_origins    = ["https://ci.acme.example"]  # URL calls may reach these besides your callback origin
+max_rules        = 25      # per canvas, at most 100
+runs_per_minute  = 60      # per rule
+runs_per_day     = 1000    # per canvas
+max_changes      = 50      # per run
+max_depth        = 3       # rules started by rules
+min_interval_min = 15      # schedules
+time_zone        = "Europe/Berlin"   # IANA name, UTC, or UTC+05:30; rules may name their own
+```
+
+- **Who may create rules:** editors whose launch token has `perms.automate: true` (default
+  false). Others see the rules read-only; the run history is shown to editors only. The server
+  refuses a client write to `automations` without it, an invalid rule, an action you did not
+  allow, a URL on another origin, and an enabled rule not owned by the person saving it.
+- **Automation needs a database** (SQLite, MySQL or MariaDB) for its schedule and run log;
+  with Redis-only storage the server refuses `[host.automation]` at start-up. Both tables hold
+  ids, times, counts and codes, never canvas text; runs are kept 30 days.
+- **Date and schedule rules run with nobody in the canvas.** A worker on every node claims due
+  rows (one node per slot) and opens the file the way the API does: `GET` and `PUT
+  /files/{fileId}` arrive **with no bearer token**, signed (v2) as always. Treat such a signed call
+  as your own service acting for the file. A file that does not load is retried every 5 minutes
+  for an hour, then the run is logged as failed.
+- **`notify`** calls your `POST /mentions` (§5) with `by: "automation:<ruleId>"`,
+  `onBehalfOf: <owner id>`, `mentioned`, `excerpt` (the rule's message) and
+  `automation: {ruleId, name, runId}`, with no bearer token. OpenCanvas sends no mail.
+- **`http.post`** sends `{rule: {id, name}, runId, fileId, by, trigger, fields, at}` (only the
+  fields the rule names) to your callback origin or an `allow_origins` origin, signed like
+  webhooks (`X-OpenCanvas-Signature` v2 with `[host.webhooks] secret` or your callback secret,
+  `X-OpenCanvas-Event: automation.url`, `Idempotency-Key: <runId>`), 10 s timeout, no redirects,
+  3 tries (now, after 1 minute, after 10 minutes; a 3xx or 4xx other than 408/425/429 is final).
+- Ten failed runs in a row pause a rule and notify its owner once. Events `automation.ran` and
+  `automation.failed` go to the events stream and webhooks; edits by a rule carry
+  `by: "automation:<ruleId>"`, and the save's `X-OpenCanvas-Authors` lists `automation:<ruleId>`.
+- Rules are document data: anyone who can read the file can read every rule, its owner, its URL
+  targets and the fields it sends. Never put secrets in a rule.
+- API and MCP: `GET/PUT/DELETE /api/v1/files/{fileId}/automations[/{ruleId}]`,
+  `POST …/automations/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs`
+  (§7b); MCP `canvas_automations`, `canvas_automation_save`, `canvas_automation_enable`,
+  `canvas_automation_test`.
+
 ## 3. JWT launch token
 
 Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
@@ -1142,7 +1196,8 @@ exchanged for a session ticket on open).
     "restore": true,                // editors may restore a version (default true)
     "mention": true,
     "live": true,                   // may make live blocks and embed them (default false, §2c)
-    "offline": true                 // may keep THIS canvas on the device (default false, §2d)
+    "offline": true,                // may keep THIS canvas on the device (default false, §2d)
+    "automate": true                // may create and switch on automation rules (default false, §2e)
   },
   "offlineReason": "shared-device", // optional (§2d): shown when perms.offline is false
   "live": [                         // optional (§2c): live files to show read-only when you
@@ -1619,6 +1674,7 @@ same tool layer as MCP, §7a):
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
 | Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
 | Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
+| Automation rules | `GET /api/v1/files/{id}/automations`, `PUT`/`DELETE …/automations/{ruleId}`, `POST …/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs` | needs `[host.automation]`; writes need `canvas:write` and edit; the caller becomes the rule's owner; runs are editors only (§2e) |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
 | Revoke offline copies | `POST /api/v1/offline/revoke {userId}` | host key or `canvas:admin`; raises the person's offline generation → `{gen}`; their devices delete every offline copy for your host at the next session answer (§2d) |
 | Events | `GET …/events` (SSE or WebSocket) | change events, below |
@@ -3253,6 +3309,7 @@ arguments are sent or logged.
 | `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId>; *(DGM-14, optional)* `name` string, the board's own name shown in diagram mode (additive: older clients ignore it, every reader keeps it, the exporters don't draw it) |
 | `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,name,color,text,at,mentions?,labels?}>; *(docs/21)* `labels` = `{userId: "@label as inserted"}`, so the text shows the member's current name in place of the inserted label |
 | `ext` | Map<dataId, Y.Map> | *(BSDK-02, optional)* SDK block data: per block, one key per field, each value plain JSON, so concurrent edits of different fields both survive (last writer wins per field). Written by the block (BSDK-03 bridge), the API and MCP; validated against the package's `data` schema (§4.2). In `document.json` as `ext` only when non-empty |
+| `automations` | Map<ruleId, Y.Map> | *(AUTO-01, ADR-067, optional)* automation rules, one key per rule field (`v name enabled ownerId ownerName updatedAt timeZone trigger match conditions actions paused`, values plain JSON; shape in docs/34 §5.3 and `oc_model::automation`). Client writes need edit, `perms.automate` and `[host.automation]`, and an enabled rule must be owned by the writer; `paused` is written by the server. In `document.json` as `automations` only when non-empty; a copy switches them off |
 | `people` | Map<userId, object> | *(docs/21, optional)* who opened the file: `{id, name, detail?, avatar?, lastSeen}` (ms), never an e-mail. Written by the server on join (never makes the room dirty; `lastSeen` refreshed at most hourly). The member list when the host gives neither token `members` nor the members callback; otherwise only fills a missing `detail`/`avatar` |
 
 Tiptap node types (names are part of the file format, so don't rename them):
@@ -3595,6 +3652,7 @@ hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the versio
 `UNDO_EXPIRED`). History routes need `perms.history` (`403 HISTORY_FORBIDDEN`), `404 HISTORY_OFF` without
 a source, `404 VERSION_GONE`, `413 VERSION_TOO_LARGE`. ·
 Find and replace (SRCH-01, ADR-066) runs in the editor only (`web/packages/editor/src/find`, a lazy chunk); it sends nothing to the server, and replace writes are ordinary edits (text in one ProseMirror transaction, cells and shapes in one Yjs transaction with origin `@opencanvas/find`, one undo step).
+`GET /v1/automations/runs?ticket=&rule=&result=&before=` (editors) and `POST /v1/automations/test?ticket=` `{rule, rowId?}` (with `perms.automate`): the run log and a test run (AUTO-06, as the API's). The session carries `automation: {enabled, canEdit, history, limits}`.
 `GET /v1/search?ticket=&q=&scope=&cursor=` → the host's search as the session's person (SRCH-04,
 ADR-065): `{items:[{fileId,title,path?,blockId?,snippet,updatedAt?}],scopes,partial,next}`, `no-store`;
 404 `SEARCH_UNAVAILABLE` when the host has no callback (the session's `search.enabled` is then false),
@@ -6992,7 +7050,7 @@ A write runs in the file's live room as one transaction : everyone editing the c
 
 ## Operations
 
-Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JSON blocks, Markdown or an outline Blocks GET /api/v1/files/{fileId}/blocks List top-level blocks Blocks GET /api/v1/files/{fileId}/blocks/{blockId} Read one block (also nested ones) Blocks GET /api/v1/files/{fileId}/blocks:find Find blocks whose text contains q (case-insensitive) Blocks POST /api/v1/files/{fileId}/blocks:batch Change blocks in one atomic transaction Blocks POST /api/v1/files/{fileId}/live Make blocks live Blocks GET /api/v1/files/{fileId}/references List the live blocks and block references Databases GET /api/v1/files/{fileId}/databases List databases with fields, row counts and views Databases POST /api/v1/files/{fileId}/databases Create a database block Databases GET /api/v1/files/{fileId}/databases/{dbId} Describe one database Databases GET /api/v1/files/{fileId}/databases/{dbId}/rows Query rows Databases POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert Create or update rows (at most 200) Databases POST /api/v1/files/{fileId}/databases/{dbId}/fields Add a field Boards POST /api/v1/files/{fileId}/boards Create a board block with shapes Boards GET /api/v1/files/{fileId}/boards/{boardId}/shapes Read a board's shapes Boards POST /api/v1/files/{fileId}/boards/{boardId}/shapes Add shapes to a board Comments GET /api/v1/files/{fileId}/comments List comment threads Comments POST /api/v1/files/{fileId}/comments Start a thread on a block or reply to one Members GET /api/v1/files/{fileId}/members People with access (id, name, detail; never e-mail) Export and import GET /api/v1/files/{fileId}/export/{format} Export the canvas Export and import GET /api/v1/files/{fileId}/render Render the canvas as read-only HTML Export and import POST /api/v1/files/{fileId}/import Import Markdown, HTML or CSV into the canvas Export and import POST /api/v1/convert Stateless conversion Search POST /api/v1/extract Extract search.json Search GET /api/v1/search Search across canvases Events and sync GET /api/v1/files/{fileId}/events Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages Events and sync POST /api/v1/files/{fileId}/sync-token A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly Admin POST /api/v1/files/{fileId}/commit Save now (200 saved, 202 queued in the outbox, 409 conflict) Admin POST /api/v1/files/{fileId}/role Change a user's role live (none disconnects them) Admin DELETE /api/v1/files/{fileId}/session Final save, disconnect everyone, drop every ticket Admin POST /api/v1/files/{fileId}/members:invalidate The member list changed; drop cached answers Admin POST /api/v1/offline/revoke Revoke every offline copy of a person OpenAPI document GET /api/v1/openapi.json This document 0.1 routes (deprecated) POST /v1/files/{fileId}/patch Patch blocks (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/commit Save now (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/role Change a role (0.1) 0.1 routes (deprecated) DELETE /v1/files/{fileId}/session Close the session (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/members/invalidate Members changed (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/import Import (0.1) 0.1 routes (deprecated) POST /v1/convert Convert (0.1)
+Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JSON blocks, Markdown or an outline Blocks GET /api/v1/files/{fileId}/blocks List top-level blocks Blocks GET /api/v1/files/{fileId}/blocks/{blockId} Read one block (also nested ones) Blocks GET /api/v1/files/{fileId}/blocks:find Find blocks whose text contains q (case-insensitive) Blocks POST /api/v1/files/{fileId}/blocks:batch Change blocks in one atomic transaction Blocks POST /api/v1/files/{fileId}/live Make blocks live Blocks GET /api/v1/files/{fileId}/references List the live blocks and block references Databases GET /api/v1/files/{fileId}/databases List databases with fields, row counts and views Databases POST /api/v1/files/{fileId}/databases Create a database block Databases GET /api/v1/files/{fileId}/databases/{dbId} Describe one database Databases GET /api/v1/files/{fileId}/databases/{dbId}/rows Query rows Databases POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert Create or update rows (at most 200) Databases POST /api/v1/files/{fileId}/databases/{dbId}/fields Add a field Boards POST /api/v1/files/{fileId}/boards Create a board block with shapes Boards GET /api/v1/files/{fileId}/boards/{boardId}/shapes Read a board's shapes Boards POST /api/v1/files/{fileId}/boards/{boardId}/shapes Add shapes to a board Comments GET /api/v1/files/{fileId}/comments List comment threads Comments POST /api/v1/files/{fileId}/comments Start a thread on a block or reply to one Members GET /api/v1/files/{fileId}/members People with access (id, name, detail; never e-mail) Export and import GET /api/v1/files/{fileId}/export/{format} Export the canvas Export and import GET /api/v1/files/{fileId}/render Render the canvas as read-only HTML Export and import POST /api/v1/files/{fileId}/import Import Markdown, HTML or CSV into the canvas Export and import POST /api/v1/convert Stateless conversion Automation GET /api/v1/files/{fileId}/automations List automation rules Automation POST /api/v1/files/{fileId}/automations:test Test run a rule Automation GET /api/v1/files/{fileId}/automations/runs Automation run history Automation PUT /api/v1/files/{fileId}/automations/{ruleId} Create or replace a rule Automation DELETE /api/v1/files/{fileId}/automations/{ruleId} Delete a rule Automation POST /api/v1/files/{fileId}/automations/{ruleId}/enable Switch a rule on or off Search POST /api/v1/extract Extract search.json Search GET /api/v1/search Search across canvases Events and sync GET /api/v1/files/{fileId}/events Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages Events and sync POST /api/v1/files/{fileId}/sync-token A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly Admin POST /api/v1/files/{fileId}/commit Save now (200 saved, 202 queued in the outbox, 409 conflict) Admin POST /api/v1/files/{fileId}/role Change a user's role live (none disconnects them) Admin DELETE /api/v1/files/{fileId}/session Final save, disconnect everyone, drop every ticket Admin POST /api/v1/files/{fileId}/members:invalidate The member list changed; drop cached answers Admin POST /api/v1/offline/revoke Revoke every offline copy of a person OpenAPI document GET /api/v1/openapi.json This document 0.1 routes (deprecated) POST /v1/files/{fileId}/patch Patch blocks (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/commit Save now (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/role Change a role (0.1) 0.1 routes (deprecated) DELETE /v1/files/{fileId}/session Close the session (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/members/invalidate Members changed (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/import Import (0.1) 0.1 routes (deprecated) POST /v1/convert Convert (0.1)
 
 ## No "try it" console
 
@@ -7017,7 +7075,7 @@ For code that acts for one of your users (an integration running as that user, a
 
 ## Scopes
 
-A token's scope is a ceiling: the operation's x-opencanvas-scope in the OpenAPI document must be within it, or the answer is 403 SCOPE_REQUIRED . Each scope includes the ones above it. Scope Allows Least role Operations canvas:read Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role. view readFile , listBlocks , getBlock , findBlocks , listDatabases , getDatabase , queryRows , readBoard , listComments , listMembers , exportFile , renderFile , listReferences , streamEvents , createSyncToken , convert , extract , search canvas:comment Everything canvas:read allows, and start or reply to comment threads. comment addComment canvas:write Everything canvas:comment allows, and change blocks, databases and boards, and import. canvas:write:direct counts as canvas:write . edit batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , makeLive , importFile canvas:admin Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets [host.api] token_admin = true ; otherwise these are the host key's. host key, or a token with canvas:admin commitFile , setRole , closeSession , invalidateMembers , offlineRevoke
+A token's scope is a ceiling: the operation's x-opencanvas-scope in the OpenAPI document must be within it, or the answer is 403 SCOPE_REQUIRED . Each scope includes the ones above it. Scope Allows Least role Operations canvas:read Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role. view readFile , listBlocks , getBlock , findBlocks , listDatabases , getDatabase , queryRows , readBoard , listComments , listMembers , exportFile , renderFile , listReferences , streamEvents , createSyncToken , convert , extract , search , listAutomations , listAutomationRuns canvas:comment Everything canvas:read allows, and start or reply to comment threads. comment addComment canvas:write Everything canvas:comment allows, and change blocks, databases and boards, and import. canvas:write:direct counts as canvas:write . edit batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , makeLive , importFile , testAutomation , saveAutomation , deleteAutomation , enableAutomation canvas:admin Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets [host.api] token_admin = true ; otherwise these are the host key's. host key, or a token with canvas:admin commitFile , setRole , closeSession , invalidateMembers , offlineRevoke
 
 ## Roles
 
@@ -7056,7 +7114,7 @@ Authentication, the API switch, rate limits and availability: every /api/v1 oper
 
 ## Operation-specific
 
-Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. readFile , findBlocks , batchBlocks , createDatabase , queryRows , upsertRows , addField , createBoard , addShapes , addComment , makeLive , setRole , streamEvents , search , offlineRevoke CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. listBlocks , queryRows IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. importFile , legacyImport INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. convert , legacyConvert ROLE_INVALID 400 role is not view , comment , edit or none . setRole , legacySetRole USER_TOKEN_REQUIRED 400 Search runs as a person, so the host's permissions apply; a host key has no person. search EXPORT_OFF 403 The host's export settings do not allow this format. exportFile IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . importFile , legacyImport LIVE_DEPTH 403 The canvas is itself a live file ( meta.kind = "live" ), which may not contain live blocks or references (the depth rule, docs/27 §2.2). makeLive BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). getBlock , batchBlocks , createDatabase , addComment , makeLive , importFile , legacyPatch , legacyImport DB_NOT_FOUND 404 The canvas has no database with that dbId . getDatabase FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. exportFile , renderFile , convert , legacyConvert LIVE_OFF 404 Live block operations need [host.flags] live_blocks = true in the host's entry of the hosts file. makeLive NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. getDatabase , queryRows , upsertRows , addField , createBoard , readBoard , addShapes , addComment SEARCH_UNAVAILABLE 404 The host has not turned on [host.search] callback , or its GET /search answered 404, 405 or 501. search CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . batchBlocks CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. importFile , commitFile , legacyPatch , legacyCommit , legacyImport IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. listBlocks , queryRows STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. batchBlocks BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers , convert , extract , offlineRevoke DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. importFile , legacyPatch , legacyImport IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. importFile , legacyImport EXTRACT_TOO_SLOW 422 Extraction has a 2 s budget per file. extract IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers NOT_OCANVAS 422 The extract body is not a readable .ocanvas (or not UTF-8 Markdown). extract TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. streamEvents LIVE_CREATE_UNSUPPORTED 501 Your POST {callback_base}/files answered 404, 405 or 501: "Make live" needs it. makeLive PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . exportFile , convert , legacyConvert HOST_ERROR 502 The host's search callback failed or answered something that is not a search answer. search HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. readFile , batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , exportFile , renderFile , makeLive , importFile , legacyPatch , legacyImport ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry. importFile , legacyPatch , legacyImport HOST_TIMEOUT 504 The host's search callback took longer than [host.search] timeout_ms (default 8 s). search
+Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. readFile , findBlocks , batchBlocks , createDatabase , queryRows , upsertRows , addField , createBoard , addShapes , addComment , makeLive , setRole , streamEvents , search , offlineRevoke , testAutomation , saveAutomation , deleteAutomation , enableAutomation CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. listBlocks , queryRows IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. importFile , legacyImport INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. convert , legacyConvert ROLE_INVALID 400 role is not view , comment , edit or none . setRole , legacySetRole RULE_INVALID 400 The rule does not parse, names an action the host does not allow, or schedules more often than the minimum. saveAutomation RULE_LIMIT 400 The canvas has max_rules rules; delete one to add another. saveAutomation URL_NOT_ALLOWED 400 A URL call to an origin that is neither the host's callback origin nor in [host.automation] allow_origins (ADR-068). saveAutomation USER_TOKEN_REQUIRED 400 Search runs as a person, so the host's permissions apply; a host key has no person. search EXPORT_OFF 403 The host's export settings do not allow this format. exportFile IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . importFile , legacyImport LIVE_DEPTH 403 The canvas is itself a live file ( meta.kind = "live" ), which may not contain live blocks or references (the depth rule, docs/27 §2.2). makeLive AUTOMATION_OFF 404 The operator has not turned automation on for this host. listAutomations , testAutomation , listAutomationRuns , saveAutomation , deleteAutomation , enableAutomation BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). getBlock , batchBlocks , createDatabase , addComment , makeLive , importFile , legacyPatch , legacyImport DB_NOT_FOUND 404 The canvas has no database with that dbId . getDatabase FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. exportFile , renderFile , convert , legacyConvert LIVE_OFF 404 Live block operations need [host.flags] live_blocks = true in the host's entry of the hosts file. makeLive NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. getDatabase , queryRows , upsertRows , addField , createBoard , readBoard , addShapes , addComment RULE_NOT_FOUND 404 No rule with that id in this canvas. deleteAutomation , enableAutomation SEARCH_UNAVAILABLE 404 The host has not turned on [host.search] callback , or its GET /search answered 404, 405 or 501. search CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . batchBlocks CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. importFile , commitFile , legacyPatch , legacyCommit , legacyImport IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. listBlocks , queryRows STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. batchBlocks BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers , convert , extract , offlineRevoke , testAutomation , saveAutomation , enableAutomation DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. importFile , legacyPatch , legacyImport IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. importFile , legacyImport EXTRACT_TOO_SLOW 422 Extraction has a 2 s budget per file. extract IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation NOT_OCANVAS 422 The extract body is not a readable .ocanvas (or not UTF-8 Markdown). extract TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. streamEvents LIVE_CREATE_UNSUPPORTED 501 Your POST {callback_base}/files answered 404, 405 or 501: "Make live" needs it. makeLive PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . exportFile , convert , legacyConvert HOST_ERROR 502 The host's search callback failed or answered something that is not a search answer. search HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. readFile , batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , exportFile , renderFile , makeLive , importFile , legacyPatch , legacyImport , listAutomations , testAutomation , listAutomationRuns , saveAutomation , deleteAutomation , enableAutomation ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry. importFile , legacyPatch , legacyImport HOST_TIMEOUT 504 The host's search callback took longer than [host.search] timeout_ms (default 8 s). search
 
 ## Router fallbacks
 
@@ -7267,7 +7325,7 @@ The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is
 
 ## Unreleased
 
-Added Offline copies, server side (OFF-01, OFF-07, ADR-063/064): [host.offline] (off by default; checked at start-up; JWT hosts only), the launch token's perms.offline and offlineReason , an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on the device, a revocation generation per host and person (migration 0011; Redis oc:offgen: ) raised by POST /api/v1/offline/revoke , and the GET /v1/offline/clear sign-out page. The server stores one number per host and person, never content.
+Added Automation, server side (AUTO-01..05, AUTO-07, ADR-067, ADR-068; off unless [host.automation] ): rules stored in the canvas ( automations root) run by the server as "Automation" on behalf of their owner, re-checked with the host's /access at every run. Triggers: row added, field changed, checklist item checked, comment or mention added, a date reached and schedules (every 15 minutes or more, in the canvas time zone, even with the canvas closed). Actions: set a field, move a row, check or add checklist items, comment, notify through the host's POST /mentions , and call a URL signed like webhooks on allowed origins only. Loop guard (never itself, 3 deep), limits, auto-pause after 10 failures, a metadata-only run log (30 days), automation.ran / automation.failed events, perms.automate , migration 0010, the API ( /api/v1/files/{id}/automations… ) and MCP tools. Added Offline copies, server side (OFF-01, OFF-07, ADR-063/064): [host.offline] (off by default; checked at start-up; JWT hosts only), the launch token's perms.offline and offlineReason , an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on the device, a revocation generation per host and person (migration 0011; Redis oc:offgen: ) raised by POST /api/v1/offline/revoke , and the GET /v1/offline/clear sign-out page. The server stores one number per host and person, never content.
 
 ## 0.2.1 (2026-11-26)
 
@@ -8507,6 +8565,386 @@ curl -s -X POST "https://canvas.example.com/api/v1/convert?from=html&to=md" \
   -H "X-OpenCanvas-Key: $OC_API_KEY" \
   --data-binary @page.html \
   -o canvas.md
+
+
+# API reference: Automation
+
+URL: https://canvas.casualoffice.org/api/reference/automation.html
+
+Rules stored in a canvas and run by the server on behalf of their owner: list, save, switch on or off, test and read the run history.
+
+## List automation rules
+
+GET /api/v1/files/{fileId}/automations (operationId listAutomations, scope canvas:read)
+
+The rules stored in the canvas (the `automations` root), each with whether it can run and, for date and schedule rules, `nextRunAt` (ms), plus the host's limits and the origins URL calls may reach. Anyone who can read the file can read its rules.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "rules": [
+    {
+      "id": "au_move",
+      "rule": {
+        "name": "Move done items",
+        "trigger": {
+          "kind": "field.changed",
+          "database": "db_1",
+          "field": "Status",
+          "to": "Done"
+        },
+        "conditions": [
+          {
+            "field": "Owner",
+            "op": "isNotEmpty"
+          }
+        ],
+        "actions": [
+          {
+            "kind": "row.move",
+            "to": {
+              "database": "db_archive"
+            }
+          },
+          {
+            "kind": "notify",
+            "people": [
+              "field:Owner"
+            ],
+            "text": "{row.title} is done and archived"
+          }
+        ],
+        "v": 1,
+        "enabled": true,
+        "ownerId": "u_lea",
+        "ownerName": "Lea Fischer",
+        "updatedAt": "2026-11-26T09:12:00Z"
+      },
+      "valid": true
+    }
+  ],
+  "limits": {
+    "maxRules": 25,
+    "maxChanges": 50,
+    "runsPerMinute": 60,
+    "runsPerDay": 1000,
+    "maxDepth": 3,
+    "minIntervalMin": 15,
+    "timeZone": "Europe/Berlin",
+    "actions": [
+      "field.set",
+      "row.move",
+      "todo.set",
+      "todo.add",
+      "comment.add",
+      "notify",
+      "http.post"
+    ],
+    "origins": [
+      "https://docs.acme.example"
+    ]
+  }
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), HOST_UNAVAILABLE (502), AUTOMATION_OFF (404)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/automations" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Test run a rule
+
+POST /api/v1/files/{fileId}/automations:test (operationId testAutomation, scope canvas:write)
+
+What a rule (saved or not) would do on the most recent matching row, or `rowId`: the trigger, each condition and each action's effect. Changes nothing and sends nothing; costs no run.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "rule": {
+    "name": "Move done items",
+    "trigger": {
+      "kind": "field.changed",
+      "database": "db_1",
+      "field": "Status",
+      "to": "Done"
+    },
+    "conditions": [
+      {
+        "field": "Owner",
+        "op": "isNotEmpty"
+      }
+    ],
+    "actions": [
+      {
+        "kind": "row.move",
+        "to": {
+          "database": "db_archive"
+        }
+      },
+      {
+        "kind": "notify",
+        "people": [
+          "field:Owner"
+        ],
+        "text": "{row.title} is done and archived"
+      }
+    ]
+  }
+}
+
+Response 200 (application/json), example:
+{
+  "subject": {
+    "rowId": "r_1",
+    "title": "Rate limit the public API"
+  },
+  "trigger": "field.changed",
+  "conditions": [
+    {
+      "index": 0,
+      "field": "Owner",
+      "op": "isNotEmpty",
+      "holds": true
+    }
+  ],
+  "conditionsHold": true,
+  "effects": [
+    "Would move the row to Archive (3 fields match)",
+    "Would notify u_noor through the host"
+  ],
+  "changes": 1,
+  "changed": false,
+  "sent": false
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), HOST_UNAVAILABLE (502), AUTOMATION_OFF (404), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/automations:test" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rule": {
+      "name": "Move done items",
+      "trigger": {
+        "kind": "field.changed",
+        "database": "db_1",
+        "field": "Status",
+        "to": "Done"
+      },
+      "conditions": [
+        {
+          "field": "Owner",
+          "op": "isNotEmpty"
+        }
+      ],
+      "actions": [
+        {
+          "kind": "row.move",
+          "to": {
+            "database": "db_archive"
+          }
+        },
+        {
+          "kind": "notify",
+          "people": [
+            "field:Owner"
+          ],
+          "text": "{row.title} is done and archived"
+        }
+      ]
+    }
+  }'
+
+## Automation run history
+
+GET /api/v1/files/{fileId}/automations/runs (operationId listAutomationRuns, scope canvas:read)
+
+The run log of the canvas, newest first: ids, trigger, result, codes and counts, never canvas text or field values; kept 30 days. Editors only (the log can name people).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- rule (query, string): Only this rule
+- result (query, string): done, skipped, failed or stopped
+- before (query, integer): `next` of the previous page (ms)
+- limit (query, integer): 1-500 (default 100)
+
+Response 200 (application/json), example:
+{
+  "runs": [
+    {
+      "id": "run_01jdx4k8z6qf3w",
+      "fileId": "doc_8812",
+      "ruleId": "au_move",
+      "trigger": "field.changed",
+      "result": "done",
+      "errorCode": "",
+      "httpStatus": 0,
+      "changes": 1,
+      "notified": 1,
+      "depth": 0,
+      "durationMs": 180,
+      "at": 1795689044670
+    }
+  ],
+  "next": null
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), HOST_UNAVAILABLE (502), AUTOMATION_OFF (404)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/automations/runs?rule=au_move&result=failed&before=1795680000000&limit=100" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Create or replace a rule
+
+PUT /api/v1/files/{fileId}/automations/{ruleId} (operationId saveAutomation, scope canvas:write)
+
+Saves a rule in the canvas. The caller becomes its owner and the rule runs on their behalf from now on (with a host key, `X-OpenCanvas-Author` names them). Checked like the editor's save: valid trigger and actions, actions the host allows, URL calls only to the host's callback origin or `[host.automation] allow_origins`, schedules not more often than the minimum, at most `max_rules`.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- ruleId (path, string, required): The rule id (1-64 letters, digits, - or _)
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "name": "Move done items",
+  "trigger": {
+    "kind": "field.changed",
+    "database": "db_1",
+    "field": "Status",
+    "to": "Done"
+  },
+  "conditions": [
+    {
+      "field": "Owner",
+      "op": "isNotEmpty"
+    }
+  ],
+  "actions": [
+    {
+      "kind": "row.move",
+      "to": {
+        "database": "db_archive"
+      }
+    },
+    {
+      "kind": "notify",
+      "people": [
+        "field:Owner"
+      ],
+      "text": "{row.title} is done and archived"
+    }
+  ]
+}
+
+Response 200 (application/json), example:
+{
+  "id": "au_move"
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), HOST_UNAVAILABLE (502), AUTOMATION_OFF (404), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), RULE_INVALID (400), URL_NOT_ALLOWED (400), RULE_LIMIT (400)
+
+Example:
+curl -s -X PUT "https://canvas.example.com/api/v1/files/doc_1/automations/au_move" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Move done items",
+    "trigger": {
+      "kind": "field.changed",
+      "database": "db_1",
+      "field": "Status",
+      "to": "Done"
+    },
+    "conditions": [
+      {
+        "field": "Owner",
+        "op": "isNotEmpty"
+      }
+    ],
+    "actions": [
+      {
+        "kind": "row.move",
+        "to": {
+          "database": "db_archive"
+        }
+      },
+      {
+        "kind": "notify",
+        "people": [
+          "field:Owner"
+        ],
+        "text": "{row.title} is done and archived"
+      }
+    ]
+  }'
+
+## Delete a rule
+
+DELETE /api/v1/files/{fileId}/automations/{ruleId} (operationId deleteAutomation, scope canvas:write)
+
+Removes the rule from the canvas (frees a slot; switching it off does not).
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- ruleId (path, string, required): The rule id (1-64 letters, digits, - or _)
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Response 200 (application/json), example:
+{
+  "id": "au_move",
+  "deleted": true
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), HOST_UNAVAILABLE (502), AUTOMATION_OFF (404), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BAD_INPUT (400), RULE_NOT_FOUND (404)
+
+Example:
+curl -s -X DELETE "https://canvas.example.com/api/v1/files/doc_1/automations/au_move" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Switch a rule on or off
+
+POST /api/v1/files/{fileId}/automations/{ruleId}/enable (operationId enableAutomation, scope canvas:write)
+
+`{enabled: true}` switches a rule on and makes the caller its owner ("Run it as me" on a paused rule); `false` switches it off.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- ruleId (path, string, required): The rule id (1-64 letters, digits, - or _)
+- Idempotency-Key (header, string): 1-255 visible ASCII characters, scoped to the caller. A repeat of the same request within 24 h answers the stored result (Idempotency-Replayed: true); another request with the same key is 422 IDEMPOTENCY_KEY_REUSED; a duplicate while the first runs is 409 IDEMPOTENCY_IN_PROGRESS. Failed requests are not stored.
+
+Request body (application/json), example:
+{
+  "enabled": true
+}
+
+Response 200 (application/json), example:
+{
+  "id": "au_move",
+  "enabled": true
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), FILES_REQUIRED (403), RATE_LIMITED (429), UNAVAILABLE (503), INTERNAL (500), HOST_UNAVAILABLE (502), AUTOMATION_OFF (404), IDEMPOTENCY_KEY_INVALID (400), IDEMPOTENCY_KEY_REUSED (422), IDEMPOTENCY_IN_PROGRESS (409), BODY_TOO_LARGE (413), BAD_INPUT (400), RULE_NOT_FOUND (404)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/automations/au_move/enable" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true}'
 
 
 # API reference: Search

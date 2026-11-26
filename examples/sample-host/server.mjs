@@ -100,6 +100,9 @@ function signJwt(claims) {
 const callbackToken = (fileId, userId) => `${userId}.${crypto.createHmac("sha256", SECRET).update(`cb:${fileId}:${userId}`).digest("hex").slice(0, 32)}`;
 function checkCallback(req, fileId, body) {
   const auth = (req.headers.authorization || "").replace(/^Bearer /, "");
+  // Scheduled automation runs (AUTO-03) load and save with no bearer: the v2 signature is the
+  // proof, and the call acts as the host's own service (docs/05 §5).
+  if (!auth) return checkSigned(req, body) ? { ok: true, userId: null, service: true } : { ok: false, why: "bad signature" };
   const [userId] = auth.split(".");
   if (!userId || auth !== callbackToken(fileId, userId)) return { ok: false, why: "bad callback token" };
   const sigHdr = req.headers["x-opencanvas-signature"] || "";
@@ -126,7 +129,8 @@ function launchToken(fileId, userId) {
     user: { id: userId, name: u.name, detail: u.detail },
     ...(members ? { members } : {}),
     role, mode: role === "view" ? "view" : "edit",
-    perms: { export: true, download: true, comment: role !== "view", mention: true },
+    // perms.automate (AUTO-01): editors may create automation rules (Sam, the partner, may not).
+    perms: { export: true, download: true, comment: role !== "view", mention: true, automate: role === "edit" && userId !== "u_sam" },
     callbackToken: callbackToken(fileId, userId),
   });
 }
@@ -231,11 +235,11 @@ function indexFile(fileId, body) {
   } catch (e) { console.warn("could not index", fileId, e.message); }
 }
 // Signed like every callback (v2 binds method, path and query, so `userId` can be trusted).
-function checkSigned(req) {
+function checkSigned(req, body) {
   const sig = req.headers["x-opencanvas-signature"] || "";
   const t = /t=(\d+)/.exec(sig)?.[1], v2 = /v2=([0-9a-f]+)/.exec(sig)?.[1];
   if (!t || !v2 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
-  const want = crypto.createHmac("sha256", SECRET).update(`${t}.${req.method}.${req.url}.`).digest("hex");
+  const want = crypto.createHmac("sha256", SECRET).update(Buffer.concat([Buffer.from(`${t}.${req.method}.${req.url}.`), body || Buffer.alloc(0)])).digest("hex");
   return want.length === v2.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(v2));
 }
 function search(userId, q, limit = 20) {
@@ -321,7 +325,7 @@ async function callbacks(req, res, url) {
       return send(res, 200, fs.readFileSync(filePath(fileId)), { "content-type": "application/vnd.opencanvas+zip", etag: `"${f.version}"` });
     }
     if (!assets && req.method === "PUT") {
-      if (f.acl[auth.userId] !== "edit" && f.acl[auth.userId] !== "comment") return send(res, 403, { error: "read only" });
+      if (!auth.service && f.acl[auth.userId] !== "edit" && f.acl[auth.userId] !== "comment") return send(res, 403, { error: "read only" });
       const ifMatch = (req.headers["if-match"] || "").replace(/"/g, "");
       if (ifMatch && ifMatch !== String(f.version)) return send(res, 409, { version: String(f.version) });
       fs.writeFileSync(filePath(fileId), body);
@@ -377,7 +381,7 @@ async function mentionCallback(req, res) {
   send(res, 204, "");
 }
 
-const userName = id => (USERS[id] ? label(USERS[id]) : id);
+const userName = id => (USERS[id] ? label(USERS[id]) : String(id).startsWith("automation:") ? "Automation" : id);
 const mentionsFor = id => (meta.mentions[id] || []).map(({ key, ...m }) => ({ ...m, byName: userName(m.by), names: m.mentioned.map(userName) }));
 
 // ---------- host UI ----------

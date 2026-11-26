@@ -221,6 +221,7 @@ arguments are sent or logged.
 | `boards` | Map<boardId, Y.Map> | `shapes` Y.Map<shapeId, Y.Map>, `order` Y.Array<shapeId>; *(DGM-14, optional)* `name` string, the board's own name shown in diagram mode (additive: older clients ignore it, every reader keeps it, the exporters don't draw it) |
 | `comments` | Map<threadId, Y.Map> | `quote`, `resolved`, `messages` Y.Array<Y.Map{user,name,color,text,at,mentions?,labels?}>; *(docs/21)* `labels` = `{userId: "@label as inserted"}`, so the text shows the member's current name in place of the inserted label |
 | `ext` | Map<dataId, Y.Map> | *(BSDK-02, optional)* SDK block data: per block, one key per field, each value plain JSON, so concurrent edits of different fields both survive (last writer wins per field). Written by the block (BSDK-03 bridge), the API and MCP; validated against the package's `data` schema (§4.2). In `document.json` as `ext` only when non-empty |
+| `automations` | Map<ruleId, Y.Map> | *(AUTO-01, ADR-067, optional)* automation rules, one key per rule field (`v name enabled ownerId ownerName updatedAt timeZone trigger match conditions actions paused`, values plain JSON; shape in docs/34 §5.3 and `oc_model::automation`). Client writes need edit, `perms.automate` and `[host.automation]`, and an enabled rule must be owned by the writer; `paused` is written by the server. In `document.json` as `automations` only when non-empty; a copy switches them off |
 | `people` | Map<userId, object> | *(docs/21, optional)* who opened the file: `{id, name, detail?, avatar?, lastSeen}` (ms), never an e-mail. Written by the server on join (never makes the room dirty; `lastSeen` refreshed at most hourly). The member list when the host gives neither token `members` nor the members callback; otherwise only fills a missing `detail`/`avatar` |
 
 Tiptap node types (names are part of the file format, so don't rename them):
@@ -563,6 +564,7 @@ hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the versio
 `UNDO_EXPIRED`). History routes need `perms.history` (`403 HISTORY_FORBIDDEN`), `404 HISTORY_OFF` without
 a source, `404 VERSION_GONE`, `413 VERSION_TOO_LARGE`. ·
 Find and replace (SRCH-01, ADR-066) runs in the editor only (`web/packages/editor/src/find`, a lazy chunk); it sends nothing to the server, and replace writes are ordinary edits (text in one ProseMirror transaction, cells and shapes in one Yjs transaction with origin `@opencanvas/find`, one undo step).
+`GET /v1/automations/runs?ticket=&rule=&result=&before=` (editors) and `POST /v1/automations/test?ticket=` `{rule, rowId?}` (with `perms.automate`): the run log and a test run (AUTO-06, as the API's). The session carries `automation: {enabled, canEdit, history, limits}`.
 `GET /v1/search?ticket=&q=&scope=&cursor=` → the host's search as the session's person (SRCH-04,
 ADR-065): `{items:[{fileId,title,path?,blockId?,snippet,updatedAt?}],scopes,partial,next}`, `no-store`;
 404 `SEARCH_UNAVAILABLE` when the host has no callback (the session's `search.enabled` is then false),

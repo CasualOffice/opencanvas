@@ -14,6 +14,7 @@
 //! kept as aliases with their old answers and error shape, plus `Deprecation` and a
 //! `Link: rel="successor-version"` to the v1 operation (docs/27 §9, decision 8).
 
+pub mod automation;
 pub mod cursor;
 pub mod events;
 pub mod idempotency;
@@ -111,6 +112,20 @@ pub fn table() -> Table {
         .op(M::GET, p!("/events"), events::events)
         .op(M::POST, p!("/sync-token"), events::sync_token)
         .op(M::POST, "/api/v1/convert", convert)
+        .op(M::GET, p!("/automations"), automation::api_list)
+        .op(M::POST, p!("/automations:test"), automation::api_test)
+        .op(M::GET, p!("/automations/runs"), automation::api_runs)
+        .op(M::PUT, p!("/automations/{ruleId}"), automation::api_put)
+        .op(
+            M::DELETE,
+            p!("/automations/{ruleId}"),
+            automation::api_delete,
+        )
+        .op(
+            M::POST,
+            p!("/automations/{ruleId}/enable"),
+            automation::api_enable,
+        )
         .op(M::POST, "/api/v1/extract", search::extract)
         .op(M::GET, "/api/v1/search", search::search)
         .op(M::POST, "/api/v1/offline/revoke", offline_revoke)

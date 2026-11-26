@@ -108,6 +108,25 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Automation (AUTO-03): due date and schedule rules, checked every 20 s on every node.
+    if oc_server::automation::worker::any_on(&state) {
+        let worker = state.clone();
+        let node = state
+            .rooms
+            .cluster()
+            .map(|c| c.cfg.node_id.clone())
+            .unwrap_or_else(|| "single".into());
+        tokio::spawn(async move {
+            let mut every = tokio::time::interval(Duration::from_secs(20));
+            loop {
+                every.tick().await;
+                if let Err(e) = oc_server::automation::worker::sweep(&worker, &node).await {
+                    tracing::warn!(error = %e, "automation sweep failed");
+                }
+            }
+        });
+    }
+
     let janitor = state.clone();
     tokio::spawn(async move {
         let mut every = tokio::time::interval(Duration::from_secs(3600));
@@ -116,6 +135,7 @@ async fn main() -> anyhow::Result<()> {
             if let Err(e) = janitor.store.purge_expired(now_secs()).await {
                 tracing::warn!(error = %e, "session purge failed");
             }
+            oc_server::automation::worker::purge(&janitor).await;
         }
     });
 

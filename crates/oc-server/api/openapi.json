@@ -50,6 +50,10 @@
       "name": "0.1 aliases"
     },
     {
+      "name": "automation",
+      "description": "Rules in a canvas, run by the server on behalf of their owner (ADR-067); off unless [host.automation]"
+    },
+    {
       "name": "search",
       "description": "Search across canvases through the host (ADR-065); OpenCanvas keeps no index"
     }
@@ -489,6 +493,46 @@
       ],
       "detail": "the file took longer than 2 s to read",
       "description": "Extraction has a 2 s budget per file."
+    },
+    {
+      "code": "AUTOMATION_OFF",
+      "status": [
+        404
+      ],
+      "detail": "automation is not enabled for this host ([host.automation])",
+      "description": "The operator has not turned automation on for this host."
+    },
+    {
+      "code": "RULE_INVALID",
+      "status": [
+        400
+      ],
+      "detail": "the action http.post is turned off for this host",
+      "description": "The rule does not parse, names an action the host does not allow, or schedules more often than the minimum."
+    },
+    {
+      "code": "URL_NOT_ALLOWED",
+      "status": [
+        400
+      ],
+      "detail": "https://hooks.example is not allowed; automations here may call https://docs.acme.example",
+      "description": "A URL call to an origin that is neither the host's callback origin nor in `[host.automation] allow_origins` (ADR-068)."
+    },
+    {
+      "code": "RULE_LIMIT",
+      "status": [
+        400
+      ],
+      "detail": "RULE_LIMIT: this canvas has 25 rules, the most it can have",
+      "description": "The canvas has `max_rules` rules; delete one to add another."
+    },
+    {
+      "code": "RULE_NOT_FOUND",
+      "status": [
+        404
+      ],
+      "detail": "RULE_NOT_FOUND: no rule \"au_x\"",
+      "description": "No rule with that id in this canvas."
     }
   ],
   "paths": {
@@ -6271,6 +6315,924 @@
           }
         }
       }
+    },
+    "/api/v1/files/{fileId}/automations": {
+      "get": {
+        "operationId": "listAutomations",
+        "summary": "List automation rules",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The rules stored in the canvas (the `automations` root), each with whether it can run and, for date and schedule rules, `nextRunAt` (ms), plus the host's limits and the origins URL calls may reach. Anyone who can read the file can read its rules.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "rules": [
+                    {
+                      "id": "au_move",
+                      "rule": {
+                        "name": "Move done items",
+                        "trigger": {
+                          "kind": "field.changed",
+                          "database": "db_1",
+                          "field": "Status",
+                          "to": "Done"
+                        },
+                        "conditions": [
+                          {
+                            "field": "Owner",
+                            "op": "isNotEmpty"
+                          }
+                        ],
+                        "actions": [
+                          {
+                            "kind": "row.move",
+                            "to": {
+                              "database": "db_archive"
+                            }
+                          },
+                          {
+                            "kind": "notify",
+                            "people": [
+                              "field:Owner"
+                            ],
+                            "text": "{row.title} is done and archived"
+                          }
+                        ],
+                        "v": 1,
+                        "enabled": true,
+                        "ownerId": "u_lea",
+                        "ownerName": "Lea Fischer",
+                        "updatedAt": "2026-11-26T09:12:00Z"
+                      },
+                      "valid": true
+                    }
+                  ],
+                  "limits": {
+                    "maxRules": 25,
+                    "maxChanges": 50,
+                    "runsPerMinute": 60,
+                    "runsPerDay": 1000,
+                    "maxDepth": 3,
+                    "minIntervalMin": 15,
+                    "timeZone": "Europe/Berlin",
+                    "actions": [
+                      "field.set",
+                      "row.move",
+                      "todo.set",
+                      "todo.add",
+                      "comment.add",
+                      "notify",
+                      "http.post"
+                    ],
+                    "origins": [
+                      "https://docs.acme.example"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "HOST_UNAVAILABLE",
+          "AUTOMATION_OFF"
+        ]
+      }
+    },
+    "/api/v1/files/{fileId}/automations:test": {
+      "post": {
+        "operationId": "testAutomation",
+        "summary": "Test run a rule",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "x-opencanvas-scope": "canvas:write",
+        "description": "What a rule (saved or not) would do on the most recent matching row, or `rowId`: the trigger, each condition and each action's effect. Changes nothing and sends nothing; costs no run.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rule": {
+                    "$ref": "#/components/schemas/AutomationRule"
+                  },
+                  "rowId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "rule"
+                ]
+              },
+              "example": {
+                "rule": {
+                  "name": "Move done items",
+                  "trigger": {
+                    "kind": "field.changed",
+                    "database": "db_1",
+                    "field": "Status",
+                    "to": "Done"
+                  },
+                  "conditions": [
+                    {
+                      "field": "Owner",
+                      "op": "isNotEmpty"
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "kind": "row.move",
+                      "to": {
+                        "database": "db_archive"
+                      }
+                    },
+                    {
+                      "kind": "notify",
+                      "people": [
+                        "field:Owner"
+                      ],
+                      "text": "{row.title} is done and archived"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "subject": {
+                    "rowId": "r_1",
+                    "title": "Rate limit the public API"
+                  },
+                  "trigger": "field.changed",
+                  "conditions": [
+                    {
+                      "index": 0,
+                      "field": "Owner",
+                      "op": "isNotEmpty",
+                      "holds": true
+                    }
+                  ],
+                  "conditionsHold": true,
+                  "effects": [
+                    "Would move the row to Archive (3 fields match)",
+                    "Would notify u_noor through the host"
+                  ],
+                  "changes": 1,
+                  "changed": false,
+                  "sent": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "HOST_UNAVAILABLE",
+          "AUTOMATION_OFF",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT"
+        ]
+      }
+    },
+    "/api/v1/files/{fileId}/automations/runs": {
+      "get": {
+        "operationId": "listAutomationRuns",
+        "summary": "Automation run history",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "rule",
+            "in": "query",
+            "required": false,
+            "description": "Only this rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "au_move"
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "description": "done, skipped, failed or stopped",
+            "schema": {
+              "type": "string"
+            },
+            "example": "failed"
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "description": "`next` of the previous page (ms)",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1795680000000
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1-500 (default 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "example": 100
+          }
+        ],
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The run log of the canvas, newest first: ids, trigger, result, codes and counts, never canvas text or field values; kept 30 days. Editors only (the log can name people).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AutomationRun"
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "runs",
+                    "next"
+                  ]
+                },
+                "example": {
+                  "runs": [
+                    {
+                      "id": "run_01jdx4k8z6qf3w",
+                      "fileId": "doc_8812",
+                      "ruleId": "au_move",
+                      "trigger": "field.changed",
+                      "result": "done",
+                      "errorCode": "",
+                      "httpStatus": 0,
+                      "changes": 1,
+                      "notified": 1,
+                      "depth": 0,
+                      "durationMs": 180,
+                      "at": 1795689044670
+                    }
+                  ],
+                  "next": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "HOST_UNAVAILABLE",
+          "AUTOMATION_OFF"
+        ]
+      }
+    },
+    "/api/v1/files/{fileId}/automations/{ruleId}": {
+      "put": {
+        "operationId": "saveAutomation",
+        "summary": "Create or replace a rule",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "ruleId",
+            "in": "path",
+            "required": true,
+            "description": "The rule id (1-64 letters, digits, - or _)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "example": "au_move"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "x-opencanvas-scope": "canvas:write",
+        "description": "Saves a rule in the canvas. The caller becomes its owner and the rule runs on their behalf from now on (with a host key, `X-OpenCanvas-Author` names them). Checked like the editor's save: valid trigger and actions, actions the host allows, URL calls only to the host's callback origin or `[host.automation] allow_origins`, schedules not more often than the minimum, at most `max_rules`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationRule"
+              },
+              "example": {
+                "name": "Move done items",
+                "trigger": {
+                  "kind": "field.changed",
+                  "database": "db_1",
+                  "field": "Status",
+                  "to": "Done"
+                },
+                "conditions": [
+                  {
+                    "field": "Owner",
+                    "op": "isNotEmpty"
+                  }
+                ],
+                "actions": [
+                  {
+                    "kind": "row.move",
+                    "to": {
+                      "database": "db_archive"
+                    }
+                  },
+                  {
+                    "kind": "notify",
+                    "people": [
+                      "field:Owner"
+                    ],
+                    "text": "{row.title} is done and archived"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "id": "au_move"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "HOST_UNAVAILABLE",
+          "AUTOMATION_OFF",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "RULE_INVALID",
+          "URL_NOT_ALLOWED",
+          "RULE_LIMIT"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteAutomation",
+        "summary": "Delete a rule",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "ruleId",
+            "in": "path",
+            "required": true,
+            "description": "The rule id (1-64 letters, digits, - or _)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "example": "au_move"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "x-opencanvas-scope": "canvas:write",
+        "description": "Removes the rule from the canvas (frees a slot; switching it off does not).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "id": "au_move",
+                  "deleted": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "HOST_UNAVAILABLE",
+          "AUTOMATION_OFF",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BAD_INPUT",
+          "RULE_NOT_FOUND"
+        ]
+      }
+    },
+    "/api/v1/files/{fileId}/automations/{ruleId}/enable": {
+      "post": {
+        "operationId": "enableAutomation",
+        "summary": "Switch a rule on or off",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "ruleId",
+            "in": "path",
+            "required": true,
+            "description": "The rule id (1-64 letters, digits, - or _)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "example": "au_move"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "x-opencanvas-scope": "canvas:write",
+        "description": "`{enabled: true}` switches a rule on and makes the caller its owner (\"Run it as me\" on a paused rule); `false` switches it off.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
+              "example": {
+                "enabled": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "id": "au_move",
+                  "enabled": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "HOST_UNAVAILABLE",
+          "AUTOMATION_OFF",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS",
+          "BODY_TOO_LARGE",
+          "BAD_INPUT",
+          "RULE_NOT_FOUND"
+        ]
+      }
     }
   },
   "components": {
@@ -6546,6 +7508,8 @@
               "saved",
               "live.embedded",
               "live.removed",
+              "automation.ran",
+              "automation.failed",
               "resync"
             ]
           },
@@ -6558,7 +7522,7 @@
           },
           "data": {
             "type": "object",
-            "description": "edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; resync {reason}"
+            "description": "edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; automation.ran {ruleId, runId, trigger, result: done|skipped|stopped, changes, by: \"automation:<ruleId>\"}; automation.failed {ruleId, runId, trigger, code, httpStatus?}; resync {reason}"
           }
         }
       },
@@ -6812,6 +7776,124 @@
           "scopes",
           "partial",
           "next"
+        ],
+        "additionalProperties": false
+      },
+      "AutomationRule": {
+        "type": "object",
+        "description": "A rule (docs/34 §5.3): trigger, conditions (all, or any with match = any), 1-5 actions. ownerId, ownerName, updatedAt and paused are set by the server.",
+        "properties": {
+          "v": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "match": {
+            "type": "string",
+            "enum": [
+              "all",
+              "any"
+            ]
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "paused": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "trigger",
+          "actions"
+        ],
+        "additionalProperties": true
+      },
+      "AutomationRun": {
+        "type": "object",
+        "description": "One run: ids, times, counts and codes only, never canvas text. Kept 30 days.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "running",
+              "done",
+              "skipped",
+              "failed",
+              "stopped"
+            ]
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "httpStatus": {
+            "type": "integer"
+          },
+          "changes": {
+            "type": "integer"
+          },
+          "notified": {
+            "type": "integer"
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ruleId",
+          "trigger",
+          "result",
+          "at"
         ],
         "additionalProperties": false
       }

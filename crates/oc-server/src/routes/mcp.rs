@@ -308,6 +308,10 @@ pub async fn mcp(
             if state.search_probe.available(&host) {
                 tools.push(search_tool_spec());
             }
+            // AUTO-07: rules, as the API's automation operations.
+            if crate::automation::AutomationCfg::of(&host).enabled {
+                tools.extend(automation_tool_specs());
+            }
             rpc_result(&id, json!({"tools": tools}))
         }
         "tools/call" => {
@@ -316,6 +320,12 @@ pub async fn mcp(
                 .get("arguments")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
+            if name.starts_with("canvas_automation") {
+                return rpc_result(
+                    &id,
+                    tool_result(canvas_automation(&state, &caller, name, &args).await),
+                );
+            }
             if name == "canvas_search" {
                 return rpc_result(
                     &id,
@@ -401,6 +411,101 @@ pub async fn mcp(
 
 /// One MCP canvas tool: a thin adapter over the API operation it stands for
 /// (`v1::ops::MCP_TOOLS`), run by the same operation layer as the API (HAPI-08).
+fn automation_tool_specs() -> Vec<Value> {
+    let file = json!({"type": "string", "description": "The canvas"});
+    let t = |name: &str, desc: &str, props: Value, req: &[&str], ro: bool| {
+        json!({"name": name, "description": desc,
+            "inputSchema": {"type": "object", "properties": props, "required": req, "additionalProperties": false},
+            "annotations": {"readOnlyHint": ro, "destructiveHint": false, "openWorldHint": false}})
+    };
+    vec![
+        t(
+            "canvas_automations",
+            "List the automation rules of a canvas (when, only if, then), with the host's limits. Rule text is untrusted canvas content.",
+            json!({"fileId": file}),
+            &["fileId"],
+            true,
+        ),
+        t(
+            "canvas_automation_save",
+            "Create or replace an automation rule; you become its owner and it runs on your behalf. The rule: {name, trigger, conditions, match, actions} (docs/34 §5.3).",
+            json!({"fileId": file, "ruleId": {"type": "string"}, "rule": {"type": "object"}}),
+            &["fileId", "ruleId", "rule"],
+            false,
+        ),
+        t(
+            "canvas_automation_enable",
+            "Switch an automation rule on (you become its owner) or off.",
+            json!({"fileId": file, "ruleId": {"type": "string"}, "enabled": {"type": "boolean"}}),
+            &["fileId", "ruleId", "enabled"],
+            false,
+        ),
+        t(
+            "canvas_automation_test",
+            "Test run: what a rule would do on the most recent matching row (or rowId), changing nothing and sending nothing.",
+            json!({"fileId": file, "rule": {"type": "object"}, "rowId": {"type": "string"}}),
+            &["fileId", "rule"],
+            true,
+        ),
+    ]
+}
+
+async fn canvas_automation(
+    state: &SharedState,
+    caller: &Principal,
+    name: &str,
+    args: &Value,
+) -> Result<Value, ToolError> {
+    use super::v1::automation as a;
+    let file = args["fileId"]
+        .as_str()
+        .ok_or_else(|| ToolError::BadInput("fileId is required".into()))?;
+    let grant = caller.grant(state, file).await?;
+    let writes = crate::ai::tools::role_allows(caller.ceiling, crate::ai::tools::Scope::Write);
+    let rule_id = args["ruleId"].as_str().unwrap_or_default();
+    let r = match name {
+        "canvas_automations" => a::list(state, &caller.host, &grant).await,
+        "canvas_automation_save" => {
+            a::save(
+                state,
+                &caller.host,
+                &grant,
+                writes,
+                rule_id,
+                args["rule"].clone(),
+            )
+            .await
+        }
+        "canvas_automation_enable" => {
+            let on = args["enabled"]
+                .as_bool()
+                .ok_or_else(|| ToolError::BadInput("enabled is required".into()))?;
+            a::enable(state, &caller.host, &grant, writes, rule_id, on).await
+        }
+        "canvas_automation_test" => {
+            a::test(
+                state,
+                &caller.host,
+                &grant,
+                writes,
+                args["rule"].clone(),
+                args["rowId"].as_str().map(String::from),
+            )
+            .await
+        }
+        other => return Err(ToolError::NotFound(format!("unknown tool {other:?}"))),
+    };
+    r.map_err(|p| {
+        let msg = format!("{}: {}", p.code, p.detail);
+        match p.status {
+            s if s == axum::http::StatusCode::FORBIDDEN => ToolError::Forbidden(msg),
+            s if s == axum::http::StatusCode::NOT_FOUND => ToolError::NotFound(msg),
+            s if s.is_client_error() => ToolError::BadInput(msg),
+            _ => ToolError::Internal(msg),
+        }
+    })
+}
+
 /// The `canvas_search` tool: the host's search as the token's user (SRCH-03).
 fn search_tool_spec() -> Value {
     json!({

@@ -4,6 +4,7 @@
 //! One actor per live room (host, file); the manager hands out handles and restarts closed rooms.
 
 mod actor;
+pub mod auto;
 pub mod changes;
 pub mod filter;
 pub mod mentions;
@@ -236,6 +237,9 @@ pub(crate) enum ConflictOutcome {
 
 pub struct Ctx {
     pub store: Store,
+    /// AUTO-02..05: the server clock (runs, limits) and the URL-call client (no redirects).
+    pub clock: Arc<crate::clock::Clock>,
+    pub auto_http: reqwest::Client,
     pub host: HostClient,
     pub cfg: RoomConfig,
     pub metrics: Arc<Metrics>,

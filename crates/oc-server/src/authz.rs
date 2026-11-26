@@ -389,6 +389,7 @@ impl Principal {
                 live: false,
                 offline: false,
                 offline_reason: None,
+                automate: false,
             },
             callback_token: self.callback_token.clone(),
             members: vec![],

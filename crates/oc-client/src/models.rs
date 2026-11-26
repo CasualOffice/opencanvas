@@ -12,6 +12,69 @@ use serde_json::{Map, Value};
 /// The OpenAPI document version these models come from.
 pub const API_VERSION: &str = "1.0.0";
 
+/// A rule (docs/34 §5.3): trigger, conditions (all, or any with match = any), 1-5 actions. ownerId, ownerName, updatedAt and paused are set by the server.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AutomationRule {
+    pub actions: Vec<Map<String, Value>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conditions: Option<Vec<Map<String, Value>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(rename = "match", default, skip_serializing_if = "Option::is_none")]
+    pub match_: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(rename = "ownerId", default, skip_serializing_if = "Option::is_none")]
+    pub owner_id: Option<String>,
+    #[serde(rename = "ownerName", default, skip_serializing_if = "Option::is_none")]
+    pub owner_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paused: Option<Map<String, Value>>,
+    #[serde(rename = "timeZone", default, skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
+    pub trigger: Map<String, Value>,
+    #[serde(rename = "updatedAt", default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub v: Option<i64>,
+    /// Members the document does not name.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// One run: ids, times, counts and codes only, never canvas text. Kept 30 days.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AutomationRun {
+    pub at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changes: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth: Option<i64>,
+    #[serde(
+        rename = "durationMs",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub duration_ms: Option<i64>,
+    #[serde(rename = "errorCode", default, skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    #[serde(rename = "fileId", default, skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
+    #[serde(
+        rename = "httpStatus",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub http_status: Option<i64>,
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notified: Option<i64>,
+    pub result: String,
+    #[serde(rename = "ruleId")]
+    pub rule_id: String,
+    pub trigger: String,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct BatchOp {
     #[serde(rename = "blockId", default, skip_serializing_if = "Option::is_none")]
@@ -110,7 +173,7 @@ pub struct CreateDatabase {
 pub struct Event {
     /// Unix milliseconds
     pub at: i64,
-    /// edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; resync {reason}
+    /// edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; automation.ran {ruleId, runId, trigger, result: done|skipped|stopped, changes, by: "automation:<ruleId>"}; automation.failed {ruleId, runId, trigger, code, httpStatus?}; resync {reason}
     pub data: Map<String, Value>,
     #[serde(rename = "fileId")]
     pub file_id: String,
@@ -258,6 +321,78 @@ pub const OPERATIONS: &[Operation] = &[
         response: ResponseKind::Json,
         paged: None,
         idempotent: false,
+    },
+    Operation {
+        id: "listAutomations",
+        method: "GET",
+        path: "/api/v1/files/{fileId}/automations",
+        scope: Some("canvas:read"),
+        path_params: &["fileId"],
+        query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "listAutomationRuns",
+        method: "GET",
+        path: "/api/v1/files/{fileId}/automations/runs",
+        scope: Some("canvas:read"),
+        path_params: &["fileId"],
+        query: &["rule", "result", "before", "limit"],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "deleteAutomation",
+        method: "DELETE",
+        path: "/api/v1/files/{fileId}/automations/{ruleId}",
+        scope: Some("canvas:write"),
+        path_params: &["fileId", "ruleId"],
+        query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: true,
+    },
+    Operation {
+        id: "saveAutomation",
+        method: "PUT",
+        path: "/api/v1/files/{fileId}/automations/{ruleId}",
+        scope: Some("canvas:write"),
+        path_params: &["fileId", "ruleId"],
+        query: &[],
+        body: BodyKind::Json,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: true,
+    },
+    Operation {
+        id: "enableAutomation",
+        method: "POST",
+        path: "/api/v1/files/{fileId}/automations/{ruleId}/enable",
+        scope: Some("canvas:write"),
+        path_params: &["fileId", "ruleId"],
+        query: &[],
+        body: BodyKind::Json,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: true,
+    },
+    Operation {
+        id: "testAutomation",
+        method: "POST",
+        path: "/api/v1/files/{fileId}/automations:test",
+        scope: Some("canvas:write"),
+        path_params: &["fileId"],
+        query: &[],
+        body: BodyKind::Json,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: true,
     },
     Operation {
         id: "listBlocks",

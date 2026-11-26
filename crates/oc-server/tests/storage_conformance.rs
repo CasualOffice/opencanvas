@@ -684,3 +684,138 @@ async fn offline_generation_contract() {
         );
     }
 }
+
+/// AUTO-03/05 (migration 0010) on SQLite and MySQL/MariaDB: a due schedule row is claimed by
+/// exactly one of many concurrent claimants, a run id is logged once, failures count back to
+/// the last success, and old runs are purged. Redis-only storage has no automation.
+#[tokio::test]
+async fn automation_schedule_and_runs() {
+    for (name, store) in backends().await {
+        if store.is_redis_only() {
+            assert!(!store.automation_supported());
+            continue;
+        }
+        let room = uid("r");
+        store
+            .automation_schedule_set(
+                &room,
+                "h",
+                "f",
+                &[("au_a".into(), 1_000), ("au_b".into(), 5_000)],
+            )
+            .await
+            .unwrap();
+        store
+            .automation_schedule_set(&room, "h", "f", &[("au_a".into(), 1_000)])
+            .await
+            .unwrap();
+        assert_eq!(
+            store.automation_schedule_of(&room).await.unwrap(),
+            vec![("au_a".to_string(), 1_000)],
+            "{name}"
+        );
+        let due: Vec<_> = store
+            .automation_due(2_000, 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|r| r.room_id == room)
+            .collect();
+        assert_eq!(due.len(), 1, "{name}");
+        let wins = futures::future::join_all((0..8).map(|i| {
+            let (s, r) = (store.clone(), due[0].clone());
+            async move {
+                s.automation_claim(&r, &format!("n{i}"), 100_000)
+                    .await
+                    .unwrap()
+            }
+        }))
+        .await;
+        assert_eq!(
+            wins.iter().filter(|w| **w).count(),
+            1,
+            "{name}: one claimant wins"
+        );
+        store
+            .automation_advance(&room, "au_a", 1_000, 90_000)
+            .await
+            .unwrap();
+        assert_eq!(
+            store.automation_schedule_of(&room).await.unwrap(),
+            vec![("au_a".to_string(), 90_000)]
+        );
+        let row = |id: &str, result: &str, at: i64| oc_server::store::RunRow {
+            id: id.into(),
+            room_id: room.clone(),
+            host_id: "h".into(),
+            file_id: "f".into(),
+            rule_id: "au_a".into(),
+            trigger: "schedule".into(),
+            result: result.into(),
+            error_code: String::new(),
+            http_status: 0,
+            changes: 0,
+            notified: 0,
+            depth: 0,
+            duration_ms: 1,
+            at,
+        };
+        let now = oc_server::util::now_ms();
+        assert!(
+            store
+                .automation_run_insert(&row(&uid("run"), "done", now - 40 * 86_400_000))
+                .await
+                .unwrap()
+        );
+        assert!(
+            store
+                .automation_run_insert(&row(&uid("run"), "done", now - 3))
+                .await
+                .unwrap()
+        );
+        for i in 0..3 {
+            assert!(
+                store
+                    .automation_run_insert(&row(&uid("run"), "failed", now - 2 + i))
+                    .await
+                    .unwrap()
+            );
+        }
+        let once = uid("run");
+        assert!(
+            store
+                .automation_run_insert(&row(&once, "done", now))
+                .await
+                .unwrap()
+        );
+        assert!(
+            !store
+                .automation_run_insert(&row(&once, "done", now))
+                .await
+                .unwrap(),
+            "{name}: a run id is logged once"
+        );
+        assert_eq!(
+            store.automation_failures(&room, "au_a", 10).await.unwrap(),
+            0
+        );
+        assert!(store.automation_purge(now).await.unwrap() >= 1);
+        assert_eq!(
+            store
+                .automation_runs(&room, None, None, None, 100)
+                .await
+                .unwrap()
+                .len(),
+            5,
+            "{name}"
+        );
+        assert_eq!(
+            store
+                .automation_runs(&room, None, Some("failed"), None, 100)
+                .await
+                .unwrap()
+                .len(),
+            3
+        );
+    }
+}

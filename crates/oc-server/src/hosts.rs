@@ -406,6 +406,8 @@ impl Hosts {
             }
             crate::search::SearchCfg::parse(&h.search).with_context(|| format!("host {}", h.id))?;
             crate::offline::check_host(&h).with_context(|| format!("host {}", h.id))?;
+            crate::automation::AutomationCfg::parse(&h.automation)
+                .with_context(|| format!("host {}", h.id))?;
             crate::blocks::HostBlocks::parse(&h.blocks)
                 .with_context(|| format!("host {}", h.id))?;
             crate::editor::EditorCfg::parse(&h.editor, &crate::editor::sdk_types(&h.blocks))

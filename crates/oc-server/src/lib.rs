@@ -7,6 +7,7 @@ pub mod ai;
 pub mod alloc;
 pub mod assets;
 pub mod authz;
+pub mod automation;
 pub mod blocks;
 pub mod clock;
 pub mod cluster;
@@ -170,8 +171,11 @@ impl AppState {
                 .await
                 .map_err(|e| anyhow::anyhow!("loading AI usage: {e:#}"))?;
         }
+        let clock: Arc<clock::Clock> = Default::default();
         let rooms = Rooms::new(Arc::new(Ctx {
             store: store.clone(),
+            clock: clock.clone(),
+            auto_http: automation::runner::http_client(),
             host: host.clone(),
             cfg: cfg.rooms.clone(),
             metrics: metrics.clone(),
@@ -187,13 +191,24 @@ impl AppState {
             );
         }
         let unfurl = unfurl::Unfurler::new(cfg.unfurl.clone());
-        let clock: Arc<clock::Clock> = Default::default();
         let webhooks: Arc<webhooks::Webhooks> = Default::default();
         let hooked: Vec<&str> = hosts
             .iter()
             .filter(|h| !h.webhooks.is_empty())
             .map(|h| h.id.as_str())
             .collect();
+        // AUTO-03/05 (ADR-067): the schedule and run tables need a database.
+        let automated: Vec<&str> = hosts
+            .iter()
+            .filter(|h| automation::AutomationCfg::of(h).enabled)
+            .map(|h| h.id.as_str())
+            .collect();
+        if !automated.is_empty() && store.is_redis_only() {
+            anyhow::bail!(
+                "[host.automation] ({}) needs a database for its schedule and run log (DATABASE_URL: SQLite, MySQL or MariaDB); Redis-only storage has none (ADR-067)",
+                automated.join(", ")
+            );
+        }
         if !hooked.is_empty() {
             if store.is_redis_only() {
                 anyhow::bail!(

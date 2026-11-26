@@ -239,6 +239,7 @@ impl FileInfo {
             live: false,
             offline: false,
             offline_reason: None,
+            automate: false,
         }
     }
 

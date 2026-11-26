@@ -872,6 +872,7 @@ mod tests {
                 commit_message: false,
                 live: true,
                 offline: false,
+                automate: false,
                 offline_reason: None,
             },
             callback_token: "cb".into(),

@@ -90,11 +90,11 @@ export interface CreateDatabase {
 export interface Event {
   /** ev_<ulid>; pass the last one back as Last-Event-ID to resume (also the webhook Idempotency-Key) */
   id: string;
-  type: "edited" | "commented" | "mentioned" | "member.joined" | "member.left" | "session.closed" | "restored" | "saved" | "live.embedded" | "live.removed" | "resync";
+  type: "edited" | "commented" | "mentioned" | "member.joined" | "member.left" | "session.closed" | "restored" | "saved" | "live.embedded" | "live.removed" | "automation.ran" | "automation.failed" | "resync";
   fileId: string;
   /** Unix milliseconds */
   at: number;
-  /** edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; resync {reason} */
+  /** edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; automation.ran {ruleId, runId, trigger, result: done|skipped|stopped, changes, by: "automation:<ruleId>"}; automation.failed {ruleId, runId, trigger, code, httpStatus?}; resync {reason} */
   data: Record<string, unknown>;
 }
 
@@ -160,6 +160,39 @@ export interface SearchResults {
   }>;
   partial: boolean;
   next: string | null;
+}
+
+/** A rule (docs/34 §5.3): trigger, conditions (all, or any with match = any), 1-5 actions. ownerId, ownerName, updatedAt and paused are set by the server. */
+export interface AutomationRule {
+  v?: number;
+  name?: string;
+  enabled?: boolean;
+  ownerId?: string;
+  ownerName?: string;
+  updatedAt?: string;
+  timeZone?: string;
+  trigger: Record<string, unknown>;
+  match?: "all" | "any";
+  conditions?: Array<Record<string, unknown>>;
+  actions: Array<Record<string, unknown>>;
+  paused?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** One run: ids, times, counts and codes only, never canvas text. Kept 30 days. */
+export interface AutomationRun {
+  id: string;
+  fileId?: string;
+  ruleId: string;
+  trigger: string;
+  result: "running" | "done" | "skipped" | "failed" | "stopped";
+  errorCode?: string;
+  httpStatus?: number;
+  changes?: number;
+  notified?: number;
+  depth?: number;
+  durationMs?: number;
+  at: number;
 }
 
 /** Path parameters, query, body and answer of every operation. */
@@ -671,6 +704,65 @@ export interface Operations {
       [key: string]: unknown;
     };
   };
+  /** GET /api/v1/files/{fileId}/automations: List automation rules */
+  listAutomations: {
+    path: { fileId: string; };
+    query: {};
+    body: never;
+    response: Record<string, unknown>;
+  };
+  /** POST /api/v1/files/{fileId}/automations:test: Test run a rule */
+  testAutomation: {
+    path: { fileId: string; };
+    query: {};
+    body: {
+      rule: AutomationRule;
+      rowId?: string;
+    };
+    response: Record<string, unknown>;
+  };
+  /** GET /api/v1/files/{fileId}/automations/runs: Automation run history */
+  listAutomationRuns: {
+    path: { fileId: string; };
+    query: {
+      /** Only this rule */
+      rule?: string;
+      /** done, skipped, failed or stopped */
+      result?: string;
+      /** `next` of the previous page (ms) */
+      before?: number;
+      /** 1-500 (default 100) */
+      limit?: number;
+    };
+    body: never;
+    response: {
+      runs: Array<AutomationRun>;
+      next: number | null;
+    };
+  };
+  /** PUT /api/v1/files/{fileId}/automations/{ruleId}: Create or replace a rule */
+  saveAutomation: {
+    path: { fileId: string; ruleId: string; };
+    query: {};
+    body: AutomationRule;
+    response: Record<string, unknown>;
+  };
+  /** DELETE /api/v1/files/{fileId}/automations/{ruleId}: Delete a rule */
+  deleteAutomation: {
+    path: { fileId: string; ruleId: string; };
+    query: {};
+    body: never;
+    response: Record<string, unknown>;
+  };
+  /** POST /api/v1/files/{fileId}/automations/{ruleId}/enable: Switch a rule on or off */
+  enableAutomation: {
+    path: { fileId: string; ruleId: string; };
+    query: {};
+    body: {
+      enabled: boolean;
+    };
+    response: Record<string, unknown>;
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -725,6 +817,12 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   extract: {"method": "POST", "path": "/api/v1/extract", "scope": "canvas:read", "pathParams": [], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
   search: {"method": "GET", "path": "/api/v1/search", "scope": "canvas:read", "pathParams": [], "query": ["q", "scope", "cursor", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
   offlineRevoke: {"method": "POST", "path": "/api/v1/offline/revoke", "scope": "canvas:admin", "pathParams": [], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": false},
+  listAutomations: {"method": "GET", "path": "/api/v1/files/{fileId}/automations", "scope": "canvas:read", "pathParams": ["fileId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
+  testAutomation: {"method": "POST", "path": "/api/v1/files/{fileId}/automations:test", "scope": "canvas:write", "pathParams": ["fileId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
+  listAutomationRuns: {"method": "GET", "path": "/api/v1/files/{fileId}/automations/runs", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["rule", "result", "before", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
+  saveAutomation: {"method": "PUT", "path": "/api/v1/files/{fileId}/automations/{ruleId}", "scope": "canvas:write", "pathParams": ["fileId", "ruleId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
+  deleteAutomation: {"method": "DELETE", "path": "/api/v1/files/{fileId}/automations/{ruleId}", "scope": "canvas:write", "pathParams": ["fileId", "ruleId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": true},
+  enableAutomation: {"method": "POST", "path": "/api/v1/files/{fileId}/automations/{ruleId}/enable", "scope": "canvas:write", "pathParams": ["fileId", "ruleId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
 };
 
 /** The arguments of an operation: its path parameters, plus `query` and `body` when it has them. */
@@ -901,5 +999,35 @@ export abstract class GeneratedApi {
   /** Revoke every offline copy of a person (`POST /api/v1/offline/revoke`, canvas:admin). */
   async offlineRevoke(params: Params<"offlineRevoke">, options?: CallOptions): Promise<Operations["offlineRevoke"]["response"]> {
     return (await this.call("offlineRevoke", params, options)).data;
+  }
+
+  /** List automation rules (`GET /api/v1/files/{fileId}/automations`, canvas:read). */
+  async listAutomations(params: Params<"listAutomations">, options?: CallOptions): Promise<Operations["listAutomations"]["response"]> {
+    return (await this.call("listAutomations", params, options)).data;
+  }
+
+  /** Test run a rule (`POST /api/v1/files/{fileId}/automations:test`, canvas:write). */
+  async testAutomation(params: Params<"testAutomation">, options?: CallOptions): Promise<Operations["testAutomation"]["response"]> {
+    return (await this.call("testAutomation", params, options)).data;
+  }
+
+  /** Automation run history (`GET /api/v1/files/{fileId}/automations/runs`, canvas:read). */
+  async listAutomationRuns(params: Params<"listAutomationRuns">, options?: CallOptions): Promise<Operations["listAutomationRuns"]["response"]> {
+    return (await this.call("listAutomationRuns", params, options)).data;
+  }
+
+  /** Create or replace a rule (`PUT /api/v1/files/{fileId}/automations/{ruleId}`, canvas:write). */
+  async saveAutomation(params: Params<"saveAutomation">, options?: CallOptions): Promise<Operations["saveAutomation"]["response"]> {
+    return (await this.call("saveAutomation", params, options)).data;
+  }
+
+  /** Delete a rule (`DELETE /api/v1/files/{fileId}/automations/{ruleId}`, canvas:write). */
+  async deleteAutomation(params: Params<"deleteAutomation">, options?: CallOptions): Promise<Operations["deleteAutomation"]["response"]> {
+    return (await this.call("deleteAutomation", params, options)).data;
+  }
+
+  /** Switch a rule on or off (`POST /api/v1/files/{fileId}/automations/{ruleId}/enable`, canvas:write). */
+  async enableAutomation(params: Params<"enableAutomation">, options?: CallOptions): Promise<Operations["enableAutomation"]["response"]> {
+    return (await this.call("enableAutomation", params, options)).data;
   }
 }
