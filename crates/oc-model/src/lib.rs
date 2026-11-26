@@ -21,6 +21,7 @@ pub mod icons;
 pub mod import;
 pub mod live;
 pub mod ocanvas;
+pub mod parts;
 pub mod patch;
 pub mod pending;
 pub mod people;
