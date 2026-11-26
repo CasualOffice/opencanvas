@@ -422,7 +422,7 @@ async fn editor_search_and_the_hidden_entry() {
     host.lock().unwrap().search = Some(hits());
     let res = http()
         .get(format!(
-            "http://{addr}/v1/search?ticket={t}&q=SSO&scope=all"
+            "http://{addr}/v1/search?ticket={t}&q=SSO&scope=all&limit=5"
         ))
         .send()
         .await

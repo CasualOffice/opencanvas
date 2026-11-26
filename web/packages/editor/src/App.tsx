@@ -34,7 +34,7 @@ import { toast, useStore } from "./lib/store";
 import { restoredText } from "./lib/restored";
 import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
-import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
+import { Modal, ModalHead, Popover, ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
 import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
 import type { Template } from "./templates";
@@ -387,6 +387,15 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
 
   // docs/21 revision 2: a revoke changes the member list; refetch it without a reload.
   useEffect(() => collab.onControl((c) => c.t === "members" && void people.load()), [collab, people]);
+  // AUTO-06 frame 3a: a rule ran on this person's change; Undo reverts the whole run.
+  useEffect(
+    () =>
+      collab.onControl((c) => {
+        if (c.t !== "automation-ran") return;
+        toast(c.text, { icon: "zap", ms: 8000, action: { label: "Undo", run: () => collab.sendControl({ t: "automation-undo", runId: c.runId, ruleId: c.ruleId }) } });
+      }),
+    [collab],
+  );
 
   // ---------- save state, connection, control channel ----------
   useEffect(() => {
@@ -625,6 +634,32 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // AUTO-06: rules in this canvas (counted for the menu, also when the host runs none, frame 5d).
   const autoOn = !!session.automation?.enabled && !!session.automation.limits && !session.demo;
   const [ruleCount, setRuleCount] = useState(0);
+  const autoEdit = autoOn && !!session.automation?.canEdit && effectiveRole === "edit";
+  // Frame 1c: the database header's Automate menu and "When this is checked…" open the editor
+  // with the trigger filled in.
+  const [autoStart, setAutoStart] = useState<{ trigger: Record<string, unknown> } | null>(null);
+  const [dbMenu, setDbMenu] = useState<{ dbId: string; anchor: HTMLElement } | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const t = (e as CustomEvent<{ trigger: Record<string, unknown> }>).detail?.trigger;
+      if (!t || !autoEdit) return;
+      setAutoStart({ trigger: t });
+      setSide("automations");
+    };
+    window.addEventListener("oc:automate", on);
+    return () => window.removeEventListener("oc:automate", on);
+  }, [autoEdit]);
+  const rulesOf = useCallback(
+    (dbId: string) => {
+      const out: { id: string; name: string; on: boolean }[] = [];
+      doc.getMap("automations").forEach((v, id) => {
+        const o = (v && typeof (v as { toJSON?: unknown }).toJSON === "function" ? (v as { toJSON(): unknown }).toJSON() : v) as { name?: string; enabled?: boolean; paused?: unknown; trigger?: { database?: string } };
+        if (o?.trigger?.database === dbId) out.push({ id, name: o.name || "Untitled rule", on: !!o.enabled && !o.paused });
+      });
+      return out;
+    },
+    [doc],
+  );
   useEffect(() => {
     const m = doc.getMap("automations");
     const count = () => setRuleCount(m.size);
@@ -742,8 +777,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       icons: session.demo ? demoIcons(doc, me) : serverIcons(session.ticket),
       // EDP-01: `[host.editor.features] diagramming`.
       diagramming: featureOn("diagramming"),
+      // AUTO-06 frame 1c: the database header's Automate button (editors who may automate).
+      automations: autoEdit ? (id: string) => rulesOf(id).length : undefined,
+      automate: autoEdit ? (id: string, anchor: HTMLElement) => setDbMenu({ dbId: id, anchor }) : undefined,
     }),
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, doc],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, doc, autoEdit, ruleCount],
   );
 
   const openThread = useCallback((id: string) => {
@@ -1204,6 +1243,37 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                   />
                 </div>
               </div>
+              {dbMenu ? (
+                <Popover anchor={dbMenu.anchor} onClose={() => setDbMenu(null)} title="Automate" minWidth={260}>
+                  {rulesOf(dbMenu.dbId).map((r) => (
+                    <button key={r.id} className="mi" onClick={() => (setDbMenu(null), setSide("automations"))}>
+                      <Ic name="zap" />
+                      {r.name}
+                      <span className="mk">{r.on ? "On" : "Off"}</span>
+                    </button>
+                  ))}
+                  {rulesOf(dbMenu.dbId).length ? <div className="msep" /> : null}
+                  {([["row.added", "When a row is added…"], ["field.changed", "When a field changes…"], ["date.reached", "On a date in this database…"]] as const).map(([k, label]) => (
+                    <button
+                      key={k}
+                      className="mi"
+                      onClick={() => {
+                        const id = dbMenu.dbId;
+                        setDbMenu(null);
+                        window.dispatchEvent(new CustomEvent("oc:automate", { detail: { trigger: { kind: k, database: id } } }));
+                      }}
+                    >
+                      <Ic name="plus" />
+                      {label}
+                    </button>
+                  ))}
+                  <div className="msep" />
+                  <button className="mi" onClick={() => (setDbMenu(null), setSide("automations"))}>
+                    <Ic name="zap" />
+                    Open Automations
+                  </button>
+                </Popover>
+              ) : null}
               {searchAll && searchOn ? (
                 <Suspense fallback={null}>
                   <SearchAll
@@ -1239,6 +1309,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               {side === "automations" && autoOn ? (
                 <Suspense fallback={<aside className="side" aria-label="Automations" aria-busy="true" />}>
                   <AutomationPanel
+                    start={autoStart}
+                    onStarted={() => setAutoStart(null)}
                     doc={doc}
                     ticket={session.ticket}
                     info={{

@@ -8,7 +8,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type FrameLocator } from "@playwright/test";
 import { HOST_RELOAD } from "../env";
-import { applyTemplate, createFile, editor, openFile, person, setAccess } from "../helpers";
+import { applyTemplate, createFile, editor, openFile, person, setAccess, typeAfterHeading } from "../helpers";
 
 const panel = (oc: FrameLocator) => oc.getByRole("complementary", { name: /Automations|Edit rule|Run history|Run details/ });
 
@@ -50,6 +50,8 @@ test("create a rule, test it, watch it run on a new row, and refuse a URL that i
 
   // A new row runs it: the run history shows it done.
   await priya.oc.getByRole("button", { name: /New row/ }).first().click();
+  // 3a: the person whose change started the run is told, with Undo.
+  await expect(priya.oc.getByText("Welcome new actions made 1 change")).toBeVisible({ timeout: 10_000 });
   await p.getByRole("button", { name: "Run history" }).click();
   await expect(async () => {
     await p.getByRole("button", { name: "Back to automations" }).click();
@@ -128,4 +130,34 @@ test("the automations panel passes axe in light and dark", async ({ browser }) =
     await panel(p.oc).getByRole("button", { name: "Cancel" }).click();
   }
   await p.ctx.close();
+});
+
+test("entry points: the database header's Automate menu and “When this is checked…” on a checklist", async ({ browser }) => {
+  const priya = await person(browser, "u_priya");
+  await createFile(priya, "E2E zf · entry points", undefined);
+  await applyTemplate(priya, "Meeting notes");
+  // 1c, left: the database header has Automate with a menu of starts.
+  const automate = priya.oc.getByRole("button", { name: /^Automate/ }).first();
+  await automate.click();
+  await priya.oc.locator(".mi", { hasText: "When a field changes…" }).click();
+  const p = panel(priya.oc);
+  await expect(p).toBeVisible();
+  await expect(p.getByLabel("Field")).toBeVisible();
+  await expect(p.getByLabel("Database").first()).toHaveValue(/.+/);
+  await p.getByRole("button", { name: "Cancel" }).click();
+  await p.getByRole("button", { name: "Close automations" }).click();
+
+  // 1c, right: a checklist's block menu offers "When this is checked…".
+  await typeAfterHeading(priya, "Notes", "[] Changelog reviewed");
+  await editor(priya).locator("li", { hasText: "Changelog reviewed" }).click();
+  await priya.page.keyboard.press("ControlOrMeta+/");
+  await priya.oc.locator(".mi", { hasText: "When this is checked…" }).click();
+  await expect(p.getByLabel("Checklist item")).toBeVisible();
+  await expect(p.getByLabel("Checklist item")).not.toHaveValue("");
+  await p.getByRole("button", { name: "Add an action" }).click();
+  await p.getByRole("option", { name: "Add a comment" }).click();
+  await p.getByLabel("Comment text").fill("Ready to ship");
+  await p.getByRole("button", { name: "Save rule" }).click();
+  await expect(p).toContainText("an item in");
+  await priya.ctx.close();
 });

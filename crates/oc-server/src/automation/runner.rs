@@ -55,6 +55,8 @@ pub type ApplyFut = Pin<Box<dyn Future<Output = Result<Value, ToolError>> + Send
 /// registry, which opens a closed room from the host (date and schedule rules).
 pub trait Applier: Send + Sync {
     fn apply(&self, origin: String, author: String, run: ToolFn) -> ApplyFut;
+    /// Tells a person in the room what a run did (frame 3a); nothing for closed-room runs.
+    fn notice(&self, _user: &str, _msg: Value) {}
 }
 
 /// What a run needs from the server.
@@ -477,14 +479,36 @@ async fn attempt(
             *r2.lock().unwrap() = Some(Ok((total, failed_cond)));
             return Ok((None, json!({"overLimit": true})));
         }
+        // Frame 3a: what the person whose change started the run is told.
+        let summary = match total.writes.first() {
+            Some(engine::Write::MoveRow { from, row, to }) => {
+                let t = Db::read(doc, from)
+                    .map(|d| d.title_of(row))
+                    .unwrap_or_default();
+                let n = Db::read(doc, to).map(|d| d.name).unwrap_or_default();
+                format!("{} moved “{t}” to {n}", rule2.name)
+            }
+            _ => {
+                let n = total.changes();
+                format!(
+                    "{} made {n} {}",
+                    rule2.name,
+                    if n == 1 { "change" } else { "changes" }
+                )
+            }
+        };
         let update = engine::apply(doc, &total, &writer(&rule2.id)).map_err(ToolError::BadInput)?;
         *r2.lock().unwrap() = Some(Ok((total, failed_cond)));
-        Ok((update, json!({})))
+        Ok((update, json!({"summary": summary})))
     });
     let applied = applier
         .apply(origin_of(&rule.id), origin_of(&rule.id), work)
         .await;
     let planned = result.lock().unwrap().take();
+    let summary = applied
+        .as_ref()
+        .ok()
+        .and_then(|v| v["summary"].as_str().map(String::from));
     let (plan, failed_cond) = match (applied, planned) {
         (Err(e), _) => {
             let code = if e.message().contains("ROLE") {
@@ -519,6 +543,15 @@ async fn attempt(
     }
     let mut out = Outcome::new("done", "");
     out.changes = plan.changes() as i64;
+    if out.changes > 0
+        && let Some((user, _)) = &job.actor
+    {
+        applier.notice(
+            user,
+            json!({"t": "automation-ran", "runId": job.run_id, "ruleId": rule.id,
+                "text": summary.as_deref().unwrap_or(&rule.name)}),
+        );
+    }
     // 4. Notifications through the host, URL calls.
     for (i, (people, text)) in plan.notify.iter().enumerate() {
         let body = json!({"fileId": job.file_id, "mentioned": people, "by": origin_of(&rule.id),

@@ -712,6 +712,20 @@ impl Room {
                 let _ = reply.send(self.tool(run, &origin, &author).await);
             }
             Cmd::Commit { reply } => self.commit(reply),
+            Cmd::AutomationNotice { user, msg } => {
+                let frame: Bytes = protocol::control(&msg).into();
+                for p in self.peers.values().filter(|p| p.grant.user.id == user) {
+                    let _ = p.tx.send(Outbound::Frame(frame.clone()));
+                }
+            }
+            Cmd::AutomationUndo { origin } => {
+                self.auto
+                    .pending
+                    .insert(origin.clone(), (super::auto::UNDO_DEPTH, vec![]));
+                if let Err(e) = self.ai_undo(&origin).await {
+                    tracing::info!(room = %self.id, error = %e, "automation undo");
+                }
+            }
             Cmd::AiRole { user_id, reply } => {
                 let role = self
                     .peers
@@ -1182,6 +1196,24 @@ impl Room {
             self.on_ai_control(conn, &msg);
             return;
         }
+        // AUTO-06 frame 3a: Undo a run from its toast (editors only; the run's own writes).
+        if msg["t"] == "automation-undo" {
+            let can_write = self.peers.get(&conn).is_some_and(|p| p.grant.can_write());
+            let (rule, run) = (
+                msg["ruleId"].as_str().unwrap_or_default(),
+                msg["runId"].as_str().unwrap_or_default(),
+            );
+            if can_write
+                && oc_model::automation::valid_id(rule)
+                && !run.is_empty()
+                && run.len() <= 64
+            {
+                let _ = self.self_tx.send(Cmd::AutomationUndo {
+                    origin: format!("automation:{rule}#{run}"),
+                });
+            }
+            return;
+        }
         let wants_save = msg["t"] == "save";
         let can_write = self.peers.get(&conn).is_some_and(|p| p.grant.can_write());
         if wants_save && can_write && self.dirty_since.is_some() && self.conflict.is_none() {
@@ -1648,8 +1680,12 @@ impl Room {
         );
         for job in jobs {
             let deps = self.auto_deps();
-            let applier =
-                super::auto::ActorApplier(self.self_tx.clone(), job.depth, job.chain.clone());
+            let applier = super::auto::ActorApplier(
+                self.self_tx.clone(),
+                job.depth,
+                job.chain.clone(),
+                job.run_id.clone(),
+            );
             tokio::spawn(async move {
                 crate::automation::runner::run(&deps, &applier, job).await;
             });
@@ -2011,9 +2047,23 @@ impl Room {
         // AUTO-02: an automation write carries its chain; the transaction gets the plain origin.
         let plain;
         let origin = match super::auto::split_origin(origin) {
-            Some((rule, depth, chain)) => {
+            Some((rule, depth, chain, run)) => {
                 self.auto.pending.insert(author.to_string(), (depth, chain));
-                plain = crate::automation::runner::origin_of(&rule);
+                // One transaction origin per run, tracked so its Undo reverts exactly it.
+                plain = if run.is_empty() {
+                    crate::automation::runner::origin_of(&rule)
+                } else {
+                    format!("automation:{rule}#{run}")
+                };
+                if !run.is_empty() && !self.ai_undo.contains_key(&plain) {
+                    self.ai_track(&plain);
+                    self.auto.tracked.push_back(plain.clone());
+                    while self.auto.tracked.len() > 50 {
+                        if let Some(old) = self.auto.tracked.pop_front() {
+                            self.ai_undo.remove(&old);
+                        }
+                    }
+                }
                 plain.as_str()
             }
             None => origin,

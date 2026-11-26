@@ -7,7 +7,7 @@ import * as Y from "yjs";
 import {
   ArrowDown, ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ArrowUp, ArrowUpDown, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight,
   ChevronUp, Columns3, Copy, Download, Ellipsis, ExternalLink, GripVertical, Inbox, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search,
-  EyeOff, Info, SlidersHorizontal, SquareKanban, Sun, Table, Trash2, Upload, X, type LucideIcon,
+  EyeOff, Info, SlidersHorizontal, SquareKanban, Sun, Table, Trash2, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv, OcUser, Tone } from "@opencanvas/ui";
 import { CsvImportDialog } from "./CsvImportDialog";
@@ -499,6 +499,13 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
               {label}
             </button>
           ))}
+          {edit && env.automate ? (
+            <button className="ocdb-tab ocdb-auto" aria-haspopup="menu" onClick={(e) => env.automate!(dbId, e.currentTarget)}>
+              <Ic i={Zap} s={14} />
+              Automate
+              {env.automations?.(dbId) ? <span className="ocdb-autoc">{env.automations(dbId)}</span> : null}
+            </button>
+          ) : null}
         </div>
         <div className="ocdb-tools">
           <input

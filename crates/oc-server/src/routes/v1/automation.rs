@@ -452,11 +452,15 @@ pub async fn api_runs(
 
 // ---------- editor session routes ----------
 
+/// Explicit fields: a `#[serde(flatten)]` query struct reads every value as a string, so a
+/// numeric `limit` or `before` was refused (400).
 #[derive(Deserialize)]
 pub struct TicketQ {
     pub ticket: String,
-    #[serde(flatten)]
-    pub runs: RunsQ,
+    pub rule: Option<String>,
+    pub result: Option<String>,
+    pub before: Option<i64>,
+    pub limit: Option<u64>,
 }
 
 fn editor(r: Result<Value, Problem>) -> Response {
@@ -472,7 +476,13 @@ pub async fn editor_runs(
     Query(q): Query<TicketQ>,
 ) -> Result<Response, crate::routes::ApiError> {
     let (host, grant) = crate::routes::session(&state, &q.ticket).await?;
-    Ok(editor(runs(&state, &host, &grant, &q.runs).await))
+    let q2 = RunsQ {
+        rule: q.rule,
+        result: q.result,
+        before: q.before,
+        limit: q.limit,
+    };
+    Ok(editor(runs(&state, &host, &grant, &q2).await))
 }
 
 #[derive(Deserialize)]

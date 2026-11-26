@@ -34,6 +34,9 @@ export interface AutomationPanelProps {
   /** People by id, for names in sentences. */
   person(id: string): string;
   onClose(): void;
+  /** Frame 1c: open the editor with this trigger (database header, checklist item menu). */
+  start?: { trigger: Record<string, unknown> } | null;
+  onStarted?: () => void;
 }
 
 type View = { kind: "list" } | { kind: "edit"; rule: Rule; isNew: boolean } | { kind: "runs"; rule?: string } | { kind: "run"; run: Run };
@@ -97,6 +100,12 @@ export function AutomationPanel(p: AutomationPanelProps) {
   const { rules, dbs, lists } = useRules(p.doc);
   const { runs, reload } = useRuns(p.ticket, p.info.history);
   const [view, setView] = useState<View>({ kind: "list" });
+  useEffect(() => {
+    if (!p.start || !p.info.canEdit) return;
+    setView({ kind: "edit", rule: { ...blankRule(), trigger: completeTrigger(p.start.trigger, dbs) }, isNew: true });
+    p.onStarted?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.start]);
   const lim = p.info.limits;
   const onCount = rules.filter((r) => r.enabled && !r.paused).length;
   const pausedCount = rules.filter((r) => r.paused).length;
@@ -305,6 +314,13 @@ const ACTIONS: { kind: Action["kind"]; label: string; needsRow?: boolean }[] = [
   { kind: "http.post", label: "Call a URL" },
 ];
 
+/** A trigger from an entry point, with the database's sensible defaults filled in. */
+function completeTrigger(t: Record<string, unknown>, dbs: Db[]): Trigger {
+  const db = dbs.find((d) => d.id === t.database);
+  const base = triggerFor(String(t.kind), db ? [db, ...dbs.filter((d) => d !== db)] : dbs);
+  return { ...base, ...t } as Trigger;
+}
+
 function triggerFor(kind: string, dbs: Db[]): Trigger {
   const db = dbs[0];
   const status = db?.fields.find((f) => f.type === "status" || f.type === "select") ?? db?.fields[0];
@@ -441,6 +457,7 @@ function Editor(p: AutomationPanelProps & { rule: Rule; isNew: boolean; dbs: Db[
           <>
             <select className="tk pick" aria-label="Checklist item" value={t.block ?? ""} onChange={(e) => setT({ block: e.target.value || undefined })}>
               <option value="">Any checklist item</option>
+              {t.block && !p.lists.some((l) => l.id === t.block) ? <option value={t.block}>An item of this checklist</option> : null}
               {p.lists.map((l) => <option key={l.id} value={l.id}>{l.text || "Item"}</option>)}
             </select>{" "}
             is checked
