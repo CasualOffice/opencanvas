@@ -197,13 +197,6 @@ const TEAM_TEMPLATES = [
 /** Like checkCallback, for calls that are not about one file: the bearer must be a callback
  *  token we issued to this user for any file. */
 /** A signed callback without a bearer (`POST /access`): the signature is the proof. */
-function checkSigned(req, body) {
-  const sigHdr = req.headers["x-opencanvas-signature"] || "";
-  const t = /t=(\d+)/.exec(sigHdr)?.[1], v2 = /v2=([0-9a-f]+)/.exec(sigHdr)?.[1];
-  if (!t || !v2 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
-  const want = crypto.createHmac("sha256", SECRET).update(Buffer.concat([Buffer.from(`${t}.${req.method}.${req.url}.`), body])).digest("hex");
-  return want.length === v2.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(v2));
-}
 
 // Live blocks (docs/05 §2c, LIVE-01/03): `/access` answers for any file and person; `POST /files`
 // creates a live block's file next to its canvas, with the canvas's people.

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use oc_model::automation::Rule;
-use yrs::{Doc, ReadTxn};
+use yrs::{Doc, Map, ReadTxn, Transact};
 
 use crate::automation::engine::{Snapshot, diff, triggered};
 use crate::automation::runner::{Applier, ApplyFut, Job};
@@ -247,6 +247,18 @@ pub fn check_client(
     grant: &crate::grant::Grant,
     host: &HostConfig,
 ) -> Result<(), String> {
+    // An update can only reach an empty `automations` root by naming it. Checked first because
+    // `touches_root` counts any update that cannot fully integrate yet (out-of-order edits, a
+    // normal state) as touching: with automation off that refused ordinary typing (fuzz tests).
+    let name = oc_model::roots::AUTOMATIONS.as_bytes();
+    let empty = {
+        let txn = doc.transact();
+        txn.get_map(oc_model::roots::AUTOMATIONS)
+            .is_none_or(|m| m.len(&txn) == 0)
+    };
+    if empty && !update.windows(name.len()).any(|w| w == name) {
+        return Ok(());
+    }
     if !super::filter::touches_root(doc, update, oc_model::roots::AUTOMATIONS) {
         return Ok(());
     }
