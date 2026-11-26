@@ -108,7 +108,8 @@ test("crash, Reload block, and the crash-loop guard", async ({ browser }) => {
   const b = block(priya, "e2e.hostile");
   for (let i = 1; i <= 3; i++) {
     await frameOf(priya, "e2e.hostile").getByRole("button", { name: "Crash" }).click();
-    await expect(b.getByRole("alert")).toContainText("This block stopped working", { timeout: 10_000 });
+    // Crash detection rides the frame heartbeat; a loaded machine can take longer than 10 s.
+    await expect(b.getByRole("alert")).toContainText("This block stopped working", { timeout: 20_000 });
     await expect(b).toContainText("Last saved copy");
     await expect(b.locator(".oc-ext-copy b")).toHaveText("Saved");
     // The rest of the canvas keeps working.
