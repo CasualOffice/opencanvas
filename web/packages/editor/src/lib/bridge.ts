@@ -19,6 +19,8 @@ export interface Uploaded {
 
 export interface Bridge {
   doc: Y.Doc;
+  /** PSYNC-03: a split room's parts (databases and boards as their own documents). */
+  parts?: import("./parts").PartsClient | null;
   awareness: Awareness;
   env: BlockEnv;
   session: Session;
