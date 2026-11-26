@@ -1,0 +1,2500 @@
+{
+  "cases": [
+    {
+      "out": 50.0,
+      "src": "prop(\"Price\") * prop(\"Qty\")"
+    },
+    {
+      "out": "Venue x4",
+      "src": "prop(\"Name\") & \" x\" & prop(\"Qty\")"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "1 / 0"
+    },
+    {
+      "out": {
+        "err": "#REF",
+        "msg": "No field named “Missing”"
+      },
+      "src": "prop(\"Missing\")"
+    },
+    {
+      "out": "yes",
+      "src": "IF(prop(\"Done\"), \"yes\", \"no\")"
+    },
+    {
+      "out": 1.0,
+      "src": "if(prop(\"Qty\") > 2, 1, 2)"
+    },
+    {
+      "out": 4.17,
+      "src": "ROUND(prop(\"Price\") / 3, 2)"
+    },
+    {
+      "out": "2027-01-15",
+      "src": "DATEADD(prop(\"Due\"), 1, \"months\")"
+    },
+    {
+      "out": 2.0,
+      "src": "DATEDIFF(TODAY(), prop(\"Due\"), \"weeks\")"
+    },
+    {
+      "out": 19.0,
+      "src": "prop(\"Due\") - TODAY()"
+    },
+    {
+      "out": "a/b",
+      "src": "JOIN(prop(\"Tags\"), \"/\")"
+    },
+    {
+      "out": 2.0,
+      "src": "COUNT(prop(\"Tags\"))"
+    },
+    {
+      "out": 5.0,
+      "src": "LEN(prop(\"Name\"))"
+    },
+    {
+      "out": "VENUE",
+      "src": "UPPER(prop(\"Name\"))"
+    },
+    {
+      "out": 13.5,
+      "src": "VALUE(\"12.5\") + 1"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "“x” is not a number"
+      },
+      "src": "VALUE(\"x\")"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "SQRT of a negative number"
+      },
+      "src": "SQRT(-1)"
+    },
+    {
+      "out": 2.0,
+      "src": "MOD(-7, 3)"
+    },
+    {
+      "out": 1024.0,
+      "src": "POWER(2, 10)"
+    },
+    {
+      "out": 0.30000000000000004,
+      "src": "0.1 + 0.2"
+    },
+    {
+      "out": "0.3",
+      "src": "TEXT(0.1 + 0.2)"
+    },
+    {
+      "out": true,
+      "src": "ISBLANK(prop(\"Note\"))"
+    },
+    {
+      "out": "none",
+      "src": "IFERROR(1/0, \"none\")"
+    },
+    {
+      "out": true,
+      "src": "AND(TRUE, prop(\"Done\"))"
+    },
+    {
+      "out": false,
+      "src": "OR(FALSE, NOT(prop(\"Done\")))"
+    },
+    {
+      "out": true,
+      "src": "CONTAINS(prop(\"Name\"), \"ven\")"
+    },
+    {
+      "out": true,
+      "src": "CONTAINS(prop(\"Tags\"), \"B\")"
+    },
+    {
+      "out": "Veue",
+      "src": "LEFT(prop(\"Name\"), 2) & RIGHT(prop(\"Name\"), 2)"
+    },
+    {
+      "out": "a",
+      "src": "TRIM(\"  a  \")"
+    },
+    {
+      "out": "1truex2026-12-15",
+      "src": "CONCAT(1, TRUE, \"x\", prop(\"Due\"))"
+    },
+    {
+      "out": 20261215.0,
+      "src": "YEAR(prop(\"Due\")) * 10000 + MONTH(prop(\"Due\")) * 100 + DAY(prop(\"Due\"))"
+    },
+    {
+      "out": 2.0,
+      "src": "WEEKDAY(prop(\"Due\"))"
+    },
+    {
+      "out": "2025-02-28",
+      "src": "DATE(2024, 2, 29) + 365"
+    },
+    {
+      "out": "2027-01-01",
+      "src": "DATE(2026, 13, 1)"
+    },
+    {
+      "out": 2.0,
+      "src": "AVERAGE(1, 2, 3, prop(\"Tags\"))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "AVERAGE of nothing"
+      },
+      "src": "AVERAGE(prop(\"Tags\"))"
+    },
+    {
+      "out": null,
+      "src": "MIN(prop(\"Tags\"))"
+    },
+    {
+      "out": 4.0,
+      "src": "MAX(3, prop(\"Qty\"), 1)"
+    },
+    {
+      "out": 16.5,
+      "src": "SUM(prop(\"Price\"), prop(\"Qty\"), prop(\"Note\"))"
+    },
+    {
+      "out": 1.0,
+      "src": "prop(\"Note\") + 1"
+    },
+    {
+      "out": "!",
+      "src": "prop(\"Note\") & \"!\""
+    },
+    {
+      "out": -12.5,
+      "src": "-prop(\"Price\")"
+    },
+    {
+      "out": true,
+      "src": "1 = 1.0"
+    },
+    {
+      "out": true,
+      "src": "\"a\" = \"A\""
+    },
+    {
+      "out": true,
+      "src": "\"a\" < \"b\""
+    },
+    {
+      "out": true,
+      "src": "prop(\"Due\") > TODAY()"
+    },
+    {
+      "out": 1000.5,
+      "src": "1e3 + .5"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "Use & to join text"
+      },
+      "src": "1 + \"a\""
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "“*” needs numbers"
+      },
+      "src": "\"a\" * 2"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "Unknown unit “fortnights”: use days, weeks, months or years"
+      },
+      "src": "DATEADD(prop(\"Due\"), 1, \"fortnights\")"
+    },
+    {
+      "out": 2.0,
+      "src": "DATEDIFF(prop(\"Due\"), DATE(2027, 3, 14), \"months\")"
+    },
+    {
+      "out": 5.0,
+      "src": "DATEDIFF(DATE(2020,2,29), DATE(2026,2,28), \"years\")"
+    },
+    {
+      "out": "-3,-2,2.5",
+      "src": "FLOOR(-2.5) & \",\" & CEILING(-2.5) & \",\" & ABS(-2.5)"
+    },
+    {
+      "out": 1200.0,
+      "src": "ROUND(1234.5678, -2)"
+    },
+    {
+      "out": {
+        "err": "#LIMIT",
+        "msg": "Number is too large"
+      },
+      "src": "POWER(10, 400)"
+    },
+    {
+      "out": {
+        "err": "#REF",
+        "msg": "Unknown function FOO"
+      },
+      "src": "FOO(1)"
+    },
+    {
+      "out": {
+        "err": "#REF",
+        "msg": "Unknown name “x”; write prop(\"x\") for a field"
+      },
+      "src": "x + 1"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "Expected “)”"
+      },
+      "src": "(1 + 2"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "Formula ends too early"
+      },
+      "src": "1 +"
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "Formula is empty"
+      },
+      "src": ""
+    },
+    {
+      "out": {
+        "err": "#TYPE",
+        "msg": "prop takes one field name in quotes"
+      },
+      "src": "prop(1)"
+    },
+    {
+      "out": 8.0,
+      "src": "Prop(\"Qty\") * 2"
+    },
+    {
+      "out": "truefalse",
+      "src": "true & false"
+    },
+    {
+      "out": true,
+      "src": "1 <> 2 = TRUE"
+    },
+    {
+      "out": 7.0,
+      "src": "7"
+    },
+    {
+      "out": -1.5,
+      "src": "AVERAGE(-3, ROUND(ROUND(MOD(prop(\"Qty\"), prop(\"Qty\")), 2), 1))"
+    },
+    {
+      "out": true,
+      "src": "TRUE"
+    },
+    {
+      "out": "ab",
+      "src": "\"ab\""
+    },
+    {
+      "out": "2.5",
+      "src": "UPPER(UPPER(TEXT(2.5)))"
+    },
+    {
+      "out": true,
+      "src": "AVERAGE(IF(false, 100, 0), prop(\"Price\")) <> SUM(0, IF(prop(\"Done\"), -3, 100))"
+    },
+    {
+      "out": 1.0,
+      "src": "LEN(TEXT(MOD(7, MIN(7, 2.5))))"
+    },
+    {
+      "out": true,
+      "src": "MOD(IF(prop(\"Done\"), 1, 2.5), MOD(1, -3)) <> IF(prop(\"Done\"), LEN(\"\"), IF(TRUE, prop(\"Price\"), 1))"
+    },
+    {
+      "out": true,
+      "src": "prop(\"Done\")"
+    },
+    {
+      "out": 407.0,
+      "src": "IF(NOT(MOD(7, 7) > IF(false, 7, 100)), ((prop(\"Qty\") * 100) + 7), (AVERAGE(prop(\"Price\"), 0) - (LEN(prop(\"Note\")) * ROUND(1, 1))))"
+    },
+    {
+      "out": "",
+      "src": "UPPER(prop(\"Note\"))"
+    },
+    {
+      "out": "0",
+      "src": "\"\" & MOD(LEN(\"\"), MAX(-3, prop(\"Qty\")))"
+    },
+    {
+      "out": "Venue",
+      "src": "prop(\"Name\")"
+    },
+    {
+      "out": null,
+      "src": "prop(\"Note\")"
+    },
+    {
+      "out": 7.0,
+      "src": "(ROUND(SUM(ROUND(0, 0), MAX(0, 0)), 1) + 7)"
+    },
+    {
+      "out": "100",
+      "src": "\"\" & IF(NOT(TRUE), AVERAGE(0, -3), 100)"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(LEN(prop(\"Note\")))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(false, prop(\"Price\") <= -3), ROUND(1, 1) > 1)"
+    },
+    {
+      "out": "",
+      "src": "TEXT(IF(prop(\"Price\") < 7, MAX(0, prop(\"Note\")), prop(\"Note\")))"
+    },
+    {
+      "out": "7",
+      "src": "TEXT(7)"
+    },
+    {
+      "out": false,
+      "src": "false"
+    },
+    {
+      "out": 4.0,
+      "src": "prop(\"Qty\")"
+    },
+    {
+      "out": 3.0,
+      "src": "LEN(\"ab\" & ROUND(LEN(prop(\"Name\")), 0))"
+    },
+    {
+      "out": "100",
+      "src": "TEXT(100)"
+    },
+    {
+      "out": 2.5,
+      "src": "(LEN(UPPER(\"\") & prop(\"Note\")) + IF(ROUND(7, 2) >= -3, 2.5, SUM(ROUND(prop(\"Qty\"), 0), LEN(prop(\"Name\")))))"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(prop(\"Qty\") <> 1), NOT(AND(false, prop(\"Done\"))))"
+    },
+    {
+      "out": false,
+      "src": "0 <= -3"
+    },
+    {
+      "out": true,
+      "src": "NOT(NOT(prop(\"Done\")))"
+    },
+    {
+      "out": false,
+      "src": "NOT(NOT(2.5 < 1))"
+    },
+    {
+      "out": 0.0,
+      "src": "(0 * 2.5)"
+    },
+    {
+      "out": false,
+      "src": "0 > IF(TRUE, (100 * prop(\"Qty\")), prop(\"Qty\"))"
+    },
+    {
+      "out": "2",
+      "src": "TEXT(LEN(\"ab\"))"
+    },
+    {
+      "out": 2.5,
+      "src": "2.5"
+    },
+    {
+      "out": false,
+      "src": "AND(TRUE, AND(NOT(prop(\"Done\")), -3 = 2.5))"
+    },
+    {
+      "out": -1.0,
+      "src": "ROUND(MOD(SUM(MAX(7, 1), 1), -3), 1)"
+    },
+    {
+      "out": 3.0,
+      "src": "LEN(TEXT(IF(NOT(false), (0 + 100), prop(\"Qty\"))))"
+    },
+    {
+      "out": "0",
+      "src": "prop(\"Note\") & 0"
+    },
+    {
+      "out": "Venue12.5",
+      "src": "prop(\"Name\") & prop(\"Price\")"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(MOD(IF(TRUE, prop(\"Note\"), prop(\"Note\")), IF(TRUE, prop(\"Qty\"), 2.5)))"
+    },
+    {
+      "out": 0.0,
+      "src": "0"
+    },
+    {
+      "out": true,
+      "src": "AND(MAX(1, 1) <> ROUND(prop(\"Price\"), 0), NOT(NOT(TRUE)))"
+    },
+    {
+      "out": 2.5,
+      "src": "(prop(\"Note\") + 2.5)"
+    },
+    {
+      "out": 100.0,
+      "src": "100"
+    },
+    {
+      "out": 100.0,
+      "src": "IF(prop(\"Done\"), 100, (LEN(\"\" & -3) + prop(\"Price\")))"
+    },
+    {
+      "out": 12.5,
+      "src": "prop(\"Price\")"
+    },
+    {
+      "out": true,
+      "src": "IF(false, ROUND(1, 1), ROUND(prop(\"Qty\"), 1)) >= ROUND((2.5 / prop(\"Price\")), 0)"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(MOD(IF(prop(\"Price\") >= 100, 0, LEN(\"\")), 7), 7)"
+    },
+    {
+      "out": 6.5,
+      "src": "((IF(false, ROUND(-3, 2), prop(\"Price\")) - LEN(\"ab\" & prop(\"Note\"))) - SUM(prop(\"Qty\"), MOD(LEN(\"\"), SUM(100, prop(\"Price\")))))"
+    },
+    {
+      "out": -3.0,
+      "src": "IF(NOT(NOT(AND(prop(\"Done\"), TRUE))), IF(prop(\"Done\"), -3, MAX(ROUND(0, 2), prop(\"Price\"))), IF(NOT(NOT(false)), AVERAGE(prop(\"Qty\"), 2.5), LEN(UPPER(prop(\"Name\")))))"
+    },
+    {
+      "out": 12.5,
+      "src": "ROUND(prop(\"Price\"), 2)"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(MIN(MIN(0, 0), (0 * 2.5)))"
+    },
+    {
+      "out": false,
+      "src": "NOT(NOT(false))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "TEXT(MOD(0, MOD(100, 1)))"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(MOD(prop(\"Qty\"), (1 / 100)))"
+    },
+    {
+      "out": "4",
+      "src": "UPPER(TEXT(prop(\"Qty\")))"
+    },
+    {
+      "out": 12.5,
+      "src": "MAX(prop(\"Price\"), 0)"
+    },
+    {
+      "out": "1",
+      "src": "TEXT(1)"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(1 <= 7, AND(prop(\"Done\"), prop(\"Done\"))), AND(AND(prop(\"Done\"), prop(\"Done\")), NOT(prop(\"Done\"))))"
+    },
+    {
+      "out": 0.0,
+      "src": "SUM(IF(AND(2.5 >= 100, NOT(false)), LEN(UPPER(prop(\"Name\"))), ROUND(MOD(0, 100), 2)), prop(\"Note\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "LEN(\"\")"
+    },
+    {
+      "out": false,
+      "src": "NOT(TRUE)"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(TRUE, false))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "(MOD(LEN(TEXT(100)), ROUND(MOD(100, 2.5), 2)) * LEN(UPPER(UPPER(\"\"))))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(MOD(ROUND(MOD(100, 7), 0), 1), 0)"
+    },
+    {
+      "out": "6.250",
+      "src": "TEXT(AVERAGE(0, prop(\"Price\"))) & 0"
+    },
+    {
+      "out": 6.25,
+      "src": "AVERAGE(prop(\"Price\"), LEN(\"\"))"
+    },
+    {
+      "out": false,
+      "src": "AVERAGE(MOD(1, prop(\"Qty\")), -3) >= SUM(LEN(\"ab\"), (0 * prop(\"Note\")))"
+    },
+    {
+      "out": 4.0,
+      "src": "IF(NOT(prop(\"Done\")), LEN(\"\"), prop(\"Qty\"))"
+    },
+    {
+      "out": 7.0,
+      "src": "IF(prop(\"Note\") <> (IF(TRUE, 0, 7) / 7), ROUND(100, 1), 7)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "(1 + MOD(MIN(LEN(prop(\"Note\")), 7), AVERAGE(-3, (1 / prop(\"Note\")))))"
+    },
+    {
+      "out": 2.0,
+      "src": "LEN(TEXT(ROUND(IF(TRUE, -3, prop(\"Price\")), 2)))"
+    },
+    {
+      "out": 2.0,
+      "src": "LEN(UPPER(\"\" & IF(false, 100, -3)))"
+    },
+    {
+      "out": "12.503",
+      "src": "prop(\"Note\") & prop(\"Price\") & (prop(\"Note\") / prop(\"Price\")) & IF(NOT(false), ROUND(2.5, 0), (prop(\"Qty\") - 100))"
+    },
+    {
+      "out": "",
+      "src": "TEXT(prop(\"Note\"))"
+    },
+    {
+      "out": false,
+      "src": "IF(false, MAX(prop(\"Note\"), prop(\"Note\")), IF(TRUE, 1, 2.5)) > 100"
+    },
+    {
+      "out": true,
+      "src": "AND(TRUE, IF(prop(\"Done\"), prop(\"Qty\"), 100) >= -3)"
+    },
+    {
+      "out": 12.5,
+      "src": "IF(AND(false, NOT(AND(TRUE, TRUE))), LEN(UPPER(\"\" & 0)), prop(\"Price\"))"
+    },
+    {
+      "out": 1.0,
+      "src": "IF(false, LEN(UPPER(UPPER(prop(\"Name\")))), IF(AND(2.5 < 2.5, 100 >= prop(\"Note\")), ((prop(\"Note\") + prop(\"Note\")) - -3), 1))"
+    },
+    {
+      "out": 15.0,
+      "src": "IF(NOT(AND(false, 7 <> prop(\"Price\"))), SUM(prop(\"Price\"), 2.5), IF(NOT(TRUE), LEN(prop(\"Note\")), MOD(MOD(2.5, 100), 7)))"
+    },
+    {
+      "out": "-3",
+      "src": "TEXT(IF(AND(prop(\"Done\"), false), MOD(1, 1), -3))"
+    },
+    {
+      "out": false,
+      "src": "NOT(AND(prop(\"Done\"), AND(prop(\"Done\"), TRUE)))"
+    },
+    {
+      "out": 6.0,
+      "src": "IF(prop(\"Done\"), SUM(MOD(ROUND(prop(\"Qty\"), 2), prop(\"Price\")), LEN(UPPER(\"ab\"))), (MOD(MAX(prop(\"Note\"), prop(\"Note\")), ROUND(1, 1)) * ROUND(ROUND(1, 0), 1)))"
+    },
+    {
+      "out": true,
+      "src": "AND(LEN(prop(\"Note\")) <= LEN(prop(\"Name\")), ROUND(prop(\"Qty\"), 2) <> MOD(100, -3))"
+    },
+    {
+      "out": 43.5,
+      "src": "(AVERAGE(SUM(100, 1), 0) - LEN(\"ab\" & 1 & prop(\"Price\")))"
+    },
+    {
+      "out": false,
+      "src": "AND(LEN(prop(\"Name\")) = IF(false, -3, prop(\"Note\")), false)"
+    },
+    {
+      "out": false,
+      "src": "prop(\"Note\") >= ROUND(2.5, 2)"
+    },
+    {
+      "out": 0.0,
+      "src": "IF(prop(\"Done\"), 0, IF(prop(\"Done\"), MIN(IF(TRUE, 1, prop(\"Note\")), ROUND(0, 1)), 100))"
+    },
+    {
+      "out": true,
+      "src": "(IF(TRUE, prop(\"Qty\"), prop(\"Price\")) + ROUND(1, 2)) > LEN(prop(\"Note\") & 1)"
+    },
+    {
+      "out": 12.5,
+      "src": "IF(prop(\"Done\"), MAX((MAX(prop(\"Qty\"), 7) / (prop(\"Price\") - 0)), prop(\"Price\")), LEN(prop(\"Name\") & 100 & SUM(1, 2.5)))"
+    },
+    {
+      "out": 12.5,
+      "src": "SUM(prop(\"Price\"), MAX(0, MOD((0 + 0), 7)))"
+    },
+    {
+      "out": "4",
+      "src": "TEXT(IF(NOT(TRUE), 0, MOD(-3, 7)))"
+    },
+    {
+      "out": false,
+      "src": "LEN(UPPER(prop(\"Note\"))) >= IF(AND(prop(\"Done\"), TRUE), MAX(7, 1), 7)"
+    },
+    {
+      "out": false,
+      "src": "AND(MOD(0, 7) < IF(TRUE, 100, 7), MOD(7, 1) = (prop(\"Qty\") / 2.5))"
+    },
+    {
+      "out": "9",
+      "src": "\"\" & LEN(prop(\"Name\") & prop(\"Price\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(0, IF(MOD(prop(\"Qty\"), 100) = MOD(7, 100), LEN(UPPER(\"ab\")), ROUND((1 + 100), 1)))"
+    },
+    {
+      "out": 1.0,
+      "src": "1"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "(MOD(((1 / prop(\"Note\")) * IF(TRUE, -3, 2.5)), prop(\"Note\")) - LEN(\"ab\"))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(2.5 < 0, false))"
+    },
+    {
+      "out": false,
+      "src": "(0 - LEN(\"\")) < MOD(ROUND(prop(\"Qty\"), 1), SUM(1, prop(\"Note\")))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MIN(IF(IF(prop(\"Done\"), 100, -3) < -3, (2.5 / MAX(100, prop(\"Note\"))), (-3 + MOD(0, 0))), (IF(AND(prop(\"Done\"), TRUE), IF(TRUE, 2.5, 7), 100) * MOD(SUM(1, prop(\"Qty\")), IF(false, 7, -3))))"
+    },
+    {
+      "out": false,
+      "src": "AND(false, prop(\"Done\"))"
+    },
+    {
+      "out": 1.0,
+      "src": "MOD(ROUND(7, 0), (2.5 - 1))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "\"ab\" & (MOD(1, prop(\"Note\")) + 0)"
+    },
+    {
+      "out": 1.0,
+      "src": "(prop(\"Note\") + ROUND(1, 1))"
+    },
+    {
+      "out": 2.5,
+      "src": "IF(AND(NOT(prop(\"Qty\") > 7), TRUE), 2.5, LEN(UPPER(\"\")))"
+    },
+    {
+      "out": false,
+      "src": "AND(ROUND(7, 2) = LEN(prop(\"Note\")), false)"
+    },
+    {
+      "out": false,
+      "src": "NOT(AND(NOT(false), prop(\"Done\")))"
+    },
+    {
+      "out": "12.5",
+      "src": "UPPER(prop(\"Note\") & prop(\"Note\")) & AVERAGE(prop(\"Price\"), prop(\"Price\"))"
+    },
+    {
+      "out": 35.0,
+      "src": "ROUND(((7 + LEN(prop(\"Note\"))) * LEN(prop(\"Name\"))), 1)"
+    },
+    {
+      "out": "112.5",
+      "src": "UPPER(\"\" & SUM(100, prop(\"Price\")))"
+    },
+    {
+      "out": "4",
+      "src": "TEXT(LEN(TEXT(prop(\"Price\"))))"
+    },
+    {
+      "out": "4",
+      "src": "TEXT(LEN(\"ab\" & -3))"
+    },
+    {
+      "out": "",
+      "src": "\"\""
+    },
+    {
+      "out": "",
+      "src": "UPPER(\"\")"
+    },
+    {
+      "out": false,
+      "src": "NOT(prop(\"Done\"))"
+    },
+    {
+      "out": 2.5,
+      "src": "(MOD(ROUND((prop(\"Price\") - 1), 2), IF(AND(prop(\"Done\"), prop(\"Done\")), (0 - 1), MOD(1, prop(\"Qty\")))) + ROUND(LEN(TEXT(2.5)), 0))"
+    },
+    {
+      "out": -12.0,
+      "src": "(ROUND(MOD(MOD(prop(\"Qty\"), 7), (100 - 0)), 2) * -3)"
+    },
+    {
+      "out": -3.0,
+      "src": "-3"
+    },
+    {
+      "out": "12.5",
+      "src": "TEXT(IF(false, (-3 / prop(\"Note\")), prop(\"Price\")))"
+    },
+    {
+      "out": 2.0,
+      "src": "SUM(IF(false, MOD(MOD(7, prop(\"Qty\")), 1), LEN(UPPER(\"\"))), IF(MOD(prop(\"Qty\"), 100) > LEN(prop(\"Name\")), 1, ROUND(LEN(\"ab\"), 0)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "ROUND((MOD(MIN(1, 1), LEN(prop(\"Note\"))) + prop(\"Price\")), 0)"
+    },
+    {
+      "out": true,
+      "src": "1 < prop(\"Price\")"
+    },
+    {
+      "out": true,
+      "src": "AND(1 < IF(TRUE, 2.5, 100), prop(\"Done\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "LEN(prop(\"Note\"))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(NOT(false), AND(TRUE, false)))"
+    },
+    {
+      "out": false,
+      "src": "IF(NOT(false), (-3 * 1), prop(\"Note\")) > 0"
+    },
+    {
+      "out": true,
+      "src": "NOT(AVERAGE(1, 100) >= 100)"
+    },
+    {
+      "out": false,
+      "src": "AND(7 <> ROUND(prop(\"Note\"), 1), false)"
+    },
+    {
+      "out": 2.0,
+      "src": "MOD(7, (LEN(UPPER(prop(\"Name\"))) / LEN(UPPER(\"ab\"))))"
+    },
+    {
+      "out": true,
+      "src": "NOT(NOT(100 <> 1))"
+    },
+    {
+      "out": false,
+      "src": "prop(\"Price\") = AVERAGE(2.5, IF(prop(\"Done\"), prop(\"Qty\"), prop(\"Note\")))"
+    },
+    {
+      "out": "-3",
+      "src": "TEXT(MIN(1, -3))"
+    },
+    {
+      "out": false,
+      "src": "MOD(0, MAX(7, 1)) > ROUND(LEN(\"\"), 0)"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(0)"
+    },
+    {
+      "out": 2.0,
+      "src": "ROUND(LEN(TEXT(1) & LEN(\"\")), 0)"
+    },
+    {
+      "out": "2.5",
+      "src": "TEXT(2.5)"
+    },
+    {
+      "out": 0.35714285714285715,
+      "src": "IF(AND(AND(false, 100 < 7), TRUE), MOD(7, ROUND(LEN(\"ab\"), 0)), MAX((MOD(100, prop(\"Price\")) - (1 + prop(\"Qty\"))), IF(2.5 < 1, -3, (2.5 / 7))))"
+    },
+    {
+      "out": 4.3,
+      "src": "ROUND(AVERAGE(LEN(prop(\"Name\") & 1), ROUND(MOD(2.5, 7), 2)), 1)"
+    },
+    {
+      "out": true,
+      "src": "NOT(SUM(-3, prop(\"Price\")) = prop(\"Price\"))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(NOT(false), AND(false, TRUE)), false)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "prop(\"Qty\") <= IF(false, AVERAGE(-3, prop(\"Qty\")), MOD(0, 0))"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(MOD(-3, ROUND(1, 1)))"
+    },
+    {
+      "out": "1004",
+      "src": "UPPER(\"\" & 100) & AVERAGE(prop(\"Note\"), (0 + prop(\"Qty\")))"
+    },
+    {
+      "out": -3.0,
+      "src": "IF(TRUE, SUM(MIN(IF(false, 2.5, -3), (7 / prop(\"Qty\"))), 0), (MIN(MAX(0, 0), 1) / AVERAGE(ROUND(100, 0), MOD(prop(\"Note\"), 1))))"
+    },
+    {
+      "out": "3.50",
+      "src": "TEXT(SUM(2.5, 1)) & MIN(0, MIN(1, prop(\"Note\")))"
+    },
+    {
+      "out": 4.0,
+      "src": "MAX(MOD(((prop(\"Note\") + prop(\"Qty\")) - ROUND(2.5, 0)), (1 * IF(TRUE, 2.5, 2.5))), (ROUND((7 + -3), 0) + (LEN(prop(\"Note\")) * MOD(-3, prop(\"Price\")))))"
+    },
+    {
+      "out": 0.0,
+      "src": "(LEN(\"\") - prop(\"Note\"))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(ROUND(2.5, 2), LEN(prop(\"Note\")))"
+    },
+    {
+      "out": "",
+      "src": "UPPER(UPPER(\"\"))"
+    },
+    {
+      "out": "Venue42.5",
+      "src": "prop(\"Name\") & prop(\"Qty\") & IF(prop(\"Done\"), prop(\"Note\"), 1) & 2.5"
+    },
+    {
+      "out": true,
+      "src": "(prop(\"Qty\") - 7) <= MOD(MOD(0, -3), SUM(2.5, prop(\"Note\")))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(false, NOT(false)))"
+    },
+    {
+      "out": "2.5",
+      "src": "TEXT(ROUND(2.5, 1))"
+    },
+    {
+      "out": false,
+      "src": "-3 = 2.5"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(0, 1)"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(IF(prop(\"Done\"), prop(\"Note\"), 7)) & 0"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(ROUND(IF(0 > 0, 2.5, 2.5), 0), ROUND(prop(\"Note\"), 1))"
+    },
+    {
+      "out": 0.0,
+      "src": "IF(NOT(NOT(TRUE)), 0, ROUND((IF(false, 2.5, prop(\"Qty\")) * LEN(prop(\"Name\"))), 0))"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(2.5, 2.5)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(AVERAGE(-3, 1), IF(false, prop(\"Price\"), prop(\"Note\"))) <= 7"
+    },
+    {
+      "out": 0.0,
+      "src": "MIN(MIN(1, IF(NOT(prop(\"Done\")), AVERAGE(prop(\"Price\"), 7), LEN(\"\"))), (7 - IF(2.5 <> prop(\"Qty\"), -3, prop(\"Qty\"))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "TEXT(MOD(ROUND(-3, 2), LEN(prop(\"Note\"))))"
+    },
+    {
+      "out": true,
+      "src": "LEN(prop(\"Name\")) >= IF(-3 <= 0, LEN(\"ab\"), ROUND(prop(\"Note\"), 2))"
+    },
+    {
+      "out": 1.9432989690721647,
+      "src": "(LEN(prop(\"Note\") & ROUND(-3, 2)) - MOD(MOD(ROUND(prop(\"Qty\"), 0), ROUND(2.5, 2)), (7 / SUM(-3, 100))))"
+    },
+    {
+      "out": "-1",
+      "src": "TEXT((MOD(0, 100) - SUM(1, 0)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(MIN(ROUND(ROUND(-3, 2), 2), MAX(prop(\"Note\"), 2.5)), 0)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "prop(\"Note\") & (100 - 0) & MAX(100, MOD(prop(\"Price\"), 0))"
+    },
+    {
+      "out": "1003",
+      "src": "TEXT(ROUND(100, 1)) & LEN(\"ab\" & prop(\"Qty\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "IF(SUM(7, -3) > ((100 - -3) - MOD(2.5, 100)), prop(\"Qty\"), 0)"
+    },
+    {
+      "out": 0.5,
+      "src": "MOD(2.5, MAX(-3, 1))"
+    },
+    {
+      "out": 3.0,
+      "src": "LEN(TEXT(AVERAGE(IF(TRUE, 1, 0), (prop(\"Note\") + prop(\"Qty\")))))"
+    },
+    {
+      "out": 2.5,
+      "src": "ROUND(MOD(2.5, IF(AND(prop(\"Done\"), false), 2.5, (100 / prop(\"Price\")))), 1)"
+    },
+    {
+      "out": "",
+      "src": "UPPER(UPPER(UPPER(\"\")))"
+    },
+    {
+      "out": 7.0,
+      "src": "ROUND(7, 0)"
+    },
+    {
+      "out": "100",
+      "src": "UPPER(TEXT(IF(prop(\"Done\"), 100, 1)))"
+    },
+    {
+      "out": "12.5",
+      "src": "UPPER(UPPER(\"\") & ROUND(prop(\"Price\"), 2))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "AVERAGE(MOD(ROUND(IF(false, prop(\"Note\"), prop(\"Price\")), 0), MIN(ROUND(0, 2), IF(prop(\"Done\"), prop(\"Note\"), 0))), prop(\"Note\"))"
+    },
+    {
+      "out": 2.0,
+      "src": "LEN(\"ab\")"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(TRUE), NOT(AND(false, TRUE)))"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(TRUE), AND(prop(\"Done\"), AND(false, TRUE)))"
+    },
+    {
+      "out": 105.5,
+      "src": "(MAX(MOD(prop(\"Note\"), ROUND(100, 0)), (AVERAGE(prop(\"Qty\"), 7) + IF(false, 7, 100))) - ROUND(IF(1 <> 100, ROUND(0, 0), LEN(\"\")), 2))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(IF(NOT(false), ROUND(2.5, 2), MIN(LEN(\"\"), MOD(prop(\"Note\"), prop(\"Price\")))), LEN(UPPER(UPPER(prop(\"Note\")))))"
+    },
+    {
+      "out": 1.0,
+      "src": "IF(NOT(AND(100 > prop(\"Qty\"), NOT(TRUE))), ROUND(1, 0), prop(\"Note\"))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "LEN(prop(\"Note\")) = MAX(1, (7 / prop(\"Note\")))"
+    },
+    {
+      "out": true,
+      "src": "AND((0 * prop(\"Note\")) <= ROUND(prop(\"Price\"), 1), TRUE)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(MOD(2.5, LEN(TEXT(prop(\"Note\")))), 0)"
+    },
+    {
+      "out": -4.0,
+      "src": "(prop(\"Note\") - prop(\"Qty\"))"
+    },
+    {
+      "out": -0.0,
+      "src": "(-3 * IF(AND(NOT(false), AND(prop(\"Done\"), TRUE)), ROUND(LEN(\"\"), 2), ROUND(SUM(0, 2.5), 2)))"
+    },
+    {
+      "out": false,
+      "src": "(AVERAGE(1, 7) + (1 + prop(\"Note\"))) = ROUND(AVERAGE(100, 1), 2)"
+    },
+    {
+      "out": 0.0,
+      "src": "IF(false, -3, ROUND(0, 0))"
+    },
+    {
+      "out": true,
+      "src": "ROUND((2.5 / 2.5), 2) < (2.5 - ROUND(1, 2))"
+    },
+    {
+      "out": 0.16,
+      "src": "((prop(\"Qty\") / prop(\"Price\")) / LEN(\"\" & -3))"
+    },
+    {
+      "out": true,
+      "src": "AND((100 + prop(\"Qty\")) <> prop(\"Note\"), prop(\"Done\"))"
+    },
+    {
+      "out": "02.5",
+      "src": "UPPER(prop(\"Note\") & 0) & IF(false, 1, 2.5)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(MOD(prop(\"Note\"), (LEN(prop(\"Note\")) * prop(\"Price\"))), MOD(MOD(ROUND(0, 1), 0), 2.5))"
+    },
+    {
+      "out": 1.0,
+      "src": "ROUND(1, 1)"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(MIN(-3, LEN(TEXT(prop(\"Qty\")))), 1)"
+    },
+    {
+      "out": "2.50",
+      "src": "UPPER(prop(\"Note\")) & AVERAGE(1, prop(\"Qty\")) & 0"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "MAX((LEN(\"ab\") / MOD(ROUND(0, 2), SUM(100, 0))), IF(prop(\"Done\"), 2.5, LEN(TEXT(100))))"
+    },
+    {
+      "out": "100-1",
+      "src": "UPPER(TEXT(100)) & (ROUND(2.5, 0) - prop(\"Qty\"))"
+    },
+    {
+      "out": "-3",
+      "src": "TEXT(-3)"
+    },
+    {
+      "out": 2.5,
+      "src": "AVERAGE(IF(0 <> prop(\"Price\"), IF(NOT(prop(\"Done\")), prop(\"Qty\"), prop(\"Qty\")), SUM(IF(TRUE, -3, 7), ROUND(-3, 2))), 1)"
+    },
+    {
+      "out": 100.0,
+      "src": "ROUND(ROUND(MAX(IF(TRUE, 100, 1), ROUND(2.5, 0)), 1), 0)"
+    },
+    {
+      "out": "456.250",
+      "src": "\"\" & prop(\"Qty\") & AVERAGE(100, prop(\"Price\")) & LEN(prop(\"Note\"))"
+    },
+    {
+      "out": false,
+      "src": "AND(prop(\"Done\"), NOT(prop(\"Done\")))"
+    },
+    {
+      "out": "1",
+      "src": "TEXT(LEN(TEXT(1)))"
+    },
+    {
+      "out": 2.5,
+      "src": "ROUND(SUM(ROUND(0, 0), 2.5), 1)"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(2.5 <= -3, NOT(TRUE)), NOT(prop(\"Price\") >= 0))"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(MOD(prop(\"Note\"), (100 / 7)))"
+    },
+    {
+      "out": 4.0,
+      "src": "LEN(TEXT((MAX(-3, prop(\"Note\")) / (-3 / prop(\"Price\")))))"
+    },
+    {
+      "out": true,
+      "src": "LEN(TEXT(0)) <> IF(AND(TRUE, false), IF(prop(\"Done\"), 100, prop(\"Note\")), ROUND(-3, 2))"
+    },
+    {
+      "out": 2.25,
+      "src": "(MOD((prop(\"Price\") * 2.5), MOD(MOD(1, 100), LEN(\"ab\"))) + LEN(\"ab\"))"
+    },
+    {
+      "out": 1.3333333333333333,
+      "src": "MOD(AVERAGE(AVERAGE((prop(\"Qty\") - 1), IF(prop(\"Done\"), 7, 2.5)), (MAX(0, 7) / SUM(0, -3))), LEN(UPPER(prop(\"Note\") & -3)))"
+    },
+    {
+      "out": true,
+      "src": "100 >= LEN(\"\" & prop(\"Note\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "(0 / 7)"
+    },
+    {
+      "out": 2.0,
+      "src": "MOD(((100 + ROUND(0, 0)) + MOD(IF(false, 2.5, 100), MAX(1, 1))), 7)"
+    },
+    {
+      "out": 12.5,
+      "src": "MAX(ROUND(LEN(\"\"), 2), prop(\"Price\"))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(false, NOT(TRUE)))"
+    },
+    {
+      "out": 50.0,
+      "src": "MOD(((prop(\"Price\") * ROUND(prop(\"Qty\"), 2)) / LEN(\"\" & prop(\"Qty\"))), (ROUND(IF(TRUE, 100, prop(\"Qty\")), 1) - 1))"
+    },
+    {
+      "out": false,
+      "src": "prop(\"Price\") < LEN(\"\" & 100)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "MAX(MOD(((prop(\"Qty\") + 0) / prop(\"Qty\")), (0 / MOD(2.5, 2.5))), (7 + MOD((1 / 1), prop(\"Price\"))))"
+    },
+    {
+      "out": "74",
+      "src": "UPPER(TEXT(7)) & prop(\"Qty\")"
+    },
+    {
+      "out": true,
+      "src": "NOT(false)"
+    },
+    {
+      "out": -3.0,
+      "src": "ROUND(MOD(IF(AND(TRUE, prop(\"Done\")), IF(TRUE, 1, prop(\"Note\")), (prop(\"Note\") / 100)), (IF(TRUE, prop(\"Note\"), 100) - prop(\"Qty\"))), 1)"
+    },
+    {
+      "out": false,
+      "src": "AND(TRUE, NOT(100 > -3))"
+    },
+    {
+      "out": 2.0,
+      "src": "IF(IF(TRUE, LEN(prop(\"Note\")), 7) <= prop(\"Price\"), LEN(\"\" & prop(\"Qty\") & LEN(prop(\"Note\"))), (7 / LEN(prop(\"Name\"))))"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(prop(\"Done\")), LEN(prop(\"Name\")) >= (7 / prop(\"Qty\")))"
+    },
+    {
+      "out": -3.0,
+      "src": "MIN(MIN((MIN(prop(\"Price\"), 7) + LEN(prop(\"Name\"))), MOD(MIN(prop(\"Price\"), 1), ROUND(100, 0))), (1 - ROUND(ROUND(prop(\"Qty\"), 0), 1)))"
+    },
+    {
+      "out": false,
+      "src": "MAX(prop(\"Price\"), prop(\"Price\")) = 1"
+    },
+    {
+      "out": "VENUE04",
+      "src": "UPPER(prop(\"Name\") & 0) & prop(\"Qty\")"
+    },
+    {
+      "out": true,
+      "src": "AND(LEN(prop(\"Note\")) <> MIN(100, prop(\"Qty\")), MOD(1, 2.5) >= ROUND(1, 1))"
+    },
+    {
+      "out": "0.5",
+      "src": "TEXT(ROUND(MOD(prop(\"Price\"), 1), 1))"
+    },
+    {
+      "out": false,
+      "src": "prop(\"Note\") <> prop(\"Note\")"
+    },
+    {
+      "out": 19.5,
+      "src": "IF(false, 7, IF(AND(false, NOT(false)), 0, (IF(TRUE, prop(\"Price\"), prop(\"Qty\")) + 7)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(0, (MOD(0, LEN(prop(\"Name\"))) * (IF(false, prop(\"Note\"), 7) * prop(\"Price\"))))"
+    },
+    {
+      "out": "12.53",
+      "src": "TEXT(IF(false, 0, prop(\"Price\"))) & (ROUND(2.5, 0) / IF(TRUE, 1, prop(\"Note\")))"
+    },
+    {
+      "out": -0.0,
+      "src": "(MOD(ROUND(ROUND(0, 2), 1), 1) * ROUND(SUM(-3, SUM(1, 1)), 0))"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(prop(\"Note\"), IF(NOT(prop(\"Done\")), MIN(SUM(0, -3), prop(\"Price\")), -3))"
+    },
+    {
+      "out": false,
+      "src": "1 = MIN(SUM(100, prop(\"Price\")), LEN(\"\"))"
+    },
+    {
+      "out": "ab0",
+      "src": "\"ab\" & ROUND(IF(TRUE, 0, 100), 0)"
+    },
+    {
+      "out": "VENUE-3",
+      "src": "UPPER(prop(\"Name\") & MAX(prop(\"Note\"), -3))"
+    },
+    {
+      "out": 56.25,
+      "src": "SUM(LEN(prop(\"Name\")), AVERAGE(100, 2.5))"
+    },
+    {
+      "out": true,
+      "src": "AND(ROUND(7, 1) > ROUND(2.5, 0), NOT(false))"
+    },
+    {
+      "out": "0",
+      "src": "UPPER(TEXT(LEN(prop(\"Note\"))))"
+    },
+    {
+      "out": 7.0,
+      "src": "IF(prop(\"Done\"), 7, 0)"
+    },
+    {
+      "out": -2.0,
+      "src": "MOD(100, MIN(-3, IF(prop(\"Done\"), ROUND(100, 2), 100)))"
+    },
+    {
+      "out": false,
+      "src": "NOT(NOT(NOT(prop(\"Done\"))))"
+    },
+    {
+      "out": "7",
+      "src": "UPPER(UPPER(\"\") & 7)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "AND(NOT(false), 2.5 <= MOD(prop(\"Note\"), prop(\"Note\")))"
+    },
+    {
+      "out": "1000",
+      "src": "UPPER(\"\" & 100 & MOD(prop(\"Qty\"), prop(\"Qty\")))"
+    },
+    {
+      "out": true,
+      "src": "IF(AND(prop(\"Done\"), prop(\"Done\")), prop(\"Qty\"), (0 * 7)) > LEN(UPPER(\"ab\"))"
+    },
+    {
+      "out": false,
+      "src": "NOT(MOD(0, 1) > -3)"
+    },
+    {
+      "out": 2.5,
+      "src": "(2.5 / LEN(UPPER(TEXT(1))))"
+    },
+    {
+      "out": "-34",
+      "src": "TEXT(ROUND(-3, 1)) & prop(\"Qty\")"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "AVERAGE of nothing"
+      },
+      "src": "prop(\"Note\") <= (1 - AVERAGE(prop(\"Note\"), prop(\"Note\")))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "TEXT(AVERAGE(MOD(-3, 100), MOD(100, prop(\"Note\"))))"
+    },
+    {
+      "out": true,
+      "src": "MOD(MOD(7, -3), IF(prop(\"Done\"), 7, prop(\"Price\"))) <> IF(0 < 1, MOD(prop(\"Qty\"), 2.5), MOD(7, prop(\"Note\")))"
+    },
+    {
+      "out": "05",
+      "src": "TEXT(ROUND(prop(\"Note\"), 2)) & LEN(prop(\"Name\"))"
+    },
+    {
+      "out": 5.0,
+      "src": "LEN(UPPER(prop(\"Name\")))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(IF(NOT(prop(\"Price\") <> prop(\"Note\")), 2.5, 0), 1)"
+    },
+    {
+      "out": false,
+      "src": "AND(TRUE, NOT(prop(\"Done\")))"
+    },
+    {
+      "out": -0.5,
+      "src": "MOD(MOD(IF(0 = 7, IF(TRUE, -3, 0), IF(false, prop(\"Note\"), 2.5)), LEN(UPPER(prop(\"Name\")))), -3)"
+    },
+    {
+      "out": "200",
+      "src": "TEXT((IF(false, 100, 100) * LEN(\"ab\")))"
+    },
+    {
+      "out": "AB1",
+      "src": "UPPER(\"ab\") & IF(NOT(prop(\"Done\")), (prop(\"Price\") + 2.5), 1)"
+    },
+    {
+      "out": 3.0,
+      "src": "LEN(UPPER(UPPER(TEXT(100))))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(LEN(UPPER(UPPER(prop(\"Note\")))), 1)"
+    },
+    {
+      "out": 4.0,
+      "src": "IF(prop(\"Done\"), LEN(\"\" & prop(\"Price\")), prop(\"Qty\"))"
+    },
+    {
+      "out": "0",
+      "src": "UPPER(UPPER(\"\" & 0))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "AVERAGE((prop(\"Price\") * IF(prop(\"Done\"), MOD(100, 0), IF(false, 100, prop(\"Note\")))), IF(AND(TRUE, 2.5 = -3), 7, 7))"
+    },
+    {
+      "out": 4.0,
+      "src": "MIN(MOD(-3, 7), prop(\"Qty\"))"
+    },
+    {
+      "out": 4.0,
+      "src": "AVERAGE(7, LEN(TEXT((100 - 100))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(2.5, 0)"
+    },
+    {
+      "out": 1.0,
+      "src": "ROUND(1, 2)"
+    },
+    {
+      "out": false,
+      "src": "AND(AVERAGE(0, 2.5) = MIN(7, 2.5), AND(AND(prop(\"Done\"), prop(\"Done\")), NOT(TRUE)))"
+    },
+    {
+      "out": true,
+      "src": "AND(NOT(AND(prop(\"Done\"), false)), NOT(NOT(prop(\"Done\"))))"
+    },
+    {
+      "out": false,
+      "src": "MOD(prop(\"Qty\"), SUM(7, -3)) = IF(prop(\"Done\"), (7 - prop(\"Price\")), prop(\"Note\"))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(TRUE, NOT(TRUE)))"
+    },
+    {
+      "out": "40",
+      "src": "TEXT(prop(\"Qty\")) & (IF(false, prop(\"Note\"), prop(\"Note\")) / 7)"
+    },
+    {
+      "out": -3.0,
+      "src": "ROUND(IF(prop(\"Done\"), -3, 2.5), 1)"
+    },
+    {
+      "out": false,
+      "src": "prop(\"Price\") <= MOD(AVERAGE(2.5, 100), (2.5 / -3))"
+    },
+    {
+      "out": "-1",
+      "src": "TEXT((IF(prop(\"Done\"), 2.5, 7) / MOD(prop(\"Price\"), -3)))"
+    },
+    {
+      "out": "AB0",
+      "src": "UPPER(\"ab\" & LEN(prop(\"Note\")))"
+    },
+    {
+      "out": 7.5,
+      "src": "SUM((((1 - -3) - IF(false, -3, prop(\"Note\"))) + IF(false, MOD(1, 100), AVERAGE(7, 0))), ROUND(prop(\"Note\"), 2))"
+    },
+    {
+      "out": 4.0,
+      "src": "(1 * ROUND(prop(\"Qty\"), 1))"
+    },
+    {
+      "out": 12.5,
+      "src": "MOD(prop(\"Price\"), 100)"
+    },
+    {
+      "out": -0.5,
+      "src": "(2.5 - MAX(-3, (prop(\"Qty\") - ROUND(1, 1))))"
+    },
+    {
+      "out": 4.0,
+      "src": "ROUND(ROUND(IF(prop(\"Price\") > 7, IF(prop(\"Done\"), prop(\"Qty\"), prop(\"Price\")), MOD(7, prop(\"Price\"))), 0), 1)"
+    },
+    {
+      "out": "12.5",
+      "src": "TEXT(prop(\"Price\"))"
+    },
+    {
+      "out": "2",
+      "src": "TEXT(LEN(TEXT(-3)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "(IF(LEN(prop(\"Name\")) <= AVERAGE(1, -3), prop(\"Qty\"), LEN(TEXT(7))) / ROUND(prop(\"Note\"), 1))"
+    },
+    {
+      "out": true,
+      "src": "AND(1 >= IF(TRUE, -3, 100), prop(\"Done\"))"
+    },
+    {
+      "out": -97.0,
+      "src": "(7 - SUM(7, MOD(ROUND(-3, 2), ROUND(100, 1))))"
+    },
+    {
+      "out": 1.0,
+      "src": "LEN(TEXT(LEN(UPPER(\"\"))))"
+    },
+    {
+      "out": 0.0,
+      "src": "(1 * (ROUND(IF(false, prop(\"Note\"), 2.5), 1) - 2.5))"
+    },
+    {
+      "out": true,
+      "src": "NOT(NOT(NOT(false)))"
+    },
+    {
+      "out": false,
+      "src": "NOT(NOT(prop(\"Qty\") = 2.5))"
+    },
+    {
+      "out": false,
+      "src": "ROUND(MOD(2.5, -3), 1) = prop(\"Price\")"
+    },
+    {
+      "out": "100-32.5",
+      "src": "\"\" & 100 & -3 & IF(TRUE, IF(TRUE, 2.5, prop(\"Price\")), LEN(\"\"))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(prop(\"Done\"), NOT(prop(\"Done\"))))"
+    },
+    {
+      "out": "Venue0",
+      "src": "prop(\"Name\") & ROUND(prop(\"Note\"), 0)"
+    },
+    {
+      "out": true,
+      "src": "7 <= AVERAGE(IF(prop(\"Done\"), 0, prop(\"Qty\")), (2.5 * prop(\"Price\")))"
+    },
+    {
+      "out": "4",
+      "src": "\"\" & (prop(\"Qty\") / 1) & prop(\"Note\")"
+    },
+    {
+      "out": 1.0,
+      "src": "IF(TRUE, 1, LEN(\"ab\"))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(NOT(TRUE), AND(false, TRUE)), AND(prop(\"Done\"), prop(\"Done\")))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(prop(\"Note\") > 1, 2.5 = 100))"
+    },
+    {
+      "out": "404",
+      "src": "\"\" & prop(\"Qty\") & MIN(0, prop(\"Note\")) & ROUND(prop(\"Qty\"), 2)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "NOT(1 < MOD(prop(\"Price\"), 0))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(prop(\"Note\"), 0)"
+    },
+    {
+      "out": 3.0,
+      "src": "ROUND(ROUND(ROUND(2.5, 2), 2), 0)"
+    },
+    {
+      "out": -21.0,
+      "src": "(-3 * (MAX(0, ROUND(prop(\"Qty\"), 0)) - -3))"
+    },
+    {
+      "out": false,
+      "src": "LEN(prop(\"Name\")) < (-3 - prop(\"Qty\"))"
+    },
+    {
+      "out": true,
+      "src": "AND(NOT(AND(false, false)), TRUE)"
+    },
+    {
+      "out": -1.0,
+      "src": "ROUND(MOD(MOD(prop(\"Qty\"), MOD(2.5, 100)), MOD((1 / 2.5), ROUND(-3, 1))), 0)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "TEXT(ROUND(MOD(prop(\"Qty\"), prop(\"Note\")), 1))"
+    },
+    {
+      "out": true,
+      "src": "2.5 > 0"
+    },
+    {
+      "out": 0.0,
+      "src": "MIN(prop(\"Note\"), MIN(2.5, LEN(TEXT(prop(\"Note\")))))"
+    },
+    {
+      "out": "5",
+      "src": "\"\" & LEN(prop(\"Name\"))"
+    },
+    {
+      "out": 100.0,
+      "src": "IF(IF(prop(\"Note\") > 0, (1 / 7), LEN(prop(\"Name\"))) = MIN(IF(false, 100, prop(\"Price\")), prop(\"Qty\")), 0, 100)"
+    },
+    {
+      "out": 0.0,
+      "src": "IF(NOT(NOT(-3 = 1)), ROUND(0, 1), MIN(0, ROUND(SUM(prop(\"Note\"), prop(\"Qty\")), 2)))"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(prop(\"Note\") <> 1), prop(\"Done\"))"
+    },
+    {
+      "out": 97.0,
+      "src": "MAX(LEN(prop(\"Note\") & -3 & MOD(prop(\"Note\"), -3)), MOD(-3, IF(AND(TRUE, prop(\"Done\")), MAX(1, 100), prop(\"Price\"))))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND((prop(\"Note\") + ROUND(IF(false, 1, prop(\"Note\")), 0)), 1)"
+    },
+    {
+      "out": "-3",
+      "src": "UPPER(prop(\"Note\")) & ROUND(-3, 1)"
+    },
+    {
+      "out": "VENUE107",
+      "src": "UPPER(prop(\"Name\")) & ROUND(SUM(7, 100), 2)"
+    },
+    {
+      "out": false,
+      "src": "NOT(AND(TRUE, AND(prop(\"Done\"), TRUE)))"
+    },
+    {
+      "out": "1",
+      "src": "TEXT(ROUND(IF(false, 2.5, 1), 1))"
+    },
+    {
+      "out": "-1",
+      "src": "TEXT(AVERAGE(1, -3))"
+    },
+    {
+      "out": true,
+      "src": "prop(\"Qty\") <> IF(NOT(TRUE), MOD(100, prop(\"Qty\")), MOD(prop(\"Price\"), prop(\"Qty\")))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(MOD(prop(\"Note\"), 1), 0)"
+    },
+    {
+      "out": "",
+      "src": "TEXT(IF(prop(\"Done\"), IF(TRUE, prop(\"Note\"), 7), LEN(\"\")))"
+    },
+    {
+      "out": "2.50.5",
+      "src": "TEXT(ROUND(2.5, 1)) & IF(prop(\"Done\"), MOD(prop(\"Price\"), prop(\"Qty\")), ROUND(7, 1))"
+    },
+    {
+      "out": true,
+      "src": "ROUND(IF(false, 7, 7), 1) >= ROUND(LEN(\"ab\"), 1)"
+    },
+    {
+      "out": "0",
+      "src": "UPPER(TEXT(LEN(\"\")))"
+    },
+    {
+      "out": "Venue0",
+      "src": "prop(\"Name\") & IF(AND(TRUE, TRUE), (prop(\"Note\") * -3), 7)"
+    },
+    {
+      "out": 7.0,
+      "src": "ROUND(7, 2)"
+    },
+    {
+      "out": "AB4",
+      "src": "UPPER(UPPER(\"ab\")) & MOD(prop(\"Qty\"), 7)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "UPPER(\"\" & 100 & MOD(2.5, prop(\"Note\")))"
+    },
+    {
+      "out": 12.5,
+      "src": "IF(NOT(prop(\"Note\") >= IF(prop(\"Done\"), 1, prop(\"Qty\"))), (prop(\"Price\") - MIN(prop(\"Qty\"), LEN(\"\"))), ROUND(prop(\"Qty\"), 1))"
+    },
+    {
+      "out": "AB",
+      "src": "UPPER(\"ab\")"
+    },
+    {
+      "out": true,
+      "src": "ROUND((7 - 2.5), 2) <> -3"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(LEN(\"ab\"), prop(\"Note\")) <> ROUND(1, 2)"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(IF(NOT(prop(\"Done\")), IF(TRUE, prop(\"Price\"), 100), LEN(prop(\"Note\"))))"
+    },
+    {
+      "out": "1",
+      "src": "TEXT(MOD(1, ROUND(100, 1)))"
+    },
+    {
+      "out": "12.5",
+      "src": "UPPER(TEXT(prop(\"Price\")))"
+    },
+    {
+      "out": 12.5,
+      "src": "MAX(prop(\"Price\"), MOD(prop(\"Qty\"), (IF(false, 0, prop(\"Qty\")) + 100)))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(prop(\"Done\"), false), false)"
+    },
+    {
+      "out": -3.0,
+      "src": "ROUND(-3, 2)"
+    },
+    {
+      "out": 9.5,
+      "src": "MOD(MIN(ROUND(7, 0), ROUND(-3, 0)), prop(\"Price\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "(prop(\"Qty\") - IF(false, (MIN(-3, 100) - (prop(\"Price\") - prop(\"Qty\"))), ROUND(prop(\"Qty\"), 2)))"
+    },
+    {
+      "out": false,
+      "src": "AND(1 < MOD(prop(\"Price\"), 100), AND(NOT(TRUE), false))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(prop(\"Qty\") > 7, prop(\"Done\")))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(AND(false, prop(\"Done\")), AND(false, false)))"
+    },
+    {
+      "out": "72.5",
+      "src": "TEXT(SUM(0, 7)) & 2.5"
+    },
+    {
+      "out": "04",
+      "src": "TEXT(IF(TRUE, 0, -3)) & prop(\"Qty\")"
+    },
+    {
+      "out": "12.5",
+      "src": "TEXT(ROUND(ROUND(prop(\"Price\"), 2), 2))"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(ROUND(0, 1), 0)"
+    },
+    {
+      "out": 3.0,
+      "src": "ROUND(AVERAGE(LEN(UPPER(prop(\"Name\"))), 1), 1)"
+    },
+    {
+      "out": 0.0,
+      "src": "ROUND(ROUND(MOD(MOD(0, 100), MAX(prop(\"Note\"), prop(\"Price\"))), 1), 1)"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(NOT(TRUE), prop(\"Done\")), AND(prop(\"Done\"), TRUE))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(MOD(0, (ROUND(0, 2) - MOD(0, 100))), prop(\"Price\"))"
+    },
+    {
+      "out": true,
+      "src": "LEN(prop(\"Note\") & 100) > IF(100 <> 2.5, (1 - prop(\"Note\")), 7)"
+    },
+    {
+      "out": "0",
+      "src": "TEXT(LEN(\"\"))"
+    },
+    {
+      "out": false,
+      "src": "-3 >= LEN(\"ab\" & prop(\"Price\"))"
+    },
+    {
+      "out": 0.5,
+      "src": "AVERAGE(MOD(100, MAX(1, (1 * 0))), SUM(IF(0 <> prop(\"Note\"), MOD(prop(\"Price\"), 7), 1), MOD(MAX(prop(\"Qty\"), 7), 1)))"
+    },
+    {
+      "out": "ab-3",
+      "src": "\"ab\" & -3"
+    },
+    {
+      "out": true,
+      "src": "100 >= LEN(TEXT(7))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(-3 < prop(\"Qty\"), NOT(prop(\"Done\"))), AND(prop(\"Qty\") <> -3, prop(\"Price\") <> 7))"
+    },
+    {
+      "out": 0.0,
+      "src": "IF(false, MIN(2.5, LEN(prop(\"Name\"))), MAX(MOD(prop(\"Price\"), AVERAGE(prop(\"Qty\"), 1)), (MOD(100, 100) * LEN(\"ab\"))))"
+    },
+    {
+      "out": "Venue0",
+      "src": "prop(\"Name\") & 0"
+    },
+    {
+      "out": true,
+      "src": "AND(prop(\"Qty\") > LEN(\"ab\"), AVERAGE(7, -3) < IF(false, 7, 7))"
+    },
+    {
+      "out": 2.5,
+      "src": "ROUND(MIN(prop(\"Qty\"), 2.5), 1)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(0, ROUND(LEN(TEXT(prop(\"Note\"))), 0))"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(IF(false, IF(prop(\"Price\") >= 7, (prop(\"Note\") + prop(\"Note\")), 100), MOD(MOD(-3, 7), 1)), prop(\"Qty\"))"
+    },
+    {
+      "out": 100.0,
+      "src": "MOD(100, ROUND((100 + MAX(-3, prop(\"Qty\"))), 2))"
+    },
+    {
+      "out": true,
+      "src": "LEN(\"\" & prop(\"Note\")) = prop(\"Note\")"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(2.5, 0) < IF(AND(false, TRUE), 2.5, LEN(prop(\"Note\")))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(MOD(-3, MOD(IF(prop(\"Done\"), prop(\"Price\"), 0), LEN(prop(\"Note\")))), IF(prop(\"Done\"), SUM(100, ROUND(0, 1)), -3))"
+    },
+    {
+      "out": true,
+      "src": "AND(prop(\"Done\"), prop(\"Done\"))"
+    },
+    {
+      "out": false,
+      "src": "MAX((2.5 - prop(\"Note\")), 1) > MOD(100, SUM(100, prop(\"Qty\")))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(ROUND(-3, 0), MOD(IF(false, (prop(\"Price\") * 0), MIN(prop(\"Note\"), prop(\"Note\"))), AVERAGE(1, prop(\"Qty\"))))"
+    },
+    {
+      "out": 100.0,
+      "src": "ROUND(100, 1)"
+    },
+    {
+      "out": "1",
+      "src": "TEXT(LEN(TEXT(prop(\"Qty\"))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "-3 <> MOD(MOD(prop(\"Note\"), 7), (prop(\"Price\") / prop(\"Note\")))"
+    },
+    {
+      "out": -33.333333333333336,
+      "src": "(100 / ROUND(-3, 2))"
+    },
+    {
+      "out": "2.5",
+      "src": "UPPER(prop(\"Note\")) & ROUND(AVERAGE(1, prop(\"Qty\")), 2)"
+    },
+    {
+      "out": false,
+      "src": "ROUND(7, 1) <= (ROUND(1, 1) * -3)"
+    },
+    {
+      "out": -3.0,
+      "src": "IF(prop(\"Qty\") = IF(NOT(prop(\"Done\")), MOD(0, prop(\"Note\")), (0 - 100)), IF(TRUE, 2.5, -3), ROUND(MAX(IF(false, 100, prop(\"Note\")), ROUND(-3, 0)), 2))"
+    },
+    {
+      "out": "14",
+      "src": "UPPER(TEXT(1)) & ROUND(prop(\"Qty\"), 1)"
+    },
+    {
+      "out": false,
+      "src": "LEN(UPPER(\"\")) > prop(\"Note\")"
+    },
+    {
+      "out": 10.0,
+      "src": "(ROUND(ROUND(prop(\"Price\"), 1), 1) - IF(NOT(AND(false, false)), (LEN(\"\") + 2.5), ROUND(MOD(1, 1), 1)))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(false, prop(\"Done\")), false)"
+    },
+    {
+      "out": true,
+      "src": "NOT(MOD(prop(\"Note\"), 2.5) > 7)"
+    },
+    {
+      "out": "8",
+      "src": "UPPER(TEXT((1 + 7)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(MAX(ROUND(IF(TRUE, prop(\"Qty\"), 2.5), 1), MAX(prop(\"Note\"), AVERAGE(7, prop(\"Price\")))), prop(\"Note\"))"
+    },
+    {
+      "out": "9.5",
+      "src": "TEXT(((prop(\"Price\") + 1) - ROUND(prop(\"Qty\"), 1)))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(2.5 <= prop(\"Price\"), NOT(prop(\"Done\"))))"
+    },
+    {
+      "out": 3.0,
+      "src": "IF(NOT(NOT(TRUE)), LEN(TEXT(AVERAGE(-3, prop(\"Qty\")))), MOD(-3, -3))"
+    },
+    {
+      "out": 9.5,
+      "src": "MOD((prop(\"Price\") + IF(prop(\"Done\"), -3, AVERAGE(1, 0))), 100)"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(false, prop(\"Done\")), AND(prop(\"Qty\") <= 100, prop(\"Note\") <> 100))"
+    },
+    {
+      "out": -7.0,
+      "src": "ROUND(((MOD(prop(\"Price\"), prop(\"Price\")) - IF(false, 100, 7)) + 0), 1)"
+    },
+    {
+      "out": -2.0,
+      "src": "MIN(IF(false, IF(TRUE, MOD(prop(\"Qty\"), 100), MAX(0, 0)), 7), MOD(1, IF(AND(TRUE, TRUE), -3, LEN(prop(\"Name\")))))"
+    },
+    {
+      "out": true,
+      "src": "AND(prop(\"Done\"), TRUE)"
+    },
+    {
+      "out": false,
+      "src": "(1 / 1) < MOD((7 * prop(\"Note\")), IF(TRUE, 2.5, 2.5))"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(AND(TRUE, TRUE)), prop(\"Done\"))"
+    },
+    {
+      "out": true,
+      "src": "-3 <= prop(\"Price\")"
+    },
+    {
+      "out": true,
+      "src": "100 > IF(AND(prop(\"Done\"), TRUE), 0, LEN(\"\"))"
+    },
+    {
+      "out": false,
+      "src": "ROUND((prop(\"Note\") * -3), 0) >= MAX(MOD(100, 1), MIN(prop(\"Price\"), prop(\"Price\")))"
+    },
+    {
+      "out": "0",
+      "src": "prop(\"Note\") & (MOD(prop(\"Note\"), prop(\"Price\")) / 2.5)"
+    },
+    {
+      "out": 5.0,
+      "src": "IF(NOT(AND(NOT(prop(\"Done\")), NOT(false))), LEN(prop(\"Name\")), MOD((LEN(\"\") + ROUND(prop(\"Price\"), 1)), ROUND((prop(\"Price\") + prop(\"Note\")), 0)))"
+    },
+    {
+      "out": "13",
+      "src": "UPPER(TEXT(ROUND(prop(\"Price\"), 0)))"
+    },
+    {
+      "out": 17.5,
+      "src": "(2.5 * 7)"
+    },
+    {
+      "out": 3.5,
+      "src": "AVERAGE(IF(NOT(prop(\"Qty\") <= prop(\"Price\")), ROUND(IF(TRUE, 7, prop(\"Price\")), 2), 0), MOD(7, prop(\"Price\")))"
+    },
+    {
+      "out": false,
+      "src": "NOT(MOD(1, 1) < ROUND(2.5, 1))"
+    },
+    {
+      "out": 0.0,
+      "src": "(MIN(ROUND(IF(TRUE, 2.5, 100), 2), 2.5) * MOD(ROUND(0, 1), IF(NOT(false), ROUND(prop(\"Price\"), 2), IF(false, 7, prop(\"Price\")))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "TEXT(MOD(LEN(\"\"), (prop(\"Price\") / 0)))"
+    },
+    {
+      "out": 0.5,
+      "src": "ROUND(IF(prop(\"Done\"), MAX(MOD(prop(\"Price\"), prop(\"Qty\")), -3), MOD(100, MIN(100, prop(\"Price\")))), 1)"
+    },
+    {
+      "out": "1013",
+      "src": "TEXT((prop(\"Qty\") * 2.5)) & ROUND(ROUND(prop(\"Price\"), 2), 0)"
+    },
+    {
+      "out": 0.0,
+      "src": "LEN(prop(\"Note\") & prop(\"Note\"))"
+    },
+    {
+      "out": true,
+      "src": "IF(NOT(TRUE), 100, (prop(\"Qty\") * 7)) <> LEN(UPPER(\"\"))"
+    },
+    {
+      "out": "12.5",
+      "src": "prop(\"Note\") & IF(TRUE, MIN(prop(\"Note\"), prop(\"Price\")), (-3 * prop(\"Qty\")))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(NOT(false), AND(false, false)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "ROUND(MAX(prop(\"Price\"), MOD(7, LEN(prop(\"Note\")))), 0)"
+    },
+    {
+      "out": "AB12.51",
+      "src": "UPPER(\"ab\" & prop(\"Price\")) & LEN(TEXT(prop(\"Qty\")))"
+    },
+    {
+      "out": "-11.5",
+      "src": "prop(\"Note\") & IF(NOT(TRUE), (prop(\"Price\") * -3), (1 - prop(\"Price\")))"
+    },
+    {
+      "out": 1.0,
+      "src": "MOD(IF(AND(prop(\"Done\"), prop(\"Done\")), 1, 7), IF(NOT(AND(prop(\"Done\"), TRUE)), 100, prop(\"Price\")))"
+    },
+    {
+      "out": "2.5",
+      "src": "TEXT(IF(NOT(TRUE), prop(\"Note\"), (2.5 + 0)))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(NOT(prop(\"Done\")), prop(\"Done\")))"
+    },
+    {
+      "out": true,
+      "src": "IF(AND(TRUE, prop(\"Done\")), prop(\"Qty\"), IF(TRUE, 2.5, 1)) <= prop(\"Qty\")"
+    },
+    {
+      "out": "12.5",
+      "src": "UPPER(UPPER(TEXT(prop(\"Price\"))))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(NOT(false), NOT(TRUE)), prop(\"Done\"))"
+    },
+    {
+      "out": true,
+      "src": "(prop(\"Price\") + AVERAGE(prop(\"Price\"), prop(\"Note\"))) <= 100"
+    },
+    {
+      "out": false,
+      "src": "IF(false, 100, ROUND(1, 1)) < (-3 - LEN(prop(\"Note\")))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "UPPER(UPPER(prop(\"Name\"))) & MOD(prop(\"Note\"), (0 - 0))"
+    },
+    {
+      "out": "-3-3",
+      "src": "prop(\"Note\") & -3 & ROUND(IF(false, prop(\"Price\"), -3), 0)"
+    },
+    {
+      "out": 4.0,
+      "src": "ROUND(prop(\"Qty\"), 0)"
+    },
+    {
+      "out": "AB-3",
+      "src": "UPPER(UPPER(\"ab\" & -3))"
+    },
+    {
+      "out": 0.5,
+      "src": "AVERAGE(ROUND(prop(\"Note\"), 0), LEN(TEXT(MOD(prop(\"Note\"), prop(\"Price\")))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "IF((prop(\"Note\") * MOD(2.5, prop(\"Note\"))) = (prop(\"Note\") + (1 * 0)), 1, 1)"
+    },
+    {
+      "out": 7.0,
+      "src": "ROUND(IF(false, 2.5, IF(1 <> 2.5, 7, 1)), 0)"
+    },
+    {
+      "out": "Venue2",
+      "src": "prop(\"Name\") & SUM(1, 1)"
+    },
+    {
+      "out": 28.0,
+      "src": "(MAX(prop(\"Qty\"), MIN(0, IF(prop(\"Done\"), prop(\"Price\"), 1))) * 7)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(1, 7) = MOD(IF(TRUE, prop(\"Qty\"), -3), LEN(\"\"))"
+    },
+    {
+      "out": "2.5",
+      "src": "TEXT(MOD(AVERAGE(prop(\"Qty\"), 1), SUM(1, prop(\"Price\"))))"
+    },
+    {
+      "out": true,
+      "src": "NOT(AND(AND(prop(\"Done\"), TRUE), 100 <= 0))"
+    },
+    {
+      "out": "0",
+      "src": "\"\" & LEN(UPPER(\"\"))"
+    },
+    {
+      "out": 0.0,
+      "src": "MOD(IF(prop(\"Done\"), MOD(0, IF(TRUE, 2.5, 2.5)), LEN(UPPER(prop(\"Note\")))), LEN(UPPER(TEXT(prop(\"Qty\")))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "(100 * ROUND(MAX(IF(false, 0, prop(\"Price\")), MOD(2.5, prop(\"Note\"))), 0))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "MOD(LEN(TEXT(ROUND(prop(\"Price\"), 2))), ROUND(MOD(ROUND(100, 0), IF(prop(\"Done\"), 2.5, 0)), 0))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "IF(TRUE, MOD(SUM(LEN(prop(\"Name\")), 0), 0), ROUND(IF(prop(\"Done\"), MIN(2.5, -3), prop(\"Note\")), 0))"
+    },
+    {
+      "out": "VENUE100",
+      "src": "UPPER(UPPER(prop(\"Name\")) & IF(prop(\"Done\"), 100, -3))"
+    },
+    {
+      "out": "100-3",
+      "src": "TEXT(MIN(100, 100)) & MIN((prop(\"Qty\") - 7), -3)"
+    },
+    {
+      "out": "100",
+      "src": "TEXT(MAX(MIN(prop(\"Note\"), 100), 2.5))"
+    },
+    {
+      "out": false,
+      "src": "AND(false, NOT(NOT(prop(\"Done\"))))"
+    },
+    {
+      "out": "2.50",
+      "src": "prop(\"Note\") & 2.5 & IF(NOT(false), IF(false, 2.5, 0), (2.5 / 0))"
+    },
+    {
+      "out": "104",
+      "src": "TEXT((prop(\"Qty\") + 100))"
+    },
+    {
+      "out": "12.52.5",
+      "src": "UPPER(TEXT(prop(\"Price\"))) & MOD(MOD(2.5, prop(\"Price\")), ROUND(prop(\"Price\"), 2))"
+    },
+    {
+      "out": "",
+      "src": "prop(\"Note\") & MAX(prop(\"Note\"), prop(\"Note\"))"
+    },
+    {
+      "out": 4.0,
+      "src": "MOD(SUM(ROUND(MIN(prop(\"Note\"), 7), 1), MIN((prop(\"Qty\") * 100), -3)), LEN(TEXT(prop(\"Price\")) & 7))"
+    },
+    {
+      "out": 5.0,
+      "src": "IF(MOD(0, IF(TRUE, prop(\"Qty\"), 2.5)) <> IF(NOT(TRUE), (1 / prop(\"Qty\")), MAX(1, 1)), MAX(prop(\"Note\"), LEN(prop(\"Name\"))), IF(false, LEN(TEXT(7)), MAX(MIN(7, 0), 0)))"
+    },
+    {
+      "out": 2.5,
+      "src": "ROUND(IF(NOT(AND(prop(\"Done\"), TRUE)), LEN(UPPER(prop(\"Note\"))), 2.5), 1)"
+    },
+    {
+      "out": true,
+      "src": "AND(NOT(NOT(prop(\"Done\"))), TRUE)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "SUM(2.5, (7 - MOD(SUM(prop(\"Note\"), 2.5), MOD(prop(\"Qty\"), 0))))"
+    },
+    {
+      "out": false,
+      "src": "MIN(2.5, MAX(2.5, prop(\"Price\"))) > prop(\"Price\")"
+    },
+    {
+      "out": true,
+      "src": "IF(prop(\"Done\"), ROUND(100, 2), LEN(\"ab\")) >= MIN(IF(false, -3, 100), LEN(prop(\"Name\")))"
+    },
+    {
+      "out": true,
+      "src": "AND(NOT(false), prop(\"Price\") >= IF(prop(\"Done\"), prop(\"Price\"), prop(\"Note\")))"
+    },
+    {
+      "out": false,
+      "src": "NOT(ROUND(0, 0) <= SUM(7, 0))"
+    },
+    {
+      "out": "52",
+      "src": "TEXT(AVERAGE(MAX(prop(\"Qty\"), 1), ROUND(100, 0)))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "AVERAGE of nothing"
+      },
+      "src": "UPPER(TEXT(AVERAGE(prop(\"Note\"), prop(\"Note\"))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "UPPER(TEXT(MOD(0, prop(\"Note\"))))"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(NOT(prop(\"Done\")), AND(TRUE, false)), false)"
+    },
+    {
+      "out": "11",
+      "src": "UPPER(TEXT(1) & 1)"
+    },
+    {
+      "out": 0.0,
+      "src": "LEN(UPPER(UPPER(UPPER(\"\"))))"
+    },
+    {
+      "out": 1.5,
+      "src": "MOD(prop(\"Qty\"), IF(NOT(TRUE), ((100 + prop(\"Qty\")) / ROUND(1, 0)), IF(NOT(prop(\"Done\")), 2.5, IF(false, 2.5, 2.5))))"
+    },
+    {
+      "out": "1",
+      "src": "UPPER(prop(\"Note\") & ROUND(1, 0))"
+    },
+    {
+      "out": "2.50",
+      "src": "TEXT(MOD(2.5, 100)) & MOD(ROUND(0, 0), 7)"
+    },
+    {
+      "out": true,
+      "src": "AVERAGE(7, prop(\"Qty\")) <> MIN(ROUND(prop(\"Price\"), 1), LEN(\"ab\"))"
+    },
+    {
+      "out": "-30",
+      "src": "TEXT(IF(prop(\"Done\"), -3, 1)) & 0"
+    },
+    {
+      "out": 0.0,
+      "src": "(LEN(UPPER(prop(\"Note\"))) * MAX(100, 1))"
+    },
+    {
+      "out": -3.0,
+      "src": "ROUND(-3, 0)"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "(MOD(LEN(prop(\"Name\")), LEN(prop(\"Note\"))) - 2.5)"
+    },
+    {
+      "out": "11",
+      "src": "prop(\"Note\") & SUM(prop(\"Qty\"), 7)"
+    },
+    {
+      "out": 4.0,
+      "src": "ROUND(prop(\"Qty\"), 1)"
+    },
+    {
+      "out": "2.5",
+      "src": "UPPER(TEXT(2.5))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "(SUM(-3, (IF(false, 7, prop(\"Note\")) / IF(prop(\"Done\"), prop(\"Price\"), 0))) / ROUND(ROUND(MIN(7, 0), 2), 0))"
+    },
+    {
+      "out": false,
+      "src": "AND(NOT(NOT(false)), false)"
+    },
+    {
+      "out": false,
+      "src": "AND(AND(-3 > 7, 2.5 >= prop(\"Qty\")), false)"
+    },
+    {
+      "out": 7.0,
+      "src": "IF(LEN(TEXT(prop(\"Note\"))) < IF(false, prop(\"Qty\"), (prop(\"Qty\") + prop(\"Note\"))), 7, (IF(-3 <> 1, prop(\"Qty\"), 2.5) + LEN(\"\")))"
+    },
+    {
+      "out": true,
+      "src": "AND(prop(\"Done\"), AND(AND(TRUE, TRUE), AND(TRUE, prop(\"Done\"))))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "MOD by zero"
+      },
+      "src": "AND(MOD(1, prop(\"Note\")) > LEN(\"\"), NOT(TRUE))"
+    },
+    {
+      "out": {
+        "err": "#DIV/0",
+        "msg": "Division by zero"
+      },
+      "src": "AVERAGE((100 + (MOD(7, prop(\"Price\")) / ROUND(prop(\"Note\"), 2))), LEN(prop(\"Name\")))"
+    },
+    {
+      "out": 13.0,
+      "src": "(ROUND(MOD(ROUND(prop(\"Price\"), 2), IF(prop(\"Done\"), 100, 2.5)), 0) - MOD(prop(\"Note\"), prop(\"Qty\")))"
+    },
+    {
+      "out": false,
+      "src": "NOT(AND(prop(\"Done\"), NOT(false)))"
+    },
+    {
+      "out": 1.0,
+      "src": "LEN(TEXT(ROUND(0, 1)))"
+    },
+    {
+      "out": 4.0,
+      "src": "IF(TRUE, prop(\"Qty\"), ROUND(prop(\"Qty\"), 0))"
+    },
+    {
+      "out": false,
+      "src": "NOT(AND(AND(prop(\"Done\"), prop(\"Done\")), TRUE))"
+    },
+    {
+      "out": 2.0,
+      "src": "LEN(UPPER(TEXT(1) & prop(\"Qty\")))"
+    }
+  ],
+  "fields": [
+    {
+      "id": "n",
+      "name": "Name",
+      "type": "title"
+    },
+    {
+      "id": "p",
+      "name": "Price",
+      "type": "number"
+    },
+    {
+      "id": "q",
+      "name": "Qty",
+      "type": "number"
+    },
+    {
+      "id": "d",
+      "name": "Done",
+      "type": "checkbox"
+    },
+    {
+      "id": "due",
+      "name": "Due",
+      "type": "date"
+    },
+    {
+      "id": "t",
+      "name": "Tags",
+      "type": "tags"
+    },
+    {
+      "id": "x",
+      "name": "Note",
+      "type": "text"
+    }
+  ],
+  "row": {
+    "d": true,
+    "due": "2026-12-15",
+    "n": "Venue",
+    "p": 12.5,
+    "q": 4,
+    "t": [
+      "a",
+      "b"
+    ]
+  },
+  "today": "2026-11-26"
+}

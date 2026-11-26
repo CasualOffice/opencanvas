@@ -402,7 +402,22 @@ doesn't take) are kept but filter nothing. `filter` mirrors the first `vals` rul
 header tooltip and in the row peek; exported in `document.json` (as stored) and as a footnote line
 `*Field*: text` under the table in Markdown (web "Copy as Markdown" and the server export), not in CSV.
 
-Field types for databases: `title text status select tags person date number checkbox url progress`.
+Field types for databases: `title text status select tags person date number checkbox url progress`,
+*(ADR-078, v0.4)* `formula relation rollup`.
+
+*(ADR-078)* Computed fields store only their definition; values are computed by `oc-formula` (the
+server natively for exports, API, MCP and `search.json`; the editor in WASM) and never written to
+cells. `formula`: the field key `formula` holds the expression (≤ 4 KB, spreadsheet-like:
+`prop("Price") * prop("Qty")`, function names stored upper case, `&` joins text, `""` escapes a
+quote); the result type is inferred. `relation`: key `rel` `{db, file?, two?, back?, goneAt?}`;
+cells hold target row ids (`["row…"]`). Same canvas: `two: true` with `back` the paired field id in
+the target database, both sides written in one transaction. Across canvases: `file` is the live
+block's file id, one-way, read under the live file's ACL. `goneAt` (`YYYY-MM-DD`) is set when the
+target database is missing; ids are kept 30 days after it, then cleared. `rollup`: key `roll`
+`{rel, f?, fn}` with `fn` `count sum percent earliest latest` over field `f` of the related rows;
+empty when nothing is related. Errors are values `{err: "#TYPE"|"#REF"|"#DIV/0"|"#CYCLE"|"#LIMIT",
+msg}`; limits: 4 KB, depth 64, a step budget per cell. Shared vectors:
+`crates/oc-formula/tests/vectors.json` (native and WASM must agree).
 Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`. Person values: user id.
 
 `.ocanvas` as written by the server: `manifest.json` (`format`, `version` 1, `schemaVersion` 1,

@@ -311,6 +311,12 @@ impl HostConfig {
         self.flags.get("partial_sync").and_then(|v| v.as_bool()) == Some(true)
     }
 
+    /// `[host.flags] formulas` (DB4-03..06, ADR-078, docs/05 §2): formula, relation and rollup
+    /// fields can be added in the editor. Off by default; existing ones always compute.
+    pub fn formulas(&self) -> bool {
+        self.flags.get("formulas").and_then(|v| v.as_bool()) == Some(true)
+    }
+
     /// `[host.api] default_mode = "direct" | "suggest"`: where API writes to existing blocks
     /// land when the call does not say. Default `direct` (a program asked for the change).
     pub fn api_default_mode(&self) -> crate::ai::tools::WriteMode {

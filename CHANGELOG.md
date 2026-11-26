@@ -9,6 +9,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Formula engine (DB4-01/02, ADR-078): `crates/oc-formula`, one typed engine native in the server and
+  WASM in the editor (lazy). Spreadsheet-like syntax `prop("Price") * prop("Qty")`, function names in
+  any case stored upper case, errors as values (`#TYPE`, `#REF`, `#DIV/0`, `#CYCLE`, `#LIMIT`),
+  limits of 4 KB, depth 64 and a step budget. Exports, `search.json`, `queryRows` and MCP `db_query`
+  carry computed values (DB4-10). `[host.flags] formulas` turns on adding the new field types.
+
 - Benchmarks page on the site (BENCH-05): every result in `bench/results/` with its hardware, store and
   load mix beside the numbers; `local` runs marked as such. `/metrics` adds `oc_alloc_allocated_bytes`
   and `oc_alloc_resident_bytes`. The server raises its soft open-file limit to the hard limit at start

@@ -322,7 +322,8 @@ pub fn db_query(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
         .as_str()
         .and_then(|c| c.parse().ok())
         .unwrap_or(0);
-    let rows = db["rows"].as_object().cloned().unwrap_or_default();
+    // Formula and rollup values are computed (ADR-078, DB-A6): filters and sorts see them too.
+    let rows = oc_model::formula::rows_with_values(&d, db_id);
     let mut ids: Vec<String> = db["order"]
         .as_array()
         .map(|a| {

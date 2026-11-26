@@ -829,8 +829,59 @@ fn esc(k: &str) -> String {
 
 const FIELD_TYPES: &[&str] = &[
     "title", "text", "status", "select", "tags", "person", "date", "number", "checkbox", "url",
-    "progress",
+    "progress", "formula", "relation", "rollup",
 ];
+
+/// ADR-078 field keys: `formula` (expression, at most 4 KB), `rel` `{db, file?, two?, back?,
+/// goneAt?}` and `roll` `{rel, f?, fn}`.
+fn computed_field(r: &mut Report, fp: &str, f: &serde_json::Map<String, Value>) {
+    let ty = f.get("type").and_then(Value::as_str).unwrap_or("");
+    match (ty, f.get("formula")) {
+        (_, None | Some(Value::Null)) => {}
+        (_, Some(Value::String(x))) if x.len() <= 4096 => {}
+        (_, Some(Value::String(_))) => r.err(&format!("{fp}/formula"), "a formula is at most 4 KB"),
+        _ => r.err(&format!("{fp}/formula"), "formula must be a string"),
+    }
+    if ty == "relation" {
+        let rel = f.get("rel");
+        if !rel.and_then(|x| x.get("db")).is_some_and(Value::is_string) {
+            r.err(
+                &format!("{fp}/rel"),
+                "a relation needs rel.db, the target database id",
+            );
+        }
+        for k in ["file", "back"] {
+            if rel
+                .and_then(|x| x.get(k))
+                .is_some_and(|v| !v.is_string() && !v.is_null())
+            {
+                r.err(
+                    &format!("{fp}/rel/{k}"),
+                    format!("rel.{k} must be a string"),
+                );
+            }
+        }
+    }
+    if ty == "rollup" {
+        let roll = f.get("roll");
+        if !roll
+            .and_then(|x| x.get("rel"))
+            .is_some_and(Value::is_string)
+        {
+            r.err(
+                &format!("{fp}/roll"),
+                "a rollup needs roll.rel, a relation field id",
+            );
+        }
+        match roll.and_then(|x| x.get("fn")).and_then(Value::as_str) {
+            Some("count" | "sum" | "percent" | "earliest" | "latest") => {}
+            _ => r.err(
+                &format!("{fp}/roll/fn"),
+                "roll.fn is count, sum, percent, earliest or latest",
+            ),
+        }
+    }
+}
 
 fn database(r: &mut Report, p: &str, db: &Value) {
     let Some(db) = db.as_object() else {
@@ -880,6 +931,7 @@ fn database(r: &mut Report, p: &str, db: &Value) {
                     Some(_) => r.err(&format!("{fp}/type"), "field type must be a string"),
                 }
                 options(r, &format!("{fp}/options"), f.get("options"));
+                computed_field(r, &fp, f);
             }
         }
         Some(_) => r.err(&format!("{p}/fields"), "fields must be an array"),
@@ -1041,5 +1093,28 @@ fn shape(r: &mut Report, p: &str, sh: &Value) {
         if sh.get(k).is_some_and(|v| !v.is_string() && !v.is_null()) {
             r.err(&format!("{p}/{k}"), format!("shape {k} must be a string"));
         }
+    }
+}
+
+#[cfg(test)]
+mod computed_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn formula_relation_and_rollup_fields_are_checked() {
+        let doc = |fields: Value| json!({"type": "doc", "content": [], "databases": {"d": {"fields": fields}}});
+        let ok = validate_json(&doc(json!([
+            {"id": "f", "name": "T", "type": "formula", "formula": "1 + 1"},
+            {"id": "r", "name": "R", "type": "relation", "rel": {"db": "d", "two": true, "back": "r"}},
+            {"id": "u", "name": "U", "type": "rollup", "roll": {"rel": "r", "fn": "count"}}
+        ])));
+        assert!(ok.errors.is_empty() && ok.warnings.is_empty(), "{ok:?}");
+        let bad = validate_json(&doc(json!([
+            {"id": "r", "name": "R", "type": "relation", "rel": {}},
+            {"id": "u", "name": "U", "type": "rollup", "roll": {"rel": "r", "fn": "median"}},
+            {"id": "f", "name": "F", "type": "formula", "formula": "1".repeat(5000)}
+        ])));
+        assert_eq!(bad.errors.len(), 3, "{bad:?}");
     }
 }
