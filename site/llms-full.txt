@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-26.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-27.
 
 
 # Documentation
@@ -811,7 +811,7 @@ Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyr
 
 ## Where to check
 
-The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-26 .
+The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-27 .
 
 
 # Integration guide
@@ -7779,7 +7779,7 @@ Added Block schema validation (MOD-01) in oc-model on .ocanvas read, REST patch,
 
 ## 0.1.0-alpha.1 (2026-11-23)
 
-Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development. Last changed 2026-11-26 .
+Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development. Last changed 2026-11-27 .
 
 
 # API reference: Canvas

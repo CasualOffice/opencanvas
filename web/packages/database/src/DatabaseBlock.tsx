@@ -30,6 +30,8 @@ import { FormulaEditor } from "./formula/FormulaEditor";
 import { needsEngine, relatedOf, useComputed, useEngine, type EngineState, type Related } from "./formula/hooks";
 import { addRelation, makeAdvanced, setFormula, setRelation, setRollup, sweepGone, unpairBack } from "./formula/model";
 import { RelationPicker, RelationSetup, RollupSetup } from "./formula/RelationUi";
+import { LargeBoard } from "./large/LargeBoard";
+import { countLabel, LARGE_AT, LargeTable } from "./large/LargeTable";
 import { Avatar, CommitInput, dbIcon, Ic, Pop, TYPE_ICON, type Anchor } from "./ui";
 import { inRange, isGridText, isMulti, moveCell, parseTsv, rangeBounds, rangeToHtml, rangeToTsv, type CellPos, type CellRange } from "./grid";
 
@@ -252,6 +254,8 @@ export function DatabaseBlock({ doc, dbId, env }: { doc: Y.Doc; dbId: string; en
 /** The engine's part of a database view (ADR-078). */
 export interface AdvCtx {
   eng: EngineState;
+  /** Asks for the engine before any field needs it (a new formula or rollup panel opening). */
+  request: () => void;
   related: Related;
   /** Field-level errors (`#CYCLE` on the header, prototype 1d). */
   fieldErr: (fid: string) => { code: string; msg: string } | undefined;
@@ -260,7 +264,10 @@ export interface AdvCtx {
 /** Loads the engine when a database needs it and overlays computed values on the rows. */
 function AdvDb({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv }) {
   const needed = needsEngine(db.fields);
-  const eng = useEngine(needed);
+  // A brand-new formula or rollup field has no engine-backed field yet: its panel asks for it.
+  const [asked, setAsked] = useState(false);
+  const request = useCallback(() => setAsked(true), []);
+  const eng = useEngine(needed || asked);
   const out = useComputed(doc, db, env, eng.engine);
   const merged = useMemo(
     () => (out ? { ...db, rows: db.rows.map((r) => (out.rows[r.id] ? { ...r, v: { ...r.v, ...(out.rows[r.id] as Record<string, CellValue>) } } : r)) } : db),
@@ -283,7 +290,7 @@ function AdvDb({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv }) 
       gone: (f) => !!f.rel && !f.rel.file && !related[key(f)],
     };
   }, [related, out]);
-  const adv = useMemo<AdvCtx>(() => ({ eng, related, fieldErr: (fid) => out?.fields[fid]?.error }), [eng, related, out]);
+  const adv = useMemo<AdvCtx>(() => ({ eng, request, related, fieldErr: (fid) => out?.fields[fid]?.error }), [eng, request, related, out]);
   // Prototype 4a: links to a deleted database are kept 30 days, then cleared (editors write it).
   const relKey = db.fields.filter((f) => f.type === "relation").map((f) => f.id + (f.rel?.db ?? "") + (f.rel?.goneAt ?? "") + (related[f.rel?.db ?? ""] ? "1" : "0")).join();
   useEffect(() => {
@@ -307,7 +314,10 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
   const [localPrefs, setLocalPrefs] = useState<Record<string, ViewPrefs>>({});
   const view: ViewKind = edit ? db.view : (localView ?? db.view);
   const prefs: ViewPrefs = useMemo(() => (edit ? (db.views[view] ?? {}) : { ...(db.views[view] ?? {}), ...(localPrefs[view] ?? {}) }), [edit, db.views, view, localPrefs]);
-  const rows = useMemo(() => visibleRows(db, prefs, people.pickable), [db, prefs, people]);
+  // Large tables and boards (≥ LARGE_AT rows) sort in a worker; filtering stays here.
+  const large = db.rows.length >= LARGE_AT && (view === "table" || view === "board");
+  const rows = useMemo(() => visibleRows(db, large ? { ...prefs, sorts: [], sort: null } : prefs, people.pickable), [db, prefs, people, large]);
+  const [gotoOpen, setGotoOpen] = useState(false);
   const [pop, setPop] = useState<PopState | null>(null);
   const [peek, setPeek] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -549,7 +559,13 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
           ariaLabel="Database name"
           onCommit={(v) => setDbMeta(doc, dbId, { name: v })}
         />
-        <span className="ocdb-hc">{db.rows.length} {db.rows.length === 1 ? "row" : "rows"}</span>
+        {large && view === "table" ? (
+          <span className="ocdb-hc">
+            <button className="ocdb-hcb" aria-keyshortcuts="Control+G" title="Go to row (Ctrl G)" onClick={() => setGotoOpen(true)}>{countLabel(rows.length, db.rows.length)}</button>
+          </span>
+        ) : (
+          <span className="ocdb-hc">{large ? countLabel(rows.length, db.rows.length, "cards") : `${db.rows.length} ${db.rows.length === 1 ? "row" : "rows"}`}</span>
+        )}
       </div>
 
       <div className="ocdb-bar">
@@ -639,7 +655,11 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
       {chips.length ? <div className="ocdb-chips">{chips}</div> : null}
 
       <div className="ocdb-view">
-        {view === "table" ? (
+        {large && view === "table" ? (
+          <LargeTable ctx={{ ...ctx, um, goto: { open: gotoOpen, set: setGotoOpen } }} fields={viewFields(db, prefs)} widthOf={(f) => prefs.widths?.[f.id] ?? W[f.type] ?? 160} value={(f, v) => <Value f={f} v={v} people={people} />} />
+        ) : large && view === "board" ? (
+          <LargeBoard ctx={{ ...ctx, um, goto: { open: false, set: () => {} } }} value={(f, v) => <Value f={f} v={v} people={people} />} />
+        ) : view === "table" ? (
           <TableView key={queryKey} ctx={ctx} gwRef={gwRef} />
         ) : view === "board" ? (
           <KanbanView ctx={ctx} />
@@ -2480,7 +2500,7 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
       const f = db.fields.find((x) => x.id === pop.fid);
       const engine = ctx.adv.eng.engine;
       if (!f) return null;
-      if (!engine) return <p className="ocdb-hint" style={{ padding: ".75rem" }}>{ctx.adv.eng.status === "failed" ? "Formula editing is paused: the engine couldn’t load." : "Loading formulas…"}</p>;
+      if (!engine) return <EngineWait adv={ctx.adv} />;
       return (
         <FormulaEditor
           engine={engine}
@@ -2520,6 +2540,8 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
       const f = db.fields.find((x) => x.id === pop.fid);
       if (!f) return null;
       return (
+        <>
+        <AskEngine adv={ctx.adv} />
         <RollupSetup
           doc={doc}
           db={db}
@@ -2533,6 +2555,7 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
             close();
           }}
         />
+        </>
       );
     }
     case "describe":
@@ -2552,6 +2575,28 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
         </>
       );
   }
+}
+
+/** Asks for the engine when a panel that uses it opens (the rollup preview). */
+function AskEngine({ adv }: { adv: AdvCtx }) {
+  const { request } = adv;
+  useEffect(() => request(), [request]);
+  return null;
+}
+
+/** Shown while the formula engine loads for a panel; opening the panel asks for it. */
+function EngineWait({ adv }: { adv: AdvCtx }) {
+  const { request } = adv;
+  useEffect(() => request(), [request]);
+  if (adv.eng.status === "failed") {
+    return (
+      <div className="ocdb-hint" style={{ padding: ".75rem" }}>
+        Formula editing is paused: the engine couldn’t load.{" "}
+        <button className="ocdb-btn sm" onClick={adv.eng.retry}><Ic i={RotateCw} s={13} />Retry</button>
+      </div>
+    );
+  }
+  return <p className="ocdb-hint" style={{ padding: ".75rem" }} role="status">Loading formulas…</p>;
 }
 
 const TONES: Tone[] = ["gray", "blue", "green", "amber", "red", "purple", "pink"];

@@ -11,8 +11,9 @@ import type * as Board from "@opencanvas/board";
 let db: Promise<typeof Database> | null = null;
 let board: Promise<typeof Board> | null = null;
 
-export const loadDatabase = () => (db ??= import("@opencanvas/database"));
-export const loadBoard = () => (board ??= import("@opencanvas/board"));
+// A failed load is forgotten so the next attempt fetches again (placeholder retry, ADR-076).
+export const loadDatabase = () => (db ??= import("@opencanvas/database").catch((e) => ((db = null), Promise.reject(e))));
+export const loadBoard = () => (board ??= import("@opencanvas/board").catch((e) => ((board = null), Promise.reject(e))));
 
 export interface BlockData {
   createDatabase: typeof Database.createDatabase;

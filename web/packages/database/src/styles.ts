@@ -5,6 +5,7 @@
 // Uses only design tokens from @opencanvas/ui/tokens.css; light and dark come free.
 
 import { ADV_CSS } from "./formula/styles";
+import { LARGE_CSS } from "./large/styles";
 
 export const CSS = `
 .ocdb,.ocdb-layer{font-family:var(--font);color:var(--fg);font-size:.875rem;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -444,6 +445,6 @@ export function ensureStyles() {
   if (document.querySelector("style[data-ocdb]")) return;
   const s = document.createElement("style");
   s.setAttribute("data-ocdb", "");
-  s.textContent = CSS + ADV_CSS;
+  s.textContent = CSS + ADV_CSS + LARGE_CSS;
   document.head.appendChild(s);
 }

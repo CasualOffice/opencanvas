@@ -17,6 +17,7 @@ import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from 
 import { createStore, toast, useStore } from "../lib/store";
 import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
+import { BlockPlaceholder, useRetryingLazy } from "./placeholder";
 import { pendingPreviews, pendingSizes, resolveAsset } from "../lib/assets";
 import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
 import { Popover } from "../components/overlay";
@@ -1073,8 +1074,8 @@ export const OcCodeBlock = CodeBlock.extend({
 
 // ---------- database & board (rendered by their packages, loaded on demand) ----------
 
-const DatabaseBlock = lazy(() => loadDatabase().then((m) => ({ default: m.DatabaseBlock })));
-const BoardBlock = lazy(() => loadBoard().then((m) => ({ default: m.BoardBlock })));
+const loadDbBlock = () => loadDatabase().then((m) => ({ default: m.DatabaseBlock }));
+const loadBoardBlock = () => loadBoard().then((m) => ({ default: m.BoardBlock }));
 
 /**
  * Database and board blocks break out of the 760px text column to a wider
@@ -1113,40 +1114,6 @@ function useEdgeFade() {
     };
   }, []);
   return ref;
-}
-
-/** Placeholder with roughly the block's final size, so loading doesn't shift the page. */
-function BlockSkeleton({ kind, rows = 3, view = "table" }: { kind: "db" | "board"; rows?: number; view?: string }) {
-  if (kind === "board") return <div className="bskel board" aria-busy="true" aria-label="Loading whiteboard" />;
-  const lines = Math.min(Math.max(rows, 1), 12);
-  return (
-    <div className="bskel db" aria-busy="true" aria-label="Loading database">
-      <div className="bsh">
-        <i style={{ width: 24, height: 24, borderRadius: 7 }} />
-        <i style={{ width: 160, height: 14 }} />
-      </div>
-      <div className="bsb">
-        <i style={{ width: 56 }} />
-        <i style={{ width: 56 }} />
-        <i style={{ width: 56 }} />
-      </div>
-      {view === "table" ? (
-        <div className="bst">
-          {Array.from({ length: lines + 1 }, (_, i) => (
-            <div key={i} className={i ? "r" : "r h"}>
-              <i style={{ width: "30%" }} />
-              <i style={{ width: "16%" }} />
-              <i style={{ width: "20%" }} />
-              <i style={{ width: "12%" }} />
-            </div>
-          ))}
-          <div className="f" />
-        </div>
-      ) : (
-        <i className="bsg" style={{ height: view === "calendar" ? 520 : 300 }} />
-      )}
-    </div>
-  );
 }
 
 /**
@@ -1238,16 +1205,14 @@ function DatabaseView({ node }: ReactNodeViewProps) {
   const m = (part.doc ?? b.doc).getMap("databases").get(dbId) as Y.Map<unknown> | undefined;
   const rows = (m?.get("order") as Y.Array<unknown> | undefined)?.length ?? part.header?.count ?? 3;
   const view = String(m?.get("view") ?? "table");
+  const fields = (m?.get("fields") as Y.Array<unknown> | undefined)?.length;
+  const name = (m?.get("name") as string | undefined) ?? part.header?.name;
+  const { Comp: DatabaseBlock, failed, wrap } = useRetryingLazy(loadDbBlock);
+  const ph = <BlockPlaceholder info={{ kind: "db", name, count: rows, fields, view }} failed={failed} />;
   return (
     <NodeViewWrapper className="stubhost wideblock" data-db={node.attrs.dbId}>
       <div contentEditable={false} ref={ref}>
-        {part.doc ? (
-          <Suspense fallback={<BlockSkeleton kind="db" rows={rows} view={view} />}>
-            <DatabaseBlock doc={part.doc} dbId={dbId} env={part.env} />
-          </Suspense>
-        ) : (
-          <BlockSkeleton kind="db" rows={rows} view={view} />
-        )}
+        {part.doc ? wrap(<Suspense fallback={ph}><DatabaseBlock doc={part.doc} dbId={dbId} env={part.env} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );
@@ -1269,16 +1234,12 @@ function BoardView({ node }: ReactNodeViewProps) {
   const ref = useContentOwnsDrag<HTMLDivElement>();
   const boardId = String(node.attrs.boardId);
   const part = usePartDoc(b, boardId, ref);
+  const { Comp: BoardBlock, failed, wrap } = useRetryingLazy(loadBoardBlock);
+  const ph = <BlockPlaceholder info={{ kind: "board", name: part.header?.name, count: part.header?.count }} failed={failed} />;
   return (
     <NodeViewWrapper className="stubhost wideblock" data-board={node.attrs.boardId}>
       <div contentEditable={false} ref={ref}>
-        {part.doc ? (
-          <Suspense fallback={<BlockSkeleton kind="board" />}>
-            <BoardBlock doc={part.doc} boardId={boardId} env={part.env} awareness={b.awareness} />
-          </Suspense>
-        ) : (
-          <BlockSkeleton kind="board" />
-        )}
+        {part.doc ? wrap(<Suspense fallback={ph}><BoardBlock doc={part.doc} boardId={boardId} env={part.env} awareness={b.awareness} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );
