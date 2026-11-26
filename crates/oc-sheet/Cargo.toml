@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+[package]
+name = "oc-sheet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OpenCanvas Spreadsheet block (ADR-080): the Yjs model's id-based references and the bridge to opencalc's engine"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+serde_json.workspace = true
+# opencalc's engine (ADR-080), pinned; text shaping and rasterising off (no fonts, no drawing).
+casual-calc-sdk = { git = "https://github.com/CasualOffice/opencalc", rev = "88a25229c47a498e42060d9b01fcc7f45bd08b53", default-features = false }
+casual-calc-model = { git = "https://github.com/CasualOffice/opencalc", rev = "88a25229c47a498e42060d9b01fcc7f45bd08b53" }
+
+[dev-dependencies]
+proptest = "1"

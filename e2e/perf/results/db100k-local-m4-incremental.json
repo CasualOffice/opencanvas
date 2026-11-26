@@ -1,0 +1,58 @@
+{
+  "scenario": "DB100K",
+  "at": "2026-11-26T19:40:11.121Z",
+  "label": "local-m4-incremental",
+  "machine": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "Darwin 25.3.0",
+    "chromium": "159.0.8154.6",
+    "viewport": "1280x900, headless",
+    "loadBefore": [
+      14.98,
+      17,
+      16.79
+    ]
+  },
+  "mix": "one tab, no peers, 100000 rows × 30 fields written in one local transaction; scripted scroll 10 s per scenario with a local cell edit every 500 ms",
+  "fixtureMs": 11548,
+  "domRowsInTable": 64,
+  "lanes": 6,
+  "table": {
+    "frames": 600,
+    "p50": 16.7,
+    "p95": 16.7,
+    "p99": 16.8,
+    "max": 16.8,
+    "over25": 0,
+    "longTasks": 0,
+    "longTaskMax": 0,
+    "edits": 20
+  },
+  "tableSide": {
+    "frames": 600,
+    "p50": 16.7,
+    "p95": 16.7,
+    "p99": 16.8,
+    "max": 16.8,
+    "over25": 0,
+    "longTasks": 0,
+    "longTaskMax": 0,
+    "edits": 19
+  },
+  "board": {
+    "frames": 600,
+    "p50": 16.7,
+    "p95": 16.7,
+    "p99": 16.8,
+    "max": 33.3,
+    "over25": 1,
+    "longTasks": 0,
+    "longTaskMax": 0,
+    "edits": 20
+  },
+  "gate": {
+    "p95MaxMs": 16.7
+  }
+}

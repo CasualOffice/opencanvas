@@ -3,7 +3,7 @@
 
 [workspace]
 resolver = "3"
-members = ["crates/oc-formula", "crates/oc-model", "crates/oc-server", "crates/oc-bench", "crates/oc-client"]
+members = ["crates/oc-formula", "crates/oc-sheet", "crates/oc-model", "crates/oc-server", "crates/oc-bench", "crates/oc-client"]
 
 [workspace.package]
 version = "0.3.0"

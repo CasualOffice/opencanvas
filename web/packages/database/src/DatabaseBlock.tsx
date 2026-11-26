@@ -21,6 +21,7 @@ import {
   addDays, dateField, defaultMonth, filterLabel, filterOps, filterPatch, filtersOf, fmtDate, groupField, highlightParts, isoDate, isoMonth, MONTHS,
   OP_LABEL, optOf, orderedFields, ruleReady, rulesOf, shiftMonth, sortPatch, sortsOf, titleField, viewFields, visibleRows,
 } from "./query";
+import { currentSnapshot, newSnapCache, noteChange, type SnapCache } from "./snapshot";
 import { ensureStyles } from "./styles";
 import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, FilterOp, FilterRule, ViewKind, ViewPrefs } from "./types";
 import { ADV_TYPES, COMPUTED_TYPES, FIELD_TYPES } from "./types";
@@ -37,23 +38,27 @@ import { inRange, isGridText, isMulti, moveCell, parseTsv, rangeBounds, rangeToH
 
 /* ------------------------------------------------------------- store */
 
-/** Subscribe to one database with observeDeep; returns a cached immutable snapshot. */
+/**
+ * Subscribe to one database with observeDeep; returns a cached immutable snapshot. A change that
+ * only edits cells re-reads those rows (snapshot.ts, DB100K); anything else reads it all.
+ */
 function useDb(doc: Y.Doc, dbId: string): DbSnapshot | null {
-  const cache = useRef<{ ver: number; snap: DbSnapshot | null; at: number }>({ ver: 0, snap: null, at: -1 });
+  const cache = useRef<SnapCache>(newSnapCache());
   const subscribe = useCallback(
     (cb: () => void) => {
       const root = databasesRoot(doc);
       let inner: Y.Map<unknown> | null = null;
-      const bump = () => {
-        cache.current.ver++;
+      const bump = (events?: Y.YEvent<Y.AbstractType<unknown>>[]) => {
+        noteChange(cache.current, events);
         cb();
       };
+      const onDeep = (events: Y.YEvent<Y.AbstractType<unknown>>[]) => bump(events);
       const attach = () => {
         const m = getDbMap(doc, dbId);
         if (m === inner) return;
-        inner?.unobserveDeep(bump);
+        inner?.unobserveDeep(onDeep);
         inner = m;
-        inner?.observeDeep(bump);
+        inner?.observeDeep(onDeep);
       };
       const onRoot = (e: Y.YMapEvent<Y.Map<unknown>>) => {
         if (e.keysChanged.has(dbId)) {
@@ -65,47 +70,19 @@ function useDb(doc: Y.Doc, dbId: string): DbSnapshot | null {
       attach();
       return () => {
         root.unobserve(onRoot);
-        inner?.unobserveDeep(bump);
+        inner?.unobserveDeep(onDeep);
       };
     },
     [doc, dbId],
   );
-  const get = useCallback(() => {
-    const c = cache.current;
-    if (c.at !== c.ver) {
-      const m = getDbMap(doc, dbId);
-      c.snap = m ? reuse(c.snap, readDb(dbId, m)) : null;
-      c.at = c.ver;
-    }
-    return c.snap;
-  }, [doc, dbId]);
+  const get = useCallback(() => currentSnapshot(cache.current, dbId, getDbMap(doc, dbId)), [doc, dbId]);
   // Reset cache when the target changes.
   const key = useRef("");
   if (key.current !== dbId) {
     key.current = dbId;
-    cache.current = { ver: 0, snap: null, at: -1 };
+    cache.current = newSnapCache();
   }
   return useSyncExternalStore(subscribe, get, get);
-}
-
-const sameVal = (a: CellValue | undefined, b: CellValue | undefined) =>
-  a === b || (Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => x === b[i]));
-
-/**
- * Keep the previous snapshot's row and field objects when they did not change, so memoised
- * rows skip rendering: with 1,000 rows one edit re-renders one row, not the whole table.
- */
-function reuse(prev: DbSnapshot | null, next: DbSnapshot): DbSnapshot {
-  if (!prev || prev.id !== next.id) return next;
-  const old = new Map(prev.rows.map((r) => [r.id, r]));
-  const rows = next.rows.map((r) => {
-    const o = old.get(r.id);
-    if (!o) return r;
-    const ka = Object.keys(o.v), kb = Object.keys(r.v);
-    return ka.length === kb.length && kb.every((k) => sameVal(o.v[k], r.v[k])) ? o : r;
-  });
-  const fields = JSON.stringify(prev.fields) === JSON.stringify(next.fields) ? prev.fields : next.fields;
-  return { ...next, rows, fields };
 }
 
 /* ------------------------------------------------------------ helpers */
