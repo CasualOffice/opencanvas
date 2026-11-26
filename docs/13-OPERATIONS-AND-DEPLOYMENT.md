@@ -419,7 +419,15 @@ every edit is in the WAL before it is fanned out.
 A MySQL/MariaDB migration killed halfway used to leave `_sqlx_migrations` dirty, and every
 later start failed with "migration N is partially applied". The server now finishes such a
 migration at the next start, under the migration lock, skipping the statements the killed run
-had applied. The reduced drill (100 rooms × 2, 30 s) runs nightly on SQLite and MySQL 8.4
+had applied.
+
+After a restart every room reopens at once. At most `OC_ROOM_LOADS` rooms (default 8) load
+together, and MySQL/MariaDB get `OC_DB_MAX_CONNECTIONS` connections (default 32, was 16), so
+launches and saves keep connections during the storm. Before this, 52 of 100 launches
+answered 500 ("pool timed out") for about 21 s after a restart on MySQL; now 100 rooms recover
+in 0.6 s with no error (RLB-01b).
+
+The reduced drill (100 rooms × 2, 30 s) runs nightly on SQLite and MySQL 8.4
 (`.github/workflows/reliability-nightly.yml`).
 
 ## Flaky tests (RLB-04)

@@ -366,7 +366,16 @@ impl Store {
         install_default_drivers();
         let sqlite = url.starts_with("sqlite:");
         let mut opts = AnyPoolOptions::new()
-            .max_connections(if sqlite { 8 } else { 16 })
+            // OC_DB_MAX_CONNECTIONS (MySQL/MariaDB; default 32, was 16): RLB-01b.
+            .max_connections(if sqlite {
+                8
+            } else {
+                std::env::var("OC_DB_MAX_CONNECTIONS")
+                    .ok()
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .filter(|n| *n > 0)
+                    .unwrap_or(32)
+            })
             .acquire_timeout(Duration::from_secs(10));
         if sqlite {
             ensure_sqlite_dir(url);

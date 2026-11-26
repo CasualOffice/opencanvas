@@ -48,6 +48,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room
+  reopened at once (connection pool exhausted). Rooms now load at most 8 at a time
+  (`OC_ROOM_LOADS`), and the pool is 32 connections (`OC_DB_MAX_CONNECTIONS`; RLB-01b).
 - MySQL/MariaDB: a server killed in the middle of a migration never started again ("migration
   N is partially applied"); the next start now finishes the migration (RLB-01).
 - A date or recurring automation skipped its run when the canvas was opened after the slot's
