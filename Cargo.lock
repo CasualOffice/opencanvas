@@ -1782,6 +1782,7 @@ dependencies = [
  "libmimalloc-sys",
  "mimalloc",
  "oc-model",
+ "p256",
  "redis",
  "reqwest",
  "rsa 0.10.0",

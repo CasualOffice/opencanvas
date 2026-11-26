@@ -218,7 +218,7 @@ offline?: { allowed: boolean, gen: number, grant?: string /* JWS */, maxDays: nu
 src: "oc-pending:<uuid>", pendingBy: "<userId>"
 ```
 
-New metadata table `offline_generation (host_id, user_id, gen, updated_at)` (migration 0010, SQLite,
+New metadata table `offline_generation (host_id, user_id, gen, updated_at)` (migration 0011, SQLite,
 MySQL, MariaDB; Redis key `oc:offgen:<host>:<user>`). No content.
 
 ### 3.5 API sketch

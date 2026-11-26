@@ -409,6 +409,67 @@ impl Store {
             .collect()
     }
 
+    /// The offline generation of a person on a host (OFF-01, ADR-063): 0 until the first
+    /// revoke. One metadata row per host and user, no content.
+    pub async fn offline_gen(&self, host: &str, user: &str) -> anyhow::Result<u64> {
+        if let Some(kv) = &self.kv {
+            return kv.offline_gen(host, user).await;
+        }
+        let row =
+            sqlx::query("SELECT gen FROM offline_generation WHERE host_id = ? AND user_id = ?")
+                .bind(host)
+                .bind(user)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(match row {
+            Some(r) => r.try_get::<i64, _>(0)?.max(0) as u64,
+            None => 0,
+        })
+    }
+
+    /// Raises a person's offline generation by one (`POST /api/v1/offline/revoke`); returns
+    /// the new number. Devices holding grants with a lower one delete their copies.
+    pub async fn offline_revoke(&self, host: &str, user: &str) -> anyhow::Result<u64> {
+        if let Some(kv) = &self.kv {
+            return kv.offline_revoke(host, user).await;
+        }
+        let now = crate::util::now_secs();
+        for _ in 0..3 {
+            let up = sqlx::query(
+                "UPDATE offline_generation SET gen = gen + 1, updated_at = ? \
+                 WHERE host_id = ? AND user_id = ?",
+            )
+            .bind(now)
+            .bind(host)
+            .bind(user)
+            .execute(&self.pool)
+            .await?;
+            if up.rows_affected() == 0 {
+                let ins = sqlx::query(
+                    "INSERT INTO offline_generation (host_id, user_id, gen, updated_at) \
+                     VALUES (?, ?, 1, ?)",
+                )
+                .bind(host)
+                .bind(user)
+                .bind(now)
+                .execute(&self.pool)
+                .await;
+                match ins {
+                    Ok(_) => {}
+                    Err(e)
+                        if e.as_database_error()
+                            .is_some_and(|d| d.is_unique_violation()) =>
+                    {
+                        continue;
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            return self.offline_gen(host, user).await;
+        }
+        anyhow::bail!("offline_generation upsert kept racing")
+    }
+
     /// Records a launch `jti`; returns false if it was already used.
     pub async fn use_jti(&self, host: &str, jti: &str, expires_at: i64) -> anyhow::Result<bool> {
         if let Some(kv) = &self.kv {

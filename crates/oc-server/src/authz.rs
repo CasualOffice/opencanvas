@@ -387,6 +387,8 @@ impl Principal {
                 comment: role != Role::View,
                 print: true,
                 live: false,
+                offline: false,
+                offline_reason: None,
             },
             callback_token: self.callback_token.clone(),
             members: vec![],

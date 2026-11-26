@@ -111,6 +111,10 @@ pub struct HostConfig {
     /// `crate::automation::AutomationCfg`.
     #[serde(default)]
     pub automation: toml::Table,
+    /// `[host.offline]` (OFF-01, ADR-063, docs/05 §2): offline copies on the person's device;
+    /// read through [`crate::offline::OfflineCfg`].
+    #[serde(default)]
+    pub offline: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -401,6 +405,7 @@ impl Hosts {
                 bail!("host {}: [host.flags] api_v1 takes true or false", h.id);
             }
             crate::search::SearchCfg::parse(&h.search).with_context(|| format!("host {}", h.id))?;
+            crate::offline::check_host(&h).with_context(|| format!("host {}", h.id))?;
             crate::blocks::HostBlocks::parse(&h.blocks)
                 .with_context(|| format!("host {}", h.id))?;
             crate::editor::EditorCfg::parse(&h.editor, &crate::editor::sdk_types(&h.blocks))

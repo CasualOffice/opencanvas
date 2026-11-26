@@ -83,6 +83,16 @@ fn idem_running(request_hash: &str) -> String {
     serde_json::json!({"h": request_hash, "s": "running"}).to_string()
 }
 
+/// `oc:offgen:<host>:<user>` (docs/34 §3.4): a number, no content. User ids are hashed so a
+/// `:` in one cannot collide with another host's key.
+fn offgen_key(host: &str, user: &str) -> String {
+    use sha2::Digest;
+    format!(
+        "oc:offgen:{host}:{}",
+        hex::encode(&sha2::Sha256::digest(user.as_bytes())[..16])
+    )
+}
+
 fn jti_key(host: &str, jti: &str) -> String {
     format!("oc:jti:{host}:{jti}")
 }
@@ -360,6 +370,26 @@ impl RedisStore {
             .await
             .context("recording the launch jti")?;
         Ok(set.is_some())
+    }
+
+    // ---------- offline generation (OFF-01, ADR-063) ----------
+
+    pub async fn offline_gen(&self, host: &str, user: &str) -> anyhow::Result<u64> {
+        let v: Option<i64> = redis::cmd("GET")
+            .arg(offgen_key(host, user))
+            .query_async(&mut self.c())
+            .await
+            .context("reading the offline generation")?;
+        Ok(v.unwrap_or(0).max(0) as u64)
+    }
+
+    pub async fn offline_revoke(&self, host: &str, user: &str) -> anyhow::Result<u64> {
+        let v: i64 = redis::cmd("INCR")
+            .arg(offgen_key(host, user))
+            .query_async(&mut self.c())
+            .await
+            .context("raising the offline generation")?;
+        Ok(v.max(0) as u64)
     }
 
     // ---------- idempotency (HAPI-03) ----------

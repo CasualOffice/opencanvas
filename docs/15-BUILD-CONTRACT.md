@@ -595,6 +595,22 @@ writes the title and, under `[host.live] snapshot = "content"`, `snapshot {markd
 into the node; `{access: "none"}` writes nothing. Rendered exports (`/v1/export/md|html|docx|pdf`)
 inline the live files the exporting person can read (LIVE-05); `ocanvas` and `json` keep references.
 
+*Offline copies (OFF-01/07, ADR-063/064, docs/34 §3; `[host.offline]`):* the session answer carries
+`offline`: `{enabled:false, allowed:false}` when the host is off; otherwise `{enabled:true, allowed, gen,
+maxDays, autoRecent, limits:{maxCanvases, maxMb, uploadsMb, uploadsFiles, unsentMb}, key}` (`key`: the
+grant's public JWK) plus, when the launch has `perms.offline`, `{role, exp, grant}` (`grant`: ES256 JWS,
+header `{alg:"ES256", typ:"oc-offline+jwt", kid}`, claims `{iss, host, sub, file, role, iat, exp, gen,
+perms:{download, comment}}`), else `reason` (the token's `offlineReason`, `"not-allowed"`, or `"wopi"`).
+The editor keeps the grant with its copy and never sends it back. A device whose stored `gen` is lower
+than the answer's deletes every copy of that host and person. `GET /v1/offline/clear?host=&user=` → a
+no-store page (CSP `script-src 'self'`, framable by the host's origins) running `/v1/offline/clear.js`:
+deletes `oc-offline/<host>/<user>/key` databases first, then every `oc-offline/<host>/…` database, then
+posts `{type:"OC_OfflineCleared", host, removed}` to the parent. Device storage: IndexedDB
+`oc-offline/<host>` (registry, store `dbs`: database names, no content), `oc-offline/<host>/<user>/key`
+(the non-extractable AES-GCM device key), `…/index` (the encrypted list of kept canvases),
+`…/<fileId>` (the encrypted Yjs update log, y-indexeddb scheme, plus the grant), `…/uploads` (queued
+files); names are `encodeURIComponent`-encoded.
+
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
 `POST /v1/files/:fileId/role {"userId","role":"view|comment|edit|none"}` → `{"connections","sessions"}`;

@@ -113,6 +113,7 @@ pub fn table() -> Table {
         .op(M::POST, "/api/v1/convert", convert)
         .op(M::POST, "/api/v1/extract", search::extract)
         .op(M::GET, "/api/v1/search", search::search)
+        .op(M::POST, "/api/v1/offline/revoke", offline_revoke)
 }
 
 /// The 0.1 host routes, kept as aliases (old answers, `{error:{code,message}}` errors).
@@ -978,6 +979,40 @@ async fn invalidate_members(
     Ok(api::invalidate_members_for(&state, &p.host, &file_id)
         .await?
         .into_response())
+}
+
+/// `POST /api/v1/offline/revoke` (OFF-01, ADR-064): host key or `canvas:admin`. Raises the
+/// person's offline generation; every device holding their copies for this host deletes them
+/// at its next session answer.
+async fn offline_revoke(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Answer {
+    let p = caller(&state, &headers).await?;
+    require_admin(&p)?;
+    let body: crate::offline::RevokeBody = serde_json::from_slice(&body)
+        .map_err(|e| Problem::bad_request("BAD_INPUT", format!("expected {{userId}}: {e}")))?;
+    if body.user_id.is_empty() || body.user_id.len() > 255 {
+        return Err(Problem::bad_request(
+            "BAD_INPUT",
+            "userId must be 1-255 bytes",
+        ));
+    }
+    let gen_no = state
+        .store
+        .offline_revoke(&p.host.id, &body.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "offline revoke failed");
+            Problem::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "INTERNAL",
+                "could not revoke",
+            )
+        })?;
+    tracing::info!(host = %p.host.id, "offline copies revoked for a user");
+    Ok(Json(serde_json::json!({ "gen": gen_no })).into_response())
 }
 
 #[cfg(test)]
