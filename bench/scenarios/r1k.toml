@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 CasualOffice
 # R1K (docs/36 §3.3): 1,000 peers in one room, 100 typing at 2 edits/s, 900 cursors at 5 moves/s.
-# The room cap (MAX_PEERS) is 550 by default and not configurable yet: peers past it are refused
-# with 4429 and retry; the result shows how many were admitted (liveEnd, closes).
+# The room cap is 550 by default; a server may set OC_MAX_PEERS up to 1,000 (PERF-11), and this
+# scenario runs with 1,000 (serverEnv in the result).
 name = "R1K"
 description = "1 room of 1,000 peers: 100 typing at 2 edits/s, 900 moving cursors at 5 moves/s; 15 min"
 not_measured = [
@@ -31,6 +31,9 @@ typing_hz = 2
 [run]
 minutes = 15
 bucket_secs = 60
+
+[server_env]
+OC_MAX_PEERS = "1000"
 
 [pass]
 p99_ms = 500

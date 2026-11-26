@@ -296,6 +296,24 @@ own transaction, but they run off the actor and are not on the edit path. Next (
 save payload off the actor (snapshot the doc state, encode on a blocking thread), then group the
 dumps; the remaining ~1.7 s is to be profiled on an unloaded machine.
 
+**After PERF-11/12 (2026-11-26, same Mac, quiet: load average 2–7; commit 601d2a7).** Saves are
+built off the room actor (snapshot, then JSON, `.ocanvas` and history on a blocking thread),
+memory-mode dumps commit in groups (≤ 1 MB per transaction), upgrades are admitted at
+`OC_UPGRADE_RATE` (1,000/s, 503 with a 1–5 s Retry-After past it), editors and the load generator
+reconnect with full jitter (0–5 s, doubling to 60 s), and editors send presence at most every
+100 ms. **X10K short passes** (`bench/results/2026-11-26-x10k-short-local-perf11.json`; 10k clients
+/ 500 rooms, 80% idle, 15% presence 2/s, 5% typing 1/s, demo:big 3:1, SQLite, kill -9 at 2 min):
+p99 per 30 s bucket 62, 62, 52, 64, 50 (fault bucket), 52, 50, 54 ms (target < 250; was 11,329 ms
+in the committed baseline); every client back in 37 s (p95 9.8 s; target < 60 s); RSS peak
+3,210 MB, in the restart bucket (target < 6,144 MB); no drops. **R1K short at `OC_MAX_PEERS=1000`**
+(`bench/results/2026-11-26-r1k-short-local-cap1000.json`; 1,000 peers in one room, 900 cursors at
+5/s, 100 typing at 2/s): all 1,000 joined, p99 per bucket 53–81 ms (target < 500), no drops, but
+**the RSS drift rule fails**: one ~120–150 MB step at a different minute in each of three runs
+(first-to-last bucket +62%, −25%, +27%), flat at 260–360 MB otherwise. Fan-out sharding (§4.2.3)
+is not needed for the latency target at 1,000 on this machine and was not built. Open: the RSS
+step in R1K, relayed peers once per node, presence outside the reader's view above 200 peers,
+the full 30-minute X10K and 15-minute R1K runs on the 4 vCPU / 8 GB reference machine.
+
 1. **Per-connection footprint.** Break down the 0.20 MB per idle connection (buffers, the socket
    task, awareness copies, the grant) and cut it: shrink buffers after a large frame (done for
    frames, docs/22 §7), one shared encoded awareness state per room, release an idle viewer's

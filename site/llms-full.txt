@@ -4795,6 +4795,10 @@ Large documents move the memory line: with 400 KB databases/boards per room, bud
 open room (C). **Maximum users in one room is 550** (`MAX_PEERS`, every role counts) by default; a server may set
 `OC_MAX_PEERS` up to 1,000 (values above are clamped), but 1,000 is not a supported default until the
 R1K, X10K, SOAK and drill gates pass (docs/36 §4.2, PERF-16). The latency curve up to 550 is table A.
+Short local runs (Apple M4, SQLite, 2026-11-26, docs/36 §4.1): X10K (10k connections / 500 rooms,
+80% idle, 15% presence 2/s, 5% typing 1/s, kill -9 at 2 min) p99 ≤ 64 ms in every 30 s bucket,
+everyone back in 37 s; R1K at `OC_MAX_PEERS=1000` (900 cursors at 5/s, 100 typing at 2/s) p99
+≤ 81 ms, RSS 260–360 MB with one unexplained step (its drift rule fails).
 
 **Database:** SQLite holds only transient state (sessions, WAL tail, snapshots, outbox); the size
 under sustained typing was not measured in this round (scenario D below).

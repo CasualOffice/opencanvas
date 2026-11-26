@@ -9,6 +9,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Benchmark results after PERF-11/12: X10K short passes (p99 ≤ 64 ms per bucket, was 11.3 s);
+  R1K short at `OC_MAX_PEERS=1000` (scenario now sets it) passes latency (p99 ≤ 81 ms) and fails
+  its RSS drift rule (docs/36 §4.1).
+
 - Partial sync, server groundwork (PSYNC-02, ADR-076; nothing changes for users yet, the room
   does not split documents): `oc_model::parts` splits a canvas into a main document and one part
   per database and board **keeping every Yjs item id**, and flattens the parts back to the format v1
