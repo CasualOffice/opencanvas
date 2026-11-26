@@ -19,6 +19,8 @@
 //
 //   cd e2e && npx playwright test -c perf/bench.config.ts
 //   BENCH_FIXTURES=s,m   BENCH_RUNS=3   BENCH_MACHINE=local   E2E_SKIP_BUILD=1   E2E_PORT_SHIFT=500
+//   BENCH_PROFILE=1   CPU profile of the first run up to the first screen: the 40 functions with
+//                     the most self time, printed (an unminified build makes them readable)
 //   BENCH_PARTIAL=1   the host has `[host.flags] partial_sync` (PSYNC-02/03): databases and
 //                     boards load as subdocuments when scrolled near; `parts` counts the
 //                     database and board views showing content (not the placeholder) after
@@ -154,15 +156,19 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
       const scripts: { url: string; transfer: number; decoded: number }[] = [];
       let painted = false;
       // PSYNC-03: subdocument frames (type 101) and the parts list, before the first screen.
-      const ws = { sub: 0, parts: -1 };
-      page.on("websocket", (w) =>
+      const ws = { sub: 0, parts: -1, openAt: 0, firstAt: 0, step2At: 0 };
+      page.on("websocket", (w) => {
+        ws.openAt ||= Date.now();
         w.on("framereceived", (f) => {
           const b = f.payload;
           if (typeof b === "string" || !b.length) return;
+          ws.firstAt ||= Date.now();
+          // [0 sync, 1 step 2]: the main document has arrived.
+          if (b[0] === 0 && b[1] === 1) ws.step2At ||= Date.now();
           if (b[0] === 101 && !painted) ws.sub++;
           if (b[0] === 100 && ws.parts < 0 && Buffer.from(b).includes(Buffer.from('"t":"parts"'))) ws.parts = (Buffer.from(b).toString("latin1").match(/block\//g) ?? []).length;
-        }),
-      );
+        });
+      });
       page.on("requestfinished", async (req) => {
         if (painted || req.resourceType() !== "script") return;
         const s = await req.sizes().catch(() => null);
@@ -175,6 +181,13 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
       const run: Record<string, unknown> = { fileId };
       try {
         if (!loc) throw new Error(`launch ${res.status()}: ${(await res.text()).slice(0, 200)}`);
+        const profiling = !!process.env.BENCH_PROFILE && i === 0;
+        if (profiling) {
+          await cdp.send("Profiler.enable");
+          await cdp.send("Profiler.setSamplingInterval", { interval: 1000 });
+          await cdp.send("Profiler.start");
+        }
+        const navAt = Date.now();
         await page.goto(loc.startsWith("http") ? loc : `${OC}${loc}`, { waitUntil: "commit" });
         const h = await page.waitForFunction(
           () => {
@@ -187,6 +200,19 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
         );
         painted = true;
         run.firstScreenMs = Math.round((await h.jsonValue()) as number);
+        if (profiling) {
+          type Node = { id: number; callFrame: { functionName: string; url: string; lineNumber: number }; hitCount?: number };
+          const { profile } = (await cdp.send("Profiler.stop")) as { profile: { nodes: Node[]; samples: number[]; timeDeltas: number[] } };
+          const self = new Map<number, number>();
+          profile.samples.forEach((id, k) => self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[k] ?? 0)));
+          const byFn = new Map<string, number>();
+          for (const n of profile.nodes) {
+            const f = `${n.callFrame.functionName || "(anon)"} ${n.callFrame.url.split("/").pop()}:${n.callFrame.lineNumber}`;
+            byFn.set(f, (byFn.get(f) ?? 0) + (self.get(n.id) ?? 0));
+          }
+          const top = [...byFn].sort((a, b) => b[1] - a[1]).slice(0, 40);
+          for (const [f, us] of top) console.log(`profile ${Math.round(us / 1000)} ms  ${f}`);
+        }
         // Settle: let the rest of the document arrive and render before measuring memory.
         await page.waitForTimeout(0);
         await page.evaluate(() => new Promise((r) => requestIdleCallback(() => r(null), { timeout: 30_000 })));
@@ -199,6 +225,8 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
           return { views: views.length, shown: views.filter((v) => !v.querySelector(".bskel")).length };
         });
         run.subFramesBeforeFirstScreen = ws.sub;
+        // Where the time goes: socket open, first frame (the room is loaded), main document in.
+        run.wsMs = { open: ws.openAt - navAt, firstFrame: ws.firstAt - navAt, mainSynced: ws.step2At - navAt };
         run.partsListed = ws.parts;
         const loadLoaf = await page.evaluate(() => (window as unknown as { __loaf: { duration: number }[] }).__loaf.length);
         // Scroll through the document with the wheel over the editor.

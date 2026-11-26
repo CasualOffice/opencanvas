@@ -5966,15 +5966,15 @@ Every number below comes from a result file in `bench/results/`, produced by `sc
 
 ## BROWSER — 2026-11-26-browser-local-partial
 
-- **Run:** 2026-11-26, commit `b55cb66`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
+- **Run:** 2026-11-26, commit `b4ba7db`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
 - **Server settings:** `OC_MAX_DOC_MB=128`
 - **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
 
 | Fixture | First screen median ms | Worst ms | Heap MB |
 |---|---|---|---|
-| 50mb | 9,182 | 13,096 | 15.5 |
+| 50mb | 5,925 | 12,255 | 16.5 |
 
-Initial JavaScript: 296,886 bytes gzip (budget 300 KB).
+Initial JavaScript: 296,958 bytes gzip (budget 300 KB).
 
 
 ## R1K short — 2026-11-26-r1k-short-local-cap1000-frames

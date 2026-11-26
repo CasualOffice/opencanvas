@@ -192,3 +192,30 @@ describe("stable block ids (VH-00)", () => {
     expect(ids.slice(0, 5)).toEqual(["b_0000000000000000000000000a", "b_0000000000000000000000000b", "b_0000000000000000000000000c", "b_0000000000000000000000000d", "b_0000000000000000000000000e"]);
   });
 });
+
+describe("ids for a large document (PSYNC-A1)", () => {
+  it("are assigned in chunks of at most ID_CHUNK blocks, the rest when idle", async () => {
+    const { ID_CHUNK } = await import("./blockId");
+    const doc = new Y.Doc();
+    const frag = doc.getXmlFragment("content");
+    const blocks = Array.from({ length: ID_CHUNK * 3 + 7 }, (_, i) => {
+      const p = new Y.XmlElement("paragraph");
+      p.insert(0, [new Y.XmlText(`p${i}`)]);
+      return p;
+    });
+    frag.insert(0, blocks);
+    const e = mount(doc);
+    const steps: number[] = [];
+    e.on("transaction", ({ transaction }) => {
+      if (transaction.steps.length) steps.push(transaction.steps.length);
+    });
+    await settle();
+    expect(yIds(doc).filter(Boolean).length).toBe(ID_CHUNK);
+    const until = Date.now() + 5000;
+    while (yIds(doc).some((id) => !id) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));
+    const ids = yIds(doc);
+    expect(ids.every((id) => !!id && ID.test(id))).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(Math.max(...steps)).toBeLessThanOrEqual(ID_CHUNK);
+  });
+});
