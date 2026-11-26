@@ -9,6 +9,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- The editor's files are now served gzip-compressed to browsers that accept it: the build writes
+  a `.gz` next to each text asset and the server sends it. The initial JS went over the wire as
+  955 KB instead of its 294 KB gzip budget (BENCH-03).
 - Load generator: a client refused by a full room retried every 0.5 s and counted as a drop;
   it now backs off and is counted as refused.
 - Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does
@@ -38,6 +41,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Browser benchmark (BENCH-03): `e2e/perf/first-screen.bench.ts` measures first screen, heap
+  after GC, DOM size, script bytes and long frames on the S, M, L and 50 MB fixtures through the
+  real server (Chromium, 4× CPU throttle, 40 Mbit/s, 40 ms RTT); budgets per fixture in
+  `bench/budgets.toml`, checked nightly by `scripts/bench/check-browser.mjs`.
 - Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): `scripts/bench/run <scenario>`
   with scenario files in `bench/scenarios/` that state their load mix (X10K, R1K, STORM, SOAK, and
   the docs/22 scenarios run unchanged), `oc-bench scenario` (idle, presence-only and typing peers,

@@ -239,7 +239,11 @@ pub fn router(state: SharedState) -> Router {
     // Patch / convert bodies: up to the document cap (at least 1 MB).
     let body_limit = state.cfg.rooms.max_doc_bytes.max(1024 * 1024);
     let web = &state.cfg.web_dir;
-    let spa = ServeDir::new(web).fallback(ServeFile::new(web.join("index.html")));
+    // The editor build writes a `.gz` next to each text asset (vite.config.ts): served to
+    // browsers that accept gzip, so the initial JS goes out at its budgeted size (BENCH-03).
+    let spa = ServeDir::new(web)
+        .precompressed_gzip()
+        .fallback(ServeFile::new(web.join("index.html")).precompressed_gzip());
     let cors_origins: Vec<HeaderValue> = origins
         .iter()
         .filter_map(|o| HeaderValue::from_str(o).ok())

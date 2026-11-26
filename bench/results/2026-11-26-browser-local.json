@@ -1,0 +1,418 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-26",
+  "commit": "6e5e94a",
+  "machine": "local",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 3,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 294137,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-eiLsaCmz.js",
+        "gzipBytes": 128466
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/index-LJhCbBtW.js",
+        "gzipBytes": 65489
+      },
+      {
+        "file": "assets/yjs-rru-mmp6.js",
+        "gzipBytes": 30115
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "s": {
+      "firstScreenMs": {
+        "median": 733,
+        "worst": 735
+      },
+      "heapMb": 10.2,
+      "domNodes": 588,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "s_b5521429_0",
+          "firstScreenMs": 733,
+          "heapMb": 10.2,
+          "domNodes": 588,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 4,
+              "totalMs": 582,
+              "blockingMs": 322,
+              "worstMs": 309
+            },
+            "scroll": {
+              "count": 2,
+              "totalMs": 186,
+              "blockingMs": 68,
+              "worstMs": 126
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "s_b5523939_1",
+          "firstScreenMs": 735,
+          "heapMb": 10.2,
+          "domNodes": 588,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 6,
+              "totalMs": 676,
+              "blockingMs": 325,
+              "worstMs": 310
+            },
+            "scroll": {
+              "count": 2,
+              "totalMs": 189,
+              "blockingMs": 70,
+              "worstMs": 130
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "s_b5526465_2",
+          "firstScreenMs": 722,
+          "heapMb": 10.2,
+          "domNodes": 588,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 5,
+              "totalMs": 624,
+              "blockingMs": 315,
+              "worstMs": 301
+            },
+            "scroll": {
+              "count": 1,
+              "totalMs": 130,
+              "blockingMs": 70,
+              "worstMs": 130
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        }
+      ]
+    },
+    "m": {
+      "firstScreenMs": {
+        "median": 3331,
+        "worst": 4905
+      },
+      "heapMb": 53.9,
+      "domNodes": 2024,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "m_b5528942_0",
+          "firstScreenMs": 2581,
+          "heapMb": 53.9,
+          "domNodes": 2024,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 1820,
+              "blockingMs": 1231,
+              "worstMs": 633
+            },
+            "scroll": {
+              "count": 0,
+              "totalMs": 0,
+              "blockingMs": 0,
+              "worstMs": 0
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "m_b5535444_1",
+          "firstScreenMs": 3331,
+          "heapMb": 53.9,
+          "domNodes": 2024,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 11,
+              "totalMs": 4538,
+              "blockingMs": 3490,
+              "worstMs": 1390
+            },
+            "scroll": {
+              "count": 28,
+              "totalMs": 2031,
+              "blockingMs": 82,
+              "worstMs": 112
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "m_b5548118_2",
+          "firstScreenMs": 4905,
+          "heapMb": 54.1,
+          "domNodes": 2024,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 13,
+              "totalMs": 4045,
+              "blockingMs": 3116,
+              "worstMs": 1442
+            },
+            "scroll": {
+              "count": 19,
+              "totalMs": 1043,
+              "blockingMs": 0,
+              "worstMs": 61
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        }
+      ]
+    },
+    "l": {
+      "firstScreenMs": {
+        "median": 5937,
+        "worst": 8116
+      },
+      "heapMb": 109.6,
+      "domNodes": 4453,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "l_b5561529_0",
+          "firstScreenMs": 8116,
+          "heapMb": 109.5,
+          "domNodes": 4453,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 22,
+              "totalMs": 12825,
+              "blockingMs": 10974,
+              "worstMs": 4010
+            },
+            "scroll": {
+              "count": 22,
+              "totalMs": 1460,
+              "blockingMs": 22,
+              "worstMs": 93
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "l_b5586421_1",
+          "firstScreenMs": 5937,
+          "heapMb": 109.6,
+          "domNodes": 4453,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 10,
+              "totalMs": 4799,
+              "blockingMs": 4115,
+              "worstMs": 1639
+            },
+            "scroll": {
+              "count": 11,
+              "totalMs": 605,
+              "blockingMs": 0,
+              "worstMs": 60
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "l_b5600966_2",
+          "firstScreenMs": 5774,
+          "heapMb": 109.6,
+          "domNodes": 4453,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 9,
+              "totalMs": 4590,
+              "blockingMs": 3951,
+              "worstMs": 1448
+            },
+            "scroll": {
+              "count": 20,
+              "totalMs": 1308,
+              "blockingMs": 0,
+              "worstMs": 73
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        }
+      ]
+    },
+    "50mb": {
+      "firstScreenMs": {
+        "median": 45582,
+        "worst": 47217
+      },
+      "heapMb": 472.1,
+      "domNodes": 10510,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "50mb_b5616355_0",
+          "firstScreenMs": 36599,
+          "heapMb": 472.1,
+          "domNodes": 10511,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 24,
+              "totalMs": 49706,
+              "blockingMs": 48144,
+              "worstMs": 17655
+            },
+            "scroll": {
+              "count": 21,
+              "totalMs": 1195,
+              "blockingMs": 0,
+              "worstMs": 75
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "50mb_b5693304_1",
+          "firstScreenMs": 47217,
+          "heapMb": 472.1,
+          "domNodes": 10510,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 26,
+              "totalMs": 64087,
+              "blockingMs": 62513,
+              "worstMs": 16618
+            },
+            "scroll": {
+              "count": 33,
+              "totalMs": 3114,
+              "blockingMs": 224,
+              "worstMs": 281
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        },
+        {
+          "fileId": "50mb_b5784852_2",
+          "firstScreenMs": 45582,
+          "heapMb": 472.5,
+          "domNodes": 10510,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 55,
+              "totalMs": 73466,
+              "blockingMs": 66692,
+              "worstMs": 18689
+            },
+            "scroll": {
+              "count": 34,
+              "totalMs": 3202,
+              "blockingMs": 68,
+              "worstMs": 143
+            }
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 297,
+            "decodedKb": 951.6
+          }
+        }
+      ]
+    }
+  }
+}

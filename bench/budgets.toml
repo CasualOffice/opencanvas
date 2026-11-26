@@ -33,14 +33,21 @@ forbid = [
   "packages/editor/src/history/",
 ]
 
+
 [heap_mb]
-s = 0
-m = 0
-l = 0
-50mb = 0
+# Baseline 2026-11-26 (bench/results/2026-11-26-browser-local.json, Apple M4, Chromium 159):
+# S 10.2, M 53.9, L 109.6, 50 MB 472.1. S and M may grow ≤ 5% (MEM); L and 50 MB hold the
+# baseline + 5% until the MEM work (target L −40%) lowers them.
+s = 10.7
+m = 56.6
+l = 115
+50mb = 496
 
 [first_screen_ms]
-s = 0
-m = 0
-l = 0
+# Baseline medians: S 733, M 3,331, L 5,937, 50 MB 45,582 (4× CPU, 40 Mbit/s, 40 ms RTT).
+# S, M and L leave room for runner noise; 50 MB is the PSYNC-A1 target (< 2 s), not met today
+# and not in the nightly run.
+s = 1000
+m = 5500
+l = 9000
 50mb = 2000

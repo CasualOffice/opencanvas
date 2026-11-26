@@ -4,6 +4,9 @@
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 
 // OFF-03: the list of files the service worker (public/sw.js) caches for opening offline:
 // the editor code only, never content.
@@ -23,12 +26,32 @@ const shell = {
 // demo is built with OC_EDITOR_BASE=./ (relative, so it works at any path: the custom
 // domain's /app/ and the local preview's /opencanvas/app/; .github/workflows/pages.yml).
 // It must start and end with "/".
+// A `.gz` next to every text asset of 1 KB or more: the server sends it to browsers that accept
+// gzip (ServeDir::precompressed_gzip), so the initial JS goes out at its budgeted size. Written
+// after the bundle, so shell.json (the offline shell) does not list them.
+const gzip = {
+  name: "oc-gzip",
+  apply: "build" as const,
+  writeBundle(opts: { dir?: string }) {
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const file = join(dir, name);
+        if (statSync(file).isDirectory()) walk(file);
+        else if (/\.(js|mjs|css|html|svg|json|webmanifest)$/.test(name) && statSync(file).size >= 1024) {
+          writeFileSync(file + ".gz", gzipSync(readFileSync(file), { level: 9 }));
+        }
+      }
+    };
+    if (opts.dir) walk(opts.dir);
+  },
+};
+
 const base = process.env.OC_EDITOR_BASE || "/app/";
 if (base !== "./" && !/^\/(.*\/)?$/.test(base)) throw new Error(`OC_EDITOR_BASE must be "./" or start and end with "/": ${base}`);
 
 export default defineConfig({
   base,
-  plugins: [react(), shell],
+  plugins: [react(), shell, gzip],
   server: {
     port: 5173,
     strictPort: true,
