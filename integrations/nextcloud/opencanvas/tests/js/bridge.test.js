@@ -4,7 +4,7 @@
 // S4/S5 host side of the OpenCanvas postMessage protocol (docs/05 §4): when the canvas counts as
 // loaded, which errors become a Nextcloud screen, closing, opening a conflict copy, relaunching.
 import { describe, expect, it } from 'vitest'
-import { initialState, reduce } from '../../src/lib/bridge.js'
+import { blockFromHash, initialState, reduce } from '../../src/lib/bridge.js'
 
 const msg = (MessageId, Values = {}) => ({ MessageId, SendTime: 1, Values })
 
@@ -53,5 +53,15 @@ describe('bridge.reduce', () => {
 		expect(reduce(initialState(), null).effect).toBe(null)
 		expect(reduce(initialState(), { nope: 1 }).effect).toBe(null)
 		expect(reduce(initialState(), '{"MessageId":"UI_Close"}').effect).toEqual({ type: 'close' })
+	})
+})
+
+describe('blockFromHash (SRCH-05: a unified search result opens the canvas at its block)', () => {
+	it('reads #block=<id> and nothing else', () => {
+		expect(blockFromHash('#block=b_a10')).toBe('b_a10')
+		expect(blockFromHash('#x=1&block=b-9')).toBe('b-9')
+		expect(blockFromHash('#block=<script>')).toBe(null)
+		expect(blockFromHash('')).toBe(null)
+		expect(blockFromHash('#blocks=b_1')).toBe(null)
 	})
 })

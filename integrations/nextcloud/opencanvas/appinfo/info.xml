@@ -11,7 +11,7 @@ One canvas holds rich text, databases (table, board, calendar views) and whitebo
 Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and versions.
 
 Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by either company.]]></description>
-	<version>0.1.0</version>
+	<version>0.1.1</version>
 	<licence>apache</licence>
 	<author>CasualOffice</author>
 	<namespace>OpenCanvas</namespace>
@@ -35,6 +35,9 @@ Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark
 			<step>OCA\OpenCanvas\Migration\UnregisterMimeType</step>
 		</uninstall>
 	</repair-steps>
+	<commands>
+		<command>OCA\OpenCanvas\Command\IndexCanvases</command>
+	</commands>
 	<settings>
 		<admin>OCA\OpenCanvas\Settings\Admin</admin>
 		<admin-section>OCA\OpenCanvas\Settings\Section</admin-section>

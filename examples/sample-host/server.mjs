@@ -211,7 +211,10 @@ async function accessCallback(req, res) {
   const f = meta.files[q.fileId];
   const role = f?.acl[q.userId] || "none";
   if (role === "none") return send(res, 200, { role: "none" });
-  return send(res, 200, { role, name: f.name, callbackToken: callbackToken(f.id, q.userId) });
+  // `path` (optional, ≤ 200 characters, shown as text): where the file lives, for the live
+  // block's header ("from Acme Docs › Sprint planning"). Ours: the canvas a live file was made in.
+  const where = f.path || (f.parent && meta.files[f.parent] ? `Acme Docs › ${meta.files[f.parent].name}` : "");
+  return send(res, 200, { role, name: f.name, ...(where ? { path: where.slice(0, 200) } : {}), callbackToken: callbackToken(f.id, q.userId) });
 }
 
 async function createFileCallback(req, res) {

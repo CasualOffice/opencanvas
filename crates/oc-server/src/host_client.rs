@@ -308,12 +308,15 @@ pub type AccessAnswer = Option<Option<crate::grant::Role>>;
 type AccessCache = HashMap<(String, String, String), (std::time::Instant, Option<AccessDetail>)>;
 
 /// A full `/access` answer (LIVE-01, docs/05 §5): the role (`None` = no access) and, for live
-/// files, the optional `name` and `callbackToken` the server uses for that file's room.
+/// files, the optional `name` and `callbackToken` the server uses for that file's room, and
+/// the optional `path` (where it lives in the host, at most 200 characters, shown as text).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AccessDetail {
     pub role: Option<crate::grant::Role>,
     pub name: Option<String>,
     pub callback_token: Option<String>,
+    /// LIVE-03 (prototype 2a): "Leadership weekly › Q1", for the live block's header.
+    pub path: Option<String>,
     /// LIVE-03 (prototype 5e): the host answered 410, or `{"role": "none", "gone": true}`: the
     /// file was deleted or moved.
     pub gone: bool,
@@ -1079,6 +1082,18 @@ impl HostClient {
             // Nothing of a file the person cannot open is kept (docs/27 §2.5).
             name: role.and(text("name", 512)),
             callback_token: role.and(text("callbackToken", 4096)),
+            // Characters, not bytes (a path is shown, not parsed); no control characters.
+            path: role.and(
+                v["path"]
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|s| {
+                        !s.is_empty()
+                            && s.chars().count() <= 200
+                            && !s.chars().any(char::is_control)
+                    })
+                    .map(String::from),
+            ),
             gone: role.is_none() && v["gone"].as_bool() == Some(true),
             role,
         }))

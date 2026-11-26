@@ -258,3 +258,26 @@ describe("keyboard map and announcements (6b)", () => {
     expect(menuKey(nav, "Enter", {}, c, true).action).toMatchObject({ t: "insert", row: { variant: { id: "numbered" } } });
   });
 });
+
+describe("inside a live block's own editor (LIVE-03, depth rule)", () => {
+  // The nested editor gets the same categorised menu, filtered by the host profile, minus what
+  // would act on the embedding canvas or break the depth rule.
+  const nested = (o: Partial<Ctx> = {}) => ctx({ ai: true, imp: true, live: true, pkgs: [OKR], nested: true, ...o });
+  it("never offers a live block, whatever the host allows", () => {
+    expect(keys(ctx({ live: true }))).toContain("live");
+    expect(keys(nested())).not.toContain("live");
+    expect(search("live block", nested()).groups.flatMap((g) => g.rows).map((r) => r.block.key)).not.toContain("live");
+  });
+  it("keeps the categories and the host profile's filter", () => {
+    const c = nested();
+    expect(cats(c).map((x) => x.title)).toEqual(["Content", "Data & planning", "Visual & diagrams", "Layout"]);
+    expect(catBlocks("data", c).own.map((b) => b.key)).toEqual(["database", "table", "date"]);
+    expect(keys(nested({ profile: MEETING }))).toEqual(["text", "heading", "list", "callout", "table", "date", "divider"]);
+  });
+  it("leaves out what acts on the embedding canvas: assistant, import, uploads, SDK blocks, the gallery", () => {
+    const k = keys(nested());
+    for (const x of ["assistant", "import", "csv", "file", "image", "ext:acme.okr"]) expect(k).not.toContain(x);
+    expect(rootView(nested(), false).bands.some((b) => b.kind === "bar")).toBe(false);
+    expect(rootView(ctx({ ai: true }), false).bands.some((b) => b.kind === "bar")).toBe(true);
+  });
+});

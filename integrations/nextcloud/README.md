@@ -69,6 +69,20 @@ versions. OpenCanvas does the editing and stores no documents.
   not found, links turned off) a Nextcloud screen says what happened and what to do; admins get
   the fix.
 
+**In Nextcloud search (SRCH-05, ADR-065).** Canvases appear in the unified search (the
+magnifier in the header) under **Canvases**:
+- Every save of an `.ocanvas` (OpenCanvas's PutFile, a conflict copy, an upload, a WebDAV PUT,
+  a copy) carries `search.json`, the canvas's plain text with block ids. The app reads it into
+  its own table `oc_opencanvas_search` (text only; deleted with the file). This is Nextcloud's
+  index: OpenCanvas keeps none. Files saved before OpenCanvas 0.3 have no `search.json` and are
+  indexed on their next save.
+- Results are only files the person can open in Nextcloud, checked at search time, so a removed
+  share hides a canvas at once. A result shows the canvas title, the matching text, its heading
+  and its folder, and opens the canvas on the full page at the matching block (`#block=<id>`,
+  sent to the editor as `Action_ScrollToBlock` once it has loaded).
+- `occ opencanvas:search-index [user…]` indexes existing canvases (run once after an upgrade).
+- Comments are in `search.json` only when OpenCanvas's `[host.search] comments = true`.
+
 ## Install
 
 Use an OpenCanvas 0.1.2 server for the features described in this guide. See
@@ -237,6 +251,26 @@ THEMES=light,dark PLAYWRIGHT=<e2e/node_modules/playwright> NC=http://localhost:8
 Unit tests: `php tests/run-without-phpunit.php` 40 passed (adds launch errors, the public-link
 password check and the connection-check report); `npm test` 51 passed (names, error screens,
 postMessage bridge, admin validation, guest names, file icon).
+
+**Search (SRCH-05), 2026-11-26.** No Nextcloud container was available for this change, so
+the Nextcloud glue (the migration, `IndexCanvasListener`, `SearchIndexService`,
+`CanvasSearchProvider`, the `occ` command) is checked with `php -l` only. The framework-free
+part is unit-tested: `php tests/run-without-phpunit.php` 46 passed (adds `SearchTextTest`:
+reading `search.json` from a real zip, older and foreign files skipped, every-word matching with
+the block, heading trail, accents and case, the title-only result, 5,000-line and 2 MB limits,
+snippets); `bridge.test.js` covers `#block=` → `Action_ScrollToBlock`.
+
+Manual test, with the containers and OpenCanvas 0.3 running as under **Verified**:
+
+1. `occ app:enable opencanvas` (or `occ upgrade` from 0.1.0): `oc_opencanvas_search` exists.
+2. As alice, create a canvas, type "Quarterly SSO rollout" under a heading "Release 4.2", wait
+   for "Saved". In Nextcloud's database, `oc_opencanvas_search` has one row for the file id.
+3. Header search "sso rollout": **Canvases** lists it with "Quarterly SSO rollout · Release 4.2";
+   clicking opens the full page and the block flashes.
+4. As bob (no share): the same search shows nothing. Share it read-only with bob: it shows.
+   Remove the share: it is gone at once.
+5. Delete the file: its row is gone. `occ opencanvas:search-index alice` on an old canvas after
+   one save: "Indexed 1 canvases".
 
 ## Not yet tested
 

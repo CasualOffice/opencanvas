@@ -7,7 +7,7 @@ import { insertUploads } from "../lib/uploads";
 import { datePickStore, isoDate } from "./inline";
 import { tableJSON } from "./table";
 import { loadBoard, loadDatabase } from "./blockdata";
-import { bridge } from "../lib/bridge";
+import { bridge, docOf } from "../lib/bridge";
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 import { markPending } from "../lib/unfurl";
 import { aiStore, openAssistant } from "../lib/assistant";
@@ -81,13 +81,13 @@ export const SLASH: SlashItem[] = [
   { group: "Basic", id: "divider", icon: "minus", title: "Divider", desc: "Separate sections", md: "---", keywords: "hr rule", run: (e, r) => setBlock(e, r, (c) => c.setHorizontalRule()) },
   {
     group: "Data", id: "db", icon: "database", title: "Database", desc: "Table, board, calendar, gallery", keywords: "table kanban",
-    run: (e, r) => insertLater(e, r, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).createDatabase(bridge.doc, "blank") } }, { type: "paragraph" }]),
+    run: (e, r) => insertLater(e, r, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).createDatabase(docOf(e), "blank") } }, { type: "paragraph" }]),
   },
   {
     group: "Data", id: "csv", icon: "file-spreadsheet", title: "Import CSV", desc: "Turn a CSV into a database", keywords: "spreadsheet",
     run: (e, r) => {
       if (r) e.chain().focus().deleteRange(r).run();
-      bridge.importCsv((csv) => insertLater(e, null, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).importCsvToDatabase(bridge.doc, csv) } }, { type: "paragraph" }]));
+      bridge.importCsv((csv) => insertLater(e, null, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).importCsvToDatabase(docOf(e), csv) } }, { type: "paragraph" }]));
     },
   },
   { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => {
@@ -144,7 +144,7 @@ export const SLASH: SlashItem[] = [
   { group: "Media", id: "code", icon: "code-xml", title: "Code", desc: "With syntax highlighting", md: "```", run: (e, r) => setBlock(e, r, (c) => c.setCodeBlock()) },
   {
     group: "Layout", id: "board", icon: "shapes", title: "Whiteboard", desc: "Sketch inside the canvas", keywords: "draw diagram",
-    run: (e, r) => insertLater(e, r, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(bridge.doc, "blank") } }, { type: "paragraph" }]),
+    run: (e, r) => insertLater(e, r, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(docOf(e), "blank") } }, { type: "paragraph" }]),
   },
   { group: "Layout", id: "cols", icon: "columns-2", title: "Two columns", desc: "Side by side", keywords: "layout split", run: (e, r) => insertBlock(e, r, columnsJSON(2)) },
   { group: "Layout", id: "cols3", icon: "columns-3", title: "Three columns", desc: "Three across", keywords: "layout split", run: (e, r) => insertBlock(e, r, columnsJSON(3)) },

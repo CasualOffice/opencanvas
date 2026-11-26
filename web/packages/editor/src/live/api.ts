@@ -55,6 +55,8 @@ export interface LiveSession {
   fileId: string;
   role: Role;
   name: string;
+  /** The host's folder path of the live file (`/access` `path`, ≤ 200 characters), shown as text. */
+  path?: string;
   exp: number;
   wsUrl: string;
   maxOpen: number;

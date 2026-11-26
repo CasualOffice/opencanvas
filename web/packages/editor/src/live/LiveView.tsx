@@ -2,7 +2,7 @@
 // Copyright 2026 CasualOffice
 
 // The live block chrome and the reference card (LIVE-03/04/07), to the approved prototype
-// docs/prototypes/v03-approved/live-blocks.html: header (2a), presence with "from" (2b), the
+// docs/prototypes/v03-approved/live-blocks.html: header (2a), presence (2b; the "from" label dropped, ADR-069), the
 // first-edit hint (2b), the options menu (2c), who can see this (2d), view only (2e), convert to
 // a copy (2f), reference card states (3a-3c), failure states (5a-5g) and the phone sheet (6a-6d).
 // Lazy: nothing here is in the first bundle.
@@ -21,7 +21,7 @@ import { CanvasEditor } from "../editor/CanvasEditor";
 import { audience, lastProjection, projection, type Audience, type Projection } from "./api";
 import { retryRoom, useRoomEntry, type LiveRoom } from "./conn";
 import { Projected, SnapshotText } from "./render";
-import { copyBlockLink, liveCfg, nestedEditors } from "./state";
+import { copyBlockLink, liveCfg, nestedEditors, registerLiveEditor } from "./state";
 import "./live.css";
 
 Object.assign(ICONS, {
@@ -82,18 +82,23 @@ function Nested({ room, editable, onEditor, onLocalEdit }: { room: LiveRoom; edi
     () => ({ ...parent, doc: collab.doc, awareness: collab.awareness, session: room.session ?? parent.session, env: { ...parent.env, role: editable ? "edit" : "view", undoManager: undefined } }),
     [parent, collab, room.session, editable],
   );
+  const unreg = useRef<(() => void) | null>(null);
   const ready = useCallback(
     (e: Editor | null) => {
+      unreg.current?.();
+      unreg.current = null;
       if (e) {
         nestedEditors.add(e);
+        unreg.current = registerLiveEditor(room.fileId, { editor: e, title: room.name, path: room.path });
         e.on("transaction", ({ transaction }) => {
           if (transaction.docChanged && !transaction.getMeta("y-sync$")) onLocalEdit();
         });
       }
       onEditor(e);
     },
-    [onEditor, onLocalEdit],
+    [onEditor, onLocalEdit, room],
   );
+  useEffect(() => () => unreg.current?.(), []);
   return (
     <BridgeCtx.Provider value={ctx}>
       <CanvasEditor nested doc={collab.doc} awareness={collab.awareness} role={editable ? "edit" : "view"} me={parent.env.me} users={[]} searchUsers={async () => []} onReady={ready} onComment={() => undefined} />
@@ -492,7 +497,7 @@ export function LiveBlockView(props: ReactNodeViewProps) {
           Live
         </span>
         <span className="lb-t">{title || "Live block"}</span>
-        {!compact && !failure ? <span className="lb-src">from {host}</span> : null}
+        {!compact && !failure ? <span className="lb-src">from {room.path || host}</span> : null}
         {st === "connected" && room.role !== "edit" ? (
           <span className="lb-ro">
             <Ic name="eye" size={12} />

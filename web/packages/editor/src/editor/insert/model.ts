@@ -21,6 +21,10 @@ export interface Ctx {
   pkgs: BlockPackage[];
   /** LIVE-03: the host's live block picker may be offered (`live.insert`, not inside a live block). */
   live?: boolean;
+  /** The "/" was typed in a live block's own editor (LIVE-03): no live block (the depth rule)
+   *  and nothing that acts on the embedding canvas (assistant, import, uploads, SDK blocks, the
+   *  gallery), whatever the host allows. */
+  nested?: boolean;
   rec: RecentRec;
   now: number;
 }
@@ -67,14 +71,20 @@ export function variantsOf(b: Block, ctx: Ctx): Variant[] {
 }
 
 /** Every block (and action) this person may insert, in catalogue order, SDK blocks last. */
+/** Entries a live block's own editor never offers: their uploads, imports and data belong
+ *  to the embedding canvas's session. */
+export const NESTED_OFF = new Set(["live", "import", "assistant", "csv", "file", "image"]);
+
 export function offered(ctx: Ctx): Block[] {
   const own = BLOCKS.filter((b) => {
+    if (ctx.nested && NESTED_OFF.has(b.key)) return false;
     if (b.action === "assistant" && !ctx.ai) return false;
     if (b.action === "import" && !ctx.imp) return false;
     if (b.action === "live") return !!ctx.live;
     if (b.variants) return variantsOf(b, ctx).length > 0;
     return needOk(b.needs, ctx.profile);
   });
+  if (ctx.nested) return own;
   return [...own, ...ctx.pkgs.filter((p) => sdkAllowed(p, ctx.profile)).map(sdkBlock)];
 }
 
@@ -408,7 +418,7 @@ export interface View {
 const slug = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "_");
 
 /** "Browse all blocks" (the gallery) is for the full workspace only (5a). */
-export const browseAll = (ctx: Ctx) => (ctx.profile?.profile ?? "full") === "full";
+export const browseAll = (ctx: Ctx) => !ctx.nested && (ctx.profile?.profile ?? "full") === "full";
 
 export function rootView(ctx: Ctx, compact = false): View {
   if (isFlat(ctx)) return { kind: "flat", bands: flatRows(ctx).map((r) => ({ kind: "row", items: [{ kind: "row", id: "oci-f-" + slug(r.key), row: r }] })) };
@@ -420,7 +430,7 @@ export function rootView(ctx: Ctx, compact = false): View {
   if (ch.length) bands.push({ head: "Start from a goal", headIcon: "lightbulb", label: "Start from a goal", kind: "chips", items: ch.map((t, i) => ({ kind: "chip", id: "oci-c-" + i, text: t })) });
   cats(ctx).forEach((c, i) => bands.push({ head: i === 0 ? "Explore" : undefined, label: "Explore", kind: "row", items: [{ kind: "cat", id: "oci-k-" + c.id, cat: c, count: catCount(c.id, ctx) }] }));
   const bar: Item[] = browseAll(ctx) ? [{ kind: "browse", id: "oci-browse" }] : [];
-  if (ctx.ai && !compact) bar.push({ kind: "ask", id: "oci-ask" });
+  if (ctx.ai && !ctx.nested && !compact) bar.push({ kind: "ask", id: "oci-ask" });
   if (bar.length) bands.push({ kind: "bar", items: bar });
   return { kind: "root", bands };
 }
@@ -434,7 +444,7 @@ export function searchView(query: string, ctx: Ctx): View {
     if (res.didYouMean) bands.push({ head: "Did you mean", label: "Did you mean", kind: "row", items: [{ kind: "row", id: "oci-dym", row: res.didYouMean }] });
     const ch = isFlat(ctx) ? [] : chips(ctx);
     if (ch.length) bands.push({ head: "Start from a goal", headIcon: "lightbulb", label: "Start from a goal", kind: "chips", items: ch.map((t, i) => ({ kind: "chip", id: "oci-c-" + i, text: t })) });
-    const bar: Item[] = [...(browseAll(ctx) ? [{ kind: "browse" as const, id: "oci-browse" }] : []), ...(ctx.ai ? [{ kind: "ask" as const, id: "oci-ask" }] : [])];
+    const bar: Item[] = [...(browseAll(ctx) ? [{ kind: "browse" as const, id: "oci-browse" }] : []), ...(ctx.ai && !ctx.nested ? [{ kind: "ask" as const, id: "oci-ask" }] : [])];
     if (!isFlat(ctx) && bar.length) bands.push({ kind: "bar", items: bar });
   }
   return { kind: "search", bands, results: res };

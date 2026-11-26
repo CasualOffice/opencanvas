@@ -69,3 +69,12 @@ export function reduce(state, raw) {
 		return { state, effect: null }
 	}
 }
+
+/**
+ * SRCH-05: a unified search result links to `/apps/opencanvas/open/{id}#block=<id>`; once the
+ * canvas is loaded the page sends `Action_ScrollToBlock` (docs/05 §4). Block ids only.
+ */
+export function blockFromHash(hash) {
+	const m = /(?:^#|&)block=([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(typeof hash === 'string' ? hash : '')
+	return m ? m[1] : null
+}

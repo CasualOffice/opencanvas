@@ -202,6 +202,8 @@ pub enum Access {
         role: Role,
         name: Option<String>,
         callback_token: Option<String>,
+        /// Where the file lives in the host (`/access` `path`), shown as text (LIVE-03).
+        path: Option<String>,
     },
     Denied,
 }
@@ -284,6 +286,7 @@ pub async fn access(
                 role,
                 name: d.name,
                 callback_token: d.callback_token,
+                path: d.path,
             },
             None if d.gone => return Err(gone()),
             None => Access::Denied,
@@ -295,6 +298,7 @@ pub async fn access(
                 role: Role::View,
                 name: None,
                 callback_token: None,
+                path: None,
             }
         } else {
             Access::Denied
@@ -447,7 +451,8 @@ pub struct SessionBody {
 }
 
 /// `POST /v1/live/session {ticket, fileId}` (LIVE-01/02): a derived session for a live block
-/// the canvas embeds: `{ticket, room, fileId, role, name, exp, wsUrl}`. The editor connects
+/// the canvas embeds: `{ticket, room, fileId, role, name, path, exp, wsUrl}` (`path` from the
+/// host's `/access`, else null). The editor connects
 /// to `wsUrl/<room>?ticket=…&caps=ext,live` like any canvas, lazily, at most 8 at once.
 pub async fn open_session(
     State(state): State<SharedState>,
@@ -468,6 +473,7 @@ pub async fn open_session(
         role,
         name,
         callback_token,
+        path,
     } = access(&state, &host, &parent, &b.file_id).await?
     else {
         return Err(no_access());
@@ -502,6 +508,7 @@ pub async fn open_session(
         "fileId": b.file_id,
         "role": role,
         "name": grant.file.name,
+        "path": path,
         "exp": exp,
         "wsUrl": crate::routes::ws_url_of(&state, &headers),
         "maxOpen": LiveCfg::of(&host).max_open,
@@ -789,8 +796,8 @@ pub async fn make(
     .await?;
     let Access::Granted {
         role,
-        name: _,
         callback_token,
+        ..
     } = access(&state, &host, &parent, &file).await?
     else {
         return Err(no_access());

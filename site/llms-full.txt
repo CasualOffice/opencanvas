@@ -1102,7 +1102,8 @@ read-only.
   blocks and insert `liveBlock`/`blockRef` nodes; the room refuses such an insert from anyone else.
 - **Derived grants.** When an editor meets a live block it asks
   `POST /v1/live/session {ticket, fileId}`: the canvas must really embed that file, then your
-  `/access` answer decides the role (`none`: 403, nothing about the file is shown). The new session
+  `/access` answer decides the role (`none`: 403, nothing about the file is shown) and its
+  optional `path` is what the block's header shows as where the source lives. The new session
   expires with the parent, has the parent's perms at most (never `live`), and cannot derive
   again. It is an ordinary room session: your role API (§7) and revocations reach it at once.
 - **Snapshots.** `snapshot = "title"` keeps only the title in the embedding canvas; `"none"` keeps
@@ -1457,7 +1458,7 @@ OpenCanvas:
 | **Upload asset** `POST /files/{fileId}/assets` | multipart `file` | `201 {"assetId":"a_1","url":"https://…","mime":"image/png","size":1234}` |
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
-| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none", "name"?, "callbackToken"?}`. **Required for live blocks** (§2c): each person who opens one is checked here; `name` titles the live file and `callbackToken` is the bearer for that file's load and save (else the embedding session's). Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
+| **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none", "name"?, "path"?, "callbackToken"?}`. **Required for live blocks** (§2c): each person who opens one is checked here; `name` titles the live file, `path` says where it lives in your app (at most 200 characters, shown as plain text in the live block's header: "from Leadership weekly › Q1"; without it the header names your app; ignored with `none`) and `callbackToken` is the bearer for that file's load and save (else the embedding session's). Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
 | **Create file** *(live blocks, §2c)* `POST /files` | JSON `{name, parentFileId, kind: "ocanvas"}`, signed, with the `callbackToken` of whoever makes the live block and an `Idempotency-Key` | `201 {"fileId":"doc_9001"}`: create it where you like with the ACL you like (by default the parent's) and give that person edit on it. OpenCanvas writes the content and saves it through `PUT /files/{fileId}`. `404`/`405`/`501` = not implemented ("Make live" is hidden) |
 | **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
 | **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
@@ -2526,6 +2527,20 @@ versions. OpenCanvas does the editing and stores no documents.
   not found, links turned off) a Nextcloud screen says what happened and what to do; admins get
   the fix.
 
+**In Nextcloud search (SRCH-05, ADR-065).** Canvases appear in the unified search (the
+magnifier in the header) under **Canvases**:
+- Every save of an `.ocanvas` (OpenCanvas's PutFile, a conflict copy, an upload, a WebDAV PUT,
+  a copy) carries `search.json`, the canvas's plain text with block ids. The app reads it into
+  its own table `oc_opencanvas_search` (text only; deleted with the file). This is Nextcloud's
+  index: OpenCanvas keeps none. Files saved before OpenCanvas 0.3 have no `search.json` and are
+  indexed on their next save.
+- Results are only files the person can open in Nextcloud, checked at search time, so a removed
+  share hides a canvas at once. A result shows the canvas title, the matching text, its heading
+  and its folder, and opens the canvas on the full page at the matching block (`#block=<id>`,
+  sent to the editor as `Action_ScrollToBlock` once it has loaded).
+- `occ opencanvas:search-index [user…]` indexes existing canvases (run once after an upgrade).
+- Comments are in `search.json` only when OpenCanvas's `[host.search] comments = true`.
+
 ## Install
 
 Use an OpenCanvas 0.1.2 server for the features described in this guide. See
@@ -2694,6 +2709,26 @@ THEMES=light,dark PLAYWRIGHT=<e2e/node_modules/playwright> NC=http://localhost:8
 Unit tests: `php tests/run-without-phpunit.php` 40 passed (adds launch errors, the public-link
 password check and the connection-check report); `npm test` 51 passed (names, error screens,
 postMessage bridge, admin validation, guest names, file icon).
+
+**Search (SRCH-05), 2026-11-26.** No Nextcloud container was available for this change, so
+the Nextcloud glue (the migration, `IndexCanvasListener`, `SearchIndexService`,
+`CanvasSearchProvider`, the `occ` command) is checked with `php -l` only. The framework-free
+part is unit-tested: `php tests/run-without-phpunit.php` 46 passed (adds `SearchTextTest`:
+reading `search.json` from a real zip, older and foreign files skipped, every-word matching with
+the block, heading trail, accents and case, the title-only result, 5,000-line and 2 MB limits,
+snippets); `bridge.test.js` covers `#block=` → `Action_ScrollToBlock`.
+
+Manual test, with the containers and OpenCanvas 0.3 running as under **Verified**:
+
+1. `occ app:enable opencanvas` (or `occ upgrade` from 0.1.0): `oc_opencanvas_search` exists.
+2. As alice, create a canvas, type "Quarterly SSO rollout" under a heading "Release 4.2", wait
+   for "Saved". In Nextcloud's database, `oc_opencanvas_search` has one row for the file id.
+3. Header search "sso rollout": **Canvases** lists it with "Quarterly SSO rollout · Release 4.2";
+   clicking opens the full page and the block flashes.
+4. As bob (no share): the same search shows nothing. Share it read-only with bob: it shows.
+   Remove the share: it is gone at once.
+5. Delete the file: its row is gone. `occ opencanvas:search-index alice` on an old canvas after
+   one save: "Indexed 1 canvases".
 
 ## Not yet tested
 
@@ -3784,7 +3819,9 @@ through the room; the session response's `import.formats` lists what the editor 
 non-editors or when off) · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
 *Live blocks (LIVE-01, ADR-039, ADR-070; `[host.flags] live_blocks`, else `404 LIVE_OFF`):*
-`POST /v1/live/session` `{ticket, fileId}` → `201 {ticket, room, fileId, role, name, exp, wsUrl, maxOpen}`:
+`POST /v1/live/session` `{ticket, fileId}` → `201 {ticket, room, fileId, role, name, path, exp, wsUrl, maxOpen}`
+(`path`: the host's `/access` `path`, trimmed, ≤ 200 characters and no control characters, else null; the
+editor shows it as text in the header, falling back to the host's name):
 a derived session for a live file the canvas embeds (`404 LIVE_NOT_EMBEDDED` otherwise), role from the
 host's `/access` (`403 LIVE_NO_ACCESS` with nothing about the file), expiry and perms bounded by the
 parent session, `403 LIVE_DEPTH` from a derived session; 2 opens/s per person (burst 60, `429`). ·
@@ -7463,7 +7500,7 @@ Added Automation, server side (AUTO-01..05, AUTO-07, ADR-067, ADR-068; off unles
 
 ## 0.2.1 (2026-11-26)
 
-Added <open-canvas view="block"> (LIVE-06): one live block with compact chrome for chats and side panels; its height follows the content ( UI_Resize , oc:resize ). The SDK gains insertLiveBlock() , livePicker() , liveBlockUsage() and the oc:pick-live-block , oc:live-block-open and oc:live-block-usage events. Added Search across canvases, server side (SRCH-02/03/05, ADR-065): every saved .ocanvas carries search.json , a plain-text projection with block ids and heading trails for the host to index (comments only with [host.search] comments = true ; never in-file history; at most 2 MB). POST /api/v1/extract answers it statelessly for a .ocanvas or Markdown body. Hosts may implement GET /search ( [host.search] callback = true ); GET /api/v1/search and the MCP tool canvas_search proxy it for user tokens only, 10 a minute per user, dropping files the host's /access refuses. OpenCanvas keeps no index and caches no result. The sample host indexes search.json and serves the callback and a search page. Added Portable live blocks, server side (v0.3, behind [host.flags] live_blocks , off by default): the host contract (LIVE-01, docs/05 §2c, ADR-070): [host.live] checked at start-up, the POST /files callback, /access required (with optional name and callbackToken ), the token's perms.live and live claims, derived sessions for embedded live files ( POST /v1/live/session ) and "Make live" ( POST /v1/live/make ). Added Live block projections, snapshots, exports and render (LIVE-04/05/06, ADR-072): GET /v1/live/projection with ETags, POST /v1/live/refresh under the snapshot policy, exports that inline only what the exporting person can read, and API operations makeLive , listReferences and renderFile ( GET /api/v1/files/{id}/render ) in the OpenAPI document, both clients and the conformance suite.
+Added Live blocks in the editor (LIVE-03, LIVE-07, approved prototype , ADR-073): an always-visible header (Live mark, title, the people in it, Open source, options), editing in place with presence, a one-time hint on the first edit, view only, and every failure state (connecting, not up to date, no access with or without the title, deleted or moved, access removed, limits). The header says where the source lives ("from Leadership weekly › Q1") when the host's /access answers the new optional path (≤ 200 characters, shown as text), else the host's name. Inside a live block, "/" offers the same categorised insert menu, filtered by the host profile, without live blocks (depth rule) and without what acts on the embedding canvas (assistant, import, uploads, SDK blocks). "Make live…" in the block menu, "Live block" in the insert menu through the host's own picker ( UI_PickLiveBlock → Action_InsertLiveBlock ), and paste a block link as a live block, a reference or a link. References refresh on their own and flash once. "Convert to a copy" and "Who can see this" ( GET /v1/live/audience ). A host answers /access with 410 for a deleted live file. Phones get a compact header and an options sheet. The live block code loads only when a canvas shows one. Added <open-canvas view="block"> (LIVE-06): one live block with compact chrome for chats and side panels; its height follows the content ( UI_Resize , oc:resize ). The SDK gains insertLiveBlock() , livePicker() , liveBlockUsage() and the oc:pick-live-block , oc:live-block-open and oc:live-block-usage events. Added Search across canvases, server side (SRCH-02/03/05, ADR-065): every saved .ocanvas carries search.json , a plain-text projection with block ids and heading trails for the host to index (comments only with [host.search] comments = true ; never in-file history; at most 2 MB). POST /api/v1/extract answers it statelessly for a .ocanvas or Markdown body. Hosts may implement GET /search ( [host.search] callback = true ); GET /api/v1/search and the MCP tool canvas_search proxy it for user tokens only, 10 a minute per user, dropping files the host's /access refuses. OpenCanvas keeps no index and caches no result. The sample host indexes search.json and serves the callback and a search page. Added Portable live blocks, server side (v0.3, behind [host.flags] live_blocks , off by default): the host contract (LIVE-01, docs/05 §2c, ADR-070): [host.live] checked at start-up, the POST /files callback, /access required (with optional name and callbackToken ), the token's perms.live and live claims, derived sessions for embedded live files ( POST /v1/live/session ) and "Make live" ( POST /v1/live/make ). Added Live block projections, snapshots, exports and render (LIVE-04/05/06, ADR-072): GET /v1/live/projection with ETags, POST /v1/live/refresh under the snapshot policy, exports that inline only what the exporting person can read, and API operations makeLive , listReferences and renderFile ( GET /api/v1/files/{id}/render ) in the OpenAPI document, both clients and the conformance suite.
 
 ## 0.2.1 (2026-11-26)
 

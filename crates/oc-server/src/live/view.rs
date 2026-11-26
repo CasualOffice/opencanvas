@@ -76,6 +76,7 @@ pub async fn projection(
         role,
         name,
         callback_token,
+        ..
     } = access(&state, &host, &parent, &q.file_id).await?
     else {
         return Err(no_access());
@@ -159,6 +160,7 @@ pub async fn refresh(
         role,
         name,
         callback_token,
+        ..
     } = a
     else {
         return Ok(Json(json!({"access": "none"})).into_response());
@@ -319,6 +321,7 @@ impl LiveExport {
                         role,
                         name,
                         callback_token,
+                        ..
                     }) => {
                         let g = derive(who, None, &r.file_id, role, name, callback_token);
                         doc_json(state, host, &g).await.ok()

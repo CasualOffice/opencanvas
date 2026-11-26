@@ -15,7 +15,7 @@ import { dismissSuggest, suggestStore } from "../suggest";
 import { announce, autoClosed, initialNav, menuKey, type Action, type Ctx, type Nav, type Row } from "./model";
 import { clearRecent, loadRecent, recordUse, saveRecent, type RecentRec } from "./recent";
 import { runRow } from "./run";
-import { liveCfg, pickerGone } from "../../live/state";
+import { liveCfg, nestedEditors, pickerGone } from "../../live/state";
 
 export const navStore = createStore<Nav>(initialNav());
 /** What a screen reader hears next (a polite live region in the menu). */
@@ -34,8 +34,13 @@ function rec(): RecentRec {
   return recentStore.get();
 }
 
-export function insertCtx(): Ctx {
-  return { profile: profileStore.get(), ai: aiStore.get().on, imp: importStore.get().formats.length > 0, live: liveCfg.get().insert && !pickerGone.get(), pkgs: installedBlocks(), rec: rec(), now: Date.now() };
+/** What the menu offers in `editor` (default: the one the open menu was typed in). Inside a
+ *  live block's own editor it is `nested`: no live block (depth 1), nothing that acts on the
+ *  embedding canvas. */
+export function insertCtx(editor?: Editor | null): Ctx {
+  const ed = editor ?? suggestStore.get()?.editor;
+  const nested = !!ed && nestedEditors.has(ed);
+  return { profile: profileStore.get(), ai: aiStore.get().on, imp: importStore.get().formats.length > 0, live: liveCfg.get().insert && !pickerGone.get(), nested, pkgs: installedBlocks(), rec: rec(), now: Date.now() };
 }
 
 /** The nav for the current query (a new query starts again at the top). */

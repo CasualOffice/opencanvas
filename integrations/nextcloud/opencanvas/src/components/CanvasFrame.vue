@@ -43,7 +43,7 @@ import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import NcLoadingIcon from '@nextcloud/vue/dist/Components/NcLoadingIcon.js'
 import ErrorScreen from './ErrorScreen.vue'
-import { initialState, reduce } from '../lib/bridge.js'
+import { blockFromHash, initialState, reduce } from '../lib/bridge.js'
 import { codeFromError, errorScreen } from '../lib/errors.js'
 
 /** OpenCanvas announces itself (Frame_Ready) almost at once; this long without it means trouble. */
@@ -193,6 +193,10 @@ export default {
 				this.clearTimers()
 				this.phase = 'loaded'
 				this.post('Action_Theme', { theme: nextcloudTheme() })
+				// SRCH-05: opened from a unified search result: scroll to the matching block.
+				if (blockFromHash(window.location.hash)) {
+					this.post('Action_ScrollToBlock', { blockId: blockFromHash(window.location.hash) })
+				}
 				this.$emit('loaded')
 				break
 			case 'diagnose':

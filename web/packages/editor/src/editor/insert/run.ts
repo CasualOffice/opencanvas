@@ -5,7 +5,7 @@
 // they exist, so the old ids, their behaviour and their tests are unchanged; the new variants
 // (callout styles, 4 columns and sidebar, database views, diagram types) are added here.
 import type { Editor, JSONContent, Range } from "@tiptap/core";
-import { bridge } from "../../lib/bridge";
+import { bridge, docOf } from "../../lib/bridge";
 import { loadBoard, loadDatabase } from "../blockdata";
 import { columnsJSON, insertBlock, insertExtBlock, SLASH } from "../slash";
 import type { Row } from "./model";
@@ -59,10 +59,11 @@ export function runRow(editor: Editor, range: Range | null, row: Row): void {
   if (b.key === "database")
     return later(editor, range, async () => {
       const d = await loadDatabase();
-      const id = d.createDatabase(bridge.doc, "blank");
-      if (v && v !== "table") bridge.doc.transact(() => d.getDbMap(bridge.doc, id)?.set("view", v), d.DB_ORIGIN);
+      const doc = docOf(editor);
+      const id = d.createDatabase(doc, "blank");
+      if (v && v !== "table") doc.transact(() => d.getDbMap(doc, id)?.set("view", v), d.DB_ORIGIN);
       return [{ type: "database", attrs: { dbId: id } }, { type: "paragraph" }];
     });
   if (b.key === "diagram")
-    return later(editor, range, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(bridge.doc, DIAGRAM_PRESET[v] ?? "blank") } }, { type: "paragraph" }]);
+    return later(editor, range, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(docOf(editor), DIAGRAM_PRESET[v] ?? "blank") } }, { type: "paragraph" }]);
 }

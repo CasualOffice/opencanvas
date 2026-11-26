@@ -9,7 +9,7 @@ import Collaboration from "@tiptap/extension-collaboration";
 import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import * as Y from "yjs";
 import { BASE_EXTENSIONS } from "../editor/base";
-import { compile, counter, expand, findAll, keepCurrent, replaceMatches, TooSlow, where, DEFAULT_OPTIONS, type Match } from "./engine";
+import { BUDGET_MS, compile, counter, expand, findAll, keepCurrent, liveGroups, replaceInLive, replaceMatches, TooSlow, where, DEFAULT_OPTIONS, type LiveSource, type Match } from "./engine";
 
 // The database and board blocks as atoms (their node views live in nodes.tsx).
 const stub = (name: string, attr: string) =>
@@ -170,6 +170,53 @@ describe("replace", () => {
     const m = { kind: "text", from: 1, to: 4, start: 0, end: 3, groups: ["SSO", "S"] } as Match;
     expect(expand("[$&/$1]", m, true)).toBe("[SSO/S]");
     expect(expand("[$&]", m, false)).toBe("[$&]");
+  });
+
+  it("leaves live block matches to their own room: separate, one undo step there, never view-only (ADR-066)", () => {
+    // The canvas embeds the live file "doc_q4"; its own editor (the block's nested editor) is
+    // bound to the live file's Y.Doc, as in the browser.
+    const LiveStub = Node.create({ name: "liveBlock", group: "block", atom: true, addAttributes: () => ({ fileId: { default: "" }, title: { default: "" }, snapshot: { default: null } }), parseHTML: () => [{ tag: "div[data-live]" }], renderHTML: ({ HTMLAttributes }) => ["div", { ...HTMLAttributes, "data-live": "" }] });
+    const doc = new Y.Doc();
+    const parent = new Editor({ extensions: [...BASE_EXTENSIONS, LiveStub, Collaboration.configure({ document: doc, field: "content" })] });
+    parent.commands.setContent("<p>SSO here</p>");
+    parent.commands.insertContentAt(parent.state.doc.content.size, [{ type: "liveBlock", attrs: { fileId: "doc_q4", title: "Q4 OKRs" } }, { type: "liveBlock", attrs: { fileId: "doc_ro", title: "Read only" } }]);
+    const liveDoc = new Y.Doc();
+    const nested = new Editor({ extensions: [...BASE_EXTENSIONS, Collaboration.configure({ document: liveDoc, field: "content" })] });
+    nested.commands.setContent("<p>Make SSO self-serve</p><p>SSO sign-in under 300 ms</p>");
+    const roDoc = new Y.Doc();
+    const ro = new Editor({ editable: false, extensions: [...BASE_EXTENSIONS, Collaboration.configure({ document: roDoc, field: "content" })] });
+    ro.commands.setContent("<p>SSO, view only</p>");
+    const sources: Record<string, LiveSource> = { doc_q4: { editor: nested, editable: true }, doc_ro: { editor: ro, editable: false } };
+    try {
+      const nestedUm = yUndoPluginKey.getState(nested.state)!.undoManager;
+      nestedUm.stopCapturing();
+      const r = findAll(parent.state.doc, doc, re("SSO"), all, BUDGET_MS, (id) => sources[id] ?? null);
+      expect(r.matches.map((m) => m.kind)).toEqual(["text", "live", "live", "live"]);
+      const lives = r.matches.filter((m): m is Extract<Match, { kind: "live" }> => m.kind === "live");
+      expect(lives.map((m) => [m.fileId, m.editable])).toEqual([["doc_q4", true], ["doc_q4", true], ["doc_ro", false]]);
+      expect(where(lives[2])).toBe("In live block Read only · view only");
+      // Replace all in this canvas leaves them alone and counts them.
+      const sum = replaceMatches(parent, doc, r.matches, "single sign-on", false);
+      expect(sum).toEqual({ replaced: 1, skipped: 0, live: 3 });
+      expect(nested.getText()).toContain("Make SSO self-serve");
+      // The separate step: one group per live file that can be changed; the view-only one never.
+      const groups = liveGroups(r.matches);
+      expect(groups.map((g) => [g.fileId, g.title, g.matches.length])).toEqual([["doc_q4", "Q4 OKRs", 2]]);
+      const n = replaceInLive(sources.doc_q4, groups[0].matches, "single sign-on", false);
+      expect(n).toBe(2);
+      expect(nested.getText()).not.toContain("SSO");
+      expect(replaceInLive(sources.doc_ro, lives.slice(2), "x", false)).toBe(0);
+      expect(ro.getText()).toContain("SSO, view only");
+      // One undo step in the live file's own room restores both.
+      nestedUm.undo();
+      expect(nested.getText()).toContain("Make SSO self-serve");
+      expect(nested.getText()).toContain("SSO sign-in under 300 ms");
+      expect(parent.getText()).toContain("single sign-on here");
+    } finally {
+      parent.destroy();
+      nested.destroy();
+      ro.destroy();
+    }
   });
 
   it("keeps the current match while others type", () => {
