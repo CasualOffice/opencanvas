@@ -119,7 +119,7 @@ class SearchIndexService {
 			}
 			$entry = ['title' => (string)$row['title'], 'lines' => json_decode((string)$row['lines'], true) ?: []];
 			foreach (SearchText::matches($entry, $term, 1) as $m) {
-				$hits[] = ['file' => $file, 'title' => $entry['title'] !== '' ? $entry['title'] : $file->getName()] + $m;
+				$hits[] = ['file' => $file, 'title' => SearchText::displayTitle($entry['title'], $file->getName())] + $m;
 			}
 			if (count($hits) >= $limit) {
 				break;

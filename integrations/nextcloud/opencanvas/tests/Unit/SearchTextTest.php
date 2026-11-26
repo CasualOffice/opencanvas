@@ -101,4 +101,12 @@ final class SearchTextTest extends TestCase {
 		$this->assertStringContainsString("release 4.2 sso set-up docs updated", S::haystack(S::fromJson(json_encode(self::SJ))));
 		$this->assertNull(S::fromJson(str_repeat(' ', S::MAX_JSON + 1)));
 	}
+
+	/** NC-03: a canvas named after its file shows in search without ".ocanvas" (seen in Nextcloud 31). */
+	public function testTheTitleShownLeavesOutTheExtension(): void {
+		$this->assertSame('Release plan', S::displayTitle('Release plan.ocanvas', 'Release plan.ocanvas'));
+		$this->assertSame('Release plan', S::displayTitle('', 'Release plan.ocanvas'));
+		$this->assertSame('Q1 launch', S::displayTitle('Q1 launch', 'other.ocanvas'));
+		$this->assertSame('notes.OCANVAS.txt', S::displayTitle('', 'notes.OCANVAS.txt'));
+	}
 }

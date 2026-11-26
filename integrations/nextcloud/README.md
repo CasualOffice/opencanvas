@@ -252,7 +252,7 @@ Unit tests: `php tests/run-without-phpunit.php` 40 passed (adds launch errors, t
 password check and the connection-check report); `npm test` 51 passed (names, error screens,
 postMessage bridge, admin validation, guest names, file icon).
 
-**Search (SRCH-05), 2026-11-26.** No Nextcloud container was available for this change, so
+**Search (SRCH-05), 2026-11-26.** (Since run in a real Nextcloud: see NC-03 below.) No Nextcloud container was available for this change, so
 the Nextcloud glue (the migration, `IndexCanvasListener`, `SearchIndexService`,
 `CanvasSearchProvider`, the `occ` command) is checked with `php -l` only. The framework-free
 part is unit-tested: `php tests/run-without-phpunit.php` 46 passed (adds `SearchTextTest`:
@@ -271,6 +271,30 @@ Manual test, with the containers and OpenCanvas 0.3 running as under **Verified*
    Remove the share: it is gone at once.
 5. Delete the file: its row is gone. `occ opencanvas:search-index alice` on an old canvas after
    one save: "Indexed 1 canvases".
+
+**Full run, scripted (NC-03), 2026-11-26.** `integrations/nextcloud/test/e2e.sh` (from the
+repository root) does the whole setup itself: it starts `nextcloud:31-apache` (31.0.14, SQLite)
+in Docker, copies this app in and enables it, adds alice and bob, starts an OpenCanvas built from
+the checkout with a proof key, runs the connection check, then
+`tests/browser/nextcloud-full.e2e.mjs` (Playwright Chromium), and removes the container
+(`KEEP=1` leaves it). It runs in CI nightly and on manual dispatch (job `nextcloud-e2e`).
+
+| Step | Result |
+|---|---|
+| App listing (`/ocs/v2.php/cloud/apps/opencanvas`) | carries the LEGAL-01 trademark and not-affiliated line |
+| Files > New > "New canvas", Nextcloud's name dialog | the file is created and opens in the Viewer |
+| Start from a template, type a heading "Release 4.2" and a line | the owner edits; the save lands in the Nextcloud file |
+| Unified search for the line | **Canvases** lists it as "Release plan …" with "<line> · Release 4.2", linked to `/apps/opencanvas/open/{id}#block=…`; `oc_opencanvas_search` has one row |
+| bob, no share / read-only share | finds nothing / finds it, opens it view-only |
+| Header search in the browser, click the hit | the full page opens at the block, scrolled into view |
+| Delete through WebDAV (to the trash bin) | search finds nothing; the index row is gone |
+
+Seen failing first and fixed: the hit's title was "Release plan ….ocanvas" (a canvas made in
+Files is titled after its file name); titles now leave out `.ocanvas` (`SearchText::displayTitle`,
+unit test). Local run: `integrations/nextcloud/test/e2e.sh` (needs Docker, Node 20+, pnpm,
+cargo; `OC_BIN`, `PLAYWRIGHT`, `NC_PORT` 8490 and `OC_PORT` 8680 can be set).
+
+The SRCH-05 manual steps below are covered by this run except `occ opencanvas:search-index`.
 
 ## Not yet tested
 

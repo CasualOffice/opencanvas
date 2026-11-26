@@ -92,6 +92,15 @@ final class SearchText {
 		return ['title' => $title, 'lines' => $lines];
 	}
 
+	/**
+	 * The name a hit shows: the canvas title, else the file name, without a trailing `.ocanvas`
+	 * (a canvas made in Files is titled after its file name).
+	 */
+	public static function displayTitle(string $title, string $fileName): string {
+		$t = trim($title) !== '' ? trim($title) : $fileName;
+		return preg_replace('/\.ocanvas$/i', '', $t) ?? $t;
+	}
+
 	/** Lower case without accents, so "Résumé" finds "resume". */
 	public static function fold(string $s): string {
 		if (class_exists(\Normalizer::class)) {

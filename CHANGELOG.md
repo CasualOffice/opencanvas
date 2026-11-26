@@ -14,6 +14,7 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   open on another node could be put off for five minutes at a time; the node holding the canvas
   now runs it. A run cut off by a node that stopped is logged as failed (`INTERRUPTED`) after an
   hour instead of staying "running".
+- Nextcloud app: unified search hits no longer end in ".ocanvas" (NC-03).
 
 ### Tests
 
@@ -40,6 +41,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   pending log and the merge summary; seeds 1, 7, 42 and `OC_FUZZ_SEED`, a long run behind
   `OC_FUZZ_LONG=1`), and Playwright `zf-offline-2` (expiry by the browser clock, queued upload end
   to end, the 5 MB pause).
+- `integrations/nextcloud/test/e2e.sh`: a real Nextcloud 31 in Docker with the app, driven
+  through Files, sharing, unified search and delete (NC-03); CI job `nextcloud-e2e`, nightly and
+  on demand.
 
 ## [0.3.0] - 2026-11-26
 

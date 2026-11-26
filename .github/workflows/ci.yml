@@ -208,6 +208,25 @@ jobs:
             e2e/playwright-report
             e2e/test-results
 
+  nextcloud-e2e:
+    # NC-03: a stock Nextcloud 31 (Docker) with the app, a real OpenCanvas and Playwright through
+    # Files, sharing, unified search and delete (integrations/nextcloud/test/e2e.sh). Nightly and
+    # on demand; about 5 minutes after the builds.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: npm ci && npx playwright install --with-deps chromium
+        working-directory: e2e
+      - run: integrations/nextcloud/test/e2e.sh
+
   fuzz:
     # Convergence fuzz, 10 000 random rooms in release (docs/15 §8). Nightly and on demand.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
