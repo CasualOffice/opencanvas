@@ -535,3 +535,10 @@ benchmark, performance) ≈ 24, maturity ≈ 15, also in v0.4 ≈ 20 committed +
 8. The 60 fps reference for DB100K: the CI runner class and which named mid laptop?
 9. Automation with Redis-only storage: support it in v0.4, or keep the refusal as permanent?
 10. The 10k run: TLS terminated by a proxy on another machine (plan), or on the same 4 vCPU node?
+
+## Owner decisions (2026-11-26)
+
+- Plan and ADR-076..079 approved.
+- 0.3 editors opening a split document are closed with 4426 ("editor out of date, reopen").
+- The default cap stays 550; 1,000 is allowed as a configured maximum once X10K, R1K, the soak and the drills pass.
+- Benchmarks run on the owner's Mac until a reference machine is chosen; those results are marked "local".
