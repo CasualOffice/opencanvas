@@ -307,7 +307,12 @@ button.cic:hover{transform:scale(1.06)}
 .wideblock :is(.ocdb-gw,.ocdb-kan,.ocdb-tabs):is([data-fade-l="true"],[data-fade-r="true"]){-webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%)}
 
 /* Skeletons shown while the database / board code loads. */
-.bskel i{display:block;height:.625rem;border-radius:.3125rem;background:linear-gradient(90deg,var(--sunk),var(--hover),var(--sunk));background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+.bskel i{display:block;height:.625rem;border-radius:.3125rem;background:var(--sunk)}
+.bph-name{font-size:1.0625rem;font-weight:620}
+.bph-sub{margin-left:auto;font-size:.75rem;color:var(--fg-3)}
+.bph-msg{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 .5rem;font-size:.8125rem;color:var(--fg-2)}
+.bph-msg.err{color:var(--red-fg)}
+.bph-msg.off{color:var(--amber-fg,var(--fg-2))}
 .bskel.db{margin:.875rem 0 1.125rem}
 .bskel .bsh{display:flex;align-items:center;gap:.625rem;height:1.875rem;margin-bottom:.375rem}
 .bskel .bsb{display:flex;gap:.875rem;align-items:center;height:2.5625rem;border-bottom:1px solid var(--line);padding:0 .25rem}
@@ -316,7 +321,7 @@ button.cic:hover{transform:scale(1.06)}
 .bskel .bst .r.h i{height:.5rem;opacity:.7}
 .bskel .bst .f{height:4.5625rem}
 .bskel .bsg{height:18.75rem;border-radius:var(--r);margin-top:.75rem}
-.bskel.board{height:27.5rem;margin:.875rem 0;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--line);background:linear-gradient(90deg,var(--panel),var(--sunk),var(--panel));background-size:200% 100%;animation:shimmer 1.8s linear infinite}
+.bskel.board{min-height:27.5rem;margin:.875rem 0;padding:.75rem;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--line);background:var(--sunk)}
 .app.compact .bskel.board{height:18.75rem}
 
 /* Uploads: progress over the local preview, retry chip on failure. */
