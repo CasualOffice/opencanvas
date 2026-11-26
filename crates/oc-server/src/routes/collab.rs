@@ -159,6 +159,10 @@ pub async fn upgrade(
         )
             .into_response());
     }
+    // RLB-01b: rooms are recovering after a restart; come back shortly instead of queueing.
+    if crate::room::recovering() {
+        return Ok(ApiError::busy("rooms are recovering after a restart; retry").into_response());
+    }
     // STORM: refused before the ticket is looked up (cheap), so a refused client keeps its
     // connect window.
     let admitted = state.upgrades.lock().expect("upgrades lock").admit();

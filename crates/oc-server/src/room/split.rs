@@ -477,6 +477,34 @@ impl Room {
         Some((txn.encode_state_as_update_v1(sv), txn.state_vector()))
     }
 
+    /// SEC-V4 (partial sync): whether an update's new clocks (`inc`, client id to end clock)
+    /// use a client id another document of this split room already holds clocks of. The main
+    /// document counts too (its clocks are kept in `svs[MAIN]` as main updates are applied).
+    pub(super) fn client_id_elsewhere(&self, key: &str, inc: &HashMap<u64, u32>) -> bool {
+        let Some(s) = &self.split else {
+            return false;
+        };
+        let mine = s.svs.get(key);
+        inc.iter().any(|(c, end)| {
+            let have = mine.and_then(|m| m.get(c)).copied().unwrap_or(0);
+            *end > have
+                && s.svs
+                    .iter()
+                    .any(|(k, sv)| k != key && sv.get(c).copied().unwrap_or(0) > 0)
+        })
+    }
+
+    /// Records the clocks a main-document update brought (for [`Self::client_id_elsewhere`]).
+    pub(super) fn note_main_clocks(&mut self, inc: &HashMap<u64, u32>) {
+        if let Some(s) = self.split.as_mut() {
+            let m = s.svs.entry(MAIN.into()).or_default();
+            for (c, end) in inc {
+                let e = m.entry(*c).or_insert(0);
+                *e = (*e).max(*end);
+            }
+        }
+    }
+
     /// A client's edit of a part: the role, then the client id rule, then the part (or the
     /// whole view) and the WAL under the part's id.
     async fn apply_part(&mut self, conn: ConnId, grant: &Grant, key: &str, guid: &str, u: Vec<u8>) {
@@ -495,21 +523,16 @@ impl Room {
         let Ok(inc) = parts::update_state(&u) else {
             return self.deny_sub(conn, guid, "malformed update");
         };
+        // SEC-V4: part edits count against the document size limit, as main edits do.
+        if self.doc_bytes + u.len() > self.ctx.cfg.max_doc_bytes {
+            tracing::info!(room = %self.id, size = self.doc_bytes, update = u.len(), "part update refused: document size limit");
+            return self.deny_sub(conn, guid, "document size limit reached");
+        }
         // Clocks of one client id live in one document: a client id reused across documents
         // would collide in the flatten (Yjs subdocuments have their own client ids).
-        if let Some(s) = &self.split {
-            let mine = s.svs.get(key);
-            for (c, end) in &inc {
-                let have = mine.and_then(|m| m.get(c)).copied().unwrap_or(0);
-                let elsewhere = s
-                    .svs
-                    .iter()
-                    .any(|(k, sv)| k != key && sv.get(c).copied().unwrap_or(0) > have);
-                if *end > have && elsewhere {
-                    tracing::info!(room = %self.id, "part update refused: client id used in another document");
-                    return self.deny_sub(conn, guid, "one client id per document");
-                }
-            }
+        if self.client_id_elsewhere(key, &inc) {
+            tracing::info!(room = %self.id, "part update refused: client id used in another document");
+            return self.deny_sub(conn, guid, "one client id per document");
         }
         // Automation rules watch blocks: with rules, edits go through the whole view.
         let has_rules = self
@@ -887,6 +910,7 @@ impl Room {
             s.dirty_parts.insert(key.to_string());
         }
         self.seq += 1;
+        self.doc_bytes += bytes.len();
         self.wal_queue.push(Queued {
             seq: self.seq,
             bytes,

@@ -483,6 +483,17 @@ launches and saves keep connections during the storm. Before this, 52 of 100 lau
 answered 500 ("pool timed out") for about 21 s after a restart on MySQL; now 100 rooms recover
 in 0.6 s with no error (RLB-01b).
 
+**Admission while recovering.** If more than `OC_ROOM_LOAD_QUEUE` rooms (default 32) wait for a
+load slot, new launches (`/v1/launch`) and WebSocket upgrades answer **503 with a
+`Retry-After` of 1–5 s**. So does any request that gets no database connection within the
+pool's wait. A server never answers 500 for overload.
+
+- The browser's launch form gets a small "Reconnecting…" page that posts the same form again
+  after the delay.
+- The editor (`fetchBusy`) and the SDK clients wait out `Retry-After` for up to 60 s before
+  they show an error.
+- Load balancers should treat 503 + `Retry-After` as "try again", not as a dead node.
+
 The reduced drill (100 rooms × 2, 30 s) runs nightly on SQLite and MySQL 8.4
 (`.github/workflows/reliability-nightly.yml`).
 

@@ -245,7 +245,9 @@ pub(super) async fn run(
     // RLB-01b: at most `load_permits()` rooms load at once. After a restart every room reopens
     // together; unbounded, their WAL reads and outbox writes held every database connection and
     // launches failed with "pool timed out" for about 20 s (crash drill on MySQL).
+    LOAD_WAITERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let permit = load_permits().acquire().await;
+    LOAD_WAITERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     let loaded = match Room::load(ctx.clone(), host, &seed, self_tx, inbox).await {
         Ok(mut r) => match r.split_on_open().await {
             Ok(()) => Ok(r),
@@ -1817,6 +1819,24 @@ impl Room {
                 return self.deny(conn, "document size limit reached");
             }
         }
+        // SEC-V4: one client id per document of a split room (the part path checks the same):
+        // a main update with a part's client id would collide when the parts are flattened.
+        let main_clocks = match self.split.as_ref().filter(|s| s.whole_since.is_none()) {
+            Some(_) => match oc_model::parts::update_state(&bytes) {
+                Ok(inc) => {
+                    if self.client_id_elsewhere(oc_model::parts::MAIN, &inc) {
+                        tracing::info!(room = %self.id, "update refused: client id used in a block's document");
+                        return self.deny(conn, "one client id per document");
+                    }
+                    Some(inc)
+                }
+                Err(_) => return self.deny(conn, "malformed update"),
+            },
+            None => None,
+        };
+        if let Some(inc) = &main_clocks {
+            self.note_main_clocks(inc);
+        }
         // PSYNC-02: in a whole view, a main-document update must not delete the parts' items
         // its fillers stand for.
         let bytes = match self.split.as_ref().filter(|s| s.whole_since.is_some()) {
@@ -3307,6 +3327,23 @@ impl PutPayload {
         }
         Err(last)
     }
+}
+
+/// Rooms waiting for a load slot (see [`recovering`]).
+static LOAD_WAITERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// RLB-01b admission: more rooms are waiting to load than `OC_ROOM_LOAD_QUEUE` (default 32).
+/// New launches and WebSocket upgrades are then refused with 503 + `Retry-After` instead of
+/// queueing behind the recovery and timing out.
+pub fn recovering() -> bool {
+    static MAX: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+    let max = *MAX.get_or_init(|| {
+        std::env::var("OC_ROOM_LOAD_QUEUE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(32)
+    });
+    LOAD_WAITERS.load(std::sync::atomic::Ordering::Relaxed) as i64 > max
 }
 
 /// Rooms loading at once (`OC_ROOM_LOADS`, default 8): leaves database connections for

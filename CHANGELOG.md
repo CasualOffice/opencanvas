@@ -94,6 +94,17 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- Overload never answers 500: while rooms recover after a restart (more than
+  `OC_ROOM_LOAD_QUEUE`, default 32, waiting to load) or when no database connection is free,
+  launches, session lookups and WebSocket upgrades answer 503 with a `Retry-After` of 1-5 s.
+  The browser launch shows "Reconnecting…" and posts again; the editor waits out
+  `Retry-After` for up to 60 s instead of showing an error (RLB-01b).
+- A launch that failed after its token was recorded (database timeout, server killed
+  mid-launch) spent the token, so every retry was refused as a replay. The token is now spent
+  last (SEC-59).
+- Partial sync (off by default): one client id writing both the main document and a block's
+  document made the whole view drop the block's content (SEC-54); block edits now count
+  against the document size limit (SEC-55).
 - A release refused to start on a database a newer release had migrated, so a downgrade needed
   a manual database step; migrations it does not know are now ignored (they are additive;
   RLB-08, docs/13 "Upgrades and downgrades").

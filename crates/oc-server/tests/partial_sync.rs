@@ -282,6 +282,81 @@ async fn the_role_is_checked_per_request_and_other_files_blocks_are_refused() {
     assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
 }
 
+/// SEC-V4 (partial sync): one client id must not write to two documents of a split room, in
+/// either order. A main-document edit and a part edit with the same client id collide when the
+/// room flattens the parts (saves, whole views), so one editor could stop every save.
+#[tokio::test]
+async fn a_client_id_used_in_the_main_document_is_refused_in_a_part() {
+    let (state, _) = server(true).await;
+    let mut e = Peer::join(&state, subdoc_grant("u_e", Role::Edit)).await;
+    e.settle().await;
+    let dd = Doc::with_client_id(4242);
+    oc_model::ensure_roots(&dd);
+    load(&mut e, "d1", &dd).await;
+    // A main-document edit with the part doc's client id: a new top-level map entry.
+    let main = Doc::with_client_id(4242);
+    {
+        let m: MapRef = main.get_or_insert_map("meta");
+        let mut txn = main.transact_mut();
+        m.insert(&mut txn, "note", "from main");
+    }
+    let u = main
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    e.send(protocol::update(u));
+    e.settle().await;
+    // The same client id in the part.
+    edit_part(&e, &dd, "d1", "Mine");
+    e.settle().await;
+    let refused = e.controls.iter().any(|c| {
+        c["t"] == "sub-denied"
+            && c["reason"]
+                .as_str()
+                .is_some_and(|r| r.contains("client id"))
+    });
+    let whole = server_json(&state).await;
+    let title = whole["databases"]["d1"]["rows"]["r1"]["title"].clone();
+    assert!(
+        refused || title == "Mine",
+        "the part edit was accepted but the whole canvas lost it: {title} ({:?})",
+        e.controls
+    );
+}
+
+/// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
+/// document edits do (`max_doc_bytes`); they bypassed it, so one editor could grow a split
+/// canvas without bound.
+#[tokio::test]
+async fn part_edits_count_against_the_document_size_limit() {
+    let (base, mock) = mock_host().await;
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (canvas(), 1));
+    let mut cfg = room_cfg();
+    cfg.max_doc_bytes = 100_000;
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.insert("partial_sync".into(), true.into());
+    })
+    .await;
+    let mut e = Peer::join(&state, subdoc_grant("u_e", Role::Edit)).await;
+    e.settle().await;
+    let dd = oc_model::new_doc();
+    load(&mut e, "d1", &dd).await;
+    let big = "x".repeat(40_000);
+    for i in 0..6 {
+        edit_part(&e, &dd, "d1", &format!("{i}{big}"));
+        e.settle().await;
+    }
+    assert!(
+        e.controls.iter().any(|c| c["reason"]
+            .as_str()
+            .is_some_and(|r| r.contains("size limit"))),
+        "240 KB of part edits passed a 100 KB limit: {:?}",
+        e.controls
+    );
+}
+
 #[tokio::test]
 async fn an_unheld_part_is_evicted_and_comes_back_from_the_wal() {
     let (state, _) = server(true).await;

@@ -131,7 +131,7 @@ async fn client(
             continue;
         }
         let url = format!(
-            "{}/v1/collab/{room_id}?ticket={ticket}",
+            "{}/v1/collab/{room_id}?ticket={ticket}&caps=ext,live,subdoc",
             sh.cfg.ws_base[node]
         );
         let mut ws = match tokio::time::timeout(
@@ -297,14 +297,41 @@ async fn viewer(
     let t = Instant::now();
     let (ticket, room_id) = launch(sh, &sh.cfg.http_base[node], idx, room, false).await?;
     let url = format!(
-        "{}/v1/collab/{room_id}?ticket={ticket}",
+        "{}/v1/collab/{room_id}?ticket={ticket}&caps=ext,live,subdoc",
         sh.cfg.ws_base[node]
     );
-    let (mut ws, _) = tokio::time::timeout(
-        Duration::from_secs(30),
-        tokio_tungstenite::connect_async(&url),
-    )
-    .await??;
+    // Like the editor: a 503 upgrade (rooms recovering) is retried after its Retry-After, for
+    // at most 60 s (RLB-01b).
+    let mut ws = loop {
+        match tokio::time::timeout(
+            Duration::from_secs(30),
+            tokio_tungstenite::connect_async(&url),
+        )
+        .await?
+        {
+            Ok((ws, _)) => break ws,
+            Err(tokio_tungstenite::tungstenite::Error::Http(r))
+                if r.status() == 503 && t.elapsed() < Duration::from_secs(55) =>
+            {
+                let secs = r
+                    .headers()
+                    .get("retry-after")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.parse::<u64>().ok());
+                match secs {
+                    Some(s) => {
+                        crate::client::HTTP_503_RETRY.fetch_add(1, Ordering::Relaxed);
+                        tokio::time::sleep(Duration::from_secs(s.clamp(1, 30))).await;
+                    }
+                    None => {
+                        crate::client::HTTP_503_BARE.fetch_add(1, Ordering::Relaxed);
+                        anyhow::bail!("upgrade 503 without Retry-After");
+                    }
+                }
+            }
+            Err(e) => return Err(e.into()),
+        }
+    };
     ws.send(Ws::Binary(
         sync_frame(SyncMessage::SyncStep1(Default::default())).into(),
     ))
@@ -749,6 +776,21 @@ pub async fn run(a: Args) -> anyhow::Result<()> {
         pct(&gaps, 0.95),
         gaps.last().copied().unwrap_or(0)
     );
+    // RLB-01b: never a 5xx other than 503, every 503 with Retry-After, every client back
+    // within 60 s of losing its socket.
+    let (r503, bare503, other5xx) = (
+        crate::client::HTTP_503_RETRY.load(Ordering::Relaxed),
+        crate::client::HTTP_503_BARE.load(Ordering::Relaxed),
+        crate::client::HTTP_5XX.load(Ordering::Relaxed),
+    );
+    let gap_max = gaps.last().copied().unwrap_or(0);
+    println!(
+        "http: 503 with Retry-After {r503}, 503 without {bare503}, other 5xx {other5xx}; slowest client back after {gap_max} ms (budget 60000)"
+    );
+    if bare503 > 0 || other5xx > 0 || gap_max > 60_000 {
+        ok = false;
+    }
+    report["http"] = json!({"503RetryAfter": r503, "503Bare": bare503, "other5xx": other5xx, "maxBackMs": gap_max});
     report["final"] = json!({"converged": converged, "notConverged": bad_rooms.len(), "convergeMs": converge_ms,
         "serverMismatchRooms": mismatch, "viewerErrors": viewer_err, "sent": sent_total, "acked": acked.len(),
         "lostAcked": lost_final.len(), "hostSaves": stats.saves.load(Ordering::Relaxed),

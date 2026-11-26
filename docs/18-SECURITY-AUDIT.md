@@ -213,3 +213,37 @@ Still open from §5: SEC-36 (redirects in operator-configured clients) and SEC-3
 | `npm audit` (e2e) | 0 vulnerabilities |
 | `scripts/check-spdx.sh` | ok (`scripts/audit.sh` exit 0) |
 | `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all -- --check` | clean |
+
+## 7. v0.4 audit of the v0.3 surfaces (2026-11-27, SEC-V4, partial; continues in v0.4.1)
+
+**Baseline and scope.** Main at `d74d129`. The surfaces from docs/36 §5.2 that v0.3 shipped:
+offline grants and revocation, automation URL calls, partial sync (role per part, client ids,
+limits), search, and the reliability paths the RLB drills exercised. Each fix has a test that
+was seen failing first.
+
+**Not covered in this pass.** These remain in SEC-V4 and are listed so nobody assumes they
+were reviewed: live-block derived sessions (depth rule, projection and snapshot leaks,
+audience counts), presence batching (no state of a peer who left), formula evaluation cost,
+relations across canvases, and offline device-key extraction and logout clear.
+
+### Surfaces and their tests
+
+| Surface | What was checked | Tests |
+|---|---|---|
+| Automation URL calls (ADR-068) | Covered: http(s) only. The target must be the host's callback origin or an operator `allow_origins` entry, compared as a whole origin (scheme, host, port), so userinfo, path and IPv6-form tricks cannot pass. Credentials in the URL are refused. No redirects. The response body is never read. 10 s timeout, 3 tries. Signature v2 with the host's secret, and the run id as `Idempotency-Key`. The owner's access is re-checked through `/access` on every run, and the rule pauses below edit. **Finding (Low):** DNS is not pinned. An allowed origin whose name an attacker controls could rebind to an internal address. **Decision:** accepted. Only the operator lists allowed origins, and the host's own origin is trusted anyway | `automation.rs`, `automation::tests` |
+| Offline revocation after a restore | **Finding SEC-57**, below | `storage_conformance.rs::a_restored_database_never_un_revokes_a_device` |
+| Partial sync (PSYNC-02/03) | Covered: the role is checked on every subdocument request, viewers cannot write, comment-role writes are refused, blocks of another file are refused, and a part must be loaded before it is written. **Findings SEC-54 and SEC-55**, below | `partial_sync.rs` (13) |
+| Search (SRCH) | Covered: a user token only (a host key is refused with `USER_TOKEN_REQUIRED`), searches run as the token's user through the host's callback, nothing is cached or indexed (`no-store`), and API, MCP and editor return the same items | `search.rs` |
+| Overload and restarts | **Findings SEC-56 and SEC-58**, below | `recovery_admission.rs`, `storage_conformance.rs`, `scripts/crash-drill.sh` |
+
+### Findings
+
+| ID | Sev | Area | Finding (evidence) | Status | Regression test |
+|---|---|---|---|---|---|
+| SEC-54 | High | Partial sync | One client id could write both the main document and a part. The client-id rule was checked only between parts, and `svs[MAIN]` was not updated as main edits arrived. Flattening the parts then collided, so the whole view (used by saves, history, exports and automation) lost the part's content. Any editor could make a split canvas drop a database from its next save. | **Fixed**. Main updates on a split room are checked against every part (and the reverse), and their clocks are recorded in `svs[MAIN]` | `partial_sync.rs::a_client_id_used_in_the_main_document_is_refused_in_a_part` (seen failing: the database was gone from the whole view) |
+| SEC-55 | Medium | Partial sync (DoS) | Part edits bypassed `max_doc_bytes`: only main-document edits counted towards the limit, so one editor could grow a split canvas without bound. | **Fixed**. Part edits are counted and refused with "document size limit reached" | `partial_sync.rs::part_edits_count_against_the_document_size_limit` (seen failing: 240 KB passed a 100 KB limit) |
+| SEC-56 | Medium | Availability | After a restart on MySQL every room reopened at once. Launches waited for a connection and answered **500** ("pool timed out") for about 21 s. | **Fixed** (RLB-01b). At most `OC_ROOM_LOADS` (8) rooms load at once, and the pool has 32 connections. While more than `OC_ROOM_LOAD_QUEUE` (32) rooms wait, launches and upgrades answer 503 with a `Retry-After` of 1–5 s, and so does any pool timeout; overload never gives a 500. The browser launch gets a "Reconnecting…" page that posts again, and the editor (`fetchBusy`) and SDK wait out `Retry-After` for up to 60 s | `recovery_admission.rs` (seen failing: 303), editor `busy.test.ts` (seen failing), `scripts/crash-drill.sh` on MySQL |
+| SEC-57 | High | Offline revocation | Restoring an older database lowered offline generations, so devices revoked after the backup were accepted again. | **Fixed** (RLB-03). A restore epoch, set with `OC_RESTORED=1`: generations read at least the backup's highest + 1,000,000, and schedule slots due before the restore are skipped | `storage_conformance.rs::a_restored_database_never_un_revokes_a_device`, `automation.rs::a_slot_due_before_a_restore_is_skipped_not_run_twice` |
+| SEC-58 | High | Availability | A `kill -9` during a MySQL/MariaDB migration left the migration half-applied, and the node never started again. | **Fixed** (RLB-01). The next start finishes the migration under the migration lock | `storage_conformance.rs::a_migration_killed_halfway_is_finished_at_the_next_start` |
+| SEC-59 | Medium | Availability (launch) | A launch that failed after its token's `jti` was recorded (a database timeout writing the session, or the server killed mid-launch) spent the token. Every retry with it (the "Reconnecting…" page, a host re-posting its form) was refused as a replay, and the person was locked out until the host minted a new token. The MySQL save drill showed 38,434 "launch token already used" refusals and 38 rooms whose clients never got back. | **Fixed**. The session row is written first and the token is spent last. A retry after any earlier failure is accepted, and a session row written for a reused token is never handed out | `scripts/crash-drill.sh save` on MySQL 8.4 (seen failing: rooms not converged 38) |
+| SEC-60 | Low | Idempotency across a restore | An API request that finished after the backup is unknown to a restored database, so the same `Idempotency-Key` runs it again. | **Accepted** and documented in docs/13 "Backup and restore" | — |

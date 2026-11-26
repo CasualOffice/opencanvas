@@ -13,6 +13,7 @@ import { setEditorProfile, setInsertScope, type EditorProfile } from "../editor/
 import { setLiveCfg, type LiveCfg } from "../live/state";
 import { FROM_DEVICE, PendingLog, REPLAY_PER_SEC, replayFrames, type PendingEntry } from "../offline/pending";
 import { MESSAGE_SUBDOC, PartsClient, type PartHeader } from "./parts";
+import { fetchBusy } from "./busy";
 
 /** The session answer's `offline` member (OFF-01, docs/15 §6). */
 export interface OfflineInfo {
@@ -98,7 +99,9 @@ export function readLaunch(): { ticket: string | null; demo: boolean } {
 }
 
 export async function fetchSession(ticket: string): Promise<Session> {
-  const r = await fetch(`/v1/sessions/${encodeURIComponent(ticket)}`, { headers: { Accept: "application/json" } });
+  // RLB-01b: a server recovering rooms answers 503 + Retry-After; wait it out (the loading
+  // screen stays), never an error screen for that.
+  const r = await fetchBusy(`/v1/sessions/${encodeURIComponent(ticket)}`, { headers: { Accept: "application/json" } });
   if (!r.ok) {
     let code = "HTTP_" + r.status;
     try {
