@@ -10,8 +10,11 @@ import type { Editor } from "@tiptap/core";
 import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import type * as Y from "yjs";
 import { ArrowDown, ArrowUp, CaseSensitive, ChevronRight, Regex, Replace, ReplaceAll, Search, SlidersHorizontal, TriangleAlert, WholeWord, X } from "lucide-react";
-import { compile, counter, DEFAULT_OPTIONS, findAll, keepCurrent, replaceable, replaceMatches, TooSlow, where, type Match, type Options } from "./engine";
+import { BUDGET_MS, compile, counter, DEFAULT_OPTIONS, findAll, keepCurrent, liveGroups, replaceable, replaceInLive, replaceMatches, TooSlow, where, type LiveMatch, type LiveSource, type Match, type Options } from "./engine";
 import { findPlugin, findKey, setMarks } from "./plugin";
+import { liveEditors } from "../live/state";
+import { useStore } from "../lib/store";
+import { Modal, ModalHead } from "../components/overlay";
 import "./find.css";
 
 const STORE = "oc:find";
@@ -53,6 +56,19 @@ export interface FindBarProps {
   onClose(): void;
 }
 
+/** A connected live block's own editor, for find and the separate replace step (ADR-066). */
+function liveSource(fileId: string): LiveSource | null {
+  const i = liveEditors.get().get(fileId);
+  return i && !i.editor.isDestroyed ? { editor: i.editor, editable: i.editor.isEditable } : null;
+}
+
+/** One live file's matches waiting for "Replace in live block too" (frame 1f). */
+interface Pending {
+  fileId: string;
+  title: string;
+  matches: LiveMatch[];
+}
+
 type State =
   | { kind: "idle" }
   | { kind: "ok"; matches: Match[]; capped: boolean }
@@ -75,6 +91,8 @@ export function FindBar(p: FindBarProps) {
   const repField = useRef<HTMLInputElement>(null);
   const curRef = useRef<Match | null>(null);
   const announced = useRef(0);
+  const lives = useStore(liveEditors);
+  const [ask, setAsk] = useState<Pending[]>([]);
 
   useEffect(() => saveOptions(opts), [opts]);
   useEffect(() => {
@@ -93,6 +111,14 @@ export function FindBar(p: FindBarProps) {
       clearDom();
     };
   }, [editor]);
+  // And on each connected live block's own editor (its matches are drawn there).
+  useEffect(() => {
+    const eds = [...lives.values()].map((i) => i.editor).filter((e) => !e.isDestroyed);
+    for (const e of eds) if (!findKey.getState(e.state)) e.registerPlugin(findPlugin());
+    return () => {
+      for (const e of eds) if (!e.isDestroyed && findKey.getState(e.state)) e.unregisterPlugin(findKey);
+    };
+  }, [lives]);
 
   const compiled = useMemo(() => compile(q, opts), [q, opts]);
 
@@ -112,7 +138,7 @@ export function FindBar(p: FindBarProps) {
       return;
     }
     try {
-      const r = findAll(editor.state.doc, doc, compiled.re, opts.scope);
+      const r = findAll(editor.state.doc, doc, compiled.re, opts.scope, BUDGET_MS, liveSource);
       const i = keepCurrent(curRef.current, r.matches);
       curRef.current = i >= 0 ? r.matches[i] : null;
       setSt({ kind: "ok", matches: r.matches, capped: r.capped });
@@ -123,7 +149,9 @@ export function FindBar(p: FindBarProps) {
       setCur(-1);
       curRef.current = null;
     }
-  }, [editor, doc, q, compiled, opts.scope]);
+    // `lives`: a live block connected or left; its text is searched too.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, doc, q, compiled, opts.scope, lives]);
   useEffect(() => {
     recompute();
   }, [recompute]);
@@ -136,12 +164,15 @@ export function FindBar(p: FindBarProps) {
     const onTr = ({ transaction }: { transaction: { docChanged: boolean } }) => transaction.docChanged && later();
     editor.on("transaction", onTr);
     doc.on("update", later);
+    const eds = [...lives.values()].map((i) => i.editor);
+    for (const e of eds) e.on("transaction", onTr);
     return () => {
       cancelAnimationFrame(raf);
       editor.off("transaction", onTr);
       doc.off("update", later);
+      for (const e of eds) e.off("transaction", onTr);
     };
-  }, [editor, doc, recompute]);
+  }, [editor, doc, recompute, lives]);
 
   const matches = st.kind === "ok" ? st.matches : [];
   const current = cur >= 0 ? matches[cur] ?? null : null;
@@ -156,9 +187,19 @@ export function FindBar(p: FindBarProps) {
       ranges.push({ from: m.from, to: m.to });
     });
     setMarks(editor, { ranges, current: ci });
+    for (const [fileId, i] of lives) {
+      const rs: { from: number; to: number }[] = [];
+      let c = -1;
+      matches.forEach((m, k) => {
+        if (m.kind !== "live" || m.fileId !== fileId || m.from < 0) return;
+        if (k === cur) c = rs.length;
+        rs.push({ from: m.from, to: m.to });
+      });
+      if (!i.editor.isDestroyed && findKey.getState(i.editor.state)) setMarks(i.editor, { ranges: rs, current: c });
+    }
     markDom(matches, cur);
     setTicks(tickPositions(editor, matches, cur, p.scrollEl));
-  }, [editor, matches, cur, p.scrollEl]);
+  }, [editor, matches, cur, p.scrollEl, lives]);
 
   // The counter is a polite live region, announced at most once a second.
   const count = st.kind === "invalid" ? "Invalid pattern" : st.kind === "slow" ? "Pattern too slow" : q ? counter(cur, matches.length, st.kind === "ok" && st.capped) : "";
@@ -191,8 +232,15 @@ export function FindBar(p: FindBarProps) {
   const um = () => yUndoPluginKey.getState(editor.state)?.undoManager ?? null;
   const replaceOne = () => {
     if (!p.canReplace || !current) return;
+    if (current.kind === "live") {
+      // Never silently: a separate confirmation, applied in the live block's own room (1f).
+      const g = liveGroups([current])[0];
+      if (g) return setAsk([g]);
+      p.toast(current.from < 0 ? "This live block isn’t connected. Replace in it once it connects." : "This live block is view only for you", { icon: "info" });
+      return go(1);
+    }
     if (!replaceable(current)) {
-      p.toast(current.kind === "live" ? "Matches in a live block are replaced in its own canvas" : "This match can't be replaced here", { icon: "info" });
+      p.toast("This match can't be replaced here", { icon: "info" });
       return go(1);
     }
     replaceMatches(editor, doc, [current], rep, opts.regex, um());
@@ -201,13 +249,45 @@ export function FindBar(p: FindBarProps) {
     if (!p.canReplace || !matches.length) return;
     const targets = matches.filter((m) => m.kind !== "live" && m.kind !== "comment");
     const liveN = matches.filter((m) => m.kind === "live").length;
-    const sum = replaceMatches(editor, doc, targets, rep, opts.regex, um());
-    const extra = [sum.skipped ? `${sum.skipped} read-only ${sum.skipped === 1 ? "cell" : "cells"} skipped` : "", liveN ? `${liveN} more in live blocks` : ""].filter(Boolean).join(" · ");
-    p.toast(`Replaced ${sum.replaced} “${q}” with “${rep}”${extra ? ` · ${extra}` : ""}`, {
-      icon: "check",
-      action: { label: "Undo", run: () => um()?.undo() },
-    });
+    const groups = liveGroups(matches);
+    if (targets.length || !groups.length) {
+      const sum = replaceMatches(editor, doc, targets, rep, opts.regex, um());
+      const extra = [sum.skipped ? `${sum.skipped} read-only ${sum.skipped === 1 ? "cell" : "cells"} skipped` : "", liveN ? `${liveN} more in live blocks` : ""].filter(Boolean).join(" · ");
+      p.toast(`Replaced ${sum.replaced} “${q}” with “${rep}”${extra ? ` · ${extra}` : ""}`, {
+        icon: "check",
+        action: { label: "Undo", run: () => um()?.undo() },
+      });
+    }
+    // Then the separate step, one live file at a time, only where this person may edit.
+    if (groups.length) setAsk(groups);
   };
+  const askNext = () => setAsk((a) => a.slice(1));
+  const replaceLive = (g: Pending) => {
+    const src = liveSource(g.fileId);
+    const n = src ? replaceInLive(src, g.matches, rep, opts.regex) : 0;
+    askNext();
+    if (!src || !n) return p.toast("Nothing was replaced in the live block. It changed or is view only now.", { icon: "info" });
+    const lum = () => (yUndoPluginKey.getState(src.editor.state)?.undoManager ?? null) as Y.UndoManager | null;
+    p.toast(`Replaced ${n} in live block “${g.title || "Untitled"}”`, { icon: "check", action: { label: "Undo", run: () => lum()?.undo() } });
+  };
+  const asking = ask[0] ?? null;
+  const askPath = asking ? lives.get(asking.fileId)?.path : "";
+  const askTitle = asking ? asking.title || lives.get(asking.fileId)?.title || "Untitled" : "";
+  const confirmEl = asking ? (
+    <Modal onClose={askNext} label={`Replace in “${askTitle}” too?`}>
+      <ModalHead title={`Replace in “${askTitle}” too?`} onClose={askNext} />
+      <div className="mbd">
+        <p>
+          {asking.matches.length} {asking.matches.length === 1 ? "match is" : "matches are"} in a live block{askPath ? <> from <b>{askPath}</b></> : null}. Changing{" "}
+          {asking.matches.length === 1 ? "it" : "them"} changes it in every canvas that shows it.
+        </p>
+      </div>
+      <div className="mft">
+        <button type="button" className="btn ghost" onClick={askNext}>Only this canvas</button>
+        <button type="button" className="btn primary" data-autofocus onClick={() => replaceLive(asking)}>Replace in live block too</button>
+      </div>
+    </Modal>
+  ) : null;
 
   const close = () => {
     // Esc puts the caret on the current match, selected, so typing replaces it.
@@ -344,6 +424,7 @@ export function FindBar(p: FindBarProps) {
           </div>
         ) : null}
         {liveRegion}
+        {confirmEl}
       </>
     );
   }
@@ -395,6 +476,7 @@ export function FindBar(p: FindBarProps) {
       </div>
       {ticksEl}
       {liveRegion}
+      {confirmEl}
     </>
   );
 }

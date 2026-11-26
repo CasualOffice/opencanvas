@@ -12,7 +12,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 - Find and replace in a canvas (SRCH-01, ADR-066, [approved prototype](docs/prototypes/v03-approved/search.html)):
   ⌘F opens a find bar over text, databases and boards; case, whole word and regular expressions
   (50 ms budget); Replace all is one undo step; view-only people can find but not replace. Matches
-  inside live blocks are found and labelled; Replace all skips them and says so.
+  inside live blocks are found and labelled; Replace all skips them and says so. (Replacing inside
+  a live block after a separate confirmation, SRCH-06, is not finished.)
 - Search all canvases (SRCH-04): results from the host's own search (`GET /search` callback),
   grouped by canvas, with deep links to the block; hidden when the host has no search callback.
 - Offline copies, server side (OFF-01, OFF-07, ADR-063/064): `[host.offline]` (off by default;
@@ -23,9 +24,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   stores one number per host and person, never content.
 - Live blocks in the editor (LIVE-03, LIVE-07, [approved prototype](docs/prototypes/v03-approved/live-blocks.html),
   ADR-073): an always-visible header (Live mark, title, the people in it, Open source, options),
-  editing in place with presence labels that say where a person is, a one-time hint on the first
+  editing in place with presence, a one-time hint on the first
   edit, view only, and every failure state (connecting, not up to date, no access with or without
-  the title, deleted or moved, access removed, limits). "Make live…" in the block menu, "Live
+  the title, deleted or moved, access removed, limits). The header says where the source lives
+  ("from Leadership weekly › Q1") when the host's `/access` answers the new optional `path` (≤ 200
+  characters, shown as text), else the host's name. Inside a live block, "/" offers the same
+  categorised insert menu, filtered by the host profile, without live blocks (depth rule) and
+  without what acts on the embedding canvas (assistant, import, uploads, SDK blocks). "Make live…" in the block menu, "Live
   block" in the insert menu through the host's own picker (`UI_PickLiveBlock` →
   `Action_InsertLiveBlock`), and paste a block link as a live block, a reference or a link.
   References refresh on their own and flash once. "Convert to a copy" and "Who can see this"
@@ -43,6 +48,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   `canvas_search` proxy it for user tokens only, 10 a minute per user, dropping files the host's
   `/access` refuses. OpenCanvas keeps no index and caches no result. The sample host indexes
   `search.json` and serves the callback and a search page.
+- Nextcloud app (SRCH-05): canvases appear in Nextcloud's unified search. Every write of an
+  `.ocanvas` indexes its `search.json` into the app's `oc_opencanvas_search` table (Nextcloud's
+  index, not OpenCanvas's), results are only files the person can open in Nextcloud, and each one
+  opens the canvas at the matching block. `occ opencanvas:search-index` indexes existing files.
 - Portable live blocks, server side (v0.3, behind `[host.flags] live_blocks`, off by default):
   the host contract (LIVE-01, docs/05 §2c, ADR-070): `[host.live]` checked at start-up, the
   `POST /files` callback, `/access` required (with optional `name` and `callbackToken`), the

@@ -580,7 +580,9 @@ through the room; the session response's `import.formats` lists what the editor 
 non-editors or when off) · `GET /healthz` · `GET /readyz` · `GET /metrics`.
 
 *Live blocks (LIVE-01, ADR-039, ADR-070; `[host.flags] live_blocks`, else `404 LIVE_OFF`):*
-`POST /v1/live/session` `{ticket, fileId}` → `201 {ticket, room, fileId, role, name, exp, wsUrl, maxOpen}`:
+`POST /v1/live/session` `{ticket, fileId}` → `201 {ticket, room, fileId, role, name, path, exp, wsUrl, maxOpen}`
+(`path`: the host's `/access` `path`, trimmed, ≤ 200 characters and no control characters, else null; the
+editor shows it as text in the header, falling back to the host's name):
 a derived session for a live file the canvas embeds (`404 LIVE_NOT_EMBEDDED` otherwise), role from the
 host's `/access` (`403 LIVE_NO_ACCESS` with nothing about the file), expiry and perms bounded by the
 parent session, `403 LIVE_DEPTH` from a derived session; 2 opens/s per person (burst 60, `429`). ·

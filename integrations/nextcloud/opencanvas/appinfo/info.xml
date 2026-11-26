@@ -9,7 +9,7 @@
 	<description><![CDATA[Create .ocanvas files in Files and edit them together in real time with OpenCanvas.
 One canvas holds rich text, databases (table, board, calendar views) and whiteboards side by side.
 Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and versions.]]></description>
-	<version>0.1.0</version>
+	<version>0.1.1</version>
 	<licence>apache</licence>
 	<author>CasualOffice</author>
 	<namespace>OpenCanvas</namespace>
@@ -33,6 +33,9 @@ Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and
 			<step>OCA\OpenCanvas\Migration\UnregisterMimeType</step>
 		</uninstall>
 	</repair-steps>
+	<commands>
+		<command>OCA\OpenCanvas\Command\IndexCanvases</command>
+	</commands>
 	<settings>
 		<admin>OCA\OpenCanvas\Settings\Admin</admin>
 		<admin-section>OCA\OpenCanvas\Settings\Section</admin-section>

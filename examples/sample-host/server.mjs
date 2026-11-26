@@ -211,7 +211,10 @@ async function accessCallback(req, res) {
   const f = meta.files[q.fileId];
   const role = f?.acl[q.userId] || "none";
   if (role === "none") return send(res, 200, { role: "none" });
-  return send(res, 200, { role, name: f.name, callbackToken: callbackToken(f.id, q.userId) });
+  // `path` (optional, ≤ 200 characters, shown as text): where the file lives, for the live
+  // block's header ("from Acme Docs › Sprint planning"). Ours: the canvas a live file was made in.
+  const where = f.path || (f.parent && meta.files[f.parent] ? `Acme Docs › ${meta.files[f.parent].name}` : "");
+  return send(res, 200, { role, name: f.name, ...(where ? { path: where.slice(0, 200) } : {}), callbackToken: callbackToken(f.id, q.userId) });
 }
 
 async function createFileCallback(req, res) {
@@ -272,7 +275,7 @@ function indexFile(fileId, body) {
   } catch (e) { console.warn("could not index", fileId, e.message); }
 }
 // Signed like every callback (v2 binds method, path and query, so `userId` can be trusted).
-function checkSigned(req) {
+function checkSignedGet(req) {
   const sig = req.headers["x-opencanvas-signature"] || "";
   const t = /t=(\d+)/.exec(sig)?.[1], v2 = /v2=([0-9a-f]+)/.exec(sig)?.[1];
   if (!t || !v2 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
@@ -312,7 +315,7 @@ async function callbacks(req, res, url) {
   }
   if (url.pathname === "/api/opencanvas/mentions" && req.method === "POST") return mentionCallback(req, res);
   if (url.pathname === "/api/opencanvas/search" && req.method === "GET") {
-    if (!checkSigned(req)) return send(res, 401, { error: "bad signature" });
+    if (!checkSignedGet(req)) return send(res, 401, { error: "bad signature" });
     const userId = url.searchParams.get("userId") || "";
     const items = search(userId, url.searchParams.get("q") || "", Math.min(50, Number(url.searchParams.get("limit")) || 20));
     return send(res, 200, { items, scopes: [{ id: "all", label: "All canvases" }], partial: false, next: null });

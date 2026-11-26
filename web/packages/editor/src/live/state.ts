@@ -44,6 +44,27 @@ export const LIMIT_MSG = "A canvas can hold up to 50 live blocks and references.
 /** Editors that show a live file inside a live block (no live blocks inside them: depth 1). */
 export const nestedEditors = new WeakSet<object>();
 
+/** The connected live blocks on the page, by live file: their own editor (find and replace
+ *  inside them, ADR-066), the title and where the source lives (`path`, else ""). */
+export interface LiveEditorInfo {
+  editor: Editor;
+  title: string;
+  path: string;
+}
+export const liveEditors = createStore<ReadonlyMap<string, LiveEditorInfo>>(new Map());
+
+export function registerLiveEditor(fileId: string, info: LiveEditorInfo): () => void {
+  const next = new Map(liveEditors.get());
+  next.set(fileId, info);
+  liveEditors.set(next);
+  return () => {
+    if (liveEditors.get().get(fileId)?.editor !== info.editor) return;
+    const m = new Map(liveEditors.get());
+    m.delete(fileId);
+    liveEditors.set(m);
+  };
+}
+
 export function countRefs(state: EditorState): number {
   let n = 0;
   state.doc.descendants((node) => {

@@ -3,6 +3,7 @@
 
 // Bridges @tiptap/suggestion (slash menu, @mentions) to a React-rendered menu.
 import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
+import type { Editor } from "@tiptap/core";
 import { createStore } from "../lib/store";
 
 export interface SuggestState {
@@ -11,6 +12,8 @@ export interface SuggestState {
   query: string;
   sel: number;
   rect: DOMRect | null;
+  /** The editor the menu was opened in (a live block's own editor, or the canvas). */
+  editor?: Editor;
   pick(item: unknown): void;
   /** Replaces the typed "/query" with "/" + text (goal chips, the phone search field). */
   replace(text: string): void;
@@ -37,6 +40,7 @@ export function suggestRender(kind: SuggestState["kind"], onKey?: (e: KeyboardEv
         query: p.query,
         sel: keepSel && prev ? Math.min(prev.sel, Math.max(0, p.items.length - 1)) : 0,
         rect: p.clientRect?.() ?? null,
+        editor: p.editor,
         pick: (item) => p.command(item),
         replace: (text) => {
           p.editor.chain().focus().insertContentAt(p.range, kind === "slash" ? "/" + text : text).run();

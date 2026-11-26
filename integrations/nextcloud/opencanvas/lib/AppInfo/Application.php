@@ -7,12 +7,17 @@ declare(strict_types=1);
 namespace OCA\OpenCanvas\AppInfo;
 
 use OCA\OpenCanvas\Listener\AddCsp;
+use OCA\OpenCanvas\Listener\IndexCanvasListener;
 use OCA\OpenCanvas\Listener\LoadFilesScripts;
 use OCA\OpenCanvas\Listener\LoadPublicScripts;
 use OCA\OpenCanvas\Listener\LoadViewerScripts;
 use OCA\OpenCanvas\Listener\RegisterTemplateCreator;
 use OCA\OpenCanvas\Listener\ShareChangedListener;
+use OCA\OpenCanvas\Search\CanvasSearchProvider;
 use OCA\OpenCanvas\Service\RoleSyncService;
+use OCP\Files\Events\Node\NodeCopiedEvent;
+use OCP\Files\Events\Node\NodeDeletedEvent;
+use OCP\Files\Events\Node\NodeWrittenEvent;
 use OCP\Share\Events\ShareDeletedEvent;
 use OCP\Util;
 use OCP\AppFramework\App;
@@ -43,6 +48,11 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(AddContentSecurityPolicyEvent::class, AddCsp::class);
 		// Share revoked or changed: switch open canvases at once (docs/05 §7 role API).
 		$context->registerEventListener(ShareDeletedEvent::class, ShareChangedListener::class);
+		// SRCH-05 (ADR-065): canvases in unified search, from the search.json of every save.
+		$context->registerSearchProvider(CanvasSearchProvider::class);
+		$context->registerEventListener(NodeWrittenEvent::class, IndexCanvasListener::class);
+		$context->registerEventListener(NodeCopiedEvent::class, IndexCanvasListener::class);
+		$context->registerEventListener(NodeDeletedEvent::class, IndexCanvasListener::class);
 		// Tokens and the token secret are sensitive: kept out of logged stack traces.
 		$context->registerSensitiveMethods(\OCA\OpenCanvas\Wopi\TokenCodec::class, ['__construct', 'encode', 'decode']);
 	}

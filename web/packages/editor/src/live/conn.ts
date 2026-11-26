@@ -19,6 +19,8 @@ export interface LiveRoom {
   state: LiveState;
   role: Role;
   name: string;
+  /** Where the source lives in the host ("Leadership weekly › Q1"), from `/access`, else "". */
+  path: string;
   collab: Collab | null;
   session: Session | null;
   /** When the room was last in sync (ms), for "the copy from 10:42". */
@@ -77,6 +79,7 @@ async function connect(e: Entry) {
     e.session = session;
     e.role = s.role;
     e.name = s.name;
+    e.path = typeof s.path === "string" ? s.path.slice(0, 200) : "";
     collab.onControl((c) => {
       if (c.t === "role") set(e, { role: c.role });
     });
@@ -128,7 +131,7 @@ function schedule(e: Entry, ms?: number) {
 export function useRoomEntry(fileId: string): { room: LiveRoom; sub(f: () => void): () => void; release(): void; visible(v: boolean): void } {
   let e = rooms.get(fileId);
   if (!e) {
-    e = { fileId, state: "queued", role: "view", name: "", collab: null, session: null, syncedAt: null, users: 0, visible: 0, subs: new Set(), tries: 0, gen: 0 };
+    e = { fileId, state: "queued", role: "view", name: "", path: "", collab: null, session: null, syncedAt: null, users: 0, visible: 0, subs: new Set(), tries: 0, gen: 0 };
     rooms.set(fileId, e);
   }
   const entry = e;

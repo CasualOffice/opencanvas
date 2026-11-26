@@ -41,6 +41,13 @@ export function setBridge(b: Bridge) {
   Object.assign(bridge, b);
 }
 
+/** The Y.Doc an editor edits: a live block's own editor edits the live file's document, not
+ *  the canvas's, so new databases and boards go there (LIVE-03). */
+export function docOf(editor: { extensionManager?: { extensions: readonly { name: string; options: unknown }[] } } | null | undefined): Y.Doc {
+  const ext = editor?.extensionManager?.extensions.find((x) => x.name === "collaboration");
+  return (ext?.options as { document?: Y.Doc } | undefined)?.document ?? bridge.doc;
+}
+
 /** React context for node views (they render inside EditorContent's tree). */
 export const BridgeCtx = createContext<Bridge | null>(null);
 export function useBridge(): Bridge {

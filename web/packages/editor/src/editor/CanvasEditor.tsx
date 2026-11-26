@@ -51,11 +51,8 @@ const CollaborationCaret = CollaborationCaretBase.extend({
       ...(listener ? [listener] : []),
       yCursorPlugin(o.provider.awareness, {
         awarenessStateFilter: caretFilter,
-        // LIVE-02/03 (ADR-069): the server's `from {fileId, title}` says where a person is.
-        cursorBuilder: (u, clientId: number) => {
-          const from = o.provider.awareness.getStates().get(clientId)?.from as { fileId?: unknown; title?: unknown } | undefined;
-          return o.render({ ...(u as Record<string, string>), ...(from && typeof from.title === "string" && from.fileId !== bridge.session?.file?.id ? { fromTitle: from.title } : {}) });
-        },
+        // ADR-069 (owner, 2026-11-26): no "· in <canvas>" label; the caret shows the name only.
+        cursorBuilder: (u) => o.render(u as Record<string, string>),
         selectionBuilder: (u) => o.selectionRender(u as Record<string, string>),
       }),
       caretClampPlugin(),
@@ -79,12 +76,10 @@ import { peopleRef } from "../lib/people";
 import { nameWithDetail, accessNote, secondLine } from "@opencanvas/ui";
 
 /** A cursor label (docs/21): "Asha Rao · Design" when the name is shared, as the viewer sees it. */
-export function caretCaption(u: { id?: string; name?: string; detail?: string; fromTitle?: string }): string {
+export function caretCaption(u: { id?: string; name?: string; detail?: string }): string {
   const name = u.name ?? "";
   const people = peopleRef.current;
-  const base = !people || !u.detail ? name : nameWithDetail({ id: u.id ?? "", name, detail: u.detail }, people.dupes());
-  // 2b: "Amara · in Leadership weekly" inside a live block.
-  return u.fromTitle ? `${base} · in ${u.fromTitle}` : base;
+  return !people || !u.detail ? name : nameWithDetail({ id: u.id ?? "", name, detail: u.detail }, people.dupes());
 }
 
 export interface EditorProps {
@@ -98,8 +93,9 @@ export interface EditorProps {
   onComment(threadId: string): void;
   /** Quick starts shown under an empty canvas (templates, database, whiteboard, import). */
   emptyState?: EmptyAction[];
-  /** LIVE-03: the editor of a live file inside a live block. No menus, gutter, slash menu or
-   *  pasting and dropping of files: those act on the canvas (their stores are the page's). */
+  /** LIVE-03: the editor of a live file inside a live block. No menus, gutter, @mentions or
+   *  pasting and dropping of files: those act on the canvas (their stores are the page's). The
+   *  "/" insert menu is offered, without live blocks and canvas actions (`insertCtx`). */
   nested?: boolean;
 }
 
@@ -347,8 +343,9 @@ export function CanvasEditor(p: EditorProps) {
   }, [editor, editable]);
 
   // Slash menu, @mentions, autolink and link-on-paste: plugins only, right after first paint.
+  // A live block's own editor gets the "/" menu only (LIVE-03; the menu is the page's, drawn
+  // by the canvas editor, and filtered for it in `insertCtx`).
   useEffect(() => {
-    if (p.nested) return;
     let off = false;
     const t = window.setTimeout(() => {
       void import("./late")
@@ -366,7 +363,7 @@ export function CanvasEditor(p: EditorProps) {
                 note: accessNote(u) ?? undefined,
                 dup: !!people?.isDuplicate(u.name),
               }));
-            });
+            }, p.nested);
         })
         .catch(() => undefined);
     }, 0);

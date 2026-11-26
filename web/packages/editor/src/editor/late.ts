@@ -78,7 +78,7 @@ function slashPlugin(editor: Editor): Plugin {
     allowSpaces: true,
     allow: ({ state, range }) => {
       const $f = state.doc.resolve(range.from);
-      return $f.parent.type.name === "paragraph" && !$f.node(1)?.type.spec.code && !nothingToInsert(insertCtx());
+      return $f.parent.type.name === "paragraph" && !$f.node(1)?.type.spec.code && !nothingToInsert(insertCtx(editor));
     },
     items: () => [],
     command: ({ editor, range, props }) => props.run(editor, range),
@@ -124,9 +124,17 @@ function mentionPlugin(editor: Editor, search: (q: string) => Promise<MentionIte
 
 const installed = new WeakSet<Editor>();
 
-export function installLate(editor: Editor, search: (q: string) => Promise<MentionItem[]>) {
+/** `nested`: a live block's own editor gets the "/" menu (filtered, see `insertCtx`) and the
+ *  cursors; no @mentions (the people and notifications are the embedding canvas's). */
+export function installLate(editor: Editor, search: (q: string) => Promise<MentionItem[]>, nested = false) {
   if (editor.isDestroyed || installed.has(editor)) return;
   installed.add(editor);
+  if (nested) {
+    editor.registerPlugin(slashPlugin(editor), (pl, all) => [pl, ...all]);
+    editor.registerPlugin(dropCursor({ color: "currentColor", width: 3, class: "ProseMirror-dropcursor" }));
+    editor.registerPlugin(gapCursor());
+    return;
+  }
   // Suggestion plugins go first, as their extensions' priority put them before: their
   // keydown (Enter / arrows in an open menu) must win over the base keymap.
   for (const p of [mentionPlugin(editor, search), slashPlugin(editor)]) editor.registerPlugin(p, (pl, all) => [pl, ...all]);

@@ -68,7 +68,8 @@ what changes for v0.3 (ADR-069).
 6. **Presence labels** say where a person is ("Amara · in Leadership weekly"): the awareness
    state of a live room gains `from: {fileId, title}`, written by the server from the parent
    grant (never by the client), and omitted when the viewer cannot read that parent's title
-   (owner decision 3 on the page).
+   (owner decision 3 on the page). **Dropped 2026-11-26 (owner, ADR-069 amendment):** the caret
+   label shows the name only; `from` is still written by the server (ADR-071).
 7. **Offline (§3).** A live block is cached only when its own file is available offline; otherwise
    it shows its last projection as "Not up to date" with editing off (5b).
 8. **Search (§4).** In-canvas find includes live blocks the person can read; replace inside one

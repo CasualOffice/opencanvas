@@ -244,6 +244,45 @@ async fn derived_sessions_follow_the_hosts_access_answer() {
 }
 
 #[tokio::test]
+async fn the_session_answer_carries_the_hosts_folder_path_as_text() {
+    let (addr, _state, host) = serve().await;
+    embed(
+        &addr,
+        &["L_path", "L_long", "L_edge", "L_plain", "L_hidden"],
+    )
+    .await;
+    for f in ["L_path", "L_long", "L_edge", "L_plain"] {
+        grant_access(&host, f, "u_1", "edit");
+    }
+    grant_access(&host, "L_hidden", "u_other", "edit");
+    {
+        let mut h = host.lock().unwrap();
+        h.access_paths
+            .insert("L_path".into(), "  Leadership weekly › Q1  ".into());
+        h.access_paths.insert("L_long".into(), "é".repeat(201));
+        h.access_paths.insert("L_edge".into(), "é".repeat(200));
+        h.access_paths
+            .insert("L_hidden".into(), "Board › Secret plans".into());
+    }
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    // Shown as text in the header ("from Leadership weekly › Q1"), trimmed.
+    let (s, out) = live_session(&addr, &ticket, "L_path").await;
+    assert_eq!(s, 201, "{out}");
+    assert_eq!(out["path"], "Leadership weekly › Q1");
+    // At most 200 characters (not bytes): longer is dropped, and the editor shows the host name.
+    let (_, out) = live_session(&addr, &ticket, "L_long").await;
+    assert!(out.get("path").is_none_or(Value::is_null), "{out}");
+    let (_, out) = live_session(&addr, &ticket, "L_edge").await;
+    assert_eq!(out["path"], "é".repeat(200));
+    let (_, out) = live_session(&addr, &ticket, "L_plain").await;
+    assert!(out.get("path").is_none_or(Value::is_null), "{out}");
+    // A person without access learns nothing of where the file lives.
+    let (s, out) = live_session(&addr, &ticket, "L_hidden").await;
+    assert_eq!(s, 403, "{out}");
+    assert!(!out.to_string().contains("Secret"), "{out}");
+}
+
+#[tokio::test]
 async fn without_an_access_callback_only_token_listed_files_open_read_only() {
     let (addr, _state, host) = serve().await;
     host.lock().unwrap().access = None; // `/access` answers 404

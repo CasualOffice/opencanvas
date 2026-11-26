@@ -69,6 +69,9 @@ pub struct HostState {
     /// LIVE-01: per-file `/access` answers, (fileId, userId) -> role word; checked before
     /// `access`. A file listed here for nobody answers `none`.
     pub access_files: HashMap<(String, String), String>,
+    /// LIVE-03: the `path` a per-file `/access` answer carries (fileId -> path), sent whatever
+    /// the role (the server must drop it for a person without access).
+    pub access_paths: HashMap<String, String>,
     /// LIVE-01: `POST /files` answers on (the default); off = 404 (not implemented).
     pub create_off: bool,
     /// LIVE-01: `POST /files` calls (body, headers, v2 signature ok).
@@ -356,10 +359,11 @@ async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> imp
         if role == "gone" {
             return (StatusCode::GONE, axum::Json(json!({})));
         }
-        return (
-            StatusCode::OK,
-            axum::Json(json!({"role": role, "name": format!("Name of {file}")})),
-        );
+        let mut answer = json!({"role": role, "name": format!("Name of {file}")});
+        if let Some(path) = st.access_paths.get(&file) {
+            answer["path"] = json!(path);
+        }
+        return (StatusCode::OK, axum::Json(answer));
     }
     if st.access_files.keys().any(|(f, _)| *f == file) {
         return (StatusCode::OK, axum::Json(json!({"role": "none"})));

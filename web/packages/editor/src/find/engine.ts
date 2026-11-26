@@ -7,11 +7,14 @@
 //
 // Where it looks, in document order: text blocks (never inside a mention chip, a date chip or
 // a link's address), database cells and board text at the place their block sits, live blocks
-// by their snapshot (find only here; their own room replaces them), and comments at the end
-// when asked (find only: replace never rewrites someone's words).
+// by their own editor's text when connected (else their snapshot, find only), and comments at
+// the end when asked (find only: replace never rewrites someone's words). Matches in a live
+// block are never replaced with the canvas: `replaceInLive` changes them in that block's own
+// editor (its room), as one undo step there, after a separate confirmation (ADR-066).
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/core";
 import * as Y from "yjs";
+import { yUndoPluginKey } from "@tiptap/y-tiptap";
 
 export const MAX_MATCHES = 10_000;
 /** Time budget of one pass over the canvas for a pattern (docs/34 §4.2). */
@@ -48,7 +51,17 @@ export type Match =
   | (Base & { kind: "text"; from: number; to: number })
   | (Base & { kind: "cell"; pos: number; dbId: string; dbName: string; rowId: string; fieldId: string; fieldName: string; editable: boolean; hidden: boolean })
   | (Base & { kind: "shape"; pos: number; boardId: string; shapeId: string; key: "text" | "label" })
-  | (Base & { kind: "live"; pos: number; title: string })
+  | (Base & {
+      kind: "live";
+      pos: number;
+      title: string;
+      fileId: string;
+      /** In the live file's own editor (connected), else -1 (matched in the snapshot). */
+      from: number;
+      to: number;
+      /** Connected and this person may edit the live file. */
+      editable: boolean;
+    })
   | (Base & { kind: "comment"; threadId: string; index: number });
 
 export type Compiled = { ok: true; re: RegExp } | { ok: false; error: string };
@@ -195,6 +208,25 @@ function snapshotText(v: unknown): string {
   return out.join(" ");
 }
 
+/** A connected live block: its own editor (bound to the live file's room). */
+export interface LiveSource {
+  editor: Editor;
+  editable: boolean;
+}
+
+/** Text matches of `re` in the textblocks of `doc` (positions in `doc`). */
+function scanText(doc: PMNode, re: RegExp, deadline: number, push: (from: number, to: number, start: number, end: number, groups: string[]) => boolean): boolean {
+  let going = true;
+  doc.descendants((node, pos) => {
+    if (!going) return false;
+    if (!node.isTextblock) return true;
+    const { s, at } = textOf(node, pos);
+    going = scan(re, s, deadline, (a, b, groups) => (s.slice(a, b).includes("￼") ? true : push(at[a], at[b - 1] + 1, a, b, groups)));
+    return false;
+  });
+  return going;
+}
+
 export interface FindResult {
   matches: Match[];
   /** More than [`MAX_MATCHES`]: the count reads "10,000+". */
@@ -202,7 +234,7 @@ export interface FindResult {
 }
 
 /** Every match of `re` in the canvas, in document order. Throws [`TooSlow`] past the budget. */
-export function findAll(doc: PMNode, ydoc: Y.Doc, re: RegExp, scope: Scope, budgetMs = BUDGET_MS): FindResult {
+export function findAll(doc: PMNode, ydoc: Y.Doc, re: RegExp, scope: Scope, budgetMs = BUDGET_MS, live?: (fileId: string) => LiveSource | null): FindResult {
   const deadline = performance.now() + budgetMs;
   const matches: Match[] = [];
   let capped = false;
@@ -265,7 +297,12 @@ export function findAll(doc: PMNode, ydoc: Y.Doc, re: RegExp, scope: Scope, budg
     }
     if (type === "liveBlock" && scope.text) {
       const title = str(node.attrs.title);
-      going = scan(re, snapshotText(node.attrs.snapshot), deadline, (a, b, groups) => push({ kind: "live", pos, title, start: a, end: b, groups }));
+      const fileId = str(node.attrs.fileId);
+      const src = live?.(fileId);
+      if (src && !src.editor.isDestroyed) {
+        const editable = src.editable && src.editor.isEditable;
+        going = scanText(src.editor.state.doc, re, deadline, (from, to, a, b, groups) => push({ kind: "live", pos, title, fileId, from, to, editable, start: from, end: from + (b - a), groups }));
+      } else going = scan(re, snapshotText(node.attrs.snapshot), deadline, (a, b, groups) => push({ kind: "live", pos, title, fileId, from: -1, to: -1, editable: false, start: a, end: b, groups }));
       return false;
     }
     return true;
@@ -373,6 +410,34 @@ export function replaceMatches(editor: Editor, ydoc: Y.Doc, targets: Match[], re
   return sum;
 }
 
+export type LiveMatch = Extract<Match, { kind: "live" }>;
+
+/** The live blocks whose matches may be replaced (connected, edit there), one per live file. */
+export function liveGroups(matches: Match[]): { fileId: string; title: string; matches: LiveMatch[] }[] {
+  const out = new Map<string, { fileId: string; title: string; matches: LiveMatch[] }>();
+  for (const m of matches) {
+    if (m.kind !== "live" || !m.editable || m.from < 0) continue;
+    let g = out.get(m.fileId);
+    if (!g) out.set(m.fileId, (g = { fileId: m.fileId, title: m.title, matches: [] }));
+    // The same live file shown twice on the page: its text once.
+    if (!g.matches.some((x) => x.from === m.from)) g.matches.push(m);
+  }
+  return [...out.values()];
+}
+
+/** Replaces `targets` (matches in one live file) in that file's own editor, as one
+ *  transaction and one undo step in its room. Nothing when it is view only. */
+export function replaceInLive(src: LiveSource, targets: LiveMatch[], replacement: string, regex: boolean): number {
+  const e = src.editor;
+  if (!src.editable || e.isDestroyed || !e.isEditable) return 0;
+  const text = targets
+    .filter((m) => m.editable && m.from >= 0)
+    .map((m): Match => ({ kind: "text", from: m.from, to: m.to, start: m.start, end: m.end, groups: m.groups }));
+  if (!text.length) return 0;
+  const um = (yUndoPluginKey.getState(e.state) as { undoManager?: Y.UndoManager } | undefined)?.undoManager ?? null;
+  return replaceMatches(e, (um?.doc as Y.Doc | undefined) ?? new Y.Doc(), text, replacement, regex, um).replaced;
+}
+
 /** "3 of 12", "10,000+", "No results". */
 export function counter(current: number, total: number, capped: boolean): string {
   if (!total) return "No results";
@@ -390,7 +455,7 @@ export function matchKey(m: Match): string {
     case "shape":
       return `s:${m.boardId}:${m.shapeId}:${m.key}:${m.start}`;
     case "live":
-      return `l:${m.pos}:${m.start}`;
+      return `l:${m.pos}:${m.fileId}:${m.start}`;
     case "comment":
       return `m:${m.threadId}:${m.index}:${m.start}`;
   }
@@ -418,7 +483,7 @@ export function where(m: Match | null): string | null {
   if (!m) return null;
   if (m.kind === "cell") return m.hidden ? `In a hidden column: ${m.fieldName}` : `In ${m.dbName} · column ${m.fieldName}`;
   if (m.kind === "shape") return "On a board";
-  if (m.kind === "live") return `In live block ${m.title || "Untitled"} · replace changes it everywhere it is shown`;
+  if (m.kind === "live") return `In live block ${m.title || "Untitled"} · ${m.editable ? "replace changes it everywhere it is shown" : m.from < 0 ? "find only until it connects" : "view only"}`;
   if (m.kind === "comment") return "In a comment · find only";
   return null;
 }
