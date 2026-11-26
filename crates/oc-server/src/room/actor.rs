@@ -788,6 +788,33 @@ impl Room {
         self.emit(crate::events::SESSION_CLOSED, json!({"reason": reason}));
     }
 
+    /// LIVE-07 (ADR-069): `live.embedded` / `live.removed` for references an applied change
+    /// added or removed, so the host can keep its own usage index (OpenCanvas keeps none).
+    fn live_events(&self, before: Option<HashSet<(String, String, String)>>, by: &str) {
+        let Some(before) = before else {
+            return;
+        };
+        let after = filter::live_refs(&self.doc);
+        let ev = |kind: &str, set: Vec<&(String, String, String)>| {
+            let mut set = set;
+            set.sort();
+            for (node, block, file) in set {
+                self.emit(
+                    kind,
+                    json!({"blockId": block, "type": node, "liveFileId": file, "by": by}),
+                );
+            }
+        };
+        ev(
+            crate::events::LIVE_EMBEDDED,
+            after.difference(&before).collect(),
+        );
+        ev(
+            crate::events::LIVE_REMOVED,
+            before.difference(&after).collect(),
+        );
+    }
+
     fn set_status(&mut self, status: Value) {
         self.broadcast(protocol::control(&status), None);
         if status["t"] != "saving" {
@@ -882,6 +909,27 @@ impl Room {
     /// encoded frame serves every peer.
     fn fan_out_awareness(&mut self, update: AwarenessUpdate, except: Option<ConnId>) {
         Metrics::inc(&self.ctx.metrics.awareness_broadcasts_total);
+        // LIVE-02 (ADR-069): `from` names the embedding canvas; only viewers from that same
+        // canvas get it, so one frame per parent canvas (in practice one or two).
+        if update.clients.values().any(|e| e.json.contains("\"from\"")) {
+            let full: Bytes = protocol::awareness(update.clone()).into();
+            let mut frames: HashMap<Option<String>, Bytes> = HashMap::new();
+            for (id, p) in &self.peers {
+                if Some(*id) == except {
+                    continue;
+                }
+                let parent = p.grant.live.parent.as_ref().map(|x| x.file_id.clone());
+                let frame = frames
+                    .entry(parent.clone())
+                    .or_insert_with(|| {
+                        presence::without_foreign_from(&update, parent.as_deref())
+                            .map_or_else(|| full.clone(), |u| protocol::awareness(u).into())
+                    })
+                    .clone();
+                let _ = p.tx.send(Outbound::Frame(frame));
+            }
+            return;
+        }
         self.broadcast(protocol::awareness(update), except);
     }
 
@@ -916,6 +964,11 @@ impl Room {
         if update.clients.is_empty() {
             return;
         }
+        let parent = self
+            .peers
+            .get(&conn)
+            .and_then(|p| p.grant.live.parent.as_ref().map(|x| x.file_id.clone()));
+        let update = presence::without_foreign_from(&update, parent.as_deref()).unwrap_or(update);
         self.send(conn, protocol::awareness(update));
     }
 
@@ -1337,6 +1390,27 @@ impl Room {
             }
             return;
         }
+        // LIVE-02: the same for `liveBlock` and `blockRef` (editors before 0.3 lack them, and
+        // `caps=live` says a connection keeps them), plus the depth rule, the reference limit,
+        // the snapshot policy, the feature flag and `perms.live` for adding one.
+        match filter::live_check(&self.doc, &bytes, &self.live_rules(Some(&*grant))) {
+            filter::LiveVerdict::Ok => {}
+            filter::LiveVerdict::OutOfDate => {
+                tracing::info!(room = %self.id, "update refused: removes a live block from a client without caps=live");
+                self.deny(conn, "this editor is out of date; reopen the canvas");
+                if let Some(p) = self.peers.get(&conn) {
+                    let _ = p.tx.send(Outbound::Close(
+                        4426,
+                        "editor out of date: reopen the canvas".into(),
+                    ));
+                }
+                return;
+            }
+            filter::LiveVerdict::Refused(e) => {
+                tracing::info!(room = %self.id, "update refused: live block rule");
+                return self.deny(conn, &e);
+            }
+        }
         // BSDK-03: SDK block attrs and data must match their package's schema, whoever writes
         // them (the editor checks the bridge's writes first; this catches every other client).
         if let Some(e) = filter::sdk_block_error(&self.doc, &bytes) {
@@ -1358,6 +1432,7 @@ impl Room {
                 return self.deny(conn, "document size limit reached");
             }
         }
+        let live_before = filter::live_refs_if_relevant(&self.doc, &bytes);
         let Ok(update) = Update::decode_v1(&bytes) else {
             return self.deny(conn, "malformed update");
         };
@@ -1387,6 +1462,7 @@ impl Room {
             return;
         }
         self.queue(bytes, &grant.user.id, Some(conn), true);
+        self.live_events(live_before, &grant.user.id);
     }
 
     /// An update now in the doc: queued for the next WAL batch as the next `seq`. Nothing is
@@ -1778,6 +1854,17 @@ impl Room {
         Ok(Patched { block_ids: vec![] })
     }
 
+    /// The live block rules for a writer (LIVE-02): a client connection's grant, or `None` for
+    /// the server's own writes (which keep every node and may embed).
+    fn live_rules(&self, grant: Option<&Grant>) -> filter::LiveRules {
+        filter::LiveRules {
+            on: self.host.live_blocks(),
+            policy: crate::live::LiveCfg::of(&self.host).snapshot,
+            may_embed: grant.is_none_or(|g| g.perms.live),
+            keeps_nodes: grant.is_none_or(|g| g.live.caps),
+        }
+    }
+
     /// Applies an update made by the server (patch API, canvas tools) with `origin`, then logs
     /// and broadcasts it like a client update. Returns whether the doc changed.
     async fn apply_server_update(
@@ -1786,6 +1873,15 @@ impl Room {
         origin: &str,
         author: &str,
     ) -> Result<bool, PatchFailure> {
+        // LIVE-02: server writes (API, MCP, tools) follow the depth rule, the reference limit,
+        // the snapshot policy and the feature flag too.
+        if let filter::LiveVerdict::Refused(e) =
+            filter::live_check(&self.doc, &update, &self.live_rules(None))
+        {
+            return Err(PatchFailure::Invalid(oc_model::patch::PatchError::Invalid(
+                0, e,
+            )));
+        }
         let cap = self.ctx.cfg.max_doc_bytes;
         if self.doc_bytes + update.len() > cap {
             self.doc_bytes = encoded_len(&self.doc);
@@ -1794,6 +1890,7 @@ impl Room {
                 return Err(PatchFailure::TooLarge);
             }
         }
+        let live_before = filter::live_refs_if_relevant(&self.doc, &update);
         let decoded = Update::decode_v1(&update).map_err(|e| {
             PatchFailure::Invalid(oc_model::patch::PatchError::Request(e.to_string()))
         })?;
@@ -1812,6 +1909,7 @@ impl Room {
             if !self.flush_wal().await {
                 return Err(PatchFailure::Unavailable);
             }
+            self.live_events(live_before, author);
         }
         Ok(changed)
     }
@@ -1839,6 +1937,10 @@ impl Room {
             Err(PatchFailure::TooLarge) => Err(ToolError::BadInput(
                 "DOC_TOO_LARGE: the change would exceed the document size limit".into(),
             )),
+            // LIVE-02: a live block rule the change would break is the caller's input.
+            Err(PatchFailure::Invalid(oc_model::patch::PatchError::Invalid(_, e))) => {
+                Err(ToolError::BadInput(e))
+            }
             Err(PatchFailure::Invalid(e)) => Err(ToolError::Internal(e.to_string())),
             Err(PatchFailure::Conflict) => Err(ToolError::Internal("CONFLICT".into())),
             Err(PatchFailure::Unavailable) => Err(ToolError::Internal(
@@ -1899,6 +2001,12 @@ impl Room {
         };
         self.presence_frames += 1;
         let user = peer.grant.awareness_user();
+        let from = peer
+            .grant
+            .live
+            .parent
+            .as_ref()
+            .map(|p| json!({"fileId": p.file_id, "title": p.title}));
         let mut room_left = MAX_CLIENTS_PER_CONN.saturating_sub(peer.clients.len());
         for (client, entry) in update.clients {
             if entry.json.len() > MAX_AWARENESS_BYTES {
@@ -1914,7 +2022,7 @@ impl Room {
                     peer.clients.insert(client);
                 }
             }
-            let json = presence::stamp(&entry.json, &user);
+            let json = presence::stamp_from(&entry.json, &user, from.as_ref());
             self.presence.push(
                 conn,
                 client,

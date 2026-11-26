@@ -24,6 +24,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   `POST /files` callback, `/access` required (with optional `name` and `callbackToken`), the
   token's `perms.live` and `live` claims, derived sessions for embedded live files
   (`POST /v1/live/session`) and "Make live" (`POST /v1/live/make`).
+- Live block rooms (LIVE-02, docs/15 §3 and §4.4, ADR-071): the `liveBlock` and `blockRef` nodes in
+  the editor schema (no node view yet), `caps=live` and the 4426 guard so a 0.2 editor deletes no
+  live block, the depth rule, at most 50 references, the snapshot policy and `perms.live` on every
+  write path, at most 8 live rooms per session, presence `from` and the `live.embedded` /
+  `live.removed` events (ADR-069).
 
 ## [0.2.0] - 2026-11-25
 

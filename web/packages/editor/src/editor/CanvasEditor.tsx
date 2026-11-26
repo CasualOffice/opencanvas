@@ -34,6 +34,7 @@ import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
 import { ExtBlock } from "../ext/node";
+import { BlockRef, LiveBlock } from "../live/node";
 import { galleryStore } from "../ext/model";
 const BlockGallery = lazy(() => import("../ext/Gallery"));
 import { Board, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
@@ -309,6 +310,8 @@ export function CanvasEditor(p: EditorProps) {
         Database,
         Board,
         ExtBlock,
+        LiveBlock,
+        BlockRef,
         CommentMark,
         FileDrop,
         PasteUrl,

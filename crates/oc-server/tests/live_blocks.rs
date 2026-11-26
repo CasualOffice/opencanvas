@@ -9,9 +9,9 @@ mod common;
 
 use common::*;
 use jsonwebtoken::{EncodingKey, Header, encode};
-use oc_server::grant::{Grant, room_id};
+use oc_server::grant::{Grant, Role, room_id};
 use serde_json::{Value, json};
-use yrs::{Transact, XmlElementPrelim, XmlFragment, XmlTextPrelim};
+use yrs::{Transact, Xml, XmlElementPrelim, XmlFragment, XmlTextPrelim};
 
 const API_KEY: &str = "test-api-key";
 
@@ -428,4 +428,468 @@ async fn make_live_moves_blocks_into_a_file_the_host_creates() {
         (501, Some("LIVE_CREATE_UNSUPPORTED"))
     );
     assert!(server_json(&state).await.to_string().contains("Keep here"));
+}
+
+/// What y-prosemirror does in an editor whose schema lacks the node: delete it.
+fn remove_first(tag: &'static str) -> impl FnOnce(&yrs::Doc) {
+    move |d: &yrs::Doc| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let at = (0..c.len(&t))
+            .find(|i| matches!(c.get(&t, *i), Some(yrs::XmlOut::Element(e)) if e.tag().as_ref() == tag))
+            .unwrap();
+        c.remove_range(&mut t, at, 1);
+    }
+}
+
+fn add_live(file: &'static str) -> impl FnOnce(&yrs::Doc) {
+    move |d: &yrs::Doc| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let el = c.push_back(&mut t, XmlElementPrelim::empty("liveBlock"));
+        el.insert_attribute(&mut t, "blockId", "b_client");
+        el.insert_attribute(&mut t, "fileId", file);
+        el.insert_attribute(&mut t, "kind", "blocks");
+    }
+}
+
+fn with(role: Role, f: impl FnOnce(&mut Grant)) -> Grant {
+    let mut g = grant("u_1", role);
+    f(&mut g);
+    g
+}
+
+#[tokio::test]
+async fn a_0_2_editor_in_a_canvas_with_live_blocks_loses_nothing() {
+    let (addr, state, _host) = serve().await;
+    // A 0.2 editor keeps SDK blocks (`caps=ext`) but has no liveBlock in its schema.
+    let mut old = Peer::join(&state, with(Role::Edit, |g| g.ext_blocks = true)).await;
+    let mut new = Peer::join(
+        &state,
+        with(Role::Edit, |g| {
+            g.ext_blocks = true;
+            g.live.caps = true;
+            g.user.id = "u_new".into();
+        }),
+    )
+    .await;
+    old.settle().await;
+    new.settle().await;
+    embed(&addr, &["L1", "L2"]).await;
+    old.settle().await;
+    new.settle().await;
+    let before = server_json(&state).await;
+    assert_eq!(oc_model::live::references(&before).len(), 2);
+
+    old.edit(remove_first("liveBlock"));
+    old.settle().await;
+    assert_eq!(old.closed, Some(4426), "the 0.2 editor's session ends");
+    new.settle().await;
+    let after = server_json(&state).await;
+    assert_eq!(after["content"], before["content"], "the room lost nothing");
+    assert_eq!(oc_model::live::references(&json_of(&new.doc)).len(), 2);
+
+    // An editor that keeps live blocks may delete one (moving or deleting the reference
+    // needs edit on the canvas only; the live file stays).
+    new.edit(remove_first("liveBlock"));
+    new.settle().await;
+    assert_eq!(new.closed, None);
+    assert_eq!(
+        oc_model::live::references(&server_json(&state).await).len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn adding_a_live_block_needs_the_flag_and_perms_live() {
+    let (addr, state, _host) = serve().await;
+    let caps = |live: bool| {
+        with(Role::Edit, move |g| {
+            g.live.caps = true;
+            g.perms.live = live;
+        })
+    };
+    let mut no_perm = Peer::join(&state, caps(false)).await;
+    no_perm.settle().await;
+    no_perm.edit(add_live("L"));
+    no_perm.settle().await;
+    assert!(no_perm.denied > 0);
+    assert!(oc_model::live::references(&server_json(&state).await).is_empty());
+    let mut ok = Peer::join(&state, caps(true)).await;
+    ok.settle().await;
+    ok.edit(add_live("L"));
+    ok.settle().await;
+    assert_eq!(ok.denied, 0);
+    assert_eq!(
+        oc_model::live::references(&server_json(&state).await).len(),
+        1
+    );
+    let _ = addr;
+
+    // Flag off: neither a client nor the API may add one.
+    let (addr, state, _host) = serve_with(|h| h.api_key = Some(API_KEY.into())).await;
+    let mut p = Peer::join(&state, caps(true)).await;
+    p.settle().await;
+    p.edit(add_live("L"));
+    p.settle().await;
+    assert!(p.denied > 0);
+    let (s, out) = batch(
+        &addr,
+        FILE,
+        json!([{"op": "append", "blocks": [live_node("b1", "L")]}]),
+    )
+    .await;
+    assert_eq!(s, 400, "{out}");
+    assert!(out.to_string().contains("live_blocks"), "{out}");
+}
+
+#[tokio::test]
+async fn a_live_file_cannot_contain_live_blocks() {
+    let (addr, state, host) = serve().await;
+    // Make L a live file through "Make live".
+    let (s, _) = batch(&addr, FILE, json!([{"op": "append", "markdown": "Inside"}])).await;
+    assert_eq!(s, 200);
+    let doc = server_json(&state).await;
+    let id = doc["content"][0]["attrs"]["blockId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    let (s, out) = post(
+        &addr,
+        "/v1/live/make",
+        json!({"ticket": ticket, "blockIds": [id], "name": "L"}),
+    )
+    .await;
+    assert_eq!(s, 201, "{out}");
+    let live_file = out["liveFileId"].as_str().unwrap().to_string();
+    let _ = host;
+    // The API refuses a reference inside it.
+    let (s, out) = batch(
+        &addr,
+        &live_file,
+        json!([{"op": "append", "blocks": [live_node("b_in", "Other")]}]),
+    )
+    .await;
+    assert_eq!(s, 400, "{out}");
+    assert!(out.to_string().contains("live file"), "{out}");
+    // So does the room, for a client.
+    let mut g = with(Role::Edit, |g| {
+        g.live.caps = true;
+        g.perms.live = true;
+    });
+    g.room = room_id("sample", &live_file);
+    g.file.id = live_file.clone();
+    let mut p = Peer::join(&state, g).await;
+    p.settle().await;
+    p.edit(add_live("Other"));
+    p.settle().await;
+    assert!(p.denied > 0);
+}
+
+#[tokio::test]
+async fn at_most_fifty_references_per_canvas() {
+    let (addr, _state, _host) = serve().await;
+    let files: Vec<String> = (0..50).map(|i| format!("L{i}")).collect();
+    let refs: Vec<&str> = files.iter().map(String::as_str).collect();
+    embed(&addr, &refs).await;
+    let (s, out) = batch(
+        &addr,
+        FILE,
+        json!([{"op": "append", "blocks": [live_node("b_51", "L51")]}]),
+    )
+    .await;
+    assert_eq!(s, 400, "{out}");
+    assert!(out.to_string().contains("at most 50"), "{out}");
+}
+
+#[tokio::test]
+async fn snapshot_policy_title_keeps_no_content_in_the_canvas() {
+    let (addr, state, _host) = serve().await;
+    embed(&addr, &["L"]).await;
+    let mut p = Peer::join(
+        &state,
+        with(Role::Edit, |g| {
+            g.live.caps = true;
+            g.perms.live = true;
+        }),
+    )
+    .await;
+    p.settle().await;
+    // A client writes a content snapshot into the node: refused under "title".
+    p.edit(|d| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let Some(yrs::XmlOut::Element(el)) = c.get(&t, 0) else {
+            panic!("no node")
+        };
+        el.insert_attribute(&mut t, "snapshot", "SECRET-LIVE-CONTENT");
+    });
+    p.settle().await;
+    assert!(p.denied > 0);
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    let bytes = http()
+        .get(format!("http://{addr}/v1/export/ocanvas?ticket={ticket}"))
+        .send()
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    assert!(!bytes.is_empty());
+    // Byte search over every entry of the zip.
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
+    for i in 0..zip.len() {
+        let mut f = zip.by_index(i).unwrap();
+        let mut buf = Vec::new();
+        std::io::Read::read_to_end(&mut f, &mut buf).unwrap();
+        assert!(
+            !buf.windows(19).any(|w| w == b"SECRET-LIVE-CONTENT"),
+            "entry {i} leaks the snapshot",
+        );
+    }
+}
+
+async fn ws(addr: &str, room: &str, ticket: &str) -> Result<(), u16> {
+    let url = format!("ws://{addr}/v1/collab/{room}?ticket={ticket}&caps=ext,live");
+    match tokio_tungstenite::connect_async(url).await {
+        Ok((mut s, _)) => {
+            // Keep it open by leaking it into a task that reads until the test ends.
+            tokio::spawn(async move {
+                use futures::StreamExt;
+                while s.next().await.is_some() {}
+            });
+            Ok(())
+        }
+        Err(tokio_tungstenite::tungstenite::Error::Http(r)) => Err(r.status().as_u16()),
+        Err(e) => panic!("{e}"),
+    }
+}
+
+#[tokio::test]
+async fn live_block_rooms_per_session_are_capped() {
+    let (addr, _state, host) = serve_with(|h| {
+        live_on(h);
+        h.live.insert("max_open".into(), toml::Value::Integer(2));
+    })
+    .await;
+    embed(&addr, &["L1", "L2", "L3"]).await;
+    for f in ["L1", "L2", "L3"] {
+        grant_access(&host, f, "u_1", "edit");
+    }
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    let mut sessions = vec![];
+    for f in ["L1", "L2", "L3"] {
+        let (s, out) = live_session(&addr, &ticket, f).await;
+        assert_eq!(s, 201, "{out}");
+        assert_eq!(out["maxOpen"], 2);
+        sessions.push(out);
+    }
+    for s in &sessions[..2] {
+        ws(
+            &addr,
+            s["room"].as_str().unwrap(),
+            s["ticket"].as_str().unwrap(),
+        )
+        .await
+        .unwrap();
+    }
+    let third = &sessions[2];
+    assert_eq!(
+        ws(
+            &addr,
+            third["room"].as_str().unwrap(),
+            third["ticket"].as_str().unwrap()
+        )
+        .await,
+        Err(429)
+    );
+    // Another person's session has its own count.
+    grant_access(&host, "L1", "u_2", "edit");
+    let other = launch(&addr, "u_2", json!({})).await;
+    let (_, o) = live_session(&addr, &other, "L1").await;
+    ws(
+        &addr,
+        o["room"].as_str().unwrap(),
+        o["ticket"].as_str().unwrap(),
+    )
+    .await
+    .unwrap();
+}
+
+mod cluster {
+    //! LIVE-02 in a cluster (ADR-006): a live file's room is an ordinary room, so a derived
+    //! session minted on one node opens it through the remote room relay when another node
+    //! owns it, and the owner enforces the derived role.
+    use super::*;
+    use oc_server::cluster::bus::{Bus, FakeBus};
+    use oc_server::cluster::lease::{FakeLeases, key};
+    use oc_server::cluster::{Cluster, ClusterConfig};
+    use std::sync::Arc;
+
+    const CLUSTER_SECRET: &str = "test-cluster-secret-0123456789abcdef";
+
+    async fn node(
+        base: &str,
+        db: &std::path::Path,
+        fake: &Arc<FakeLeases>,
+        id: &str,
+        bus: Arc<dyn Bus>,
+    ) -> (oc_server::SharedState, String) {
+        let state = app_custom(base, room_cfg(), db, live_on).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let cfg = ClusterConfig::build(
+            Some("redis://unused".into()),
+            "mysql://unused",
+            Some(id.into()),
+            Some(format!("http://{addr}")),
+            Some(CLUSTER_SECRET.into()),
+            "unused",
+        )
+        .unwrap()
+        .unwrap();
+        state.join_cluster(Cluster::with_backends(cfg, fake.clone(), bus));
+        let app = oc_server::app(state.clone());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (state, addr.to_string())
+    }
+
+    fn para(text: &'static str) -> impl FnOnce(&yrs::Doc) {
+        move |d: &yrs::Doc| {
+            let c = d.get_or_insert_xml_fragment("content");
+            let mut t = d.transact_mut();
+            let p = c.push_back(&mut t, XmlElementPrelim::empty("paragraph"));
+            p.push_back(&mut t, XmlTextPrelim::new(text));
+        }
+    }
+
+    #[tokio::test]
+    async fn live_rooms_relay_across_nodes_and_the_owner_enforces_the_derived_role() {
+        let (base, host) = mock_host().await;
+        let db = temp_db();
+        let fake = Arc::new(FakeLeases::default());
+        let bus: Arc<dyn Bus> = Arc::new(FakeBus::default());
+        let (n1, a1) = node(&base, &db, &fake, "n1", bus.clone()).await;
+        let (n2, a2) = node(&base, &db, &fake, "n2", bus).await;
+        grant_access(&host, "L", "u_1", "edit");
+        grant_access(&host, "L", "u_2", "view");
+        // The canvas lives on n1; its live file L is opened first on n2.
+        embed(&a1, &["L"]).await;
+        let t1 = launch(&a1, "u_1", json!({})).await;
+        let t2 = launch(&a1, "u_2", json!({})).await;
+        // Sessions minted on either node are in the shared store.
+        let (s, s1) = live_session(&a2, &t1, "L").await;
+        assert_eq!(s, 201, "{s1}");
+        let (s, s2) = live_session(&a1, &t2, "L").await;
+        assert_eq!(s, 201, "{s2}");
+        let (g1, _) = stored_grant(&n2, s1["ticket"].as_str().unwrap()).await;
+        let (g2, _) = stored_grant(&n1, s2["ticket"].as_str().unwrap()).await;
+        let room = g1.room.clone();
+        let mut owner_side = Peer::join(&n2, g1).await;
+        assert!(fake.value(&key(&room)).unwrap().starts_with("n2@"));
+        let mut relayed = Peer::join(&n1, g2).await;
+        assert!(!n1.rooms.is_live(&room), "n1 relays, it does not open L");
+        owner_side.settle().await;
+        relayed.settle().await;
+        owner_side.edit(para("typed on n2"));
+        relayed.edit(para("viewer on n1"));
+        owner_side.settle().await;
+        relayed.settle().await;
+        assert!(json_of(&relayed.doc).to_string().contains("typed on n2"));
+        assert!(
+            relayed.denied > 0,
+            "the owner applies the derived view role"
+        );
+        assert!(
+            !json_of(&owner_side.doc)
+                .to_string()
+                .contains("viewer on n1")
+        );
+    }
+}
+
+// ---------- ADR-069: usage events and presence origin ----------
+
+#[tokio::test]
+async fn usage_events_report_each_insert_and_removal_once() {
+    let (addr, state, _host) = serve().await;
+    let room = room_id("sample", FILE);
+    let mut sub = state
+        .rooms
+        .ctx()
+        .events
+        .subscribe(&room, FILE, "sample", None)
+        .unwrap();
+    embed(&addr, &["L1"]).await;
+    // A client removes it (an editor that keeps live blocks).
+    let mut p = Peer::join(&state, with(Role::Edit, |g| g.live.caps = true)).await;
+    p.settle().await;
+    p.edit(remove_first("liveBlock"));
+    p.settle().await;
+    let mut seen = vec![];
+    while let Ok(Some(ev)) =
+        tokio::time::timeout(std::time::Duration::from_millis(300), sub.rx.recv()).await
+    {
+        if ev.kind.starts_with("live.") {
+            seen.push((ev.kind.clone(), ev.data.clone()));
+        }
+    }
+    assert_eq!(seen.len(), 2, "{seen:?}");
+    assert_eq!(seen[0].0, "live.embedded");
+    assert_eq!(seen[0].1["liveFileId"], "L1");
+    assert_eq!(seen[0].1["blockId"], "b_live0");
+    assert_eq!(seen[0].1["type"], "liveBlock");
+    assert_eq!(seen[1].0, "live.removed");
+    assert_eq!(seen[1].1["by"], "u_1");
+}
+
+#[tokio::test]
+async fn presence_says_where_a_person_is_only_to_people_from_the_same_canvas() {
+    let (addr, state, host) = serve().await;
+    embed(&addr, &["L"]).await;
+    grant_access(&host, "L", "u_1", "edit");
+    let t1 = launch(&addr, "u_1", json!({})).await;
+    let (_, s1) = live_session(&addr, &t1, "L").await;
+    let (from_a, _) = stored_grant(&state, s1["ticket"].as_str().unwrap()).await;
+    // A teammate from the same canvas, and someone who opened L on its own.
+    let mut same = from_a.clone();
+    same.user.id = "u_same".into();
+    let mut direct = from_a.clone();
+    direct.user.id = "u_direct".into();
+    direct.live = Default::default();
+    let mut a = Peer::join(&state, from_a).await;
+    let mut b = Peer::join(&state, same).await;
+    let mut c = Peer::join(&state, direct).await;
+    for p in [&mut a, &mut b, &mut c] {
+        p.settle().await;
+    }
+    // u_1 sends a state that claims another origin: the server writes its own.
+    let mut aw = yrs::sync::Awareness::new(yrs::Doc::new());
+    aw.set_local_state(json!({"cursor": 1, "from": {"fileId": "spoof", "title": "Spoof"}}))
+        .unwrap();
+    a.send(oc_server::room::protocol::awareness(aw.update().unwrap()));
+    for p in [&mut a, &mut b, &mut c] {
+        p.settle().await;
+    }
+    let states = |p: &Peer| -> Vec<Value> {
+        p.awareness
+            .iter()
+            .flat_map(|u| u.clients.values())
+            .filter_map(|e| serde_json::from_str::<Value>(&e.json).ok())
+            .filter(|v| v["cursor"] == 1)
+            .collect()
+    };
+    let seen_b = states(&b);
+    assert!(!seen_b.is_empty());
+    assert!(
+        seen_b
+            .iter()
+            .all(|v| v["from"] == json!({"fileId": FILE, "title": "Doc one"})),
+        "{seen_b:?}"
+    );
+    let seen_c = states(&c);
+    assert!(!seen_c.is_empty());
+    assert!(seen_c.iter().all(|v| v.get("from").is_none()), "{seen_c:?}");
+    assert!(!format!("{seen_b:?}{seen_c:?}").contains("Spoof"));
 }

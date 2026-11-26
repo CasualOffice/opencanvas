@@ -31,13 +31,53 @@ pub const MAX_PENDING_CLIENTS: usize = 1024;
 /// Returns the awareness state with `user` overwritten by the sender's grant (docs/06 §2).
 /// States that are not a JSON object (`null`: the client left) pass through unchanged.
 pub fn stamp(json: &str, user: &Value) -> Arc<str> {
+    stamp_from(json, user, None)
+}
+
+/// [`stamp`], and `from` (LIVE-02, ADR-069) set by the server: where a person in a live file's
+/// room is (`{fileId, title}` of the canvas that embeds it), or removed. A client never
+/// writes it.
+pub fn stamp_from(json: &str, user: &Value, from: Option<&Value>) -> Arc<str> {
     match serde_json::from_str::<Value>(json) {
         Ok(Value::Object(mut state)) => {
             state.insert("user".into(), user.clone());
+            state.remove("from");
+            if let Some(f) = from {
+                state.insert("from".into(), f.clone());
+            }
             Value::Object(state).to_string().into()
         }
         _ => Arc::from(json),
     }
+}
+
+/// The awareness entries as `viewer_parent` may see them (ADR-069): `from` names a canvas, so
+/// it is kept only for viewers in a session derived from that same canvas (who can read its
+/// title); everyone else gets the entry without it. `None` when nothing changes.
+pub fn without_foreign_from(
+    update: &yrs::sync::AwarenessUpdate,
+    viewer_parent: Option<&str>,
+) -> Option<yrs::sync::AwarenessUpdate> {
+    let mut changed = false;
+    let mut out = update.clone();
+    for entry in out.clients.values_mut() {
+        if !entry.json.contains("\"from\"") {
+            continue;
+        }
+        let Ok(Value::Object(mut state)) = serde_json::from_str::<Value>(&entry.json) else {
+            continue;
+        };
+        let same = state
+            .get("from")
+            .and_then(|f| f.get("fileId"))
+            .and_then(Value::as_str)
+            .is_some_and(|f| Some(f) == viewer_parent);
+        if !same && state.remove("from").is_some() {
+            entry.json = Value::Object(state).to_string().into();
+            changed = true;
+        }
+    }
+    changed.then_some(out)
 }
 
 /// Stamped awareness entries waiting to be applied and fanned out: the latest per client.

@@ -51,11 +51,14 @@ pub const MEMBER_LEFT: &str = "member.left";
 pub const SESSION_CLOSED: &str = "session.closed";
 pub const RESTORED: &str = "restored";
 pub const SAVED: &str = "saved";
+/// LIVE-07 (ADR-069): a `liveBlock` or `blockRef` was added to the canvas, or removed.
+pub const LIVE_EMBEDDED: &str = "live.embedded";
+pub const LIVE_REMOVED: &str = "live.removed";
 /// Stream only: the resume point is gone; re-read the canvas.
 pub const RESYNC: &str = "resync";
 
 /// Every event type a room publishes (what `[host.webhooks] events` may list).
-pub const TYPES: [&str; 8] = [
+pub const TYPES: [&str; 10] = [
     EDITED,
     COMMENTED,
     MENTIONED,
@@ -64,6 +67,8 @@ pub const TYPES: [&str; 8] = [
     SESSION_CLOSED,
     RESTORED,
     SAVED,
+    LIVE_EMBEDDED,
+    LIVE_REMOVED,
 ];
 
 /// One event. `host_id` and `room` route it; the public JSON is [`FileEvent::public`].

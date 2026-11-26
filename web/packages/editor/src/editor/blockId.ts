@@ -16,6 +16,7 @@ export const BLOCK_ID_TYPES = [
   "paragraph", "heading", "bulletList", "orderedList", "listItem", "taskList", "taskItem",
   "blockquote", "codeBlock", "horizontalRule", "image", "table", "callout", "toggle",
   "database", "board", "bookmark", "embed", "fileAttachment", "columns", "extBlock",
+  "liveBlock", "blockRef",
 ];
 
 const assignKey = new PluginKey("blockIdAssign");

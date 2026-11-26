@@ -85,30 +85,172 @@ pub fn touches_root(doc: &Doc, update: &[u8], root: &str) -> bool {
 
 /// `extBlock` elements in the content tree.
 fn ext_block_count<T: ReadTxn>(txn: &T) -> usize {
+    count_tags(txn, &[oc_model::ext::NODE])
+}
+
+/// Elements named one of `tags` in the content tree.
+fn count_tags<T: ReadTxn>(txn: &T, tags: &[&str]) -> usize {
     use yrs::XmlFragment;
     use yrs::types::xml::XmlOut;
     fn walk<T: ReadTxn>(
         txn: &T,
         children: yrs::types::xml::XmlNodes<'_, T>,
+        tags: &[&str],
         n: &mut usize,
         depth: usize,
     ) {
         for c in children {
             if let XmlOut::Element(el) = c {
-                if el.tag().as_ref() == oc_model::ext::NODE {
+                if tags.contains(&el.tag().as_ref()) {
                     *n += 1;
                 }
                 if depth < 64 {
-                    walk(txn, el.children(txn), n, depth + 1);
+                    walk(txn, el.children(txn), tags, n, depth + 1);
                 }
             }
         }
     }
     let mut n = 0;
     if let Some(f) = txn.get_xml_fragment(roots::CONTENT) {
-        walk(txn, f.children(txn), &mut n, 0);
+        walk(txn, f.children(txn), tags, &mut n, 0);
     }
     n
+}
+
+const LIVE_TAGS: [&str; 2] = [oc_model::live::LIVE_BLOCK, oc_model::live::BLOCK_REF];
+
+/// The live block references of the content tree as `(node, blockId, fileId)` (LIVE-07 usage
+/// events), or `None` when an update cannot change them: the document has none and `update`
+/// names none.
+pub fn live_refs_if_relevant(
+    doc: &Doc,
+    update: &[u8],
+) -> Option<HashSet<(String, String, String)>> {
+    let named = LIVE_TAGS
+        .iter()
+        .any(|t| update.windows(t.len()).any(|w| w == t.as_bytes()));
+    if !named && count_tags(&doc.transact(), &LIVE_TAGS) == 0 {
+        return None;
+    }
+    Some(live_refs(doc))
+}
+
+/// See [`live_refs_if_relevant`].
+pub fn live_refs(doc: &Doc) -> HashSet<(String, String, String)> {
+    use yrs::types::xml::XmlOut;
+    use yrs::{Xml, XmlFragment};
+    fn walk<T: ReadTxn>(
+        txn: &T,
+        children: yrs::types::xml::XmlNodes<'_, T>,
+        out: &mut HashSet<(String, String, String)>,
+        depth: usize,
+    ) {
+        for c in children {
+            if let XmlOut::Element(el) = c {
+                let tag = el.tag().to_string();
+                if LIVE_TAGS.contains(&tag.as_str()) {
+                    let a = |k: &str| {
+                        el.get_attribute(txn, k)
+                            .map(|v| v.to_string(txn))
+                            .unwrap_or_default()
+                    };
+                    out.insert((tag, a("blockId"), a("fileId")));
+                }
+                if depth < 64 {
+                    walk(txn, el.children(txn), out, depth + 1);
+                }
+            }
+        }
+    }
+    let txn = doc.transact();
+    let mut out = HashSet::new();
+    if let Some(f) = txn.get_xml_fragment(roots::CONTENT) {
+        walk(&txn, f.children(&txn), &mut out, 0);
+    }
+    out
+}
+
+/// Who is writing, for the live block rules (LIVE-02, docs/27 §2.2 and §2.5).
+#[derive(Debug, Clone, Copy)]
+pub struct LiveRules {
+    /// `[host.flags] live_blocks`: new references may be added.
+    pub on: bool,
+    /// `[host.live] snapshot`.
+    pub policy: oc_model::live::Snapshot,
+    /// May add references (`perms.live`; the server's own writes always).
+    pub may_embed: bool,
+    /// Keeps `liveBlock`/`blockRef` nodes (`caps=live`; the server always).
+    pub keeps_nodes: bool,
+}
+
+/// What [`live_check`] found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LiveVerdict {
+    Ok,
+    /// A client without `caps=live` removed a reference: an editor older than 0.3 (4426).
+    OutOfDate,
+    /// The update breaks a rule; the message says which.
+    Refused(String),
+}
+
+/// The live block rules for one update (LIVE-02): an editor without `caps=live` may not remove
+/// a `liveBlock` or `blockRef` (what y-prosemirror does to nodes its schema lacks); adding one
+/// needs the feature on and `perms.live`; and the document after the update may not break a
+/// rule it did not already break: the depth rule (`meta.kind = "live"` holds no references),
+/// at most 50 references, and the snapshot policy. Free when the document has no references
+/// and the update names none; otherwise one scratch copy, O(document).
+pub fn live_check(doc: &Doc, update: &[u8], rules: &LiveRules) -> LiveVerdict {
+    let has = |needle: &[u8]| update.windows(needle.len()).any(|w| w == needle);
+    let named = LIVE_TAGS.iter().any(|t| has(t.as_bytes()));
+    let before = count_tags(&doc.transact(), &LIVE_TAGS);
+    if before == 0 && !named {
+        return LiveVerdict::Ok;
+    }
+    let touches_attrs = has(b"snapshot") || has(b"title") || has(b"kind");
+    if !named && rules.keeps_nodes && !touches_attrs {
+        return LiveVerdict::Ok;
+    }
+    let Ok(decoded) = Update::decode_v1(update) else {
+        return LiveVerdict::Refused("malformed update".into());
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return LiveVerdict::Ok;
+    }
+    {
+        let mut txn = scratch.transact_mut();
+        if txn.apply_update(decoded).is_err() {
+            return LiveVerdict::Refused("update could not be applied".into());
+        }
+    }
+    let after = count_tags(&scratch.transact(), &LIVE_TAGS);
+    if after < before && !rules.keeps_nodes {
+        return LiveVerdict::OutOfDate;
+    }
+    if after > before {
+        if !rules.on {
+            return LiveVerdict::Refused(
+                "live blocks are off for this host ([host.flags] live_blocks)".into(),
+            );
+        }
+        if !rules.may_embed {
+            return LiveVerdict::Refused("adding live blocks needs perms.live".into());
+        }
+    }
+    let had: HashSet<String> =
+        oc_model::live::rule_errors(&oc_model::doc_to_json(doc), rules.policy)
+            .into_iter()
+            .collect();
+    match oc_model::live::rule_errors(&oc_model::doc_to_json(&scratch), rules.policy)
+        .into_iter()
+        .find(|e| !had.contains(e))
+    {
+        Some(e) => LiveVerdict::Refused(e),
+        None => LiveVerdict::Ok,
+    }
 }
 
 /// True when `update` removes an `extBlock` from the document (BSDK-02): what an editor older

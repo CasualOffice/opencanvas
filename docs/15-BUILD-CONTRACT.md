@@ -86,7 +86,7 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
 
 ## 3. Collaboration WebSocket
 
-`GET /v1/collab/<room>?ticket=<ticket>[&caps=ext]`, upgraded to a WebSocket. This is compatible
+`GET /v1/collab/<room>?ticket=<ticket>[&caps=ext,live]`, upgraded to a WebSocket. This is compatible
 with the stock `y-websocket` `WebsocketProvider(wsUrl, room, doc, { params: { ticket } })`.
 
 *(BSDK-02)* `caps` lists client capabilities, comma-separated. `ext`: the client keeps `extBlock`
@@ -97,6 +97,18 @@ is refused (auth frame `this editor is out of date; reopen the canvas`) and the 
 with **4426** `"editor out of date: reopen the canvas"` (0.1.x clients treat 4400-4499 as final
 and show their ended screen; reopening loads the current editor). Nothing else changes for such
 connections. Headless CRDT clients that delete SDK blocks must send `caps=ext`.
+
+*(LIVE-02, ADR-071)* `live`: the client keeps `liveBlock` and `blockRef` nodes (§4.4); editors from
+0.3 send `caps=ext,live`. The same rule: an update from a connection without `caps=live` that
+lowers the number of those nodes is refused and closed with **4426**, so a 0.2 editor sharing the
+room loses nothing. Every update is also held to the live block rules: adding a reference needs
+`[host.flags] live_blocks` and the grant's `perms.live`; the document may not newly break the depth
+rule, the 50-reference limit or `[host.live] snapshot` (auth frame naming the rule). A live block
+room's ticket comes from `POST /v1/live/session` (§6); at most `[host.live] max_open` (≤ 8) of them
+are connected per parent session, the next upgrade answers `429 LIVE_LIMIT`. In a live room the
+server stamps each awareness state of a derived session with `from: {fileId, title}` (the embedding
+canvas; a client's own `from` is dropped) and sends it only to viewers whose session comes from that
+same canvas; everyone else gets the state without `from`.
 
 Binary frames, y-protocols encoding (lib0 varuint message type first):
 
@@ -444,6 +456,23 @@ and shown as its fallback under "Updated by a newer version".
 `fallback` may also keep `title` (the package title, for readers without the package, ≤ 80
 characters) and `height` (the last drawn height in px, 0-8000, for the loading skeleton). A
 `comments` thread may carry `block: <blockId>`: a comment on a whole SDK block (decision 5).
+
+### 4.4 Live blocks (LIVE-02, docs/27 §2.3, ADR-039, ADR-071)
+
+Two atom nodes in the `block` group reference content in another host file; nothing of it is
+copied into this document's CRDT:
+
+```
+liveBlock {blockId, fileId, hostId?, kind: "blocks" | "database" | "board", title, snapshot?, snapshotAt?}
+blockRef  {blockId, fileId, refBlockId, title, snapshot?, snapshotAt?}
+```
+
+`snapshot` is `{"markdown": "…"}` (≤ 64 KB) and exists only under `[host.live] snapshot =
+"content"`; under `"none"` `title` is empty. A live file has `meta.kind = "live"` and may contain
+neither node (the depth rule, a MOD-01 error); a canvas holds at most 50. The editor schema has both
+nodes (`web/packages/editor/src/live/node.ts`, no node view until LIVE-03), so y-prosemirror keeps
+them. Exports with nothing resolved show "Live block: <title>" (or the snapshot); the server
+resolves them per person (LIVE-05).
 
 ### 4.3 The block sandbox and bridge (BSDK-03; docs/27 §3.4)
 
