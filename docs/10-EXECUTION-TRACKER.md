@@ -251,11 +251,11 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 | BENCH-03 | Browser benchmarks: first screen, heap per fixture (baseline now), initial JS, long frames | Done | `e2e/perf/first-screen.bench.ts` (`-c perf/bench.config.ts`): release server + mock host serving the fixtures, Chromium 4× CPU, 40 Mbit/s, 40 ms RTT; baseline `bench/results/2026-11-26-browser-local.json`; heap and first-screen budgets in `bench/budgets.toml`, checked by `scripts/bench/check-browser.mjs` |
 | BENCH-04 | Regression gates: PR budgets (`bench/budgets.toml`, `--forbid`), nightly comparison, issue on failure (ADR-079) | In progress | `bench/budgets.toml`; `scripts/bench/check-fast.sh` in prepush and CI (initial JS + `--forbid`); nightly job `.github/workflows/bench-nightly.yml` (quick X10K/R1K/STORM on SQLite, MySQL, MariaDB; browser S/M vs budgets). Left: median-of-7 comparison, issue on failure |
 | BENCH-05 | Benchmarks page on the site from `bench/results/` with hardware and mix; docs/22 summary | Todo | M; Benchmark |
-| PERF-11 | Connection and room footprint, idle-viewer path, reconnect storm control, fd limits (X10K, STORM) | In progress: X10K profiled (in-actor save is the spike, docs/36 §4.1); `OC_MAX_PEERS` (≤ 1,000) | M; Performance |
-| PERF-12 | Presence throttling and per-tick merged awareness (ADR-077) | Todo | M; Performance |
+| PERF-11 | Connection and room footprint, idle-viewer path, reconnect storm control, fd limits (X10K, STORM) | In progress: saves off the actor, grouped dumps, upgrade admission, full-jitter reconnect, `OC_MAX_PEERS`; X10K short passes (p99 ≤ 64 ms); footprint and fd limits open | M; Performance |
+| PERF-12 | Presence throttling and per-tick merged awareness (ADR-077) | Done: 100 ms client presence throttle; merged awareness per tick was already in; in-view reduction above 200 peers open | M; Performance |
 | PERF-13 | Encode once and fan-out shards across cores; relayed peers once per node (ADR-077) | Todo | L; Performance |
 | PERF-14 | Full X10K and STORM runs passing, published | Todo | M; Performance |
-| PERF-15 | Full R1K run passing, published | Todo | M; Performance |
+| PERF-15 | Full R1K run passing, published | In progress: short run at cap 1,000 passes latency (p99 ≤ 81 ms), fails RSS drift (one step) | M; Performance |
 | PERF-16 | Cap raise to 1,000 (`MAX_PEERS`, docs/22 §4, docs/13) after the gates | Todo | S; Performance |
 | MEM-02 | Browser heap reductions to −40% on L | Todo | L; Performance |
 | LAZY-01 | Advanced modules behind `import()`, initial JS 300 → 220 KB | Todo | M; Performance |
@@ -361,6 +361,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-26 | X10K short and R1K short (`OC_MAX_PEERS=1000`) after PERF-11/12 (601d2a7), quiet Mac | X10K PASS: p99 50–64 ms per bucket (baseline 11,329 ms), back in 37 s, RSS peak 3.2 GB. R1K: 1,000 joined, p99 53–81 ms, RSS drift FAIL (+62%: one step at the last sample; reruns −25%, +27%). Fan-out sharding not needed for latency |
 | 2026-11-26 | PERF-11 alloc_release regression after 641d74f | RSS after eviction 82–86 MB (limit 75) → 63–70 MB: snapshot groups capped at 1 MB, blocking-thread cache flushed after a save build; alloc_release, rooms, durability, partial_sync, cluster green |
 | 2026-11-26 | PERF-11 X10K profile (short, local, loaded Mac) and `OC_MAX_PEERS` | Baseline re-run worst p99 20,044 ms; autosave out of window 1,747 ms; sample: ~50% of actor CPU in inline `prepare_save`. Cap configurable to 1,000 (default 550); config unit test seen failing first |
 | 2026-11-21 | Blocks UX audit (database + board) in a two-doc harness, Playwright 1440/390 px, light/dark | vitest database 156, board 56; typecheck green; harness removed |
