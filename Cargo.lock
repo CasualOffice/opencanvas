@@ -1781,6 +1781,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "jsonwebtoken",
+ "libc",
  "libmimalloc-sys",
  "mimalloc",
  "oc-model",

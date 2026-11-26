@@ -36,6 +36,18 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::try_new(&level).unwrap_or_else(|_| EnvFilter::new("info")))
         .json()
         .init();
+    // One fd per WebSocket (PERF-11): use the hard limit, not a 256/1,024 soft default.
+    match oc_server::fdlimit::raise_nofile() {
+        Some((before, after)) if after < 16_384 => {
+            tracing::warn!(
+                before,
+                after,
+                "open-file limit is low; raise the hard limit (nofile) above the connection count"
+            )
+        }
+        Some((before, after)) => tracing::info!(before, after, "open-file limit"),
+        None => {}
+    }
 
     let cfg = Config::from_env()?;
     // REDIS_URL → cluster mode; refused on SQLite before anything else starts (ADR-004/006).
