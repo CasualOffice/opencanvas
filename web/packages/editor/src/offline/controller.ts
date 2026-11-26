@@ -466,6 +466,14 @@ export class Controller {
       return;
     }
     const f = fresh as { ticket: string; session: Session };
+    if (offlineView.get().locked) {
+      // 5c: a copy opened after its grant expired was never read into the document, so the
+      // replay would have sent nothing and then confirmed (dropped) the unsent changes
+      // (OFF-08). Read it now, before anything is sent or held.
+      await this.copy.loadInto(this.doc);
+      const left = this.pending.entries.map((e) => e.update);
+      if (left.length) Y.applyUpdate(this.doc, Y.mergeUpdates(left), FROM_DEVICE);
+    }
     Object.assign(this.s, { offline: f.session.offline, perms: f.session.perms, exp: f.session.exp });
     if (f.session.role === "view" && count > 0) {
       // 5a: never sent as suggestions; held for download or discard.
@@ -488,7 +496,7 @@ export class Controller {
   /** Sends the unsent changes (4a), then looks for what needs attention (4b-4d). */
   private async replay(ticket: string, count: number, since: number) {
     const before = Y.encodeStateAsUpdate(this.doc);
-    const touched = this.touched ?? { blocks: new Set<string>(), cells: new Map() };
+    const touched = this.touched ?? { blocks: new Set<string>(), els: new Set<string>(), cells: new Map() };
     const checkpoint = needsCheckpoint(this.pending.entries) ? { changes: count, since } : null;
     patchView({ net: count ? "sending" : "reconnecting", sending: { sent: 0, total: 1 } });
     const res = await this.ctx.collab.resume(ticket, {

@@ -1244,7 +1244,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         ) : null}
       </div>,
     );
-  if (effectiveRole === "view" && !roleChanged && !conflict && !closed && access !== "expired")
+  // Locked, paused or revoked offline copies say why in their own banner (5b-5d).
+  if (effectiveRole === "view" && !roleChanged && !conflict && !closed && access !== "expired" && !ov.locked && !ov.paused && !ov.revoked)
     banners.push(
       <div key="view" className="banner info">
         <Ic name="eye" />
@@ -1381,7 +1382,10 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                       <LockedCanvas title={ov.revoked ? "" : meta.title || session.file.name} />
                     </Suspense>
                   ) : null}
-                  <div hidden={ov.locked || !!ov.revoked}>
+                  {/* 5c/5b: the title only. The editor is not rendered at all, so nothing of the
+                      canvas stays in the page (OFF-08). */}
+                  {ov.locked || ov.revoked ? null : (
+                  <div>
                   <DocHeader
                     doc={doc}
                     meta={meta}
@@ -1405,6 +1409,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     emptyState={emptyActions}
                   />
                   </div>
+                  )}
                 </div>
               </div>
               {dbMenu ? (

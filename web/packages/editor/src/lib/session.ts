@@ -11,7 +11,7 @@ import type { Role } from "@opencanvas/ui";
 import { setInstalledBlocks, type BlockPackage } from "../ext/model";
 import { setEditorProfile, setInsertScope, type EditorProfile } from "../editor/profile";
 import { setLiveCfg, type LiveCfg } from "../live/state";
-import { chunks, FROM_DEVICE, MAX_CHUNK, PendingLog, REPLAY_PER_SEC, type PendingEntry } from "../offline/pending";
+import { FROM_DEVICE, PendingLog, REPLAY_PER_SEC, replayFrames, type PendingEntry } from "../offline/pending";
 
 /** The session answer's `offline` member (OFF-01, docs/15 §6). */
 export interface OfflineInfo {
@@ -367,10 +367,9 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
         checkpoint = c?.version ?? null;
       }
       const diff = Y.encodeStateAsUpdate(doc, sv);
-      const frames = diff.length <= MAX_CHUNK ? [[diff]] : chunks(entries.map((e) => e.update));
+      const frames = replayFrames(diff, entries);
       for (let i = 0; i < frames.length; i++) {
-        const f = frames[i];
-        sendUpdate(f.length === 1 ? f[0] : Y.mergeUpdates(f));
+        sendUpdate(frames[i]);
         r.opts.onProgress?.(i + 1, frames.length);
         if (i + 1 < frames.length) await sleep(1000 / REPLAY_PER_SEC);
       }

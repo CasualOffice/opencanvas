@@ -4,7 +4,10 @@
 // What needs a look after an offline merge (OFF-04, ADR-064, frames 4c/4d/8b). Yjs merges
 // everything; only two cases are worth interrupting for:
 //  1. text edited offline inside a block someone else deleted: Yjs drops it with the block, so
-//     we offer it back as a new block where the old one was;
+//     we offer it back as a new block where the old one was. A block someone moved counts too:
+//     a move (y-prosemirror) deletes the block and inserts a copy, and the copy doesn't have
+//     the offline edit. Blocks are compared by their Yjs item, not their `blockId`, which a
+//     moved copy keeps (OFF-08 fuzz);
 //  2. the same database cell changed on both sides: Y.Map keeps one value (by client id, not
 //     "last writer"), so we show both and let the person switch.
 // Concurrent text in the same paragraph, different cells and list order merge without a word.
@@ -13,6 +16,8 @@ import * as Y from "yjs";
 export interface Touched {
   /** Top-level blocks (their `blockId`) changed locally. */
   blocks: Set<string>;
+  /** The same blocks as Yjs items (`client:clock`): a moved copy keeps the `blockId`. */
+  els: Set<string>;
   /** Cells set locally: `db/row/field` → the value written. */
   cells: Map<string, { db: string; row: string; field: string; value: unknown }>;
 }
@@ -21,10 +26,11 @@ export interface Touched {
 type AnyType = Y.AbstractType<any>;
 const parentOf = (t: AnyType): AnyType | null => (t._item?.parent as AnyType | undefined) ?? null;
 const keyOf = (t: AnyType): string | null => t._item?.parentSub ?? null;
+const itemKey = (t: AnyType): string => (t._item ? `${t._item.id.client}:${t._item.id.clock}` : "");
 
 /** Records what local transactions touch, from now on. `isLocal` decides by origin. */
 export function track(doc: Y.Doc, isLocal: (origin: unknown) => boolean): Touched & { stop(): void } {
-  const t: Touched = { blocks: new Set(), cells: new Map() };
+  const t: Touched = { blocks: new Set(), cells: new Map(), els: new Set() };
   const content = doc.getXmlFragment("content");
   const dbs = doc.getMap("databases");
   const fn = (tr: Y.Transaction) => {
@@ -33,9 +39,13 @@ export function track(doc: Y.Doc, isLocal: (origin: unknown) => boolean): Touche
       // A block: walk up to the content fragment's child.
       let x: AnyType | null = type;
       while (x && parentOf(x) && parentOf(x) !== content) x = parentOf(x);
-      if (x && parentOf(x) === content && x instanceof Y.XmlElement) {
+      // Deleting (or moving) a block is not editing it: its children change as they go.
+      if (x && parentOf(x) === content && x instanceof Y.XmlElement && !x._item?.deleted) {
         const id = x.getAttribute("blockId");
-        if (typeof id === "string") t.blocks.add(id);
+        if (typeof id === "string") {
+          t.blocks.add(id);
+          t.els.add(itemKey(x));
+        }
       }
       // A cell: databases/<db>/rows/<row> (a Y.Map) changed at `field`.
       const rows = parentOf(type);
@@ -52,7 +62,7 @@ export function track(doc: Y.Doc, isLocal: (origin: unknown) => boolean): Touche
 }
 
 export type MergeItem =
-  | { kind: "deleted"; blockId: string; title: string; text: string; index: number; prevId: string | null }
+  | { kind: "deleted"; blockId: string; title: string; text: string; index: number; prevId: string | null; moved: boolean }
   | { kind: "cell"; db: string; row: string; field: string; rowTitle: string; fieldName: string; mine: unknown; theirs: unknown; theirsBy: number | null };
 
 const textOf = (n: Y.XmlElement | Y.XmlText): string =>
@@ -95,11 +105,19 @@ export function analyze(before: Uint8Array, doc: Y.Doc, touched: Touched): Merge
   const pre = new Y.Doc();
   Y.applyUpdate(pre, before);
   const out: MergeItem[] = [];
-  const preBlocks = blocks(pre);
   const order = pre.getXmlFragment("content").toArray();
-  for (const id of touched.blocks) {
-    const b = preBlocks.get(id);
-    if (!b || anywhere(doc, id)) continue;
+  const live = new Set(
+    doc
+      .getXmlFragment("content")
+      .toArray()
+      .map((n) => itemKey(n as AnyType)),
+  );
+  for (let index = 0; index < order.length; index++) {
+    const el = order[index];
+    if (!(el instanceof Y.XmlElement) || !touched.els.has(itemKey(el)) || live.has(itemKey(el))) continue;
+    const id = el.getAttribute("blockId");
+    if (typeof id !== "string") continue;
+    const b = { el, index };
     const prev = b.index > 0 ? order[b.index - 1] : null;
     const text = textOf(b.el).trim();
     if (!text) continue;
@@ -109,7 +127,7 @@ export function analyze(before: Uint8Array, doc: Y.Doc, touched: Touched): Merge
       const n = order[i];
       if (n instanceof Y.XmlElement && n.nodeName === "heading") title = textOf(n).trim();
     }
-    out.push({ kind: "deleted", blockId: id, title: title || text.slice(0, 40), text, index: b.index, prevId: prev instanceof Y.XmlElement ? ((prev.getAttribute("blockId") as string) ?? null) : null });
+    out.push({ kind: "deleted", blockId: id, title: title || text.slice(0, 40), text, index: b.index, prevId: prev instanceof Y.XmlElement ? ((prev.getAttribute("blockId") as string) ?? null) : null, moved: anywhere(doc, id) });
   }
   const dbs = doc.getMap("databases");
   for (const c of touched.cells.values()) {
@@ -141,8 +159,8 @@ export function analyze(before: Uint8Array, doc: Y.Doc, touched: Touched): Merge
 export function restoreBlock(before: Uint8Array, doc: Y.Doc, item: Extract<MergeItem, { kind: "deleted" }>, newId: string, restoredBy: string): string | null {
   const pre = new Y.Doc();
   Y.applyUpdate(pre, before);
-  const src = blocks(pre).get(item.blockId)?.el;
-  if (!src) return null;
+  const src = pre.getXmlFragment("content").get(item.index);
+  if (!(src instanceof Y.XmlElement) || src.getAttribute("blockId") !== item.blockId) return null;
   const copy = src.clone();
   copy.setAttribute("blockId", newId);
   copy.setAttribute("restoredBy", restoredBy);

@@ -16,6 +16,8 @@ export const getAssetTicket = () => ticket;
 /** OFF-05: images added offline (`oc-pending:<id>`): this device shows its own copy; everyone
  *  else a placeholder until the device uploads it. */
 export const pendingPreviews = new Map<string, string>();
+/** Their sizes (bytes), for the "Waiting to upload" caption. */
+export const pendingSizes = new Map<string, number>();
 const PENDING_SVG = `${import.meta.env.BASE_URL}pending.svg`;
 
 export function resolveAsset(src: string): string;

@@ -6,6 +6,7 @@
 // in memory (this tab); an offline copy also writes it to IndexedDB (offline/copy.ts). On a
 // reconnect it is replayed in frames of at most `MAX_CHUNK` bytes (`chunks`), within the rate
 // limit, each checked by the server like typing.
+import * as Y from "yjs";
 import { createStore } from "../lib/store";
 
 /** Largest replay frame: under the server's 1 MB `OC_MAX_FRAME_KB`, with room for framing. */
@@ -46,6 +47,17 @@ export function chunks(updates: Uint8Array[], max = MAX_CHUNK): Uint8Array[][] {
   }
   if (cur.length) out.push(cur);
   return out;
+}
+
+/** The frames a replay sends (lib/session.ts): `diff` (what the server lacks, from its state
+ *  vector) in one frame when it fits, else the unsent updates in frames of at most `max`. Each
+ *  frame is one update (several are merged). */
+export function replayFrames(diff: Uint8Array, entries: { update: Uint8Array }[], max = MAX_CHUNK): Uint8Array[] {
+  if (diff.length <= max) return [diff];
+  return chunks(
+    entries.map((e) => e.update),
+    max,
+  ).map((f) => (f.length === 1 ? f[0] : Y.mergeUpdates(f)));
 }
 
 /** Whether a merge of these entries needs a checkpoint version first. */
