@@ -111,6 +111,7 @@ fn wal(seqs: impl IntoIterator<Item = i64>) -> Vec<WalRow> {
             data: vec![seq as u8],
             origin: "u_a".into(),
             at: 1_000 + seq,
+            ..Default::default()
         })
         .collect()
 }
@@ -420,6 +421,68 @@ async fn snapshot_replaces_the_covered_wal_and_never_goes_back() {
         );
         s.purge_room(&room).await.unwrap();
         assert!(s.load_wal(&room).await.unwrap().is_empty(), "{b}");
+    }
+}
+
+/// PSYNC-02 (ADR-076): the WAL per document id. The main document's load and compaction never
+/// see or drop a part's rows; a part has its own snapshot, header and rows.
+#[tokio::test]
+async fn the_wal_keeps_parts_apart_from_the_main_document() {
+    for (b, s) in backends().await {
+        if !s.supports_parts() {
+            continue;
+        }
+        let room = uid("r");
+        let e = s.claim_epoch(&room, 1_000).await.unwrap();
+        let mut rows = wal(1..=6);
+        for r in rows.iter_mut().filter(|r| r.seq % 2 == 0) {
+            r.doc = "databases/d1".into();
+        }
+        s.append_updates(&room, e, rows).await.unwrap();
+        let main = s.load_wal(&room).await.unwrap();
+        assert_eq!(
+            main.updates.iter().map(|u| u.0).collect::<Vec<_>>(),
+            vec![1, 3, 5],
+            "{b}"
+        );
+        // Compacting the main document keeps the part's rows.
+        s.compact(&room, e, 5, b"main-5", 2_000).await.unwrap();
+        let part = s.load_part(&room, "databases/d1").await.unwrap();
+        assert_eq!(
+            part.updates.iter().map(|u| u.0).collect::<Vec<_>>(),
+            vec![2, 4, 6],
+            "{b}"
+        );
+        let header = serde_json::json!({"kind": "database", "name": "Tasks", "count": 3});
+        s.compact_part(&room, e, "databases/d1", 4, b"d1-4", &header, 2_000)
+            .await
+            .unwrap();
+        let part = s.load_part(&room, "databases/d1").await.unwrap();
+        assert_eq!(part.snapshot, Some((4, b"d1-4".to_vec())), "{b}");
+        assert_eq!(
+            part.updates.iter().map(|u| u.0).collect::<Vec<_>>(),
+            vec![6],
+            "{b}"
+        );
+        assert_eq!(
+            s.part_keys(&room).await.unwrap(),
+            vec![("databases/d1".to_string(), header.clone())],
+            "{b}"
+        );
+        // A stale epoch writes no part snapshot.
+        let e2 = s.claim_epoch(&room, 3_000).await.unwrap();
+        assert!(is_fenced(
+            &s.compact_part(&room, e, "databases/d1", 6, b"x", &header, 3_000)
+                .await
+                .unwrap_err()
+        ));
+        s.drop_parts(&room, e2).await.unwrap();
+        assert!(s.part_keys(&room).await.unwrap().is_empty(), "{b}");
+        assert_eq!(
+            s.load_wal(&room).await.unwrap().snapshot,
+            Some((5, b"main-5".to_vec()))
+        );
+        s.purge_room(&room).await.unwrap();
     }
 }
 
