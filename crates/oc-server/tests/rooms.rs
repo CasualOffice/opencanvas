@@ -199,10 +199,24 @@ async fn queued_awareness_is_encoded_once_per_batch() {
         p.settle().await;
         peers.push(p);
     }
-    let before = state
-        .metrics
-        .awareness_broadcasts_total
-        .load(Ordering::Relaxed);
+    // Wait until the joins' own presence broadcasts have all gone out: under load one can
+    // still be queued after a 150 ms quiet window and would count as the burst's (it flaked).
+    let before = loop {
+        let a = state
+            .metrics
+            .awareness_broadcasts_total
+            .load(Ordering::Relaxed);
+        for p in &mut peers {
+            p.settle().await;
+        }
+        let b = state
+            .metrics
+            .awareness_broadcasts_total
+            .load(Ordering::Relaxed);
+        if a == b {
+            break b;
+        }
+    };
     // Every peer sends three cursor moves before the room gets to run.
     for clock in 1..=3 {
         for (i, p) in peers.iter().enumerate() {

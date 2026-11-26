@@ -956,3 +956,6 @@ a.claim-mark--tested:hover span { text-decoration: underline; }
 .hero-note { margin-top: 1rem; font-size: 0.875rem; color: var(--os-muted); max-width: 38rem; }
 .facts.vfy-what { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 40em) { .facts.vfy-what { grid-template-columns: minmax(0, 1fr); } }
+
+/* Long test names in the integration log must wrap at phone width (check-site-pages, 390 px). */
+.changelog { overflow-wrap: anywhere; }
