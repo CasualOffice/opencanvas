@@ -92,6 +92,141 @@ copy and leaves the live file untouched; `live.embedded` and `live.removed` arri
 insert or removal across a two-node cluster; presence `from` is absent for a viewer without
 access to the other canvas.
 
+### 2.4 SDK blocks in live blocks (ADR-075, Proposed; rows PSDK-01..08)
+
+Design asked for by the owner on 2026-11-26; nothing is built before approval.
+
+**Problem.** "Make live" refuses any selection holding an `extBlock` ("SDK blocks can't be made
+live yet": `live/make.tsx` `canMakeLive`, server `live::picked_blocks`, ADR-070's last clause). An
+SDK block is two things: the node (`{blockId, type, v, attrs, dataId, fallback}`) in the content
+tree, and its collaborative data in the canvas's `ext` root at `ext[dataId]` (one Y.Map key per
+field, ADR-059). Moving only the node would leave the data behind; a live file would then show an
+empty block, and the canvas would keep orphaned data. Unlink, references, exports and the
+package and version rules (ADR-060) have the same gap.
+
+**Rule in one line.** The data follows the node: wherever an `extBlock` lives, its `ext[dataId]`
+lives in the same document, and nowhere else.
+
+**Make live (server, `POST /v1/live/make`, API `makeLive`, MCP).**
+
+1. Precheck drops the `extBlock` refusal. Every `extBlock` in the picked blocks, nested ones
+   included, is collected with its `dataId`. A block whose `dataId` is missing from `ext` moves
+   as a node only (as today, it shows its fallback). Blocks of every ADR-060 state move
+   (current, older, newer, not installed): the move copies the stored JSON verbatim, runs no
+   migration and no schema check, and so is not a "write" to newer data in ADR-060's sense.
+   Older data migrates on its next real write, in the live file, as anywhere else.
+2. The live file's first document (`live_document`) gains `ext = {dataId: data}` for the
+   collected blocks, keeping each `dataId` (the live file is new, so no key collides). The live
+   file's size limits apply to the whole result; over them, 413 `LIVE_TOO_LARGE` before the host
+   is asked to create anything.
+3. The canvas edit is still one server edit (one Y transaction, origin "Make live"): the picked
+   blocks become one `liveBlock`, and each moved `ext[dataId]` is deleted, unless another
+   `extBlock` left in the canvas names the same `dataId` (a duplicate from an old paste): then it
+   is kept.
+4. Catch-up: an edit to a moving block's data that lands between the read and the canvas edit is
+   not lost. Inside the same room turn as step 3 the server compares each deleted
+   `ext[dataId]` with what it copied and writes the changed fields into the live file through its
+   room (the same per-field last-writer-wins). The canvas room serialises this, so no lock and no
+   refused frames.
+5. Undo (the toast, 1c) puts back the blocks and their `ext[dataId]` entries in one
+   transaction; the editor keeps both from before the request. The live file stays, as today
+   (the host owns it).
+6. API and MCP callers get the same answer `{liveFileId, blockId}`; the canvas's
+   `requires.blocks` no longer lists types that left with the blocks.
+
+**Unlink (convert to a copy, ADR-073).** The editor copies the content the person can read now
+and, for each `extBlock` in it, `ext[dataId]` from the same source: the connected live room, else
+the projection. Every copied `extBlock` gets a fresh `dataId` (and `blockId`), because the same
+live block can be unlinked twice into one canvas, or embedded twice and unlinked once each.
+Content and data are inserted in one transaction with the undo origin: one undo step. The live
+file is untouched. With "keep last copy" from a snapshot (no room, no projection), SDK blocks
+become their fallback Markdown, as the snapshot already is.
+
+**References (`blockRef`) and projections.** `GET /v1/live/projection` with `blockId` carries
+`ext` limited to the `dataId`s inside that block (the whole-file projection already copies the
+root). A referenced SDK block renders read-only: in the sandbox with a bridge that refuses every
+write when the viewer has the package, else its fallback. A reference never writes data.
+
+**Permissions.** The live file's ACL governs its SDK data: the role from the host's `/access`
+answer for the live file decides read or write (view role = the bridge is read-only), exactly as
+for any other content there. A block's sandbox permissions are the manifest's, narrowed by
+`[host.blocks.permissions."<type>"]` of the host that serves the canvas session and of the host
+that owns the live file's room (today derived sessions never leave the host, so both are the
+same table; the rule is written as an intersection so a future cross-host embed can only narrow).
+`members: "read"` answers the live file's members through the derived session's callback token,
+never the canvas's. A derived session never gains a permission its parent lacks (ADR-070).
+
+**Packages and versions (per viewer, ADR-060).** Each viewer's editor uses the package list of
+its own session; inside a live block the type must be enabled in both hosts above. Then:
+
+| Stored data vs the viewer's package | In the live block | Server writes |
+|---|---|---|
+| Current | normal, editable with the edit role on the live file | allowed |
+| Older (declarative migration) | shown migrated; written back migrated on the next edit | allowed, migrated |
+| Older (script migration) | migrated in the sandbox on the next edit | allowed after the sandbox migrates |
+| Newer | read-only, fallback, "Updated by a newer version" | refused (ADR-060) |
+| Not enabled or not installed | read-only, fallback, data kept | refused for that block |
+
+Data migrates only on a write, never on open, projection or export, so opening a canvas never
+upgrades data others share. Two viewers of one live block may see different states when their
+sessions come from different hosts or a host changes `enabled` while both are open; each sees
+its own row of the table, and the data stays intact for both.
+
+**Exports and snapshots (ADR-072).** Rendered exports (Markdown, HTML, DOCX, PDF, `render`)
+resolve the live content for the exporting person and draw each SDK block from the live file's
+`ext` with the template, else the sanitised fallback, else the placeholder (ADR-059). Under
+`[host.live] snapshot = "content"` the stored snapshot contains that same rendered Markdown, so
+a person without access sees text only, never block data. `.ocanvas` and JSON exports of the
+canvas keep the reference and carry no data from the live file; the live file's own `.ocanvas`
+carries its `ext` and its `requires.blocks`. `search.json` of the live file includes its SDK
+blocks' fallback text; the canvas's lists the live block by id and title only (§2.1 item 8).
+
+**API and MCP.** `makeLive` accepts SDK blocks. Data writes to an SDK block (API and MCP block
+data tools) address the file that holds it now: a write to a canvas for a `dataId` that moved
+answers 404 `BLOCK_MOVED {liveFileId}` so agents can follow it; the write then needs the edit
+role on the live file. Tools never write into a live block from the embedding canvas (as §2.1
+item 9 for rules).
+
+**Mixed versions (the 4426 equivalents).**
+
+1. A 0.3.0 editor's nested live editor is not guaranteed to keep `extBlock` nodes, yet it
+   declares `caps=ext`. A new capability `caps=liveext` is declared only by editors that keep
+   SDK blocks inside live rooms. In a live file's room, an update from a connection without it
+   that lowers the number of `extBlock` nodes is refused and the connection closed with 4426
+   (the ADR-059/071 pattern).
+2. A 0.3.0 editor that unlinks would copy `extBlock` nodes without their data and keep the
+   `dataId`. In any room, an update from a connection without `liveext` that adds an `extBlock`
+   whose `dataId` has no `ext` entry is refused with 4426.
+3. The editor offers Make live on SDK blocks only when the session answer says
+   `live.sdk = true` (a 0.3.0 server omits it, and its refusal stays). A 0.3.0 editor keeps its
+   own client-side refusal, so it never sends SDK blocks, and its Undo never has to restore data.
+4. A 0.3.0 editor reading a newer projection shows SDK blocks as their fallback; nothing is lost.
+
+**UI.** No new surface. Make live, Undo, unlink and the reference card are in the approved
+`live-blocks.html`; the fallback, read-only and "Updated by a newer version" states are the
+approved SDK block chrome (V2UI-01). Changes are copy only: the "SDK blocks can't be made live
+yet" message goes, and `LIVE_TOO_LARGE` gets the existing error toast. The owner may still ask
+for a frame showing an SDK block inside the live header.
+
+**Tests and acceptance (PSDK-A1..A8, docs/23 when built).** Each written first and seen to fail.
+
+1. Make live with a nested SDK block: the live file has `ext[dataId]`, the canvas does not; one
+   Undo restores blocks and data; the live file is unchanged by the Undo.
+2. Catch-up: a field edited during Make live arrives in the live file (forced interleaving).
+3. A duplicated `dataId` left in the canvas keeps its data.
+4. Unlink twice into one canvas: two copies, distinct `dataId`s, independent edits; one undo
+   step each; the live file is untouched.
+5. Reference render: read-only, bridge writes refused; projection `ext` holds only that block's
+   data.
+6. Package matrix: current, older (declarative and script), newer, not enabled on one host; per
+   viewer state as the table; no write on open; `[host.blocks.permissions]` narrowed on either
+   side reaches the sandbox.
+7. 4426: a connection with `caps=ext,live` only, removing an SDK block in a live room, and
+   adding a data-less `extBlock` in a canvas, is closed and nothing is lost (Rust and
+   Playwright, two-node cluster).
+8. Exports: rendered exports draw the template from the live file's data; snapshot `content`
+   carries text only; `BLOCK_MOVED` from API and MCP with a parity test.
+
 ---
 
 ## 3. Offline-first editing
@@ -578,6 +713,9 @@ section chips, labelled real-size frames with notes, owner decisions at the top)
   operator allow-list; per-rule, per-canvas and chain limits; auto-pause.
 - **ADR-069** Live blocks in v0.3: deltas to ADR-039 (header, host picker, unlink, usage events,
   presence `from`).
+- **ADR-075** SDK blocks in live blocks (§2.4): the data follows the node on Make live and
+  unlink; the live file's ACL governs; permissions narrowed by both hosts; ADR-060 per viewer;
+  `caps=liveext` with the 4426 rules. Proposed 2026-11-26.
 
 ## 8. Delivery
 

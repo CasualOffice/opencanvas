@@ -211,6 +211,25 @@ Proposed 2026-11-26. Owner asked to start v0.3 on 2026-11-26. Every `*` UI row w
 | ACC-V3 | docs/23 acceptance rows LIVE-A*, OFF-A*, SRCH-A*, AUTO-A* (docs/34 §2.3, §3.7, §4.5, §5.10) | Done | docs/23 §v0.3 written and run 2026-11-26 (cargo 740/0, pnpm all, Playwright full suite) |
 | REL-05 | v0.3.0 scope lock, security audit, release notes | Done | Released 2026-11-26: docs/35, version 0.3.0, tag v0.3.0 |
 
+## P3 — Platform: v0.3.x portable SDK blocks ([docs/34 §2.4](34-ROADMAP-v0.3.md))
+
+Design asked for by the owner 2026-11-26; ADR-075 Proposed. Nothing is built before the owner
+approves it. Target v0.3.1 (else v0.4). No new UI surface (docs/34 §2.4 "UI"); the approved
+live-blocks and SDK block prototypes cover it. Two tracks at most: PSDK-01→02→04, PSDK-03→05.
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| PSDK-01 | Model: collect `extBlock`s and their `dataId`s in a subtree, `ext` subset by `dataId`, fresh `dataId` on copy, block projection carries its `ext` | Todo | S; ADR-075; `oc_model::ext`, `oc_model::live::block_document` |
+| PSDK-02 | Server Make live moves `ext`: drop the refusal, live document `ext`, canvas delete in the same edit (duplicate kept), catch-up copy, `LIVE_TOO_LARGE`, `requires.blocks`, session `live.sdk` | Todo | M; after PSDK-01 |
+| PSDK-03 | `caps=liveext` and the two 4426 rules (live room removal, data-less `extBlock` insert) | Todo | S; ADR-059/071 pattern; Rust and Playwright |
+| PSDK-04 | References and exports: read-only SDK blocks in `blockRef`, rendered exports and `content` snapshots from the live file's `ext` | Todo | M; after PSDK-01; ADR-072 |
+| PSDK-05 | Editor: Make live allows SDK blocks (when `live.sdk`), Undo restores data, unlink copies data with fresh `dataId`s, nested live editor keeps `extBlock` and runs the bridge on the derived session (permissions narrowed by both hosts, live file members, read-only on view role), declares `liveext` | Todo | M; after PSDK-02, PSDK-03; copy changes only |
+| PSDK-06 | API and MCP: `makeLive` with SDK blocks, `BLOCK_MOVED {liveFileId}`, parity test, OpenAPI and clients | Todo | S; after PSDK-02 |
+| PSDK-07 | Package and version matrix (current, older declarative/script, newer, not enabled per host), no write on open, two-node cluster | Todo | M; after PSDK-05 |
+| PSDK-08 | docs/23 rows PSDK-A1..A8; docs/15 §4.2/§4.4, docs/33 "In live blocks", CHANGELOG | Todo | S; with PSDK-07 |
+
+Rough total: 4 M + 4 S ≈ 5–6 engineer-weeks.
+
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
 Owner approved Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) on 2026-11-24, with seven review
