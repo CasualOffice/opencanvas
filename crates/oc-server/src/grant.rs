@@ -77,6 +77,18 @@ pub struct Perms {
     /// `blockRef`). Default false: a host turns it on per person.
     #[serde(default)]
     pub live: bool,
+    /// OFF-01 (ADR-063, docs/34 §3.4): may keep this canvas on the device for offline use,
+    /// when the host enables `[host.offline]`. Default false; WOPI launches never set it.
+    #[serde(default)]
+    pub offline: bool,
+    /// The launch token's top-level `offlineReason` (for example `"shared-device"`), shown
+    /// when "Available offline" is unavailable. At most 200 characters.
+    #[serde(
+        default,
+        rename = "offlineReason",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub offline_reason: Option<String>,
 }
 
 /// A launch token's `live: [{fileId, role}]` entry (LIVE-01): a live file this person may

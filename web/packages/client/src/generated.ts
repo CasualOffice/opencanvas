@@ -658,6 +658,19 @@ export interface Operations {
     body: never;
     response: SearchResults;
   };
+  /** POST /api/v1/offline/revoke: Revoke every offline copy of a person */
+  offlineRevoke: {
+    path: {};
+    query: {};
+    body: {
+      userId: string;
+      [key: string]: unknown;
+    };
+    response: {
+      gen: number;
+      [key: string]: unknown;
+    };
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -711,6 +724,7 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   convert: {"method": "POST", "path": "/api/v1/convert", "scope": "canvas:read", "pathParams": [], "query": ["from", "to"], "body": "binary", "response": "binary", "paged": null, "idempotent": false},
   extract: {"method": "POST", "path": "/api/v1/extract", "scope": "canvas:read", "pathParams": [], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
   search: {"method": "GET", "path": "/api/v1/search", "scope": "canvas:read", "pathParams": [], "query": ["q", "scope", "cursor", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
+  offlineRevoke: {"method": "POST", "path": "/api/v1/offline/revoke", "scope": "canvas:admin", "pathParams": [], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": false},
 };
 
 /** The arguments of an operation: its path parameters, plus `query` and `body` when it has them. */
@@ -882,5 +896,10 @@ export abstract class GeneratedApi {
   /** Search across canvases (`GET /api/v1/search`, canvas:read). */
   async search(params: Params<"search">, options?: CallOptions): Promise<Operations["search"]["response"]> {
     return (await this.call("search", params, options)).data;
+  }
+
+  /** Revoke every offline copy of a person (`POST /api/v1/offline/revoke`, canvas:admin). */
+  async offlineRevoke(params: Params<"offlineRevoke">, options?: CallOptions): Promise<Operations["offlineRevoke"]["response"]> {
+    return (await this.call("offlineRevoke", params, options)).data;
   }
 }

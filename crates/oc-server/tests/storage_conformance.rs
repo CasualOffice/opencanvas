@@ -652,3 +652,35 @@ async fn idempotency_keys_claim_once_replay_and_expire() {
         }
     }
 }
+
+/// OFF-01 (ADR-063): `offline_generation` on every backend (migration 0011; Redis
+/// `oc:offgen:<host>:<user>`): 0 until the first revoke, then +1 per revoke, per host and user.
+#[tokio::test]
+async fn offline_generation_contract() {
+    for (b, store) in backends().await {
+        let user = uid("u");
+        assert_eq!(store.offline_gen("sample", &user).await.unwrap(), 0, "{b}");
+        assert_eq!(
+            store.offline_revoke("sample", &user).await.unwrap(),
+            1,
+            "{b}"
+        );
+        assert_eq!(
+            store.offline_revoke("sample", &user).await.unwrap(),
+            2,
+            "{b}"
+        );
+        assert_eq!(store.offline_gen("sample", &user).await.unwrap(), 2, "{b}");
+        assert_eq!(
+            store.offline_gen("other", &user).await.unwrap(),
+            0,
+            "{b}: per host"
+        );
+        let long = format!("{user}{}", "u".repeat(200));
+        assert_eq!(
+            store.offline_revoke("sample", &long).await.unwrap(),
+            1,
+            "{b}: long ids"
+        );
+    }
+}

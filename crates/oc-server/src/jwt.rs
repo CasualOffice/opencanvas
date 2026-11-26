@@ -90,6 +90,10 @@ pub struct LaunchClaims {
     /// no `/access` callback. Read leniently: bad entries are dropped, at most 50 kept.
     #[serde(default)]
     live: Option<Value>,
+    /// OFF-01: why offline copies are unavailable for this launch (shown to the person).
+    /// Read leniently: a non-string is ignored.
+    #[serde(default)]
+    offline_reason: Option<Value>,
 }
 
 impl LaunchClaims {
@@ -113,10 +117,18 @@ impl LaunchClaims {
             comment: true,
             print: true,
             live: false,
+            offline: false,
+            offline_reason: None,
         });
         if self.role == Role::View {
             perms.comment = false;
         }
+        perms.offline_reason = self
+            .offline_reason
+            .as_ref()
+            .and_then(Value::as_str)
+            .map(|r| r.trim().chars().take(200).collect::<String>())
+            .filter(|r| !r.is_empty());
         // The same rules as every other user object (docs/21): trimmed, http(s) avatars only.
         let me = crate::people::user_from_json(&serde_json::json!({
             "id": self.user.id, "name": self.user.name, "detail": self.user.detail,

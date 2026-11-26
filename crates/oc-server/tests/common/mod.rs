@@ -529,6 +529,7 @@ pub fn host_config(base: &str) -> HostConfig {
         live: Default::default(),
         search: Default::default(),
         automation: Default::default(),
+        offline: Default::default(),
     }
 }
 
@@ -655,6 +656,8 @@ pub fn grant(user: &str, role: Role) -> Grant {
             comment: true,
             print: true,
             live: false,
+            offline: false,
+            offline_reason: None,
         },
         callback_token: format!("cb-{user}"),
         members: vec![],

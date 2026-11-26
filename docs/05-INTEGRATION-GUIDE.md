@@ -232,6 +232,46 @@ read-only.
 `live_blocks = true` on a WOPI-only host, a temporary-canvas host or a host without
 `callback_base` refuse to start, naming the host.
 
+### 2d. Offline copies (OFF-01..08, docs/34 §3, ADR-063, ADR-064; `[host.offline]`)
+
+A person can keep a canvas **on their own device** and keep editing without a network; the edits
+merge when they are back. The copy lives only in that browser (IndexedDB, encrypted under a device
+key per host and person); **OpenCanvas stores no content for it** (ADR-001): the server keeps one
+number per host and person (the revocation generation). Off by default at both levels: you turn it
+on for the host, you allow it per launch, and the person turns it on per canvas.
+
+```toml
+[host.offline]
+enabled      = true       # default false; JWT hosts only in v0.3 (WOPI hosts refuse to start)
+auto_recent  = 0          # >0: also keep the last N opened canvases without asking (0-50)
+grant_days   = 7          # how long a copy opens without reconnecting, 1-30
+max_role     = "edit"     # edit | comment | view: the highest role a copy keeps
+max_canvases = 50         # per person per host per device (1-500)
+max_mb       = 200        # all copies of one person on one device (1-2000)
+uploads_mb   = 50         # queued uploads per canvas (and at most 20 files)
+unsent_mb    = 5          # unsent changes per canvas before editing pauses (1-50)
+```
+
+- **Per launch.** The token's `perms.offline` (default false) says whether this person may keep
+  this canvas offline now. Leave it out on shared devices, kiosks, guest and "don't keep me signed
+  in" sessions; the optional top-level `offlineReason` (for example `"shared-device"`, ≤ 200
+  characters) is shown where "Available offline" would be.
+- **The grant.** When both allow it, the session answer carries `offline.grant`: an ES256 JWS the
+  server signs (`host`, `sub`, `file`, `role` ≤ `max_role`, `exp` ≤ `grant_days`, `gen`). The
+  editor keeps it with the copy and uses it only on the device, to decide whether and in which
+  role the copy opens. It is never a credential: reconnecting is always a fresh launch through
+  you (`POST /tokens/refresh`, §5), and your current answer decides. The signing key comes from
+  `OC_OFFLINE_KEY` (base64 of 32 random bytes) or is derived from `OC_KEK`, so every node agrees.
+- **Revoking.** `POST /api/v1/offline/revoke {"userId"}` (host key or `canvas:admin`, §7b) raises
+  the person's generation: every device holding their copies for your host deletes them, with
+  their unsent changes, at the next session answer. A lower role on reconnect holds the changes
+  (download or discard); no access deletes that copy.
+- **Signing out.** Your sign-out page must clear the device, below (§4c).
+
+**Start-up checks.** An unknown `[host.offline]` key, a value out of range, a bad `max_role`,
+`auto_recent` above `max_canvases`, and `enabled = true` on a WOPI-only host refuse to start,
+naming the host.
+
 ## 3. JWT launch token
 
 Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
@@ -268,8 +308,10 @@ exchanged for a session ticket on open).
     "history": true,                // see version history (default: editors yes, others no; docs/30 §7)
     "restore": true,                // editors may restore a version (default true)
     "mention": true,
-    "live": true                    // may make live blocks and embed them (default false, §2c)
+    "live": true,                   // may make live blocks and embed them (default false, §2c)
+    "offline": true                 // may keep THIS canvas on the device (default false, §2d)
   },
+  "offlineReason": "shared-device", // optional (§2d): shown when perms.offline is false
   "live": [                         // optional (§2c): live files to show read-only when you
     { "fileId": "doc_9001", "role": "view" }   // have no POST /access; at most 50
   ],
@@ -359,6 +401,39 @@ next to `token`, or `?block=` on `/v1/launch`; anything but `[A-Za-z0-9_-]{1,64}
 the editor opens with `#t=…&block=<id>`, or send `Action_ScrollToBlock` once the frame has loaded.
 `examples/sample-host` does both: its file page reads `#block=` from its own URL into the launch
 form, and its Mentions list sends `Action_ScrollToBlock`.
+
+### 4c. Offline copies and signing out (OFF-03, OFF-07, ADR-064)
+
+With `[host.offline]` on (§2d), add the `offline` attribute to the web component so a kept canvas
+can open from the device when your page loads without a network (your page itself must load
+offline: an installed web app or a native shell):
+
+```html
+<open-canvas server="https://canvas.acme.example" token="{{ jwt }}" offline></open-canvas>
+```
+
+**Sign-out must clear the device.** The editor's storage is partitioned by your site, so the
+clearing must run under your site, in one of two ways:
+
+```js
+import { OpenCanvas } from "https://canvas.acme.example/sdk/embed.js";
+const r = await OpenCanvas.clearOffline({ userId: "u_123" }); // or clearOffline() for everyone
+// r = { removed: 4 } canvases removed from this browser
+await fetch("/logout", { method: "POST" });
+```
+
+```html
+<!-- without the SDK: a hidden iframe; it posts {"type":"OC_OfflineCleared", removed} when done -->
+<iframe hidden src="https://canvas.acme.example/v1/offline/clear?host=acme&user=u_123"></iframe>
+```
+
+Both delete the person's **device key first** (the copies are unreadable even if deleting the
+databases is interrupted), then the databases and queued uploads, for your host on this browser.
+Leave out `user` to clear every person of your host. `OpenCanvas.offlineFiles({ userId })` lists
+the canvases kept on this device (id, title, size, unsent changes, last sent) for your own offline
+page or a "3 changes haven't been sent" warning before signing out. The editor posts
+`UI_OfflineState { state, pending }` as the save pill changes (`saved`, `offline-device`,
+`offline-tab`, `reconnecting`, `sending`, `paused`, `locked`).
 
 ## 5. Callbacks you implement (JWT mode)
 
@@ -826,6 +901,7 @@ same tool layer as MCP, §7a):
 | Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
 | Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
+| Revoke offline copies | `POST /api/v1/offline/revoke {userId}` | host key or `canvas:admin`; raises the person's offline generation → `{gen}`; their devices delete every offline copy for your host at the next session answer (§2d) |
 | Events | `GET …/events` (SSE or WebSocket) | change events, below |
 | CRDT sync | `POST …/sync-token` | a room WebSocket ticket, below |
 

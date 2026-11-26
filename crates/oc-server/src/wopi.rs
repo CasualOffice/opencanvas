@@ -237,6 +237,8 @@ impl FileInfo {
             comment: self.role() != Role::View,
             print: !(self.disable_export || self.disable_print),
             live: false,
+            offline: false,
+            offline_reason: None,
         }
     }
 

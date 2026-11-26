@@ -15,7 +15,7 @@ use base64::engine::general_purpose::STANDARD;
 const PREFIX: &str = "enc:v1:";
 
 #[derive(Clone)]
-pub struct Kek(Aes256Gcm);
+pub struct Kek(Aes256Gcm, [u8; 32]);
 
 impl std::fmt::Debug for Kek {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,7 +34,18 @@ impl Kek {
         }
         Ok(Self(
             Aes256Gcm::new_from_slice(&bytes).map_err(|_| anyhow!("bad key length"))?,
+            <sha2::Sha256 as sha2::Digest>::digest(&bytes).into(),
         ))
+    }
+
+    /// A 32-byte secret for `label`, derived from the key (HMAC-SHA256 over a hash of it), so
+    /// every node with the same `OC_KEK` derives the same one (the offline grant key, ADR-063).
+    pub fn derive(&self, label: &str) -> [u8; 32] {
+        use hmac::Mac;
+        let mut m =
+            <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(&self.1).expect("any key length");
+        m.update(label.as_bytes());
+        m.finalize().into_bytes().into()
     }
 
     pub fn seal(&self, plaintext: &str, aad: &str) -> String {

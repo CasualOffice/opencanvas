@@ -871,6 +871,8 @@ mod tests {
                 restore: false,
                 commit_message: false,
                 live: true,
+                offline: false,
+                offline_reason: None,
             },
             callback_token: "cb".into(),
             members: vec![],

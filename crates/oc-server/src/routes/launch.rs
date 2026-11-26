@@ -414,7 +414,18 @@ pub async fn session_info(
         server_ai && host_ai.agent().is_some_and(|a| a.enabled),
         !state.cfg.import_off && !host.import_formats().is_empty(),
     );
+    // OFF-01 (ADR-063): the person's offline generation, and a grant when this launch may keep
+    // the canvas offline.
+    let offline = crate::offline::session_json(
+        &state,
+        &host,
+        &grant,
+        host.wopi_only() || grant.wopi_history.is_some(),
+    )
+    .await
+    .map_err(ApiError::internal)?;
     let mut body = json!({
+        "offline": offline,
         "ai": {"enabled": !modes.is_empty(), "modes": modes, "mcp": super::mcp::mcp_enabled(&state, &host)},
         // docs/23 FC-10: what the editor may offer to import (empty: hide the entry).
         "import": {"formats": import_formats},

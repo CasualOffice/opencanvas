@@ -6153,6 +6153,124 @@
           "HOST_ERROR"
         ]
       }
+    },
+    "/api/v1/offline/revoke": {
+      "post": {
+        "operationId": "offlineRevoke",
+        "summary": "Revoke every offline copy of a person",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:admin"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "gen": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "gen"
+                  ],
+                  "additionalProperties": true
+                },
+                "example": {
+                  "gen": 5
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:admin",
+        "description": "Raise the person's offline generation for this host (ADR-064, docs/34 §3.6). Every device holding their offline copies deletes them, and their unsent changes, at its next session answer, which carries the new number. The server stores only this number per host and user, never content (ADR-001). Offline copies need `[host.offline] enabled`.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "BAD_INPUT",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BODY_TOO_LARGE"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "userId"
+                ],
+                "additionalProperties": true
+              },
+              "example": {
+                "userId": "u_123"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

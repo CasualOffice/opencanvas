@@ -7,6 +7,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Added
+
+- Offline copies, server side (OFF-01, OFF-07, ADR-063/064): `[host.offline]` (off by default;
+  checked at start-up; JWT hosts only), the launch token's `perms.offline` and `offlineReason`,
+  an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on
+  the device, a revocation generation per host and person (migration 0011; Redis `oc:offgen:`)
+  raised by `POST /api/v1/offline/revoke`, and the `GET /v1/offline/clear` sign-out page. The server
+  stores one number per host and person, never content.
+
 ## [0.2.1] - 2026-11-26
 
 ### Added

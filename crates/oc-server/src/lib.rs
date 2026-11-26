@@ -22,6 +22,7 @@ pub mod jwt;
 pub mod live;
 pub mod metrics;
 pub mod notify;
+pub mod offline;
 pub mod pdf;
 pub mod people;
 pub mod proof;
@@ -84,6 +85,8 @@ pub struct AppState {
     pub blocks: Arc<blocks::Installed>,
     /// LIVE-02: connected live block rooms per parent session (at most `[host.live] max_open`).
     pub live_slots: Arc<live::OpenSlots>,
+    /// OFF-01 (ADR-063): the ES256 key that signs offline grants.
+    pub offline_key: offline::GrantKey,
 }
 
 #[derive(Clone, Copy)]
@@ -125,6 +128,10 @@ impl AppState {
             );
         }
         crate::metrics::mark_start();
+        let offline_key = offline::GrantKey::load(
+            std::env::var("OC_OFFLINE_KEY").ok().as_deref(),
+            cfg.kek.as_ref(),
+        )?;
         // BSDK-01: block packages, installed for validation, exports and writes (oc_model::ext).
         let mut installed =
             blocks::Installed::load(&cfg.blocks)?.with_editor_origin(cfg.public_url.as_deref());
@@ -225,6 +232,7 @@ impl AppState {
             search_probe: Default::default(),
             blocks,
             live_slots: Default::default(),
+            offline_key,
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
