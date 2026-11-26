@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.2.1, released 2026-11-26; last updated 2026-11-26.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-26.
 
 
 # Documentation
@@ -9,7 +9,7 @@ URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
-How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.2.1, released 2026-11-26. They describe what is built and say so where something is planned. The roadmap has the full picture.
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.3.0, released 2026-11-26. They describe what is built and say so where something is planned. The roadmap has the full picture.
 
 ## Start
 
@@ -79,8 +79,10 @@ The terms these pages use. Last changed 2026-11-26 .
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
-> **New in v0.2.1.** A simpler insert menu: Quick insert, Recent, goals and five categories, with
-> block variants in one place. **v0.2.0** brought the stable headless API (`/api/v1`, on by default) with TypeScript and Rust
+> **New in v0.3.0.** Live blocks shown and edited in several canvases, find and replace and search
+> across canvases, automation rules, and offline editing. All are off until the host turns them on;
+> read the [release and upgrade notes](docs/35-RELEASE-v0.3.0.md). **v0.2.1** brought a simpler insert
+> menu, and **v0.2.0** brought the stable headless API (`/api/v1`, on by default) with TypeScript and Rust
 > clients, signed webhooks, the [block SDK](docs/33-BLOCK-SDK.md) for your own blocks, and host
 > editor profiles (notebook, meeting, project, diagramming, document or the full workspace).
 > Read the [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) before upgrading.
@@ -297,7 +299,7 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 | [v0.1.2](docs/31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
 | v0.2.1 (released 2026-11-26) | The categorised insert menu (INS-01) and three fixes |
 | [v0.2.0](docs/32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
-| v0.3 | Portable live blocks, offline-first editing, search and automation |
+| [v0.3.0](docs/35-RELEASE-v0.3.0.md) (released 2026-11-26) | Portable live blocks, search (find and replace, search all canvases), automation and offline editing; all off until the host turns them on |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
 
@@ -309,6 +311,65 @@ ready and does not move the release commitments above.
 OpenCanvas integrates with any application through standardized APIs and SDKs and depends on no
 specific CasualOffice product. Priorities and detail: [docs/09](docs/09-ROADMAP.md) and the
 [roadmap page](https://canvas.casualoffice.org/roadmap.html).
+
+
+# Release notes 0.3.0
+
+URL: https://canvas.casualoffice.org/docs/release-030.html
+Source file: docs/35-RELEASE-v0.3.0.md
+
+**Status:** released 2026-11-26, tag `v0.3.0` (tracker REL-05).
+**Licence:** Apache-2.0 (ADR-037).
+**Plan:** [docs/34](34-ROADMAP-v0.3.md). **Acceptance:** [docs/23 §v0.3](23-ACCEPTANCE.md#v03-acceptance-acc-v3).
+**Approved prototypes:** [docs/prototypes/v03-approved/](prototypes/v03-approved/).
+
+OpenCanvas 0.3.0 adds portable live blocks, search, automation and offline editing. Every new
+feature is off until the host turns it on. The host still owns users, permissions and files;
+the server never stores documents (ADR-001). Support is best effort, with no SLA.
+
+## 1. What 0.3.0 contains
+
+| Area | What it does | Decisions |
+|---|---|---|
+| Live blocks (LIVE-01..11) | One block shown live in several canvases and edited in place; "Make live", the host's picker, references that refresh, convert to a copy, `<open-canvas view="block">`, the folder path in the header, the "/" menu inside a live block | ADR-039, ADR-069..073 |
+| Search (SRCH-01..06) | Find and replace in a canvas (also inside live blocks, with its own confirmation); search all canvases through the host's own search; `search.json` in every save, `POST /api/v1/extract`; Nextcloud unified search | ADR-065, ADR-066 |
+| Automation (AUTO-01..07) | Rules stored in the canvas: triggers (row added, field changed, checklist checked, comment, date, schedule), actions (set a field, move a row, checklist, comment, notify, call a URL), limits, auto-pause, run history, Undo | ADR-067, ADR-068 |
+| Offline (OFF-01..07) | A copy kept on the person's device, opted in by the host and then per canvas; editing without a network; reconnect and merge with a summary; revocation; sign-out clears the device | ADR-063, ADR-064, ADR-074 |
+
+Also: the categorised insert menu (0.2.1), the trademark notices (LEGAL-01), and the site's
+structured data and facts page (SITE-03).
+
+## 2. Upgrade notes (from 0.2.x)
+
+1. **Migrations.** `0010_automation` and `0011_offline_generation` run at start-up on SQLite and
+   MySQL/MariaDB. They hold metadata only (schedules, run log, a generation number per person).
+2. **New host sections, all off by default** (docs/05):
+   - `[host.flags] live_blocks` and `[host.live]` (§2c); live blocks need `/access`, `POST /files` and `perms.live`.
+   - `[host.search]` with the optional `GET /search` callback (§2).
+   - `[host.automation]` and `perms.automate` (§2e). Scheduled runs call the load, save and
+     `POST /mentions` callbacks with no bearer token; the v2 signature is the proof.
+   - `[host.offline]`, `perms.offline` and `offlineReason` (§2d); JWT hosts only. Reconnect asks
+     the host for a fresh token; a person who lost access is answered with `Action_RefreshToken { access: "none" }`.
+3. **Editors older than 0.3 on documents with live blocks** are closed with 4426, as 0.2 did for SDK blocks.
+4. **Every save now carries `search.json`** (plain text, capped at 2 MB, no comments by default).
+5. **Container:** `ghcr.io/casualoffice/opencanvas:0.3.0`. Helm chart `0.3.0`.
+
+## 3. Known limitations
+
+- Offline is tested in Chromium; the phone layout is built but has no WebKit/Firefox run, and
+  there is no end-to-end test for the expiry lock or queued uploads (OFF-08 deferred).
+- Automation with Redis-only storage is refused at start-up; a cluster with Redis as its shared store was not tested.
+- Nextcloud unified search is unit-tested; its Nextcloud glue is checked manually (no Nextcloud CI).
+- The live block "from which canvas" cursor label was dropped (owner decision, ADR-069 note).
+- SDK blocks cannot be made live yet.
+
+## 4. Release checklist
+
+1. Full local run on the release commit: `cargo test --workspace`, `pnpm -r test`, the full Playwright suite.
+2. CI green on `main`.
+3. Version 0.3.0 everywhere, CHANGELOG dated.
+4. `gh release create v0.3.0 --target <sha>` (the release must exist before `release.yml` publishes).
+5. Check the binaries and the container on the release.
 
 
 # Release notes 0.2.0
@@ -797,7 +858,7 @@ OpenCanvas is an open-source, real-time collaborative canvas that other applicat
 
 ## Can I use it in production today?
 
-OpenCanvas 0.2.1 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.2.1] - 2026-11-26” The limits are in the release notes and on the home page .
+OpenCanvas 0.3.0 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.3.0] - 2026-11-26” The limits are in the release notes and on the home page .
 
 ## Is OpenCanvas free?
 
@@ -874,7 +935,7 @@ OpenCanvas is an open-source, real-time collaborative canvas that other applicat
 
 ## At a glance
 
-Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.2.1, released 2026-11-26 Source: CHANGELOG.md, “## [0.2.1] - 2026-11-26” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
+Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.3.0, released 2026-11-26 Source: CHANGELOG.md, “## [0.3.0] - 2026-11-26” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
 
 ## Where to check
 
@@ -7494,7 +7555,7 @@ URL: https://canvas.casualoffice.org/api/changelog.html
 
 The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
 
-## Unreleased
+## 0.3.0 (2026-11-26)
 
 Added Automation, server side (AUTO-01..05, AUTO-07, ADR-067, ADR-068; off unless [host.automation] ): rules stored in the canvas ( automations root) run by the server as "Automation" on behalf of their owner, re-checked with the host's /access at every run. Triggers: row added, field changed, checklist item checked, comment or mention added, a date reached and schedules (every 15 minutes or more, in the canvas time zone, even with the canvas closed). Actions: set a field, move a row, check or add checklist items, comment, notify through the host's POST /mentions , and call a URL signed like webhooks on allowed origins only. Loop guard (never itself, 3 deep), limits, auto-pause after 10 failures, a metadata-only run log (30 days), automation.ran / automation.failed events, perms.automate , migration 0010, the API ( /api/v1/files/{id}/automations… ) and MCP tools. Added Offline copies, server side (OFF-01, OFF-07, ADR-063/064): [host.offline] (off by default; checked at start-up; JWT hosts only), the launch token's perms.offline and offlineReason , an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on the device, a revocation generation per host and person (migration 0011; Redis oc:offgen: ) raised by POST /api/v1/offline/revoke , and the GET /v1/offline/clear sign-out page. The server stores one number per host and person, never content. Added Offline-first editing in the editor (OFF-02..07, ADR-063/064/073, the approved prototype): a person keeps a canvas on their device ("Available offline on this device"), encrypted in IndexedDB under a per-person device key; it opens and edits without a network (a service worker caches the editor code, never content) and locks when its 7-day grant runs out. The save pill shows where changes are (on this device, or this tab only). Reconnecting is a fresh launch through the host; unsent changes go in frames under the frame and rate limits, long sessions get a "Before <name>'s offline changes" version first and collaborators a toast. A merge summary appears only for edits inside a deleted block (restore as a new block) and both-sides cell changes (use mine). View only on reconnect holds the changes (download or discard); no access deletes the copy. Images added offline wait as oc-pending: and upload first. Hosts clear the device at sign-out with OpenCanvas.clearOffline() or the /v1/offline/clear iframe and list copies with OpenCanvas.offlineFiles() .
 

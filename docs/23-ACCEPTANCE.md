@@ -244,3 +244,23 @@ is building them, so every row is **pending EDP-01**.
 - oc-model: `ext` 8, `file_history` 6, `restore` 2, `diff` 18.
 - opencanvas-client: 17.
 - Web: editor `src/ext` 9, client 36.
+
+## v0.3 acceptance (ACC-V3)
+
+Run on the release commit, 2026-11-26: `OC_DEV=1 cargo test --workspace` 740 passed, 0 failed;
+`pnpm -r test` all passed (editor 210, board 359, database 185, client 38, block-sdk 6); the full
+Playwright suite (release build). Each row names the tests that prove it.
+
+| ID | Requirement | Tests |
+|---|---|---|
+| V3-LIVE-A1 | Make live moves blocks into a file the host creates; derived sessions follow the host's `/access` answer and never exceed the parent's role | (S) `live_blocks.rs::make_live_moves_blocks_into_a_file_the_host_creates`, `derived_sessions_follow_the_hosts_access_answer`; (E) `ze-live-blocks.spec.ts` |
+| V3-LIVE-A2 | Two people in two canvases edit one live block; rooms relay across nodes | (S) `live_blocks.rs::live_rooms_relay_across_nodes_and_the_owner_enforces_the_derived_*`; (E) `ze-live-blocks.spec.ts` |
+| V3-LIVE-A3 | A pre-0.3 editor cannot delete a live block (4426) | (S) `live_blocks.rs`; (E) `zg-live-gaps.spec.ts` |
+| V3-LIVE-A4 | References refresh; compact embed; path in the header; "/" inside a live block | (E) `ze-live-ref.spec.ts`, `zf-live-embed.spec.ts`, `zg-live-gaps.spec.ts`; (U) `live/state.test.ts`, `live/compat.test.ts` |
+| V3-SRCH-A1 | Every save carries `search.json`; extract stores nothing; API search needs a user token and matches MCP | (S) `search.rs::every_save_carries_search_json_without_comments`, `extract_answers_search_json_and_stores_nothing`, `api_search_proxies_the_host_and_matches_mcp` |
+| V3-SRCH-A2 | Find and replace (one undo step; view-only finds only; inside live blocks with confirmation); search all canvases | (U) `find/engine.test.ts`; (E) `ze-find-search.spec.ts`, `ze-find-search.phone.spec.ts`, `zg-live-gaps.spec.ts` |
+| V3-AUTO-A1 | A status change moves the row and notifies once; a rule whose owner lost edit pauses; schedules run once across nodes | (S) `automation.rs::a_status_change_moves_the_row_and_notifies_once`, `a_rule_whose_owner_lost_edit_pauses_and_changes_nothing`, `cluster.rs`; `storage_conformance.rs::automation_schedule_and_runs` |
+| V3-AUTO-A2 | Rules panel, entry points, test run, history, Undo | (U) `automation/model.test.ts`; (E) `zf-automation.spec.ts`, `zf-automation.phone.spec.ts` |
+| V3-OFF-A1 | Offline grant, generation and revoke; the server stores no content; catch-up in frames | (S) `offline.rs`, `storage_conformance.rs::offline_generation_contract` |
+| V3-OFF-A2 | Edit offline, reload without a network, reconnect and merge; revoke deletes the copy; sign-out clears the device | (U) `offline/offline.test.ts`, `offline/fuzz.test.ts`; (E) `zf-offline.spec.ts` |
+| V3-OFF-A3 | Phone, WebKit and Firefox runs, expiry lock and queued uploads end to end | Deferred (OFF-08, owner scope cut 2026-11-26) |

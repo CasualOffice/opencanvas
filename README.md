@@ -24,8 +24,10 @@ office documents.
   <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
 </picture>
 
-> **New in v0.2.1.** A simpler insert menu: Quick insert, Recent, goals and five categories, with
-> block variants in one place. **v0.2.0** brought the stable headless API (`/api/v1`, on by default) with TypeScript and Rust
+> **New in v0.3.0.** Live blocks shown and edited in several canvases, find and replace and search
+> across canvases, automation rules, and offline editing. All are off until the host turns them on;
+> read the [release and upgrade notes](docs/35-RELEASE-v0.3.0.md). **v0.2.1** brought a simpler insert
+> menu, and **v0.2.0** brought the stable headless API (`/api/v1`, on by default) with TypeScript and Rust
 > clients, signed webhooks, the [block SDK](docs/33-BLOCK-SDK.md) for your own blocks, and host
 > editor profiles (notebook, meeting, project, diagramming, document or the full workspace).
 > Read the [release and upgrade notes](docs/32-RELEASE-v0.2.0.md) before upgrading.
@@ -251,7 +253,7 @@ scripts/e2e-db.sh mysql mysql://root:root@127.0.0.1:33062/opencanvas
 | [v0.1.2](docs/31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
 | v0.2.1 (released 2026-11-26) | The categorised insert menu (INS-01) and three fixes |
 | [v0.2.0](docs/32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
-| v0.3 | Portable live blocks, offline-first editing, search and automation |
+| [v0.3.0](docs/35-RELEASE-v0.3.0.md) (released 2026-11-26) | Portable live blocks, search (find and replace, search all canvases), automation and offline editing; all off until the host turns them on |
 | v0.4 | Advanced databases, partial synchronization and performance improvements |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
 

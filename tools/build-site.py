@@ -107,6 +107,7 @@ def screens(raw: pathlib.Path) -> None:
 # search engines show it whole (tools/check-site-seo.py).
 DOC_DESCRIPTIONS = {
     "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
+    "release-030": "OpenCanvas 0.3.0 release notes: live blocks, search, automation and offline editing, the upgrade notes and known limitations.",
     "release-020": "OpenCanvas 0.2.0 release notes: the headless API, webhooks, the block SDK and editor profiles, upgrade notes, known limitations and the checklist.",
     "release-012": "OpenCanvas 0.1.2 release and upgrade notes for host integrations, diagramming, version history, and the headless API.",
     "release": "OpenCanvas 0.1.0 release notes: what is included, changes since the alpha, upgrade notes (WOPI proof keys, MCP public URL) and known limitations.",
@@ -344,6 +345,8 @@ def changelog() -> str:
   <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.3.0</h2>
+<p>Released 2026-11-26. Live blocks shown and edited in several canvases, find and replace and search across canvases, automation rules and offline editing, all off until the host turns them on. See the <a href="docs/release-030.html">release and upgrade notes</a>.</p>
 <h2>Release 0.2.1</h2>
 <p>Released 2026-11-26. A new insert menu: Quick insert, Recent, goals like "track tasks", and five categories, with heading, list, callout, column, database-view and diagram-type variants in one place. Shortcuts like <code>/h2</code> still work. See <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Release 0.2.0</h2>
