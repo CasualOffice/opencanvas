@@ -9,6 +9,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Find and replace in a canvas (SRCH-01, ADR-066, [approved prototype](docs/prototypes/v03-approved/search.html)):
+  ⌘F opens a find bar over text, databases and boards; case, whole word and regular expressions
+  (50 ms budget); Replace all is one undo step; view-only people can find but not replace. Matches
+  inside live blocks are found and labelled; Replace all skips them and says so.
+- Search all canvases (SRCH-04): results from the host's own search (`GET /search` callback),
+  grouped by canvas, with deep links to the block; hidden when the host has no search callback.
 - Offline copies, server side (OFF-01, OFF-07, ADR-063/064): `[host.offline]` (off by default;
   checked at start-up; JWT hosts only), the launch token's `perms.offline` and `offlineReason`,
   an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on
@@ -29,12 +35,6 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   panels; its height follows the content (`UI_Resize`, `oc:resize`). The SDK gains
   `insertLiveBlock()`, `livePicker()`, `liveBlockUsage()` and the `oc:pick-live-block`,
   `oc:live-block-open` and `oc:live-block-usage` events.
-
-## [0.2.1] - 2026-11-26
-
-### Added
-
-- The categorised insert menu (INS-01, [approved prototype](docs/prototypes/insert-menu-approved/)):
 - Search across canvases, server side (SRCH-02/03/05, ADR-065): every saved `.ocanvas` carries
   `search.json`, a plain-text projection with block ids and heading trails for the host to index
   (comments only with `[host.search] comments = true`; never in-file history; at most 2 MB).
@@ -43,16 +43,6 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   `canvas_search` proxy it for user tokens only, 10 a minute per user, dropping files the host's
   `/access` refuses. OpenCanvas keeps no index and caches no result. The sample host indexes
   `search.json` and serves the callback and a search page.
-- The categorised insert menu (INS-01, v0.2.1, [approved prototype](docs/prototypes/insert-menu-approved/)):
-  "/" opens Quick insert, Recent, goal chips and five categories (Content, Data & planning,
-  Visual & diagrams, Layout, Extensions) with flyouts on desktop and drill-in on phones.
-  Heading, List, Callout and Columns pick their variant inline (Tab); Database and Diagram have
-  a second step with previews (Board, Calendar and Gallery views; Flowchart, UML, ERD, network,
-  mind map, org chart, wireframe). `/h2`, `/todo`, `/board`, `/kanban`, `/uml` and the old ids
-  land on the variant; intent search ("track tasks", "plan a sprint") shows why each result
-  fits; no results offers "Did you mean". Recent stays in the browser. The gallery takes the same
-  categories with variant chips. `[host.editor] intents` and `chips` turn off or replace the
-  goal chips (docs/05 §2b). Profiles with 8 or fewer blocks get a flat list.
 - Portable live blocks, server side (v0.3, behind `[host.flags] live_blocks`, off by default):
   the host contract (LIVE-01, docs/05 §2c, ADR-070): `[host.live]` checked at start-up, the
   `POST /files` callback, `/access` required (with optional `name` and `callbackToken`), the
@@ -68,6 +58,21 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   inline only what the exporting person can read, and API operations `makeLive`, `listReferences`
   and `renderFile` (`GET /api/v1/files/{id}/render`) in the OpenAPI document, both clients and the
   conformance suite.
+
+## [0.2.1] - 2026-11-26
+
+### Added
+
+- The categorised insert menu (INS-01, [approved prototype](docs/prototypes/insert-menu-approved/)):
+  "/" opens Quick insert, Recent, goal chips and five categories (Content, Data & planning,
+  Visual & diagrams, Layout, Extensions) with flyouts on desktop and drill-in on phones.
+  Heading, List, Callout and Columns pick their variant inline (Tab); Database and Diagram have
+  a second step with previews (Board, Calendar and Gallery views; Flowchart, UML, ERD, network,
+  mind map, org chart, wireframe). `/h2`, `/todo`, `/board`, `/kanban`, `/uml` and the old ids
+  land on the variant; intent search ("track tasks", "plan a sprint") shows why each result
+  fits; no results offers "Did you mean". Recent stays in the browser. The gallery takes the same
+  categories with variant chips. `[host.editor] intents` and `chips` turn off or replace the
+  goal chips (docs/05 §2b). Profiles with 8 or fewer blocks get a flat list.
 
 ### Fixed
 
