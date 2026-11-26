@@ -38,6 +38,7 @@ test("make live, insert from the host picker, edit together from two canvases", 
   await expectSaved(priya);
 
   // 1a-1c: the block menu's Make live…, the dialog, the block in place with a toast.
+  await editor(priya).getByText("Release notes drafted", { exact: true }).click();
   await priya.page.keyboard.press("ControlOrMeta+/");
   await priya.oc.getByRole("menuitem", { name: "Make live…" }).click();
   const dlg = priya.oc.getByRole("dialog", { name: "Make this a live block" });
@@ -106,6 +107,7 @@ test("a deleted source, remove without a 4426 close, and convert to a copy", asy
   await applyTemplate(priya, "Meeting notes");
   await newParagraph(priya, "Keep this line");
   await expectSaved(priya);
+  await editor(priya).getByText("Keep this line", { exact: true }).click();
   await priya.page.keyboard.press("ControlOrMeta+/");
   await priya.oc.getByRole("menuitem", { name: "Make live…" }).click();
   await priya.oc.getByRole("dialog", { name: "Make this a live block" }).getByLabel("Name").fill("Copy me");

@@ -330,6 +330,27 @@ claim (the picker shows). It changes nothing for a canvas that already has conte
 </script>
 ```
 
+**One live block, compact (LIVE-06, frames 4a-4b).** `view="block"` on a launch token for a live
+file renders just that block: its header (Live mark, title, people, options; no source path, your
+page shows its own context) over the content, no top bar or document header, and the element's
+height follows the content (`UI_Resize {height}`, at most once per animation frame; the element
+sets its own height and fires `oc:resize`). It is how a chat message or a ticket sidebar shows a
+live checklist people can tick in place. For pages that cannot run the component, `GET
+/api/v1/files/{id}/render?format=html` is the read-only HTML (§7b).
+
+```html
+<open-canvas server="https://canvas.example.com" token="{{ jwt for the live file }}" view="block"></open-canvas>
+<script>
+  const oc = document.querySelector('open-canvas');
+  oc.addEventListener('oc:pick-live-block', async () => {   // "Live block" in the insert menu
+    oc.livePicker('open');
+    const f = await myPicker();                             // your own list (1e)
+    f ? oc.insertLiveBlock(f.id, f.name) : oc.livePicker('cancel');
+  });
+  oc.addEventListener('oc:live-block-open', e => openFile(e.detail.fileId, e.detail.blockId));
+</script>
+```
+
 The SDK is served with CORS for the host's `allowed_origins` only, and the canvas sets
 `frame-ancestors` to the same list: register every origin your pages embed from.
 

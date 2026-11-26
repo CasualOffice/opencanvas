@@ -434,7 +434,7 @@ export function CanvasEditor(p: EditorProps) {
       <EditorContent editor={editor} />
       {make && make.editor === editor ? (
         <Suspense fallback={null}>
-          <MakeLive editor={editor} pos={make.pos} />
+          <MakeLive editor={editor} pos={make.pos} blockId={make.blockId} />
         </Suspense>
       ) : null}
       {editable && p.emptyState ? <EmptyState editor={editor} actions={p.emptyState} /> : null}
@@ -654,6 +654,15 @@ function PasteBlock({ editor, o }: { editor: Editor; o: PasteOffer }) {
 
 // ---------- block-level presence bars (docs/06 §3) ----------
 
+/** The editor's DOM, or null before the view is mounted (tiptap throws then). */
+function viewDom(editor: Editor): HTMLElement | null {
+  try {
+    return editor.view.dom as HTMLElement;
+  } catch {
+    return null;
+  }
+}
+
 function PeerBars({ editor, awareness }: { editor: Editor; awareness: Awareness }) {
   const [bars, setBars] = useState<{ key: string; top: number; height: number; color: string }[]>([]);
   useEffect(() => {
@@ -661,7 +670,8 @@ function PeerBars({ editor, awareness }: { editor: Editor; awareness: Awareness 
     const calc = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const dom = editor.view.dom as HTMLElement;
+        const dom = viewDom(editor);
+        if (!dom) return;
         const host = dom.offsetParent as HTMLElement | null;
         if (!host) return;
         const hr = host.getBoundingClientRect();
@@ -681,7 +691,14 @@ function PeerBars({ editor, awareness }: { editor: Editor; awareness: Awareness 
     awareness.on("change", calc);
     editor.on("transaction", calc);
     const ro = new ResizeObserver(calc);
-    ro.observe(editor.view.dom);
+    // The view mounts with EditorContent; a host that renders first waits a frame for it.
+    let tries = 0;
+    const watch = () => {
+      const dom = viewDom(editor);
+      if (dom) ro.observe(dom);
+      else if (tries++ < 60) raf = requestAnimationFrame(watch);
+    };
+    watch();
     calc();
     return () => {
       cancelAnimationFrame(raf);

@@ -53,6 +53,9 @@ const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 // VH-01d: the version history panel, preview and changes (its own chunk, with its CSS).
 const HistoryRoot = lazy(() => import("./history/root"));
+// LIVE-06: `<open-canvas view="block">`, the compact embed of one live file.
+const BlockEmbed = lazy(() => import("./live/embed"));
+const blockView = () => new URLSearchParams(window.location.hash.replace(/^#/, "")).get("view") === "block";
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
  *  Workspace shows the banner once (docs/23 PERM-03). Per room, in sessionStorage, so it
@@ -193,6 +196,12 @@ export default function App() {
           )}
         </div>
       </div>
+    );
+  if (blockView() && !boot.demo)
+    return (
+      <Suspense fallback={<Splash />}>
+        <BlockEmbed session={boot.session} collab={boot.collab} />
+      </Suspense>
     );
   return <Workspace key={gen} session={boot.session} collab={boot.collab} demo={boot.demo} onReboot={() => setGen((g) => g + 1)} />;
 }

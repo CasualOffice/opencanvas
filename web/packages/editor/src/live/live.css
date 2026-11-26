@@ -86,3 +86,8 @@
 .lb-err{color:var(--red-fg);font-size:.8125rem;margin:.75rem 0 0}
 /* compact embed (LIVE-06, 4a-4b) */
 .lb.embed{margin:0;border-radius:var(--r-l)}
+/* the compact embed's page: its height is the content's (UI_Resize) */
+:root.oc-block-view,:root.oc-block-view body,:root.oc-block-view #root{height:auto;min-height:0;overflow:visible;background:transparent}
+.oc-embed-root{padding:0}
+.lb.embed .lb-h h1{margin:0}
+.lb.embed .lb-b{padding:.25rem 1rem .75rem}

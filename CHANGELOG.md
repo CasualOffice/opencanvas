@@ -19,6 +19,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   References refresh on their own and flash once. "Convert to a copy" and "Who can see this"
   (`GET /v1/live/audience`). A host answers `/access` with 410 for a deleted live file. Phones get
   a compact header and an options sheet. The live block code loads only when a canvas shows one.
+- `<open-canvas view="block">` (LIVE-06): one live block with compact chrome for chats and side
+  panels; its height follows the content (`UI_Resize`, `oc:resize`). The SDK gains
+  `insertLiveBlock()`, `livePicker()`, `liveBlockUsage()` and the `oc:pick-live-block`,
+  `oc:live-block-open` and `oc:live-block-usage` events.
 
 ## [0.2.1] - 2026-11-26
 

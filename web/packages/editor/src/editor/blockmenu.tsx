@@ -233,7 +233,7 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
         Copy link to block
       </button>
       {canOfferMake(editor) && !["liveBlock", "blockRef", "extBlock"].includes(node.type.name) ? (
-        <button className="mi" onClick={() => run(() => makeStore.set({ editor, pos }))}>
+        <button className="mi" onClick={() => run(() => makeStore.set({ editor, pos, blockId: ensureBlockId(editor, pos, node) }))}>
           <Ic name="radio" />
           Make live…
         </button>

@@ -18,16 +18,23 @@ import "./live.css";
 
 Object.assign(ICONS, { folder: Folder, "list-checks": ListChecks, users: Users, radio: Radio, link: Link });
 
-/** The top-level blocks "Make live" moves: the selection's, or the one the menu is for. */
-export function pickedBlocks(editor: Editor, pos: number): { pos: number; node: PMNode }[] {
+/** The top-level blocks "Make live" moves: the one the menu is for (by its id, so a position
+ *  that moved since the menu opened cannot pick another block), widened to the other top-level
+ *  blocks of a text selection that spans it. */
+export function pickedBlocks(editor: Editor, pos: number, blockId?: string | null): { pos: number; node: PMNode }[] {
   const { doc, selection } = editor.state;
-  const out: { pos: number; node: PMNode }[] = [];
-  const one = doc.nodeAt(pos);
-  const inSel = !selection.empty && selection.from <= pos + 1 && selection.to >= pos;
+  let at = -1;
   doc.forEach((n, off) => {
-    if (inSel ? off + n.nodeSize > selection.from && off < selection.to : off === pos) out.push({ pos: off, node: n });
+    if (at < 0 && (blockId ? n.attrs.blockId === blockId : off <= pos && pos < off + n.nodeSize)) at = off;
   });
-  if (!out.length && one) out.push({ pos, node: one });
+  if (at < 0) return [];
+  const node = doc.child(doc.resolve(at).index(0));
+  const spans = !selection.empty && selection.$from.depth > 0 && selection.$to.depth > 0 && selection.from <= at + node.nodeSize && selection.to >= at;
+  if (!spans) return [{ pos: at, node }];
+  const out: { pos: number; node: PMNode }[] = [];
+  doc.forEach((n, off) => {
+    if (off + n.nodeSize > Math.min(selection.from, at) && off < Math.max(selection.to, at + 1)) out.push({ pos: off, node: n });
+  });
   return out;
 }
 
@@ -54,8 +61,8 @@ export function canMakeLive(nodes: PMNode[]): string | null {
   return bad;
 }
 
-export default function MakeLive({ editor, pos }: { editor: Editor; pos: number }) {
-  const blocks = useRef(pickedBlocks(editor, pos));
+export default function MakeLive({ editor, pos, blockId }: { editor: Editor; pos: number; blockId?: string | null }) {
+  const blocks = useRef(pickedBlocks(editor, pos, blockId));
   const [name, setName] = useState(() => nearestHeading(editor, blocks.current[0]?.pos ?? pos) || "Live block");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

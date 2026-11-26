@@ -209,6 +209,17 @@ max_open = 8                               # 1-8: live block rooms one editor se
   await oc.commit({ message: &#x27;Final&#x27; });
   oc.setReadOnly(true);
 &lt;/script&gt;</code></pre>
+<p><strong>One live block, compact (LIVE-06, frames 4a-4b).</strong> <code>view=&quot;block&quot;</code> on a launch token for a live file renders just that block: its header (Live mark, title, people, options; no source path, your page shows its own context) over the content, no top bar or document header, and the element's height follows the content (<code>UI_Resize {height}</code>, at most once per animation frame; the element sets its own height and fires <code>oc:resize</code>). It is how a chat message or a ticket sidebar shows a live checklist people can tick in place. For pages that cannot run the component, <code>GET /api/v1/files/{id}/render?format=html</code> is the read-only HTML (§7b).</p>
+<pre><code class="language-html">&lt;open-canvas server=&quot;https://canvas.example.com&quot; token=&quot;{{ jwt for the live file }}&quot; view=&quot;block&quot;&gt;&lt;/open-canvas&gt;
+&lt;script&gt;
+  const oc = document.querySelector(&#x27;open-canvas&#x27;);
+  oc.addEventListener(&#x27;oc:pick-live-block&#x27;, async () =&gt; {   // &quot;Live block&quot; in the insert menu
+    oc.livePicker(&#x27;open&#x27;);
+    const f = await myPicker();                             // your own list (1e)
+    f ? oc.insertLiveBlock(f.id, f.name) : oc.livePicker(&#x27;cancel&#x27;);
+  });
+  oc.addEventListener(&#x27;oc:live-block-open&#x27;, e =&gt; openFile(e.detail.fileId, e.detail.blockId));
+&lt;/script&gt;</code></pre>
 <p>The SDK is served with CORS for the host's <code>allowed_origins</code> only, and the canvas sets <code>frame-ancestors</code> to the same list: register every origin your pages embed from.</p>
 <p>**Nested embeds (<code>frame_ancestors</code>).** CSP <code>frame-ancestors</code> checks every ancestor, so when your page is itself framed by another app (a Matrix widget inside a chat client, §8b), that app's origins must be allowed too. List them in the host's <code>frame_ancestors</code>. They are not added to the server-wide list: launches for this host redirect to <code>/app/?h=&lt;host id&gt;#t=…</code>, and only that page is served with <code>frame-ancestors &#x27;self&#x27; &lt;every host&#x27;s allowed_origins&gt; &lt;this host&#x27;s frame_ancestors&gt;</code>. Hosts without the setting keep <code>/app/#t=…</code> and the shared list. The <code>h</code> parameter only selects the policy; the session is still the ticket.</p>
 <h3 id="postmessage-api-iframe--host-page">postMessage API (iframe ↔ host page)</h3>

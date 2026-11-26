@@ -4,7 +4,7 @@
 // LIVE-03 on a phone (frames 6a, 6b): the header keeps the Live mark, the title and a 44 px
 // options button; tapping the header opens the sheet with the source, the role and the menu.
 import { expect, test } from "@playwright/test";
-import { applyTemplate, createFile, expectSaved, openFile, person, typeAfterHeading } from "../helpers";
+import { applyTemplate, createFile, editor, expectSaved, openFile, person, typeAfterHeading } from "../helpers";
 
 test("a live block on a phone: compact header and the options sheet", async ({ browser }) => {
   test.setTimeout(120_000);
@@ -14,6 +14,7 @@ test("a live block on a phone: compact header and the options sheet", async ({ b
   await applyTemplate(desk, "Meeting notes");
   await typeAfterHeading(desk, "Notes", "Phone checklist line");
   await expectSaved(desk);
+  await editor(desk).getByText("Phone checklist line", { exact: true }).click();
   await desk.page.keyboard.press("ControlOrMeta+/");
   await desk.oc.getByRole("menuitem", { name: "Make live…" }).click();
   await desk.oc.getByRole("dialog", { name: "Make this a live block" }).getByLabel("Name").fill("Phone list");

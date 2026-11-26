@@ -27,7 +27,7 @@ export const pickerGone = createStore(false);
 export const makeGone = createStore(false);
 
 /** The "Make live" dialog (1b): for the block at `pos` (or the selection around it). */
-export const makeStore = createStore<{ editor: Editor; pos: number } | null>(null);
+export const makeStore = createStore<{ editor: Editor; pos: number; blockId?: string | null } | null>(null);
 
 /** "Make live" shows in this editor: the host allows it, and it is not a live block's editor. */
 export const canOfferMake = (editor: Editor) => liveCfg.get().make && !makeGone.get() && !nestedEditors.has(editor) && editor.isEditable;
