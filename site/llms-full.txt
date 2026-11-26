@@ -3332,7 +3332,7 @@ Binary frames, y-protocols encoding (lib0 varuint message type first):
 | 2 | auth: the server sends `[2, 0 (permission denied), varString reason]` when a write is rejected |
 | 3 | query awareness (client → server; the server answers with all awareness states) |
 | 100 | OpenCanvas control: varString JSON, both directions |
-| 101 | subdocument (PSYNC-02, §3.2): varString guid, then one y-protocols message |
+| 101 | subdocument (PSYNC-02, §3.2): varUint8Array of (varString guid, one y-protocols message) |
 
 (Changed 2026-11-21 by the server build: auth is type **2** and query-awareness is 3, as in
 y-protocols / y-websocket and yrs. The earlier draft said 3 for auth.)
@@ -3443,8 +3443,12 @@ not under memory durability, not temporary canvases).
   `{"t":"parts","parts":[{"id":"<fileId>/block/<blockId>","kind":"database"|"board","name","count"}]}`
   (sorted by id), and sends it again when a part is added. `count` is the rows or items, for the
   placeholder's size.
-- **Subdocument frames, type 101:** `[101, varString guid, <one y-protocols message>]`, guid
-  `<fileId>/block/<blockId>`, the inner message a sync message (0: step 1, step 2, update).
+- **Subdocument frames, type 101:** a y-protocols custom message like type 100:
+  `[101, varUint8Array(payload)]`, payload `[varString guid, <one whole y-protocols message>]`,
+  guid `<fileId>/block/<blockId>`. The inner message starts with its own type (0, sync) and then
+  the sync step (0: step 1, 1: step 2, 2: update). Below, `[101, guid, m]` abbreviates that.
+  (Changed 2026-11-26 by PSYNC-03: the first draft showed the guid and message without the
+  custom-message length; the server always wrote it, the editor now does too.)
   - *Load:* the client sends `[101, guid, step 1(sv)]`. The server checks, on every request, that
     the connection still has access, that the guid names a block of **this** file (another file's
     block or an unknown block: `{"t":"sub-denied","id","reason"}`), loads the part if it is not in
@@ -3466,7 +3470,20 @@ not under memory durability, not temporary canvases).
   conflict policy and saves see the whole canvas: the room flattens the parts into one document
   for them (item ids kept) and splits again 20 s after the last such work. A save is
   `.ocanvas` format v1, readable by 0.3 and 0.2. `GET` state (exports, `document.json`,
-  `search.json`) merges the parts' bytes without building the whole canvas.
+  `search.json`) merges the parts' bytes without building the whole canvas. Memory durability
+  (ADR-029) splits too: with no WAL rows, a part changed while the room held a whole view is
+  written when it splits again, and written loaded parts on every dump.
+- **A block made since the split** stays in the main document until the room next splits (after
+  server work); the server then sends a new parts list. An edit an editor still makes to it in
+  its main document is routed into the part (the room takes a whole view for it).
+- **The 0.4 editor (PSYNC-03).** Sends `caps=ext,live,subdoc`. Asks for a part when the block's
+  view comes within one screen of the viewport and shows the block's skeleton (sized from
+  `count`) until step 2 arrives; releases it two minutes after the view leaves; asks again for
+  held parts after a reconnect (the handshake also sends edits made offline). One undo stack
+  steps through the text and every part, newest first. An offline copy keeps every part (sealed
+  on the device with the rest of the copy) and replays them through that handshake. Editor code
+  reaches block data through `lib/blocks.ts` (`blockMap`, `blockDoc`, `eachBlock`,
+  `observeBlocks`), never the main document's `databases`/`boards` roots directly.
 
 ## 4. Y.Doc layout (shared by server export and web)
 

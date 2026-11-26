@@ -9,6 +9,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Partial sync in the editor (PSYNC-03/04, ADR-076; still behind `[host.flags] partial_sync`,
+  off by default): the editor sends `caps=subdoc`, loads each database and board as its own
+  document when it comes within a screen of the viewport (the block's skeleton until then),
+  releases it two minutes after it leaves, undoes across the text and every block in one stack,
+  and an offline copy keeps and replays every part. Find, automation, block duplication and
+  diagram import reach block data through one accessor. A split room saves the same
+  `document.json` and `search.json` as a whole one. Rooms under memory durability (the default)
+  split too.
+
 - Partial sync, server groundwork (PSYNC-02, ADR-076; nothing changes for users yet, the room
   does not split documents): `oc_model::parts` splits a canvas into a main document and one part
   per database and board **keeping every Yjs item id**, and flattens the parts back to the format v1
