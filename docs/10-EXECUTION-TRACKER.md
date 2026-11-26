@@ -361,6 +361,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-26 | PERF-11 alloc_release regression after 641d74f | RSS after eviction 82–86 MB (limit 75) → 63–70 MB: snapshot groups capped at 1 MB, blocking-thread cache flushed after a save build; alloc_release, rooms, durability, partial_sync, cluster green |
 | 2026-11-26 | PERF-11 X10K profile (short, local, loaded Mac) and `OC_MAX_PEERS` | Baseline re-run worst p99 20,044 ms; autosave out of window 1,747 ms; sample: ~50% of actor CPU in inline `prepare_save`. Cap configurable to 1,000 (default 550); config unit test seen failing first |
 | 2026-11-21 | Blocks UX audit (database + board) in a two-doc harness, Playwright 1440/390 px, light/dark | vitest database 156, board 56; typecheck green; harness removed |
 | 2026-11-21 | Merged server, database/board, editor branches into main | cargo test (30) + vitest (131) + typecheck + editor build green |

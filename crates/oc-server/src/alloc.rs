@@ -52,6 +52,23 @@ pub fn release() {
     }
 }
 
+/// Hands this thread's cached free blocks back to its arena, so a purge can return them.
+/// Called by short-lived work on blocking threads (a save build, PERF-11): an idle blocking
+/// thread otherwise keeps its cache until it exits.
+pub fn flush_thread_cache() {
+    #[cfg(feature = "jemalloc")]
+    // SAFETY: "thread.tcache.flush" takes no input and returns nothing; all pointers are null.
+    unsafe {
+        tikv_jemalloc_sys::mallctl(
+            c"thread.tcache.flush".as_ptr(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            0,
+        );
+    }
+}
+
 /// Purges the dirty pages of every jemalloc arena (`MALLCTL_ARENAS_ALL` = 4096).
 #[cfg(feature = "jemalloc")]
 pub fn purge() -> Result<(), String> {

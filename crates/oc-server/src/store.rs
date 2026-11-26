@@ -62,8 +62,10 @@ struct DumpJob {
     reply: oneshot::Sender<anyhow::Result<()>>,
 }
 
-/// Snapshot bytes per group transaction: bounds how long the writer holds the write turn.
-const DUMP_GROUP_BYTES: usize = 8 * 1024 * 1024;
+/// Snapshot bytes per group transaction: bounds how long the writer holds the write turn, and
+/// the memory SQLite keeps after a large transaction (8 MB groups left ~8 MB resident once
+/// every room had closed; `alloc_release`, docs/22 §9.6).
+const DUMP_GROUP_BYTES: usize = 1024 * 1024;
 
 /// What [`Store::idem_begin`] found for an `Idempotency-Key` (docs/27 §4.2, HAPI-03).
 #[derive(Debug, Clone, PartialEq, Eq)]

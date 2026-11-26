@@ -597,6 +597,10 @@ impl SaveBuild {
                         search,
                     )
                 });
+            // The rebuilt doc is gone: give its blocks back, or this (now idle) blocking
+            // thread keeps them cached and they stay resident after the room closes.
+            drop(state);
+            crate::alloc::flush_thread_cache();
             (body, history.map(|(_, h, _)| h), meta)
         })
         .await;

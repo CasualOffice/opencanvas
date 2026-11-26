@@ -24,6 +24,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- Memory stayed resident after rooms closed (alloc_release, PERF-11): the grouped snapshot writer
+  committed up to 8 MB per transaction (now 1 MB), and save builds left their freed blocks in
+  idle blocking threads' caches (now flushed).
+
 - The editor's files are now served gzip-compressed to browsers that accept it: the build writes
   a `.gz` next to each text asset and the server sends it. The initial JS went over the wire as
   955 KB instead of its 294 KB gzip budget (BENCH-03).
