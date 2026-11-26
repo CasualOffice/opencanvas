@@ -148,7 +148,9 @@ jobs:
 
   automation-cluster:
     # AUTO-01..07 in a real cluster: three in-process nodes on MySQL/MariaDB with Redis for
-    # leases, the bus and the hot WAL (crates/oc-server/tests/automation_cluster.rs).
+    # leases, the bus and the hot WAL (crates/oc-server/tests/automation_cluster.rs). Also the
+    # storage contract (storage_conformance.rs, RLB-05) on MySQL 8.4, MariaDB 10.11 and Redis,
+    # run in parallel as the file is written for: each test gets its own database.
     if: github.event_name != 'schedule'
     needs: [rust]
     runs-on: ubuntu-latest
@@ -177,6 +179,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test -p oc-server --test automation_cluster -- --nocapture
+        env: { OC_TEST_REDIS_URL: "redis://127.0.0.1:6379", OC_TEST_MYSQL_URL: "${{ matrix.db.url }}" }
+      - run: cargo test -p oc-server --test storage_conformance
         env: { OC_TEST_REDIS_URL: "redis://127.0.0.1:6379", OC_TEST_MYSQL_URL: "${{ matrix.db.url }}" }
 
   browser-e2e:

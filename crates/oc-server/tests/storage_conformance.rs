@@ -2,7 +2,8 @@
 // Copyright 2026 CasualOffice
 
 //! Storage conformance (ADR-030): the same contract on every backend. SQLite always;
-//! MySQL/MariaDB when `OC_TEST_MYSQL_URL` is set; Redis-only storage when `OC_TEST_REDIS_URL`
+//! MySQL/MariaDB when `OC_TEST_MYSQL_URL` is set (a new database per test; the user needs
+//! CREATE DATABASE); Redis-only storage when `OC_TEST_REDIS_URL`
 //! is set (for example `redis://127.0.0.1:8801/`). Every id is fresh, so a shared Redis is fine.
 
 mod common;
@@ -23,15 +24,7 @@ fn kek() -> Option<Kek> {
 async fn nodes_starting_together_on_an_empty_database_all_start() {
     let mut urls = vec![format!("sqlite://{}?mode=rwc", temp_db().display())];
     if let Ok(url) = std::env::var("OC_TEST_MYSQL_URL") {
-        sqlx::any::install_default_drivers();
-        let name = format!("oc_mig_{}", ulid::Ulid::new().to_string().to_lowercase());
-        let admin = sqlx::AnyPool::connect(&url).await.unwrap();
-        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
-            .execute(&admin)
-            .await
-            .unwrap();
-        let base = url.rsplit_once('/').unwrap().0;
-        urls.push(format!("{base}/{name}"));
+        urls.push(fresh_mysql_db(&url).await);
     }
     for url in urls {
         let starts: Vec<_> = (0..8)
@@ -49,6 +42,23 @@ async fn nodes_starting_together_on_an_empty_database_all_start() {
     }
 }
 
+/// A new, empty database on the MySQL/MariaDB server of `url`. Each test gets its own, as
+/// each gets its own SQLite file: tests run in parallel, and one that sweeps tables (for
+/// example `purge_expired`, which drops week-old `room_epochs` rows, and every test's rows
+/// are stamped in 1970) would otherwise delete another test's rows mid-run (RLB-05).
+async fn fresh_mysql_db(url: &str) -> String {
+    sqlx::any::install_default_drivers();
+    let name = format!("oc_t_{}", ulid::Ulid::new().to_string().to_lowercase());
+    let admin = sqlx::AnyPool::connect(url).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+        .execute(&admin)
+        .await
+        .unwrap();
+    admin.close().await;
+    let base = url.rsplit_once('/').unwrap().0;
+    format!("{base}/{name}")
+}
+
 async fn backends() -> Vec<(String, Store)> {
     let mut out = vec![(
         "sqlite".to_string(),
@@ -57,7 +67,10 @@ async fn backends() -> Vec<(String, Store)> {
             .unwrap(),
     )];
     match std::env::var("OC_TEST_MYSQL_URL") {
-        Ok(url) => out.push(("mysql".into(), Store::connect(&url, kek()).await.unwrap())),
+        Ok(url) => {
+            let db = fresh_mysql_db(&url).await;
+            out.push(("mysql".into(), Store::connect(&db, kek()).await.unwrap()));
+        }
         Err(_) => eprintln!("OC_TEST_MYSQL_URL not set: MySQL backend skipped"),
     }
     match std::env::var("OC_TEST_REDIS_URL") {
