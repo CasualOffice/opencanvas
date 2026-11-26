@@ -18,6 +18,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Changed
 
+- Large canvases open faster in the editor (PSYNC-A1): block ids for a document without them (an
+  import, a generated file) are assigned 200 blocks at a time in idle time, not in one
+  transaction with a step per block (Tiptap compared its changed ranges in quadratic time; on the
+  50 MB benchmark canvas that was most of the load), and the browser lays out only the text
+  blocks near the screen (`content-visibility`).
+
 - Partial sync is complete and on by default: rooms on the Redis WAL and on Redis-only storage
   split too (a stream per part, part snapshots in Redis), a part's edits reach the WAL as they
   happen under memory durability, Find searches every database and board (it loads the parts

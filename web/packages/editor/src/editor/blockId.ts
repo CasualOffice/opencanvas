@@ -28,12 +28,17 @@ function isBlank(doc: PMNode): boolean {
   return doc.childCount === 1 && !!f && f.isTextblock && f.content.size === 0 && !f.attrs.blockId;
 }
 
+/** Blocks one background pass gives ids to (PSYNC-A1): a document without ids (an import, a
+ *  generated file) gets them in idle chunks, not one transaction with a step per block. */
+export const ID_CHUNK = 200;
+
 /**
  * Sets a fresh `blockId` on every block that has none, and on every later copy of an id that is
- * already used (document order: the first keeps it). Null when nothing needs one. Textblocks'
- * inline content is never walked, so this stays cheap on every keystroke.
+ * already used (document order: the first keeps it); at most `limit` blocks (the rest on the
+ * next call). Null when nothing needs one. Textblocks' inline content is never walked, so this
+ * stays cheap on every keystroke.
  */
-export function assignBlockIds(state: EditorState): Transaction | null {
+export function assignBlockIds(state: EditorState, limit = Infinity): Transaction | null {
   if (isBlank(state.doc)) return null;
   const seen = new Set<string>();
   const fix: { pos: number; node: PMNode }[] = [];
@@ -47,7 +52,7 @@ export function assignBlockIds(state: EditorState): Transaction | null {
   });
   if (!fix.length) return null;
   const tr = state.tr;
-  for (const { pos, node } of fix) tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: newBlockId() }, node.marks);
+  for (const { pos, node } of fix.slice(0, limit)) tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: newBlockId() }, node.marks);
   return tr.setMeta(assignKey, true);
 }
 
@@ -104,16 +109,28 @@ export const BlockId = Extension.create({
           // The loaded document and remote changes (a block an older client inserted) arrive from
           // Yjs; y-prosemirror does not write back what is appended to those, so the ids follow
           // as their own transaction, outside the undo history.
+          // At most ID_CHUNK blocks per transaction, the next chunk when the browser is idle: a
+          // large document without ids (an import, a generated file) would otherwise be one
+          // transaction with thousands of steps, which plugins that compare a transaction's
+          // changed ranges handle in quadratic time (it held the 50 MB canvas's first screen).
           let queued = false;
+          const idle = (f: () => void) =>
+            typeof requestIdleCallback === "function" ? requestIdleCallback(f, { timeout: 500 }) : setTimeout(f, 16);
+          const run = () => {
+            queued = false;
+            if (view.isDestroyed || !editor.isEditable) return;
+            const tr = assignBlockIds(view.state, ID_CHUNK);
+            if (tr) view.dispatch(tr.setMeta("addToHistory", false));
+          };
+          let first = true;
           const later = () => {
             if (queued) return;
             queued = true;
-            queueMicrotask(() => {
-              queued = false;
-              if (view.isDestroyed || !editor.isEditable) return;
-              const tr = assignBlockIds(view.state);
-              if (tr) view.dispatch(tr.setMeta("addToHistory", false));
-            });
+            // The first pass right away (most documents need few ids or none), later ones idle.
+            if (first) {
+              first = false;
+              queueMicrotask(run);
+            } else idle(run);
           };
           later();
           return {

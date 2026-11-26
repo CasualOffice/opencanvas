@@ -1,7 +1,7 @@
 {
   "scenario": "BROWSER",
   "date": "2026-11-26",
-  "commit": "b55cb66",
+  "commit": "b4ba7db",
   "machine": "local",
   "hardware": {
     "cpu": "Apple M4",
@@ -30,7 +30,7 @@
   "runsPerFixture": 5,
   "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
   "initialJs": {
-    "gzipBytes": 296886,
+    "gzipBytes": 296958,
     "budgetKb": 300,
     "files": [
       {
@@ -42,8 +42,8 @@
         "gzipBytes": 68537
       },
       {
-        "file": "assets/index-BibZ_d1D.js",
-        "gzipBytes": 68193
+        "file": "assets/index-CwNtf2Q1.js",
+        "gzipBytes": 68265
       },
       {
         "file": "assets/yjs-DYXjVKFe.js",
@@ -60,37 +60,42 @@
   "fixtures": {
     "50mb": {
       "firstScreenMs": {
-        "median": 9182,
-        "worst": 13096
+        "median": 5925,
+        "worst": 12255
       },
-      "heapMb": 15.5,
+      "heapMb": 16.5,
       "domNodes": 5739,
       "errors": 0,
       "runs": [
         {
-          "fileId": "50mb_b17457463_0",
-          "firstScreenMs": 8055,
-          "heapMb": 15.5,
+          "fileId": "50mb_b20024930_0",
+          "firstScreenMs": 2539,
+          "heapMb": 16.4,
           "domNodes": 5739,
           "partsBeforeScroll": {
             "views": 35,
             "shown": 0
           },
           "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 1540,
+            "firstFrame": 1581,
+            "mainSynced": 1853
+          },
           "partsListed": 35,
           "scrolledPx": 221906,
           "longFrames": {
             "load": {
-              "count": 17,
-              "totalMs": 15366,
-              "blockingMs": 14227,
-              "worstMs": 7268
+              "count": 204,
+              "totalMs": 19416,
+              "blockingMs": 8265,
+              "worstMs": 800
             },
             "scroll": {
-              "count": 16,
-              "totalMs": 2488,
-              "blockingMs": 1226,
-              "worstMs": 552
+              "count": 65,
+              "totalMs": 9946,
+              "blockingMs": 5078,
+              "worstMs": 1203
             }
           },
           "parts": {
@@ -99,106 +104,39 @@
           },
           "js": {
             "requests": 5,
-            "transferKb": 299.7,
-            "decodedKb": 959.3
+            "transferKb": 299.8,
+            "decodedKb": 959.5
           }
         },
         {
-          "fileId": "50mb_b17494793_1",
-          "firstScreenMs": 13096,
-          "heapMb": 15.4,
+          "fileId": "50mb_b20071164_1",
+          "firstScreenMs": 5925,
+          "heapMb": 16.6,
           "domNodes": 5739,
           "partsBeforeScroll": {
             "views": 35,
             "shown": 0
           },
           "subFramesBeforeFirstScreen": 0,
-          "partsListed": 35,
-          "scrolledPx": 18000,
-          "longFrames": {
-            "load": {
-              "count": 17,
-              "totalMs": 23765,
-              "blockingMs": 22768,
-              "worstMs": 11365
-            },
-            "scroll": {
-              "count": 12,
-              "totalMs": 729,
-              "blockingMs": 18,
-              "worstMs": 83
-            }
+          "wsMs": {
+            "open": 4252,
+            "firstFrame": 4290,
+            "mainSynced": 4654
           },
-          "parts": {
-            "views": 35,
-            "shown": 0
-          },
-          "js": {
-            "requests": 5,
-            "transferKb": 299.7,
-            "decodedKb": 959.3
-          }
-        },
-        {
-          "fileId": "50mb_b17539849_2",
-          "firstScreenMs": 8537,
-          "heapMb": 16.3,
-          "domNodes": 5739,
-          "partsBeforeScroll": {
-            "views": 35,
-            "shown": 0
-          },
-          "subFramesBeforeFirstScreen": 0,
-          "partsListed": 35,
-          "scrolledPx": 221906,
-          "longFrames": {
-            "load": {
-              "count": 10,
-              "totalMs": 15768,
-              "blockingMs": 14974,
-              "worstMs": 7631
-            },
-            "scroll": {
-              "count": 19,
-              "totalMs": 2257,
-              "blockingMs": 534,
-              "worstMs": 373
-            }
-          },
-          "parts": {
-            "views": 36,
-            "shown": 2
-          },
-          "js": {
-            "requests": 5,
-            "transferKb": 299.7,
-            "decodedKb": 959.3
-          }
-        },
-        {
-          "fileId": "50mb_b17561301_3",
-          "firstScreenMs": 9711,
-          "heapMb": 15.4,
-          "domNodes": 5740,
-          "partsBeforeScroll": {
-            "views": 35,
-            "shown": 0
-          },
-          "subFramesBeforeFirstScreen": 0,
           "partsListed": 35,
           "scrolledPx": 17400,
           "longFrames": {
             "load": {
-              "count": 10,
-              "totalMs": 16842,
-              "blockingMs": 16049,
-              "worstMs": 8230
+              "count": 256,
+              "totalMs": 29492,
+              "blockingMs": 15594,
+              "worstMs": 1401
             },
             "scroll": {
-              "count": 20,
-              "totalMs": 1181,
-              "blockingMs": 18,
-              "worstMs": 84
+              "count": 60,
+              "totalMs": 6381,
+              "blockingMs": 2222,
+              "worstMs": 173
             }
           },
           "parts": {
@@ -207,44 +145,131 @@
           },
           "js": {
             "requests": 5,
-            "transferKb": 299.7,
-            "decodedKb": 959.3
+            "transferKb": 299.8,
+            "decodedKb": 959.5
           }
         },
         {
-          "fileId": "50mb_b17585219_4",
-          "firstScreenMs": 9182,
-          "heapMb": 15.5,
-          "domNodes": 5738,
+          "fileId": "50mb_b20117792_2",
+          "firstScreenMs": 11107,
+          "heapMb": 16.5,
+          "domNodes": 5739,
           "partsBeforeScroll": {
             "views": 35,
             "shown": 0
           },
           "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 9314,
+            "firstFrame": 9355,
+            "mainSynced": 9704
+          },
           "partsListed": 35,
-          "scrolledPx": 221906,
+          "scrolledPx": 17400,
           "longFrames": {
             "load": {
-              "count": 10,
-              "totalMs": 16033,
-              "blockingMs": 15419,
-              "worstMs": 7871
+              "count": 224,
+              "totalMs": 26867,
+              "blockingMs": 14829,
+              "worstMs": 1647
             },
             "scroll": {
-              "count": 35,
-              "totalMs": 4025,
-              "blockingMs": 768,
-              "worstMs": 469
+              "count": 60,
+              "totalMs": 6274,
+              "blockingMs": 2151,
+              "worstMs": 180
             }
           },
           "parts": {
-            "views": 36,
-            "shown": 2
+            "views": 35,
+            "shown": 0
           },
           "js": {
             "requests": 5,
-            "transferKb": 299.7,
-            "decodedKb": 959.3
+            "transferKb": 299.8,
+            "decodedKb": 959.5
+          }
+        },
+        {
+          "fileId": "50mb_b20169374_3",
+          "firstScreenMs": 4300,
+          "heapMb": 16.4,
+          "domNodes": 5739,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 2488,
+            "firstFrame": 2529,
+            "mainSynced": 2913
+          },
+          "partsListed": 35,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 306,
+              "totalMs": 29610,
+              "blockingMs": 13117,
+              "worstMs": 1532
+            },
+            "scroll": {
+              "count": 61,
+              "totalMs": 6826,
+              "blockingMs": 2604,
+              "worstMs": 174
+            }
+          },
+          "parts": {
+            "views": 35,
+            "shown": 0
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.8,
+            "decodedKb": 959.5
+          }
+        },
+        {
+          "fileId": "50mb_b20215179_4",
+          "firstScreenMs": 12255,
+          "heapMb": 16.5,
+          "domNodes": 5739,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 10473,
+            "firstFrame": 10509,
+            "mainSynced": 10882
+          },
+          "partsListed": 35,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 274,
+              "totalMs": 29520,
+              "blockingMs": 14638,
+              "worstMs": 1508
+            },
+            "scroll": {
+              "count": 62,
+              "totalMs": 6927,
+              "blockingMs": 2571,
+              "worstMs": 211
+            }
+          },
+          "parts": {
+            "views": 35,
+            "shown": 0
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.8,
+            "decodedKb": 959.5
           }
         }
       ]
