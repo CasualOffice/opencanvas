@@ -63,6 +63,10 @@ jobs:
         run: |
           python3 -I tools/check-site-claims.py --self-test
           python3 -I tools/check-site-claims.py
+      - name: Titles, descriptions, canonicals, JSON-LD, alt text, sitemap and llms.txt (SEO)
+        run: |
+          python3 -I tools/check-site-seo.py --self-test
+          python3 -I tools/check-site-seo.py
       - name: Assemble the published tree
         run: |
           set -euo pipefail
