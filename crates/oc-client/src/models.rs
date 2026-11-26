@@ -584,6 +584,18 @@ pub const OPERATIONS: &[Operation] = &[
         idempotent: false,
     },
     Operation {
+        id: "offlineRevoke",
+        method: "POST",
+        path: "/api/v1/offline/revoke",
+        scope: Some("canvas:admin"),
+        path_params: &[],
+        query: &[],
+        body: BodyKind::Json,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
         id: "getOpenApi",
         method: "GET",
         path: "/api/v1/openapi.json",
