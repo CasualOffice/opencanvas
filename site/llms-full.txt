@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-26.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-27.
 
 
 # Documentation
@@ -811,7 +811,7 @@ Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyr
 
 ## Where to check
 
-The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-26 .
+The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-27 .
 
 
 # Integration guide
@@ -1066,25 +1066,27 @@ read-only.
 `live_blocks = true` on a WOPI-only host, a temporary-canvas host or a host without
 `callback_base` refuse to start, naming the host.
 
-### 2c-bis. Partial sync (PSYNC-02, ADR-076; `[host.flags] partial_sync`)
+### 2c-bis. Partial sync (PSYNC-02/03, ADR-076; `[host.flags] partial_sync`)
 
 ```toml
 [host.flags]
-partial_sync = false   # default; true splits large canvases into subdocuments
+partial_sync = true    # the default from 0.4; false keeps every room whole
 ```
 
-With `partial_sync = true` a room keeps each database and board (diagrams included) as a
-subdocument that the editor loads when the block comes near the screen, so a large canvas opens on
-its text and the server holds only what people look at (on the 50 MB benchmark canvas the room
-holds the main document, about 1% of the whole). Your files do not change: every save is the same
-`.ocanvas` format v1 with the same content, and the API, MCP, exports and `search.json` read and
-write as before.
+A room keeps each database and board (diagrams included) as a subdocument that the editor loads
+when the block comes near the screen, so a large canvas opens on its text and the server and the
+browser hold only what people look at (on the 50 MB benchmark canvas the room holds the main
+document: 220 MB against 4.4 GB for 20 viewers, and the browser 16 MB against 472 MB). Your files
+do not change: every save is the same `.ocanvas` format v1 with the same content and Yjs item ids,
+and the API, MCP, exports, `search.json` and history read and write as before. It works on every
+storage (SQLite, MySQL/MariaDB, the Redis WAL, Redis only) and under either durability; a part's
+edits reach the WAL as they happen.
 
-**Leave it off until the 0.4 editor is deployed** (PSYNC-03): a split room closes editors that do
-not send `caps=subdoc` (0.3 and earlier) with 4426, and they show "reopen the canvas". It needs a
-database WAL (`DATABASE_URL` or the default SQLite); with the Redis WAL, memory durability or for
-temporary canvases the flag is ignored and rooms stay whole. Turning it off again is safe: a room
-folds its parts back into one document when it next opens.
+**Editors before 0.4** do not speak it: a split room closes them with 4426 and they show "reopen
+the canvas", which loads the current editor. If you embed an older editor build, or run a client
+that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` until it is
+updated. Turning it off again is safe: a room folds its parts back into one document when it next
+opens. Temporary canvases and live block files are never split.
 
 ### 2d. Offline copies (OFF-01..08, docs/34 §3, ADR-063, ADR-064; `[host.offline]`)
 
@@ -5843,6 +5845,19 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## BROWSER — 2026-11-26-browser-local-partial
+
+- **Run:** 2026-11-26, commit `b55cb66`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 9,182 | 13,096 | 15.5 |
+
+Initial JavaScript: 296,886 bytes gzip (budget 300 KB).
+
+
 ## X10K short — 2026-11-26-x10k-short-local-perf11
 
 - **Run:** 2026-11-26, commit `601d2a7`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
@@ -7754,7 +7769,7 @@ Added Block schema validation (MOD-01) in oc-model on .ocanvas read, REST patch,
 
 ## 0.1.0-alpha.1 (2026-11-23)
 
-Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development. Last changed 2026-11-26 .
+Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development. Last changed 2026-11-27 .
 
 
 # API reference: Canvas

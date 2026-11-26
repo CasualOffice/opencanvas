@@ -247,25 +247,27 @@ read-only.
 `live_blocks = true` on a WOPI-only host, a temporary-canvas host or a host without
 `callback_base` refuse to start, naming the host.
 
-### 2c-bis. Partial sync (PSYNC-02, ADR-076; `[host.flags] partial_sync`)
+### 2c-bis. Partial sync (PSYNC-02/03, ADR-076; `[host.flags] partial_sync`)
 
 ```toml
 [host.flags]
-partial_sync = false   # default; true splits large canvases into subdocuments
+partial_sync = true    # the default from 0.4; false keeps every room whole
 ```
 
-With `partial_sync = true` a room keeps each database and board (diagrams included) as a
-subdocument that the editor loads when the block comes near the screen, so a large canvas opens on
-its text and the server holds only what people look at (on the 50 MB benchmark canvas the room
-holds the main document, about 1% of the whole). Your files do not change: every save is the same
-`.ocanvas` format v1 with the same content, and the API, MCP, exports and `search.json` read and
-write as before.
+A room keeps each database and board (diagrams included) as a subdocument that the editor loads
+when the block comes near the screen, so a large canvas opens on its text and the server and the
+browser hold only what people look at (on the 50 MB benchmark canvas the room holds the main
+document: 220 MB against 4.4 GB for 20 viewers, and the browser 16 MB against 472 MB). Your files
+do not change: every save is the same `.ocanvas` format v1 with the same content and Yjs item ids,
+and the API, MCP, exports, `search.json` and history read and write as before. It works on every
+storage (SQLite, MySQL/MariaDB, the Redis WAL, Redis only) and under either durability; a part's
+edits reach the WAL as they happen.
 
-**Leave it off until the 0.4 editor is deployed** (PSYNC-03): a split room closes editors that do
-not send `caps=subdoc` (0.3 and earlier) with 4426, and they show "reopen the canvas". It needs a
-database WAL (`DATABASE_URL` or the default SQLite); with the Redis WAL, memory durability or for
-temporary canvases the flag is ignored and rooms stay whole. Turning it off again is safe: a room
-folds its parts back into one document when it next opens.
+**Editors before 0.4** do not speak it: a split room closes them with 4426 and they show "reopen
+the canvas", which loads the current editor. If you embed an older editor build, or run a client
+that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` until it is
+updated. Turning it off again is safe: a room folds its parts back into one document when it next
+opens. Temporary canvases and live block files are never split.
 
 ### 2d. Offline copies (OFF-01..08, docs/34 §3, ADR-063, ADR-064; `[host.offline]`)
 

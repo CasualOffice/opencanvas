@@ -14,6 +14,8 @@ import { BUDGET_MS, compile, counter, DEFAULT_OPTIONS, findAll, keepCurrent, liv
 import { findPlugin, findKey, setMarks } from "./plugin";
 import { liveEditors } from "../live/state";
 import { useStore } from "../lib/store";
+import { bridge } from "../lib/bridge";
+import { observeBlocks } from "../lib/blocks";
 import { Modal, ModalHead } from "../components/overlay";
 import "./find.css";
 
@@ -164,15 +166,31 @@ export function FindBar(p: FindBarProps) {
     const onTr = ({ transaction }: { transaction: { docChanged: boolean } }) => transaction.docChanged && later();
     editor.on("transaction", onTr);
     doc.on("update", later);
+    // PSYNC-03: blocks in parts (loaded below for the search, or by others' edits) count too.
+    const offDbs = observeBlocks(doc, "databases", later);
+    const offBoards = observeBlocks(doc, "boards", later);
     const eds = [...lives.values()].map((i) => i.editor);
     for (const e of eds) e.on("transaction", onTr);
     return () => {
       cancelAnimationFrame(raf);
       editor.off("transaction", onTr);
       doc.off("update", later);
+      offDbs();
+      offBoards();
       for (const e of eds) e.off("transaction", onTr);
     };
   }, [editor, doc, recompute, lives]);
+
+  // PSYNC-03: in a split room a search covers every database and board, so their parts load
+  // while there is a query (released two minutes after the bar closes or the query clears).
+  const searching = q.length > 0;
+  useEffect(() => {
+    const parts = doc === bridge.doc ? bridge.parts : null;
+    if (!searching || !parts?.split) return;
+    const ids = [...parts.headers.keys()];
+    for (const id of ids) parts.acquire(id);
+    return () => ids.forEach((id) => parts.release(id));
+  }, [searching, doc]);
 
   const matches = st.kind === "ok" ? st.matches : [];
   const current = cur >= 0 ? matches[cur] ?? null : null;

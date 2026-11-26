@@ -429,9 +429,6 @@ async fn snapshot_replaces_the_covered_wal_and_never_goes_back() {
 #[tokio::test]
 async fn the_wal_keeps_parts_apart_from_the_main_document() {
     for (b, s) in backends().await {
-        if !s.supports_parts() {
-            continue;
-        }
         let room = uid("r");
         let e = s.claim_epoch(&room, 1_000).await.unwrap();
         let mut rows = wal(1..=6);

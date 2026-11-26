@@ -200,6 +200,8 @@ struct Room {
     auto: super::auto::AutoState,
     /// PSYNC-02 (ADR-076): the parts of a split room; `None` when the room is whole.
     split: Option<split::SplitState>,
+    /// The canvas cut while loading (fast open), taken by `split_on_open`.
+    presplit: Option<split::Presplit>,
 }
 
 /// What clients of an ephemeral room are told when it ends (ADR-043).
@@ -657,6 +659,7 @@ impl Room {
         let mut seq = 0;
         // ADR-055: unknown (None) after a WAL recovery; read back from the host before a save.
         let mut file_hist: Option<FileHist> = None;
+        let mut presplit: Option<split::Presplit> = None;
         let wal = match &row {
             Some(r) if r.dirty => Some(ctx.store.load_wal(&id).await?).filter(|w| !w.is_empty()),
             _ => None,
@@ -712,10 +715,23 @@ impl Room {
                     .get_file(&host, &seed.callback_token, &seed.file.id)
                     .await?
             };
-            let (loaded, etag, hist) = loaded_from_host(&id, fetched)?;
-            file_hist = Some(hist);
-            doc = loaded;
-            host_version = etag.or(host_version);
+            // PSYNC-02: a room that will split cuts the stored state as it is (no whole canvas).
+            let fast = if host.partial_sync() && ctx.store.supports_parts() && !host.ephemeral() {
+                split::open_split(&fetched)?
+            } else {
+                None
+            };
+            if let Some((main, etag, hist, pre)) = fast {
+                file_hist = Some(hist);
+                doc = main;
+                host_version = etag.or(host_version);
+                presplit = Some(pre);
+            } else {
+                let (loaded, etag, hist) = loaded_from_host(&id, fetched)?;
+                file_hist = Some(hist);
+                doc = loaded;
+                host_version = etag.or(host_version);
+            }
             ctx.store
                 .put_room(
                     &id,
@@ -819,6 +835,7 @@ impl Room {
             ai_presence: HashMap::new(),
             ephemeral,
             split: None,
+            presplit,
             ctx,
         })
     }
@@ -1789,6 +1806,15 @@ impl Room {
                 return self.deny(conn, "document size limit reached");
             }
         }
+        // PSYNC-02: in a whole view, a main-document update must not delete the parts' items
+        // its fillers stand for.
+        let bytes = match self.split.as_ref().filter(|s| s.whole_since.is_some()) {
+            Some(s) => match oc_model::parts::main_share(&bytes, &s.owners) {
+                Ok(b) => b,
+                Err(_) => return self.deny(conn, "malformed update"),
+            },
+            None => bytes,
+        };
         let live_before = filter::live_refs_if_relevant(&self.doc, &bytes);
         let Ok(update) = Update::decode_v1(&bytes) else {
             return self.deny(conn, "malformed update");
@@ -1867,26 +1893,26 @@ impl Room {
         }
         let batch = std::mem::take(&mut self.wal_queue);
         let at = now_ms();
-        let rows = if self.memory {
-            Vec::new()
-        } else {
-            batch
-                .iter()
-                .map(|q| WalRow {
-                    seq: q.seq,
-                    data: q.bytes.clone(),
-                    origin: q.user_id.clone(),
-                    at,
-                    doc: q.doc.clone(),
-                })
-                .collect::<Vec<_>>()
-        };
+        // Memory durability writes no rows for the main document (its state is dumped), but a
+        // part's edits go to the WAL as they happen (PSYNC-02): a part is dumped only when
+        // written and loaded, so its rows are what a crash would otherwise lose.
+        let rows = batch
+            .iter()
+            .filter(|q| !self.memory || !q.doc.is_empty())
+            .map(|q| WalRow {
+                seq: q.seq,
+                data: q.bytes.clone(),
+                origin: q.user_id.clone(),
+                at,
+                doc: q.doc.clone(),
+            })
+            .collect::<Vec<_>>();
         if self.dirty_since.is_none() && batch.iter().any(|q| q.edit) && !self.mark_dirty().await {
             return false;
         }
         // Memory durability (ADR-029): acknowledged after the in-memory apply; the periodic
         // dump makes it durable.
-        if !self.memory {
+        if !rows.is_empty() {
             let started = Instant::now();
             let res = self
                 .ctx
