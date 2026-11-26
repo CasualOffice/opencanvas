@@ -263,6 +263,7 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 | RLB-02 | Cluster failover drills (owner, Redis, DB primary, partition) | Todo | M; Maturity |
 | RLB-03 | Backup and restore runbook, `restore-drill.sh`, restore epoch | Done (2026-11-27): runbook in docs/13, scripts/restore-drill.sh (SQLite, MySQL pass), restore epoch OC_RESTORED=1 (offline floor, skipped slots; migration 0013) | L; Maturity |
 | RLB-04 | Flaky-test elimination, quarantine policy, repeat-each job | Done (2026-11-26): policy in docs/13, reliability-nightly repeat jobs, changed specs 5× in CI; automation due-slot race fixed | L; Maturity |
+| RLB-04-Q1 | Quarantined on CI until 2026-12-10: `p-people` :35 and :156, the @ picker never opens after a reopen on CI (console: "TextSelection endpoint not pointing into a node with inline content (callout)"); passes locally. Root cause to fix | In progress | Quarantine per docs/13 "Flaky tests" (owner, expiry). Three fixes tried: late-plugin install in one step, caret-rect fallback, openFile waits for block ids |
 | RLB-05 | MySQL `storage_conformance` parallel failures; CI job on MySQL, MariaDB, Redis | Done (2026-11-26): shared test database, not a store race; a database per test; CI runs the file on MySQL 8.4, MariaDB 10.11 and Redis | S; Maturity |
 | RLB-06 | SOAK (8 h at the X10K mix) before the release | Todo | M; Maturity |
 | RLB-07 | Metrics, dashboard and alerts for fan-out, presence, reconnects, subdocuments | Todo | M; Maturity |
