@@ -102,6 +102,9 @@ export async function applyTemplate(p: Person, name: string) {
   await p.oc.locator(".tcard").filter({ hasText: name }).first().click();
   await p.oc.getByRole("button", { name: "Use template" }).click();
   await expect(editor(p)).toBeVisible();
+  // The template's blocks get their ids in a second render (VH-00); typing before that lands in
+  // nodes that are replaced and is lost (zc-editor-profile, ze-live-blocks.phone flaked on it).
+  await blocksReady(p.oc);
 }
 
 /** Puts the caret at the end of the block that contains `text` (or the empty paragraph after a heading). */
