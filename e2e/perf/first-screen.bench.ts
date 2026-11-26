@@ -19,6 +19,10 @@
 //
 //   cd e2e && npx playwright test -c perf/bench.config.ts
 //   BENCH_FIXTURES=s,m   BENCH_RUNS=3   BENCH_MACHINE=local   E2E_SKIP_BUILD=1   E2E_PORT_SHIFT=500
+//   BENCH_PARTIAL=1   the host has `[host.flags] partial_sync` (PSYNC-02/03): databases and
+//                     boards load as subdocuments when scrolled near; `parts` counts the
+//                     database and board views showing content (not the placeholder) after
+//                     the scroll
 //
 // Writes bench/results/<date>-browser-<machine>.json (hardware, profile, medians and every run).
 import { execFileSync, execSync, spawn, type ChildProcess } from "node:child_process";
@@ -36,6 +40,7 @@ const OC = `http://127.0.0.1:${PORT}`;
 const FIXTURES = (process.env.BENCH_FIXTURES ?? "s,m,l,50mb").split(",").filter(Boolean);
 const RUNS = Number(process.env.BENCH_RUNS ?? 3);
 const MACHINE = process.env.BENCH_MACHINE ?? "local";
+const PARTIAL = !!process.env.BENCH_PARTIAL;
 const SECRET = "bench-secret-0123456789abcdef0123456789";
 const TGT = path.resolve(ROOT, process.env.CARGO_TARGET_DIR ?? "target");
 const DIST = path.join(ROOT, "web/packages/editor/dist");
@@ -89,7 +94,7 @@ test.beforeAll(async () => {
   work = fs.mkdtempSync(path.join(os.tmpdir(), "oc-browser-bench-"));
   fs.writeFileSync(
     path.join(work, "hosts.toml"),
-    `[[host]]\nid = "bench"\nname = "Bench host"\nmode = "jwt"\njwt_alg = "HS256"\njwt_secret = "${SECRET}"\napi_key = "bench-api-key"\ncallback_base = "http://127.0.0.1:${HOST_PORT}/api"\n`,
+    `[[host]]\nid = "bench"\nname = "Bench host"\nmode = "jwt"\njwt_alg = "HS256"\njwt_secret = "${SECRET}"\napi_key = "bench-api-key"\ncallback_base = "http://127.0.0.1:${HOST_PORT}/api"\n${PARTIAL ? "\n[host.flags]\npartial_sync = true\n" : ""}`,
   );
   const log = fs.openSync(path.join(work, "logs.txt"), "a");
   children.push(
@@ -110,7 +115,8 @@ test.beforeAll(async () => {
     OC_LOG: "warn",
   };
   delete env.OC_DEV;
-  children.push(spawn(path.join(TGT, "release/opencanvas"), [], { cwd: ROOT, env, stdio: ["ignore", log, log] }));
+  // OC_BIN: a server binary kept aside (a shared CARGO_TARGET_DIR can be rebuilt by another tree).
+  children.push(spawn(process.env.OC_BIN ?? path.join(TGT, "release/opencanvas"), [], { cwd: ROOT, env, stdio: ["ignore", log, log] }));
   await ready(`${OC}/readyz`, 30_000);
 });
 
@@ -147,6 +153,16 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
       });
       const scripts: { url: string; transfer: number; decoded: number }[] = [];
       let painted = false;
+      // PSYNC-03: subdocument frames (type 101) and the parts list, before the first screen.
+      const ws = { sub: 0, parts: -1 };
+      page.on("websocket", (w) =>
+        w.on("framereceived", (f) => {
+          const b = f.payload;
+          if (typeof b === "string" || !b.length) return;
+          if (b[0] === 101 && !painted) ws.sub++;
+          if (b[0] === 100 && ws.parts < 0 && Buffer.from(b).includes(Buffer.from('"t":"parts"'))) ws.parts = (Buffer.from(b).toString("latin1").match(/block\//g) ?? []).length;
+        }),
+      );
       page.on("requestfinished", async (req) => {
         if (painted || req.resourceType() !== "script") return;
         const s = await req.sizes().catch(() => null);
@@ -178,6 +194,12 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
         const heap = (await cdp.send("Runtime.getHeapUsage")) as { usedSize: number; totalSize: number };
         run.heapMb = Math.round((heap.usedSize / 1048576) * 10) / 10;
         run.domNodes = await page.evaluate(() => document.getElementsByTagName("*").length);
+        run.partsBeforeScroll = await page.evaluate(() => {
+          const views = [...document.querySelectorAll("[data-db], [data-board]")];
+          return { views: views.length, shown: views.filter((v) => !v.querySelector(".bskel")).length };
+        });
+        run.subFramesBeforeFirstScreen = ws.sub;
+        run.partsListed = ws.parts;
         const loadLoaf = await page.evaluate(() => (window as unknown as { __loaf: { duration: number }[] }).__loaf.length);
         // Scroll through the document with the wheel over the editor.
         await page.mouse.move(640, 500);
@@ -196,6 +218,10 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
           worstMs: Math.round(Math.max(0, ...l.map((e) => e.duration))),
         });
         run.longFrames = { load: summary(loaf.slice(0, loadLoaf)), scroll: summary(loaf.filter((e) => e.start >= t0)) };
+        run.parts = await page.evaluate(() => {
+          const views = [...document.querySelectorAll("[data-db], [data-board]")];
+          return { views: views.length, shown: views.filter((v) => !v.querySelector(".bskel")).length };
+        });
         run.js = {
           requests: scripts.length,
           transferKb: Math.round(scripts.reduce((a, b) => a + b.transfer, 0) / 100) / 10,
@@ -227,7 +253,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
   const commit = execSync("git rev-parse --short HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
   const date = new Date().toISOString().slice(0, 10);
   const browserVersion = browser.version();
-  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}.json`);
+  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : ""}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(
     out,
