@@ -1203,7 +1203,11 @@ impl Room {
             }
             return;
         }
-        self.broadcast(protocol::awareness(update), except);
+        // At most ~16 KB a frame: every socket's write buffer keeps the largest batch it was
+        // sent (PERF-11, R1K).
+        for f in protocol::awareness_frames(update) {
+            self.broadcast(f, except);
+        }
     }
 
     /// Applies the queued presence (and any frames parked while the inbox was full) and fans
@@ -1242,7 +1246,9 @@ impl Room {
             .get(&conn)
             .and_then(|p| p.grant.live.parent.as_ref().map(|x| x.file_id.clone()));
         let update = presence::without_foreign_from(&update, parent.as_deref()).unwrap_or(update);
-        self.send(conn, protocol::awareness(update));
+        for f in protocol::awareness_frames(update) {
+            self.send(conn, f);
+        }
     }
 
     fn leave(&mut self, conn: ConnId) {

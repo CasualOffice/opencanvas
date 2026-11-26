@@ -84,9 +84,16 @@ where
         let mut batch = Vec::new();
         let mut bytes = 0;
         let mut item = Some(out);
+        // A frame that would take the batch past the byte cap waits for the next batch
+        // (PERF-11: the socket's write buffer keeps the capacity of the largest batch).
+        let mut carry = None;
         while let Some(o) = item.take() {
             match o {
                 Outbound::Frame(b) => {
+                    if !batch.is_empty() && bytes + b.len() > WRITE_BATCH_BYTES {
+                        carry = Some(Outbound::Frame(b));
+                        break;
+                    }
                     bytes += b.len();
                     batch.push(Message::Binary(b));
                 }
@@ -120,7 +127,10 @@ where
             .await;
             break;
         }
-        next = rx.recv().await;
+        next = match carry {
+            Some(c) => Some(c),
+            None => rx.recv().await,
+        };
     }
 }
 
@@ -430,5 +440,81 @@ mod tests {
         let mut sent: Vec<Message> = Vec::new();
         write_frames(&mut sent, rx).await;
         assert_eq!(sent.len(), 10);
+    }
+
+    /// Bytes fed between flushes: what tungstenite's write buffer must hold at once.
+    #[derive(Default)]
+    struct Batches {
+        open: usize,
+        largest: usize,
+        frames: usize,
+    }
+
+    impl futures::Sink<Message> for Batches {
+        type Error = axum::Error;
+        fn poll_ready(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+        fn start_send(mut self: std::pin::Pin<&mut Self>, m: Message) -> Result<(), Self::Error> {
+            if let Message::Binary(b) = m {
+                self.open += b.len();
+                self.frames += 1;
+            }
+            Ok(())
+        }
+        fn poll_flush(
+            mut self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            self.largest = self.largest.max(self.open);
+            self.open = 0;
+            std::task::Poll::Ready(Ok(()))
+        }
+        fn poll_close(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            self.poll_flush(cx)
+        }
+    }
+
+    /// R1K (PERF-11): tungstenite keeps each connection's write buffer at the largest batch it
+    /// ever held (410 MB of 444 MB live heap at 1,000 peers, jemalloc heap profile). A batch
+    /// stays within WRITE_BATCH_BYTES; only a single larger frame goes alone.
+    #[tokio::test]
+    async fn a_write_batch_never_exceeds_the_byte_cap() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        for _ in 0..8 {
+            tx.send(Outbound::Frame(vec![0u8; 40 * 1024].into()))
+                .unwrap();
+        }
+        tx.send(Outbound::Frame(vec![0u8; 100 * 1024].into()))
+            .unwrap();
+        drop(tx);
+        let mut sink = Batches::default();
+        write_frames(&mut sink, rx).await;
+        assert_eq!(sink.frames, 9);
+        assert!(
+            sink.largest <= 100 * 1024,
+            "{} bytes in one batch",
+            sink.largest
+        );
+        // Without the single large frame: every batch fits the cap.
+        let (tx, rx) = mpsc::unbounded_channel();
+        for _ in 0..8 {
+            tx.send(Outbound::Frame(vec![0u8; 40 * 1024].into()))
+                .unwrap();
+        }
+        drop(tx);
+        let mut sink = Batches::default();
+        write_frames(&mut sink, rx).await;
+        assert!(
+            sink.largest <= WRITE_BATCH_BYTES,
+            "{} bytes in one batch",
+            sink.largest
+        );
     }
 }

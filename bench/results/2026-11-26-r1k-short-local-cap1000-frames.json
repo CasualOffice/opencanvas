@@ -1,0 +1,619 @@
+{
+  "bucketSecs": 30,
+  "buckets": [
+    {
+      "awarenessOutPerSec": 4706.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 121013.0,
+      "latMs": {
+        "max": 105.2,
+        "p50": 26.7,
+        "p95": 49.1,
+        "p99": 57.3,
+        "samples": 69350
+      },
+      "live": 1000,
+      "loadgenCpuPct": 102.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 94.3,
+        "rssMb": 163.1
+      },
+      "tSecs": 30,
+      "updatesOutPerSec": 231.0
+    },
+    {
+      "awarenessOutPerSec": 4702.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 120578.0,
+      "latMs": {
+        "max": 96.2,
+        "p50": 27.8,
+        "p95": 52.2,
+        "p99": 61.6,
+        "samples": 69633
+      },
+      "live": 1000,
+      "loadgenCpuPct": 112.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 106.5,
+        "rssMb": 134.4
+      },
+      "tSecs": 60,
+      "updatesOutPerSec": 232.0
+    },
+    {
+      "awarenessOutPerSec": 4692.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 120215.0,
+      "latMs": {
+        "max": 127.6,
+        "p50": 29.4,
+        "p95": 55.6,
+        "p99": 69.7,
+        "samples": 70881
+      },
+      "live": 1000,
+      "loadgenCpuPct": 118.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 110.2,
+        "rssMb": 131.2
+      },
+      "tSecs": 90,
+      "updatesOutPerSec": 236.0
+    },
+    {
+      "awarenessOutPerSec": 4671.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 118552.0,
+      "latMs": {
+        "max": 178.6,
+        "p50": 30.6,
+        "p95": 61.3,
+        "p99": 97.7,
+        "samples": 68966
+      },
+      "live": 1000,
+      "loadgenCpuPct": 100.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 96.2,
+        "rssMb": 132.8
+      },
+      "tSecs": 120,
+      "updatesOutPerSec": 231.0
+    },
+    {
+      "awarenessOutPerSec": 4665.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 117346.0,
+      "latMs": {
+        "max": 141.4,
+        "p50": 32.4,
+        "p95": 70.1,
+        "p99": 98.7,
+        "samples": 71400
+      },
+      "live": 1000,
+      "loadgenCpuPct": 99.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 98.5,
+        "rssMb": 133.4
+      },
+      "tSecs": 150,
+      "updatesOutPerSec": 239.0
+    },
+    {
+      "awarenessOutPerSec": 4669.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 118447.0,
+      "latMs": {
+        "max": 123.9,
+        "p50": 30.9,
+        "p95": 62.8,
+        "p99": 88.7,
+        "samples": 69330
+      },
+      "live": 1000,
+      "loadgenCpuPct": 107.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 101.7,
+        "rssMb": 140.5
+      },
+      "tSecs": 180,
+      "updatesOutPerSec": 232.0
+    },
+    {
+      "awarenessOutPerSec": 4682.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 120771.0,
+      "latMs": {
+        "max": 127.8,
+        "p50": 28.7,
+        "p95": 58.6,
+        "p99": 72.6,
+        "samples": 70559
+      },
+      "live": 1000,
+      "loadgenCpuPct": 122.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 111.6,
+        "rssMb": 140.7
+      },
+      "tSecs": 210,
+      "updatesOutPerSec": 235.0
+    },
+    {
+      "awarenessOutPerSec": 4706.0,
+      "drops": 0,
+      "errors": 0,
+      "fault": null,
+      "framesInPerSec": 122706.0,
+      "latMs": {
+        "max": 72.5,
+        "p50": 25.5,
+        "p95": 47.5,
+        "p99": 54.2,
+        "samples": 69636
+      },
+      "live": 1000,
+      "loadgenCpuPct": 122.0,
+      "reconnects": 0,
+      "refusedFull": 0,
+      "server": {
+        "cpuPct": 103.2,
+        "rssMb": 145.6
+      },
+      "tSecs": 240,
+      "updatesOutPerSec": 232.0
+    }
+  ],
+  "closes": {},
+  "commit": "b55cb66",
+  "date": "2026-11-26",
+  "description": "1 room of 1,000 peers: 100 typing at 2 edits/s, 900 moving cursors at 5 moves/s; 15 min",
+  "dirty": true,
+  "errors": {},
+  "faults": [],
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "host": {
+    "loads": 1,
+    "saves": 24
+  },
+  "liveEnd": 1000,
+  "load": {
+    "connectRate": 100.0,
+    "connections": 1000,
+    "docs": "demo",
+    "probesPerRoom": 10,
+    "rooms": 1,
+    "sourceAddrs": []
+  },
+  "loadAvg": {
+    "end": 15.99,
+    "start": 9.04
+  },
+  "machine": "local",
+  "minutes": 4.0,
+  "mix": {
+    "roles": {
+      "idle": 0,
+      "presence": 900,
+      "typing": 100
+    },
+    "stated": {
+      "idle": 0.0,
+      "presence": 0.9,
+      "presence_hz": 5.0,
+      "typing": 0.1,
+      "typing_hz": 2.0
+    },
+    "typist": "types steadily at typing_hz chars/s with no pauses; 6% of its edits are database cells and 2% start a 10-step board drag"
+  },
+  "notMeasured": [
+    "all clients converge (state vectors and text equal): oc-bench verify checks convergence, this load run does not"
+  ],
+  "overrides": {
+    "bucket_secs": null,
+    "connections": null,
+    "fault_at_min": null,
+    "minutes": null,
+    "rooms": null
+  },
+  "pass": [
+    {
+      "pass": true,
+      "rule": "p99 < 500 ms in every bucket (except 0 s after a fault)",
+      "value": 98.7
+    },
+    {
+      "pass": true,
+      "rule": "all 1000 clients connected",
+      "value": {
+        "liveEnd": 1000,
+        "refusedFull": 0
+      }
+    },
+    {
+      "pass": false,
+      "rule": "RSS within ± 10% after warm-up (first bucket to last)",
+      "value": -10.7
+    },
+    {
+      "pass": true,
+      "rule": "no drops outside the fault buckets",
+      "value": 0
+    }
+  ],
+  "passed": false,
+  "ramp": {
+    "connectMs": {
+      "max": 221,
+      "p50": 4.0,
+      "p95": 45.0
+    },
+    "ready": 1000,
+    "secs": 11.4
+  },
+  "reconnectMs": {
+    "max": 0,
+    "n": 0,
+    "p50": null,
+    "p95": null
+  },
+  "rssMaxMb": 163.1,
+  "scenario": "R1K",
+  "scenarioFile": "bench/scenarios/r1k.toml",
+  "scenarioSha256": "daff8f9d09b4b1001c09c364af408755a333eee2808fd31e3027e8b3dd738f7f",
+  "serverEnv": {
+    "OC_MAX_PEERS": "1000"
+  },
+  "size": "short",
+  "store": "sqlite",
+  "targetMachine": {
+    "nodes": 1,
+    "ram_gb": 8,
+    "vcpu": 4
+  },
+  "timeline": [
+    {
+      "cpuPct": 0.0,
+      "live": 0,
+      "rssMb": 20,
+      "t": 0
+    },
+    {
+      "cpuPct": 40.0,
+      "live": 450,
+      "rssMb": 94,
+      "t": 5
+    },
+    {
+      "cpuPct": 160.0,
+      "live": 894,
+      "rssMb": 159,
+      "t": 10
+    },
+    {
+      "cpuPct": 131.0,
+      "live": 1000,
+      "rssMb": 174,
+      "t": 15
+    },
+    {
+      "cpuPct": 92.0,
+      "live": 1000,
+      "rssMb": 174,
+      "t": 20
+    },
+    {
+      "cpuPct": 93.0,
+      "live": 1000,
+      "rssMb": 174,
+      "t": 25
+    },
+    {
+      "cpuPct": 93.0,
+      "live": 1000,
+      "rssMb": 171,
+      "t": 30
+    },
+    {
+      "cpuPct": 93.0,
+      "live": 1000,
+      "rssMb": 170,
+      "t": 35
+    },
+    {
+      "cpuPct": 97.0,
+      "live": 1000,
+      "rssMb": 164,
+      "t": 40
+    },
+    {
+      "cpuPct": 107.0,
+      "live": 1000,
+      "rssMb": 150,
+      "t": 45
+    },
+    {
+      "cpuPct": 101.0,
+      "live": 1000,
+      "rssMb": 150,
+      "t": 50
+    },
+    {
+      "cpuPct": 101.0,
+      "live": 1000,
+      "rssMb": 150,
+      "t": 55
+    },
+    {
+      "cpuPct": 102.0,
+      "live": 1000,
+      "rssMb": 150,
+      "t": 60
+    },
+    {
+      "cpuPct": 117.0,
+      "live": 1000,
+      "rssMb": 151,
+      "t": 65
+    },
+    {
+      "cpuPct": 111.0,
+      "live": 1000,
+      "rssMb": 134,
+      "t": 70
+    },
+    {
+      "cpuPct": 118.0,
+      "live": 1000,
+      "rssMb": 126,
+      "t": 75
+    },
+    {
+      "cpuPct": 118.0,
+      "live": 1000,
+      "rssMb": 127,
+      "t": 80
+    },
+    {
+      "cpuPct": 119.0,
+      "live": 1000,
+      "rssMb": 128,
+      "t": 85
+    },
+    {
+      "cpuPct": 113.0,
+      "live": 1000,
+      "rssMb": 127,
+      "t": 90
+    },
+    {
+      "cpuPct": 98.0,
+      "live": 1000,
+      "rssMb": 130,
+      "t": 95
+    },
+    {
+      "cpuPct": 98.0,
+      "live": 1000,
+      "rssMb": 130,
+      "t": 100
+    },
+    {
+      "cpuPct": 92.0,
+      "live": 1000,
+      "rssMb": 133,
+      "t": 105
+    },
+    {
+      "cpuPct": 96.0,
+      "live": 1000,
+      "rssMb": 131,
+      "t": 110
+    },
+    {
+      "cpuPct": 95.0,
+      "live": 1000,
+      "rssMb": 132,
+      "t": 115
+    },
+    {
+      "cpuPct": 99.0,
+      "live": 1000,
+      "rssMb": 132,
+      "t": 120
+    },
+    {
+      "cpuPct": 101.0,
+      "live": 1000,
+      "rssMb": 134,
+      "t": 125
+    },
+    {
+      "cpuPct": 93.0,
+      "live": 1000,
+      "rssMb": 134,
+      "t": 130
+    },
+    {
+      "cpuPct": 98.0,
+      "live": 1000,
+      "rssMb": 133,
+      "t": 135
+    },
+    {
+      "cpuPct": 89.0,
+      "live": 1000,
+      "rssMb": 132,
+      "t": 140
+    },
+    {
+      "cpuPct": 96.0,
+      "live": 1000,
+      "rssMb": 135,
+      "t": 145
+    },
+    {
+      "cpuPct": 97.0,
+      "live": 1000,
+      "rssMb": 128,
+      "t": 150
+    },
+    {
+      "cpuPct": 106.0,
+      "live": 1000,
+      "rssMb": 136,
+      "t": 155
+    },
+    {
+      "cpuPct": 103.0,
+      "live": 1000,
+      "rssMb": 133,
+      "t": 160
+    },
+    {
+      "cpuPct": 103.0,
+      "live": 1000,
+      "rssMb": 126,
+      "t": 165
+    },
+    {
+      "cpuPct": 105.0,
+      "live": 1000,
+      "rssMb": 135,
+      "t": 170
+    },
+    {
+      "cpuPct": 106.0,
+      "live": 1000,
+      "rssMb": 136,
+      "t": 175
+    },
+    {
+      "cpuPct": 108.0,
+      "live": 1000,
+      "rssMb": 137,
+      "t": 180
+    },
+    {
+      "cpuPct": 90.0,
+      "live": 1000,
+      "rssMb": 139,
+      "t": 185
+    },
+    {
+      "cpuPct": 99.0,
+      "live": 1000,
+      "rssMb": 140,
+      "t": 190
+    },
+    {
+      "cpuPct": 99.0,
+      "live": 1000,
+      "rssMb": 140,
+      "t": 195
+    },
+    {
+      "cpuPct": 111.0,
+      "live": 1000,
+      "rssMb": 140,
+      "t": 200
+    },
+    {
+      "cpuPct": 116.0,
+      "live": 1000,
+      "rssMb": 140,
+      "t": 205
+    },
+    {
+      "cpuPct": 117.0,
+      "live": 1000,
+      "rssMb": 141,
+      "t": 210
+    },
+    {
+      "cpuPct": 114.0,
+      "live": 1000,
+      "rssMb": 141,
+      "t": 216
+    },
+    {
+      "cpuPct": 112.0,
+      "live": 1000,
+      "rssMb": 141,
+      "t": 221
+    },
+    {
+      "cpuPct": 110.0,
+      "live": 1000,
+      "rssMb": 142,
+      "t": 226
+    },
+    {
+      "cpuPct": 110.0,
+      "live": 1000,
+      "rssMb": 144,
+      "t": 231
+    },
+    {
+      "cpuPct": 90.0,
+      "live": 1000,
+      "rssMb": 143,
+      "t": 236
+    },
+    {
+      "cpuPct": 95.0,
+      "live": 1000,
+      "rssMb": 144,
+      "t": 241
+    },
+    {
+      "cpuPct": 110.0,
+      "live": 1000,
+      "rssMb": 144,
+      "t": 246
+    },
+    {
+      "cpuPct": 104.0,
+      "live": 1000,
+      "rssMb": 145,
+      "t": 251
+    }
+  ]
+}

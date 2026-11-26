@@ -58,6 +58,8 @@ tikv-jemalloc-sys = { version = "0.6.1", optional = true }
 default = ["jemalloc"]
 mimalloc = ["dep:mimalloc", "dep:libmimalloc-sys"]
 jemalloc = ["dep:tikv-jemallocator", "dep:tikv-jemalloc-ctl", "dep:tikv-jemalloc-sys"]
+# Heap profiles (docs/22 §9.6): _RJEM_MALLOC_CONF=prof:true,... and jeprof; never in a release.
+jemalloc-prof = ["jemalloc", "tikv-jemallocator/profiling"]
 
 [dev-dependencies]
 sqlx.workspace = true
