@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type FrameLocator, type Page } from "@playwright/test";
-import { HOST, HOST_OFFLINE, HOST_RELOAD } from "./env";
+import { HOST, HOST_OFFLINE, HOST_PSYNC, HOST_RELOAD } from "./env";
 import { storedDocument } from "./ocanvas";
 
 export type UserId = "u_priya" | "u_asha" | "u_asha2" | "u_ravi" | "u_sam";
@@ -34,7 +34,7 @@ export interface HostFile {
 export function hostFiles(host = HOST): Record<string, HostFile> {
   const tmp = process.env.E2E_TMP;
   if (!tmp) throw new Error("E2E_TMP is not set: run through playwright (global setup)");
-  const dir = host === HOST_RELOAD ? "host-reload" : host === HOST_OFFLINE ? "host-offline" : "host";
+  const dir = host === HOST_RELOAD ? "host-reload" : host === HOST_OFFLINE ? "host-offline" : host === HOST_PSYNC ? "host-psync" : "host";
   return JSON.parse(fs.readFileSync(path.join(tmp, dir, "meta.json"), "utf8")).files;
 }
 export const hostVersion = (fileId: string, host = HOST) => hostFiles(host)[fileId]?.version ?? -1;

@@ -567,3 +567,49 @@ async fn an_edit_to_a_block_that_just_became_a_part_is_kept() {
     let whole = server_json(&state).await;
     assert_eq!(whole["databases"]["d9"]["name"], "Renamed");
 }
+
+/// Memory durability (ADR-029, the default without Redis) splits too: no WAL rows, so a part
+/// changed during a whole view is written when the view splits again, and a written part when
+/// it is evicted. An edit made while whole survives eviction and reload.
+#[tokio::test]
+async fn memory_durability_keeps_part_edits_made_during_a_whole_view() {
+    let (base, mock) = mock_host().await;
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (canvas(), 1));
+    let mut cfg = room_cfg();
+    cfg.durability = oc_server::config::Durability::Memory;
+    cfg.part_evict = Duration::from_millis(200);
+    cfg.whole_release = Duration::from_millis(200);
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.insert("partial_sync".into(), true.into());
+    })
+    .await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    assert!(
+        a.controls.iter().any(|c| c["t"] == "parts"),
+        "split under memory durability"
+    );
+    let d = oc_model::new_doc();
+    load(&mut a, "d1", &d).await;
+    let ops = vec![serde_json::from_value(json!({"op": "append", "markdown": "x"})).unwrap()];
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    edit_part(&a, &d, "d1", "During whole");
+    a.settle().await;
+    a.send(protocol::control(
+        &json!({"t": "sub-unload", "id": guid("d1")}),
+    ));
+    // The view splits again (200 ms), the part is evicted (200 ms more), then loaded again.
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let d2 = oc_model::new_doc();
+    load(&mut a, "d1", &d2).await;
+    assert_eq!(row_title(&d2, "d1", "r1").as_deref(), Some("During whole"));
+}

@@ -2614,6 +2614,11 @@ impl Room {
         if self.dump_in_flight {
             return;
         }
+        // PSYNC-02: a split room dumps its written parts; a whole view waits for its split.
+        if !self.dump_parts() {
+            self.last_compact = Instant::now();
+            return;
+        }
         self.dump_in_flight = true;
         self.last_compact = Instant::now();
         let state = self

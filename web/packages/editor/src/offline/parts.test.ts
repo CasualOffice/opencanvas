@@ -9,7 +9,7 @@ import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 import { Device } from "./copy";
 import { memKv } from "./kv";
-import { PartsClient, subFrame } from "../lib/parts";
+import { PartsClient, readSubFrame, subFrame } from "../lib/parts";
 
 function database(title: string) {
   const d = new Y.Doc();
@@ -39,12 +39,14 @@ describe("offline copy of a split room (PSYNC-03)", () => {
     const client: PartsClient = new PartsClient("doc_1", {
       send(frame) {
         if (!online) return false;
-        const dec = decoding.createDecoder(frame);
-        decoding.readVarUint(dec);
-        const guid = decoding.readVarString(dec);
+        const outer = decoding.createDecoder(frame);
+        decoding.readVarUint(outer);
+        const { guid, inner: dec } = readSubFrame(outer);
+        expect(decoding.readVarUint(dec)).toBe(0);
         const reply = encoding.createEncoder();
+        encoding.writeVarUint(reply, 0);
         syncProtocol.readSyncMessage(dec, reply, server, "room");
-        if (encoding.length(reply) > 0) {
+        if (encoding.length(reply) > 1) {
           const back = decoding.createDecoder(subFrame(guid, encoding.toUint8Array(reply)));
           decoding.readVarUint(back);
           client.handle(back);
@@ -65,6 +67,7 @@ describe("offline copy of a split room (PSYNC-03)", () => {
     client.resync();
     // The room's step 1 asks the client for its edits (as the server does after its step 2).
     const step1 = encoding.createEncoder();
+    encoding.writeVarUint(step1, 0);
     syncProtocol.writeSyncStep1(step1, server);
     const dec = decoding.createDecoder(subFrame("doc_1/block/d1", encoding.toUint8Array(step1)));
     decoding.readVarUint(dec);

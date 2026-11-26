@@ -41,6 +41,9 @@ pub(super) struct SplitState {
     pub holders: HashMap<String, HashSet<ConnId>>,
     /// `doc` is the whole canvas (since then, refreshed by whole-canvas work).
     pub whole_since: Option<Instant>,
+    /// Parts changed since their last snapshot. Under memory durability (no WAL rows) these
+    /// are written when a whole view splits again and on every dump.
+    pub dirty_parts: HashSet<String>,
 }
 
 pub(super) struct Part {
@@ -98,10 +101,7 @@ pub(super) fn header_of(key: &str, doc: &Doc) -> Value {
 
 impl Room {
     pub(super) fn split_enabled(&self) -> bool {
-        self.host.partial_sync()
-            && self.ctx.store.supports_parts()
-            && !self.ephemeral
-            && !self.memory
+        self.host.partial_sync() && self.ctx.store.supports_parts() && !self.ephemeral
     }
 
     fn guid(&self, key: &str) -> String {
@@ -148,6 +148,7 @@ impl Room {
             loaded: HashMap::new(),
             holders: HashMap::new(),
             whole_since: None,
+            dirty_parts: HashSet::new(),
         };
         if recovered {
             st.svs.insert(MAIN.into(), sv_of(&self.doc));
@@ -553,7 +554,11 @@ impl Room {
             };
             // A part's WAL already has every routed edit; only a part that is new or whose
             // items moved (a block made in the main document) needs a snapshot.
-            if s.headers.contains_key(k) && s.owners.ranges_of(k) == split.owners.ranges_of(k) {
+            // Under memory durability nothing reached the WAL: every changed part is written.
+            if s.headers.contains_key(k)
+                && s.owners.ranges_of(k) == split.owners.ranges_of(k)
+                && !(self.memory && s.dirty_parts.contains(k))
+            {
                 continue;
             }
             let doc = match doc_of(b) {
@@ -603,6 +608,7 @@ impl Room {
             s.svs.insert(MAIN.into(), sv_of(&main));
             s.owners = split.owners;
             s.whole_since = None;
+            s.dirty_parts.clear();
         }
         self.install_doc(main);
         if headers_changed && let Some(frame) = self.parts_control() {
@@ -612,6 +618,40 @@ impl Room {
             }
         }
         tracing::info!(room = %self.id, "whole view released to parts");
+    }
+
+    /// Memory durability's dump (ADR-029) for a split room: every written loaded part goes to
+    /// its snapshot too. `false`: a whole view, whose parts are written when it splits again
+    /// (the main snapshot must not get the whole canvas).
+    pub(super) fn dump_parts(&mut self) -> bool {
+        let Some(s) = self.split.as_mut() else {
+            return true;
+        };
+        if s.whole_since.is_some() {
+            return false;
+        }
+        let mut out = Vec::new();
+        for (k, p) in s.loaded.iter_mut().filter(|(_, p)| p.dirty) {
+            p.dirty = false;
+            s.dirty_parts.remove(k);
+            out.push((k.clone(), encode(&p.doc), header_of(k, &p.doc)));
+        }
+        if out.is_empty() {
+            return true;
+        }
+        let (ctx, id, epoch, seq) = (self.ctx.clone(), self.id.clone(), self.epoch, self.seq);
+        tokio::spawn(async move {
+            for (k, state, header) in out {
+                if let Err(e) = ctx
+                    .store
+                    .compact_part(&id, epoch, &k, seq, &state, &header, now_ms())
+                    .await
+                {
+                    tracing::warn!(room = %id, part = %k, error = %e, "part dump failed");
+                }
+            }
+        });
+        true
     }
 
     /// Parts nobody held for `part_evict` (30 s) leave memory (snapshotted when written).
@@ -718,6 +758,9 @@ impl Room {
         if self.lost.is_some() {
             return;
         }
+        if let Some(s) = self.split.as_mut() {
+            s.dirty_parts.insert(key.to_string());
+        }
         self.seq += 1;
         self.wal_queue.push(Queued {
             seq: self.seq,
@@ -764,6 +807,9 @@ impl Room {
                     let v = m.entry(c).or_default();
                     *v = (*v).max(e);
                 }
+            }
+            if !k.is_empty() {
+                s.dirty_parts.insert(k.clone());
             }
             if !k.is_empty() && !s.headers.contains_key(&k) {
                 s.headers.insert(k.clone(), json!({"kind": if k.starts_with("databases/") {"database"} else {"board"}, "name": null, "count": 0}));
