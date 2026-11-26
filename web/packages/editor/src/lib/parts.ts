@@ -166,12 +166,36 @@ export class PartsClient {
     this.transport.send(subFrame(this.guid(blockId), encoding.toUint8Array(enc)));
   }
 
-  /** After a reconnect: ask again for everything held (the server forgot the holders). */
+  /** After a reconnect: ask again for everything held (the server forgot the holders). The
+   *  handshake also sends the room what the part has and the room lacks: edits made offline
+   *  (y-protocols sync step 2 in answer to the room's step 1). Views keep showing the content
+   *  they have meanwhile. */
   resync() {
-    for (const [id, h] of this.held) {
-      h.synced = false;
-      this.request(id, h);
+    for (const [id, h] of this.held) this.request(id, h);
+  }
+
+  /** An offline copy opened from the device: the parts list and each part's state as kept.
+   *  Every part is pinned and shown; the next connection syncs each one with the room. */
+  restore(list: PartHeader[], states: Map<string, Uint8Array>) {
+    this.setParts(list);
+    this.pinAll();
+    for (const [id, state] of states) {
+      const h = this.held.get(id);
+      if (!h) continue;
+      Y.applyUpdate(h.doc, state, this);
+      h.synced = true;
     }
+    this.changed();
+  }
+
+  /** Every part document held now (for the offline copy). */
+  heldDocs(): [string, Y.Doc][] {
+    return [...this.held].map(([id, h]) => [id, h.doc]);
+  }
+
+  /** The parts list as the room sent it. */
+  list(): PartHeader[] {
+    return [...this.headers.values()];
   }
 
   /** A type 101 frame from the server (the decoder is past the message type). */

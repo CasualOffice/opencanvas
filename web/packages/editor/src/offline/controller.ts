@@ -187,8 +187,11 @@ export class Controller {
     this.watchExpiry();
   }
 
+  private partsWatched = false;
+
   destroy() {
     this.destroyed = true;
+    this.partTimers.forEach((t) => window.clearTimeout(t));
     offlineUploads.queue = null;
     this.offs.forEach((f) => f());
     this.touched?.stop();
@@ -300,9 +303,43 @@ export class Controller {
     this.scheduleMeta();
   };
 
+  /** PSYNC-03: every part of a split room is kept too (list, then each part's state, written
+   *  a second after its last change). */
+  private partOffs = new Map<Y.Doc, () => void>();
+  private partTimers = new Map<string, number>();
+  private keepParts = () => {
+    const parts = this.ctx.collab.parts;
+    if (!parts?.split || !this.meta) return;
+    this.writeChain = this.writeChain.then(() => this.copy.savePartList(parts.list())).catch(() => undefined);
+    for (const [id, doc] of parts.heldDocs()) {
+      if (this.partOffs.has(doc)) continue;
+      const save = () => {
+        window.clearTimeout(this.partTimers.get(id));
+        this.partTimers.set(
+          id,
+          window.setTimeout(() => {
+            if (!this.meta) return;
+            const state = Y.encodeStateAsUpdate(doc);
+            this.writeChain = this.writeChain.then(() => this.copy.savePart(id, state)).catch(() => undefined);
+          }, 1000),
+        );
+      };
+      doc.on("update", save);
+      this.partOffs.set(doc, () => doc.off("update", save));
+      save();
+    }
+  };
+
   private attach() {
     this.doc.off("update", this.onDocUpdate);
     this.doc.on("update", this.onDocUpdate);
+    const parts = this.ctx.collab.parts;
+    if (parts && !this.partsWatched) {
+      this.partsWatched = true;
+      this.offs.push(parts.onChange(this.keepParts));
+      this.offs.push(() => this.partOffs.forEach((f) => f()));
+    }
+    this.keepParts();
     this.pending.onAdd = (e) => {
       this.writeChain = this.writeChain.then(() => this.copy.addPending(e)).catch(() => undefined);
     };
@@ -654,6 +691,8 @@ export interface OfflineOpen {
   claims: GrantClaims | null;
   locked: boolean;
   pending: import("./pending").PendingEntry[];
+  /** PSYNC-03: the parts of a split room, as kept. */
+  parts: { list: import("../lib/parts").PartHeader[]; states: Map<string, Uint8Array> } | null;
 }
 
 export async function openOffline(host: string, user: string, file: string): Promise<OfflineOpen | null> {
@@ -671,6 +710,7 @@ export async function openOffline(host: string, user: string, file: string): Pro
   const doc = new Y.Doc();
   if (!locked) await copy.loadInto(doc);
   const pending = await copy.pending();
+  const parts = locked ? null : await copy.loadParts();
   const session: Session = { ...(prefs as Session), ticket: "", role: claims.role, exp: null, isNew: false };
-  return { session, doc, claims, locked, pending };
+  return { session, doc, claims, locked, pending, parts };
 }
