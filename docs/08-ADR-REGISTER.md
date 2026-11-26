@@ -81,6 +81,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-077 | Room fan-out and presence at scale (PERF-12/13, docs/36 §4.2): clients send awareness at most every 100 ms (latest wins); the room sends one merged awareness frame per peer per tick with the latest state per client; a tick's updates are merged and encoded once and shared by every peer; after apply the tick goes to fan-out shards (cores − 1), each owning a fixed subset of sockets so per-peer order holds; slow peers leave by the existing back-pressure rule; above 200 peers cursors outside the reader's visible blocks are sent at 1 Hz; relayed peers get the tick once per node; `MAX_PEERS` stays 550 until X10K, R1K, SOAK and the RLB-A1..A3 drills pass (docs/36 §4.2) | Accepted (owner, 2026-11-26; default cap stays 550, 1,000 as a configured maximum) |
 | ADR-078 | Formula engine, relations and rollups (DB4-01..06, docs/36 §6.1): one typed engine (`oc-formula`, Rust, native in the server and WASM in the editor, loaded lazily) with errors as values (`#TYPE #REF #CYCLE #DIV/0 #LIMIT`), only expressions stored and values computed through a dependency graph, limits (4 KB, depth 64, step budget per cell), `now()` never triggers automation; relation fields hold row ids, same canvas `{dbId, rowIds}` (optionally two-way) or across canvases only through a live block `{fileId, dbId, rowIds}` read under the live file's ACL ("No access" otherwise), one-way; rollups aggregate related rows, across canvases from the live projection on refresh; MOD-01 validates on every write path | Accepted (owner, 2026-11-26) |
 | ADR-079 | Benchmark program and performance budgets in CI (BENCH-01..05, LAZY-01, docs/36 §3): `scripts/bench/` runs scenario files (`bench/scenarios/*.toml`: rooms, peers, load mix, fixture, duration, faults, pass rules; docs/22 A–E, R, K, T kept) locally and in CI; every result is JSON with commit, hardware, store and load mix, and is refused for publication without them; pull requests gate the initial JS (300 → 260 → 240 → 220 KB gzip, `check-budget.mjs --forbid` for advanced modules in the initial graph), heap per fixture (Chromium, after GC, +5% fails) and first screen, plus quick server runs; a nightly job fails at p99 > 20% or RSS > 10% worse than the median of the last seven runs; full X10K, R1K and STORM run weekly on a reference machine and publish to the site's Benchmarks page with hardware and mix; budgets change only in a reviewed commit that says why | Accepted (owner, 2026-11-26; reference runs on the owner's Mac until a machine is chosen, results marked local) |
+| ADR-080 | Spreadsheet block on opencalc's engine (SHEET-01.., prototype `v04-approved/spreadsheet.html`): the block computes with CasualOffice/opencalc's Rust crates (`casual-calc-sdk` without text shaping and rasterising: model, formula, eval, transaction, xlsx/ods import and export), pinned to a git revision, native in the server and WASM in the editor behind our own JSON bridge (as `oc-formula`), loaded only when a spreadsheet block comes within a screen; opencalc's editor (`<opencalc-sheet>`) and its OT collaboration are not used. Yjs stays the source of truth and the engine is a per-client cache: per sheet `rows`/`cols` are `Y.Array`s of stable ids and cells a `Y.Map` keyed `rowId:colId` holding the input (formulas with references stored as row/column ids, shown and fed to the engine as A1) and a style key; values are computed, never stored. The block is a partial-sync part (ADR-076) and lives in `.ocanvas` as Yjs like every block; exports, `search.json` and the API show values from the native engine. `oc-formula` does not delegate to opencalc (different language, typed records, relations and rollups); functions both have are cross-checked on shared vectors | Proposed (2026-11-27) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -1070,3 +1071,58 @@ package states when their hosts differ.
 **Context.** docs/22's numbers come from a hand-run script; nothing stops a regression, browser memory and startup have no budget, and the owner made benchmarks a first-class part of v0.4 (2026-11-26).
 **Decision.** See the register row and docs/36 §3.
 **Consequences.** + every target is reproducible and every published number states its hardware and load mix; + regressions fail CI instead of reaching people; − a reference machine and a nightly job to run; − budget changes need a reviewed reason.
+
+### ADR-080 — Spreadsheet block on opencalc's engine (Proposed 2026-11-27)
+**Context.** The owner approved a Spreadsheet block (2026-11-26): per-cell Excel formulas (A1, ranges, `$`, `Sheet!A1`), about 120
+functions, formatting, several sheets, xlsx/ods in and out, 100,000 rows, other people's selections, comments, phone. The sister
+project CasualOffice/opencalc (Apache-2.0, Rust, alpha) is an Excel-compatible engine with an Excel-style editor in WebAssembly. The
+owner asked whether to embed it rather than build our own, and whether database formulas should use it.
+
+**What was checked (2026-11-27, opencalc `main` @ 88a2522, local Apple M4).**
+- A spike crate on `casual-calc-sdk` (default features off) computed every case the prototype shows: `SUM(A1:A2)`, `$A$1*2`, `IF`,
+  `A1/0` → `#DIV/0!`, `XLOOKUP`, `Sheet1!A1 + SUMIF(…)`. `casual-calc-eval` lists 437 built-in functions; every function named in the
+  prototype is there.
+- WASM size (wasm32, `opt-level = "z"`, LTO, input + recalculation + xlsx open and save linked): **2.09 MB raw, 733 KB gzip,
+  530 KB brotli**. Without import: 1.59 MB / 549 KB gzip. opencalc's own editor ships an 8.1 MB binary and 1.6 MB of JavaScript
+  (its docs/100).
+- opencalc's editor holds one workbook per JavaScript realm: a second element on the page silently edits the first one's workbook
+  (its docs/100, a known data-loss defect). Its bindings keep the session in a global; the SDK itself is an ordinary value.
+- Its collaboration is server-ordered OT and deliberately not a CRDT (its docs/56), with its own server.
+
+**Decision.**
+1. *Engine, not editor.* The block uses opencalc's engine crates and our own grid UI built to the approved prototype (OpenCanvas
+   toolbar, Lucide icons, peers' selections, cell comments, phone), reusing the large-table virtualization (DB4-07). Embedding
+   `<opencalc-sheet>` would bring an Excel ribbon the prototype does not have, 8.1 MB + 1.6 MB, one workbook per page, and a second
+   collaboration system.
+2. *Bridge.* A small crate in this repo (`oc-sheet`) depends on the pinned crates and exposes a JSON bridge (no bindgen), like
+   `oc-formula`; one WASM instance holds a session per block, keyed by block id, so several spreadsheet blocks share one module and
+   one memory.
+3. *Yjs mapping.* Per block: `sheets: Y.Array<sheetId>`; per sheet a `Y.Map` with `name`, `rows: Y.Array<rowId>`,
+   `cols: Y.Array<colId>`, `cells: Y.Map<"rowId:colId", Y.Map{in, s}>`, plus `widths`, `heights`, `merges`, `freeze`, `cf`,
+   `validation`, `filters`, `charts`. `in` is what was typed; in a formula every reference is stored as row and column ids with its
+   `$` flags (and the sheet id for `Sheet!A1`), turned into A1 for the formula bar and for the engine from the current order. So
+   inserting or deleting rows and columns is one `Y.Array` edit with no formula rewrites, concurrent inserts and edits converge, and a
+   reference to a deleted row becomes `#REF!`. Fill and paste shift relative references by rewriting ids before writing. Styles are
+   keys into a per-block `styles` map. Values are computed on each client (ADR-078's rule: expressions only), never stored.
+   Local edits are written to Yjs; the engine is updated from Yjs observers only (one path for local, remote, undo and offline
+   replay). Undo is the block's `Y.UndoManager` in the cross-document stack (PSYNC-03).
+4. *Storage and server.* The block is a partial-sync part (ADR-076) and is stored in `.ocanvas` as Yjs like every block; no xlsx
+   inside. The server builds a session from the Yjs state with the native engine for exports (values and formats), `search.json`
+   (displayed values), `GET` API reads, MCP and xlsx/ods export; xlsx/ods import runs in the server (`/v1/import`) and, for a file
+   dropped on the canvas, in the editor's lazy chunk. Limits: cells per block and file size capped (MOD-01), measured first.
+5. *Initial JS.* Nothing in the initial graph (`check-budget --forbid`): the block chunk and the WASM load when a spreadsheet block
+   comes within a screen (as partial sync loads parts); a skeleton sized from the header until then.
+6. *Licence.* Both Apache-2.0, same copyright holder; NOTICE names opencalc; its dependency licences are on our allow-list
+   (Apache-2.0, MIT, BSD, ISC, Zlib, Unicode-3.0); same edition (2024) and `zip` 9. Pinned revision; fixes go upstream.
+7. *Database formulas stay on `oc-formula`.* Different language (`prop("Field")` over typed records, relations, rollups, a
+   checker with positions), 253 KB against 2 MB of WASM, and already identical native and WASM on 563 vectors. Functions both
+   engines have (SUM, ROUND, IF, dates, text) get a cross-check test that runs shared vectors through `casual-calc-eval`, so the
+   same function gives the same answer in a database and a sheet.
+
+**Consequences.** + Excel semantics, 437 functions and xlsx/ods fidelity without writing them; + one engine in the editor and the
+server, as with `oc-formula`; + Yjs keeps offline, partial sync, history and the room unchanged; − 733 KB gzip of WASM on first
+use of a sheet; − Yjs metadata per cell (opencalc's reason for OT): 100,000-row sheets must be measured before the cap is set;
+− we track an alpha dependency (pinned, behind our bridge); − our own grid UI to build and keep at Excel parity for keyboard and
+paste; − formulas stored with ids need a converter both ways (tested by property tests: A1 → ids → A1 is identity).
+
+**Open for the owner.** Confirm engine-not-editor; confirm the per-block cell cap is set after the 100,000-row measurement.
