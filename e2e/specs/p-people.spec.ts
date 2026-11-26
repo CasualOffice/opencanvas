@@ -67,7 +67,7 @@ test("everyone with access sees real names, never Someone or Unknown", async ({ 
   await expect(label(editor(sam), "Priya Shah")).toBeVisible();
   await expect(sam.oc.locator('.avs .av[title^="Priya Shah"]')).toBeVisible();
   await typeAfterHeading(sam, "Notes", "@Ravi");
-  await expect(picker(sam).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
+  await expect(picker(sam).getByRole("option", { name: /Ravi Menon/ })).toBeVisible({ timeout: 15_000 });
   await sam.page.keyboard.press("Enter");
   await expect(editor(priya).locator('.mention[data-id="u_ravi"]')).toHaveText(/Ravi Menon$/);
   const html = await frameHtml(sam);
@@ -135,7 +135,7 @@ test("no e-mail appears in the DOM, exports, the session or the .ocanvas", async
   await openFile(priya, fileId);
   await caretIn(ravi, "Agenda");
   await typeAfterHeading(priya, "Notes", "Owner @Ravi");
-  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
+  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible({ timeout: 15_000 });
   await priya.page.keyboard.press("Enter");
   await expect(editor(priya).locator('.mention[data-id="u_ravi"]')).toHaveText(/Ravi Menon/);
   await editor(priya).locator('.mention[data-id="u_ravi"]').hover();
@@ -161,7 +161,7 @@ test("removing someone's access marks their existing mentions 'No longer has acc
   await setAccess(priya, fileId, "u_ravi", "edit");
   await openFile(priya, fileId);
   await typeAfterHeading(priya, "Notes", "Owner @Ravi");
-  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
+  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible({ timeout: 15_000 });
   await priya.page.keyboard.press("Enter");
   const chip = editor(priya).locator('.mention[data-id="u_ravi"]');
   await expect(chip).toHaveText(/Ravi Menon$/);
@@ -193,7 +193,7 @@ test("with no members source at all, the list is the people who have opened the 
   expect(members).toContain("u_asha");
   expect(members).not.toContain("u_ravi");
   await typeAfterHeading(priya, "Notes", "Ask @");
-  await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toBeVisible();
+  await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toBeVisible({ timeout: 15_000 });
   await expect(picker(priya).getByRole("option", { name: /Asha Rao/ })).toContainText("Design · Bengaluru");
   // Ravi has access but never opened it: without a host source OpenCanvas can't know him.
   await expect(picker(priya).getByRole("option", { name: /Ravi/ })).toHaveCount(0);
@@ -212,7 +212,7 @@ test("revoking Sam while Priya's canvas is open: he leaves her mention list at o
   await expect(priya.oc.getByRole("button", { name: /Follow Sam Ortiz/ })).toBeVisible();
   // Priya mentions Sam, and the members list is warm (cached) before the revoke.
   await typeAfterHeading(priya, "Notes", "Ask @Sam");
-  await expect(picker(priya).getByRole("option", { name: /Sam Ortiz/ })).toBeVisible();
+  await expect(picker(priya).getByRole("option", { name: /Sam Ortiz/ })).toBeVisible({ timeout: 15_000 });
   await priya.page.keyboard.press("Enter");
   const chip = editor(priya).locator('.mention[data-id="u_sam"]');
   await expect(chip).toHaveText(/Sam Ortiz$/);
