@@ -24,6 +24,7 @@ import type { Awareness } from "y-protocols/awareness";
 import type { OcUser, Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
+import { PartsUndo } from "./partsundo";
 
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 import { markPending } from "../lib/unfurl";
@@ -281,6 +282,7 @@ export function CanvasEditor(p: EditorProps) {
         BlockId,
         OfflineMarks,
         Collaboration.configure({ document: p.doc, field: "content" }),
+        PartsUndo,
         CollaborationCaret.configure({
           provider: { awareness: p.awareness },
           user: { id: p.me.id, name: p.me.name, color: p.me.color, role: p.role },

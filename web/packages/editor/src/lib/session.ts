@@ -12,6 +12,7 @@ import { setInstalledBlocks, type BlockPackage } from "../ext/model";
 import { setEditorProfile, setInsertScope, type EditorProfile } from "../editor/profile";
 import { setLiveCfg, type LiveCfg } from "../live/state";
 import { FROM_DEVICE, PendingLog, REPLAY_PER_SEC, replayFrames, type PendingEntry } from "../offline/pending";
+import { MESSAGE_SUBDOC, PartsClient, type PartHeader } from "./parts";
 
 /** The session answer's `offline` member (OFF-01, docs/15 §6). */
 export interface OfflineInfo {
@@ -137,7 +138,11 @@ export type Control =
   /** OFF-04 (ADR-064): the checkpoint before an offline merge was saved (or refused). */
   | { t: "offline_checkpoint"; version?: string; error?: string }
   /** OFF-07: a collaborator's long offline session is arriving (the toast, frame 4e). */
-  | { t: "offline_arrived"; by: string; byName?: string; changes?: number };
+  | { t: "offline_arrived"; by: string; byName?: string; changes?: number }
+  /** PSYNC-02/03: the room is split; these blocks are subdocuments (docs/15 §3.2). */
+  | { t: "parts"; parts: PartHeader[] }
+  /** PSYNC-02: a subdocument request was refused. */
+  | { t: "sub-denied"; id: string; reason?: string };
 
 export const MESSAGE_CONTROL = 100;
 // y-protocols auth message (docs/15 §3): [2, 0 = permission denied, reason]
@@ -156,6 +161,8 @@ export interface Collab {
   doc: Y.Doc;
   awareness: Awareness;
   provider: WebsocketProvider | null;
+  /** PSYNC-03: the room's parts (databases and boards as subdocuments); `null` in the demo. */
+  parts: PartsClient | null;
   /** Resolves when the first sync handshake has completed. */
   synced: Promise<void>;
   sendControl(msg: Record<string, unknown>): void;
@@ -312,7 +319,9 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
     // `caps=ext`: this editor keeps SDK blocks (BSDK-02); the server refuses an update that
     // removes one from a connection without it (an editor older than 0.2).
     // `caps=live`: it keeps `liveBlock` and `blockRef` too (LIVE-02, an editor older than 0.3).
-    params: { ticket: s.ticket, caps: "ext,live" },
+    // `caps=subdoc`: it loads databases and boards as subdocuments (PSYNC-03, docs/15 §3.2); a
+    // split room closes editors without it with 4426.
+    params: { ticket: s.ticket, caps: "ext,live,subdoc" },
     maxBackoffTime: 10000,
     connect: opts.connect !== false,
     shouldReconnect: (e: CloseEvent) => {
@@ -430,9 +439,31 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
   // The server rewrites `user` from the grant (id, name, color, avatar), so the role travels beside it.
   provider.awareness.setLocalState({ user: { id: s.user.id, name: s.user.name, color: s.user.color }, role: s.role });
 
+  // PSYNC-03: the room's parts, over type 101 on this socket.
+  const parts = new PartsClient(s.file.id, {
+    send(frame) {
+      const ws = provider.ws;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+      ws.send(frame);
+      return true;
+    },
+    sendControl: (m) => sendControlRaw(m),
+  });
+  provider.messageHandlers[MESSAGE_SUBDOC] = (_enc, dec) => {
+    try {
+      parts.handle(dec);
+    } catch (e) {
+      console.warn("bad subdocument frame", e);
+    }
+  };
+  provider.on("sync", (ok: boolean) => {
+    if (ok) parts.resync();
+  });
+
   provider.messageHandlers[MESSAGE_CONTROL] = (_enc, dec) => {
     try {
       const c = JSON.parse(decoding.readVarString(dec)) as Control;
+      if (c.t === "parts") parts.setParts(c.parts);
       if (c.t === "conflict" && c.policy === "reload") reloading = true;
       if (c.t === "saving") savingAt = Date.now();
       else if (c.t === "saved" && savingAt !== null) pending.confirmBefore(savingAt);
@@ -526,6 +557,7 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
     doc,
     awareness: provider.awareness,
     provider,
+    parts,
     synced,
     pending,
     sendControl: sendControlRaw,
@@ -555,6 +587,7 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
       window.clearInterval(watchdog);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("online", onOnline);
+      parts.destroy();
       provider.destroy();
       doc.destroy();
     },
@@ -573,6 +606,7 @@ export function localCollab(user: Session["user"], role: Role): Collab {
     doc,
     awareness,
     provider: null,
+    parts: null,
     synced: Promise.resolve(),
     pending: new PendingLog(),
     pause: () => undefined,

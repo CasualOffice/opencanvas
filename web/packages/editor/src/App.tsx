@@ -383,6 +383,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   }, [collab, session, offlineOn]);
   useEffect(() => {
     if (!offlineOn) return;
+    // PSYNC-03 (owner decision): an offline copy holds the whole canvas, every part loaded.
+    collab.parts?.pinAll();
     let stop: (() => void) | null = null;
     void import("./offline/controller").then(async (m) => {
       const c = await m.start(
@@ -722,6 +724,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     if (!um) return;
     um.addToScope([doc.getMap("meta"), doc.getMap("databases")]);
     um.trackedOrigins.add(META_ORIGIN);
+    // PSYNC-03: parts are documents of their own; one stack still steps through all of them.
+    collab.parts?.linkUndo(um);
     let off = false;
     loadDatabase()
       .then((m) => !off && um.trackedOrigins.add(m.DB_ORIGIN))
@@ -927,6 +931,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const bridgeValue: Bridge = useMemo(
     () => ({
       doc,
+      parts: collab.parts,
       awareness,
       env,
       session,

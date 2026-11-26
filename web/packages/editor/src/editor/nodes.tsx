@@ -9,10 +9,10 @@ import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type DragEvent, type RefObject } from "react";
 import type * as Y from "yjs";
 import { Ic } from "../icons";
-import { useBridge, bridge } from "../lib/bridge";
+import { useBridge, bridge, type Bridge } from "../lib/bridge";
 import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from "../lib/embeds";
 import { createStore, toast, useStore } from "../lib/store";
 import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
@@ -1186,24 +1186,68 @@ function useContentOwnsDrag<T extends HTMLElement>() {
   return ref;
 }
 
+/** PSYNC-03: within one screen of the viewport (the part loads before it is seen). */
+function useNearView(ref: RefObject<HTMLElement | null>) {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return setNear(true);
+    const io = new IntersectionObserver((es) => setNear(es.some((e) => e.isIntersecting)), { rootMargin: "100% 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  return near;
+}
+
+/** PSYNC-03 (ADR-076): the document a database or board view edits. In a split room the block
+ *  is a part: loaded when it comes within a screen of the viewport, released when it leaves
+ *  (the client keeps it two more minutes). `null` doc: still loading (show the placeholder). */
+function usePartDoc(b: Bridge, id: string, ref: RefObject<HTMLElement | null>) {
+  const parts = b.parts ?? null;
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => parts?.onChange(bump), [parts]);
+  const near = useNearView(ref);
+  const isPart = !!parts?.isPart(id);
+  useEffect(() => {
+    if (!parts || !isPart || !near) return;
+    parts.acquire(id);
+    bump();
+    return () => parts.release(id);
+  }, [parts, isPart, near, id]);
+  const doc = isPart ? parts!.doc(id) : b.doc;
+  const ready = !isPart || parts!.isSynced(id);
+  const env = useMemo(() => {
+    const um = isPart && doc ? parts!.undoFor(doc) : null;
+    return um ? { ...b.env, undoManager: um } : b.env;
+  }, [b.env, parts, isPart, doc]);
+  return { doc: ready ? doc : null, env, header: isPart ? parts!.headers.get(id) : undefined };
+}
+
 function DatabaseView({ node }: ReactNodeViewProps) {
   const b = useBridge();
   const fadeRef = useEdgeFade();
   const dragRef = useContentOwnsDrag<HTMLDivElement>();
+  const boxRef = useRef<HTMLDivElement | null>(null);
   const ref = (el: HTMLDivElement | null) => {
     dragRef.current = el;
     fadeRef.current = el;
+    boxRef.current = el;
   };
   const dbId = String(node.attrs.dbId);
-  const m = b.doc.getMap("databases").get(dbId) as Y.Map<unknown> | undefined;
-  const rows = (m?.get("order") as Y.Array<unknown> | undefined)?.length ?? 3;
+  const part = usePartDoc(b, dbId, boxRef);
+  const m = (part.doc ?? b.doc).getMap("databases").get(dbId) as Y.Map<unknown> | undefined;
+  const rows = (m?.get("order") as Y.Array<unknown> | undefined)?.length ?? part.header?.count ?? 3;
   const view = String(m?.get("view") ?? "table");
   return (
     <NodeViewWrapper className="stubhost wideblock" data-db={node.attrs.dbId}>
       <div contentEditable={false} ref={ref}>
-        <Suspense fallback={<BlockSkeleton kind="db" rows={rows} view={view} />}>
-          <DatabaseBlock doc={b.doc} dbId={dbId} env={b.env} />
-        </Suspense>
+        {part.doc ? (
+          <Suspense fallback={<BlockSkeleton kind="db" rows={rows} view={view} />}>
+            <DatabaseBlock doc={part.doc} dbId={dbId} env={part.env} />
+          </Suspense>
+        ) : (
+          <BlockSkeleton kind="db" rows={rows} view={view} />
+        )}
       </div>
     </NodeViewWrapper>
   );
@@ -1223,12 +1267,18 @@ export const Database = Node.create({
 function BoardView({ node }: ReactNodeViewProps) {
   const b = useBridge();
   const ref = useContentOwnsDrag<HTMLDivElement>();
+  const boardId = String(node.attrs.boardId);
+  const part = usePartDoc(b, boardId, ref);
   return (
     <NodeViewWrapper className="stubhost wideblock" data-board={node.attrs.boardId}>
       <div contentEditable={false} ref={ref}>
-        <Suspense fallback={<BlockSkeleton kind="board" />}>
-          <BoardBlock doc={b.doc} boardId={String(node.attrs.boardId)} env={b.env} awareness={b.awareness} />
-        </Suspense>
+        {part.doc ? (
+          <Suspense fallback={<BlockSkeleton kind="board" />}>
+            <BoardBlock doc={part.doc} boardId={boardId} env={part.env} awareness={b.awareness} />
+          </Suspense>
+        ) : (
+          <BlockSkeleton kind="board" />
+        )}
       </div>
     </NodeViewWrapper>
   );
