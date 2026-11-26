@@ -65,3 +65,10 @@ describe('blockFromHash (SRCH-05: a unified search result opens the canvas at it
 		expect(blockFromHash('#blocks=b_1')).toBe(null)
 	})
 })
+
+describe('UI_ViewBlock (TALK-01 Follow me: the leader moved)', () => {
+	it('passes a block id on, nothing else', () => {
+		expect(reduce(initialState(), { MessageId: 'UI_ViewBlock', Values: { blockId: 'b_9' } }).effect).toEqual({ type: 'viewBlock', blockId: 'b_9' })
+		expect(reduce(initialState(), { MessageId: 'UI_ViewBlock', Values: { blockId: '<x>' } }).effect).toBe(null)
+	})
+})

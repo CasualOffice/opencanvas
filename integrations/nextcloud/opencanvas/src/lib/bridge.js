@@ -58,6 +58,11 @@ export function reduce(state, raw) {
 		const url = typeof v.url === 'string' ? v.url : ''
 		return { state, effect: /^https?:\/\//i.test(url) ? { type: 'openUrl', url } : null }
 	}
+	case 'UI_ViewBlock': {
+		// TALK-01 Follow me: the top block in the leader's view.
+		const id = typeof v.blockId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v.blockId) ? v.blockId : null
+		return { state, effect: id ? { type: 'viewBlock', blockId: id } : null }
+	}
 	case 'Token_Expiring': {
 		// WOPI has no in-place token refresh (Action_RefreshToken is JWT-only), so renewing means a
 		// relaunch. The first message is OpenCanvas's automatic heads-up: leave its banner up (S4j).

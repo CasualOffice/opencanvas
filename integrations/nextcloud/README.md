@@ -17,8 +17,8 @@ versions. OpenCanvas does the editing and stores no documents.
 **Status: alpha.**
 - The backend and the approved screens S1-S8, S12 and S13 work end to end in a real Nextcloud 31
   with real browsers (see "Verified").
-- Talk screens (S9-S11) are not built: canvases shared into Talk open through the Viewer handler,
-  with no Talk-specific card or message action yet.
+- Nextcloud Talk (TALK-01, v0.4): canvas cards in conversations, the Canvas panel beside the chat
+  or call, and a temporary meeting canvas per call (see "Nextcloud Talk").
 
 *Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by either company.*
 
@@ -82,6 +82,46 @@ magnifier in the header) under **Canvases**:
   sent to the editor as `Action_ScrollToBlock` once it has loaded).
 - `occ opencanvas:search-index [user…]` indexes existing canvases (run once after an upgrade).
 - Comments are in `search.json` only when OpenCanvas's `[host.search] comments = true`.
+
+### Nextcloud Talk
+
+With Talk (spreed) enabled, built to `docs/prototypes/v04-approved/nextcloud-talk.html` (TALK-01):
+
+- **Post to a Talk conversation** (sharing sidebar card): pick a conversation, add an optional
+  message, post. The message carries the canvas link, which Talk shows as an OpenCanvas card
+  (a reference provider, `lib/Reference/CanvasReferenceProvider.php`, resolved per reader).
+  **Posting never grants access.** If people in the conversation can't open the file, the dialog
+  says how many and offers "Share the file with the conversation" (Can edit / Can view), a normal
+  Talk room share.
+- **The card**: title, where the file lives, two lines of text, when it was edited, "Open beside
+  chat" and "Full screen" ("Open" on a phone). Someone without access sees only the title and who
+  shared it, and "Ask … for access", which posts a Talk message mentioning the sharer.
+- **The Canvas panel** (a "Canvas" button in Talk's top bar): beside the chat or call at 38 rem,
+  as a 25 rem sidebar tab when the window is 64 rem wide or less, full screen (Talk's top bar with
+  the call controls stays visible; Esc returns), and full screen with a draggable call tile on a
+  phone (under 45 rem). Empty state ("No canvases here yet"), error state (Retry, Copy error; the
+  call is not affected) and the no-access card.
+- **Meeting canvas per call**: during a call, "New meeting canvas" starts a temporary canvas that
+  everyone in the call edits. It lives in the app's data (`appdata_*/opencanvas/meetings`), not in
+  anyone's Files. Moderators can turn off "Participants can start a canvas" for the conversation.
+  When the call ends, everyone is read only at once and the moderator is asked to save or discard.
+  Save writes `<conversation> meeting canvas <date>.ocanvas` into the moderator's Talk folder and,
+  by default, shares it with the conversation (Talk posts it). With no answer within 10 minutes,
+  or if no moderator was present, it is discarded (background job `ExpireMeetings`, every 5 min,
+  plus a check on every look).
+- **Guests** (public conversations) see meeting canvases with their Talk name and "(Guest)", read
+  only unless the moderator turns on "Guests can edit"; they never save, export or download.
+  Shared files keep their own Nextcloud permissions: Talk never raises them.
+- **Moderator menu**: Guests can edit, Lock canvas (everyone else read only), Follow me (everyone
+  with the panel open on the same canvas scrolls with the moderator; for a shared file only Follow
+  me appears), Save to Files, Download.
+- Role changes (lock, guests, call end, discard) reach open editors at once through OpenCanvas's
+  role API when `opencanvas_api_key` is set; every WOPI call also re-reads the role.
+- Meeting canvases use `{wopi_base}/meetings/{id}` as WOPISrc, under the same allow-listed prefix.
+- Talk has no public PHP API for participants or call state: the app reads them through Talk's
+  classes (`lib/Talk/SpreedGateway.php`, checked with Talk 21 on Nextcloud 31) and the browser
+  uses Talk's OCS chat API. A Talk upgrade that changes those classes turns the panel off (no
+  button) rather than failing.
 
 ## Install
 
@@ -300,7 +340,8 @@ The SRCH-05 manual steps below are covered by this run except `occ opencanvas:se
 
 | What | Why |
 |---|---|
-| Talk (S9-S11: file card, link card, open beside the call, new canvas in a conversation) | Not built. Talk was not installed in the test container. |
+| Talk: the 10-minute auto-discard and "no moderator present" in a real server, the error screen (5b), the sidebar tab (2c) and the floating call tile while a call runs on a phone (6b), the Post dialog in the sharing sidebar (1a; the run calls the same endpoints), Follow me scrolling followers' editors (the run checks the shared state) | Unit-tested (PHP `MeetingPolicyTest`, `MeetingServiceTest`; JS `talk.test.js`, `bridge.test.js`; editor `follow.test.ts`); not driven in the scripted run |
+| Talk guests see a canvas link as a plain link preview, not the card | Nextcloud resolves references for signed-out readers only through public providers; guests never see shared files anyway (4b) |
 | Proof rejected (S13d/e), access removed / deleted / conflict while open (S4e, S4f, S4l), session ending (S4j/k) | The Nextcloud side is unit-tested; these states were not driven in this run |
 | Template picker with `.ocanvas` templates (S3) | Stock Nextcloud; without templates it skips the picker (S3c moot), as checked in Nextcloud 31's code |
 | Group shares, folder shares, federated shares; MySQL/PostgreSQL Nextcloud; Nextcloud 30, 32, 36 | Not run |

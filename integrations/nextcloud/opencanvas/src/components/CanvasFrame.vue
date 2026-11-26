@@ -79,7 +79,7 @@ export default {
 		/** Set when the caller already knows the canvas can't open (e.g. links turned off). */
 		presetError: { type: Object, default: null },
 	},
-	emits: ['loaded', 'close', 'open-file', 'error'],
+	emits: ['loaded', 'close', 'open-file', 'error', 'view-block'],
 	data() {
 		return {
 			phase: 'loading',
@@ -210,6 +210,9 @@ export default {
 				break
 			case 'openUrl':
 				window.open(effect.url, '_blank', 'noopener,noreferrer')
+				break
+			case 'viewBlock':
+				this.$emit('view-block', effect.blockId)
 				break
 			case 'relaunch':
 				this.readySent = false

@@ -23,20 +23,32 @@
 			<dt>No download</dt>
 			<dd>Editing as above, but no export, print or download.</dd>
 		</dl>
+		<NcButton v-if="talk && fileId" type="secondary" wide data-oc-post-talk @click="posting = true">
+			Post to a Talk conversation
+		</NcButton>
+		<PostToTalk v-if="posting" :file-id="fileId" @close="posting = false" />
 	</div>
 </template>
 
 <script>
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 import NcIconSvgWrapper from '@nextcloud/vue/dist/Components/NcIconSvgWrapper.js'
+import { getCapabilities } from '@nextcloud/capabilities'
 import { ocanvas } from '../icons.js'
 
 export default {
 	name: 'ShareCard',
-	components: { NcIconSvgWrapper },
+	components: {
+		NcButton,
+		NcIconSvgWrapper,
+		// TALK-01 1a, loaded only when used.
+		PostToTalk: () => import('../talk/PostToTalk.vue'),
+	},
 	props: {
 		commentRole: { type: Boolean, default: false },
+		fileId: { type: Number, default: 0 },
 	},
-	data: () => ({ icon: ocanvas }),
+	data: () => ({ icon: ocanvas, posting: false, talk: !!getCapabilities()?.spreed }),
 }
 </script>
 

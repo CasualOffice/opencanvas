@@ -80,6 +80,20 @@ class SearchIndexService {
 		return true;
 	}
 
+	/** TALK-01 card preview: the canvas's first lines of text, from its index row ('' when none). */
+	public function firstLines(int $fileId, int $n = 3): string {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('lines')->from(self::TABLE)->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)));
+		$res = $qb->executeQuery();
+		$row = $res->fetch();
+		$res->closeCursor();
+		$lines = is_array($row) ? json_decode((string)$row['lines'], true) : null;
+		if (!is_array($lines)) {
+			return '';
+		}
+		return implode("\n", array_slice(array_map(static fn ($l) => is_array($l) ? (string)($l['t'] ?? '') : '', $lines), 0, $n));
+	}
+
 	public function remove(int $fileId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete(self::TABLE)->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))->executeStatement();

@@ -15,6 +15,24 @@ return [
 		['name' => 'wopi#versions', 'url' => '/wopi/files/{fileId}/versions', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'wopi#versionContents', 'url' => '/wopi/files/{fileId}/versions/{version}/contents', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+', 'version' => '\d+']],
 
+		// TALK-01 meeting canvases: same /wopi prefix (allow list), token file id = -meetingId.
+		['name' => 'meeting_wopi#checkFileInfo', 'url' => '/wopi/meetings/{meetingId}', 'verb' => 'GET', 'requirements' => ['meetingId' => '\d+']],
+		['name' => 'meeting_wopi#getFile', 'url' => '/wopi/meetings/{meetingId}/contents', 'verb' => 'GET', 'requirements' => ['meetingId' => '\d+']],
+		['name' => 'meeting_wopi#putFile', 'url' => '/wopi/meetings/{meetingId}/contents', 'verb' => 'POST', 'requirements' => ['meetingId' => '\d+']],
+
+		// TALK-01 Canvas panel in Talk.
+		['name' => 'talk#card', 'url' => '/talk/card/{fileId}', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
+		['name' => 'talk#state', 'url' => '/talk/{room}/state', 'verb' => 'GET'],
+		['name' => 'talk#start', 'url' => '/talk/{room}/meeting', 'verb' => 'POST'],
+		['name' => 'talk#launch', 'url' => '/talk/{room}/meeting/{id}/launch', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'talk#decide', 'url' => '/talk/{room}/meeting/{id}/decide', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'talk#options', 'url' => '/talk/{room}/meeting/{id}/options', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'talk#settings', 'url' => '/talk/{room}/settings', 'verb' => 'POST'],
+		['name' => 'talk#follow', 'url' => '/talk/{room}/follow', 'verb' => 'POST'],
+		['name' => 'talk#followView', 'url' => '/talk/{room}/follow/view', 'verb' => 'POST'],
+		['name' => 'talk#access', 'url' => '/talk/{room}/access/{fileId}', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
+		['name' => 'talk#share', 'url' => '/talk/{room}/share/{fileId}', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],
+
 		['name' => 'launch#open', 'url' => '/open/{fileId}', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'launch#token', 'url' => '/api/v1/token/{fileId}', 'verb' => 'POST', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'launch#publicInfo', 'url' => '/api/v1/share/{shareToken}/info', 'verb' => 'GET'],

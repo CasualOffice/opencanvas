@@ -11,7 +11,6 @@ use OCA\OpenCanvas\Service\DiscoveryService;
 use OCA\OpenCanvas\Service\FileAccessService;
 use OCA\OpenCanvas\Service\TokenService;
 use OCA\OpenCanvas\Wopi\AccessClaims;
-use OCA\OpenCanvas\Wopi\ProofVerifier;
 use OCA\OpenCanvas\Wopi\VersionList;
 use OCA\OpenCanvas\Wopi\WopiUtil;
 use OCP\AppFramework\Controller;
@@ -37,6 +36,8 @@ use Psr\Log\LoggerInterface;
  * have access in Nextcloud. Tokens are never logged.
  */
 class WopiController extends Controller {
+	use WopiProof;
+
 	private const MAX_BODY = 100 * 1024 * 1024; // OpenCanvas's .ocanvas read limit
 
 	public function __construct(
@@ -307,36 +308,15 @@ class WopiController extends Controller {
 	private function authorize(int $fileId, string $token, bool|string $contents): array {
 		$suffix = is_string($contents) ? $contents : ($contents ? '/contents' : '');
 		$url = $this->config->wopiSrc($fileId) . $suffix . '?access_token=' . rawurlencode($token);
-		$why = null;
-		foreach ([false, true] as $refresh) {
-			$why = ProofVerifier::check(
-				$this->discovery->proofKeys($refresh),
-				$token,
-				$url,
-				$this->header('X-WOPI-TimeStamp'),
-				$this->header('X-WOPI-Proof'),
-				$this->header('X-WOPI-ProofOld'),
-				$this->time->getTime(),
-			);
-			if ($why === null || str_contains($why, 'TimeStamp')) {
-				break;
-			}
-		}
-		if ($why !== null) {
-			$this->logger->warning('OpenCanvas WOPI proof rejected: {why}', ['app' => 'opencanvas', 'why' => $why]);
-			$this->discovery->markProofFailure();
-			return [null, new JSONResponse([], Http::STATUS_INTERNAL_SERVER_ERROR)];
+		$refused = $this->proofError($url, $token);
+		if ($refused !== null) {
+			return [null, $refused];
 		}
 		$claims = $this->tokens->check($token, $fileId);
 		if ($claims === null) {
 			return [null, new JSONResponse([], Http::STATUS_UNAUTHORIZED)];
 		}
 		return [$claims, null];
-	}
-
-	private function header(string $name): ?string {
-		$v = $this->request->getHeader($name);
-		return $v === '' ? null : $v;
 	}
 
 	private function body(): ?string {

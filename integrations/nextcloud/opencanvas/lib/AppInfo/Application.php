@@ -10,7 +10,19 @@ use OCA\OpenCanvas\Listener\AddCsp;
 use OCA\OpenCanvas\Listener\IndexCanvasListener;
 use OCA\OpenCanvas\Listener\LoadFilesScripts;
 use OCA\OpenCanvas\Listener\LoadPublicScripts;
+use OCA\OpenCanvas\Listener\LoadTalkScripts;
 use OCA\OpenCanvas\Listener\LoadViewerScripts;
+use OCA\OpenCanvas\Reference\CanvasReferenceProvider;
+use OCA\OpenCanvas\Service\ConfigService;
+use OCA\OpenCanvas\Talk\AppDataMeetingFiles;
+use OCA\OpenCanvas\Talk\DbMeetingStore;
+use OCA\OpenCanvas\Talk\MeetingFiles;
+use OCA\OpenCanvas\Talk\MeetingService;
+use OCA\OpenCanvas\Talk\MeetingStore;
+use OCA\OpenCanvas\Talk\SpreedGateway;
+use OCA\OpenCanvas\Talk\TalkGateway;
+use OCP\AppFramework\Utility\ITimeFactory;
+use Psr\Container\ContainerInterface;
 use OCA\OpenCanvas\Listener\RegisterTemplateCreator;
 use OCA\OpenCanvas\Listener\ShareChangedListener;
 use OCA\OpenCanvas\Search\CanvasSearchProvider;
@@ -53,6 +65,25 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(NodeWrittenEvent::class, IndexCanvasListener::class);
 		$context->registerEventListener(NodeCopiedEvent::class, IndexCanvasListener::class);
 		$context->registerEventListener(NodeDeletedEvent::class, IndexCanvasListener::class);
+		// TALK-01: the Canvas panel in Talk, the card for posted canvases, meeting canvases.
+		$context->registerEventListener(\OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent::class, LoadTalkScripts::class);
+		$context->registerEventListener(\OCP\Collaboration\Reference\RenderReferenceEvent::class, LoadTalkScripts::class);
+		$context->registerReferenceProvider(CanvasReferenceProvider::class);
+		$context->registerServiceAlias(MeetingStore::class, DbMeetingStore::class);
+		$context->registerServiceAlias(MeetingFiles::class, AppDataMeetingFiles::class);
+		$context->registerServiceAlias(TalkGateway::class, SpreedGateway::class);
+		$context->registerService(MeetingService::class, static function (ContainerInterface $c): MeetingService {
+			$config = $c->get(ConfigService::class);
+			$roles = $c->get(RoleSyncService::class);
+			$time = $c->get(ITimeFactory::class);
+			return new MeetingService(
+				$c->get(MeetingStore::class),
+				$c->get(TalkGateway::class),
+				$c->get(MeetingFiles::class),
+				static fn (): int => $time->getTime(),
+				static fn (int $id, string $actor, string $role) => $roles->pushRole($config->meetingWopiSrc($id), $actor, $role),
+			);
+		});
 		// Tokens and the token secret are sensitive: kept out of logged stack traces.
 		$context->registerSensitiveMethods(\OCA\OpenCanvas\Wopi\TokenCodec::class, ['__construct', 'encode', 'decode']);
 	}

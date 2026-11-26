@@ -6,7 +6,8 @@
 # this app installed, a real OpenCanvas server built from this checkout, and Playwright Chromium
 # through Files: create a canvas from the New menu, open it, edit, see it saved, share it
 # read-only, unified search (SRCH-05) and open the hit at its block, delete it and see it leave
-# the search index; the LEGAL-01 line on the app's listing text. Removes its container at the end.
+# the search index; the LEGAL-01 line on the app's listing text; with Talk installed (TALK=1, the
+# default) the Talk run (TALK-01, tests/browser/nextcloud-talk.e2e.mjs). Removes its container at the end.
 #
 #   integrations/nextcloud/test/e2e.sh          # from the repository root
 #
@@ -86,6 +87,12 @@ done
 # leaves that directory unwritable and the installer refuses to run.
 docker exec "$NAME" sh -c 'mkdir -p /var/www/html/custom_apps/opencanvas && tar -C /src/opencanvas --exclude=./node_modules -cf - . | tar -C /var/www/html/custom_apps/opencanvas -xf - && chown -R www-data: /var/www/html/custom_apps/opencanvas'
 occ app:enable opencanvas >/dev/null
+# TALK-01: Nextcloud Talk from the app store (TALK=0 skips it and the Talk run).
+if [ "${TALK:-1}" = 1 ]; then
+  say "installing Talk (spreed)"
+  occ app:install spreed >/dev/null 2>&1 || occ app:enable spreed >/dev/null || die "Talk could not be installed"
+  say "Talk $(occ app:list --output=json | sed 's/.*"spreed":"\([^"]*\)".*/\1/')"
+fi
 occ maintenance:mimetype:update-js >/dev/null
 
 # 3. OpenCanvas, registered for this Nextcloud (README "Install").
@@ -119,7 +126,14 @@ CHECK=$(curl -s -u "admin:$ADMIN_PASS" -X POST -H 'OCS-APIREQUEST: true' "$NC/in
 echo "$CHECK" | grep -q '"ok":true' || die "connection check: $CHECK"
 say "connection check: 4/4"
 
-# 4. The browser run.
-NC="$NC" NC_CONTAINER="$NAME" PLAYWRIGHT="$PLAYWRIGHT" \
-  NC_PASS_ADMIN="$ADMIN_PASS" NC_PASS_ALICE="pw-alice-$ADMIN_PASS" NC_PASS_BOB="pw-bob-$ADMIN_PASS" \
-  node "$APP/tests/browser/nextcloud-full.e2e.mjs" || die "browser run failed"
+# 4. The browser run (TALK_ONLY=1 runs only the Talk part).
+if [ "${TALK_ONLY:-}" != 1 ]; then
+  NC="$NC" NC_CONTAINER="$NAME" PLAYWRIGHT="$PLAYWRIGHT" \
+    NC_PASS_ADMIN="$ADMIN_PASS" NC_PASS_ALICE="pw-alice-$ADMIN_PASS" NC_PASS_BOB="pw-bob-$ADMIN_PASS" \
+    node "$APP/tests/browser/nextcloud-full.e2e.mjs" || die "browser run failed"
+fi
+if [ "${TALK:-1}" = 1 ]; then
+  say "Talk run (TALK-01)"
+  NC="$NC" PLAYWRIGHT="$PLAYWRIGHT" NC_PASS_ALICE="pw-alice-$ADMIN_PASS" NC_PASS_BOB="pw-bob-$ADMIN_PASS" \
+    node "$APP/tests/browser/nextcloud-talk.e2e.mjs" || die "Talk run failed"
+fi
