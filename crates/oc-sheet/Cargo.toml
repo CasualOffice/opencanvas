@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+[package]
+name = "oc-sheet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OpenCanvas Spreadsheet block (ADR-080): the Yjs model's id-based references and the bridge to opencalc's engine"
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"
