@@ -304,6 +304,13 @@ impl HostConfig {
         self.flags.get("live_blocks").and_then(|v| v.as_bool()) == Some(true)
     }
 
+    /// `[host.flags] partial_sync` (PSYNC-02, ADR-076, docs/05 §2): rooms keep databases and
+    /// boards as subdocuments, loaded when a connection asks for them. Off by default until the
+    /// editor speaks it (PSYNC-03); connections without `caps=subdoc` are then closed with 4426.
+    pub fn partial_sync(&self) -> bool {
+        self.flags.get("partial_sync").and_then(|v| v.as_bool()) == Some(true)
+    }
+
     /// `[host.api] default_mode = "direct" | "suggest"`: where API writes to existing blocks
     /// land when the call does not say. Default `direct` (a program asked for the change).
     pub fn api_default_mode(&self) -> crate::ai::tools::WriteMode {

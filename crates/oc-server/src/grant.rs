@@ -160,6 +160,11 @@ pub struct Grant {
     /// with 4426.
     #[serde(default)]
     pub ext_blocks: bool,
+    /// PSYNC-02 (ADR-076, docs/15 §3): the connection speaks partial sync (`caps=subdoc`):
+    /// heavy blocks arrive as subdocuments (message type 101). A room with
+    /// `[host.flags] partial_sync` closes connections without it with 4426.
+    #[serde(default)]
+    pub subdoc: bool,
     /// LIVE-01/02: live block claims, the parent of a derived grant, and `caps=live`.
     #[serde(default)]
     pub live: LiveGrant,
@@ -270,6 +275,7 @@ mod tests {
     fn debug_output_redacts_the_callback_token() {
         let g = super::Grant {
             ext_blocks: false,
+            subdoc: false,
             live: Default::default(),
             wopi_history: None,
             host_id: "h".into(),

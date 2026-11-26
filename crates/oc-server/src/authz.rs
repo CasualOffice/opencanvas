@@ -361,6 +361,7 @@ impl Principal {
         };
         Ok(Grant {
             ext_blocks: false,
+            subdoc: false,
             live: Default::default(),
             wopi_history: None,
             host_id: self.host.id.clone(),

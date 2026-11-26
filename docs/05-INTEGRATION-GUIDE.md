@@ -247,6 +247,26 @@ read-only.
 `live_blocks = true` on a WOPI-only host, a temporary-canvas host or a host without
 `callback_base` refuse to start, naming the host.
 
+### 2c-bis. Partial sync (PSYNC-02, ADR-076; `[host.flags] partial_sync`)
+
+```toml
+[host.flags]
+partial_sync = false   # default; true splits large canvases into subdocuments
+```
+
+With `partial_sync = true` a room keeps each database and board (diagrams included) as a
+subdocument that the editor loads when the block comes near the screen, so a large canvas opens on
+its text and the server holds only what people look at (on the 50 MB benchmark canvas the room
+holds the main document, about 1% of the whole). Your files do not change: every save is the same
+`.ocanvas` format v1 with the same content, and the API, MCP, exports and `search.json` read and
+write as before.
+
+**Leave it off until the 0.4 editor is deployed** (PSYNC-03): a split room closes editors that do
+not send `caps=subdoc` (0.3 and earlier) with 4426, and they show "reopen the canvas". It needs a
+database WAL (`DATABASE_URL` or the default SQLite); with the Redis WAL, memory durability or for
+temporary canvases the flag is ignored and rooms stay whole. Turning it off again is safe: a room
+folds its parts back into one document when it next opens.
+
 ### 2d. Offline copies (OFF-01..08, docs/34 §3, ADR-063, ADR-064; `[host.offline]`)
 
 A person can keep a canvas **on their own device** and keep editing without a network; the edits

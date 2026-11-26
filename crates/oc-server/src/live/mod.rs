@@ -336,6 +336,7 @@ pub fn derive(
         members: vec![],
         wopi_history: None,
         ext_blocks: false,
+        subdoc: false,
         live: crate::grant::LiveGrant {
             claims: vec![],
             parent: Some(LiveParent {
@@ -979,6 +980,7 @@ mod tests {
             members: vec![],
             wopi_history: None,
             ext_blocks: true,
+            subdoc: false,
             live: Default::default(),
         };
         let g = derive(&parent, Some("t"), "L", Role::Edit, None, None);

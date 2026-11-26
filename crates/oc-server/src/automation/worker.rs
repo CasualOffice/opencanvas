@@ -34,6 +34,7 @@ pub const RETRY_FOR_MS: i64 = 3_600_000;
 pub fn service_grant(host: &HostConfig, file_id: &str, rule: &str) -> Grant {
     Grant {
         ext_blocks: true,
+        subdoc: false,
         wopi_history: None,
         host_id: host.id.clone(),
         room: room_id(&host.id, file_id),

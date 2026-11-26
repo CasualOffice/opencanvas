@@ -379,7 +379,7 @@ fn edits_on_parts_converge_with_edits_on_a_flattened_copy() {
         for (k, d) in &parts {
             let u = d.transact().encode_state_as_update_v1(&part_svs[k]);
             owners.record_update(k, &u).unwrap();
-            apply(&copy, &u);
+            apply(&copy, &own_share(&u, k, &owners).unwrap());
         }
         // ...and the copy's edits reach the parts routed by owner.
         let u = copy.transact().encode_state_as_update_v1(&copy_sv);
@@ -417,6 +417,37 @@ fn edits_on_parts_converge_with_edits_on_a_flattened_copy() {
             "seed {seed}: state vector"
         );
         assert_eq!(joined(&parts), json(&copy), "seed {seed}: parts joined");
+    }
+}
+
+/// A part (or an edit of one) applied to the whole document as it is changes nothing it does
+/// not own: an offline copy's part, or a part edit while the room holds a whole view.
+#[test]
+fn a_part_applied_to_the_whole_document_changes_nothing_else() {
+    for seed in 1..=50 {
+        let whole = random_canvas(seed);
+        let want = json(&whole);
+        let s = split(&encode(&whole)).unwrap();
+        for (k, b) in &s.parts {
+            let part = load(b, 77);
+            let copy = load(&encode(&whole), 78);
+            apply(&copy, &own_share(&encode(&part), k, &s.owners).unwrap());
+            // Unfiltered, the fillers in its delete set would delete other parts' items.
+            let raw = load(&encode(&whole), 79);
+            apply(&raw, &encode(&part));
+            if k == MAIN && seed == 1 {
+                assert_ne!(
+                    json(&raw),
+                    want,
+                    "seed 1: the raw part should break the whole"
+                );
+            }
+            assert_eq!(
+                json(&copy),
+                want,
+                "seed {seed}: part {k:?} applied to the whole"
+            );
+        }
     }
 }
 

@@ -35,3 +35,20 @@ pub fn denied(reason: &str) -> Vec<u8> {
 pub fn control(json: &Value) -> Vec<u8> {
     Message::Custom(MSG_CONTROL, json.to_string().into_bytes()).encode_v1()
 }
+
+/// PSYNC-02 (ADR-076, docs/15 §3.2): a subdocument frame, `[101, varString guid, <y-protocols
+/// message>]`; the guid is `<fileId>/block/<blockId>`.
+pub const MSG_SUBDOC: u8 = 101;
+
+pub fn subdoc(guid: &str, inner: &[u8]) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(guid.len() + inner.len() + 4);
+    let mut n = guid.len() as u64;
+    while n >= 0x80 {
+        payload.push((n as u8 & 0x7f) | 0x80);
+        n >>= 7;
+    }
+    payload.push(n as u8);
+    payload.extend_from_slice(guid.as_bytes());
+    payload.extend_from_slice(inner);
+    Message::Custom(MSG_SUBDOC, payload).encode_v1()
+}
