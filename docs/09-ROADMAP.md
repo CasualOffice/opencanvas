@@ -31,7 +31,7 @@ open to a broad developer ecosystem (ADR-038).
 | v0.2.1 (released 2026-11-26) | The categorised insert menu (INS-01) and three fixes |
 | [v0.2.0](32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
 | [v0.3](34-ROADMAP-v0.3.md) | Portable live blocks, offline-first editing, search and automation (plan proposed 2026-11-26) |
-| v0.4 | Advanced databases, partial synchronization and performance improvements |
+| [v0.4](36-ROADMAP-v0.4.md) | Performance and partial synchronization, as a benchmark, performance and maturity release: partial sync, a benchmark program with published results and CI gates, 10k connections per node and 1,000 editors in a room, lower browser memory and lazy modules; reliability drills and a security audit; also formulas, relations, rollups, virtualized databases, integrations and UX fixes (plan proposed 2026-11-26) |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
 
 Alongside the releases, **structured diagramming** is its own workstream ([docs/29](29-DIAGRAMMING.md)):
@@ -75,6 +75,10 @@ The detailed design plan for v0.2 is [docs/27](27-ROADMAP-v0.2.md): portable liv
 ## v0.3 detail
 
 The detailed design plan for v0.3 is [docs/34](34-ROADMAP-v0.3.md): live blocks as designed in docs/27 §2 with small deltas (ADR-069), offline copies kept only on the person's device under host and per-canvas opt-in with fresh host launches on reconnect (ADR-063, ADR-064), find and replace in the client and cross-canvas search indexed by the host from a `search.json` in every save (ADR-065, ADR-066), and automation rules stored in the document and run by the server on the rule owner's behalf (ADR-067, ADR-068). Its delivery rows are the P3 v0.3 section of the tracker; prototypes (V3UI-01) gate the UI rows.
+
+## v0.4 detail
+
+The detailed design plan for v0.4 is [docs/36](36-ROADMAP-v0.4.md) (owner direction 2026-11-26): the main thrust is performance and partial synchronization. Partial sync keeps databases, boards and diagrams as subdocuments loaded on view so a 50 MB canvas opens in under 2 s (ADR-076); a benchmark program (`scripts/bench/`, scheduled CI, published results with hardware and load mix, regression gates; ADR-079) drives the performance work: 10,000 connections on a 4 vCPU / 8 GB node and 1,000 editors in one room with batched presence and fan-out sharded across cores (ADR-077), lower browser memory and lazy modules. Maturity follows: crash, failover and restore drills, flaky tests, the MySQL conformance failures and a security audit of the v0.3 surfaces. Formulas, relations and rollups (ADR-078), virtualized databases, integrations and UX fixes are also in v0.4 but secondary. Caps rise only after the cluster, crash and sustained runs pass. Its delivery rows are the P3 v0.4 section of the tracker; prototypes (V4UI-01) gate the UI rows.
 
 ## Milestone sequence (P0 → P1)
 

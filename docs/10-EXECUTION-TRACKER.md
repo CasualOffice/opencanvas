@@ -231,6 +231,72 @@ live-blocks and SDK block prototypes cover it. Two tracks at most: PSDK-01→02�
 
 Rough total: 4 M + 4 S ≈ 5–6 engineer-weeks.
 
+## P3 — Platform: v0.4 ([docs/36](36-ROADMAP-v0.4.md))
+
+Direction set by the owner 2026-11-26 and sharpened the same day: the main thrust is partial sync,
+a benchmark program and the performance work it drives; then maturity (reliability, security);
+advanced databases, integrations and UX are secondary ("Also" rows; stretch rows move to 0.4.x first).
+ADR-076 to ADR-079 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks; order and dependencies in docs/36 §9.
+Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOAK and RLB-A1..A3 pass.
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| V4UI-01 | Prototypes (docs/36 §7), owner approval | Todo | M; Prototypes |
+| PSYNC-01 | Spike and ADR-076: subdocuments vs projection, measured on the 50 MB fixture | Todo | M; Partial sync |
+| PSYNC-02 | Server: subdocuments, multiplexed sync, per-request role check, WAL per document, lazy load and evict, flatten on save | Todo | L; Partial sync |
+| PSYNC-03 | Editor: load on view, placeholders to the prototype, unload, undo across documents, offline loads all | Todo | L; Partial sync |
+| PSYNC-04 | Compatibility: `caps=subdoc`, 4426, 0.3 round trip, API/MCP/exports/search unchanged, PSYNC-A1..A6 | Todo | M; Partial sync |
+| BENCH-01 | `scripts/bench/`: scenario files, several source addresses, probe latency, faults, JSON results with hardware; docs/22 scenarios moved; fixture generator | Todo | L; Benchmark |
+| BENCH-02 | Scheduled CI job (nightly quick runs on four stores) and the weekly full run on the reference machine | Todo | M; Benchmark |
+| BENCH-03 | Browser benchmarks: first screen, heap per fixture (baseline now), initial JS, long frames | Todo | M; Benchmark |
+| BENCH-04 | Regression gates: PR budgets (`bench/budgets.toml`, `--forbid`), nightly comparison, issue on failure (ADR-079) | Todo | M; Benchmark |
+| BENCH-05 | Benchmarks page on the site from `bench/results/` with hardware and mix; docs/22 summary | Todo | M; Benchmark |
+| PERF-11 | Connection and room footprint, idle-viewer path, reconnect storm control, fd limits (X10K, STORM) | Todo | M; Performance |
+| PERF-12 | Presence throttling and per-tick merged awareness (ADR-077) | Todo | M; Performance |
+| PERF-13 | Encode once and fan-out shards across cores; relayed peers once per node (ADR-077) | Todo | L; Performance |
+| PERF-14 | Full X10K and STORM runs passing, published | Todo | M; Performance |
+| PERF-15 | Full R1K run passing, published | Todo | M; Performance |
+| PERF-16 | Cap raise to 1,000 (`MAX_PEERS`, docs/22 §4, docs/13) after the gates | Todo | S; Performance |
+| MEM-02 | Browser heap reductions to −40% on L | Todo | L; Performance |
+| LAZY-01 | Advanced modules behind `import()`, initial JS 300 → 220 KB | Todo | M; Performance |
+| RLB-01 | Single-node crash drills (SQLite, MySQL), reduced drill nightly | Todo | M; Maturity |
+| RLB-02 | Cluster failover drills (owner, Redis, DB primary, partition) | Todo | M; Maturity |
+| RLB-03 | Backup and restore runbook, `restore-drill.sh`, restore epoch | Todo | L; Maturity |
+| RLB-04 | Flaky-test elimination, quarantine policy, repeat-each job | Todo | L; Maturity |
+| RLB-05 | MySQL `storage_conformance` parallel failures; CI job on MySQL, MariaDB, Redis | Todo | S; Maturity |
+| RLB-06 | SOAK (8 h at the X10K mix) before the release | Todo | M; Maturity |
+| RLB-07 | Metrics, dashboard and alerts for fan-out, presence, reconnects, subdocuments | Todo | M; Maturity |
+| RLB-08 | Rolling upgrade and downgrade drill 0.3 ↔ 0.4 under load | Todo | M; Maturity |
+| SEC-V4 | Security audit of v0.3 and v0.4 surfaces (docs/18 §7) | Todo | L; Maturity |
+| SEC-V4F | Fixes for the audit findings, each with a test | Todo | M; Maturity |
+| DEP-01 | Dependency audit, SBOM, update policy | Todo | S; Maturity |
+| ACC-V4 | docs/23 rows PSYNC-A*, BENCH-A*, scenario rows, RLB-A*, DB-A* | Todo | S; Maturity |
+| DB4-01 | `oc-formula`: parser, types, evaluator, errors, limits, test vectors (ADR-078) | Todo | L; Also: databases |
+| DB4-02 | WASM build in the editor (lazy), native/WASM parity | Todo | M; Also: databases |
+| DB4-03 | Formula field UI to the prototype | Todo | M; Also: databases |
+| DB4-04 | Relations in one canvas: model, MOD-01, two-way, UI to the prototype | Todo | L; Also: databases |
+| DB4-05 | Relations across canvases through live blocks, "No access" (stretch) | Todo | M; Also: databases |
+| DB4-06 | Rollups (in canvas; across canvases on refresh) | Todo | M; Also: databases |
+| DB4-07 | Virtualized table view to the prototype (DB100K) | Todo | L; Also: databases |
+| DB4-08 | Virtualized board view to the prototype (DB100K) | Todo | M; Also: databases |
+| DB4-09 | Worker index for sort, filter and group | Todo | M; Also: databases |
+| DB4-10 | Computed values in exports, API, MCP, `search.json`, automation conditions | Todo | S; Also: databases |
+| TALK-01 | Nextcloud Talk integration to the prototype, scripted run (stretch) | Todo | L; Also: integrations |
+| MM-03 | Mattermost Marketplace readiness (after the trademark reply) | Todo | M; Also: integrations |
+| MX-03 | Richer Matrix widget (stretch) | Todo | M; Also: integrations |
+| RCL-01 | Rust client realtime sync (yrs) and conformance (stretch) | Todo | L; Also: integrations |
+| MCPS-01 | Generated MCP schemas with a drift check | Todo | M; Also: integrations |
+| CONF-01 | Client conformance on MySQL, MariaDB and Redis in CI | Todo | S; Also: integrations |
+| NC-04 | Nightly Nextcloud integration job | Todo | S; Also: integrations |
+| UX4-01 | Board toolbar at narrow widths and 200% to the prototype | Todo | M; Also: UX |
+| UX4-02 | Embedded first-click caret | Todo | S; Also: UX |
+| UX4-03 | SCALE-02 leftovers (S2 widths, tabs, S7, S8 checks) | Todo | M; Also: UX |
+| UX4-04 | Offline concurrent delete: summary item and Restore | Todo | M; Also: UX |
+| UX4-05 | v0.3 known limitations: offline in WebKit/Firefox/phone, Redis-only automation decision | Todo | M; Also: UX |
+| REL-06 | v0.4.0 scope lock, audit sign-off, release notes, published benchmark results | Todo | M; Release |
+
+Rough total: 13 L + 32 M + 8 S ≈ 65–70 engineer-weeks (≈ 7 stretch), plus PSDK-01..08 if not in 0.3.1.
+
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
 Owner approved Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) on 2026-11-24, with seven review
