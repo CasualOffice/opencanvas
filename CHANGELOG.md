@@ -7,6 +7,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Added
+
+- Partial sync, server groundwork (PSYNC-02, ADR-076; nothing changes for users yet, the room
+  does not split documents): `oc_model::parts` splits a canvas into a main document and one part
+  per database and board **keeping every Yjs item id**, and flattens the parts back to the format v1
+  update byte for byte (property tests; checked on the 50 MB fixture, where the main document
+  holds 6.7 MB against 737 MB for the whole). The WAL keeps rows per document id (migration 0012:
+  `room_updates.doc_id`, `room_part_snapshots`).
+
 ### Fixed
 
 - The editor's files are now served gzip-compressed to browsers that accept it: the build writes

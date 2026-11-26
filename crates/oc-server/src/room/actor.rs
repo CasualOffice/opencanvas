@@ -206,6 +206,8 @@ struct Queued {
     from: Option<ConnId>,
     /// An edit (makes the room dirty, counts as a contribution); false for the `people` entry.
     edit: bool,
+    /// PSYNC-02: the document it belongs to (`""` main; a part key in a split room).
+    doc: String,
 }
 
 /// The room task's channels: its own sender (for timers), its command queue and the
@@ -1590,6 +1592,7 @@ impl Room {
             user_id: user_id.to_string(),
             from,
             edit,
+            doc: String::new(),
         });
     }
 
@@ -1627,6 +1630,7 @@ impl Room {
                     data: q.bytes.clone(),
                     origin: q.user_id.clone(),
                     at,
+                    doc: q.doc.clone(),
                 })
                 .collect::<Vec<_>>()
         };

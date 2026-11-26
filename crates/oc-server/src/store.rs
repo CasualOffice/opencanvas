@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
+use serde_json::Value;
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 use sqlx::migrate::Migrator;
 use sqlx::{AnyPool, Executor, Row};
@@ -61,12 +62,15 @@ pub enum IdemBegin {
 }
 
 /// One Yjs update for the WAL, at its own `seq`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WalRow {
     pub seq: i64,
     pub data: Vec<u8>,
     pub origin: String,
     pub at: i64,
+    /// PSYNC-02 (ADR-076): the document the update belongs to, `""` for the main document,
+    /// `databases/<id>` or `boards/<id>` for a part of a split room.
+    pub doc: String,
 }
 
 /// One room's batch waiting for the SQLite group writer.
@@ -1367,6 +1371,7 @@ impl Store {
             data: data.to_vec(),
             origin: origin.into(),
             at: now_ms,
+            doc: String::new(),
         };
         self.append_updates(room, epoch, vec![row]).await
     }
@@ -1491,7 +1496,8 @@ impl Store {
             .transpose()?;
         let after = snapshot.as_ref().map_or(0, |s| s.0);
         let rows = sqlx::query(
-            "SELECT seq, data FROM room_updates WHERE room_id = ? AND seq > ? ORDER BY seq",
+            "SELECT seq, data FROM room_updates WHERE room_id = ? AND doc_id = '' AND seq > ? \
+             ORDER BY seq",
         )
         .bind(room)
         .bind(after)
@@ -1567,13 +1573,156 @@ impl Store {
         .bind(now_ms)
         .execute(&mut *tx)
         .await?;
-        sqlx::query("DELETE FROM room_updates WHERE room_id = ? AND seq <= ?")
+        sqlx::query("DELETE FROM room_updates WHERE room_id = ? AND doc_id = '' AND seq <= ?")
             .bind(room)
             .bind(seq)
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    /// PSYNC-02: the WAL keeps parts per document id only in a database (not with the Redis
+    /// WAL or in Redis only); a room splits only when this is true.
+    pub fn supports_parts(&self) -> bool {
+        self.redis.is_none() && self.kv.is_none()
+    }
+
+    /// The parts a split room left in the WAL: `(doc id, header)` for every part with a
+    /// snapshot or rows (a part with rows only has header `null`).
+    pub async fn part_keys(&self, room: &str) -> anyhow::Result<Vec<(String, Value)>> {
+        if !self.supports_parts() {
+            return Ok(Vec::new());
+        }
+        retry_transient("part list", move || async move {
+            let mut out: std::collections::BTreeMap<String, Value> = Default::default();
+            for r in sqlx::query("SELECT doc_id, header FROM room_part_snapshots WHERE room_id = ?")
+                .bind(room)
+                .fetch_all(&self.pool)
+                .await?
+            {
+                let header: String = r.try_get(1)?;
+                out.insert(
+                    r.try_get(0)?,
+                    serde_json::from_str(&header).unwrap_or(Value::Null),
+                );
+            }
+            for r in sqlx::query(
+                "SELECT DISTINCT doc_id FROM room_updates WHERE room_id = ? AND doc_id <> ''",
+            )
+            .bind(room)
+            .fetch_all(&self.pool)
+            .await?
+            {
+                out.entry(r.try_get(0)?).or_insert(Value::Null);
+            }
+            Ok(out.into_iter().collect())
+        })
+        .await
+    }
+
+    /// One part's snapshot and the rows after it.
+    pub async fn load_part(&self, room: &str, doc: &str) -> anyhow::Result<Wal> {
+        retry_transient("part load", move || async move {
+            let snapshot = sqlx::query(
+                "SELECT seq, state FROM room_part_snapshots WHERE room_id = ? AND doc_id = ?",
+            )
+            .bind(room)
+            .bind(doc)
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|r| Ok::<_, sqlx::Error>((r.try_get::<i64, _>(0)?, r.try_get::<Vec<u8>, _>(1)?)))
+            .transpose()?;
+            let after = snapshot.as_ref().map_or(0, |s| s.0);
+            let updates = sqlx::query(
+                "SELECT seq, data FROM room_updates WHERE room_id = ? AND doc_id = ? AND seq > ? \
+                 ORDER BY seq",
+            )
+            .bind(room)
+            .bind(doc)
+            .bind(after)
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .map(|r| Ok((r.try_get::<i64, _>(0)?, r.try_get::<Vec<u8>, _>(1)?)))
+            .collect::<Result<_, sqlx::Error>>()?;
+            Ok(Wal { snapshot, updates })
+        })
+        .await
+    }
+
+    /// Replaces a part's snapshot (and header) and drops the part's rows it covers. Refused
+    /// with [`Fenced`] when `epoch` is no longer the room's latest.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn compact_part(
+        &self,
+        room: &str,
+        epoch: i64,
+        doc: &str,
+        seq: i64,
+        state: &[u8],
+        header: &Value,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(self.supports_parts(), "parts need a database WAL");
+        let header = header.to_string();
+        let header = header.as_str();
+        retry_transient("part compaction", move || async move {
+            let _g = self.snapshot_gate.write().await;
+            let _w = self.write_turn().await;
+            let mut tx = self.pool.begin().await?;
+            hold_epoch(&mut tx, room, epoch).await?;
+            sqlx::query("DELETE FROM room_part_snapshots WHERE room_id = ? AND doc_id = ?")
+                .bind(room)
+                .bind(doc)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "INSERT INTO room_part_snapshots (room_id, doc_id, seq, state, header, updated_at) \
+                 VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(room)
+            .bind(doc)
+            .bind(seq)
+            .bind(state.to_vec())
+            .bind(header)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("DELETE FROM room_updates WHERE room_id = ? AND doc_id = ? AND seq <= ?")
+                .bind(room)
+                .bind(doc)
+                .bind(seq)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Drops every part of a room (its state was folded back into the main document).
+    pub async fn drop_parts(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
+        if !self.supports_parts() {
+            return Ok(());
+        }
+        retry_transient("part drop", move || async move {
+            let _g = self.snapshot_gate.write().await;
+            let _w = self.write_turn().await;
+            let mut tx = self.pool.begin().await?;
+            hold_epoch(&mut tx, room, epoch).await?;
+            sqlx::query("DELETE FROM room_part_snapshots WHERE room_id = ?")
+                .bind(room)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM room_updates WHERE room_id = ? AND doc_id <> ''")
+                .bind(room)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
     }
 
     /// Stores (or replaces) a WOPI-mode asset of `room`.
@@ -1792,6 +1941,10 @@ impl Store {
                 "room_snapshots",
                 "SELECT COUNT(*) FROM room_snapshots WHERE room_id = ?",
             ),
+            (
+                "room_part_snapshots",
+                "SELECT COUNT(*) FROM room_part_snapshots WHERE room_id = ?",
+            ),
             ("rooms", "SELECT COUNT(*) FROM rooms WHERE id = ?"),
             (
                 "commit_outbox",
@@ -1873,9 +2026,9 @@ async fn insert_guarded<'e, E>(ex: E, room: &str, epoch: i64, rows: &[WalRow]) -
 where
     E: sqlx::Executor<'e, Database = sqlx::Any>,
 {
-    let one = "SELECT ?, ?, ?, ?, ? FROM room_epochs WHERE room_id = ? AND epoch = ?";
+    let one = "SELECT ?, ?, ?, ?, ?, ? FROM room_epochs WHERE room_id = ? AND epoch = ?";
     let sql = format!(
-        "INSERT INTO room_updates (room_id, seq, data, origin, created_at) {}",
+        "INSERT INTO room_updates (room_id, seq, data, origin, created_at, doc_id) {}",
         vec![one; rows.len()].join(" UNION ALL ")
     );
     let mut q = sqlx::query(sqlx::AssertSqlSafe(sql));
@@ -1886,6 +2039,7 @@ where
             .bind(r.data.clone())
             .bind(r.origin.clone())
             .bind(r.at)
+            .bind(r.doc.clone())
             .bind(room)
             .bind(epoch);
     }
@@ -2020,6 +2174,7 @@ async fn purge_in(tx: &mut Tx<'_>, room: &str) -> anyhow::Result<()> {
     for sql in [
         "DELETE FROM room_updates WHERE room_id = ?",
         "DELETE FROM room_snapshots WHERE room_id = ?",
+        "DELETE FROM room_part_snapshots WHERE room_id = ?",
         "DELETE FROM rooms WHERE id = ?",
         "DELETE FROM commit_outbox WHERE room_id = ? AND status <> 'pending'",
     ] {

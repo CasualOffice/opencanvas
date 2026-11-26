@@ -42,6 +42,7 @@ fn row(seq: i64, data: Vec<u8>) -> WalRow {
         data,
         origin: "u_a".into(),
         at: 1_000 + seq,
+        ..Default::default()
     }
 }
 

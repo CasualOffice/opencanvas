@@ -229,6 +229,7 @@ fn rows(seqs: impl IntoIterator<Item = i64>, tag: &str) -> Vec<WalRow> {
             data: format!("{tag}-{seq}").into_bytes(),
             origin: "u_a".into(),
             at: 1_000 + seq,
+            ..Default::default()
         })
         .collect()
 }
