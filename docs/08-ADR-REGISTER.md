@@ -976,6 +976,22 @@ escapes the host's copy and ACL model); rules only in the host (rejected: every 
 the engine); client-side rules (rejected: need an open browser).
 **Consequences.** + rules travel with the file and history; + no write path beyond the API's; − time
 rules need the server to open closed files with the host key.
+**Notes (2026-11-26, AUTO-CL).** *Cluster.* Rules run where the room's tool layer runs, the room's
+owner node: the API, editor and MCP rule operations sent to another node are forwarded to the
+owner (`RemoteOp::Automation`), and the schedule worker leaves a slot whose room another node
+holds to that node (a dead owner's lease expires, then any node takes the room over). Limits,
+auto-pause and duplicate suppression read the shared run log, so they hold cluster-wide. A
+node that dies after logging a run as `running` is not re-run (its actions may have happened);
+the janitor logs it `failed`/`INTERRUPTED` after an hour. Delivery is at most once per slot or
+change. Tested on three nodes with Redis and MySQL 8.4 / MariaDB 10.11
+(`tests/automation_cluster.rs`). *Redis-only storage stays refused at start-up* for
+`[host.automation]`, as for webhooks (ADR-056): the schedule claim is a conditional update, a run
+id is a unique insert, and the limits and auto-pause are range and order queries over the run log.
+Redis has none of these as one statement; rebuilding them with sorted sets and Lua scripts is a
+second implementation to keep in step, and a Redis-only deployment's eviction and persistence
+settings belong to the operator, so a run log and schedule there could vanish without notice.
+Operators who want automation add `DATABASE_URL` (SQLite for one node, MySQL or MariaDB for a
+cluster).
 
 ### ADR-068 — Automation outbound calls and limits (Accepted by the owner 2026-11-26)
 **Decision.** URL calls follow the webhook rules (signature, origin, no redirects) plus an operator

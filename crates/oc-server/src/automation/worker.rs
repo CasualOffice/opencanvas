@@ -93,6 +93,19 @@ pub async fn sweep(state: &SharedState, node: &str) -> anyhow::Result<usize> {
     let now = state.clock.now_ms();
     let mut claimed = vec![];
     for row in state.store.automation_due(now, SWEEP_ROWS).await? {
+        // Cluster: the room's tool layer runs on its owner only, so a slot whose room another
+        // node holds is left to that node's sweep; a dead owner's lease expires and any node
+        // then takes the room over.
+        if let Some(c) = state.rooms.cluster() {
+            match c.leases.owner(&row.room_id).await {
+                Ok(Some(o)) if !c.leases.is_me(&o) => continue,
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(room = %row.room_id, error = %e, "automation sweep: lease lookup failed");
+                    continue;
+                }
+            }
+        }
         if state
             .store
             .automation_claim(&row, node, now + CLAIM_MS)
@@ -226,14 +239,33 @@ async fn run_row(state: &SharedState, row: &ScheduleRow) -> anyhow::Result<()> {
         .await
 }
 
-/// The run log purge (30 days).
+/// The run log purge (30 days), and runs left `running` by a node that died closed as
+/// `failed` (`INTERRUPTED`): they are not run again, since their actions may have happened.
 pub async fn purge(state: &SharedState) {
-    if state.store.automation_supported()
-        && let Err(e) = state.store.automation_purge(state.clock.now_ms()).await
-    {
+    if !state.store.automation_supported() {
+        return;
+    }
+    let now = state.clock.now_ms();
+    if let Err(e) = state.store.automation_purge(now).await {
         tracing::warn!(error = %e, "automation run purge failed");
     }
+    match state
+        .store
+        .automation_interrupt_stale(now - STALE_RUN_MS)
+        .await
+    {
+        Ok(0) => {}
+        Ok(n) => tracing::warn!(
+            runs = n,
+            "automation runs cut off by a node that stopped, logged INTERRUPTED"
+        ),
+        Err(e) => tracing::warn!(error = %e, "automation stale run sweep failed"),
+    }
 }
+
+/// A run still `running` after this long was cut off by a node that died; the janitor logs it
+/// `failed` (`INTERRUPTED`). URL retries make a live run last up to about 11 minutes.
+pub const STALE_RUN_MS: i64 = 3_600_000;
 
 /// Whether any host turned automation on.
 pub fn any_on(state: &SharedState) -> bool {

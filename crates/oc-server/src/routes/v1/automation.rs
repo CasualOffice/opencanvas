@@ -13,7 +13,7 @@ use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map as JsonMap, Value, json};
 use yrs::{Doc, ReadTxn};
 
@@ -58,7 +58,7 @@ async fn in_room(
 }
 
 /// The rules of a canvas: `{rules: [{id, rule, valid, error?, nextRunAt?}], limits}`.
-pub async fn list(
+async fn list_here(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,
@@ -142,7 +142,7 @@ fn may_write(host: &HostConfig, grant: &Grant, may_automate: bool) -> Result<(),
 }
 
 /// Creates or replaces a rule; the caller becomes its owner ("runs as you from now on").
-pub async fn save(
+async fn save_here(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,
@@ -192,7 +192,7 @@ pub async fn save(
 }
 
 /// Switches a rule on (the caller becomes its owner) or off.
-pub async fn enable(
+async fn enable_here(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,
@@ -239,7 +239,7 @@ pub async fn enable(
     in_room(state, host, grant, &format!("api:{}", grant.user.id), run).await
 }
 
-pub async fn delete(
+async fn delete_here(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,
@@ -273,7 +273,7 @@ pub async fn delete(
 }
 
 /// A test run: what the rule would do, changing nothing and sending nothing.
-pub async fn test(
+async fn test_here(
     state: &SharedState,
     host: &Arc<HostConfig>,
     grant: &Grant,
@@ -355,6 +355,202 @@ fn body_json(body: &Bytes) -> Result<Value, Problem> {
 
 fn ok(v: Value) -> Response {
     ([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response()
+}
+
+// ---------- cluster: rule operations run on the room's owner ----------
+
+/// A rule operation, serializable so a node that does not own the room can send it to the
+/// owner (`RemoteOp::Automation`): the room tool layer only runs on the owner.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "call", rename_all = "snake_case")]
+pub enum AutoCall {
+    List,
+    Save {
+        may: bool,
+        rule_id: String,
+        body: Value,
+    },
+    Enable {
+        may: bool,
+        rule_id: String,
+        on: bool,
+    },
+    Delete {
+        may: bool,
+        rule_id: String,
+    },
+    Test {
+        may: bool,
+        rule: Value,
+        row: Option<String>,
+    },
+}
+
+async fn here(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    c: AutoCall,
+) -> Result<Value, Problem> {
+    match c {
+        AutoCall::List => list_here(state, host, grant).await,
+        AutoCall::Save { may, rule_id, body } => {
+            save_here(state, host, grant, may, &rule_id, body).await
+        }
+        AutoCall::Enable { may, rule_id, on } => {
+            enable_here(state, host, grant, may, &rule_id, on).await
+        }
+        AutoCall::Delete { may, rule_id } => delete_here(state, host, grant, may, &rule_id).await,
+        AutoCall::Test { may, rule, row } => test_here(state, host, grant, may, rule, row).await,
+    }
+}
+
+/// Runs `c` on the node that owns the room: here, or forwarded to the owner (following the
+/// room when it moves, taking it over when its owner is gone), like the room's own calls.
+async fn on_owner(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    c: AutoCall,
+) -> Result<Value, Problem> {
+    use crate::cluster::RemoteError;
+    let Some(cluster) = state.rooms.cluster() else {
+        return here(state, host, grant, c).await;
+    };
+    let unavailable = |m: String| Problem::from(crate::ai::tools::ToolError::Unavailable(m));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while std::time::Instant::now() < deadline {
+        let owner = match state.rooms.tool_owner(host, grant).await {
+            Ok(None) => return here(state, host, grant, c).await,
+            Ok(Some(o)) => o,
+            Err(e) => return Err(unavailable(e.to_string())),
+        };
+        let op = crate::room::RemoteOp::Automation {
+            grant: grant.clone(),
+            call: serde_json::to_value(&c).unwrap_or_default(),
+        };
+        match cluster.call(&owner, &grant.room, &op).await {
+            Ok(v) => return answer_of(v),
+            Err(RemoteError::Moved) => {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await
+            }
+            Err(RemoteError::Unreachable(e)) => {
+                state.rooms.owner_failed(&grant.room, &owner, &e).await
+            }
+            Err(RemoteError::Failed(e)) => return Err(unavailable(e)),
+        }
+    }
+    Err(unavailable(
+        "the canvas is moving between nodes; retry shortly".into(),
+    ))
+}
+
+/// Owner side of [`on_owner`]: `{ok}` or `{err: problem}`; `None` when this node does not
+/// own the room (the caller looks again).
+pub async fn serve_owned(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    call: Value,
+) -> Option<Value> {
+    if !matches!(state.rooms.tool_owner(host, grant).await, Ok(None)) {
+        return None;
+    }
+    let c: AutoCall = match serde_json::from_value(call) {
+        Ok(c) => c,
+        Err(e) => {
+            return Some(json!({"err": Problem::bad_request("BAD_INPUT", e.to_string()).body()}));
+        }
+    };
+    Some(match here(state, host, grant, c).await {
+        Ok(v) => json!({"ok": v}),
+        Err(p) => json!({"err": p.body()}),
+    })
+}
+
+fn answer_of(v: Value) -> Result<Value, Problem> {
+    if let Some(ok) = v.get("ok") {
+        return Ok(ok.clone());
+    }
+    let e = &v["err"];
+    let status = e["status"]
+        .as_u64()
+        .and_then(|s| StatusCode::from_u16(s as u16).ok())
+        .unwrap_or(StatusCode::BAD_GATEWAY);
+    let mut p = Problem::new(
+        status,
+        e["code"].as_str().unwrap_or("INTERNAL"),
+        e["detail"].as_str().unwrap_or("the owner node failed"),
+    );
+    if let Some(m) = e.as_object() {
+        for (k, x) in m {
+            if !matches!(k.as_str(), "type" | "title" | "status" | "detail" | "code") {
+                p = p.with(k, x.clone());
+            }
+        }
+    }
+    if status == StatusCode::SERVICE_UNAVAILABLE {
+        p = p.header(header::RETRY_AFTER, "2");
+    }
+    Err(p)
+}
+
+/// The rules of a canvas: `{rules: [{id, rule, valid, error?, nextRunAt?}], limits}`.
+pub async fn list(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+) -> Result<Value, Problem> {
+    on_owner(state, host, grant, AutoCall::List).await
+}
+
+/// Creates or replaces a rule; the caller becomes its owner ("runs as you from now on").
+pub async fn save(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    may: bool,
+    rule_id: &str,
+    body: Value,
+) -> Result<Value, Problem> {
+    let rule_id = rule_id.to_string();
+    on_owner(state, host, grant, AutoCall::Save { may, rule_id, body }).await
+}
+
+/// Switches a rule on (the caller becomes its owner) or off.
+pub async fn enable(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    may: bool,
+    rule_id: &str,
+    on: bool,
+) -> Result<Value, Problem> {
+    let rule_id = rule_id.to_string();
+    on_owner(state, host, grant, AutoCall::Enable { may, rule_id, on }).await
+}
+
+pub async fn delete(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    may: bool,
+    rule_id: &str,
+) -> Result<Value, Problem> {
+    let rule_id = rule_id.to_string();
+    on_owner(state, host, grant, AutoCall::Delete { may, rule_id }).await
+}
+
+/// A test run: what the rule would do, changing nothing and sending nothing.
+pub async fn test(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    may: bool,
+    rule: Value,
+    row: Option<String>,
+) -> Result<Value, Problem> {
+    on_owner(state, host, grant, AutoCall::Test { may, rule, row }).await
 }
 
 // ---------- API handlers ----------
