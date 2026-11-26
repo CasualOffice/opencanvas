@@ -55,6 +55,11 @@ class ConfigService {
 		return $this->wopiBase() . '/files/' . $fileId;
 	}
 
+	/** TALK-01: a meeting canvas's WOPISrc (under the same allow-listed /wopi prefix). */
+	public function meetingWopiSrc(int $meetingId): string {
+		return $this->wopiBase() . '/meetings/' . $meetingId;
+	}
+
 	/** The Files link for a file id (HostEditUrl of a conflict copy). */
 	public function publicNextcloudFileUrl(int $fileId): string {
 		return $this->urlGenerator->getAbsoluteURL('/index.php/f/' . $fileId);

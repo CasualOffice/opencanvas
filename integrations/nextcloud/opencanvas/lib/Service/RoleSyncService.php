@@ -90,7 +90,15 @@ class RoleSyncService {
 	}
 
 	private function push(int $fileId, string $uid, string $role): void {
-		$url = $this->config->internalUrl() . '/v1/files/' . rawurlencode($this->config->wopiSrc($fileId)) . '/role';
+		$this->pushRole($this->config->wopiSrc($fileId), $uid, $role, $fileId);
+	}
+
+	/** Pushes one person's role on any WOPISrc (TALK-01 meeting canvases too); no-op without an API key. */
+	public function pushRole(string $wopiSrc, string $uid, string $role, int $fileId = 0): void {
+		if ($this->config->apiKey() === '' || $this->config->internalUrl() === '') {
+			return;
+		}
+		$url = $this->config->internalUrl() . '/v1/files/' . rawurlencode($wopiSrc) . '/role';
 		try {
 			$this->clientService->newClient()->post($url, [
 				'headers' => [

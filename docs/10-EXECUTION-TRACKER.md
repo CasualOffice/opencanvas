@@ -281,7 +281,7 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 | DB4-08 | Virtualized board view to the prototype (DB100K) | Todo | M; Also: databases |
 | DB4-09 | Worker index for sort, filter and group | Todo | M; Also: databases |
 | DB4-10 | Computed values in exports, API, MCP, `search.json`, automation conditions | In progress | Exports, `search.json` (through `export::database_table`), `db_query` and `queryRows` done (`oc_model::formula`); automation conditions not yet. |
-| TALK-01 | Nextcloud Talk integration to the prototype, scripted run (stretch) | Todo | L; Also: integrations |
+| TALK-01 | Nextcloud Talk integration to the prototype, scripted run (stretch) | In progress (2026-11-27): back end in `integrations/nextcloud/opencanvas` (meeting canvases `lib/Talk/`, meeting WOPI host `/wopi/meetings/{id}`, Talk panel API `/talk/{room}/…`, card reference provider, `ExpireMeetings` job, migration 000102); PHP unit `MeetingPolicyTest`, `MeetingServiceTest`, `CanvasCardTest` seen failing first. Panel UI, editor Follow me messages and the scripted run next | L; Also: integrations |
 | MM-03 | Mattermost Marketplace readiness (after the trademark reply) | Todo | M; Also: integrations |
 | MX-03 | Richer Matrix widget (stretch) | Todo | M; Also: integrations |
 | RCL-01 | Rust client realtime sync (yrs) and conformance (stretch) | Todo | L; Also: integrations |
