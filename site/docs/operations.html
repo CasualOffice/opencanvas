@@ -6,17 +6,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Operations and deployment | OpenCanvas</title>
-<meta name="description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.">
+<meta name="description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/operations.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
+<meta property="og:locale" content="en_US">
 <meta property="og:title" content="Operations and deployment | OpenCanvas">
-<meta property="og:description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.">
+<meta property="og:description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/operations.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-25">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Operations and deployment | OpenCanvas">
+<meta name="twitter:description" content="Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/docs/operations.html#article","headline":"Operations and deployment: OpenCanvas","description":"Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.","url":"https://canvas.casualoffice.org/docs/operations.html","mainEntityOfPage":"https://canvas.casualoffice.org/docs/operations.html","dateModified":"2026-11-25","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"Operate"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://canvas.casualoffice.org/docs/index.html"},{"@type":"ListItem","position":3,"name":"Operations and deployment","item":"https://canvas.casualoffice.org/docs/operations.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -53,7 +63,7 @@
   </aside>
   <article class="docs-article prose">
 <h1>Operations and deployment</h1>
-
+<p class="lede">Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.</p>
 <p>For upgrades, see the <a href="../docs/release-020.html#3-upgrade-notes">v0.2.0 upgrade notes</a>.</p>
 <h2 id="single-node-default-sqlite">Single node (default, SQLite)</h2>
 <p>Prepare a host registry for your deployment using the <a href="../docs/integration.html">integration guide</a>.</p>
@@ -206,7 +216,7 @@ docker compose -f deploy/monitoring/docker-compose.yml down -v</code></pre>
 <p>Measured on an Apple M4 laptop (10 cores, 16 GB); method, raw tables and caveats in <a href="../docs/capacity.html">22</a>. Keep ≤ 60 % of measured use.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Load (small rooms, 20 % typing)</th><th scope="col">Shape</th></tr></thead><tbody><tr><td>≤ 1 000 concurrent users</td><td>1 node, 1 vCPU, 512 MB, SQLite</td></tr><tr><td>≤ 5 000 concurrent users</td><td>1 node, 2 vCPU, 2 GB, SQLite</td></tr><tr><td>One room at the 550 cap</td><td>3 vCPU and ≥ 600 Mbit/s for that room</td></tr><tr><td>Beyond 5 000</td><td>cluster mode (MariaDB + Redis), about one node per 5 000 users (not measured yet)</td></tr></tbody></table></div>
 <p>Memory ≈ 50 MB + 0.25 MB per user + 5–14× the document per open room. Raise <code>nofile</code> above the connection count. Rerun on your hardware: <code>scripts/bench.sh</code>.</p>
-<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/13-OPERATIONS-AND-DEPLOYMENT.md">docs/13-OPERATIONS-AND-DEPLOYMENT.md</a> in the repository; edit it there.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/13-OPERATIONS-AND-DEPLOYMENT.md">docs/13-OPERATIONS-AND-DEPLOYMENT.md</a> in the repository; edit it there. Last changed <time datetime="2026-11-25">2026-11-25</time>.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="block-sdk.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Block SDK guide</span></a><a class="pn pn-next" href="security.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Security and limits</span></a></nav>
   </article>
   <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#single-node-default-sqlite">Single node (default, SQLite)</a></li><li><a href="#pdf-export-optional-gotenberg-sidecar-adr-010">PDF export (optional Gotenberg sidecar, ADR-010)</a></li><li><a href="#fonts-board-png-docx-board-images">Fonts (board PNG, DOCX board images)</a></li><li><a href="#image">Image</a></li><li><a href="#kubernetes-helm">Kubernetes (Helm)</a></li><li><a href="#cluster-redis-optionally-mysqlmariadb-adr-006-adr-030">Cluster (Redis, optionally MySQL/MariaDB; ADR-006, ADR-030)</a></li><li><a href="#ai-and-mcp-hostai-in-the-hosts-file">AI and MCP ([host.ai] in the hosts file)</a></li><li><a href="#ai-server-switch-one-switch-for-every-ai-feature">AI server switch (one switch for every AI feature)</a></li><li><a href="#wopi-proof-keys-required-with-a-wopi-host">WOPI proof keys (required with a WOPI host)</a></li><li><a href="#import-switch">Import switch</a></li><li><a href="#ai-optional-ai-02-adr-031">AI (optional; AI-02, ADR-031)</a></li><li><a href="#health--metrics">Health &amp; metrics</a></li><li><a href="#dashboards-and-alerts-ops-01">Dashboards and alerts (OPS-01)</a></li><li><a href="#graceful-shutdown--deploys">Graceful shutdown / deploys</a></li><li><a href="#ephemeral-hosts-adr-043">Ephemeral hosts (ADR-043)</a></li><li><a href="#sizing">Sizing</a></li></ul></nav>

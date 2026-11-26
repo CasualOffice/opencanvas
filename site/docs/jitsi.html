@@ -5,18 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
-<title>Jitsi Meet | OpenCanvas</title>
-<meta name="description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.">
+<title>Jitsi Meet integration | OpenCanvas</title>
+<meta name="description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/jitsi.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
-<meta property="og:title" content="Jitsi Meet | OpenCanvas">
-<meta property="og:description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Jitsi Meet integration | OpenCanvas">
+<meta property="og:description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/jitsi.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-25">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Jitsi Meet integration | OpenCanvas">
+<meta name="twitter:description" content="Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/docs/jitsi.html#article","headline":"Jitsi Meet integration: OpenCanvas","description":"Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.","url":"https://canvas.casualoffice.org/docs/jitsi.html","mainEntityOfPage":"https://canvas.casualoffice.org/docs/jitsi.html","dateModified":"2026-11-25","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"Integrate"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://canvas.casualoffice.org/docs/index.html"},{"@type":"ListItem","position":3,"name":"Jitsi Meet","item":"https://canvas.casualoffice.org/docs/jitsi.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -53,7 +63,7 @@
   </aside>
   <article class="docs-article prose">
 <h1>Jitsi Meet</h1>
-
+<p class="lede">Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.</p>
 <p><code>mod_opencanvas.lua</code> opens an OpenCanvas canvas in a Jitsi Meet call, in the shared-document slot Etherpad uses. No Docker image or compose changes: one Prosody plugin plus <code>.env</code> lines.</p>
 <ul><li>Everyone in the meeting opens the same canvas from <strong>Shared document</strong> and edits it live.</li><li>The canvas is <strong>temporary</strong>: nothing is stored by Jitsi or by your host. It is deleted when the meeting ends; people download or export (PDF, Word, Markdown, <code>.ocanvas</code>) to keep it.</li><li>It starts blank, or from a template you choose (<code>template = &quot;meeting&quot;</code>).</li><li>A reload, a dropped network or an OpenCanvas restart rejoins the same canvas.</li></ul>
 <p>The integration was introduced in OpenCanvas 0.1.1. Version 0.1.2 improves how role changes apply to links minted earlier in the meeting. See the <a href="../docs/release-012.html">release notes</a>.</p>
@@ -103,7 +113,7 @@ profile         = &quot;meeting&quot;   # agenda, notes, decisions, tasks: text,
 <p>Also covered by tests: token minting and claim shape (<code>test/mint_test.lua</code>, Lua 5.4), a plugin-minted token verified by OpenCanvas's own <code>jwt::verify</code> (<code>crates/oc-server/tests/jitsi_plugin.rs</code>, skips without Lua 5.3+; set <code>OC_LUA</code>).</p>
 <p>Jitsi's own JWT sign-in, tested 2026-11-24 (<code>ENABLE_AUTH=1</code>, <code>AUTH_TYPE=jwt</code>, <code>ENABLE_GUESTS=1</code>, <code>opencanvas_guest_role=&quot;view&quot;</code>): the signed-in moderator edits and the canvas shows their name from the Jitsi token; a guest without a token gets view with the view-only notice and sees the moderator's text live. Before the role push the moderator opened as view, because their link was sent before Jicofo made them a moderator (fixed; see Role above).</p>
 <p>Not tested yet: Debian-package installs and multi-shard deployments.</p>
-<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/jitsi/README.md">integrations/jitsi/README.md</a> in the repository; edit it there.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/integrations/jitsi/README.md">integrations/jitsi/README.md</a> in the repository; edit it there. Last changed <time datetime="2026-11-25">2026-11-25</time>.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="wopi.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">WOPI mode</span></a><a class="pn pn-next" href="nextcloud.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Nextcloud</span></a></nav>
   </article>
   <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#how-it-works">How it works</a></li><li><a href="#install-docker-jitsi-meet">Install (docker-jitsi-meet)</a></li><li><a href="#debian-packages-jitsi-meet-prosody">Debian packages (jitsi-meet-prosody)</a></li><li><a href="#test-checklist">Test checklist</a></li><li><a href="#status-verified">Status: verified</a></li></ul></nav>

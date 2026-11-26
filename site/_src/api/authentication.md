@@ -1,4 +1,4 @@
-<!--meta {"title": "Authentication", "description": "Authenticate to the OpenCanvas API with the host key or a user token your application mints: claims, issuer and audience, scopes, roles, expiry, and full minting examples.", "lede": "Two kinds of credentials, one check. Your server uses the host key; code that acts for one of your users carries a short-lived token that your application mints. OpenCanvas never issues user tokens and runs no OAuth server."} -->
+<!--meta {"title": "Authentication", "description": "Authenticate to the OpenCanvas API with the host key or a user token your app mints: claims, issuer, audience, scopes, roles, expiry and examples.", "lede": "Two kinds of credentials, one check. Your server uses the host key; code that acts for one of your users carries a short-lived token that your application mints. OpenCanvas never issues user tokens and runs no OAuth server."} -->
 
 ## Host key
 

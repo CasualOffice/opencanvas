@@ -5,18 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
-<title>Rate limits | OpenCanvas</title>
+<title>Rate limits | OpenCanvas API</title>
 <meta name="description" content="OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.">
 <link rel="canonical" href="https://canvas.casualoffice.org/api/rate-limits.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
-<meta property="og:title" content="Rate limits | OpenCanvas">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Rate limits | OpenCanvas API">
 <meta property="og:description" content="OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.">
 <meta property="og:url" content="https://canvas.casualoffice.org/api/rate-limits.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-26">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Rate limits | OpenCanvas API">
+<meta name="twitter:description" content="OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/api/rate-limits.html#article","headline":"OpenCanvas API: Rate limits","description":"OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.","url":"https://canvas.casualoffice.org/api/rate-limits.html","mainEntityOfPage":"https://canvas.casualoffice.org/api/rate-limits.html","dateModified":"2026-11-26","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"API guides"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"API","item":"https://canvas.casualoffice.org/api/index.html"},{"@type":"ListItem","position":3,"name":"Rate limits","item":"https://canvas.casualoffice.org/api/rate-limits.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -93,6 +103,7 @@ def get_with_retry(api, url, **kw):
     return r</code></pre></div></div>
 <h2 id="other-limits">Other limits</h2>
 <ul><li>At most 100 event streams per file on one server (<code>429 TOO_MANY_STREAMS</code>).</li><li>At most 200 rows per <code>rows:upsert</code> and per page of <code>queryRows</code>; at most 100 blocks per page of <code>listBlocks</code>.</li><li>Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns (<code>413 IMPORT_TOO_LARGE</code>).</li><li>A batch that deletes more than 5 blocks needs <code>&quot;confirm&quot;: true</code>.</li></ul>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Last changed <time datetime="2026-11-26">2026-11-26</time>.</p>
 <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../api/idempotency.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Idempotency</span></a><a class="pn pn-next" href="../api/events.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Events</span></a></nav>
   </article>
   <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#the-buckets">The buckets</a></li><li><a href="#the-headers">The headers</a></li><li><a href="#when-a-bucket-is-empty">When a bucket is empty</a></li><li><a href="#other-limits">Other limits</a></li></ul></nav>

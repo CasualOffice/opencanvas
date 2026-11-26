@@ -1,4 +1,4 @@
-<!--meta {"title": "API overview", "description": "The OpenCanvas headless API: read and change canvases from programs. Base URL, versioning, the api_v1 switch, request conventions and a first call in curl, TypeScript, Rust and Python.", "lede": "Read and change OpenCanvas canvases from programs: bots, integrations and back-office jobs. Changes land in the live canvas as one transaction, show up for everyone editing it, and are saved to your application like any other edit."} -->
+<!--meta {"title": "API overview", "description": "The OpenCanvas headless REST API under /api/v1: base URL, versioning, the api_v1 switch, conventions and a first call in curl, TypeScript, Rust and Python.", "lede": "Read and change OpenCanvas canvases from programs: bots, integrations and back-office jobs. Changes land in the live canvas as one transaction, show up for everyone editing it, and are saved to your application like any other edit."} -->
 
 ## Base URL
 

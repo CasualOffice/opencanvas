@@ -56,5 +56,37 @@ class SearchEntries(unittest.TestCase):
         self.assertIn("Parameters", entries[0]["t"])
 
 
+class StructuredData(unittest.TestCase):
+    """The JSON-LD helpers state what the page shows, and the release the repository has."""
+
+    def test_faq_pairs_from_details_and_question_headings(self):
+        body = ('<details><summary>Is it free?<svg><path d="M0"/></svg></summary><div data-answer><p>Yes, under '
+                '<a href="x">Apache-2.0</a>.</p></div></details>'
+                '<h2 id="a">What is it?</h2><p>A canvas.</p><ul><li>One</li></ul>'
+                '<h2 id="b">Licence</h2><p>Not a question.</p>')
+        self.assertEqual(sitelib.faq_pairs(body), [("Is it free?", "Yes, under Apache-2.0."),
+                                                   ("What is it?", "A canvas. One")])
+
+    def test_claim_marks_stay_out_of_answers(self):
+        body = ('<h2>How many?</h2><p data-claim>Up to 5,000. <a class="claim-mark" data-claim-mark="source" '
+                'href="x">Source: docs/22</a></p>')
+        self.assertEqual(sitelib.faq_pairs(body), [("How many?", "Up to 5,000.")])
+
+    def test_breadcrumbs_count_from_one_and_use_public_urls(self):
+        node = sitelib.breadcrumb_node([("OpenCanvas", "index.html"), ("Docs", "docs/index.html")])
+        self.assertEqual([i["position"] for i in node["itemListElement"]], [1, 2])
+        self.assertEqual(node["itemListElement"][0]["item"], sitelib.BASE_URL)
+        self.assertEqual(node["itemListElement"][1]["item"], sitelib.BASE_URL + "docs/index.html")
+
+    def test_the_release_has_a_changelog_date(self):
+        self.assertRegex(sitelib.released(), r"^\d{4}-\d\d-\d\d$")
+        with self.assertRaises(SystemExit):
+            sitelib.released("99.0.0")
+
+    def test_version_placeholders_expand_before_claims(self):
+        out = sitelib.expand("{{version}} on {{released}}", "")
+        self.assertEqual(out, f"{sitelib.version()} on {sitelib.released()}")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8,9 +8,10 @@
 
 Ported from OpenSeal's tools/serve-site.py. It serves the published tree:
 tools/build-site.py --publish assembles site/ (without _src/) and the editor's demo copy
-at app/ into target/site-published/ at start, and serves it under /opencanvas/, the
-project path GitHub Pages uses, so the editor built with OC_EDITOR_BASE=./
-works exactly as published. / redirects there.
+at app/ into target/site-published/ at start, and serves it at the root, as
+https://canvas.casualoffice.org/ does, so the 404 page's root-relative links and the editor
+built with OC_EDITOR_BASE=./ work exactly as published. The old project path /opencanvas/
+redirects to the root.
 
 Build the editor for it first:
     cd web && OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build
@@ -26,7 +27,7 @@ import sys
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SITE = REPO / "site"
 ROOT = REPO / "target/site-published"
-PREFIX = "/opencanvas"
+OLD_PREFIX = "/opencanvas"
 # The site's pages narrow this with their own meta policy. The editor needs inline
 # styles (React style attributes), blob: and data: images, and wss: is never used in
 # the demo. GitHub Pages sends no CSP header at all.
@@ -61,17 +62,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         super().end_headers()
 
-    def translate_path(self, path):
-        return super().translate_path(path[len(PREFIX):] or "/")
-
     def do_GET(self):  # noqa: N802 (http.server's name)
         path = self.path.split("?", 1)[0].split("#", 1)[0]
-        if path in ("/", PREFIX):
+        if path == OLD_PREFIX or path.startswith(OLD_PREFIX + "/"):
             self.send_response(302)
-            self.send_header("Location", PREFIX + "/")
+            self.send_header("Location", path[len(OLD_PREFIX):] or "/")
             self.end_headers()
             return
-        if not path.startswith(PREFIX + "/") or path.startswith(PREFIX + "/_src"):
+        if path.startswith("/_src"):
             return self.not_found()
         if not pathlib.Path(self.translate_path(self.path)).exists():
             return self.not_found()
@@ -96,7 +94,7 @@ def main() -> int:
         return 1
     publish()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"serve-site: http://127.0.0.1:{port}{PREFIX}/ (site/ and the editor's demo copy, published)")
+    print(f"serve-site: http://127.0.0.1:{port}/ (site/ and the editor's demo copy, published)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

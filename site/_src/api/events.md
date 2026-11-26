@@ -1,4 +1,4 @@
-<!--meta {"title": "Events", "description": "Stream an OpenCanvas file's change events over Server-Sent Events or WebSocket: event types and payloads, resuming with Last-Event-ID, close codes, limits, and the CRDT sync ticket.", "lede": "GET /api/v1/files/{fileId}/events streams what happens to one file: edits, comments, mentions, people joining and leaving, saves, restores. Events carry ids, user ids, versions and counts, never document text."} -->
+<!--meta {"title": "Events", "description": "Stream an OpenCanvas file's change events over Server-Sent Events or WebSocket: event types, payloads, resuming with Last-Event-ID, limits and sync tickets.", "lede": "GET /api/v1/files/{fileId}/events streams what happens to one file: edits, comments, mentions, people joining and leaving, saves, restores. Events carry ids, user ids, versions and counts, never document text."} -->
 
 ## Open a stream
 

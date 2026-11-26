@@ -19,7 +19,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const BASE = process.argv[2] || "http://127.0.0.1:8700/opencanvas";
+const BASE = process.argv[2] || "http://127.0.0.1:8700";
 const OUT = path.resolve(process.argv[3] || path.join(ROOT, "target/site-qa"));
 const NM = path.join(ROOT, "e2e/node_modules");
 if (!fs.existsSync(path.join(NM, "@axe-core/playwright"))) { console.error("check-site-pages: run `npm ci` in e2e/ first"); process.exit(1); }

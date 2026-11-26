@@ -11,11 +11,11 @@
 // Ported from OpenSeal's tools/capture-site-screens.mjs (same flow and options).
 //
 //   cd web && OC_EDITOR_BASE=./ pnpm --filter @opencanvas/editor build && cd ..
-//   python3 -I tools/serve-site.py 8700 &               # the published tree, editor at /opencanvas/app/
+//   python3 -I tools/serve-site.py 8700 &               # the published tree, editor at /app/
 //   node tools/capture-site-screens.mjs [--only a,b] [OUT] [BASE]
 //   python3 tools/build-site.py --screens OUT && python3 tools/build-site.py
 //
-// OUT defaults to target/site-screens, BASE to http://127.0.0.1:8700/opencanvas/app/.
+// OUT defaults to target/site-screens, BASE to http://127.0.0.1:8700/app/.
 // Scenes (the name is the file the site uses, site/assets/screens/NAME-{light,dark}.*):
 //   canvas      the demo canvas at the top: callout, decisions with live cursors, the backlog
 //   database    the backlog database in its board (kanban) view
@@ -44,7 +44,7 @@ for (let i = 0; i < argv.length; i++) {
   else pos.push(argv[i]);
 }
 const OUT = path.resolve(pos[0] || path.join(ROOT, "target/site-screens"));
-const BASE = pos[1] || "http://127.0.0.1:8700/opencanvas/app/";
+const BASE = pos[1] || "http://127.0.0.1:8700/app/";
 const PW = path.join(ROOT, "e2e/node_modules/playwright/index.mjs");
 if (!fs.existsSync(PW)) {
   console.error("capture-site-screens: Playwright is not installed; run `npm ci` in e2e/");

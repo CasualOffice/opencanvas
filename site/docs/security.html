@@ -8,15 +8,25 @@
 <title>Security and limits | OpenCanvas</title>
 <meta name="description" content="OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/security.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
+<meta property="og:locale" content="en_US">
 <meta property="og:title" content="Security and limits | OpenCanvas">
 <meta property="og:description" content="OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/security.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-24">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Security and limits | OpenCanvas">
+<meta name="twitter:description" content="OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/docs/security.html#article","headline":"Security and limits: OpenCanvas","description":"OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.","url":"https://canvas.casualoffice.org/docs/security.html","mainEntityOfPage":"https://canvas.casualoffice.org/docs/security.html","dateModified":"2026-11-24","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"Operate"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://canvas.casualoffice.org/docs/index.html"},{"@type":"ListItem","position":3,"name":"Security and limits","item":"https://canvas.casualoffice.org/docs/security.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -53,7 +63,7 @@
   </aside>
   <article class="docs-article prose">
 <h1>Security and limits</h1>
-
+<p class="lede">OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.</p>
 <p><strong>Status:</strong> v0.2, 2026-11-21 (after the security audit, <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/18-SECURITY-AUDIT.md">docs/18</a>). Target: OWASP ASVS Level 2. Reporting a vulnerability: <a href="https://github.com/CasualOffice/opencanvas/blob/main/SECURITY.md">SECURITY.md</a>.</p>
 <h2 id="1-trust-boundaries">1. Trust boundaries</h2>
 <pre><code>[end-user browser] ──(untrusted input)──▶ [OpenCanvas] ──(signed calls)──▶ [host]
@@ -66,7 +76,7 @@
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Limit</th><th scope="col">Default</th></tr></thead><tbody><tr><td>Launch token TTL max</td><td>10 h</td></tr><tr><td>WS ticket connect window</td><td>60 s</td></tr><tr><td>Frame size</td><td>1 MB</td></tr><tr><td>Frames/s per connection</td><td>60 (burst 120)</td></tr><tr><td>Awareness size / rate</td><td>2 KB / 20 Hz</td></tr><tr><td>CRDT doc soft / hard</td><td>5 MB / 20 MB</td></tr><tr><td>Blocks per doc / shapes per board</td><td>bounded by the 20 MB doc cap (no separate count limit)</td></tr><tr><td>Image upload</td><td>25 MB</td></tr><tr><td>Attachment upload</td><td>host-defined (default 100 MB)</td></tr><tr><td>Connections per room</td><td>550 (<code>MAX_PEERS</code>, not split by role)</td></tr><tr><td>Unfurl fetch</td><td>HTML 512 KB (cut at <code>&lt;/head&gt;</code>), images 2 MB; connect 3 s, total 5 s; 3 redirects; 60 requests per ticket and 300 fetches per node per minute</td></tr><tr><td>Awareness client ids / connection</td><td>8</td></tr><tr><td><code>GET /v1/users</code> <code>q</code></td><td>200 bytes</td></tr></tbody></table></div>
 <h2 id="4-privacy">4. Privacy</h2>
 <ul><li>PII held in memory only: display name, avatar URL, user id — from the token.</li><li><code>sessions</code> rows hold user id + role until token expiry, then purged hourly.</li><li>GDPR delete is the host's job (they hold the file); we purge on <code>DELETE /v1/files/{id}/session</code>.</li></ul>
-<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/07-SECURITY-AND-LIMITS.md">docs/07-SECURITY-AND-LIMITS.md</a> in the repository; edit it there.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/07-SECURITY-AND-LIMITS.md">docs/07-SECURITY-AND-LIMITS.md</a> in the repository; edit it there. Last changed <time datetime="2026-11-24">2026-11-24</time>.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="operations.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Operations and deployment</span></a><a class="pn pn-next" href="capacity.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Capacity and sizing</span></a></nav>
   </article>
   <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#1-trust-boundaries">1. Trust boundaries</a></li><li><a href="#2-threats-and-controls">2. Threats and controls</a></li><li><a href="#3-limits-defaults-per-host-overridable">3. Limits (defaults, per host overridable)</a></li><li><a href="#4-privacy">4. Privacy</a></li></ul></nav>

@@ -36,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history: each page's dateModified and sitemap lastmod is the date its
+          # sources last changed (tools/sitelib.py git_date); a shallow clone would date them all today.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with: { version: 9.15.9 }
       - uses: actions/setup-node@v4
@@ -78,7 +82,7 @@ jobs:
         run: |
           (cd e2e && npm ci && npx playwright install --with-deps chromium)
           python3 -I tools/serve-site.py 8700 > /tmp/serve.log 2>&1 &
-          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8700/opencanvas/ > /dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8700/ > /dev/null && break; sleep 1; done
           SHOTS=0 node tools/check-site-pages.mjs
       - uses: actions/upload-pages-artifact@v3
         with:

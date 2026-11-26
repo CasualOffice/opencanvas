@@ -6,17 +6,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Glossary | OpenCanvas</title>
-<meta name="description" content="Terms used across the OpenCanvas documentation.">
+<meta name="description" content="Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/glossary.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
+<meta property="og:locale" content="en_US">
 <meta property="og:title" content="Glossary | OpenCanvas">
-<meta property="og:description" content="Terms used across the OpenCanvas documentation.">
+<meta property="og:description" content="Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/glossary.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-21">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Glossary | OpenCanvas">
+<meta name="twitter:description" content="Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/docs/glossary.html#article","headline":"Glossary: OpenCanvas","description":"Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.","url":"https://canvas.casualoffice.org/docs/glossary.html","mainEntityOfPage":"https://canvas.casualoffice.org/docs/glossary.html","dateModified":"2026-11-21","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"Understand"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://canvas.casualoffice.org/docs/index.html"},{"@type":"ListItem","position":3,"name":"Glossary","item":"https://canvas.casualoffice.org/docs/glossary.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -53,9 +63,9 @@
   </aside>
   <article class="docs-article prose">
 <h1>Glossary</h1>
-
+<p class="lede">Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Term</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><strong>Host</strong></td><td>The integrating application. Owns users, ACL, files, versions.</td></tr><tr><td><strong>Canvas</strong></td><td>One collaborative document: blocks + boards + comments.</td></tr><tr><td><strong>Block</strong></td><td>A unit of content with a stable id (paragraph, table, image, board…).</td></tr><tr><td><strong>Board</strong></td><td>A whiteboard surface embedded as a block.</td></tr><tr><td><strong>Room</strong></td><td>The live, in-memory collaboration session for one (host, file).</td></tr><tr><td><strong>Owner node</strong></td><td>The single cluster node holding a room's authoritative Doc.</td></tr><tr><td><strong>Launch token</strong></td><td>Host-signed JWT stating file, user, role, perms.</td></tr><tr><td><strong>Session ticket</strong></td><td>Short-lived, single-room credential for the WebSocket.</td></tr><tr><td><strong>Grant</strong></td><td>Verified result of a launch: {host, file, user, role, perms, exp}.</td></tr><tr><td><strong>Commit</strong></td><td>Serialising the room to <code>.ocanvas</code> and saving it to the host (autosave or manual with message).</td></tr><tr><td><strong>WAL</strong></td><td><code>room_updates</code> + <code>room_snapshots</code>: transient log so no acked edit is lost before commit.</td></tr><tr><td><strong>Awareness</strong></td><td>Ephemeral presence state (cursor, pointer, name, colour).</td></tr><tr><td>**<code>.ocanvas</code>**</td><td>Native zip file format (manifest, document.json, ydoc.bin).</td></tr><tr><td><strong>WOPI</strong></td><td>Web Application Open Platform Interface — the Collabora/Office host protocol.</td></tr><tr><td><strong>CRDT</strong></td><td>Conflict-free replicated data type (Yjs here).</td></tr><tr><td><strong>Unfurl</strong></td><td>Fetching a link's title/description/image to render a link card.</td></tr></tbody></table></div>
-<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/12-GLOSSARY.md">docs/12-GLOSSARY.md</a> in the repository; edit it there.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/12-GLOSSARY.md">docs/12-GLOSSARY.md</a> in the repository; edit it there. Last changed <time datetime="2026-11-21">2026-11-21</time>.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="product.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Product requirements</span></a></nav>
   </article>
   

@@ -1,4 +1,4 @@
-<!--meta {"title": "Webhooks", "description": "OpenCanvas webhooks: configure [host.webhooks], the signed POST for each change event, payloads per event type, signature verification in shell (openssl), TypeScript, Rust and Python with a test vector, retries and delivery guarantees.", "lede": "OpenCanvas POSTs a file's change events to one URL of yours, so you can react without holding a stream open: index a saved file, notify on a comment. Deliveries are signed, retried, and survive restarts."} -->
+<!--meta {"title": "Webhooks", "description": "OpenCanvas webhooks: configure [host.webhooks], the signed POST per change event, payloads, signature checks in shell, TypeScript, Rust and Python, and retries.", "lede": "OpenCanvas POSTs a file's change events to one URL of yours, so you can react without holding a stream open: index a saved file, notify on a comment. Deliveries are signed, retried, and survive restarts."} -->
 
 ## Turn them on
 

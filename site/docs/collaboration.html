@@ -8,15 +8,25 @@
 <title>Collaboration and presence | OpenCanvas</title>
 <meta name="description" content="How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/collaboration.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
+<meta property="og:locale" content="en_US">
 <meta property="og:title" content="Collaboration and presence | OpenCanvas">
 <meta property="og:description" content="How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/collaboration.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-21">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Collaboration and presence | OpenCanvas">
+<meta name="twitter:description" content="How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/docs/collaboration.html#article","headline":"Collaboration and presence: OpenCanvas","description":"How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.","url":"https://canvas.casualoffice.org/docs/collaboration.html","mainEntityOfPage":"https://canvas.casualoffice.org/docs/collaboration.html","dateModified":"2026-11-21","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"Understand"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://canvas.casualoffice.org/docs/index.html"},{"@type":"ListItem","position":3,"name":"Collaboration and presence","item":"https://canvas.casualoffice.org/docs/collaboration.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -53,7 +63,7 @@
   </aside>
   <article class="docs-article prose">
 <h1>Collaboration and presence</h1>
-
+<p class="lede">How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.</p>
 <p><strong>Status:</strong> draft v0.1, 2026-11-21.</p>
 <h2 id="1-merge-semantics-what-users-see-when-they-collide">1. Merge semantics (what users see when they collide)</h2>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table><thead><tr><th scope="col">Situation</th><th scope="col">Result</th></tr></thead><tbody><tr><td>Two users type in the same paragraph</td><td>Both texts kept, interleaved by position (Yjs YATA). No lost characters.</td></tr><tr><td>Both bold overlapping ranges</td><td>Union of marks. One bolds, other unbolds same range → last writer per character.</td></tr><tr><td>One deletes a block while another types in it</td><td>Delete wins; the typing is lost <strong>and the typer is notified</strong> ("Block removed by Asha · Undo"). Their undo restores it.</td></tr><tr><td>Both move the same block</td><td>Last move wins (single final position, never duplicated).</td></tr><tr><td>Table: one adds a column, other adds a row</td><td>Both applied; new cells empty.</td></tr><tr><td>Board: two users drag the same shape</td><td>Last position wins per field; colour change by the other is kept.</td></tr><tr><td>Board: concurrent pen strokes</td><td>All strokes kept (append-only).</td></tr><tr><td>Task checkbox toggled by two users</td><td>Last writer wins.</td></tr><tr><td>Comment resolved while someone replies</td><td>Reply kept; thread re-opens with indicator.</td></tr></tbody></table></div>
@@ -81,7 +91,7 @@
 <p><code>Saved · 2 min ago</code> → <code>Unsaved changes</code> → <code>Saving…</code> → <code>Saved</code> (or <code>Save failed · retrying</code>). Click opens a small popover: last commit, authors, "Save version…" (message input) if <code>perms.commitMessage</code>.</p>
 <h2 id="7-comments-p2">7. Comments (P2)</h2>
 <ul><li>Anchors: text range (relative positions start/end) or board shape id or whole block id.</li><li>Stored in the <code>comments</code> Y.Map → travel inside the <code>.ocanvas</code> file.</li><li>Commenters (role <code>comment</code>) can write only that subtree (enforced server-side).</li><li>Mentions in comments and canvas text call the host's <code>POST /mentions</code> (docs/05 §5) so the host can notify (we never send emails/notifications ourselves). Not in WOPI mode.</li></ul>
-<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/06-COLLABORATION-AND-PRESENCE.md">docs/06-COLLABORATION-AND-PRESENCE.md</a> in the repository; edit it there.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/06-COLLABORATION-AND-PRESENCE.md">docs/06-COLLABORATION-AND-PRESENCE.md</a> in the repository; edit it there. Last changed <time datetime="2026-11-21">2026-11-21</time>.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="architecture.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Architecture</span></a><a class="pn pn-next" href="product.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Product requirements</span></a></nav>
   </article>
   <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#1-merge-semantics-what-users-see-when-they-collide">1. Merge semantics (what users see when they collide)</a></li><li><a href="#2-presence-model-awareness">2. Presence model (awareness)</a></li><li><a href="#3-cursor--selection-rendering">3. Cursor &amp; selection rendering</a></li><li><a href="#4-undoredo">4. Undo/redo</a></li><li><a href="#5-connectivity">5. Connectivity</a></li><li><a href="#6-save-state-indicator">6. Save state indicator</a></li><li><a href="#7-comments-p2">7. Comments (P2)</a></li></ul></nav>

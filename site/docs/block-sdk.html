@@ -6,17 +6,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Block SDK guide | OpenCanvas</title>
-<meta name="description" content="Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.">
+<meta name="description" content="Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.">
 <link rel="canonical" href="https://canvas.casualoffice.org/docs/block-sdk.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
+<meta property="og:locale" content="en_US">
 <meta property="og:title" content="Block SDK guide | OpenCanvas">
-<meta property="og:description" content="Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.">
+<meta property="og:description" content="Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.">
 <meta property="og:url" content="https://canvas.casualoffice.org/docs/block-sdk.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-26">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Block SDK guide | OpenCanvas">
+<meta name="twitter:description" content="Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"TechArticle","@id":"https://canvas.casualoffice.org/docs/block-sdk.html#article","headline":"Block SDK guide: OpenCanvas","description":"Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.","url":"https://canvas.casualoffice.org/docs/block-sdk.html","mainEntityOfPage":"https://canvas.casualoffice.org/docs/block-sdk.html","dateModified":"2026-11-26","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"Integrate"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://canvas.casualoffice.org/docs/index.html"},{"@type":"ListItem","position":3,"name":"Block SDK guide","item":"https://canvas.casualoffice.org/docs/block-sdk.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/tokens.css">
@@ -53,7 +63,7 @@
   </aside>
   <article class="docs-article prose">
 <h1>Block SDK guide</h1>
-
+<p class="lede">Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.</p>
 <p><strong>Status:</strong> v0.2 (BSDK-01 to BSDK-05). Contract: docs/15 §4.2-4.3; design: docs/27 §3; decisions: ADR-040, ADR-058, ADR-059, ADR-060.</p>
 <p>A block is a small web component that lives inside a canvas: an OKR tracker, a ticket card, a chart from your own service. You write it once; OpenCanvas runs it in a sandbox, keeps its data in the document, collaborates on it in real time and exports it. Nothing about your block runs on the server.</p>
 <h2 id="1-how-a-block-runs">1. How a block runs</h2>
@@ -118,7 +128,7 @@ enabled = [&quot;oc.progress&quot;, &quot;acme.okr@^1&quot;]
 [host.blocks.permissions.&quot;acme.okr&quot;]
 members = &quot;none&quot;</code></pre>
 <p>People then find the blocks in the / menu under "From your organisation" and in Browse all blocks. A canvas opened where a block is not available shows its saved copy, read only, and keeps all its data.</p>
-<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/33-BLOCK-SDK.md">docs/33-BLOCK-SDK.md</a> in the repository; edit it there.</p>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Generated from <a href="https://github.com/CasualOffice/opencanvas/blob/main/docs/33-BLOCK-SDK.md">docs/33-BLOCK-SDK.md</a> in the repository; edit it there. Last changed <time datetime="2026-11-26">2026-11-26</time>.</p>
     <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="protocol.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Protocol and build contract</span></a><a class="pn pn-next" href="operations.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Operations and deployment</span></a></nav>
   </article>
   <nav class="toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#1-how-a-block-runs">1. How a block runs</a></li><li><a href="#2-write-it">2. Write it</a></li><li><a href="#3-describe-it-blockjson">3. Describe it: block.json</a></li><li><a href="#4-build-and-package">4. Build and package</a></li><li><a href="#5-install-and-enable-operators">5. Install and enable (operators)</a></li></ul></nav>
