@@ -25,6 +25,8 @@ and may use these placeholders, expanded here:
                                    appear in PATH word for word
     {{claim:deployment|WHAT}}      a claim's marking: it depends on the deployment, and
                                    WHAT says what the operator configures
+    {{version}}, {{released}}      the release in Cargo.toml and its date in CHANGELOG.md
+                                   (expanded first, so a claim's quote may use them)
 
 A claim block is an element with `data-claim` (and every item of a `ul.facts` list);
 tools/check-site-claims.py fails on one without exactly one marking, and on a number in
@@ -33,11 +35,13 @@ a claim that its marking does not quote.
 
 from __future__ import annotations
 
+import datetime
 import html
 import json
 import pathlib
 import re
 import struct
+import subprocess
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 
@@ -51,6 +55,53 @@ BASE_URL = "https://canvas.casualoffice.org/"
 NAME = "OpenCanvas"
 LICENCE = "Apache-2.0"
 DEMO = "app/#demo"
+ORG = "https://github.com/CasualOffice"
+ORG_ID = BASE_URL + "#organization"
+SITE_ID = BASE_URL + "#website"
+SOFTWARE_ID = BASE_URL + "#software"
+
+
+# ---- Facts from the repository -------------------------------------------------------
+
+def version() -> str:
+    """The release in Cargo.toml ([workspace.package] version)."""
+    m = re.search(r'^\[workspace\.package\]\s*\nversion\s*=\s*"([^"]+)"', (ROOT / "Cargo.toml").read_text(encoding="utf8"), re.M)
+    if not m:
+        raise SystemExit("site: Cargo.toml has no [workspace.package] version")
+    return m.group(1)
+
+
+def released(v: str | None = None) -> str:
+    """The date CHANGELOG.md gives a release (the current one by default); a release that
+    is not in the changelog stops the build, so the site never states an unreleased version."""
+    v = v or version()
+    m = re.search(rf"^## \[{re.escape(v)}\] - (\d{{4}}-\d\d-\d\d)$", (ROOT / "CHANGELOG.md").read_text(encoding="utf8"), re.M)
+    if not m:
+        raise SystemExit(f"site: CHANGELOG.md has no '## [{v}] - YYYY-MM-DD' entry for the Cargo.toml version")
+    return m.group(1)
+
+
+_DATES: dict[str, str] = {}
+
+
+def git_date(*paths: str) -> str:
+    """When the newest of `paths` (repository paths) last changed: its last commit's date,
+    or today when it has uncommitted changes or is not committed yet. The sitemap's lastmod
+    and the pages' dateModified come from here. Needs the full history (fetch-depth: 0)."""
+    today = datetime.date.today().isoformat()
+    best = ""
+    for path in paths:
+        if path not in _DATES:
+            try:
+                dirty = subprocess.run(["git", "status", "--porcelain", "--", path], cwd=ROOT, capture_output=True,
+                                       text=True, check=True).stdout.strip()
+                last = "" if dirty else subprocess.run(["git", "log", "-1", "--format=%cs", "--", path], cwd=ROOT,
+                                                       capture_output=True, text=True, check=True).stdout.strip()
+            except (OSError, subprocess.CalledProcessError):
+                last = ""
+            _DATES[path] = last or today
+        best = max(best, _DATES[path])
+    return best
 
 # ---- Icons -------------------------------------------------------------------------
 
@@ -143,6 +194,7 @@ DOCS = [
     ("release-012", "Release notes 0.1.2", "Start", "docs/31-RELEASE-v0.1.2.md"),
     ("release", "Release notes 0.1.0", "Start", "docs/28-RELEASE-v0.1.0.md"),
     ("faq", "FAQ", "Start", None),
+    ("facts", "Facts", "Start", None),
     ("integration", "Integration guide", "Integrate", "docs/05-INTEGRATION-GUIDE.md"),
     ("wopi", "WOPI mode", "Integrate", "docs/05-INTEGRATION-GUIDE.md#6"),
     ("jitsi", "Jitsi Meet", "Integrate", "integrations/jitsi/README.md"),
@@ -234,7 +286,7 @@ def footer(root: str) -> str:
     </div>
     {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
     {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("API reference", "api/index.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
-    {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html")])}
+    {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html"), ("Facts", "docs/facts.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>
   <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
@@ -253,20 +305,130 @@ SEARCH_DIALOG = """<dialog class="search-dialog" aria-label="Search the site">
 </dialog>"""
 
 OG_IMAGE = "assets/screens/canvas-light.png"
+OG_IMAGE_ALT = ("The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators' "
+                "live cursors and a backlog database.")
+
+# Every page's dateModified, by path, as page() saw it: the sitemap's lastmod.
+MODIFIED: dict[str, str] = {}
+
+
+# ---- Structured data (schema.org JSON-LD) ------------------------------------------------
+# Only facts the repository states. tools/check-site-seo.py parses every block and checks
+# each type's required properties.
+
+def org_node() -> dict:
+    return {"@type": "Organization", "@id": ORG_ID, "name": "CasualOffice", "url": ORG}
+
+
+def website_node() -> dict:
+    return {"@type": "WebSite", "@id": SITE_ID, "name": NAME, "url": BASE_URL, "inLanguage": "en",
+            "description": "The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.",
+            "publisher": {"@id": ORG_ID}}
+
+
+def article_node(kind: str, headline: str, description: str, path: str, modified: str, section: str = "") -> dict:
+    """A TechArticle (a documentation page or API guide) or an APIReference."""
+    url = BASE_URL + path
+    node = {"@type": kind, "@id": url + "#article", "headline": headline, "description": description, "url": url,
+            "mainEntityOfPage": url, "dateModified": modified, "inLanguage": "en",
+            "author": {"@id": ORG_ID}, "publisher": {"@id": ORG_ID}, "isPartOf": {"@id": SITE_ID},
+            "about": {"@id": SOFTWARE_ID}, "image": BASE_URL + OG_IMAGE}
+    if section:
+        node["articleSection"] = section
+    return node
+
+
+def webpage_node(kind: str, name: str, description: str, path: str, modified: str) -> dict:
+    """A WebPage, CollectionPage or AboutPage."""
+    url = BASE_URL + ("" if path == "index.html" else path)
+    return {"@type": kind, "@id": url + "#webpage", "name": name, "description": description, "url": url,
+            "dateModified": modified, "inLanguage": "en", "isPartOf": {"@id": SITE_ID}, "about": {"@id": SOFTWARE_ID}}
+
+
+def breadcrumb_node(trail: list[tuple[str, str]]) -> dict:
+    """[(name, path)] from the home page to this page."""
+    return {"@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": i + 1, "name": name, "item": BASE_URL + ("" if rel == "index.html" else rel)}
+        for i, (name, rel) in enumerate(trail)]}
+
+
+def _plain(fragment: str) -> str:
+    """Visible text of an HTML fragment: block ends become spaces, tags and icons go."""
+    fragment = re.sub(r"<svg\b.*?</svg>", "", fragment, flags=re.S)
+    fragment = re.sub(r"<(?:span|a)[^>]*data-claim-mark[^>]*>.*?</(?:span|a)>", "", fragment, flags=re.S)
+    fragment = re.sub(r"</(p|li|ul|ol|div|h[1-6]|tr|table|pre)>", " ", fragment)
+    return norm_space(html.unescape(re.sub(r"<[^>]+>", "", fragment)))
+
+
+def faq_pairs(body: str) -> list[tuple[str, str]]:
+    """Questions and answers as the page shows them: <details><summary>Q</summary><div>A</div>
+    (the home page), or an <h2> that ends in "?" and what follows it up to the next <h2>."""
+    pairs = []
+    for m in re.finditer(r"<details[^>]*>\s*<summary[^>]*>(.*?)</summary>\s*<div[^>]*>(.*?)</div>\s*</details>", body, flags=re.S):
+        pairs.append((_plain(m.group(1)), _plain(m.group(2))))
+    for m in re.finditer(r"<h2[^>]*>(.*?)</h2>(.*?)(?=<h2[\s>]|\Z)", body, flags=re.S):
+        q = _plain(m.group(1))
+        if q.endswith("?"):
+            pairs.append((q, _plain(m.group(2))))
+    return [(q, a) for q, a in pairs if q and a]
+
+
+def faq_node(pairs: list[tuple[str, str]]) -> dict:
+    return {"@type": "FAQPage", "mainEntity": [
+        {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in pairs]}
 
 
 def page(*, title: str, description: str, body: str, root: str, path: str, current: str = "",
-         main_class: str = "", jsonld: dict | None = None, noindex: bool = False) -> str:
+         main_class: str = "", graph: list[dict] | None = None, trail: list[tuple[str, str]] | None = None,
+         modified: str = "", seo_title: str = "", og_type: str = "website", noindex: bool = False) -> str:
     """A whole page around `body` (the contents of <main>). `path` is the page's path
-    under the site root ("index.html", "docs/faq.html"), for its canonical URL."""
-    full_title = "OpenCanvas: a collaborative canvas you embed" if title == NAME else f"{title} | OpenCanvas"
+    under the site root ("index.html", "docs/faq.html"), for its canonical URL.
+
+    `seo_title` replaces "{title} | OpenCanvas" in <title> (used as is when it names
+    OpenCanvas). `graph` holds the page's own JSON-LD nodes; the Organization, the WebSite
+    and the breadcrumbs from `trail` are added. `modified` (YYYY-MM-DD, from git_date) is
+    the page's dateModified and its sitemap lastmod; an indexable page must have one."""
+    if seo_title:
+        full_title = seo_title if NAME in seo_title else f"{seo_title} | {NAME}"
+    else:
+        full_title = "OpenCanvas: a collaborative canvas you embed" if title == NAME else f"{title} | {NAME}"
     search = SEARCH_DIALOG.format(icon=icon("search", cls="search-icon"), x=icon("x"))
     mc = f' class="{main_class}"' if main_class else ""
     canonical = BASE_URL + ("" if path == "index.html" else path)
-    ld = ""
-    if jsonld:
-        ld = '\n<script type="application/ld+json">' + json.dumps(jsonld, ensure_ascii=False).replace("</", "<\\/") + "</script>"
-    robots = '\n<meta name="robots" content="noindex">' if noindex else ""
+    head = ""
+    if noindex:
+        head = '\n<meta name="robots" content="noindex">'
+    else:
+        if not modified:
+            raise SystemExit(f"site: {path} has no modified date")
+        MODIFIED[path] = modified
+        w, h = png_size(SITE / OG_IMAGE)
+        e = _esc
+        head = f"""
+<link rel="canonical" href="{canonical}">
+<meta property="og:type" content="{og_type}">
+<meta property="og:site_name" content="{NAME}">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="{e(full_title)}">
+<meta property="og:description" content="{e(description)}">
+<meta property="og:url" content="{canonical}">
+<meta property="og:image" content="{BASE_URL}{OG_IMAGE}">
+<meta property="og:image:width" content="{w}">
+<meta property="og:image:height" content="{h}">
+<meta property="og:image:alt" content="{e(OG_IMAGE_ALT)}">"""
+        if og_type == "article":
+            head += f'\n<meta property="article:modified_time" content="{modified}">'
+        head += f"""
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(full_title)}">
+<meta name="twitter:description" content="{e(description)}">
+<meta name="twitter:image" content="{BASE_URL}{OG_IMAGE}">
+<meta name="twitter:image:alt" content="{e(OG_IMAGE_ALT)}">"""
+        nodes = [org_node(), website_node(), *(graph or [])]
+        if trail:
+            nodes.append(breadcrumb_node(trail))
+        ld = json.dumps({"@context": "https://schema.org", "@graph": nodes}, ensure_ascii=False, separators=(",", ":"))
+        head += '\n<script type="application/ld+json">' + ld.replace("</", "<\\/") + "</script>"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -275,23 +437,15 @@ def page(*, title: str, description: str, body: str, root: str, path: str, curre
 <meta http-equiv="Content-Security-Policy" content="{CSP}">
 <meta name="referrer" content="no-referrer">
 <title>{_esc(full_title)}</title>
-<meta name="description" content="{_esc(description)}">{robots}
-<link rel="canonical" href="{canonical}">
+<meta name="description" content="{_esc(description)}">{head}
 <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="OpenCanvas">
-<meta property="og:title" content="{_esc(full_title)}">
-<meta property="og:description" content="{_esc(description)}">
-<meta property="og:url" content="{canonical}">
-<meta property="og:image" content="{BASE_URL}{OG_IMAGE}">
-<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{root}assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="{root}assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{root}assets/tokens.css">
 <link rel="stylesheet" href="{root}assets/site.css">
 <script src="{root}assets/theme-init.js"></script>
-<script type="module" src="{root}assets/site.js"></script>{ld}
+<script type="module" src="{root}assets/site.js"></script>
 </head>
 <body data-root="{root}">
 <a class="skip" href="#main">Skip to content</a>
@@ -349,7 +503,9 @@ def claim(arg: str, root: str) -> str:
 
 
 def expand(text: str, root: str) -> str:
-    """Expand {{root}}, {{icon:...}}, {{shot:...}} and {{claim:...}}."""
+    """Expand {{version}}, {{released}}, {{root}}, {{icon:...}}, {{shot:...}} and {{claim:...}}."""
+    text = text.replace("{{version}}", version()).replace("{{released}}", released())
+
     def sub(m: re.Match) -> str:
         kind, _, arg = m.group(1).partition(":")
         if kind == "root":
@@ -397,8 +553,28 @@ def available_docs() -> list[tuple[str, str, str, str | None]]:
     return [d for d in DOCS if d[3] is not None or (SRC / "docs" / f"{d[0]}.html").exists()]
 
 
-def docs_page(slug: str, title: str, description: str, article: str, source: str | None = None) -> str:
-    """A documentation page: left nav, the article, on-this-page links, previous and next."""
+# Titles for search results where the navigation's short title would not say what the page
+# is ("Jitsi Meet" is the Jitsi Meet integration). Used as is when they name OpenCanvas.
+DOC_SEO_TITLES = {
+    "getting-started": "Getting started with OpenCanvas",
+    "faq": "OpenCanvas FAQ: status, licence, data, sign-in and AI",
+    "facts": "OpenCanvas facts: version, licence, stack and capacity",
+    "integration": "Integration guide: embed OpenCanvas in your app",
+    "wopi": "WOPI integration (WOPI mode)",
+    "jitsi": "Jitsi Meet integration",
+    "nextcloud": "Nextcloud integration",
+    "matrix": "Element and Matrix integration",
+    "mattermost": "Mattermost integration",
+    "ai": "AI assistant and MCP endpoint",
+    "capacity": "Capacity and sizing: users per server",
+    "index": "OpenCanvas documentation",
+}
+
+
+def docs_page(slug: str, title: str, description: str, article: str, source: str | None = None,
+              *, modified: str, graph: list[dict] | None = None) -> str:
+    """A documentation page: left nav, the article, on-this-page links, previous and next.
+    Its structured data is a TechArticle (the index: a CollectionPage), plus `graph`."""
     root = "../"
     article = add_heading_ids(article)
     docs = available_docs()
@@ -421,11 +597,13 @@ def docs_page(slug: str, title: str, description: str, article: str, source: str
     if i + 1 < len(docs):
         ns, nt = docs[i + 1][0], docs[i + 1][1]
         pn.append(f'<a class="pn pn-next" href="{ns}.html"><span class="pn-dir">Next{icon("chevron-right", 16)}</span><span class="pn-title">{_esc(nt)}</span></a>')
-    src_note = ""
+    when = f'Last changed <time datetime="{modified}">{modified}</time>.'
     if source:
         file = source.split("#")[0]
         src_note = (f'<p class="note doc-source">{icon("file-text", 14)}Generated from <a href="{BLOB}{file}">{file}</a> '
-                    f'in the repository; edit it there.</p>')
+                    f'in the repository; edit it there. {when}</p>')
+    else:
+        src_note = f'<p class="note doc-source">{icon("file-text", 14)}{when}</p>'
     body = f"""<div class="wrap docs-layout">
   <aside class="docs-side">
     <details class="docs-nav-toggle"><summary>{icon("list-tree", 16)}Documentation menu</summary><nav class="docs-nav" aria-label="Documentation (menu)">{side}</nav></details>
@@ -439,8 +617,19 @@ def docs_page(slug: str, title: str, description: str, article: str, source: str
   {toc}
 </div>"""
     current = "integrate" if slug == "integration" else "docs"
-    return page(title=title, description=description, body=body, root=root, path=f"docs/{slug}.html",
-                current=current, main_class="docs-main")
+    path = f"docs/{slug}.html"
+    group = next(d[2] for d in docs if d[0] == slug)
+    seo = DOC_SEO_TITLES.get(slug, "")
+    if slug == "index":
+        node = webpage_node("CollectionPage", seo, description, path, modified)
+        trail = [(NAME, "index.html"), ("Documentation", path)]
+    else:
+        headline = seo if NAME in seo else f"{seo or title}: {NAME}"
+        node = article_node("TechArticle", headline, description, path, modified, section=group)
+        trail = [(NAME, "index.html"), ("Documentation", "docs/index.html"), (title, path)]
+    return page(title=title, description=description, body=body, root=root, path=path, current=current,
+                main_class="docs-main", graph=[node, *(graph or [])], trail=trail, modified=modified,
+                seo_title=seo, og_type="article" if slug != "index" else "website")
 
 
 # ---- Markdown (what the repository's documents use) ------------------------------------
@@ -687,7 +876,7 @@ class _Text(HTMLParser):
 
 def page_title(page_html: str, rel: str) -> str:
     title = re.search(r"<title>(.*?)</title>", page_html, re.S)
-    return html.unescape(title.group(1)).replace(" | OpenCanvas", "") if title else rel
+    return re.sub(r" \| OpenCanvas(?: API)?$", "", html.unescape(title.group(1))) if title else rel
 
 
 def index_entries(rel: str, page_html: str) -> list[dict]:

@@ -103,27 +103,29 @@ def screens(raw: pathlib.Path) -> None:
 
 # ---- Documentation from Markdown --------------------------------------------------------
 
+# Each page's meta description and the summary under its title: 70-160 characters, so
+# search engines show it whole (tools/check-site-seo.py).
 DOC_DESCRIPTIONS = {
     "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
-    "release-020": "OpenCanvas 0.2.0 release notes: scope, upgrade notes (migrations, new host config sections, 4426 for old editors), known limitations and the release checklist.",
+    "release-020": "OpenCanvas 0.2.0 release notes: the headless API, webhooks, the block SDK and editor profiles, upgrade notes, known limitations and the checklist.",
     "release-012": "OpenCanvas 0.1.2 release and upgrade notes for host integrations, diagramming, version history, and the headless API.",
-    "release": "OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.",
-    "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.",
+    "release": "OpenCanvas 0.1.0 release notes: what is included, changes since the alpha, upgrade notes (WOPI proof keys, MCP public URL) and known limitations.",
+    "integration": "The host contract: register your host, sign a JWT launch token, embed the editor, answer load and save callbacks, and use postMessage and REST.",
     "wopi": "Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.",
-    "matrix": "Add a shared canvas to Matrix rooms as an Element widget: identity checked with the user's homeserver (OpenID), room members only, roles from power levels, temporary canvases.",
-    "jitsi": "Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.",
-    "nextcloud": "Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps files, shares and versions as a WOPI host; read-only shares open view-only and share changes reach open canvases at once.",
-    "mattermost": "Create canvases and meeting notes in Mattermost channels, opened in the right-hand panel; the plugin is the host, files stay in Mattermost, access follows channel membership.",
-    "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.",
-    "block-sdk": "Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.",
-    "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.",
+    "matrix": "Add a shared canvas to Matrix rooms as an Element widget: identity checked with the homeserver, room members only, roles from power levels.",
+    "jitsi": "Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.",
+    "nextcloud": "Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps the files, shares and versions as the WOPI host.",
+    "mattermost": "Canvases and meeting notes in Mattermost channels, in the right-hand panel: the plugin is the host, files stay in Mattermost, access follows the channel.",
+    "protocol": "The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout and the save outbox.",
+    "block-sdk": "Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.",
+    "operations": "Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.",
     "security": "OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.",
-    "ai": "The OpenCanvas assistant and MCP endpoint: how they work, what they may do, what is sent to the model server, the threat model and limits, and how an operator configures Claude Platform or a self-hosted model.",
+    "ai": "The OpenCanvas assistant and MCP endpoint: what they may do, what is sent to the model server, the threat model, limits and operator configuration.",
     "capacity": "Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.",
     "architecture": "How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.",
     "collaboration": "How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.",
     "product": "What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.",
-    "glossary": "Terms used across the OpenCanvas documentation.",
+    "glossary": "Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.",
 }
 
 
@@ -169,25 +171,62 @@ def _md_body(source: str) -> tuple[str, str]:
     return file, text
 
 
+def _sources(source: str) -> list[str]:
+    """The repository files a Markdown page is made from, for its date."""
+    file = source.split("#")[0]
+    return [file, "docs/13-OPERATIONS-AND-DEPLOYMENT.md"] if file == "docs/24-AI-AND-MCP.md" else [file]
+
+
+def howto_run_it() -> dict:
+    """README.md's "Run it" steps as a HowTo: the prerequisites, each command of its first
+    code block, and the paragraph after it, word for word."""
+    text = (ROOT / "README.md").read_text(encoding="utf8")
+    m = re.search(r"^## Run it\n(.*?)(?=^## |\Z)", text, flags=re.S | re.M)
+    if not m:
+        raise SystemExit("build-site: README.md has no Run it section")
+    m2 = re.match(r"\s*(.*?)\n\n```\w*\n(.*?)\n```\n\n(.*?)(?:\n\n|\Z)", m.group(1), flags=re.S)
+    if not m2:
+        raise SystemExit("build-site: README.md's Run it section is not a paragraph, a code block and a paragraph")
+    plain = lambda md: sitelib.norm_space(re.sub(r"[`*]", "", md))  # noqa: E731
+    steps = [plain(m2.group(1))]
+    for line in m2.group(2).splitlines():
+        cmd, _, note = line.partition("  #")
+        if cmd.strip():
+            steps.append(f"Run {cmd.strip()}" + (f" (serves {note.strip()})" if note.strip().startswith("http") else ""))
+    steps.append(plain(m2.group(3)))
+    url = sitelib.BASE_URL + "docs/getting-started.html#run-it"
+    return {"@type": "HowTo", "name": "Run OpenCanvas on your machine",
+            "description": "Build the editor, start the OpenCanvas server and the sample host, and open a file in two tabs.",
+            "url": url, "inLanguage": "en",
+            "step": [{"@type": "HowToStep", "position": i + 1, "text": t, "url": url} for i, t in enumerate(steps)]}
+
+
 def markdown_doc(slug: str, title: str, source: str) -> str:
     file, text = _md_body(source)
     body = sitelib.markdown(text, from_file=file, root="../")
     body = body.replace('href="https://github.com/CasualOffice/opencanvas/blob/main/docs/wopi.html"', 'href="wopi.html"')
-    lede = ""
+    # The summary under the title is the page's description: one sentence that says what the
+    # page answers, for readers and for answer engines.
+    lede = f'<p class="lede">{html.escape(DOC_DESCRIPTIONS[slug])}</p>'
+    graph = []
     if slug == "getting-started":
         lede = ('<p class="lede">The server, the editor and the sample host on your machine, from the project\'s README. '
                 f'To look around first, <a href="../{sitelib.DEMO}">open the demo</a>: it runs in your browser with no server.</p>')
+        graph = [howto_run_it()]
     article = f"<h1>{html.escape(title)}</h1>\n{lede}\n{body}"
-    return sitelib.docs_page(slug, title, DOC_DESCRIPTIONS[slug], article, source=source)
+    return sitelib.docs_page(slug, title, DOC_DESCRIPTIONS[slug], article, source=source,
+                             modified=sitelib.git_date(*_sources(source)), graph=graph)
 
 
 # ---- Pages --------------------------------------------------------------------------------
 
-def jsonld() -> dict:
-    """The home page's structured data: only facts the repository states."""
+def software_node() -> dict:
+    """OpenCanvas as a SoftwareApplication: only facts the repository states. The version is
+    Cargo.toml's, and its date CHANGELOG.md's."""
+    v = sitelib.version()
     return {
-        "@context": "https://schema.org",
         "@type": "SoftwareApplication",
+        "@id": sitelib.SOFTWARE_ID,
         "name": "OpenCanvas",
         "description": ("A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that "
                         "applications embed. The host application keeps users, permissions and files; OpenCanvas "
@@ -196,11 +235,16 @@ def jsonld() -> dict:
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Collaborative editor",
         "operatingSystem": "Linux (Docker image); the editor runs in a web browser",
-        "softwareVersion": "0.2.1",
-        "license": sitelib.BLOB + "LICENSE",
+        "softwareVersion": v,
+        "datePublished": sitelib.released(v),
+        "releaseNotes": sitelib.BLOB + "CHANGELOG.md",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
         "isAccessibleForFree": True,
-        "author": {"@type": "Organization", "name": "CasualOffice", "url": "https://github.com/CasualOffice"},
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        "author": {"@id": sitelib.ORG_ID},
+        "publisher": {"@id": sitelib.ORG_ID},
         "codeRepository": sitelib.REPO,
+        "programmingLanguage": ["Rust", "TypeScript"],
         "sameAs": [sitelib.REPO],
         "screenshot": sitelib.BASE_URL + sitelib.OG_IMAGE,
         "featureList": [
@@ -210,8 +254,13 @@ def jsonld() -> dict:
             "Live co-editing with cursors, presence and comments",
             "Autosave to the host application through a durable outbox",
             "JWT and WOPI launch, an embed web component and a postMessage API",
+            "A REST API under /api/v1 with TypeScript and Rust clients, and signed webhooks",
         ],
     }
+
+
+# Hand-written pages: (schema.org type, breadcrumb name). The home page has none.
+PAGE_TYPES = {"index.html": ("WebPage", ""), "brand.html": ("AboutPage", "Brand")}
 
 
 def build() -> dict[str, bytes]:
@@ -222,17 +271,34 @@ def build() -> dict[str, bytes]:
         meta, body = sitelib.read_fragment(path)
         root = meta.get("root", "")
         body = sitelib.add_heading_ids(sitelib.expand(body, root))
-        pages[path.name] = sitelib.page(title=meta["title"], description=meta["description"], body=body, root=root,
-                                        path=path.name, current=meta.get("nav", ""), main_class=meta.get("main", ""),
-                                        jsonld=jsonld() if path.name == "index.html" else None,
-                                        noindex=path.name == "404.html")
+        rel = path.name
+        graph, trail, modified = [], None, ""
+        if rel != "404.html":
+            kind, crumb = PAGE_TYPES.get(rel, ("WebPage", meta["title"]))
+            modified = sitelib.git_date(path.relative_to(ROOT).as_posix())
+            graph.append(sitelib.webpage_node(kind, meta.get("seo_title") or meta["title"], meta["description"], rel, modified))
+            if rel == "index.html":
+                graph[0]["mainEntity"] = {"@id": sitelib.SOFTWARE_ID}
+                graph += [software_node(), sitelib.faq_node(sitelib.faq_pairs(body))]
+            else:
+                trail = [(sitelib.NAME, "index.html"), (crumb, rel)]
+        pages[rel] = sitelib.page(title=meta["title"], description=meta["description"], body=body, root=root,
+                                  path=rel, current=meta.get("nav", ""), main_class=meta.get("main", ""),
+                                  graph=graph, trail=trail, modified=modified, seo_title=meta.get("seo_title", ""),
+                                  noindex=rel == "404.html")
     for slug, title, _group, source in sitelib.available_docs():
         if source:
             pages[f"docs/{slug}.html"] = markdown_doc(slug, title, source)
         else:
-            meta, body = sitelib.read_fragment(SRC / "docs" / f"{slug}.html")
-            pages[f"docs/{slug}.html"] = sitelib.docs_page(slug, meta.get("title", title), meta["description"],
-                                                           sitelib.expand(body, "../"))
+            src = SRC / "docs" / f"{slug}.html"
+            meta, body = sitelib.read_fragment(src)
+            body = sitelib.expand(body, "../")
+            # The facts page states the release and its date, from Cargo.toml and CHANGELOG.md.
+            deps = [src.relative_to(ROOT).as_posix()] + (["Cargo.toml", "CHANGELOG.md"] if slug == "facts" else [])
+            faq = sitelib.faq_pairs(body)
+            pages[f"docs/{slug}.html"] = sitelib.docs_page(slug, meta.get("title", title), meta["description"], body,
+                                                           modified=sitelib.git_date(*deps),
+                                                           graph=[sitelib.faq_node(faq)] if slug == "faq" else [])
     pages["changelog.html"] = changelog()
     pages["roadmap.html"] = _load("build-roadmap").render()
     pages.update(_load("build-api").render())
@@ -293,8 +359,12 @@ def changelog() -> str:
 <h2>Integration log</h2>
 {chr(10).join(parts)}
 </div></section>"""
-    return sitelib.page(title="Changelog", description="What changed in OpenCanvas and how each change was verified, from the project's integration log.",
-                        body=sitelib.add_heading_ids(body), root="", path="changelog.html", current="changelog")
+    desc = "What changed in OpenCanvas and how each change was verified, from the project's integration log."
+    modified = sitelib.git_date("docs/10-EXECUTION-TRACKER.md")
+    return sitelib.page(title="Changelog", description=desc, body=sitelib.add_heading_ids(body), root="",
+                        path="changelog.html", current="changelog", modified=modified,
+                        graph=[sitelib.webpage_node("WebPage", "OpenCanvas changelog", desc, "changelog.html", modified)],
+                        trail=[(sitelib.NAME, "index.html"), ("Changelog", "changelog.html")])
 
 
 # ---- SEO and agents ------------------------------------------------------------------------
@@ -304,10 +374,32 @@ def _desc(page_html: str) -> str:
     return html.unescape(m.group(1)) if m else ""
 
 
+def facts_lines(facts_html: str) -> list[str]:
+    """llms.txt lines from the facts page's table: each row's fact, its value and the
+    repository file its marking links to, so the two cannot disagree."""
+    out = []
+    for row in re.findall(r"<tr data-claim[^>]*>(.*?)</tr>", facts_html, flags=re.S):
+        cells = [sitelib._plain(c) for c in re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row, flags=re.S)]
+        href = re.search(r'data-claim-mark="(?:tested|source)"[^>]*href="([^"]+)"|href="([^"]+)"[^>]*data-claim-mark', row)
+        src = (href.group(1) or href.group(2)) if href else ""
+        if len(cells) >= 2:
+            out.append(f"- {cells[0]}: {cells[1]}" + (f" (source: {src})" if src else " (depends on the deployment)"))
+    if not out:
+        raise SystemExit("build-site: the facts page has no fact rows (<tr data-claim>)")
+    return out
+
+
 def seo(pages: dict[str, str]) -> dict[str, bytes]:
     base = sitelib.BASE_URL
     listed = [rel for rel in sorted(pages) if rel != "404.html"]
-    urls = "".join(f"  <url><loc>{base}{'' if rel == 'index.html' else rel}</loc></url>\n" for rel in listed)
+    missing = [rel for rel in listed if rel not in sitelib.MODIFIED]
+    if missing:
+        raise SystemExit(f"build-site: no modified date for {missing}")
+    # lastmod: the date the page's sources last changed (sitelib.git_date), not the build date.
+    urls = "".join(f"  <url><loc>{base}{'' if rel == 'index.html' else rel}</loc><lastmod>{sitelib.MODIFIED[rel]}</lastmod></url>\n"
+                   for rel in listed)
+    updated = max(sitelib.MODIFIED[rel] for rel in listed)
+    version, released = sitelib.version(), sitelib.released()
     sitemap = f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n'
     robots = f"User-agent: *\nAllow: /\nDisallow: /app/\n\nSitemap: {base}sitemap.xml\n"
 
@@ -327,12 +419,19 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible "
         "server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. "
         "Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). "
-        "Status: 0.2.1 released; best-effort support and no production SLA.",
+        f"Status: {version} released {released}; best-effort support and no production SLA.",
+        "",
+        f"Made by CasualOffice ({sitelib.ORG}). This file was last updated {updated}. The facts below are from "
+        f"{base}docs/facts.html, where each one links to the repository file, test or tracker entry it comes from.",
+        "",
+        "## Facts",
+        *facts_lines(pages["docs/facts.html"]),
         "",
         "## Site",
         line("index.html"),
         line("roadmap.html"),
         line("changelog.html"),
+        line("brand.html"),
         f"- [Interactive demo]({base}{sitelib.DEMO}): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server",
         "",
         "## Documentation",
@@ -345,10 +444,13 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "## Source",
         f"- [Repository]({sitelib.REPO})",
         f"- [Licence (Apache-2.0)]({sitelib.BLOB}LICENSE)",
-        f"- [Full documentation as text]({base}llms-full.txt)",
+        "",
+        "## Optional",
+        f"- [Full documentation as text]({base}llms-full.txt): every documentation page and the whole API reference in one file",
         "",
     ])
-    full = [f"# OpenCanvas documentation (full text)\n\nSource: {sitelib.REPO}. Generated from the repository's README.md and docs/*.md.\n"]
+    full = [f"# OpenCanvas documentation (full text)\n\nSource: {sitelib.REPO}. Generated from the repository's README.md and docs/*.md. "
+            f"OpenCanvas {version}, released {released}; last updated {updated}.\n"]
     for slug, title, _g, source in sitelib.available_docs():
         if source:
             file, text = _md_body(source)

@@ -15,7 +15,7 @@ are counted, not fetched: no network.
 A link into app/ names the editor's demo copy, which tools/build-site.py --publish copies
 there from web/packages/editor/dist, so it must name a file of that build (index.html for
 app/); its #fragment (#demo) is the editor's launch hash, not an id. A root-relative link
-under /opencanvas/ (the 404 page, which GitHub Pages serves at any depth) is resolved
+(the 404 page, which GitHub Pages serves at any depth) is resolved
 against site/. Standard library only; exits non-zero, naming each broken link and its page.
 """
 
@@ -29,7 +29,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 EDITOR = ROOT / "web/packages/editor"
-PREFIX = "/opencanvas/"
+PREFIX = "/"  # the site is served at the root of canvas.casualoffice.org
 
 
 class Page(HTMLParser):

@@ -36,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history: each page's dateModified and sitemap lastmod is the date its
+          # sources last changed (tools/sitelib.py git_date); a shallow clone would date them all today.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with: { version: 9.15.9 }
       - uses: actions/setup-node@v4
@@ -59,13 +63,17 @@ jobs:
         run: |
           python3 -I tools/check-site-claims.py --self-test
           python3 -I tools/check-site-claims.py
+      - name: Titles, descriptions, canonicals, JSON-LD, alt text, sitemap and llms.txt (SEO)
+        run: |
+          python3 -I tools/check-site-seo.py --self-test
+          python3 -I tools/check-site-seo.py
       - name: Assemble the published tree
         run: |
           set -euo pipefail
           python3 -I tools/build-site.py --publish _site
           for f in index.html 404.html roadmap.html changelog.html brand.html docs/index.html docs/getting-started.html \
                    docs/integration.html docs/wopi.html docs/protocol.html docs/operations.html docs/security.html \
-                   docs/architecture.html docs/faq.html search-index.json sitemap.xml robots.txt llms.txt llms-full.txt \
+                   docs/architecture.html docs/faq.html docs/facts.html search-index.json sitemap.xml robots.txt llms.txt llms-full.txt \
                    assets/site.css assets/tokens.css assets/site.js assets/theme-init.js assets/logo.svg \
                    assets/screens/canvas-light.png assets/screens/canvas-light.webp app/index.html; do
             [ -s "_site/$f" ] || { echo "::error::_site/$f is missing or empty"; exit 1; }
@@ -78,7 +86,7 @@ jobs:
         run: |
           (cd e2e && npm ci && npx playwright install --with-deps chromium)
           python3 -I tools/serve-site.py 8700 > /tmp/serve.log 2>&1 &
-          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8700/opencanvas/ > /dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8700/ > /dev/null && break; sleep 1; done
           SHOTS=0 node tools/check-site-pages.mjs
       - uses: actions/upload-pages-artifact@v3
         with:

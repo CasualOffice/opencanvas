@@ -1,4 +1,4 @@
-<!--meta {"title": "Pagination", "description": "Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header, expiry and errors.", "lede": "Two operations answer pages: listBlocks (top-level blocks, up to 100 per page) and queryRows (database rows, up to 200). Cursors are opaque and signed, and a block walk stays correct while people edit the canvas."} -->
+<!--meta {"title": "Pagination", "description": "Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header and expiry.", "lede": "Two operations answer pages: listBlocks (top-level blocks, up to 100 per page) and queryRows (database rows, up to 200). Cursors are opaque and signed, and a block walk stays correct while people edit the canvas."} -->
 
 ## How it works
 

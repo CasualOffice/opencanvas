@@ -1,64 +1,92 @@
 # OpenCanvas
 
-> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). Status: 0.2.1 released; best-effort support and no production SLA.
+> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). Status: 0.2.1 released 2026-11-26; best-effort support and no production SLA.
+
+Made by CasualOffice (https://github.com/CasualOffice). This file was last updated 2026-11-26. The facts below are from https://canvas.casualoffice.org/docs/facts.html, where each one links to the repository file, test or tracker entry it comes from.
+
+## Facts
+- Name: OpenCanvas, made by CasualOffice (source: https://github.com/CasualOffice/opencanvas/blob/main/NOTICE)
+- Current release: 0.2.1, released 2026-11-26 (source: https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md)
+- First release: 0.1.0-alpha.1, released 2026-11-23 (source: https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md)
+- Licence: Apache License 2.0; keep the NOTICE file when you redistribute it (source: https://github.com/CasualOffice/opencanvas/blob/main/NOTICE)
+- Support: Best-effort, with no production SLA (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Who owns the data: The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Server: Rust, on tokio and axum (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/03-HLD-ARCHITECTURE.md)
+- Editor: Tiptap (ProseMirror) with y-prosemirror, in the browser (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/03-HLD-ARCHITECTURE.md)
+- Real-time merge: A CRDT (Yjs); roles are enforced on the server (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Storage: SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Cluster: Several nodes on MySQL or MariaDB with Redis (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Launch: JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Integrations: Jitsi Meet, Nextcloud, Mattermost and Element / Matrix (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- API: REST under /api/v1, described by an OpenAPI 3.1 document (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/32-RELEASE-v0.2.0.md)
+- Exports: Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/13-OPERATIONS-AND-DEPLOYMENT.md)
+- Templates: 40 templates in 9 categories (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Sizing: Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/22-CAPACITY-AND-SIZING.md)
+- One canvas: 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/22-CAPACITY-AND-SIZING.md)
+- Measured on: An Apple M4 laptop, 10 cores, 16 GB RAM (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/22-CAPACITY-AND-SIZING.md)
+- AI: Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 
 ## Site
-- [OpenCanvas: a collaborative canvas you embed](https://canvas.casualoffice.org/): OpenCanvas is a real-time collaborative canvas (docs, databases, whiteboards, live cursors) that your app embeds the way it embeds Collabora: your app keeps users, permissions and files; OpenCanvas does the editing and autosaves back. Open source under Apache 2.0.
+- [OpenCanvas: an open-source collaborative canvas you embed](https://canvas.casualoffice.org/): OpenCanvas is an open-source, real-time collaborative canvas (docs, databases, whiteboards) that your app embeds. Your app keeps users, permissions and files.
 - [Roadmap](https://canvas.casualoffice.org/roadmap.html): What OpenCanvas has built, what is in review and in progress, and the phases that follow, from the project's tracker.
 - [Changelog](https://canvas.casualoffice.org/changelog.html): What changed in OpenCanvas and how each change was verified, from the project's integration log.
+- [Brand](https://canvas.casualoffice.org/brand.html): OpenCanvas logos to download, how to name OpenCanvas in a product that embeds it, and what the Apache 2.0 licence asks when you redistribute it.
 - [Interactive demo](https://canvas.casualoffice.org/app/#demo): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server
 
 ## Documentation
-- [Documentation](https://canvas.casualoffice.org/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
-- [Getting started](https://canvas.casualoffice.org/docs/getting-started.html): Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.
-- [Release notes 0.2.0](https://canvas.casualoffice.org/docs/release-020.html): OpenCanvas 0.2.0 release notes: scope, upgrade notes (migrations, new host config sections, 4426 for old editors), known limitations and the release checklist.
+- [OpenCanvas documentation](https://canvas.casualoffice.org/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
+- [Getting started with OpenCanvas](https://canvas.casualoffice.org/docs/getting-started.html): Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.
+- [Release notes 0.2.0](https://canvas.casualoffice.org/docs/release-020.html): OpenCanvas 0.2.0 release notes: the headless API, webhooks, the block SDK and editor profiles, upgrade notes, known limitations and the checklist.
 - [Release notes 0.1.2](https://canvas.casualoffice.org/docs/release-012.html): OpenCanvas 0.1.2 release and upgrade notes for host integrations, diagramming, version history, and the headless API.
-- [Release notes 0.1.0](https://canvas.casualoffice.org/docs/release.html): OpenCanvas 0.1.0: what is included, what changed since 0.1.0-alpha.1 with its tests, upgrade notes (WOPI proof keys, MCP public URL and file scope, schema validation), known limitations and the verification checklist.
-- [FAQ](https://canvas.casualoffice.org/docs/faq.html): Answers about OpenCanvas: its status, what the Apache 2.0 licence allows, what data it keeps, how users sign in, WOPI, exports and scaling.
-- [Integration guide](https://canvas.casualoffice.org/docs/integration.html): The host contract: register your host, sign a JWT launch token, embed the editor, implement load and save callbacks, the postMessage API and the server-to-server REST API.
-- [WOPI mode](https://canvas.casualoffice.org/docs/wopi.html): Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.
-- [Jitsi Meet](https://canvas.casualoffice.org/docs/jitsi.html): Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, deleted when the meeting ends, blank or from a template.
-- [Nextcloud](https://canvas.casualoffice.org/docs/nextcloud.html): Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps files, shares and versions as a WOPI host; read-only shares open view-only and share changes reach open canvases at once.
-- [Element / Matrix](https://canvas.casualoffice.org/docs/matrix.html): Add a shared canvas to Matrix rooms as an Element widget: identity checked with the user's homeserver (OpenID), room members only, roles from power levels, temporary canvases.
-- [Mattermost](https://canvas.casualoffice.org/docs/mattermost.html): Create canvases and meeting notes in Mattermost channels, opened in the right-hand panel; the plugin is the host, files stay in Mattermost, access follows channel membership.
-- [Protocol and build contract](https://canvas.casualoffice.org/docs/protocol.html): The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout, the session ticket and the save outbox.
-- [Block SDK guide](https://canvas.casualoffice.org/docs/block-sdk.html): Write, package and install OpenCanvas blocks: the sandboxed bridge context, the block.json manifest, export templates, migrations, discovery, and how operators enable blocks per host.
-- [Operations and deployment](https://canvas.casualoffice.org/docs/operations.html): Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, fonts, health and metrics.
+- [Release notes 0.1.0](https://canvas.casualoffice.org/docs/release.html): OpenCanvas 0.1.0 release notes: what is included, changes since the alpha, upgrade notes (WOPI proof keys, MCP public URL) and known limitations.
+- [OpenCanvas FAQ: status, licence, data, sign-in and AI](https://canvas.casualoffice.org/docs/faq.html): Answers about OpenCanvas: what it is, its status, the Apache-2.0 licence, the data it keeps, sign-in, WOPI, integrations, exports, scaling and AI.
+- [OpenCanvas facts: version, licence, stack and capacity](https://canvas.casualoffice.org/docs/facts.html): OpenCanvas at a glance: what it is, the current release, licence, stack, storage, integrations, API and measured capacity, each with its source.
+- [Integration guide: embed OpenCanvas in your app](https://canvas.casualoffice.org/docs/integration.html): The host contract: register your host, sign a JWT launch token, embed the editor, answer load and save callbacks, and use postMessage and REST.
+- [WOPI integration (WOPI mode)](https://canvas.casualoffice.org/docs/wopi.html): Open OpenCanvas from an existing WOPI host such as Nextcloud: discovery, the WOPISrc allow-list, CheckFileInfo, GetFile, PutFile and PUT_RELATIVE.
+- [Jitsi Meet integration](https://canvas.casualoffice.org/docs/jitsi.html): Add a shared canvas to Jitsi Meet with one Prosody plugin and config, no Docker changes: temporary canvases, blank or from a template.
+- [Nextcloud integration](https://canvas.casualoffice.org/docs/nextcloud.html): Create and edit .ocanvas files in Nextcloud with the opencanvas app: Nextcloud keeps the files, shares and versions as the WOPI host.
+- [Element and Matrix integration](https://canvas.casualoffice.org/docs/matrix.html): Add a shared canvas to Matrix rooms as an Element widget: identity checked with the homeserver, room members only, roles from power levels.
+- [Mattermost integration](https://canvas.casualoffice.org/docs/mattermost.html): Canvases and meeting notes in Mattermost channels, in the right-hand panel: the plugin is the host, files stay in Mattermost, access follows the channel.
+- [Protocol and build contract](https://canvas.casualoffice.org/docs/protocol.html): The exact interfaces between the OpenCanvas server, the editor and the host: routes, the WebSocket protocol, the Yjs layout and the save outbox.
+- [Block SDK guide](https://canvas.casualoffice.org/docs/block-sdk.html): Write, package and install your own OpenCanvas blocks: the sandboxed bridge, the block.json manifest, migrations, and how operators enable blocks.
+- [Operations and deployment](https://canvas.casualoffice.org/docs/operations.html): Run OpenCanvas: the Docker image, a single node on SQLite, a cluster on MySQL or MariaDB with Redis, Helm, PDF export with Gotenberg, health and metrics.
 - [Security and limits](https://canvas.casualoffice.org/docs/security.html): OpenCanvas trust boundaries, threats and controls, default limits and what personal data it holds.
-- [Capacity and sizing](https://canvas.casualoffice.org/docs/capacity.html): Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.
-- [AI and MCP](https://canvas.casualoffice.org/docs/ai.html): The OpenCanvas assistant and MCP endpoint: how they work, what they may do, what is sent to the model server, the threat model and limits, and how an operator configures Claude Platform or a self-hosted model.
+- [Capacity and sizing: users per server](https://canvas.casualoffice.org/docs/capacity.html): Measured capacity of an OpenCanvas server: users per room and per node, memory per user and per room, and a sizing table for self-hosters.
+- [AI assistant and MCP endpoint](https://canvas.casualoffice.org/docs/ai.html): The OpenCanvas assistant and MCP endpoint: what they may do, what is sent to the model server, the threat model, limits and operator configuration.
 - [Architecture](https://canvas.casualoffice.org/docs/architecture.html): How OpenCanvas is built: components, the launch and save flows, persistence, scaling with room owners, and the deployment shape.
 - [Collaboration and presence](https://canvas.casualoffice.org/docs/collaboration.html): How edits merge, how cursors and presence work, undo, connectivity and comments in OpenCanvas.
 - [Product requirements](https://canvas.casualoffice.org/docs/product.html): What OpenCanvas is for, for whom, what is in scope, and its non-functional targets.
-- [Glossary](https://canvas.casualoffice.org/docs/glossary.html): Terms used across the OpenCanvas documentation.
+- [Glossary](https://canvas.casualoffice.org/docs/glossary.html): Terms used across the OpenCanvas documentation: host, canvas, block, room, owner node, launch token, session ticket, WAL, CRDT and WOPI.
 
 ## API reference
 - [OpenAPI 3.1 document](https://github.com/CasualOffice/opencanvas/blob/main/crates/oc-server/api/openapi.json): the source of the reference below; a running server serves it at /api/v1/openapi.json
-- [Authentication](https://canvas.casualoffice.org/api/authentication.html): Authenticate to the OpenCanvas API with the host key or a user token your application mints: claims, issuer and audience, scopes, roles, expiry, and full minting examples.
+- [Authentication](https://canvas.casualoffice.org/api/authentication.html): Authenticate to the OpenCanvas API with the host key or a user token your app mints: claims, issuer, audience, scopes, roles, expiry and examples.
 - [API changelog](https://canvas.casualoffice.org/api/changelog.html): What changed in the OpenCanvas API, release by release, from the project's CHANGELOG.md.
 - [Errors](https://canvas.casualoffice.org/api/errors.html): OpenCanvas API errors: the RFC 9457 problem details shape, how to handle each status, and every machine code with its status and meaning.
-- [Events](https://canvas.casualoffice.org/api/events.html): Stream an OpenCanvas file's change events over Server-Sent Events or WebSocket: event types and payloads, resuming with Last-Event-ID, close codes, limits, and the CRDT sync ticket.
+- [Events](https://canvas.casualoffice.org/api/events.html): Stream an OpenCanvas file's change events over Server-Sent Events or WebSocket: event types, payloads, resuming with Last-Event-ID, limits and sync tickets.
 - [Idempotency](https://canvas.casualoffice.org/api/idempotency.html): Retry OpenCanvas API writes safely with the Idempotency-Key header: what is stored, replays, key reuse, requests still running, and the 24-hour window.
-- [API overview](https://canvas.casualoffice.org/api/index.html): The OpenCanvas headless API: read and change canvases from programs. Base URL, versioning, the api_v1 switch, request conventions and a first call in curl, TypeScript, Rust and Python.
-- [Pagination](https://canvas.casualoffice.org/api/pagination.html): Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header, expiry and errors.
+- [API overview](https://canvas.casualoffice.org/api/index.html): The OpenCanvas headless REST API under /api/v1: base URL, versioning, the api_v1 switch, conventions and a first call in curl, TypeScript, Rust and Python.
+- [Pagination](https://canvas.casualoffice.org/api/pagination.html): Page through OpenCanvas blocks and database rows with opaque, signed cursors that survive concurrent edits: limits, next_cursor, the Link header and expiry.
 - [Rate limits](https://canvas.casualoffice.org/api/rate-limits.html): OpenCanvas API rate limits: token buckets per caller and per file, the RateLimit-Policy and RateLimit headers, 429 with Retry-After, and per-host settings.
-- [Admin API](https://canvas.casualoffice.org/api/reference/admin.html): OpenCanvas API reference, Admin: Save now (200 saved, 202 queued in the outbox, 409 conflict); Change a user's role live (none disconnects them); Final save, disconnect everyone, drop every ticket; The member list changed; drop cached answers; Revoke every offline copy of a person.
-- [Automation API](https://canvas.casualoffice.org/api/reference/automation.html): OpenCanvas API reference, Automation: List automation rules; Test run a rule; Automation run history; Create or replace a rule; Delete a rule; Switch a rule on or off.
-- [Blocks API](https://canvas.casualoffice.org/api/reference/blocks.html): OpenCanvas API reference, Blocks: List top-level blocks; Read one block (also nested ones); Find blocks whose text contains q (case-insensitive); Change blocks in one atomic transaction; Make blocks live; List the live blocks and block references.
-- [Boards API](https://canvas.casualoffice.org/api/reference/boards.html): OpenCanvas API reference, Boards: Create a board block with shapes; Read a board's shapes; Add shapes to a board.
-- [Canvas API](https://canvas.casualoffice.org/api/reference/canvas.html): OpenCanvas API reference, Canvas: Read a canvas as JSON blocks, Markdown or an outline.
-- [Comments API](https://canvas.casualoffice.org/api/reference/comments.html): OpenCanvas API reference, Comments: List comment threads; Start a thread on a block or reply to one.
-- [Databases API](https://canvas.casualoffice.org/api/reference/databases.html): OpenCanvas API reference, Databases: List databases with fields, row counts and views; Create a database block; Describe one database; Query rows; Create or update rows (at most 200); Add a field.
-- [Export and import API](https://canvas.casualoffice.org/api/reference/files.html): OpenCanvas API reference, Export and import: Export the canvas; Render the canvas as read-only HTML; Import Markdown, HTML or CSV into the canvas; Stateless conversion.
-- [0.1 routes (deprecated) API](https://canvas.casualoffice.org/api/reference/legacy.html): OpenCanvas API reference, 0.1 routes (deprecated): Patch blocks (0.1); Save now (0.1); Change a role (0.1); Close the session (0.1); Members changed (0.1); Import (0.1); Convert (0.1).
-- [Members API](https://canvas.casualoffice.org/api/reference/members.html): OpenCanvas API reference, Members: People with access (id, name, detail; never e-mail).
-- [OpenAPI document API](https://canvas.casualoffice.org/api/reference/meta.html): OpenCanvas API reference, OpenAPI document: This document.
-- [Search API](https://canvas.casualoffice.org/api/reference/search.html): OpenCanvas API reference, Search: Extract search.json; Search across canvases.
-- [Events and sync API](https://canvas.casualoffice.org/api/reference/streams.html): OpenCanvas API reference, Events and sync: Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages; A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly.
-- [SDKs](https://canvas.casualoffice.org/api/sdks.html): The OpenCanvas API clients for TypeScript (@opencanvas/client) and Rust (opencanvas-client): install, credentials, typed calls, retries, idempotency, paging, events, typed errors and webhook checks.
-- [Webhooks](https://canvas.casualoffice.org/api/webhooks.html): OpenCanvas webhooks: configure [host.webhooks], the signed POST for each change event, payloads per event type, signature verification in shell (openssl), TypeScript, Rust and Python with a test vector, retries and delivery guarantees.
+- [Admin API reference](https://canvas.casualoffice.org/api/reference/admin.html): OpenCanvas API reference, Admin: Host operations: save now, change a user's role live, close the session, drop cached members.
+- [Automation API reference](https://canvas.casualoffice.org/api/reference/automation.html): OpenCanvas API reference, Automation: Rules stored in a canvas and run by the server on behalf of their owner: list, save, switch on or off, test and read...
+- [Blocks API reference](https://canvas.casualoffice.org/api/reference/blocks.html): OpenCanvas API reference, Blocks: List, read and find blocks, and change them in one atomic batch. 6 operations with curl, TypeScript, Rust and Python samples.
+- [Boards API reference](https://canvas.casualoffice.org/api/reference/boards.html): OpenCanvas API reference, Boards: Read a board's shapes and add shapes to a board. 3 operations with curl, TypeScript, Rust and Python samples.
+- [Canvas API reference](https://canvas.casualoffice.org/api/reference/canvas.html): OpenCanvas API reference, Canvas: Read a whole canvas as JSON blocks, Markdown or a heading outline. 1 operation with curl, TypeScript, Rust and Python samples.
+- [Comments API reference](https://canvas.casualoffice.org/api/reference/comments.html): OpenCanvas API reference, Comments: List comment threads, start a thread on a block or reply to one.
+- [Databases API reference](https://canvas.casualoffice.org/api/reference/databases.html): OpenCanvas API reference, Databases: Describe databases, query rows with filters and sorts, create databases and fields, and create or update rows.
+- [Export and import API reference](https://canvas.casualoffice.org/api/reference/files.html): OpenCanvas API reference, Export and import: Export a canvas, import Markdown, HTML or CSV into it, and convert files without a canvas.
+- [0.1 routes (deprecated) API reference](https://canvas.casualoffice.org/api/reference/legacy.html): OpenCanvas API reference, 0.1 routes (deprecated): The 0.1 host routes, kept through 0.x with their old answers, and retired in v0.3. Use the /api/v1...
+- [Members API reference](https://canvas.casualoffice.org/api/reference/members.html): OpenCanvas API reference, Members: The people with access to a canvas: id, name and detail, never an e-mail address.
+- [OpenAPI document reference](https://canvas.casualoffice.org/api/reference/meta.html): OpenCanvas API reference, OpenAPI document: The OpenAPI 3.1 document this reference is generated from.
+- [Search API reference](https://canvas.casualoffice.org/api/reference/search.html): OpenCanvas API reference, Search: Search across the canvases a person can open, through the host's own index, and extract a canvas's search text.
+- [Events and sync API reference](https://canvas.casualoffice.org/api/reference/streams.html): OpenCanvas API reference, Events and sync: Stream a file's change events, and get a ticket to sync the CRDT document directly.
+- [SDKs](https://canvas.casualoffice.org/api/sdks.html): The OpenCanvas API clients for TypeScript (@opencanvas/client) and Rust (opencanvas-client): install, typed calls, retries, idempotency, paging and errors.
+- [Webhooks](https://canvas.casualoffice.org/api/webhooks.html): OpenCanvas webhooks: configure [host.webhooks], the signed POST per change event, payloads, signature checks in shell, TypeScript, Rust and Python, and retries.
 
 ## Source
 - [Repository](https://github.com/CasualOffice/opencanvas)
 - [Licence (Apache-2.0)](https://github.com/CasualOffice/opencanvas/blob/main/LICENSE)
-- [Full documentation as text](https://canvas.casualoffice.org/llms-full.txt)
+
+## Optional
+- [Full documentation as text](https://canvas.casualoffice.org/llms-full.txt): every documentation page and the whole API reference in one file

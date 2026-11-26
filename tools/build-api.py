@@ -444,8 +444,9 @@ REFERENCE_ON = True
 
 
 def api_page(spec: dict, rel: str, title: str, description: str, article: str, *, current: str,
-             kind: str = "guide", order: list[tuple[str, str]] | None = None) -> str:
-    """A page of the API section: navigation, the article, and (guides) on this page."""
+             kind: str = "guide", order: list[tuple[str, str]] | None = None, modified: str) -> str:
+    """A page of the API section: navigation, the article, and (guides) on this page. Its
+    structured data is a TechArticle (a guide) or an APIReference (a reference page)."""
     depth = rel.count("/")
     root = "../" * depth
     article = sitelib.add_heading_ids(article)
@@ -475,12 +476,28 @@ def api_page(spec: dict, rel: str, title: str, description: str, article: str, *
   </aside>
   <article class="api-article prose">
 {article}
+<p class="note doc-source">{sitelib.icon("file-text", 14)}Last changed <time datetime="{modified}">{modified}</time>.</p>
 {pn}
   </article>
   {toc}
 </div>"""
+    if kind == "ref":
+        # "Blocks API reference | OpenCanvas"
+        seo = f"{title} reference".replace("OpenAPI document API", "OpenAPI document")
+        node = sitelib.article_node("APIReference", f"OpenCanvas {seo}", description, rel, modified, section="API reference")
+        node["programmingModel"] = "REST over HTTPS, JSON"
+        node["targetPlatform"] = f"OpenCanvas server, /api/v1 (OpenAPI document version {spec['info']['version']})"
+    else:
+        # "Errors | OpenCanvas API"; "API overview | OpenCanvas"
+        seo = title if "API" in title else f"{title} | OpenCanvas API"
+        headline = f"OpenCanvas {title}" if "API" in title else f"OpenCanvas API: {title}"
+        node = sitelib.article_node("TechArticle", headline, description, rel, modified, section="API guides")
+    trail = [(sitelib.NAME, "index.html"), ("API", "api/index.html")]
+    if rel != "api/index.html":
+        trail.append((title, rel))
     return sitelib.page(title=title, description=description, body=body, root=root, path=rel,
-                        current="api", main_class="docs-main api-main")
+                        current="api", main_class="docs-main api-main", graph=[node], trail=trail,
+                        modified=modified, seo_title=seo, og_type="article")
 
 
 def _order() -> list[tuple[str, str]]:
@@ -1081,9 +1098,24 @@ def reference_pages(spec: dict, order: list) -> dict[str, str]:
         listing = "".join(f'<li><a href="#{o["id"]}">{method_badge(o["method"])} <code class="op-path-s">{_esc(o["path"])}</code></a></li>' for o in mine)
         article = (f"<h1>{_esc(title)}</h1>\n{intro}\n<ul class=\"op-index\">{listing}</ul>\n"
                    + "\n".join(operation_section(spec, o, root) for o in mine))
-        desc = f"OpenCanvas API reference, {title}: " + "; ".join(o["op"].get("summary", o["id"]) for o in mine) + "."
-        pages[rel] = api_page(spec, rel, f"{title} API", desc[:300], article, current=f"reference/{slug}", kind="ref", order=order)
+        pages[rel] = api_page(spec, rel, f"{title} API", ref_description(title, lede, len(mine)), article,
+                              current=f"reference/{slug}", kind="ref", order=order, modified=sitelib.git_date(SPEC_PATH))
     return pages
+
+
+SPEC_PATH = "crates/oc-server/api/openapi.json"
+
+
+def ref_description(title: str, lede: str, n: int) -> str:
+    """A reference page's meta description: what the resource does, in 70-160 characters."""
+    lede = lede.replace("`", "")
+    desc = f"OpenCanvas API reference, {title}: {lede}"
+    tail = f" {n} operation{'s' if n != 1 else ''} with curl, TypeScript, Rust and Python samples."
+    if len(desc + tail) <= 160:
+        desc += tail
+    if len(desc) > 160:
+        desc = desc[:157].rsplit(" ", 1)[0].rstrip(",;:") + "..."
+    return desc
 
 
 def reference_text(spec: dict) -> str:
@@ -1137,9 +1169,12 @@ def render() -> dict[str, str]:
     for slug, _label in available_guides():
         if slug == "changelog":
             title, desc, article = changelog(spec)
+            modified = sitelib.git_date("CHANGELOG.md")
         else:
             title, desc, article = render_guide(slug, spec)
-        pages[f"api/{slug}.html"] = api_page(spec, f"api/{slug}.html", title, desc, article, current=slug, order=order)
+            modified = sitelib.git_date(f"site/_src/api/{slug}.md", SPEC_PATH)
+        pages[f"api/{slug}.html"] = api_page(spec, f"api/{slug}.html", title, desc, article, current=slug, order=order,
+                                             modified=modified)
     if REFERENCE_ON:
         pages.update(reference_pages(spec, order))
     return pages

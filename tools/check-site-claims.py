@@ -19,7 +19,8 @@ exactly one marking, written by the `{{claim:...}}` placeholder (tools/sitelib.p
 - `data-claim-mark="deployment"`: what the operator configures, as non-empty text.
 
 A number in a claim with a tested or deployment marking fails too: a figure needs a
-source. Exits non-zero naming each problem. Standard library only; no network.
+source. An FAQ answer (an element with `data-answer`, which answer engines quote on their
+own) that states a number must be a claim block, or keep the number inside one. Exits non-zero naming each problem. Standard library only; no network.
 """
 
 from __future__ import annotations
@@ -51,13 +52,20 @@ class Claims(HTMLParser):
         self.claims: list[dict] = []
         self.mark: dict | None = None
         self.skip = 0  # inside <svg>: icons, no text
+        self.answers: list[dict] = []
+        self.open_answers: list[dict] = []
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         classes = (a.get("class") or "").split()
         parent_facts = bool(self.stack) and self.stack[-1]["tag"] == "ul" and self.stack[-1]["facts"]
         is_claim = "data-claim" in a or (tag == "li" and parent_facts and "data-not-claim" not in a)
-        entry = {"tag": tag, "facts": tag == "ul" and "facts" in classes, "claim": None, "mark": False}
+        entry = {"tag": tag, "facts": tag == "ul" and "facts" in classes, "claim": None, "mark": False, "answer": None}
+        if "data-answer" in a:
+            answer = {"text": ""}
+            self.answers.append(answer)
+            self.open_answers.append(answer)
+            entry["answer"] = answer
         if is_claim:
             claim = {"text": "", "marks": []}
             self.claims.append(claim)
@@ -87,6 +95,8 @@ class Claims(HTMLParser):
             entry = self.stack.pop()
             if entry["claim"] is not None and entry["claim"] in self.open:
                 self.open.remove(entry["claim"])
+            if entry["answer"] is not None and entry["answer"] in self.open_answers:
+                self.open_answers.remove(entry["answer"])
             if entry["mark"]:
                 self.mark = None
             if entry["tag"] == "svg":
@@ -100,6 +110,9 @@ class Claims(HTMLParser):
         if self.mark is not None:
             self.mark["text"] += data
             return  # a marking's own words are not the claim's
+        if not self.open:
+            for a in self.open_answers:  # text inside a claim block is checked as a claim
+                a["text"] += data
         for c in self.open:
             c["text"] += data
 
@@ -155,6 +168,12 @@ def problems_in(rel: str, page: str) -> tuple[int, list[str]]:
                 out.append(f"{name}: number(s) {', '.join(sorted(numbers))} need a source marking that quotes them")
         else:
             out.append(f"{name}: unknown marking {m['kind']!r} (tested, source or deployment)")
+    for a in p.answers:
+        numbers = sorted(set(NUMBER.findall(norm(a["text"]))))
+        if numbers:
+            words = norm(a["text"])
+            out.append(f"{rel}: the answer \"{words[:70]}{'…' if len(words) > 70 else ''}\" states {', '.join(numbers)} "
+                       "outside a claim block: make it one (data-claim) with a source marking")
     return len([c for c in p.claims if not c.get("stray")]), out
 
 
@@ -179,6 +198,10 @@ def self_test() -> int:
         (f'<p data-claim>12 tests {ok}</p>', 1),
         ('<p data-claim>Quote not in file <a data-claim-mark="source" data-quote="cargo test 9999" href="' + REPO_BLOB + tracker + '">S</a></p>', 1),
         (f'<p data-claim>AES-256-GCM and HS256 {dep}</p>', 0),
+        ('<p data-answer>Up to 5,000 users on one server.</p>', 1),
+        ('<div data-answer><p>No numbers here, only words.</p></div>', 0),
+        (f'<p data-answer data-claim>88 server tests and 182 web tests {src}</p>', 0),
+        (f'<div data-answer><p>Tests:</p><p data-claim>88 server tests {src}</p><p>and 7 more.</p></div>', 1),
     ]
     failed = 0
     for i, (page, want) in enumerate(cases):

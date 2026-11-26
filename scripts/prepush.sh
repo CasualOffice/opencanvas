@@ -19,5 +19,7 @@ python3 -I tools/test_apilib.py && python3 -I tools/check-openapi.py >/dev/null
 python3 tools/build-site.py >/dev/null
 python3 tools/check-site-links.py >/dev/null
 python3 tools/check-site-claims.py >/dev/null
+python3 -I tools/check-site-seo.py --self-test >/dev/null
+python3 -I tools/check-site-seo.py >/dev/null
 git diff --exit-code --quiet site || { echo "prepush: site/ is out of date; commit the rebuilt site"; exit 1; }
 echo "prepush: all fast CI gates pass"

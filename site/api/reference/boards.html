@@ -5,18 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
-<title>Boards API | OpenCanvas</title>
-<meta name="description" content="OpenCanvas API reference, Boards: Create a board block with shapes; Read a board&#x27;s shapes; Add shapes to a board.">
+<title>Boards API reference | OpenCanvas</title>
+<meta name="description" content="OpenCanvas API reference, Boards: Read a board&#x27;s shapes and add shapes to a board. 3 operations with curl, TypeScript, Rust and Python samples.">
 <link rel="canonical" href="https://canvas.casualoffice.org/api/reference/boards.html">
-<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
-<meta property="og:type" content="website">
+<meta property="og:type" content="article">
 <meta property="og:site_name" content="OpenCanvas">
-<meta property="og:title" content="Boards API | OpenCanvas">
-<meta property="og:description" content="OpenCanvas API reference, Boards: Create a board block with shapes; Read a board&#x27;s shapes; Add shapes to a board.">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Boards API reference | OpenCanvas">
+<meta property="og:description" content="OpenCanvas API reference, Boards: Read a board&#x27;s shapes and add shapes to a board. 3 operations with curl, TypeScript, Rust and Python samples.">
 <meta property="og:url" content="https://canvas.casualoffice.org/api/reference/boards.html">
 <meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta property="article:modified_time" content="2026-11-26">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Boards API reference | OpenCanvas">
+<meta name="twitter:description" content="OpenCanvas API reference, Boards: Read a board&#x27;s shapes and add shapes to a board. 3 operations with curl, TypeScript, Rust and Python samples.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"APIReference","@id":"https://canvas.casualoffice.org/api/reference/boards.html#article","headline":"OpenCanvas Boards API reference","description":"OpenCanvas API reference, Boards: Read a board's shapes and add shapes to a board. 3 operations with curl, TypeScript, Rust and Python samples.","url":"https://canvas.casualoffice.org/api/reference/boards.html","mainEntityOfPage":"https://canvas.casualoffice.org/api/reference/boards.html","dateModified":"2026-11-26","inLanguage":"en","author":{"@id":"https://canvas.casualoffice.org/#organization"},"publisher":{"@id":"https://canvas.casualoffice.org/#organization"},"isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"},"image":"https://canvas.casualoffice.org/assets/screens/canvas-light.png","articleSection":"API reference","programmingModel":"REST over HTTPS, JSON","targetPlatform":"OpenCanvas server, /api/v1 (OpenAPI document version 1.0.0)"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"API","item":"https://canvas.casualoffice.org/api/index.html"},{"@type":"ListItem","position":3,"name":"Boards API","item":"https://canvas.casualoffice.org/api/reference/boards.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="../../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../../assets/tokens.css">
@@ -580,6 +590,7 @@ print(r.json())</code></pre></div></div><div class="sample sample-res"><span cla
     &quot;s_01m87jv4t1v2w3x4y5z6a7b8c9&quot;
   ]
 }</code></pre></div></aside></section>
+<p class="note doc-source"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Last changed <time datetime="2026-11-26">2026-11-26</time>.</p>
 <nav class="prevnext" aria-label="Previous and next"><a class="pn pn-prev" href="../../api/reference/databases.html"><span class="pn-dir"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>Previous</span><span class="pn-title">Databases</span></a><a class="pn pn-next" href="../../api/reference/comments.html"><span class="pn-dir">Next<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span><span class="pn-title">Comments</span></a></nav>
   </article>
   
@@ -595,7 +606,7 @@ print(r.json())</code></pre></div></div><div class="sample sample-res"><span cla
     </div>
     <div class="foot-col"><h2>Product</h2><ul><li><a href="../../index.html#product">Overview</a></li><li><a href="../../app/#demo">Try the demo</a></li><li><a href="../../roadmap.html">Roadmap</a></li><li><a href="../../changelog.html">Changelog</a></li></ul></div>
     <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../../docs/getting-started.html">Getting started</a></li><li><a href="../../docs/integration.html">Integration guide</a></li><li><a href="../../api/index.html">API reference</a></li><li><a href="../../docs/wopi.html">WOPI mode</a></li><li><a href="../../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../../docs/matrix.html">Element / Matrix</a></li><li><a href="../../docs/mattermost.html">Mattermost</a></li><li><a href="../../docs/nextcloud.html">Nextcloud</a></li><li><a href="../../docs/operations.html">Operations</a></li></ul></div>
-    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../../docs/security.html">Security and limits</a></li><li><a href="../../docs/architecture.html">Architecture</a></li><li><a href="../../docs/protocol.html">Protocol</a></li><li><a href="../../docs/faq.html">FAQ</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../../docs/security.html">Security and limits</a></li><li><a href="../../docs/architecture.html">Architecture</a></li><li><a href="../../docs/protocol.html">Protocol</a></li><li><a href="../../docs/faq.html">FAQ</a></li><li><a href="../../docs/facts.html">Facts</a></li></ul></div>
     <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../../brand.html">Brand</a></li></ul></div>
   </div>
   <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>

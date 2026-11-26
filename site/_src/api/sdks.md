@@ -1,4 +1,4 @@
-<!--meta {"title": "SDKs", "description": "The OpenCanvas API clients for TypeScript (@opencanvas/client) and Rust (opencanvas-client): install, credentials, typed calls, retries, idempotency, paging, events, typed errors and webhook checks.", "lede": "Two clients wrap the API with the same behaviour: typed operations generated from the OpenAPI document, an Idempotency-Key on every write, retries after Retry-After, cursor paging, resumable events, typed errors and the webhook signature check. Both are Apache-2.0 and versioned with the server."} -->
+<!--meta {"title": "SDKs", "description": "The OpenCanvas API clients for TypeScript (@opencanvas/client) and Rust (opencanvas-client): install, typed calls, retries, idempotency, paging and errors.", "lede": "Two clients wrap the API with the same behaviour: typed operations generated from the OpenAPI document, an Idempotency-Key on every write, retries after Retry-After, cursor paging, resumable events, typed errors and the webhook signature check. Both are Apache-2.0 and versioned with the server."} -->
 
 ## Install
 
