@@ -8,6 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
+# The Rust client's generated models must match openapi.json, as the TS client's must.
+cargo test -q -p opencanvas-client --test models >/dev/null
 bash scripts/check-spdx.sh
 node tools/px-to-rem.mjs --check >/dev/null
 (cd web && node ../tools/check-px.mjs && node packages/client/scripts/gen.mjs --check >/dev/null && pnpm -r --if-present typecheck)
