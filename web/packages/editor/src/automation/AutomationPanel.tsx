@@ -16,6 +16,7 @@ import {
   setEnabled, suggestions, urlLabel, WEEKDAYS, whenParts, writeRule, type Action, type Condition, type Db, type Limits, type Part, type Rule, type Run, type Trigger,
 } from "./model";
 import "./automation.css";
+import { observeBlocks } from "../lib/blocks";
 
 export interface AutomationInfo {
   enabled: boolean;
@@ -63,12 +64,11 @@ function useRules(doc: Y.Doc) {
   useEffect(() => {
     const bump = () => setTick((n) => n + 1);
     const a = doc.getMap("automations");
-    const d = doc.getMap("databases");
     a.observeDeep(bump);
-    d.observeDeep(bump);
+    const off = observeBlocks(doc, "databases", bump);
     return () => {
       a.unobserveDeep(bump);
-      d.unobserveDeep(bump);
+      off();
     };
   }, [doc]);
   // eslint-disable-next-line react-hooks/exhaustive-deps

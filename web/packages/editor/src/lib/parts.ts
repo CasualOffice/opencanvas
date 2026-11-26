@@ -110,6 +110,7 @@ export class PartsClient {
       this.held.set(blockId, h);
       this.undo?.attach(doc);
       this.request(blockId, h);
+      this.changed();
     }
     if (h.releaseTimer) clearTimeout(h.releaseTimer);
     h.releaseTimer = undefined;

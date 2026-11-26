@@ -6,6 +6,7 @@
 // way the server will, and suggest rules for this canvas. The server enforces everything again
 // (perms.automate, owner, limits, origins); this is for showing it before saving.
 import * as Y from "yjs";
+import { eachBlock } from "../lib/blocks";
 
 export const AUTOMATION_ORIGIN = { source: "@opencanvas/automation" };
 
@@ -115,8 +116,7 @@ export function readRules(doc: Y.Doc): Rule[] {
 
 export function readDbs(doc: Y.Doc): Db[] {
   const out: Db[] = [];
-  doc.getMap("databases").forEach((v, id) => {
-    if (!(v instanceof Y.Map)) return;
+  eachBlock(doc, "databases", (v, id) => {
     const raw = v.get("fields");
     const list = raw instanceof Y.Array ? raw.toArray() : Array.isArray(raw) ? raw : [];
     const fields = list.map((f) => {
