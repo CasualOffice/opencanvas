@@ -478,6 +478,8 @@ pub async fn session_info(
         "storage": if host.ephemeral() { "ephemeral" } else { "host" },
         // ADR-049: the wording of a temporary canvas ("meeting" | "room").
         "wording": host.temporary_wording(),
+        // ADR-078: whether formula, relation and rollup fields can be added.
+        "formulas": host.formulas(),
         // DGM-14 S9: the document limit; a diagram warns at 80 % of a quarter of it.
         "maxDocBytes": state.cfg.rooms.max_doc_bytes,
         // BSDK-01: the SDK block packages this host enables (type, version, schemas, bundle URL

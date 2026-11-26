@@ -3,7 +3,7 @@
 
 [workspace]
 resolver = "3"
-members = ["crates/oc-model", "crates/oc-server", "crates/oc-bench", "crates/oc-client"]
+members = ["crates/oc-formula", "crates/oc-model", "crates/oc-server", "crates/oc-bench", "crates/oc-client"]
 
 [workspace.package]
 version = "0.3.0"
@@ -12,6 +12,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 oc-model = { path = "crates/oc-model" }
+oc-formula = { path = "crates/oc-formula" }
 yrs = { version = "0.28", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

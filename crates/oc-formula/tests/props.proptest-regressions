@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b7fe39c949c45db9f459fcfcc8de33cb32c86f1f498d6d49f2ce2bce6498231b # shrinks to n = Node { e: Call("ROUND", []), pos: 0 }
+cc e012ba5b791325274e765e27af7c4443a1664b6ba9b54d4ae3e0856d675ccc6d # shrinks to n = Node { e: Call("IF", []), pos: 0 }, lower = false

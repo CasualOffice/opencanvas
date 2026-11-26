@@ -8,6 +8,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+oc-formula.workspace = true
 yrs.workspace = true
 serde.workspace = true
 serde_json.workspace = true

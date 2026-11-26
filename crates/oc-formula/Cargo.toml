@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+[package]
+name = "oc-formula"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OpenCanvas formula engine (ADR-078): parser, type checker, evaluator, relations and rollups; native and WASM"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+serde_json.workspace = true
+
+[dev-dependencies]
+proptest = "1"

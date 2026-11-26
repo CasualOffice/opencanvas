@@ -7,7 +7,7 @@ import * as Y from "yjs";
 import {
   ArrowDown, ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ArrowUp, ArrowUpDown, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight,
   ChevronUp, Columns3, Copy, Download, Ellipsis, ExternalLink, GripVertical, Inbox, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search,
-  EyeOff, Info, SlidersHorizontal, SquareKanban, Sun, Table, Trash2, Upload, X, Zap, type LucideIcon,
+  EyeOff, Info, Pencil, RotateCw, SlidersHorizontal, SquareKanban, Sun, Table, Trash2, TriangleAlert, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv, OcUser, Tone } from "@opencanvas/ui";
 import { CsvImportDialog } from "./CsvImportDialog";
@@ -23,7 +23,13 @@ import {
 } from "./query";
 import { ensureStyles } from "./styles";
 import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, FilterOp, FilterRule, ViewKind, ViewPrefs } from "./types";
-import { FIELD_TYPES } from "./types";
+import { ADV_TYPES, COMPUTED_TYPES, FIELD_TYPES } from "./types";
+import { AdvContext, computedFoot, computedValue, RelationChips, type AdvInfo } from "./formula/cells";
+import type { FValue } from "./formula/engine";
+import { FormulaEditor } from "./formula/FormulaEditor";
+import { needsEngine, relatedOf, useComputed, useEngine, type EngineState, type Related } from "./formula/hooks";
+import { addRelation, makeAdvanced, setFormula, setRelation, setRollup, sweepGone, unpairBack } from "./formula/model";
+import { RelationPicker, RelationSetup, RollupSetup } from "./formula/RelationUi";
 import { Avatar, CommitInput, dbIcon, Ic, Pop, TYPE_ICON, type Anchor } from "./ui";
 import { inRange, isGridText, isMulti, moveCell, parseTsv, rangeBounds, rangeToHtml, rangeToTsv, type CellPos, type CellRange } from "./grid";
 
@@ -108,7 +114,7 @@ const VIEWS: [ViewKind, string, LucideIcon][] = [
   ["calendar", "Calendar", CalendarDays],
   ["gallery", "Gallery", LayoutGrid],
 ];
-const W: Record<FieldType, number> = { title: 300, text: 180, status: 150, select: 160, tags: 190, person: 160, date: 120, number: 110, checkbox: 90, url: 190, progress: 160 };
+const W: Record<FieldType, number> = { title: 300, text: 180, status: 150, select: 160, tags: 190, person: 160, date: 120, number: 110, checkbox: 90, url: 190, progress: 160, formula: 150, relation: 200, rollup: 130 };
 const isEmpty = (v: unknown) => v == null || v === "" || (Array.isArray(v) && !v.length);
 const fmtNum = (n: number) => (Number.isFinite(n) ? n.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "");
 
@@ -196,6 +202,11 @@ function Value({ f, v, people, peek, q }: { f: DbField; v: CellValue | undefined
       ) : empty;
     case "number":
       return v == null || v === "" ? empty : <Hl text={fmtNum(Number(v))} q={q} />;
+    case "formula":
+    case "rollup":
+      return computedValue(f, v as FValue | undefined);
+    case "relation":
+      return <RelationChips f={f} v={v} />;
     default:
       return v ? <Hl text={String(v)} q={q} /> : empty;
   }
@@ -219,7 +230,9 @@ type PopState =
   | { kind: "more"; anchor: Anchor; key: string }
   | { kind: "settings"; anchor: Anchor; key: string }
   | { kind: "fieldType"; fid: string; anchor: Anchor; key: string }
-  | { kind: "options"; fid: string; anchor: Anchor; key: string };
+  | { kind: "options"; fid: string; anchor: Anchor; key: string }
+  /** ADR-078: formula editor, relation setup, rollup setup. */
+  | { kind: "formula" | "relation" | "rollup"; fid: string; anchor: Anchor; key: string };
 
 /* ========================================================== component */
 
@@ -233,10 +246,57 @@ export function DatabaseBlock({ doc, dbId, env }: { doc: Y.Doc; dbId: string; en
       </div>
     );
   }
-  return <DbView doc={doc} db={db} env={env} />;
+  return <AdvDb doc={doc} db={db} env={env} />;
 }
 
-function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv }) {
+/** The engine's part of a database view (ADR-078). */
+export interface AdvCtx {
+  eng: EngineState;
+  related: Related;
+  /** Field-level errors (`#CYCLE` on the header, prototype 1d). */
+  fieldErr: (fid: string) => { code: string; msg: string } | undefined;
+}
+
+/** Loads the engine when a database needs it and overlays computed values on the rows. */
+function AdvDb({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv }) {
+  const needed = needsEngine(db.fields);
+  const eng = useEngine(needed);
+  const out = useComputed(doc, db, env, eng.engine);
+  const merged = useMemo(
+    () => (out ? { ...db, rows: db.rows.map((r) => (out.rows[r.id] ? { ...r, v: { ...r.v, ...(out.rows[r.id] as Record<string, CellValue>) } } : r)) } : db),
+    [db, out],
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const related = useMemo(() => (needed ? relatedOf(doc, db, env) : {}), [needed, doc, db, env, out]);
+  const info = useMemo<AdvInfo>(() => {
+    const titles = new Map<string, Map<string, string>>();
+    for (const [k, d] of Object.entries(related)) {
+      if ("noAccess" in d) continue;
+      const tf = d.fields.find((x) => x.type === "title") ?? d.fields[0];
+      titles.set(k, new Map(d.rows.map((r) => [r.id, String(r.v[tf?.id ?? ""] ?? "") || "Untitled"])));
+    }
+    const key = (f: DbField) => (f.rel?.file ? `${f.rel.file}/${f.rel.db}` : (f.rel?.db ?? ""));
+    return {
+      out,
+      title: (f, id) => titles.get(key(f))?.get(id),
+      noAccess: (f) => !!f.rel?.file && (!related[key(f)] || "noAccess" in related[key(f)]),
+      gone: (f) => !!f.rel && !f.rel.file && !related[key(f)],
+    };
+  }, [related, out]);
+  const adv = useMemo<AdvCtx>(() => ({ eng, related, fieldErr: (fid) => out?.fields[fid]?.error }), [eng, related, out]);
+  // Prototype 4a: links to a deleted database are kept 30 days, then cleared (editors write it).
+  const relKey = db.fields.filter((f) => f.type === "relation").map((f) => f.id + (f.rel?.db ?? "") + (f.rel?.goneAt ?? "") + (related[f.rel?.db ?? ""] ? "1" : "0")).join();
+  useEffect(() => {
+    if (env.role === "edit" && relKey) sweepGone(doc, db.id, isoDate(new Date()));
+  }, [doc, db.id, env.role, relKey]);
+  return (
+    <AdvContext.Provider value={info}>
+      <DbView doc={doc} db={merged} env={env} adv={adv} />
+    </AdvContext.Provider>
+  );
+}
+
+function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv; adv: AdvCtx }) {
   const edit = env.role === "edit";
   const compact = env.compact;
   const dbId = db.id;
@@ -451,7 +511,7 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
   });
 
   const Icon = dbIcon(db.icon);
-  const ctx: Ctx = { doc, db, env, edit, compact, people, rows, prefs, open, setPeek, newRow, focusRow, setFocusRow, patchPrefs, view, flash, addFieldAt, onImport: edit ? () => setImportOpen(true) : undefined };
+  const ctx: Ctx = { doc, db, env, edit, compact, people, rows, prefs, open, setPeek, newRow, focusRow, setFocusRow, patchPrefs, view, flash, addFieldAt, onImport: edit ? () => setImportOpen(true) : undefined, adv };
 
   const importCsv = (csv: string) => {
     // A private origin so the toast's Undo removes exactly this import, whatever happened since.
@@ -472,6 +532,13 @@ function DbView({ doc, db, env }: { doc: Y.Doc; db: DbSnapshot; env: BlockEnv })
 
   return (
     <div className={"ocdb" + (compact ? " ocdb-compact" : "") + (edit ? "" : " ocdb-ro")} data-db={dbId} onKeyDown={onRootKey}>
+      {adv.eng.status === "failed" ? (
+        <div className="ocdb-banner" role="status">
+          <Ic i={TriangleAlert} s={14} />
+          <span>Formulas couldn’t load in this browser. Their values are hidden and editing formulas is paused.</span>
+          <button className="ocdb-btn sm" onClick={adv.eng.retry}><Ic i={RotateCw} s={13} />Retry</button>
+        </div>
+      ) : null}
       <div className="ocdb-h">
         <span className={`ocdb-hi ocdb-c-${db.tone}`}><Ic i={Icon} s={14} /></span>
         <CommitInput
@@ -656,6 +723,12 @@ function popTitle(p: PopState, db: DbSnapshot): string {
       return "Sort";
     case "fieldNew":
       return p.isNew ? "New field" : "Field";
+    case "formula":
+      return `${f?.name ?? "Field"}: formula`;
+    case "relation":
+      return "New relation field";
+    case "rollup":
+      return `${f?.name ?? "Field"}: rollup`;
     case "describe":
       return `${f?.name ?? "Field"}: description`;
     case "more":
@@ -689,6 +762,7 @@ interface Ctx {
   patchPrefs: (p: Partial<ViewPrefs>) => void;
   view: ViewKind;
   onImport?: () => void;
+  adv: AdvCtx;
 }
 
 /* ============================================================ table */
@@ -1241,6 +1315,7 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
                   >
                     <Ic i={TYPE_ICON[f.type] ?? TYPE_ICON.text} s={14} />
                     <span>{f.name}</span>
+                    {ctx.adv.fieldErr(f.id) ? <span className="ocdb-ferr" title={ctx.adv.fieldErr(f.id)!.msg}>{ctx.adv.fieldErr(f.id)!.code}</span> : null}
                     {s ? <span className="ocdb-sortic"><Ic i={s.dir > 0 ? ArrowUp : ArrowDown} s={12} />{sorts.length > 1 ? <small>{sorts.indexOf(s) + 1}</small> : null}</span> : null}
                   </button>
                   {f.description ? (
@@ -1338,6 +1413,8 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
 
 function footCell(f: DbField, i: number, rows: DbRow[]): ReactNode {
   if (i === 0) return <div className="ocdb-cin">Count<b>{rows.length}</b></div>;
+  // Computed numbers: the sum skips error cells and says how many (prototype 1d).
+  if (f.type === "formula" || (f.type === "rollup" && (f.roll?.fn === "sum" || f.roll?.fn === "count"))) return computedFoot(f, rows);
   if (f.type === "number") {
     const s = rows.reduce((t, r) => t + (Number(r.v[f.id]) || 0), 0);
     return <div className="ocdb-cin ocdb-num">Sum<b>{fmtNum(s)}</b></div>;
@@ -1368,6 +1445,14 @@ function Cell({ rc, f, r, ri, ci, inSel }: { rc: RowCtx; f: DbField; r: DbRow; r
   const v = r.v[f.id];
   const hit = !!q && (f.type === "title" || f.type === "text" || f.type === "number") && String(v ?? "").toLowerCase().includes(q.toLowerCase());
   const tdProps = { "data-r": ri, "data-c": ci, tabIndex: -1, className: (inSel ? "sel" : "") + (hit ? " hit" : "") || undefined };
+  if (COMPUTED_TYPES.includes(f.type)) {
+    // Nobody types into a formula or rollup cell; numbers align right.
+    return (
+      <td {...tdProps}>
+        <div className={"ocdb-comp" + (typeof v === "number" ? " num" : "")}>{computedValue(f, v as FValue | undefined)}</div>
+      </td>
+    );
+  }
   if (f.type === "title" && rc.compact) {
     const t = typeof v === "string" ? v : v == null ? "" : String(v);
     return (
@@ -2293,6 +2378,12 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
               <Ic i={ChevronRight} s={14} />
             </button>
           ) : null}
+          {edit && (f.type === "formula" || f.type === "rollup") ? (
+            <button className="ocdb-mi" disabled={f.type === "formula" && ctx.adv.eng.status === "failed"} onClick={() => setPop({ kind: f.type as "formula", fid: f.id, anchor: pop.anchor, key: f.type + f.id })}>
+              <Ic i={Pencil} /><span className="lbl">{f.type === "formula" ? "Edit formula" : "Edit rollup"}</span>
+            </button>
+          ) : null}
+          {ctx.adv.fieldErr(f.id) ? <div className="ocdb-mh ocdb-fx-err" role="note"><b>{ctx.adv.fieldErr(f.id)!.code}</b> {ctx.adv.fieldErr(f.id)!.msg}</div> : null}
           <div className="ocdb-msep" />
           <button className="ocdb-mi" onClick={() => sortBy(1)}><Ic i={ArrowUp} />Sort ascending</button>
           <button className="ocdb-mi" onClick={() => sortBy(-1)}><Ic i={ArrowDown} />Sort descending</button>
@@ -2320,6 +2411,8 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
                 className="ocdb-mi danger"
                 onClick={() => {
                   close();
+                  // One side of a two-way relation: the other side stays, as one-way (prototype 2c).
+                  if (f.type === "relation") unpairBack(doc, f);
                   const b = deleteField(doc, db.id, f.id);
                   const p: Partial<ViewPrefs> = {};
                   const s = sortsOf(db, prefs), fl = rulesOf(db, prefs);
@@ -2382,7 +2475,66 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
     case "settings":
       return <SettingsBody ctx={ctx} />;
     case "fieldNew":
-      return <NewFieldBody key={pop.fid} ctx={ctx} fid={pop.fid} isNew={pop.isNew} done={close} />;
+      return <NewFieldBody key={pop.fid} ctx={ctx} fid={pop.fid} isNew={pop.isNew} done={close} onAdvanced={(t) => setPop({ kind: t as "formula", fid: pop.fid, anchor: pop.anchor, key: t + pop.fid })} />;
+    case "formula": {
+      const f = db.fields.find((x) => x.id === pop.fid);
+      const engine = ctx.adv.eng.engine;
+      if (!f) return null;
+      if (!engine) return <p className="ocdb-hint" style={{ padding: ".75rem" }}>{ctx.adv.eng.status === "failed" ? "Formula editing is paused: the engine couldn’t load." : "Loading formulas…"}</p>;
+      return (
+        <FormulaEditor
+          engine={engine}
+          db={db}
+          f={f}
+          related={ctx.adv.related}
+          compact={ctx.compact}
+          onCancel={close}
+          onSave={(src) => {
+            if (f.type === "formula") setFormula(doc, db.id, f.id, src);
+            else makeAdvanced(doc, db.id, f.id, "formula", { formula: src });
+            close();
+          }}
+        />
+      );
+    }
+    case "relation": {
+      const f = db.fields.find((x) => x.id === pop.fid);
+      if (!f) return null;
+      return (
+        <RelationSetup
+          doc={doc}
+          db={db}
+          f={f}
+          env={env}
+          onCancel={close}
+          onAdd={({ name, target, two }) => {
+            renameField(doc, db.id, f.id, name);
+            if (target.file) makeAdvanced(doc, db.id, f.id, "relation", { rel: { db: target.db, file: target.file } });
+            else addRelation(doc, db.id, f.id, target.db, { two, backName: db.name || "Related" });
+            close();
+          }}
+        />
+      );
+    }
+    case "rollup": {
+      const f = db.fields.find((x) => x.id === pop.fid);
+      if (!f) return null;
+      return (
+        <RollupSetup
+          doc={doc}
+          db={db}
+          f={f}
+          engine={ctx.adv.eng.engine}
+          related={ctx.adv.related}
+          onCancel={close}
+          onSave={(roll) => {
+            if (f.type === "rollup") setRollup(doc, db.id, f.id, roll);
+            else makeAdvanced(doc, db.id, f.id, "rollup", { roll });
+            close();
+          }}
+        />
+      );
+    }
     case "describe":
       return <DescribeBody key={pop.fid} ctx={ctx} fid={pop.fid} done={close} />;
     case "more":
@@ -2665,7 +2817,7 @@ function FilterBody({ ctx, fid, at, close }: { ctx: Ctx; fid?: string; at?: numb
  * Naming a field that was just added: the name is selected, the type picker sits under it.
  * Enter (or Done, or a click outside) keeps it; Escape removes the new field again (DbView).
  */
-function NewFieldBody({ ctx, fid, isNew, done }: { ctx: Ctx; fid: string; isNew: boolean; done: () => void }) {
+function NewFieldBody({ ctx, fid, isNew, done, onAdvanced }: { ctx: Ctx; fid: string; isNew: boolean; done: () => void; onAdvanced?: (t: FieldType) => void }) {
   const { doc, db, people } = ctx;
   const f = db.fields.find((x) => x.id === fid);
   const [name, setName] = useState(f?.name ?? "");
@@ -2687,8 +2839,13 @@ function NewFieldBody({ ctx, fid, isNew, done }: { ctx: Ctx; fid: string; isNew:
     [],
   );
   if (!f) return null;
-  const types = FIELD_TYPES.filter((t) => t !== "title");
+  const types = [...FIELD_TYPES.filter((t) => t !== "title"), ...(ctx.env.formulas && onAdvanced ? ADV_TYPES : [])];
   const pick = (t: FieldType) => {
+    // Formula, relation and rollup fields are set up in their own panel (ADR-078).
+    if (ADV_TYPES.includes(t)) {
+      renameField(doc, db.id, fid, name.trim() && name.trim() !== FIELD_LABEL[f.type] ? name.trim() : FIELD_LABEL[t]);
+      return onAdvanced?.(t);
+    }
     if (t !== f.type) {
       setFieldType(doc, db.id, fid, t, people.pickable);
       // A name nobody typed follows the type ("Text" becomes "Date").
@@ -3063,6 +3220,12 @@ function CellEditor({ ctx, f, r, close }: { ctx: Ctx; f: DbField; r: DbRow; clos
   const v = r.v[f.id];
   const set = (x: CellValue) => setCell(doc, db.id, r.id, f.id, x);
   const [q, setQ] = useState("");
+  if (f.type === "relation") {
+    const tf = db.fields.find((x) => x.type === "title");
+    const ids = Array.isArray(v) ? (v as string[]) : [];
+    return <RelationPicker doc={doc} f={f} value={ids} rowTitle={String(r.v[tf?.id ?? ""] ?? "") || "Untitled"} edit={ctx.edit && !f.rel?.file} onChange={(next) => setRelation(doc, db.id, r.id, f, next)} onDone={close} />;
+  }
+  if (COMPUTED_TYPES.includes(f.type)) return null;
 
   if (f.type === "status" || f.type === "select" || f.type === "tags") {
     const multi = f.type === "tags";

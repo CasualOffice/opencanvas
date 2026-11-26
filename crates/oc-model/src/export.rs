@@ -65,12 +65,17 @@ pub(crate) fn database_table(doc: &Value, id: &str) -> (String, Vec<String>, Vec
             .map(|r| r.keys().cloned().collect())
             .unwrap_or_default(),
     };
+    // Formula, rollup and relation cells show computed values (ADR-078, DB-A6).
+    let computed = crate::formula::rows_with_values(doc, id);
     let rows = order
         .iter()
         .map(|rid| {
             fields
                 .iter()
-                .map(|f| cell_value(&db["rows"][rid][s(f, "id")]))
+                .map(|f| {
+                    let v = &computed.get(rid).unwrap_or(&Value::Null)[s(f, "id")];
+                    crate::formula::cell_text(doc, f, v).unwrap_or_else(|| cell_value(v))
+                })
                 .collect()
         })
         .collect();

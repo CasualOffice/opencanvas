@@ -14,6 +14,7 @@ pub mod docx;
 pub mod export;
 pub mod ext;
 pub mod fonts;
+pub mod formula;
 pub mod history;
 pub mod html;
 pub mod icon_clean;

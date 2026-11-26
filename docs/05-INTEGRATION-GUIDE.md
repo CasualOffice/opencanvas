@@ -269,6 +269,16 @@ that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` 
 updated. Turning it off again is safe: a room folds its parts back into one document when it next
 opens. Temporary canvases and live block files are never split.
 
+### 2c-ter. Formulas, relations and rollups (DB4, ADR-078; `[host.flags] formulas`)
+
+`formulas = true` lets people add formula, relation and rollup fields to databases (off by
+default; the session JSON carries `formulas`). Fields that already exist always compute, whatever
+the flag. Only expressions and related row ids are stored in the canvas; the server computes the
+values for exports (Markdown, HTML, CSV, PDF), `search.json`, the API and MCP (`queryRows` /
+`db_query` return them, and filters and sorts see them). Errors are values (`{err: "#DIV/0", msg}`
+in JSON, the code in text exports). Relations across canvases go only through a live block already
+on the canvas, are one-way, and show "No access" to readers without access to the live file.
+
 ### 2d. Offline copies (OFF-01..08, docs/34 §3, ADR-063, ADR-064; `[host.offline]`)
 
 A person can keep a canvas **on their own device** and keep editing without a network; the edits

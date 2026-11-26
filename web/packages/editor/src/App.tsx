@@ -917,12 +917,14 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       icons: session.demo ? demoIcons(doc, me) : serverIcons(session.ticket),
       // EDP-01: `[host.editor.features] diagramming`.
       diagramming: featureOn("diagramming"),
+      // ADR-078: formula, relation and rollup fields (`[host.flags] formulas`; on in the demo).
+      formulas: !!session.formulas || !!session.demo,
       // AUTO-06 frame 1c: the database header's Automate button (editors who may automate).
       automations: autoEdit ? (id: string) => rulesOf(id).length : undefined,
       automate: autoEdit ? (id: string, anchor: HTMLElement) => setDbMenu({ dbId: id, anchor }) : undefined,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, doc, autoEdit, ruleCount],
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, session.formulas, doc, autoEdit, ruleCount],
   );
 
   const openThread = useCallback((id: string) => {
