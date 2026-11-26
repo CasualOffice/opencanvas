@@ -75,6 +75,9 @@ const HAND: &[&str] = &[
     r#"Prop("Qty") * 2"#,
     r#"true & false"#,
     "1 <> 2 = TRUE",
+    r#"IF(prop("Qty") = 0, empty, prop("Qty"))"#,
+    r#"prop("Due") - now()"#,
+    r#"ISBLANK(EMPTY)"#,
 ];
 
 /// A small deterministic generator (xorshift) so the vector set is stable and reviewable.

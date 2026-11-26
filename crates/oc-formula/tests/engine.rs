@@ -159,6 +159,23 @@ fn dates_durations_and_lists() {
 }
 
 #[test]
+fn now_and_empty_as_in_the_prototype() {
+    assert_eq!(ev(r#"prop("Due") - NOW()"#), Value::Num(19.0));
+    assert_eq!(
+        ev(r#"IF(prop("Qty") = 0, EMPTY, prop("Qty"))"#),
+        Value::Num(4.0)
+    );
+    assert_eq!(
+        check(r#"IF(prop("Qty") = 0, EMPTY, prop("Qty"))"#, &schema),
+        Ok(Ty::Num)
+    );
+    assert_eq!(
+        normalize("if(true, empty, now())"),
+        "IF(TRUE, EMPTY, NOW())"
+    );
+}
+
+#[test]
 fn rename_rewrites_prop_references() {
     assert_eq!(
         rename_prop(r#"prop("Qty") * PROP("Qty")"#, "Qty", "Count"),

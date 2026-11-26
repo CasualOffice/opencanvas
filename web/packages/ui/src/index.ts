@@ -84,6 +84,15 @@ export interface BlockEnv {
    * write. Absent (no server): Add your own icon is offered but disabled.
    */
   icons?: IconApi;
+  /** ADR-078, `[host.flags] formulas`: formula, relation and rollup fields can be added. */
+  formulas?: boolean;
+  /**
+   * Optional (ADR-078, prototype 2d): databases in other canvases that have a live block on this
+   * canvas, for relations across canvases.
+   */
+  liveDbs?: () => { fileId: string; dbId: string; name: string; source: string }[];
+  /** Optional: what this reader may see of such a database; `"noAccess"` without access. */
+  liveDb?: (fileId: string, dbId: string) => { fields: { id: string; name: string; type: string }[]; rows: { id: string; v: Record<string, unknown> }[] } | "noAccess" | null;
 }
 
 /** What the server's cleaner says about a file (`POST /v1/icons?dryRun=1`). */

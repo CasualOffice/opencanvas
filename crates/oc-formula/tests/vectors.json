@@ -302,6 +302,18 @@
       "src": "1 <> 2 = TRUE"
     },
     {
+      "out": 4.0,
+      "src": "IF(prop(\"Qty\") = 0, empty, prop(\"Qty\"))"
+    },
+    {
+      "out": 19.0,
+      "src": "prop(\"Due\") - now()"
+    },
+    {
+      "out": true,
+      "src": "ISBLANK(EMPTY)"
+    },
+    {
       "out": 7.0,
       "src": "7"
     },
@@ -2434,18 +2446,6 @@
     {
       "out": 1.0,
       "src": "LEN(TEXT(ROUND(0, 1)))"
-    },
-    {
-      "out": 4.0,
-      "src": "IF(TRUE, prop(\"Qty\"), ROUND(prop(\"Qty\"), 0))"
-    },
-    {
-      "out": false,
-      "src": "NOT(AND(AND(prop(\"Done\"), prop(\"Done\")), TRUE))"
-    },
-    {
-      "out": 2.0,
-      "src": "LEN(UPPER(TEXT(1) & prop(\"Qty\")))"
     }
   ],
   "fields": [

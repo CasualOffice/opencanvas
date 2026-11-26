@@ -4,6 +4,8 @@
 // Styles for the database block. Injected once into document.head on first mount.
 // Uses only design tokens from @opencanvas/ui/tokens.css; light and dark come free.
 
+import { ADV_CSS } from "./formula/styles";
+
 export const CSS = `
 .ocdb,.ocdb-layer{font-family:var(--font);color:var(--fg);font-size:.875rem;line-height:1.5;-webkit-font-smoothing:antialiased}
 .ocdb *,.ocdb-layer *{box-sizing:border-box}
@@ -442,6 +444,6 @@ export function ensureStyles() {
   if (document.querySelector("style[data-ocdb]")) return;
   const s = document.createElement("style");
   s.setAttribute("data-ocdb", "");
-  s.textContent = CSS;
+  s.textContent = CSS + ADV_CSS;
   document.head.appendChild(s);
 }

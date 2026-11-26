@@ -436,7 +436,8 @@ fn call(name: &str, args: &[Node], c: &mut Ctx) -> Value {
                 v => Value::Text(text_of(v)),
             }
         }
-        "TODAY" => Value::Date(c.today),
+        "TODAY" | "NOW" => Value::Date(c.today),
+        "EMPTY" => Value::Empty,
         "DATE" => {
             let (y, m, d) = (tri!(n(0)), tri!(n(1)), tri!(n(2)));
             if !(1.0..=9999.0).contains(&y) || m.abs() > 120_000.0 || d.abs() > 3_000_000.0 {

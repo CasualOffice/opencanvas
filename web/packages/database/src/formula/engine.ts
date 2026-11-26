@@ -78,14 +78,21 @@ export async function instantiate(bytes: BufferSource): Promise<Engine> {
 
 let loading: Promise<Engine> | null = null;
 
+/** Where the WASM bytes come from; tests (no fetch of file URLs) set their own. */
+let source = (): Promise<ArrayBuffer> =>
+  fetch(new URL("./oc_formula.wasm", import.meta.url)).then((r) => {
+    if (!r.ok) throw new Error(`formula engine: HTTP ${r.status}`);
+    return r.arrayBuffer();
+  });
+export function setEngineSource(fn: () => Promise<ArrayBuffer>) {
+  source = fn;
+  loading = null;
+}
+
 /** Loads the engine once; a failed load can be retried (the promise is dropped). */
 export function loadEngine(): Promise<Engine> {
   if (!loading) {
-    loading = fetch(new URL("./oc_formula.wasm", import.meta.url))
-      .then((r) => {
-        if (!r.ok) throw new Error(`formula engine: HTTP ${r.status}`);
-        return r.arrayBuffer();
-      })
+    loading = source()
       .then(instantiate)
       .catch((e) => {
         loading = null;

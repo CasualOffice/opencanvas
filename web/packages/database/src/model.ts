@@ -5,7 +5,7 @@ import * as Y from "yjs";
 import type { OcUser, Tone } from "@opencanvas/ui";
 import { coerce, detectFields, parseCsv, splitTags, toCsv, toneFor } from "./csv";
 import { DEMO_PEOPLE, PRESETS, type DbPreset } from "./presets";
-import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, ViewKind, ViewPrefs } from "./types";
+import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, RelDef, RollDef, ViewKind, ViewPrefs } from "./types";
 import { VIEW_KINDS } from "./types";
 
 /** Transaction origin for every local database mutation. */
@@ -22,7 +22,7 @@ export function getDbMap(doc: Y.Doc, dbId: string): Y.Map<unknown> | null {
   return m instanceof Y.Map ? m : null;
 }
 
-const emptyValue = (t: FieldType): CellValue => (t === "tags" ? [] : t === "checkbox" ? false : null);
+const emptyValue = (t: FieldType): CellValue => (t === "tags" || t === "relation" ? [] : t === "checkbox" ? false : null);
 
 function fieldToY(f: DbField): Y.Map<unknown> {
   const m = new Y.Map<unknown>();
@@ -31,6 +31,9 @@ function fieldToY(f: DbField): Y.Map<unknown> {
   m.set("type", f.type);
   m.set("options", f.options ? f.options.map((o) => ({ v: o.v, c: o.c })) : null);
   if (f.description) m.set("description", f.description);
+  if (f.formula != null) m.set("formula", f.formula);
+  if (f.rel) m.set("rel", { ...f.rel });
+  if (f.roll) m.set("roll", { ...f.roll });
   return m;
 }
 
@@ -158,7 +161,14 @@ function readFields(m: Y.Map<unknown>): DbField[] {
       }
     }
     const description = f.get("description");
-    out.push({ id, name: String(f.get("name") ?? ""), type: (f.get("type") as FieldType) ?? "text", options, ...(typeof description === "string" && description.trim() ? { description } : {}) });
+    const formula = f.get("formula"), rel = f.get("rel"), roll = f.get("roll");
+    out.push({
+      id, name: String(f.get("name") ?? ""), type: (f.get("type") as FieldType) ?? "text", options,
+      ...(typeof description === "string" && description.trim() ? { description } : {}),
+      ...(typeof formula === "string" ? { formula } : {}),
+      ...(rel && typeof rel === "object" && typeof (rel as RelDef).db === "string" ? { rel: rel as RelDef } : {}),
+      ...(roll && typeof roll === "object" && typeof (roll as RollDef).rel === "string" ? { roll: roll as RollDef } : {}),
+    });
   }
   return out;
 }
@@ -213,19 +223,19 @@ function ensure<T>(m: Y.Map<unknown>, key: string, make: () => T): T {
   m.set(key, n);
   return n;
 }
-const rowsOf = (m: Y.Map<unknown>) => ensure(m, "rows", () => new Y.Map<Y.Map<unknown>>()) as Y.Map<Y.Map<unknown>>;
+export const rowsOf = (m: Y.Map<unknown>) => ensure(m, "rows", () => new Y.Map<Y.Map<unknown>>()) as Y.Map<Y.Map<unknown>>;
 const orderOf = (m: Y.Map<unknown>) => ensure(m, "order", () => new Y.Array<string>()) as Y.Array<string>;
-const fieldsOf = (m: Y.Map<unknown>) => ensure(m, "fields", () => new Y.Array<Y.Map<unknown>>()) as Y.Array<Y.Map<unknown>>;
+export const fieldsOf = (m: Y.Map<unknown>) => ensure(m, "fields", () => new Y.Array<Y.Map<unknown>>()) as Y.Array<Y.Map<unknown>>;
 const notesOf = (m: Y.Map<unknown>) => ensure(m, "notes", () => new Y.Map<string>()) as Y.Map<string>;
 const viewsOf = (m: Y.Map<unknown>) => ensure(m, "views", () => new Y.Map<unknown>()) as Y.Map<unknown>;
 
-function tx(doc: Y.Doc, dbId: string, fn: (m: Y.Map<unknown>) => void) {
+export function tx(doc: Y.Doc, dbId: string, fn: (m: Y.Map<unknown>) => void) {
   const m = getDbMap(doc, dbId);
   if (!m) return;
   doc.transact(() => fn(m), DB_ORIGIN);
 }
 
-function fieldY(m: Y.Map<unknown>, fid: string): Y.Map<unknown> | undefined {
+export function fieldY(m: Y.Map<unknown>, fid: string): Y.Map<unknown> | undefined {
   return fieldsOf(m)
     .toArray()
     .find((f) => f instanceof Y.Map && f.get("id") === fid);
@@ -338,6 +348,7 @@ export function restoreRow(doc: Y.Doc, dbId: string, b: RowBackup) {
 export const FIELD_LABEL: Record<FieldType, string> = {
   title: "Title", text: "Text", status: "Status", select: "Select", tags: "Tags", person: "Person",
   date: "Date", number: "Number", checkbox: "Checkbox", url: "URL", progress: "Progress",
+  formula: "Formula", relation: "Relation", rollup: "Rollup",
 };
 
 export function defaultOptions(t: FieldType): DbOption[] | undefined {
@@ -355,8 +366,26 @@ export function addField(doc: Y.Doc, dbId: string, type: FieldType, name?: strin
   return fid;
 }
 
+/** Set once the formula engine loads: rewrites `prop("old")` to `prop("new")` (ADR-078). */
+let renamer: ((src: string, old: string, next: string) => string) | null = null;
+export const setFormulaRenamer = (fn: typeof renamer) => void (renamer = fn);
+
 export function renameField(doc: Y.Doc, dbId: string, fid: string, name: string) {
-  tx(doc, dbId, (m) => fieldY(m, fid)?.set("name", name));
+  tx(doc, dbId, (m) => {
+    const fy = fieldY(m, fid);
+    const old = fy?.get("name");
+    fy?.set("name", name);
+    // Formulas refer to fields by name: they follow a rename.
+    if (renamer && typeof old === "string" && old !== name) {
+      for (const f of fieldsOf(m).toArray()) {
+        const src = f instanceof Y.Map ? f.get("formula") : null;
+        if (typeof src === "string") {
+          const next = renamer(src, old, name);
+          if (next !== src) f.set("formula", next);
+        }
+      }
+    }
+  });
 }
 
 export function addOption(doc: Y.Doc, dbId: string, fid: string, v: string): DbOption | null {

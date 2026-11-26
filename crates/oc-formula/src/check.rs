@@ -231,6 +231,20 @@ pub const FUNCS: &[Func] = &[
         max: 2,
     },
     Func {
+        name: "NOW",
+        sig: "NOW()",
+        doc: "Today's date (dates have no time of day)",
+        min: 0,
+        max: 0,
+    },
+    Func {
+        name: "EMPTY",
+        sig: "EMPTY",
+        doc: "An empty value (shows as a dash)",
+        min: 0,
+        max: 0,
+    },
+    Func {
         name: "TODAY",
         sig: "TODAY()",
         doc: "Today's date",
@@ -486,7 +500,8 @@ pub fn infer(n: &Node, schema: &dyn Fn(&str) -> Option<Ty>) -> Result<Ty, Formul
                     at(1, Ty::Text)?;
                     Ty::Text
                 }
-                "TODAY" => Ty::Date,
+                "TODAY" | "NOW" => Ty::Date,
+                "EMPTY" => Ty::Any,
                 "DATE" => {
                     all(Ty::Num)?;
                     Ty::Date

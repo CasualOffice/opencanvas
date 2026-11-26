@@ -15,7 +15,18 @@ export type FieldType =
   | "number"
   | "checkbox"
   | "url"
-  | "progress";
+  | "progress"
+  /** ADR-078 (v0.4): computed from `formula`; nothing stored in cells. */
+  | "formula"
+  /** ADR-078: cells hold row ids of the database in `rel`. */
+  | "relation"
+  /** ADR-078: computed from `roll` over a relation; nothing stored in cells. */
+  | "rollup";
+
+/** Field types that need `[host.flags] formulas` to be added (ADR-078). */
+export const ADV_TYPES: FieldType[] = ["formula", "relation", "rollup"];
+/** Field types whose cells are computed, never typed into. */
+export const COMPUTED_TYPES: FieldType[] = ["formula", "rollup"];
 
 export const FIELD_TYPES: FieldType[] = ["title", "text", "status", "select", "tags", "person", "date", "number", "checkbox", "url", "progress"];
 
@@ -32,6 +43,31 @@ export interface DbField {
   options?: DbOption[];
   /** Optional note on the field (what it means, how to fill it). Plain text, may be multi-line. */
   description?: string;
+  /** `formula` fields: the expression (`prop("Price") * prop("Qty")`), ≤ 4 KB. */
+  formula?: string;
+  /** `relation` fields: the target database (docs/15 §4, ADR-078). */
+  rel?: RelDef;
+  /** `rollup` fields: relation field, field of the related rows, calculation. */
+  roll?: RollDef;
+}
+
+export interface RelDef {
+  db: string;
+  /** Another canvas: the live block's file id (one-way, read under that file's ACL). */
+  file?: string;
+  /** Two-way: `back` is the paired relation field in the target database. */
+  two?: boolean;
+  back?: string;
+  /** `YYYY-MM-DD` the target database was first seen missing; ids are kept 30 days. */
+  goneAt?: string;
+}
+
+export type RollFn = "count" | "sum" | "percent" | "earliest" | "latest";
+
+export interface RollDef {
+  rel: string;
+  f?: string;
+  fn: RollFn;
 }
 
 export type ViewKind = "table" | "board" | "calendar" | "gallery";

@@ -14,6 +14,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   any case stored upper case, errors as values (`#TYPE`, `#REF`, `#DIV/0`, `#CYCLE`, `#LIMIT`),
   limits of 4 KB, depth 64 and a step budget. Exports, `search.json`, `queryRows` and MCP `db_query`
   carry computed values (DB4-10). `[host.flags] formulas` turns on adding the new field types.
+- Formula, relation and rollup fields in databases (DB4-03/04/06): formula editor with autocomplete and
+  errors as you type, error cells with their reason, sums that skip errors; relations two-way on one
+  canvas with a row picker; rollups (count, sum, percent checked, earliest, latest) with a dash when
+  nothing relates; links to a deleted database kept for 30 days.
 
 - Benchmarks page on the site (BENCH-05): every result in `bench/results/` with its hardware, store and
   load mix beside the numbers; `local` runs marked as such. `/metrics` adds `oc_alloc_allocated_bytes`

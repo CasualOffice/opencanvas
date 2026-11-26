@@ -271,6 +271,11 @@ impl P<'_> {
                             e: Expr::Bool(false),
                             pos,
                         }),
+                        // Prototype 1e: `EMPTY` (no parentheses) is the empty value.
+                        "EMPTY" => Ok(Node {
+                            e: Expr::Call(up, vec![]),
+                            pos,
+                        }),
                         _ => Err(fe(
                             ErrCode::Ref,
                             format!("Unknown name “{name}”; write prop(\"{name}\") for a field"),
@@ -395,7 +400,7 @@ pub fn normalize(src: &str) -> String {
             let up = name.to_ascii_uppercase();
             let want = if call && up == "PROP" {
                 "prop".to_string()
-            } else if call || up == "TRUE" || up == "FALSE" {
+            } else if call || up == "TRUE" || up == "FALSE" || up == "EMPTY" {
                 up
             } else {
                 return None;

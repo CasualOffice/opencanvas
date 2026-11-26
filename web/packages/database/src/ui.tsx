@@ -4,7 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlignLeft, BookOpen, Bug, Calendar, CalendarDays, CircleChevronDown, CircleDot, ClipboardList, Database, FileSpreadsheet,
+  AlignLeft, ArrowUpRight, BookOpen, ChartNoAxesColumn, Sigma, Bug, Calendar, CalendarDays, CircleChevronDown, CircleDot, ClipboardList, Database, FileSpreadsheet,
   Gauge, Handshake, Hash, Link2, ListChecks, ListTodo, Map as MapIcon, MessageSquare, PartyPopper, Repeat, SquareCheck,
   SquareKanban, Tags, Target, Text, UserPlus, UserRound, X, type LucideIcon, type LucideProps,
 } from "lucide-react";
@@ -28,7 +28,7 @@ export const dbIcon = (name: string): LucideIcon => DB_ICONS[name] ?? Database;
 
 export const TYPE_ICON: Record<FieldType, LucideIcon> = {
   title: Text, text: AlignLeft, status: CircleDot, select: CircleChevronDown, tags: Tags, person: UserRound,
-  date: Calendar, number: Hash, checkbox: SquareCheck, url: Link2, progress: Gauge,
+  date: Calendar, number: Hash, checkbox: SquareCheck, url: Link2, progress: Gauge, formula: Sigma, relation: ArrowUpRight, rollup: ChartNoAxesColumn,
 };
 
 export function Avatar({ u, size = "" }: { u: OcUser; size?: "" | "xs" | "md" }) {
