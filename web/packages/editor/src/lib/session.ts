@@ -48,6 +48,8 @@ export interface Session {
   unfurl?: boolean;
   /** TPL-01: the host's `team_templates` flag (the gallery's "From your team" section). */
   templates?: { team?: boolean } | null;
+  /** SRCH-04 (ADR-065): "Search all canvases" only when the host answers `GET /search`. */
+  search?: { enabled?: boolean } | null;
   /** BSDK-01: the SDK block packages this host enables (docs/15 §2). */
   blocks?: BlockPackage[];
   /** EDP-01: the host's editor profile, insertable blocks and feature switches (docs/15 §2). */

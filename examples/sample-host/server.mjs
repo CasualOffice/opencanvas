@@ -479,7 +479,7 @@ function openFile(res, me, id) {
       if (!window.ocHoldRefresh) window.ocRenew();
     }
     // "Search all canvases" opened a result in another canvas (docs/05 §4, SRCH-04).
-    if (MessageId === 'UI_OpenFile' && /^[\w-]{1,64}$/.test(Values.fileId || '')) {
+    if (MessageId === 'UI_OpenFile' && /^[A-Za-z0-9_-]{1,64}$/.test(Values.fileId || '')) {
       const b = /^[A-Za-z0-9_-]{1,64}$/.test(Values.blockId || '') ? '#block=' + Values.blockId : '';
       const href = '/files/' + Values.fileId + b;
       if (Values.newTab) window.open(href, '_blank', 'noopener'); else location.href = href;

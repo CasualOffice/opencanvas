@@ -66,6 +66,10 @@ export function TopBar(props: {
   onShortcuts(): void;
   /** Shown only when the assistant is on for this person (docs/24 §10.2). */
   onAssistant?: () => void;
+  /** SRCH-01: "Find in canvas ⌘F". */
+  onFind?: () => void;
+  /** SRCH-04: "Search all canvases ⌘⇧F"; absent (hidden, not disabled) without the host's callback (frame 2e). */
+  onSearchAll?: () => void;
 }) {
   const { compact } = useShell();
   const pressed = useRef<{ id: number; fired: boolean } | null>(null);
@@ -244,6 +248,21 @@ export function TopBar(props: {
       ) : null}
       {pop?.kind === "more" ? (
         <Popover anchor={pop.anchor} onClose={close} title="Canvas" alignRight minWidth={240}>
+          {props.onFind ? (
+            <button className="mi" onClick={() => (close(), props.onFind!())}>
+              <Ic name="search" />
+              Find in canvas
+              {!compact ? <span className="mk">{isMac ? "⌘F" : "Ctrl+F"}</span> : null}
+            </button>
+          ) : null}
+          {props.onSearchAll ? (
+            <button className="mi" onClick={() => (close(), props.onSearchAll!())}>
+              <Ic name="file-search" />
+              Search all canvases
+              {!compact ? <span className="mk">{isMac ? "⇧⌘F" : "Ctrl+Shift+F"}</span> : null}
+            </button>
+          ) : null}
+          {props.onFind || props.onSearchAll ? <div className="msep" /> : null}
           {props.onHistory ? (
             <>
               <button className="mi" onClick={() => (close(), props.onHistory!())}>

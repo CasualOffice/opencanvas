@@ -47,6 +47,9 @@ const GROUPS: [string, [string, string][]][] = [
   [
     "Canvas",
     [
+      ["Mod-f", "Find in this canvas (Enter, Shift-Enter: next, previous)"],
+      ["Mod-Alt-f", "Find and replace"],
+      ["Mod-Shift-f", "Search all canvases (when your app offers it)"],
       ["Mod-z", "Undo your last change"],
       ["Mod-Shift-z", "Redo"],
       ["Escape", "Close a menu or dialog"],

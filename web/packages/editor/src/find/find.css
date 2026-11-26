@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 CasualOffice */
+/* Find and replace (SRCH-01), to the approved prototype frames 1a-1h and 5a-5b. rem units. */
+
+.oc-find-hit{background:color-mix(in srgb,#f5c542 45%,transparent);border-radius:.125rem;box-shadow:0 0 0 1px color-mix(in srgb,#f5c542 60%,transparent)}
+.oc-find-hit.cur{background:#f59e0b;color:#1a1200;box-shadow:0 0 0 .125rem #f59e0b}
+.oc-find-cell{background:color-mix(in srgb,#f5c542 30%,transparent)!important}
+.oc-find-cell.cur{box-shadow:inset 0 0 0 .125rem #f59e0b!important}
+.oc-find-shape{outline:.125rem solid color-mix(in srgb,#f59e0b 55%,transparent);outline-offset:.125rem}
+.oc-find-shape.cur{outline-color:#f59e0b}
+:root[data-theme="dark"] .oc-find-hit{background:rgba(245,197,66,.28);color:var(--fg)}
+:root[data-theme="dark"] .oc-find-hit.cur{background:#f5b53d;color:#1a1200}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .oc-find-hit{background:rgba(245,197,66,.28);color:var(--fg)}
+  :root:not([data-theme="light"]) .oc-find-hit.cur{background:#f5b53d;color:#1a1200}
+}
+
+.fb{position:absolute;z-index:20;right:1.25rem;top:1rem;width:min(30rem,calc(100% - 2.5rem));background:var(--pop);border-radius:.75rem;box-shadow:var(--sh-pop);padding:.375rem;display:flex;flex-direction:column;gap:.375rem}
+.fb-r{display:flex;align-items:center;gap:.25rem}
+.fb-sp{width:1.75rem;flex:none}
+.fb-in{flex:1;min-width:0;height:2rem;border-radius:.5rem;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--app);display:flex;align-items:center;gap:.375rem;padding:0 .25rem 0 .5rem;font-size:.875rem;color:var(--fg-2)}
+.fb-in:focus-within{box-shadow:inset 0 0 0 1.5px var(--accent),0 0 0 .1875rem var(--accent-ring)}
+.fb-in.err{box-shadow:inset 0 0 0 1.5px var(--red-fg)}
+.fb-field{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--fg);font:inherit;height:100%;padding:0}
+.fb-field::-webkit-search-cancel-button{display:none}
+.fb-o{width:1.5rem;height:1.5rem;border:0;border-radius:.3125rem;display:grid;place-items:center;color:var(--fg-2);background:transparent;flex:none;cursor:pointer}
+.fb-o:hover{background:var(--hover)}
+.fb-o.on{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.fb-c{font-size:.75rem;color:var(--fg-2);min-width:4.25rem;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fb-c.bad{color:var(--red-fg)}
+.fb-b{width:1.75rem;height:1.75rem;border:0;border-radius:.4375rem;display:grid;place-items:center;color:var(--fg-2);background:transparent;flex:none;cursor:pointer}
+.fb-b:hover:not(:disabled){background:var(--hover);color:var(--fg)}
+.fb-b:disabled{opacity:.45;cursor:default}
+.fb-b.on{background:var(--hover);color:var(--fg)}
+.fb-b.big{width:2.75rem;height:2.75rem}
+.fb-b .rot{transform:rotate(90deg)}
+.fb-o:focus-visible,.fb-b:focus-visible,.pfb-done:focus-visible,.pfb-act:focus-visible{outline:.125rem solid var(--accent);outline-offset:.0625rem}
+.fb-btn{height:2rem}
+.fb-btn:disabled{opacity:.5}
+.fb-err{display:flex;gap:.375rem;align-items:center;font-size:.75rem;color:var(--red-fg);padding:0 .5rem .25rem 2.25rem}
+.fb-err code{font-family:var(--mono)}
+.fb-sub-line{font-size:.75rem;color:var(--fg-2);padding:0 .5rem .25rem 2.25rem}
+.fb-menu{border-top:1px solid var(--line);padding:.375rem .25rem .125rem;display:flex;flex-direction:column}
+.fb-mh{font-size:.6875rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2);padding:.375rem .5rem .25rem}
+.fb-mi{display:flex;align-items:center;gap:.5rem;min-height:2rem;padding:0 .5rem;border-radius:.375rem;font-size:.8125rem;color:var(--fg);cursor:pointer}
+.fb-mi:hover{background:var(--hover)}
+.fb-mi input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
+.fb-ticks{position:absolute;z-index:6;top:0;bottom:0;width:.625rem;margin-left:-.625rem;pointer-events:none}
+.fb-ticks i{position:absolute;left:.125rem;right:.125rem;height:.1875rem;border-radius:1px;background:#e0a526}
+.fb-ticks i.cur{background:#b86e00;height:.3125rem}
+.fb-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fb-grow{flex:1}
+
+/* Phone: the bar replaces the top bar; actions sit above the keyboard. Targets 44 px. */
+.pfb{position:fixed;z-index:60;left:0;right:0;top:0;display:flex;align-items:center;gap:.5rem;padding:.5rem .5rem .5rem .75rem;background:var(--app);border-bottom:1px solid var(--line);padding-top:max(.5rem,env(safe-area-inset-top))}
+.pfb .fb-in{height:2.75rem;font-size:1rem}
+.pfb-done{border:0;background:transparent;font-size:.9375rem;font-weight:600;color:var(--accent);padding:0 .5rem;height:2.75rem;min-width:2.75rem;cursor:pointer}
+.pfb-msg{position:fixed;z-index:60;left:0;right:0;top:3.75rem;background:var(--app);padding:.25rem .75rem;border-bottom:1px solid var(--line)}
+.pfb-msg .fb-err,.pfb-msg.fb-sub-line{padding:.25rem 0}
+.pfb-bar{position:fixed;z-index:60;left:0;right:0;bottom:var(--kb,0px);display:flex;align-items:center;gap:.25rem;padding:.25rem .5rem;padding-bottom:max(.25rem,env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+.pfb-act{height:2.75rem;border:0;border-radius:.5rem;background:transparent;color:var(--fg);display:inline-flex;align-items:center;gap:.375rem;padding:0 .75rem;font-size:.9375rem;cursor:pointer}
+.pfb-scrim{position:fixed;inset:0;z-index:70;background:rgba(10,10,14,.35);display:flex;align-items:flex-end}
+.pfb-sheet{width:100%;max-height:80vh;overflow:auto;background:var(--pop);border-radius:1rem 1rem 0 0;padding:1rem 1rem max(1rem,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:.5rem}
+.pfb-sheet h3{margin:.25rem 0;font-size:.9375rem;font-weight:600}
+.pfb-rep{height:2.75rem;border-radius:.5rem;border:0;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--app);color:var(--fg);padding:0 .75rem;font-size:1rem}
+.pfb-btns{display:flex;flex-direction:column;gap:.5rem}
+.pfb-btns .btn,.pfb-close{height:2.75rem;justify-content:center;font-size:.9375rem}
+.pfb-sw{display:flex;align-items:center;justify-content:space-between;min-height:2.75rem;font-size:.9375rem;color:var(--fg)}
+.pfb-sw input{width:2.75rem;height:1.5rem;accent-color:var(--accent)}

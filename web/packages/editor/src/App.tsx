@@ -52,6 +52,9 @@ const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 // VH-01d: the version history panel, preview and changes (its own chunk, with its CSS).
 const HistoryRoot = lazy(() => import("./history/root"));
+// SRCH-01/04: the find bar and "Search all canvases" load when first opened (initial JS budget).
+const FindBar = lazy(() => import("./find/FindBar").then((m) => ({ default: m.FindBar })));
+const SearchAll = lazy(() => import("./search/SearchAll").then((m) => ({ default: m.SearchAll })));
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
  *  Workspace shows the banner once (docs/23 PERM-03). Per room, in sessionStorage, so it
@@ -252,6 +255,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [team, setTeam] = useState<TeamState>(() => (teamEnabled(session) ? { s: "loading" } : { s: "off" }));
   const teamLoaded = useRef(false);
   const [help, setHelp] = useState(false);
+  // SRCH-01: the find bar (`replace` opens the replace row; `tick` re-focuses it on ⌘F again).
+  const [find, setFind] = useState<{ initial: string; replace: boolean; tick: number } | null>(null);
+  const [searchAll, setSearchAll] = useState(false);
   const pendingThread = useRef<string | null>(null);
   const modified = useRef(false);
 
@@ -598,6 +604,25 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     };
   }, [editor, scrollToBlock]);
 
+  // ---------- find in this canvas (SRCH-01) and search across canvases (SRCH-04) ----------
+  const openFind = useCallback(
+    (replace: boolean) => {
+      let initial = "";
+      if (editor && !editor.state.selection.empty) {
+        const { from, to } = editor.state.selection;
+        const t = editor.state.doc.textBetween(from, to, "\n");
+        if (t && !t.includes("\n") && t.length <= 200) initial = t;
+      }
+      setFind((f) => ({ initial: initial || f?.initial || "", replace, tick: (f?.tick ?? 0) + 1 }));
+    },
+    [editor],
+  );
+  const openFindRef = useRef(openFind);
+  openFindRef.current = openFind;
+  const searchOn = !!session.search?.enabled && !session.demo;
+  const searchOnRef = useRef(searchOn);
+  searchOnRef.current = searchOn;
+
   // ---------- keyboard shortcuts help: `?` outside text, Mod-Shift-/ anywhere ----------
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -614,6 +639,26 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         if (!canHistoryRef.current) return;
         e.preventDefault();
         setSide((s) => (s === "history" ? null : "history"));
+        return;
+      }
+      // SRCH-01: ⌘F / Ctrl+F opens our find while focus is in the canvas (not in a side panel
+      // or dialog: the browser's own find works there); ⌘⌥F / Ctrl+H opens replace.
+      // SRCH-04: ⌘⇧F / Ctrl+Shift+F searches all canvases when the host can.
+      if (mod && e.code === "KeyF" && !e.shiftKey) {
+        if (t?.closest?.(".side, [role=dialog], .vh-panel")) return;
+        e.preventDefault();
+        openFindRef.current(e.altKey);
+        return;
+      }
+      if (!isMac && e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyH") {
+        if (t?.closest?.(".side, [role=dialog]")) return;
+        e.preventDefault();
+        openFindRef.current(true);
+        return;
+      }
+      if (mod && e.shiftKey && e.code === "KeyF" && searchOnRef.current) {
+        e.preventDefault();
+        setSearchAll(true);
         return;
       }
       if ((mod && e.shiftKey && (e.code === "Slash" || e.key === "?")) || (!inText && !mod && !e.altKey && e.key === "?")) {
@@ -1114,6 +1159,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onRetry={() => collab.sendControl({ t: "save" })}
               onShortcuts={() => setHelp(true)}
               onAssistant={ai.on ? openAssistant : undefined}
+              onFind={editor ? () => openFind(false) : undefined}
+              onSearchAll={searchOn ? () => setSearchAll(true) : undefined}
             />
             {banners}
             <div className="body">
@@ -1143,6 +1190,38 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                   />
                 </div>
               </div>
+              {searchAll && searchOn ? (
+                <Suspense fallback={null}>
+                  <SearchAll
+                    ticket={session.ticket}
+                    hostName={hostName}
+                    fileId={session.file.id}
+                    compact={compact}
+                    onClose={() => setSearchAll(false)}
+                    onOpenHere={(blockId, q) => {
+                      if (blockId) scrollToBlock(blockId);
+                      setFind((f) => ({ initial: q, replace: false, tick: (f?.tick ?? 0) + 1 }));
+                    }}
+                    onOpenFile={(h, newTab) => postToHost("UI_OpenFile", { fileId: h.fileId, ...(h.blockId ? { blockId: h.blockId } : {}), newTab })}
+                  />
+                </Suspense>
+              ) : null}
+              {find && editor ? (
+                <Suspense fallback={null}>
+                  <FindBar
+                    editor={editor}
+                    doc={doc}
+                    canReplace={effectiveRole === "edit"}
+                    compact={compact}
+                    initial={find.initial}
+                    replace={find.replace}
+                    focusTick={find.tick}
+                    scrollEl={scrollRef.current}
+                    toast={(m, o) => toast(m, o ?? {})}
+                    onClose={() => setFind(null)}
+                  />
+                </Suspense>
+              ) : null}
               {side === "comments" ? (
                 <Suspense fallback={<aside className="side" aria-label="Comments" aria-busy="true" />}>
                   <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} users={allUsers} onActivate={setActive} onJump={jump} onClose={closeSide} />

@@ -37,6 +37,11 @@ const BLOCKS_HOST = `
 [host.blocks]
 enabled = ["e2e.okr@^1", "e2e.hostile", "e2e.mig", "e2e.tampered", "oc.progress", "acme.okr"]
 `;
+/** SRCH-03/04: the sample host answers GET /search from the search.json of each save. */
+const SEARCH_HOST = `
+[host.search]
+callback = true
+`;
 /** The block origin: a different origin from the editor's (localhost), same server. */
 export const BLOCKS_ORIGIN = "http://127.0.0.1:8280";
 
@@ -129,7 +134,7 @@ ${id === "sample" ? "history        = true" : "# no host versions: in-file histo
 ${ai}`;
   fs.writeFileSync(
     hosts,
-    entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST + BLOCKS_HOST) +
+    entry("sample", "Sample host", HOST, "copy", [SDK_HOST], AI_HOST + BLOCKS_HOST + SEARCH_HOST) +
       entry("sample-reload", "Reload host", HOST_RELOAD, "reload") +
       // EDP-01 (spec zc): the meeting editor profile.
       entry("sample-meeting", "Meeting host", HOST_MEETING, "copy", [], '\n[host.editor]\nprofile = "meeting"\n'),

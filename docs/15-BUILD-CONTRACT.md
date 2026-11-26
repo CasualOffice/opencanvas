@@ -562,6 +562,7 @@ hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the versio
 `POST /v1/history/restore/undo?ticket=&restoreId=` (the same person, within 30 s; `409 NOTHING_TO_UNDO` /
 `UNDO_EXPIRED`). History routes need `perms.history` (`403 HISTORY_FORBIDDEN`), `404 HISTORY_OFF` without
 a source, `404 VERSION_GONE`, `413 VERSION_TOO_LARGE`. ·
+Find and replace (SRCH-01, ADR-066) runs in the editor only (`web/packages/editor/src/find`, a lazy chunk); it sends nothing to the server, and replace writes are ordinary edits (text in one ProseMirror transaction, cells and shapes in one Yjs transaction with origin `@opencanvas/find`, one undo step).
 `GET /v1/search?ticket=&q=&scope=&cursor=` → the host's search as the session's person (SRCH-04,
 ADR-065): `{items:[{fileId,title,path?,blockId?,snippet,updatedAt?}],scopes,partial,next}`, `no-store`;
 404 `SEARCH_UNAVAILABLE` when the host has no callback (the session's `search.enabled` is then false),
