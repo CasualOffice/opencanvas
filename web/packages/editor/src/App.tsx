@@ -179,6 +179,8 @@ export default function App() {
         o.session.openedOffline = true;
         collab = connectCollab(o.session, { doc: o.doc, connect: false });
         collab.pending.restore(o.pending);
+        // PSYNC-03: the parts kept with the copy; the next connection syncs each with the room.
+        if (o.parts) collab.parts?.restore(o.parts.list, o.parts.states);
         patchView({ locked: o.locked, openedOffline: true, kept: true, net: "offline", validUntil: o.claims ? o.claims.exp * 1000 : null });
         setBoot({ phase: "ready", session: o.session, collab, demo: null, gen });
       };

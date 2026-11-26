@@ -15,6 +15,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/core";
 import * as Y from "yjs";
 import { yUndoPluginKey } from "@tiptap/y-tiptap";
+import { blockMap } from "../lib/blocks";
 
 export const MAX_MATCHES = 10_000;
 /** Time budget of one pass over the canvas for a pattern (docs/34 §4.2). */
@@ -246,8 +247,9 @@ export function findAll(doc: PMNode, ydoc: Y.Doc, re: RegExp, scope: Scope, budg
     matches.push(m);
     return true;
   };
-  const dbs = ydoc.getMap("databases");
-  const boards = ydoc.getMap("boards");
+  // Loaded parts included (a split room's databases and boards, PSYNC-03).
+  const dbs = { get: (id: string) => blockMap(ydoc, "databases", id) };
+  const boards = { get: (id: string) => blockMap(ydoc, "boards", id) };
   let going = true;
   doc.descendants((node, pos) => {
     if (!going) return false;
@@ -387,11 +389,11 @@ export function replaceMatches(editor: Editor, ydoc: Y.Doc, targets: Match[], re
         let target: Y.Map<unknown> | null = null;
         let key = "";
         if (m0.kind === "cell") {
-          const rows = (ydoc.getMap("databases").get(m0.dbId) as Y.Map<unknown> | undefined)?.get("rows");
+          const rows = blockMap(ydoc, "databases", m0.dbId)?.get("rows");
           target = rows instanceof Y.Map ? ((rows.get(m0.rowId) as Y.Map<unknown>) ?? null) : null;
           key = m0.fieldId;
         } else if (m0.kind === "shape") {
-          const shapes = (ydoc.getMap("boards").get(m0.boardId) as Y.Map<unknown> | undefined)?.get("shapes");
+          const shapes = blockMap(ydoc, "boards", m0.boardId)?.get("shapes");
           target = shapes instanceof Y.Map ? ((shapes.get(m0.shapeId) as Y.Map<unknown>) ?? null) : null;
           key = m0.key;
         }

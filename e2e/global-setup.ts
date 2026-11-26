@@ -11,7 +11,7 @@
 // Ports 8080/4000 (the dev defaults) are never touched, and only the processes
 // started here are stopped.
 //
-//   E2E_SKIP_BUILD=1   reuse target/release/opencanvas and web/packages/editor/dist
+//   E2E_SKIP_BUILD=1   reuse target/release/opencanvas (or $CARGO_TARGET_DIR) and web/packages/editor/dist
 //   E2E_KEEP=1         keep the temp dir (logs, DB, host data) after the run
 import { execSync, spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
@@ -19,7 +19,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { HOST, HOST_MEETING, HOST_OFFLINE, HOST_RELOAD, OC, port, ROOT, SDK_HOST } from "./env";
+import { HOST, HOST_MEETING, HOST_OFFLINE, HOST_PSYNC, HOST_RELOAD, OC, port, ROOT, SDK_HOST } from "./env";
 import { startMockModel, type MockModel } from "./mock-model";
 
 const children: ChildProcess[] = [];
@@ -106,14 +106,14 @@ function stopAll() {
 }
 
 export default async function globalSetup() {
-  for (const p of [8280, 4200, 4201, 4202, 4203, 4204].map(port)) {
+  for (const p of [8280, 4200, 4201, 4202, 4203, 4204, 4205].map(port)) {
     if (!(await portFree(p))) throw new Error(`[e2e] port ${p} is busy. Stop whatever runs there first (the suite never kills processes it didn't start).`);
   }
   if (process.env.E2E_SKIP_BUILD !== "1") {
     execSync("cargo build --release -p oc-server", { cwd: ROOT, stdio: "inherit" });
     execSync("pnpm --filter @opencanvas/editor build", { cwd: path.join(ROOT, "web"), stdio: "inherit" });
   }
-  const bin = path.join(ROOT, "target/release/opencanvas");
+  const bin = path.join(process.env.CARGO_TARGET_DIR ? path.resolve(ROOT, process.env.CARGO_TARGET_DIR) : path.join(ROOT, "target"), "release/opencanvas");
   if (!fs.existsSync(bin)) throw new Error(`[e2e] ${bin} is missing; run without E2E_SKIP_BUILD`);
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "oc-e2e-"));
@@ -145,7 +145,9 @@ ${ai}`;
       // EDP-01 (spec zc): the meeting editor profile.
       entry("sample-meeting", "Meeting host", HOST_MEETING, "copy", [], '\n[host.editor]\nprofile = "meeting"\n') +
       // OFF-01..07 (spec zf): offline copies, a short grant for the expiry case.
-      entry("sample-offline", "Offline host", HOST_OFFLINE, "copy", [], '\n[host.offline]\nenabled = true\ngrant_days = 7\nmax_canvases = 3\n'),
+      entry("sample-offline", "Offline host", HOST_OFFLINE, "copy", [], '\n[host.offline]\nenabled = true\ngrant_days = 7\nmax_canvases = 3\n') +
+      // PSYNC-02/03 (spec zh): databases and boards as subdocuments (a line of [host.flags]).
+      entry("sample-psync", "Partial sync host", HOST_PSYNC, "copy", [], "partial_sync = true\n"),
   );
   const blocksDir = path.join(tmp, "blocks");
   fs.mkdirSync(blocksDir);
@@ -194,10 +196,11 @@ ${ai}`;
   host("host-reload", port(4201), "sample-reload");
   host("host-meeting", port(4203), "sample-meeting");
   host("host-offline", port(4204), "sample-offline", { OC_HOST_OFFLINE: "1" });
+  host("host-psync", port(4205), "sample-psync");
   process.once("exit", stopAll);
 
   try {
-    await Promise.all([waitFor(`${OC}/readyz`), waitFor(`${HOST}/healthz`), waitFor(`${HOST_RELOAD}/healthz`), waitFor(`${HOST_MEETING}/healthz`), waitFor(`${HOST_OFFLINE}/healthz`)]);
+    await Promise.all([waitFor(`${OC}/readyz`), waitFor(`${HOST}/healthz`), waitFor(`${HOST_RELOAD}/healthz`), waitFor(`${HOST_MEETING}/healthz`), waitFor(`${HOST_OFFLINE}/healthz`), waitFor(`${HOST_PSYNC}/healthz`)]);
   } catch (e) {
     stopAll();
     throw e;

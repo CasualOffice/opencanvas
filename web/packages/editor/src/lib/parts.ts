@@ -13,6 +13,8 @@ import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 
 export const MESSAGE_SUBDOC = 101;
+/** The inner message is a whole y-protocols message: its type (0, sync) comes first. */
+const MESSAGE_SYNC = 0;
 /** A part out of view this long is released (docs/36 §2.2 point 8). */
 export const RELEASE_MS = 120_000;
 
@@ -43,13 +45,22 @@ interface Held {
 
 export const blockOf = (guid: string) => guid.slice(guid.indexOf("/block/") + 7);
 
-/** One frame: `[101, guid, <y-protocols sync message>]`. */
+/** One frame: `[101, varUint8Array([varString guid, <y-protocols message>])]` (a y-protocols
+ *  custom message, like the control message 100). */
 export function subFrame(guid: string, inner: Uint8Array): Uint8Array {
+  const payload = encoding.createEncoder();
+  encoding.writeVarString(payload, guid);
+  encoding.writeUint8Array(payload, inner);
   const enc = encoding.createEncoder();
   encoding.writeVarUint(enc, MESSAGE_SUBDOC);
-  encoding.writeVarString(enc, guid);
-  encoding.writeUint8Array(enc, inner);
+  encoding.writeVarUint8Array(enc, encoding.toUint8Array(payload));
   return encoding.toUint8Array(enc);
+}
+
+/** The guid and the inner message of a frame (the decoder is past the message type). */
+export function readSubFrame(dec: decoding.Decoder): { guid: string; inner: decoding.Decoder } {
+  const inner = decoding.createDecoder(decoding.readVarUint8Array(dec));
+  return { guid: decoding.readVarString(inner), inner };
 }
 
 export class PartsClient {
@@ -102,6 +113,7 @@ export class PartsClient {
       const onUpdate = (u: Uint8Array, origin: unknown) => {
         if (origin === this) return;
         const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, MESSAGE_SYNC);
         syncProtocol.writeUpdate(enc, u);
         this.transport.send(subFrame(this.guid(blockId), encoding.toUint8Array(enc)));
       };
@@ -110,6 +122,7 @@ export class PartsClient {
       this.held.set(blockId, h);
       this.undo?.attach(doc);
       this.request(blockId, h);
+      this.changed();
     }
     if (h.releaseTimer) clearTimeout(h.releaseTimer);
     h.releaseTimer = undefined;
@@ -161,27 +174,53 @@ export class PartsClient {
 
   private request(blockId: string, h: Held) {
     const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, MESSAGE_SYNC);
     syncProtocol.writeSyncStep1(enc, h.doc);
     this.transport.send(subFrame(this.guid(blockId), encoding.toUint8Array(enc)));
   }
 
-  /** After a reconnect: ask again for everything held (the server forgot the holders). */
+  /** After a reconnect: ask again for everything held (the server forgot the holders). The
+   *  handshake also sends the room what the part has and the room lacks: edits made offline
+   *  (y-protocols sync step 2 in answer to the room's step 1). Views keep showing the content
+   *  they have meanwhile. */
   resync() {
-    for (const [id, h] of this.held) {
-      h.synced = false;
-      this.request(id, h);
+    for (const [id, h] of this.held) this.request(id, h);
+  }
+
+  /** An offline copy opened from the device: the parts list and each part's state as kept.
+   *  Every part is pinned and shown; the next connection syncs each one with the room. */
+  restore(list: PartHeader[], states: Map<string, Uint8Array>) {
+    this.setParts(list);
+    this.pinAll();
+    for (const [id, state] of states) {
+      const h = this.held.get(id);
+      if (!h) continue;
+      Y.applyUpdate(h.doc, state, this);
+      h.synced = true;
     }
+    this.changed();
+  }
+
+  /** Every part document held now (for the offline copy). */
+  heldDocs(): [string, Y.Doc][] {
+    return [...this.held].map(([id, h]) => [id, h.doc]);
+  }
+
+  /** The parts list as the room sent it. */
+  list(): PartHeader[] {
+    return [...this.headers.values()];
   }
 
   /** A type 101 frame from the server (the decoder is past the message type). */
-  handle(dec: decoding.Decoder) {
-    const guid = decoding.readVarString(dec);
+  handle(outer: decoding.Decoder) {
+    const { guid, inner: dec } = readSubFrame(outer);
     const id = blockOf(guid);
     const h = this.held.get(id);
-    if (!h) return;
+    if (!h || decoding.readVarUint(dec) !== MESSAGE_SYNC) return;
     const reply = encoding.createEncoder();
+    encoding.writeVarUint(reply, MESSAGE_SYNC);
     const kind = syncProtocol.readSyncMessage(dec, reply, h.doc, this);
-    if (encoding.length(reply) > 0) this.transport.send(subFrame(guid, encoding.toUint8Array(reply)));
+    if (encoding.length(reply) > 1) this.transport.send(subFrame(guid, encoding.toUint8Array(reply)));
     if (kind === syncProtocol.messageYjsSyncStep2 && !h.synced) {
       h.synced = true;
       this.changed();

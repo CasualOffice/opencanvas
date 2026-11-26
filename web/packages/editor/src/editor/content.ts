@@ -10,6 +10,7 @@ import type { DbPreset as DatabasePreset } from "@opencanvas/database";
 import type { BoardPreset } from "@opencanvas/board";
 import type { Tone } from "@opencanvas/ui";
 import { loadBlockData, type BlockData } from "./blockdata";
+import { blockMap } from "../lib/blocks";
 
 export type DbPreset = DatabasePreset;
 export type BdPreset = BoardPreset;
@@ -113,8 +114,7 @@ export interface BuildCtx {
 
 function setView(doc: Y.Doc, id: string, view?: string) {
   if (!view) return;
-  const m = doc.getMap("databases").get(id) as Y.Map<unknown> | undefined;
-  m?.set("view", view);
+  blockMap(doc, "databases", id)?.set("view", view);
 }
 
 export function toJSON(b: TB, ctx: BuildCtx): JSONContent {

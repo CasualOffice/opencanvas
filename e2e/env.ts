@@ -17,3 +17,5 @@ export const HOST_MEETING = `http://localhost:${port(4203)}`;
 export const SDK_HOST = `http://localhost:${port(4202)}`;
 /** A host with `[host.offline]` on and `perms.offline` in its tokens (OFF-01..07, spec zf). */
 export const HOST_OFFLINE = `http://localhost:${port(4204)}`;
+/** A host with `[host.flags] partial_sync` (PSYNC-02/03, spec zh). */
+export const HOST_PSYNC = `http://localhost:${port(4205)}`;

@@ -6,7 +6,7 @@ import * as Y from "yjs";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
-import { CrossDocUndo, MESSAGE_SUBDOC, PartsClient, subFrame } from "./parts";
+import { CrossDocUndo, MESSAGE_SUBDOC, PartsClient, readSubFrame, subFrame } from "./parts";
 
 /** A room that holds one part per block and answers type 101 frames like the server. */
 function fakeRoom(parts: Record<string, Y.Doc>) {
@@ -18,13 +18,15 @@ function fakeRoom(parts: Record<string, Y.Doc>) {
     send(frame: Uint8Array) {
       if (!open) return false;
       sent.push(frame);
-      const dec = decoding.createDecoder(frame);
-      expect(decoding.readVarUint(dec)).toBe(MESSAGE_SUBDOC);
-      const guid = decoding.readVarString(dec);
+      const outer = decoding.createDecoder(frame);
+      expect(decoding.readVarUint(outer)).toBe(MESSAGE_SUBDOC);
+      const { guid, inner: dec } = readSubFrame(outer);
       const server = parts[guid.split("/block/")[1]];
+      expect(decoding.readVarUint(dec)).toBe(0);
       const reply = encoding.createEncoder();
+      encoding.writeVarUint(reply, 0);
       syncProtocol.readSyncMessage(dec, reply, server, "client");
-      if (encoding.length(reply) > 0) {
+      if (encoding.length(reply) > 1) {
         const back = decoding.createDecoder(subFrame(guid, encoding.toUint8Array(reply)));
         decoding.readVarUint(back);
         client.handle(back);

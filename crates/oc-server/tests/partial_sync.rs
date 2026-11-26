@@ -333,6 +333,119 @@ async fn a_part_edit_during_a_whole_view_touches_its_block_only() {
     assert!(whole["content"].to_string().contains("Intro"));
 }
 
+fn zip_entry(file: &[u8], name: &str) -> String {
+    use std::io::Read;
+    let mut z = zip::ZipArchive::new(std::io::Cursor::new(file)).unwrap();
+    let mut s = String::new();
+    z.by_name(name).unwrap().read_to_string(&mut s).unwrap();
+    s
+}
+
+/// The saved file's content without what differs between any two sessions (who opened it
+/// when, and the block ids the API mints).
+fn comparable(file: &[u8]) -> (Value, Value) {
+    let mut doc: Value = serde_json::from_str(&zip_entry(file, "document.json")).unwrap();
+    doc.as_object_mut().unwrap().remove("people");
+    let mut search: Value = serde_json::from_str(&zip_entry(file, "search.json")).unwrap();
+    let strip = |v: &mut Value| {
+        let s = v.to_string();
+        let re = regex_lite_strip(&s);
+        *v = serde_json::from_str(&re).unwrap();
+    };
+    strip(&mut doc);
+    strip(&mut search);
+    (doc, search)
+}
+
+/// Replaces `b_<26 chars>` block ids with a placeholder.
+fn regex_lite_strip(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'b'
+            && b.get(i + 1) == Some(&b'_')
+            && i + 28 <= b.len()
+            && b[i + 2..i + 28].iter().all(|c| c.is_ascii_alphanumeric())
+        {
+            out.push_str("b_ID");
+            i += 28;
+        } else {
+            out.push(b[i] as char);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// PSYNC-04 (PSYNC-A5): the same session on a split room and on a whole one saves the same
+/// file: format v1, the same `document.json` and `search.json`, readable by the 0.3 reader; and
+/// the API's reads (exports, MCP and search read the same state) see the same canvas.
+#[tokio::test]
+async fn a_split_room_saves_what_a_whole_room_saves() {
+    let mut saved = Vec::new();
+    for partial in [false, true] {
+        let (state, mock) = server(partial).await;
+        let host = state.hosts.get("sample").unwrap();
+        let mut g = grant("u_a", Role::Edit);
+        g.subdoc = true;
+        let mut a = Peer::join(&state, g.clone()).await;
+        a.settle().await;
+        let ops = vec![
+            serde_json::from_value(
+                json!({"op": "append", "markdown": "## Notes\n\nShipped **v1**."}),
+            )
+            .unwrap(),
+        ];
+        state
+            .rooms
+            .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+            .await
+            .unwrap()
+            .unwrap();
+        // A cell edit: through the part on the split room, through the main document otherwise.
+        if partial {
+            let d = oc_model::new_doc();
+            load(&mut a, "d1", &d).await;
+            edit_part(&a, &d, "d1", "Uno");
+        } else {
+            a.settle().await;
+            let sv = a.doc.transact().state_vector();
+            {
+                let dbs = a.doc.get_or_insert_map("databases");
+                let mut txn = a.doc.transact_mut();
+                let Some(Out::YMap(d)) = dbs.get(&txn, "d1") else {
+                    panic!("d1")
+                };
+                let Some(Out::YMap(rows)) = d.get(&txn, "rows") else {
+                    panic!("rows")
+                };
+                let Some(Out::YMap(r)) = rows.get(&txn, "r1") else {
+                    panic!("r1")
+                };
+                r.insert(&mut txn, "title", "Uno");
+            }
+            let u = a.doc.transact().encode_state_as_update_v1(&sv);
+            a.send(protocol::update(u));
+        }
+        a.settle().await;
+        let api_view = server_json(&state).await;
+        state.rooms.commit(&host, &g).await.unwrap();
+        let file = mock.lock().unwrap().files[FILE].0.clone();
+        // The 0.3 reader opens it: format v1, one document.
+        let loaded = oc_model::read_ocanvas(&file).unwrap();
+        let read = oc_model::doc_to_json(&loaded.doc);
+        assert_eq!(read["databases"]["d1"]["rows"]["r1"]["title"], "Uno");
+        let mut api = api_view.clone();
+        api.as_object_mut().unwrap().remove("people");
+        saved.push((comparable(&file), api));
+    }
+    assert_eq!(saved[0].0.0, saved[1].0.0, "document.json");
+    assert_eq!(saved[0].0.1, saved[1].0.1, "search.json");
+    let ids = |v: &Value| serde_json::from_str::<Value>(&regex_lite_strip(&v.to_string())).unwrap();
+    assert_eq!(ids(&saved[0].1), ids(&saved[1].1), "API state");
+}
+
 /// Room memory on the 50 MB fixture (docs/36 §2.3, PSYNC-A6), one fresh process per figure:
 ///
 /// - `OC_PSYNC_PHASE=whole`: flag off, the room opens the file (0.3 today).
@@ -412,4 +525,91 @@ async fn room_memory_on_the_fixture() {
         after.saturating_sub(before),
         opened.as_millis()
     );
+}
+
+/// A block made in the main document moves into a part when the room next splits. An editor
+/// that has not seen the new parts list yet still edits it in its main document: that edit
+/// must land in the part, not vanish against the main document's fillers.
+#[tokio::test]
+async fn an_edit_to_a_block_that_just_became_a_part_is_kept() {
+    let (state, _) = server(true).await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    // A new database, made in the main document (the editor does this for a new block).
+    a.edit(|d| {
+        let dbs = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let db = dbs.insert(&mut txn, "d9", yrs::MapPrelim::default());
+        db.insert(&mut txn, "name", "New");
+    });
+    a.settle().await;
+    // Server work makes a whole view; idle, it splits again and d9 becomes a part.
+    let ops = vec![serde_json::from_value(json!({"op": "append", "markdown": "x"})).unwrap()];
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    a.settle().await;
+    // The editor still edits d9 where it has it: its main document.
+    a.edit(|d| {
+        let dbs = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let Some(Out::YMap(db)) = dbs.get(&txn, "d9") else {
+            panic!("d9")
+        };
+        db.insert(&mut txn, "name", "Renamed");
+    });
+    a.settle().await;
+    let whole = server_json(&state).await;
+    assert_eq!(whole["databases"]["d9"]["name"], "Renamed");
+}
+
+/// Memory durability (ADR-029, the default without Redis) splits too: no WAL rows, so a part
+/// changed during a whole view is written when the view splits again, and a written part when
+/// it is evicted. An edit made while whole survives eviction and reload.
+#[tokio::test]
+async fn memory_durability_keeps_part_edits_made_during_a_whole_view() {
+    let (base, mock) = mock_host().await;
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (canvas(), 1));
+    let mut cfg = room_cfg();
+    cfg.durability = oc_server::config::Durability::Memory;
+    cfg.part_evict = Duration::from_millis(200);
+    cfg.whole_release = Duration::from_millis(200);
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.insert("partial_sync".into(), true.into());
+    })
+    .await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    assert!(
+        a.controls.iter().any(|c| c["t"] == "parts"),
+        "split under memory durability"
+    );
+    let d = oc_model::new_doc();
+    load(&mut a, "d1", &d).await;
+    let ops = vec![serde_json::from_value(json!({"op": "append", "markdown": "x"})).unwrap()];
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    edit_part(&a, &d, "d1", "During whole");
+    a.settle().await;
+    a.send(protocol::control(
+        &json!({"t": "sub-unload", "id": guid("d1")}),
+    ));
+    // The view splits again (200 ms), the part is evicted (200 ms more), then loaded again.
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let d2 = oc_model::new_doc();
+    load(&mut a, "d1", &d2).await;
+    assert_eq!(row_title(&d2, "d1", "r1").as_deref(), Some("During whole"));
 }

@@ -7,8 +7,8 @@
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { TextSelection, type EditorState } from "@tiptap/pm/state";
-import type * as Y from "yjs";
 import { bridge } from "../lib/bridge";
+import { blockMap } from "../lib/blocks";
 import { createStore } from "../lib/store";
 
 export interface BlockMenuState {
@@ -45,7 +45,8 @@ export function cloneEmbeddedData(json: Record<string, unknown>): Record<string,
     if (attrs && "blockId" in attrs) attrs.blockId = null; // ids are unique per document (docs/15 §4)
     if (n.type === "database" && attrs?.dbId) {
       const root = bridge.doc.getMap("databases");
-      const src = root.get(String(attrs.dbId)) as Y.Map<unknown> | undefined;
+      // The copy is a new block in the main document (the next split makes it a part).
+      const src = blockMap(bridge.doc, "databases", String(attrs.dbId));
       if (src) {
         const id = "db_" + Math.random().toString(36).slice(2, 10);
         root.set(id, src.clone());
@@ -54,7 +55,7 @@ export function cloneEmbeddedData(json: Record<string, unknown>): Record<string,
     }
     if (n.type === "board" && attrs?.boardId) {
       const root = bridge.doc.getMap("boards");
-      const src = root.get(String(attrs.boardId)) as Y.Map<unknown> | undefined;
+      const src = blockMap(bridge.doc, "boards", String(attrs.boardId));
       if (src) {
         const id = "brd_" + Math.random().toString(36).slice(2, 10);
         root.set(id, src.clone());

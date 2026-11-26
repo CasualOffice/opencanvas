@@ -11,6 +11,7 @@ import { deviceKey, open, openJson, seal, sealJson, type GrantClaims, type Seale
 import type { Kv } from "./kv";
 import { fileDb, hostDb, indexDb, keyDb, uploadsDb, userPrefix } from "./names";
 import { FROM_DEVICE, type PendingEntry } from "./pending";
+import type { PartHeader } from "../lib/parts";
 
 /** Compact the update log into one state past this many entries. */
 export const COMPACT_AT = 400;
@@ -230,6 +231,33 @@ export class Copy {
     this.count = rows.length;
     Y.applyUpdate(doc, Y.mergeUpdates(updates), FROM_DEVICE);
     return true;
+  }
+
+  /** PSYNC-03: a split room's parts list (an offline copy holds every part, ADR-076). */
+  async savePartList(list: PartHeader[]) {
+    const k = await this.device.key(true);
+    await this.kv.put(this.db, "custom", await sealJson(k!, list), "parts");
+  }
+
+  /** One part's whole state (replaces the last one). */
+  async savePart(id: string, state: Uint8Array) {
+    const k = await this.device.key(true);
+    await this.kv.put(this.db, "custom", await seal(k!, state), `part:${id}`);
+  }
+
+  /** The parts kept on the device: the list and each part's state. */
+  async loadParts(): Promise<{ list: PartHeader[]; states: Map<string, Uint8Array> } | null> {
+    const k = await this.device.key();
+    if (!k) return null;
+    const sealed = await this.kv.get<Sealed>(this.db, "custom", "parts");
+    if (!sealed) return null;
+    const list = await openJson<PartHeader[]>(k, sealed);
+    const states = new Map<string, Uint8Array>();
+    for (const [key, v] of await this.kv.all<Sealed>(this.db, "custom")) {
+      const name = String(key);
+      if (name.startsWith("part:")) states.set(name.slice(5), await open(k, v));
+    }
+    return { list, states };
   }
 
   async addPending(e: PendingEntry) {

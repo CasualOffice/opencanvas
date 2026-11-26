@@ -1703,6 +1703,10 @@ impl Room {
         let Some(grant) = self.peers.get(&conn).map(|p| p.grant.clone()) else {
             return;
         };
+        // PSYNC-02: an edit of a block that just became a part goes through a whole view.
+        if grant.role != Role::View && self.main_update_touches_parts(&bytes) {
+            self.ensure_whole().await;
+        }
         let read_only = grant.role != Role::Edit || self.conflict.is_some();
         if read_only && filter::adds_nothing(&self.doc, &bytes) {
             return;
@@ -2608,6 +2612,11 @@ impl Room {
     /// background, so the room keeps serving while the database works.
     fn start_dump(&mut self) {
         if self.dump_in_flight {
+            return;
+        }
+        // PSYNC-02: a split room dumps its written parts; a whole view waits for its split.
+        if !self.dump_parts() {
+            self.last_compact = Instant::now();
             return;
         }
         self.dump_in_flight = true;

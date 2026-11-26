@@ -18,6 +18,7 @@ import { Ic } from "../icons";
 import { Modal } from "./overlay";
 import { loadDatabase } from "../editor/blockdata";
 import { topBlockAt } from "../editor/blockops";
+import { blockDoc, blockMap } from "../lib/blocks";
 import { ensureBlockIdAt } from "../editor/blockId";
 import { DIAGRAM_FORMATS, type ImportFormat } from "../lib/importflag";
 
@@ -46,8 +47,9 @@ const levelIcon = (i: ReportItem) => REPORT_ICON[i.code] ?? (i.level === "warn" 
 
 /** Removes these shapes from board `boardId` in one transaction ("Undo import" in diagram mode). */
 function removeShapes(doc: Y.Doc, boardId: string, ids: string[]) {
-  const b = doc.getMap("boards").get(boardId);
-  if (!(b instanceof Y.Map)) return;
+  const b = blockMap(doc, "boards", boardId);
+  if (!b) return;
+  doc = blockDoc(doc, boardId);
   const want = new Set(ids);
   doc.transact(() => {
     const shapes = b.get("shapes");
