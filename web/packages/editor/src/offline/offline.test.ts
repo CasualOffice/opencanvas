@@ -163,8 +163,12 @@ const sync = (a: Y.Doc, b: Y.Doc) => {
 
 describe("the merge summary", () => {
   it("offers back text edited inside a block someone deleted, and lists both-sides cell changes", () => {
+    // Yjs settles a both-sides map write by client id (higher wins). Fixed ids make "them" win,
+    // the case the summary is for; with random ids it flaked about half the time on CI.
     const me = new Y.Doc();
+    me.clientID = 1;
     const them = new Y.Doc();
+    them.clientID = 2;
     para(me, "b_goal", "Sprint goal");
     const h = new Y.XmlElement("heading");
     h.setAttribute("blockId", "b_h");
