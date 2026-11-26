@@ -135,11 +135,6 @@ button.dicon:hover{transform:scale(1.04)}
 /* ---------- ProseMirror content ---------- */
 .ProseMirror{outline:none;position:relative;caret-color:var(--fg);word-wrap:break-word;white-space:pre-wrap;white-space:break-spaces;font-variant-ligatures:none}
 .ProseMirror>*:first-child{margin-top:0}
-/* PSYNC-A1: the browser lays out and paints only the text blocks near the screen, so a long
-   canvas's first screen does not wait for every page. `auto` keeps each block's last size once
-   it has been seen; the clip margin keeps collaborators' caret labels (above the first line)
-   and focus rings visible through the paint containment. */
-.ProseMirror>:is(p,h1,h2,h3,h4,ul,ol,blockquote,pre){content-visibility:auto;contain-intrinsic-size:auto 1.75rem;overflow-clip-margin:1.5rem}
 .ProseMirror p{font-size:1rem;line-height:1.7;padding:.1875rem 0;margin:0;min-height:1.7em;color:var(--fg)}
 .ProseMirror h1{font-size:1.6875rem;line-height:1.25;font-weight:650;letter-spacing:-.022em;margin:1.875rem 0 .25rem;padding:.1875rem 0}
 .ProseMirror h2{font-size:1.3125rem;line-height:1.3;font-weight:620;letter-spacing:-.015em;margin:1.625rem 0 2px;padding:.1875rem 0}
