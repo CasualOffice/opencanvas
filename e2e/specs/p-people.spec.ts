@@ -41,7 +41,8 @@ test("the mention list is exactly the members: a member who never opened it is t
   // Sam has no access to this file.
   await openFile(priya, fileId);
   await typeAfterHeading(priya, "Notes", "Ask @");
-  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible();
+  // The member list is fetched from the host when the picker opens; a slow CI runner took over 5 s.
+  await expect(picker(priya).getByRole("option", { name: /Ravi Menon/ })).toBeVisible({ timeout: 15_000 });
   await expect(picker(priya).getByRole("option", { name: /Sam/ })).toHaveCount(0);
   await priya.page.keyboard.type("Sam");
   await expect(picker(priya).getByRole("option", { name: /Sam/ })).toHaveCount(0);
