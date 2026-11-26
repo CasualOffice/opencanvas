@@ -811,7 +811,7 @@ mod tests {
         for unit in ["<svg></svg>", "<", "<!--x>"] {
             let best = |n: usize| {
                 let src = unit.repeat(n) + "end";
-                (0..3)
+                (0..5)
                     .map(|_| {
                         let t = std::time::Instant::now();
                         std::hint::black_box(html_to_text(&src));
@@ -819,10 +819,12 @@ mod tests {
                     })
                     .fold(f64::MAX, f64::min)
             };
-            let (small, large) = (best(20_000), best(80_000));
+            // 8x the input: linear is ~8x, quadratic ~64x. A wide gap so a loaded machine
+            // (other builds running) cannot fail it (it did at 4x with a 10x bound).
+            let (small, large) = (best(10_000), best(80_000));
             assert!(
-                large < small * 10.0 + 0.05,
-                "{unit:?}: 4x the input took {:.1}x the time ({small:.3}s -> {large:.3}s)",
+                large < small * 24.0 + 0.05,
+                "{unit:?}: 8x the input took {:.1}x the time ({small:.3}s -> {large:.3}s)",
                 large / small
             );
         }
