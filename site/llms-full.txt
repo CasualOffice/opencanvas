@@ -5862,6 +5862,34 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## R1K short — 2026-11-26-r1k-short-local-cap1000-frames
+
+- **Run:** 2026-11-26, commit `b55cb66` (uncommitted changes); Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
+- **Server settings:** `OC_MAX_PEERS=1000`
+- **Load mix:** 1,000 connections over 1 rooms (docs demo); roles idle 0, presence 900, typing 100; presence 5/s, typing 2 edits/s; 4 min, 30 s buckets
+
+Verdict: **fail**.
+
+| Rule | Measured | Verdict |
+|---|---|---|
+| p99 < 500 ms in every bucket (except 0 s after a fault) | 98.7 | pass |
+| all 1000 clients connected | liveEnd 1,000, refusedFull 0 | pass |
+| RSS within ± 10% after warm-up (first bucket to last) | -10.7 | fail |
+| no drops outside the fault buckets | 0 | pass |
+
+| t (s) | live | p50 ms | p99 ms | server RSS MB | fault |
+|---|---|---|---|---|---|
+| 30 | 1,000 | 26.7 | 57.3 | 163.1 |  |
+| 60 | 1,000 | 27.8 | 61.6 | 134.4 |  |
+| 90 | 1,000 | 29.4 | 69.7 | 131.2 |  |
+| 120 | 1,000 | 30.6 | 97.7 | 132.8 |  |
+| 150 | 1,000 | 32.4 | 98.7 | 133.4 |  |
+| 180 | 1,000 | 30.9 | 88.7 | 140.5 |  |
+| 210 | 1,000 | 28.7 | 72.6 | 140.7 |  |
+| 240 | 1,000 | 25.5 | 54.2 | 145.6 |  |
+
+- Not measured: all clients converge (state vectors and text equal): oc-bench verify checks convergence, this load run does not
+
 ## X10K short — 2026-11-26-x10k-short-local-perf11
 
 - **Run:** 2026-11-26, commit `601d2a7`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
