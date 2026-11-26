@@ -24,7 +24,27 @@ pub use automation::{RunRow, ScheduleRow};
 pub use webhooks::{WebhookRow, WebhookState};
 
 static SQLITE: Migrator = sqlx::migrate!("../../migrations/sqlite");
-static MYSQL: Migrator = sqlx::migrate!("../../migrations/mysql");
+
+/// MySQL/MariaDB migrations under one named lock with a finite wait, taken and released on the
+/// connection that runs them. sqlx's own lock did not hold on MariaDB: nodes starting together
+/// left "migration 2 is partially applied" for good (CI, storage_conformance
+/// `nodes_starting_together_on_an_empty_database_all_start`).
+async fn mysql_migrate(pool: &AnyPool) -> Result<(), sqlx::migrate::MigrateError> {
+    let mut conn = pool.acquire().await?;
+    let got: Option<i64> = sqlx::query_scalar("SELECT GET_LOCK('opencanvas_migrations', 120)")
+        .fetch_one(&mut *conn)
+        .await?;
+    if got != Some(1) {
+        return Err(sqlx::Error::Protocol("could not take the migration lock".into()).into());
+    }
+    let mut m = sqlx::migrate!("../../migrations/mysql");
+    m.set_locking(false);
+    let r = m.run_direct(None, &mut *conn, false).await;
+    let _ = sqlx::query("SELECT RELEASE_LOCK('opencanvas_migrations')")
+        .execute(&mut *conn)
+        .await;
+    r
+}
 
 #[derive(Clone)]
 pub struct Store {
@@ -279,7 +299,7 @@ impl Store {
             let run = if sqlite {
                 SQLITE.run(&pool).await
             } else {
-                MYSQL.run(&pool).await
+                mysql_migrate(&pool).await
             };
             match run {
                 Ok(()) => break,
