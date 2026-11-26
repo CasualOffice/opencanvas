@@ -522,7 +522,9 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_InsertLiveBlock` | `{ fileId, title? }`: insert this live block where the person was (after `UI_PickLiveBlock`). The editor checks the 50-reference limit and depth first |
 | host → canvas | `Action_LiveBlockPicker` | `{ state: "open" \| "cancel" }`: your picker opened or was dismissed |
 | host → canvas | `Action_LiveBlockUsage` | `{ fileId, places: [string] }`: the canvases and places a live block is shown in (your index from `live.embedded`) |
-| host → canvas | `Action_ScrollToBlock` | `{ blockId }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". |
+| host → canvas | `Action_ScrollToBlock` | `{ blockId, follow? }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". `follow: true` (a "Follow me" leader moved): scroll the block to the top, no flash and no message |
+| host → canvas | `Action_FollowView` | `{ on }` (TALK-01 "Follow me"): while on, the editor sends `UI_ViewBlock { blockId }` with the top block in view whenever it changes (at most every 300 ms) |
+| canvas → host | `UI_ViewBlock` | `{ blockId }`: the top block in view, after `Action_FollowView {on: true}` |
 
 Origins are checked against `allowed_origins` both ways.
 

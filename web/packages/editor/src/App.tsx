@@ -8,6 +8,7 @@ import type { BlockEnv, OcUser, Role } from "@opencanvas/ui";
 import { Ic, loadExtraIcons } from "./icons";
 import { CanvasEditor } from "./editor/CanvasEditor";
 import { flashBlock } from "./editor/blockId";
+import { followScroll, reportView } from "./editor/follow";
 import { loadDatabase } from "./editor/blockdata";
 import type { TB } from "./editor/content";
 import type { EmptyAction } from "./editor/CanvasEditor";
@@ -748,10 +749,18 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     if (!editor) return;
     const id = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("block");
     const t = id ? window.setTimeout(() => scrollToBlock(id), 600) : undefined;
-    const off = onHost("Action_ScrollToBlock", (v) => typeof v.blockId === "string" && scrollToBlock(v.blockId));
+    // TALK-01 Follow me: `follow: true` scrolls quietly (no flash, no toast for a missing block).
+    const off = onHost("Action_ScrollToBlock", (v) => typeof v.blockId === "string" && (v.follow === true ? followScroll(editor, v.blockId) : scrollToBlock(v.blockId)));
+    let stopReport: (() => void) | null = null;
+    const offView = onHost("Action_FollowView", (v) => {
+      stopReport?.();
+      stopReport = v.on === true ? reportView(editor, (blockId) => postToHost("UI_ViewBlock", { blockId })) : null;
+    });
     return () => {
       window.clearTimeout(t);
       off();
+      offView();
+      stopReport?.();
     };
   }, [editor, scrollToBlock]);
 
