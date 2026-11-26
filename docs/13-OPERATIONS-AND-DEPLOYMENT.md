@@ -11,7 +11,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.2.0
+  ghcr.io/casualoffice/opencanvas:0.3.0
 ```
 SQLite file at `/data/opencanvas.db` (WAL mode). Back it up only if you care
 about un-committed edits surviving a disk loss — committed content is in the host.
