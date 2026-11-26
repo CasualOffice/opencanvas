@@ -257,6 +257,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/unfurl", get(unfurl::unfurl))
         .route("/v1/unfurl/image", get(unfurl::image))
         .route("/v1/members", get(proxy::members))
+        .route("/v1/search", get(v1::search::editor_search))
         .route("/hosting/discovery", get(launch::discovery))
         .route("/hosting/capabilities", get(launch::capabilities))
         .route("/v1/import", post(import::import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))

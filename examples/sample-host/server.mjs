@@ -24,6 +24,7 @@ import http from "node:http";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 
 const PORT = Number(process.env.PORT || 4000);
 const OC_SERVER = process.env.OC_SERVER || "http://localhost:8080";
@@ -53,6 +54,7 @@ const fold = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toL
 // ---------- tiny persistent "database" for file metadata + ACL ----------
 const metaPath = path.join(DATA, "meta.json");
 let meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : { files: {} };
+meta.index ??= {}; // fileId -> search.json of its last save (SRCH-05)
 meta.mentions ??= {}; // fileId -> newest first: {key, by, mentioned, blockId, threadId, excerpt, at}
 const saveMeta = () => fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
 if (!Object.keys(meta.files).length) {
@@ -196,6 +198,62 @@ function checkUserCallback(req) {
   return fileId ? checkCallback(req, fileId, Buffer.alloc(0)) : { ok: false, why: "bad callback token" };
 }
 
+// ---------- search (SRCH-05, ADR-065): we index search.json from each save ----------
+// One entry of a zip (stored or deflated), from its central directory. Enough for .ocanvas.
+function zipEntry(buf, name) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) return null;
+  let p = buf.readUInt32LE(eocd + 16);
+  for (let n = buf.readUInt16LE(eocd + 10); n > 0; n--) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) return null;
+    const method = buf.readUInt16LE(p + 10), csize = buf.readUInt32LE(p + 20), nlen = buf.readUInt16LE(p + 28);
+    const elen = buf.readUInt16LE(p + 30), clen = buf.readUInt16LE(p + 32), local = buf.readUInt32LE(p + 42);
+    if (buf.toString("utf8", p + 46, p + 46 + nlen) === name) {
+      const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+      const data = buf.subarray(start, start + csize);
+      return method === 0 ? data : zlib.inflateRawSync(data, { maxOutputLength: 4 * 1024 * 1024 });
+    }
+    p += 46 + nlen + elen + clen;
+  }
+  return null;
+}
+// The searchable lines of one canvas: text blocks with their heading trail, database rows, board text.
+function indexFile(fileId, body) {
+  try {
+    const sj = JSON.parse(zipEntry(body, "search.json")?.toString("utf8") || "null");
+    if (!sj || sj.v !== 1) return;
+    const lines = [];
+    for (const b of sj.blocks || []) lines.push({ blockId: b.id, trail: (b.path || []).join(" › "), text: b.text });
+    for (const d of sj.databases || []) for (const r of d.rows || []) lines.push({ trail: d.title, text: r.text });
+    for (const bd of sj.boards || []) for (const t of [].concat(bd.text || [])) lines.push({ trail: "Board", text: t });
+    meta.index[fileId] = { title: sj.title || "", lines };
+  } catch (e) { console.warn("could not index", fileId, e.message); }
+}
+// Signed like every callback (v2 binds method, path and query, so `userId` can be trusted).
+function checkSigned(req) {
+  const sig = req.headers["x-opencanvas-signature"] || "";
+  const t = /t=(\d+)/.exec(sig)?.[1], v2 = /v2=([0-9a-f]+)/.exec(sig)?.[1];
+  if (!t || !v2 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+  const want = crypto.createHmac("sha256", SECRET).update(`${t}.${req.method}.${req.url}.`).digest("hex");
+  return want.length === v2.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(v2));
+}
+function search(userId, q, limit = 20) {
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const items = [];
+  for (const f of Object.values(meta.files)) {
+    const role = f.acl[userId];
+    if (!role || role === "none") continue; // our ACL decides
+    const ix = meta.index[f.id];
+    if (!ix) continue;
+    const hay = l => fold(`${ix.title} ${l.trail} ${l.text}`);
+    const hits = ix.lines.filter(l => words.every(w => hay(l).includes(w))).slice(0, 3);
+    for (const l of hits) items.push({ fileId: f.id, title: ix.title || f.name, path: l.trail || "", blockId: l.blockId, snippet: l.text.slice(0, 300), updatedAt: f.updatedAt });
+  }
+  return items.slice(0, limit);
+}
+
 // ---------- callbacks: OpenCanvas → host ----------
 async function callbacks(req, res, url) {
   if (url.pathname === "/api/opencanvas/templates" && req.method === "GET") {
@@ -212,6 +270,12 @@ async function callbacks(req, res, url) {
     return send(res, 200, t.body, { "content-type": "text/markdown; charset=utf-8" });
   }
   if (url.pathname === "/api/opencanvas/mentions" && req.method === "POST") return mentionCallback(req, res);
+  if (url.pathname === "/api/opencanvas/search" && req.method === "GET") {
+    if (!checkSigned(req)) return send(res, 401, { error: "bad signature" });
+    const userId = url.searchParams.get("userId") || "";
+    const items = search(userId, url.searchParams.get("q") || "", Math.min(50, Number(url.searchParams.get("limit")) || 20));
+    return send(res, 200, { items, scopes: [{ id: "all", label: "All canvases" }], partial: false, next: null });
+  }
   // The member list (docs/21 revision 2): everyone with access to this file, filtered by `q`.
   const mem = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)\/members$/);
   if (mem && req.method === "GET") {
@@ -264,6 +328,7 @@ async function callbacks(req, res, url) {
       f.version += 1; f.updatedAt = new Date().toISOString();
       f.authors = JSON.parse(req.headers["x-opencanvas-authors"] || "[]");
       keepVersion(f, body, req.headers);
+      indexFile(fileId, body);
       saveMeta();
       console.log(`saved ${fileId} v${f.version} (${body.length} bytes, autosave=${req.headers["x-opencanvas-autosave"] || 0})`);
       return send(res, 200, { version: String(f.version) });
@@ -359,12 +424,21 @@ const userPicker = (me, back) => `<form method="get" action="${back}" style="dis
 function home(res, me) {
   const rows = Object.values(meta.files).map(f => `<tr><td><a href="/files/${f.id}"><b>${esc(f.name)}</b></a></td><td>${esc(f.acl[me] || "none")}</td><td class="mut">v${f.version}${f.updatedAt ? " · " + new Date(f.updatedAt).toLocaleString() : ""}</td>
     <td><form method="post" action="/files/${f.id}/acl" style="display:flex;gap:6px;flex-wrap:wrap">${Object.values(USERS).map(u => `<label class="mut" title="${esc(label(u))}">${esc(u.name.split(" ")[0])}${u.name !== label(u) ? ` <small>(${esc(u.detail.split(" ")[0])})</small>` : ""} <select name="${u.id}">${["edit", "comment", "view", "none"].map(r => `<option ${(f.acl[u.id] || "none") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label>`).join("")}<button class="btn">Save access</button></form></td></tr>`).join("");
-  send(res, 200, page("Sample host", `<header><b>Sample host</b><span class="mut">stands in for your app</span><span class="sp"></span>${userPicker(me, "/")}</header>
+  send(res, 200, page("Sample host", `<header><b>Sample host</b><span class="mut">stands in for your app</span><span class="sp"></span><a class="btn" href="/search">Search</a>${userPicker(me, "/")}</header>
   <main><div style="display:flex;align-items:center;margin-bottom:14px"><h2 style="margin:0;font-weight:600">Files</h2><span class="sp" style="flex:1"></span>
   <form method="post" action="/files"><input name="name" placeholder="New canvas name" style="height:32px;border-radius:8px;border:1px solid var(--line);padding:0 10px;background:var(--card)"> <button class="btn pri">New canvas</button></form></div>
   <table><tr><th>Name</th><th>Your access</th><th>Version</th><th>Access control (owned by the host)</th></tr>${rows}</table>
   <p class="mut">Open a file as one person, then switch the user above in another tab to see live collaboration. The host decides roles and stores every saved version.</p>
   <p class="mut">The access table is the canvas's member list: it goes into the launch token and is served at <code>/files/:id/members</code>. Only people with access can be mentioned. Reopen the file after a change.</p></main>`), { "content-type": "text/html; charset=utf-8", "set-cookie": `as=${me}; Path=/; SameSite=Lax` });
+}
+
+// The host's own search page: canvases next to everything else, with links to the block.
+function searchPage(res, me, q) {
+  const items = search(me, q, 50);
+  const rows = items.map(i => `<li><a href="/files/${esc(i.fileId)}${i.blockId ? "#block=" + esc(i.blockId) : ""}"><b>${esc(i.title)}</b></a> <span class="mut">Canvas${i.path ? " · " + esc(i.path) : ""}</span><br><span>${esc(i.snippet)}</span></li>`).join("");
+  send(res, 200, page("Search", `<header><a href="/" class="mut" style="text-decoration:none">← Files</a><b>Search</b><span class="sp"></span>${userPicker(me, "/search")}</header>
+  <main><form method="get" action="/search" role="search"><label for="q" class="mut">Search canvases</label> <input id="q" name="q" value="${esc(q)}" style="height:32px;border-radius:8px;border:1px solid var(--line);padding:0 10px;background:var(--card)"> <button class="btn pri">Search</button></form>
+  ${q ? `<p class="mut">${items.length} result${items.length === 1 ? "" : "s"}</p><ol id="results">${rows}</ol>` : ""}</main>`), { "content-type": "text/html; charset=utf-8" });
 }
 
 function openFile(res, me, id) {
@@ -403,6 +477,12 @@ function openFile(res, me, id) {
     if (MessageId === 'Token_Expiring') {
       document.body.dataset.tokenExpiring = String((Number(document.body.dataset.tokenExpiring) || 0) + 1);
       if (!window.ocHoldRefresh) window.ocRenew();
+    }
+    // "Search all canvases" opened a result in another canvas (docs/05 §4, SRCH-04).
+    if (MessageId === 'UI_OpenFile' && /^[\w-]{1,64}$/.test(Values.fileId || '')) {
+      const b = /^[A-Za-z0-9_-]{1,64}$/.test(Values.blockId || '') ? '#block=' + Values.blockId : '';
+      const href = '/files/' + Values.fileId + b;
+      if (Values.newTab) window.open(href, '_blank', 'noopener'); else location.href = href;
     }
     // "Copy link to block": we own the URLs, so we build the link (docs/05 §4).
     if (MessageId === 'UI_BlockLink' && Values.fileId === FILE && /^[A-Za-z0-9_-]{1,64}$/.test(Values.blockId || '')) {
@@ -500,6 +580,7 @@ http.createServer(async (req, res) => {
     if (tk && meta.files[tk[1]]?.acl[me]) return send(res, 200, { token: launchToken(tk[1], me) }, { "cache-control": "no-store" });
     const fm = url.pathname.match(/^\/files\/([\w-]+)$/);
     if (fm) return openFile(res, me, fm[1]);
+    if (url.pathname === "/search") return searchPage(res, me, url.searchParams.get("q") || "");
     if (url.pathname === "/") return home(res, me);
     send(res, 404, { error: "not found" });
   } catch (e) { console.error(e); send(res, 500, { error: String(e.message || e) }); }

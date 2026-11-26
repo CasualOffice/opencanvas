@@ -109,6 +109,59 @@ export interface SyncTicket {
   connectWithinSecs: number;
 }
 
+/** search.json: the plain-text projection of a canvas (in every saved .ocanvas, and the answer of extract) */
+export interface SearchJson {
+  v: number;
+  title: string;
+  lang?: string;
+  blocks: Array<{
+    id?: string;
+    type: string;
+    path: Array<string>;
+    text: string;
+    done?: boolean;
+    [key: string]: unknown;
+  }>;
+  databases: Array<{
+    id: string;
+    title: string;
+    rows: Array<{
+      id: string;
+      text: string;
+    }>;
+    [key: string]: unknown;
+  }>;
+  boards: Array<{
+    id: string;
+    text: Array<string>;
+  }>;
+  live: Array<Record<string, unknown>>;
+  comments?: Array<{
+    id?: string;
+    text?: string;
+  }>;
+  truncated: boolean;
+  [key: string]: unknown;
+}
+
+export interface SearchResults {
+  items: Array<{
+    fileId: string;
+    title: string;
+    path?: string;
+    blockId?: string;
+    /** Plain text; escape it before showing */
+    snippet: string;
+    updatedAt?: string;
+  }>;
+  scopes: Array<{
+    id: string;
+    label: string;
+  }>;
+  partial: boolean;
+  next: string | null;
+}
+
 /** Path parameters, query, body and answer of every operation. */
 export interface Operations {
   /** GET /api/v1/openapi.json: This document */
@@ -538,6 +591,29 @@ export interface Operations {
     body: BinaryBody;
     response: Uint8Array;
   };
+  /** POST /api/v1/extract: Extract search.json */
+  extract: {
+    path: {};
+    query: {};
+    body: never;
+    response: SearchJson;
+  };
+  /** GET /api/v1/search: Search across canvases */
+  search: {
+    path: {};
+    query: {
+      /** The words to look for (at most 200 bytes) */
+      q: string;
+      /** A scope id the host offered */
+      scope?: string;
+      /** `next` of the previous page */
+      cursor?: string;
+      /** Items per page, 1-50 (default 20) */
+      limit?: number;
+    };
+    body: never;
+    response: SearchResults;
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -586,6 +662,8 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   streamEvents: {"method": "GET", "path": "/api/v1/files/{fileId}/events", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["since", "types"], "body": null, "response": "stream", "paged": null, "idempotent": false},
   createSyncToken: {"method": "POST", "path": "/api/v1/files/{fileId}/sync-token", "scope": "canvas:read", "pathParams": ["fileId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
   convert: {"method": "POST", "path": "/api/v1/convert", "scope": "canvas:read", "pathParams": [], "query": ["from", "to"], "body": "binary", "response": "binary", "paged": null, "idempotent": false},
+  extract: {"method": "POST", "path": "/api/v1/extract", "scope": "canvas:read", "pathParams": [], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
+  search: {"method": "GET", "path": "/api/v1/search", "scope": "canvas:read", "pathParams": [], "query": ["q", "scope", "cursor", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
 };
 
 /** The arguments of an operation: its path parameters, plus `query` and `body` when it has them. */
@@ -732,5 +810,15 @@ export abstract class GeneratedApi {
   /** Stateless conversion (`POST /api/v1/convert`, canvas:read). */
   async convert(params: Params<"convert">, options?: CallOptions): Promise<Operations["convert"]["response"]> {
     return (await this.call("convert", params, options)).data;
+  }
+
+  /** Extract search.json (`POST /api/v1/extract`, canvas:read). */
+  async extract(params?: Params<"extract">, options?: CallOptions): Promise<Operations["extract"]["response"]> {
+    return (await this.call("extract", (params ?? {}) as Params<"extract">, options)).data;
+  }
+
+  /** Search across canvases (`GET /api/v1/search`, canvas:read). */
+  async search(params: Params<"search">, options?: CallOptions): Promise<Operations["search"]["response"]> {
+    return (await this.call("search", params, options)).data;
   }
 }

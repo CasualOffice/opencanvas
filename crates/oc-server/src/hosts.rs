@@ -98,6 +98,14 @@ pub struct HostConfig {
     /// feature switches; read through [`HostConfig::editor`].
     #[serde(default)]
     pub editor: toml::Table,
+    /// `[host.search]` (SRCH-02/03, ADR-065, docs/05 §2): `callback`, `comments`,
+    /// `timeout_ms`; read through [`HostConfig::search`].
+    #[serde(default)]
+    pub search: toml::Table,
+    /// `[host.automation]` (AUTO-01..05, ADR-067/068, docs/05 §2): read through
+    /// `crate::automation::AutomationCfg`.
+    #[serde(default)]
+    pub automation: toml::Table,
 }
 
 fn default_mode() -> String {
@@ -129,6 +137,11 @@ pub enum ConflictPolicy {
 impl HostConfig {
     /// `[host.editor]` parsed (EDP-01). Checked by `Hosts::parse` at start-up, so this cannot
     /// fail later; a host built in code without the check falls back to `full`.
+    /// `[host.search]`, checked at start-up (defaults when absent or broken).
+    pub fn search(&self) -> crate::search::SearchCfg {
+        crate::search::SearchCfg::parse(&self.search).unwrap_or_default()
+    }
+
     pub fn editor(&self) -> crate::editor::EditorCfg {
         crate::editor::EditorCfg::parse(&self.editor, &crate::editor::sdk_types(&self.blocks))
             .unwrap_or_default()
@@ -376,6 +389,7 @@ impl Hosts {
             if h.flags.get("api_v1").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] api_v1 takes true or false", h.id);
             }
+            crate::search::SearchCfg::parse(&h.search).with_context(|| format!("host {}", h.id))?;
             crate::blocks::HostBlocks::parse(&h.blocks)
                 .with_context(|| format!("host {}", h.id))?;
             crate::editor::EditorCfg::parse(&h.editor, &crate::editor::sdk_types(&h.blocks))

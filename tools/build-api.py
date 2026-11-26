@@ -365,6 +365,7 @@ RESOURCES = [
     ("comments", "comments", "Comments", "List comment threads, start a thread on a block or reply to one."),
     ("members", "members", "Members", "The people with access to a canvas: id, name and detail, never an e-mail address."),
     ("files", "files", "Export and import", "Export a canvas, import Markdown, HTML or CSV into it, and convert files without a canvas."),
+    ("search", "search", "Search", "Search across the canvases a person can open, through the host's own index, and extract a canvas's search text."),
     ("events", "streams", "Events and sync", "Stream a file's change events, and get a ticket to sync the CRDT document directly."),
     ("admin", "admin", "Admin", "Host operations: save now, change a user's role live, close the session, drop cached members."),
     ("meta", "meta", "OpenAPI document", "The OpenAPI 3.1 document this reference is generated from."),
@@ -402,7 +403,8 @@ def nav_title(o: dict) -> str:
                  "upsertRows": "Create or update rows", "addField": "Add a field", "readBoard": "Read shapes",
                  "addShapes": "Add shapes", "addComment": "Add a comment", "listComments": "List threads",
                  "listMembers": "List members", "listBlocks": "List blocks", "listDatabases": "List databases",
-                 "createDatabase": "Create a database"}
+                 "createDatabase": "Create a database",
+                 "extract": "Extract search text", "search": "Search across canvases"}
     if o["id"] in overrides:
         return overrides[o["id"]]
     if o["id"].startswith("legacy"):

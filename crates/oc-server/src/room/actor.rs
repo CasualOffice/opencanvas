@@ -2196,9 +2196,19 @@ impl Room {
         let body = match self.host.file_history() {
             Some(limits) => {
                 let fh = self.advance_file_history(&commit, &meta, limits).await;
-                oc_model::ocanvas::write_ocanvas_with(&self.doc, &commit, Some(&fh))
+                oc_model::ocanvas::write_ocanvas_opts(
+                    &self.doc,
+                    &commit,
+                    Some(&fh),
+                    self.host.search().model_options(),
+                )
             }
-            None => oc_model::write_ocanvas(&self.doc, &commit),
+            None => oc_model::ocanvas::write_ocanvas_opts(
+                &self.doc,
+                &commit,
+                None,
+                self.host.search().model_options(),
+            ),
         }
         .map_err(|e| e.to_string())?;
         let row = OutboxRow {
@@ -2394,7 +2404,12 @@ impl Room {
                     at: rfc3339(now_ms()),
                     ..Default::default()
                 };
-                match oc_model::write_ocanvas(&self.doc, &commit) {
+                match oc_model::ocanvas::write_ocanvas_opts(
+                    &self.doc,
+                    &commit,
+                    None,
+                    self.host.search().model_options(),
+                ) {
                     Ok(b) => Some(b),
                     Err(e) => {
                         tracing::error!(room = %self.id, error = %e, "building .ocanvas failed");

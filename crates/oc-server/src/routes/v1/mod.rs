@@ -20,6 +20,7 @@ pub mod idempotency;
 pub mod limits;
 pub mod ops;
 pub mod problem;
+pub mod search;
 
 use axum::Json;
 use axum::Router;
@@ -107,6 +108,8 @@ pub fn table() -> Table {
         .op(M::GET, p!("/events"), events::events)
         .op(M::POST, p!("/sync-token"), events::sync_token)
         .op(M::POST, "/api/v1/convert", convert)
+        .op(M::POST, "/api/v1/extract", search::extract)
+        .op(M::GET, "/api/v1/search", search::search)
 }
 
 /// The 0.1 host routes, kept as aliases (old answers, `{error:{code,message}}` errors).

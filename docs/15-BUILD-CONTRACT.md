@@ -334,7 +334,9 @@ Option objects: `{ "v": "In progress", "c": "blue" }`. Date values: `YYYY-MM-DD`
 `.ocanvas` as written by the server: `manifest.json` (`format`, `version` 1, `schemaVersion` 1,
 `createdWith`, `title` from `meta.title`, `commit {id, authors, at}`, *(BSDK-02, ADR-042)*
 `requires.blocks: [{type, v}]` when the document has SDK blocks: each type once, its highest data
-version), `document.json` and `ydoc.bin`.
+version), `document.json`, `ydoc.bin` and *(SRCH-02, ADR-065)* `search.json` (the plain-text
+projection the host indexes, `oc_model::search`; written afresh by every save, never read back;
+shape in docs/05 §5).
 `ydoc.bin` is a Yjs **v1** update (`Y.encodeStateAsUpdate(doc)`); readers also accept v2.
 `document.json` is `{type:"doc", content:[…], meta, databases, boards, comments, people?}` (`people` only
 when non-empty) where `content`
@@ -531,6 +533,10 @@ hostName}` (in-file ids `file:<id>`) · `GET /v1/history/:v?ticket=` (the versio
 `POST /v1/history/restore/undo?ticket=&restoreId=` (the same person, within 30 s; `409 NOTHING_TO_UNDO` /
 `UNDO_EXPIRED`). History routes need `perms.history` (`403 HISTORY_FORBIDDEN`), `404 HISTORY_OFF` without
 a source, `404 VERSION_GONE`, `413 VERSION_TOO_LARGE`. ·
+`GET /v1/search?ticket=&q=&scope=&cursor=` → the host's search as the session's person (SRCH-04,
+ADR-065): `{items:[{fileId,title,path?,blockId?,snippet,updatedAt?}],scopes,partial,next}`, `no-store`;
+404 `SEARCH_UNAVAILABLE` when the host has no callback (the session's `search.enabled` is then false),
+429 past 10 a minute, 504 `HOST_TIMEOUT`.
 `GET /v1/members?ticket=&q=` → `{"members":[{id,name,color,detail?,avatar?}]}` (docs/21 revision 2:
 the same list for every viewer; merged by id, members callback > token `members` > the saved `people`
 map, which counts only when the host gave neither; the viewer is always in; people revoked by the
