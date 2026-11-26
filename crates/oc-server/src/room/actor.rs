@@ -1703,6 +1703,10 @@ impl Room {
         let Some(grant) = self.peers.get(&conn).map(|p| p.grant.clone()) else {
             return;
         };
+        // PSYNC-02: an edit of a block that just became a part goes through a whole view.
+        if grant.role != Role::View && self.main_update_touches_parts(&bytes) {
+            self.ensure_whole().await;
+        }
         let read_only = grant.role != Role::Edit || self.conflict.is_some();
         if read_only && filter::adds_nothing(&self.doc, &bytes) {
             return;

@@ -782,6 +782,19 @@ impl Room {
         Some(())
     }
 
+    /// A main-document update that reaches into a part: an editor that has not seen the parts
+    /// list yet edits a block (made in its main document) that the last split moved into a part.
+    /// Applied to the main document it would meet fillers and be lost; it goes through a whole
+    /// view instead, which routes it into the part.
+    pub(super) fn main_update_touches_parts(&self, bytes: &[u8]) -> bool {
+        let Some(s) = self.split.as_ref().filter(|s| s.whole_since.is_none()) else {
+            return false;
+        };
+        parts::route(bytes, &s.owners, &|_, _| u32::MAX)
+            .map(|r| r.parts.keys().any(|k| !k.is_empty()))
+            .unwrap_or(false)
+    }
+
     /// Fans a part's durable update out to its holders.
     pub(super) fn fan_out_part(&self, key: &str, bytes: &[u8], except: Option<ConnId>) {
         let Some(s) = &self.split else {
