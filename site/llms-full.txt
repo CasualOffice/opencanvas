@@ -3381,6 +3381,7 @@ Client → server (type 100 JSON); answers go only to the sending connection:
 | `{"t":"ai-approve","runId"}` | the user who started the run | Lets a run waiting on its plan act ("Nothing changes until you run it"). Ignored for any other run, user or state. Without it the wait ends after 10 minutes: outcome `cancelled`, `reason: "plan_timeout"`; the run's time limit starts on approval |
 | `{"t":"ai-cancel","runId"}` | the user who started the run | Aborts the model call or the wait for approval; the current tool call finishes; outcome `cancelled` |
 | `{"t":"ai-undo","runId"}` | the user who started the run | Reverts every change made with origin `ai:<runId>` (once; in memory, lost if the room moves) |
+| `{"t":"automation-undo","runId","ruleId"}` | an editor | *(AUTO-06, frame 3a)* Reverts every change of that automation run (transaction origin `automation:<ruleId>#<runId>`, the newest 50 runs, in memory); the undo starts no rule. The server sends `{"t":"automation-ran","runId","ruleId","text"}` to the connections of the person whose change started a run that changed the canvas |
 
 Server → client:
 

@@ -188,11 +188,15 @@ pub fn editor_answer(r: Result<serde_json::Value, SearchError>) -> Response {
     }
 }
 
+/// Explicit fields: a `#[serde(flatten)]` query struct reads every value as a string, so a
+/// numeric `limit` was refused (400).
 #[derive(Deserialize)]
 pub struct EditorQ {
     pub ticket: String,
-    #[serde(flatten)]
-    pub q: SearchQ,
+    pub q: Option<String>,
+    pub scope: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<usize>,
 }
 
 /// `GET /v1/search?ticket=&q=&scope=&cursor=`: "Search all canvases" in the editor, as the
@@ -210,10 +214,10 @@ pub async fn editor_search(
             token: &grant.callback_token,
         },
         crate::search::Query {
-            q: q.q.q.unwrap_or_default(),
-            scope: q.q.scope,
-            cursor: q.q.cursor,
-            limit: q.q.limit.unwrap_or(20),
+            q: q.q.unwrap_or_default(),
+            scope: q.scope,
+            cursor: q.cursor,
+            limit: q.limit.unwrap_or(20),
         },
     )
     .await;

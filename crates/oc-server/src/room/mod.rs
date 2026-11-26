@@ -58,6 +58,15 @@ pub(crate) enum DumpError {
 }
 
 pub(crate) enum Cmd {
+    /// AUTO-06 frame 3a: tell the person whose change started a run (control `automation-ran`).
+    AutomationNotice {
+        user: String,
+        msg: serde_json::Value,
+    },
+    /// AUTO-06: Undo from that toast: reverts every write of the run (`automation:<rule>#<run>`).
+    AutomationUndo {
+        origin: String,
+    },
     Join {
         conn: ConnId,
         grant: Arc<Grant>,

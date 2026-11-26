@@ -265,6 +265,21 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
         <Ic name="message-square-plus" />
         Comment
       </button>
+      {node.type.name === "taskList" && bridge.session?.automation?.enabled && bridge.session.automation.canEdit && bridge.env?.role === "edit" ? (
+        <button
+          className="mi"
+          onClick={() =>
+            run(() => {
+              // AUTO-06 frame 1c: a rule that starts when an item of this checklist is checked.
+              const block = ensureBlockId(editor, pos, node);
+              window.dispatchEvent(new CustomEvent("oc:automate", { detail: { trigger: { kind: "checklist.checked", ...(block ? { block } : {}) } } }));
+            })
+          }
+        >
+          <Ic name="zap" />
+          When this is checked…
+        </button>
+      ) : null}
       <button className="mi" disabled={idx <= 0} onClick={() => run(() => moveBlock(editor, pos, node, -1))}>
         <Ic name="arrow-up" />
         Move up

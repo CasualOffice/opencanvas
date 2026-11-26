@@ -697,3 +697,129 @@ async fn mcp_tools_match_the_api() {
     .await;
     assert_eq!(off["enabled"], false);
 }
+
+/// The editor's session routes take numeric query parameters (a flattened query struct read
+/// them as strings and answered 400).
+#[tokio::test]
+async fn editor_routes_take_numeric_query_parameters() {
+    let (addr, st, _host, _db) = serve(on).await;
+    let t = ulid::Ulid::new().to_string();
+    st.store
+        .insert_session(
+            &t,
+            &grant("u_lea", Role::Edit),
+            oc_server::util::now_secs() + 600,
+            0,
+        )
+        .await
+        .unwrap();
+    let r = reqwest::get(format!("http://{addr}/v1/automations/runs?ticket={t}&limit=5&before=1795680000000&rule=au_1&result=done"))
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200, "{}", r.text().await.unwrap_or_default());
+}
+
+/// Frame 3a: the person whose change started a run is told (control `automation-ran`), and its
+/// Undo reverts the whole run as one step, starting no rule.
+#[tokio::test]
+async fn the_person_who_triggered_a_run_is_told_and_can_undo_it() {
+    let (addr, st, _host, _db) = serve(on).await;
+    let (db, row, archive) = backlog(&addr).await;
+    let (s, v) = api(
+        &addr,
+        reqwest::Method::PUT,
+        "/automations/au_move",
+        "u_lea",
+        Some(move_rule(&db, &archive)),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let mut noor = Peer::join(&st, grant("u_noor", Role::Edit)).await;
+    noor.settle().await;
+    let (_, d) = api(
+        &addr,
+        reqwest::Method::GET,
+        &format!("/databases/{db}"),
+        "u_lea",
+        None,
+    )
+    .await;
+    let status = d["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["name"] == "Status")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    noor.edit(|doc| {
+        use yrs::Map;
+        let root = doc.get_or_insert_map("databases");
+        let mut txn = yrs::Transact::transact_mut(doc);
+        let Some(yrs::Out::YMap(m)) = root.get(&txn, &db) else {
+            panic!("db")
+        };
+        let Some(yrs::Out::YMap(rows)) = m.get(&txn, "rows") else {
+            panic!("rows")
+        };
+        let Some(yrs::Out::YMap(r)) = rows.get(&txn, &row) else {
+            panic!("row")
+        };
+        r.insert(&mut txn, status.as_str(), "Done");
+    });
+    let mut notice = None;
+    for _ in 0..100 {
+        noor.settle().await;
+        notice = noor
+            .controls
+            .iter()
+            .find(|c| c["t"] == "automation-ran")
+            .cloned();
+        if notice.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    let notice = notice.expect("automation-ran control");
+    assert_eq!(
+        notice["text"],
+        "Move done items moved “Rate limit the public API” to Archive"
+    );
+    let (_, a) = api(
+        &addr,
+        reqwest::Method::GET,
+        &format!("/databases/{archive}/rows"),
+        "u_lea",
+        None,
+    )
+    .await;
+    assert_eq!(a["rows"].as_array().unwrap().len(), 1);
+    // Undo: the row is back in the backlog, the archive is empty, and no rule ran again.
+    noor.send(oc_server::room::protocol::control(
+        &json!({"t": "automation-undo", "runId": notice["runId"], "ruleId": "au_move"}),
+    ));
+    eventually(async || {
+        let (_, a) = api(
+            &addr,
+            reqwest::Method::GET,
+            &format!("/databases/{archive}/rows"),
+            "u_lea",
+            None,
+        )
+        .await;
+        a["rows"].as_array().is_some_and(|r| r.is_empty())
+    })
+    .await;
+    let (_, b) = api(
+        &addr,
+        reqwest::Method::GET,
+        &format!("/databases/{db}/rows"),
+        "u_lea",
+        None,
+    )
+    .await;
+    assert_eq!(b["rows"].as_array().unwrap().len(), 1);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(runs(&addr).await.len(), 1, "the undo started no rule");
+}

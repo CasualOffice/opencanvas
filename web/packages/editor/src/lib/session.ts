@@ -119,6 +119,8 @@ export async function fetchSession(ticket: string): Promise<Session> {
 
 export type Control =
   | { t: "saving" }
+  /** AUTO-06 frame 3a: a rule ran because of this person's change (`automation-undo` reverts it). */
+  | { t: "automation-ran"; runId: string; ruleId: string; text: string }
   /** docs/21 revision 2: the canvas's member list changed (someone's access was revoked). */
   | { t: "members" }
   | { t: "saved"; at: number; version?: string }

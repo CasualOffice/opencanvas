@@ -54,6 +54,13 @@ export interface BlockEnv {
    * The block never destroys it.
    */
   undoManager?: import("yjs").UndoManager;
+  /**
+   * Optional (AUTO-06, frame 1c): the database header's "Automate" button. `automations` counts
+   * the rules that watch a database; `automate` opens their menu at the button. Absent: no button
+   * (viewers, hosts without automation).
+   */
+  automations?: (dbId: string) => number;
+  automate?: (dbId: string, anchor: HTMLElement) => void;
   /** The document limit from the session (`maxDocBytes`); boards budget 25 % of it (DGM-14 S9). */
   maxDocBytes?: number;
   /** EDP-01: `false` hides the board's Diagram button, menu entry and Shift+D (default on). */

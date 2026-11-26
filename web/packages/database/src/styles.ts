@@ -25,6 +25,8 @@ export const CSS = `
 .ocdb-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;align-self:stretch}
 .ocdb-tabs::-webkit-scrollbar{display:none}
 .ocdb-tab{border:0;background:none;display:inline-flex;align-items:center;gap:.375rem;height:2.5rem;padding:0 .625rem;font-size:.8125rem;color:var(--fg-3);position:relative;white-space:nowrap;transition:color .2s var(--ease)}
+.ocdb-auto{margin-left:.25rem}
+.ocdb-autoc{min-width:1.125rem;height:1.125rem;padding:0 .3125rem;border-radius:62.4375rem;background:var(--purple-bg);color:var(--purple-fg);font-size:.6875rem;font-weight:600;display:inline-grid;place-items:center}
 .ocdb-tab:hover{color:var(--fg)}
 .ocdb-tab[aria-selected="true"]{color:var(--fg);font-weight:500}
 .ocdb-tab[aria-selected="true"]::after{content:"";position:absolute;left:.5rem;right:.5rem;bottom:-1px;height:2px;border-radius:2px;background:var(--fg)}

@@ -21,7 +21,7 @@ use super::{Cmd, ToolFn};
 
 /// Origins of automation writes: `automation:<ruleId>|<depth>|<chain>` on the command, the
 /// plain `automation:<ruleId>` on the transaction and as author.
-pub fn split_origin(origin: &str) -> Option<(String, u32, Vec<String>)> {
+pub fn split_origin(origin: &str) -> Option<(String, u32, Vec<String>, String)> {
     let rest = origin.strip_prefix("automation:")?;
     let mut it = rest.split('|');
     let rule = it.next()?.to_string();
@@ -35,8 +35,12 @@ pub fn split_origin(origin: &str) -> Option<(String, u32, Vec<String>)> {
                 .collect()
         })
         .unwrap_or_default();
-    Some((rule, depth, chain))
+    let run = it.next().unwrap_or_default().to_string();
+    Some((rule, depth, chain, run))
 }
+
+/// The depth an Undo's writes carry: they start no rule.
+pub const UNDO_DEPTH: u32 = 1000;
 
 #[derive(Default)]
 pub struct AutoState {
@@ -47,6 +51,8 @@ pub struct AutoState {
     sched_sig: Option<String>,
     /// Authors of automation writes in flight: their depth and chain.
     pub pending: HashMap<String, (u32, Vec<String>)>,
+    /// Run origins with an undo manager (the newest 50), for the toast's Undo.
+    pub tracked: std::collections::VecDeque<String>,
 }
 
 fn event_rules(doc: &Doc) -> Vec<Rule> {
@@ -118,6 +124,16 @@ impl AutoState {
         }
         let Some(before) = before else { return vec![] };
         let events = diff(&before, &after, doc);
+        // An Undo of a run starts nothing.
+        if users
+            .iter()
+            .any(|u| self.pending.get(u).is_some_and(|a| a.0 >= UNDO_DEPTH))
+        {
+            for u in users {
+                self.pending.remove(u);
+            }
+            return vec![];
+        }
         if events.is_empty() {
             return vec![];
         }
@@ -216,12 +232,21 @@ pub(crate) struct ActorApplier(
     pub tokio::sync::mpsc::UnboundedSender<Cmd>,
     pub u32,
     pub Vec<String>,
+    /// The run id: the transaction origin `automation:<rule>#<run>` its Undo reverts.
+    pub String,
 );
 
 impl Applier for ActorApplier {
+    fn notice(&self, user: &str, msg: serde_json::Value) {
+        let _ = self.0.send(Cmd::AutomationNotice {
+            user: user.to_string(),
+            msg,
+        });
+    }
+
     fn apply(&self, origin: String, author: String, run: ToolFn) -> ApplyFut {
         let tx = self.0.clone();
-        let origin = format!("{origin}|{}|{}", self.1, self.2.join(","));
+        let origin = format!("{origin}|{}|{}|{}", self.1, self.2.join(","), self.3);
         Box::pin(async move {
             let (reply, rx) = tokio::sync::oneshot::channel();
             tx.send(Cmd::Tool {
