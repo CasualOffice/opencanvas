@@ -392,19 +392,26 @@ const LRow = memo(function LRow(p: LRowProps) {
   const cls = "ocdb-lt-r" + (p.selected ? " sel" : "") + (p.flash ? " flash" : "");
   const style = { transform: `translateY(${p.y}px)`, height: p.h };
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const long = useRef(false);
   if (p.compact) {
     // Phone: the card list. Long-press starts selecting; then taps toggle (4c).
     const meta = p.cols.filter((f) => f.type === "status" || f.type === "person" || f.type === "date").slice(0, 3);
     return (
       <div className={cls} style={style} role="row" aria-rowindex={i + 2} aria-selected={p.selected} data-row={r.id}>
+        {/* A row needs a cell (axe: aria-required-children); the card fills it. */}
+        <div role="gridcell" className="ocdb-lt-cardc">
         <button
           className="ocdb-lt-card"
           data-focus
-          onPointerDown={() => (press.current = setTimeout(() => ((press.current = undefined), p.onLong(i)), 500))}
+          onPointerDown={() => {
+            long.current = false;
+            press.current = setTimeout(() => ((long.current = true), p.onLong(i)), 500);
+          }}
           onPointerUp={() => clearTimeout(press.current)}
           onPointerLeave={() => clearTimeout(press.current)}
           onClick={(e) => {
-            if (press.current === undefined && !p.selMode) return;
+            // The click that ends a long press is not a tap: it would toggle the row it just selected.
+            if (long.current) return void (long.current = false);
             if (p.selMode) p.onToggle(i, e);
             else p.onOpen(r.id);
           }}
@@ -413,6 +420,7 @@ const LRow = memo(function LRow(p: LRowProps) {
           <span className="t"><b>#{fmt(i + 1)}</b> {title}</span>
           <span className="m">{meta.map((f) => <span key={f.id}>{p.value(f, r.v[f.id])}</span>)}</span>
         </button>
+        </div>
       </div>
     );
   }

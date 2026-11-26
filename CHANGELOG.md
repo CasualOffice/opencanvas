@@ -25,6 +25,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   400 ms, retry with a countdown, "Not on this device" offline.
 - Fixed: a new formula field's editor stayed on "Loading formulas…" when the database had no formula
   field yet.
+- Fixed: the editor's CSP blocked the formula engine's WebAssembly; `script-src` now adds
+  `'wasm-unsafe-eval'` (compiling WebAssembly only; `eval` and inline script stay blocked).
+- Fixed: on phones a long press on a row selected it and the release deselected it; a new field
+  turned into a formula kept the name "Text"; avatar initials now meet 4.5:1 on light colours.
 
 - Benchmarks page on the site (BENCH-05): every result in `bench/results/` with its hardware, store and
   load mix beside the numbers; `local` runs marked as such. `/metrics` adds `oc_alloc_allocated_bytes`

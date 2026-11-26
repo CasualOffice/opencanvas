@@ -31,9 +31,26 @@ export const TYPE_ICON: Record<FieldType, LucideIcon> = {
   date: Calendar, number: Hash, checkbox: SquareCheck, url: Link2, progress: Gauge, formula: Sigma, relation: ArrowUpRight, rollup: ChartNoAxesColumn,
 };
 
+/** Relative luminance of `#rgb` / `#rrggbb`; null for anything else (as in the editor's lib/color). */
+function luminance(color: string): number | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  const n = parseInt(h, 16);
+  const ch = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+}
+
+/** White or black initials, whichever contrasts more with a person's colour (always ≥ 4.5:1). */
+export function avatarInk(bg: string): string {
+  const l = luminance(bg);
+  if (l === null) return "#fff";
+  return 1.05 / (l + 0.05) >= (l + 0.05) / 0.05 ? "#fff" : "#000";
+}
+
 export function Avatar({ u, size = "" }: { u: OcUser; size?: "" | "xs" | "md" }) {
   return (
-    <span className={"ocdb-av " + size} style={{ background: u.color }} aria-hidden="true">
+    <span className={"ocdb-av " + size} style={{ background: u.color, color: avatarInk(u.color) }} aria-hidden="true">
       {u.avatar ? <img src={u.avatar} alt="" /> : initials(u.name)}
     </span>
   );

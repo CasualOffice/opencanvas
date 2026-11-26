@@ -760,10 +760,10 @@ answer 404 `FORMAT_UNSUPPORTED`. Exports carry `Content-Disposition: attachment;
 `POST /v1/assets` needs the `edit` role and `multipart/form-data` (≤ 25 MB); the host's status and
 body are passed through. Every response carries `Referrer-Policy: no-referrer`,
 `X-Content-Type-Options: nosniff` and a CSP ending in `frame-ancestors 'self' <all hosts'
-allowed_origins>`: by default `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none';
+allowed_origins>`: by default `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none';
 form-action 'self'; img-src 'self' https: http: data: blob:; …`; exports (`/v1/export/*`, `/v1/convert`)
 are served with `sandbox; default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'`,
-room assets with `default-src 'none'; sandbox`. (Changed 2026-11-21 by the security audit, ADR-022.)
+room assets with `default-src 'none'; sandbox`. (Changed 2026-11-21 by the security audit, ADR-022.) `'wasm-unsafe-eval'` (2026-11-27, ADR-078) lets the formula engine's WebAssembly compile; it allows no `eval` and no inline script.
 `GET /metrics` needs `Authorization: Bearer <OC_METRICS_TOKEN>` when that variable is set.
 `GET /v1/members` refuses `q` over 200 bytes (`400 QUERY_TOO_LONG`). A room holds at most 550
 connections (the next is closed with 1013 `room full`); a socket that stops reading is closed.

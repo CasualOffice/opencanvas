@@ -44,6 +44,7 @@ export const LARGE_CSS = `
 .ocdb-lt-run{position:sticky;bottom:.5rem;margin:.5rem auto 0;display:flex;align-items:center;gap:.5rem;width:max-content;max-width:100%;padding:.375rem .5rem .375rem .75rem;border-radius:.625rem;background:var(--fg);color:var(--app);font-size:.8125rem;overflow:hidden;position:relative}
 .ocdb-lt-run i{position:absolute;left:0;bottom:0;height:3px;background:var(--accent)}
 .ocdb-lt-run .ocdb-btn{color:inherit;background:none;box-shadow:none}
+.ocdb-lt-cardc{display:flex;width:100%;height:100%}
 .ocdb-lt-card{display:flex;flex-direction:column;justify-content:center;gap:.25rem;width:100%;height:100%;border:0;background:none;text-align:left;padding:0 .75rem;-webkit-user-select:none;user-select:none}
 .ocdb-lt-card .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ocdb-lt-card .t b{color:var(--fg-3);font-weight:500;font-variant-numeric:tabular-nums;margin-right:.25rem}

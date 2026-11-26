@@ -1298,7 +1298,7 @@ function TableView({ ctx, gwRef }: { ctx: Ctx; gwRef: React.RefObject<HTMLDivEle
 
   return (
     <div className="ocdb-gw" ref={gwRef}>
-      <table className="ocdb-grid" style={{ width: total }} aria-label={db.name || "Database"} aria-rowcount={rows.length + 1} aria-multiselectable={edit || undefined}>
+      <table className="ocdb-grid" style={{ width: total }} aria-label={db.name || "Database"} aria-rowcount={rows.length + 1}>
         <colgroup>
           {fields.map((f) => <col key={f.id} style={{ width: widthOf(f) }} />)}
           {edit ? <col style={{ width: 44 }} /> : null}
@@ -2888,7 +2888,10 @@ function NewFieldBody({ ctx, fid, isNew, done, onAdvanced }: { ctx: Ctx; fid: st
   const pick = (t: FieldType) => {
     // Formula, relation and rollup fields are set up in their own panel (ADR-078).
     if (ADV_TYPES.includes(t)) {
-      renameField(doc, db.id, fid, name.trim() && name.trim() !== FIELD_LABEL[f.type] ? name.trim() : FIELD_LABEL[t]);
+      const next = name.trim() && name.trim() !== FIELD_LABEL[f.type] ? name.trim() : FIELD_LABEL[t];
+      renameField(doc, db.id, fid, next);
+      // This panel unmounts next and keeps its name on the way out: make that the new name.
+      live.current.name = next;
       return onAdvanced?.(t);
     }
     if (t !== f.type) {

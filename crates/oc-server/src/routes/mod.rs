@@ -148,9 +148,11 @@ fn frame_ancestors(origins: &[String]) -> String {
 /// Policy for the SPA and every response without its own: scripts only from this origin,
 /// no plugins, no `<base>` hijack, forms post only here. Images and embeds stay open
 /// (documents show images from the host and provider iframes, docs/07 §2).
+/// `'wasm-unsafe-eval'` lets the lazy formula engine (ADR-078) compile; it does not allow
+/// `eval` or inline script.
 fn default_csp(frame_ancestors: &str, blocks_origin: &str) -> String {
     format!(
-        "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; \
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; \
          form-action 'self'; img-src 'self' https: http: data: blob:; \
          media-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline'; \
          font-src 'self' data:; connect-src 'self' ws: wss:; frame-src https:{blocks_origin}; \
@@ -344,4 +346,34 @@ pub fn router(state: SharedState) -> Router {
             tracing::info_span!("http", method = %req.method(), path = %redacted_path(req.uri().path()))
         }))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod csp_tests {
+    use super::default_csp;
+
+    /// The sources of one directive in a policy.
+    fn directive<'a>(csp: &'a str, name: &str) -> Vec<&'a str> {
+        csp.split(';')
+            .map(str::trim)
+            .find_map(|d| d.strip_prefix(name).filter(|r| r.starts_with(' ')))
+            .map(|r| r.split_whitespace().collect())
+            .unwrap_or_default()
+    }
+
+    /// ADR-078: the formula engine is WebAssembly, which browsers only compile under
+    /// `'wasm-unsafe-eval'`. That allows WASM compilation alone: no `eval`, no inline script.
+    #[test]
+    fn editor_csp_allows_wasm_but_not_eval_or_inline_script() {
+        let csp = default_csp("frame-ancestors 'self'", "");
+        let script = directive(&csp, "script-src");
+        assert_eq!(script, ["'self'", "'wasm-unsafe-eval'"], "{csp}");
+        assert!(!script.contains(&"'unsafe-eval'"), "{csp}");
+        assert!(!script.contains(&"'unsafe-inline'"), "{csp}");
+        assert!(
+            !script.iter().any(|s| s.starts_with("'nonce-") || *s == "*"),
+            "{csp}"
+        );
+        assert_eq!(directive(&csp, "object-src"), ["'none'"], "{csp}");
+    }
 }
