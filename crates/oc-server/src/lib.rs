@@ -120,6 +120,11 @@ impl AppState {
             }
             None => Store::connect(&cfg.database_url, cfg.kek.clone()).await?,
         };
+        // RLB-03: the first start after a restore from backup sets the restore epoch (docs/13
+        // "Backup and restore"). Start once with it, then remove it.
+        if std::env::var("OC_RESTORED").is_ok_and(|v| v == "1") {
+            store.mark_restored(util::now_ms()).await?;
+        }
         if let Some(url) = cfg
             .wal_redis_url
             .as_ref()

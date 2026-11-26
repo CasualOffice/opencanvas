@@ -23,6 +23,10 @@ mod webhooks;
 pub use automation::{RunRow, ScheduleRow};
 pub use webhooks::{WebhookRow, WebhookState};
 
+/// RLB-03: how far a restore raises the offline generations above the highest in the backup.
+/// A person would need this many revokes between the backup and the restore to get past it.
+const RESTORE_GEN_JUMP: u64 = 1_000_000;
+
 static SQLITE: Migrator = sqlx::migrate!("../../migrations/sqlite");
 
 /// MySQL/MariaDB migrations under one named lock with a finite wait, taken and released on the
@@ -140,6 +144,9 @@ mod migrate_tests {
 pub struct Store {
     pool: AnyPool,
     kek: Option<Kek>,
+    /// RLB-03: the restore epoch (restored at ms, offline generation floor); (0, 0) when this
+    /// database was never restored from a backup.
+    restore: Arc<std::sync::RwLock<(i64, u64)>>,
     /// SQLite: the single WAL writer task that commits the batches of many rooms in one
     /// transaction (group commit, docs/22 §9.3). `None` on MySQL/MariaDB, where each room
     /// commits its own batch.
@@ -366,7 +373,16 @@ impl Store {
         install_default_drivers();
         let sqlite = url.starts_with("sqlite:");
         let mut opts = AnyPoolOptions::new()
-            .max_connections(if sqlite { 8 } else { 16 })
+            // OC_DB_MAX_CONNECTIONS (MySQL/MariaDB; default 32, was 16): RLB-01b.
+            .max_connections(if sqlite {
+                8
+            } else {
+                std::env::var("OC_DB_MAX_CONNECTIONS")
+                    .ok()
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .filter(|n| *n > 0)
+                    .unwrap_or(32)
+            })
             .acquire_timeout(Duration::from_secs(10));
         if sqlite {
             ensure_sqlite_dir(url);
@@ -425,9 +441,21 @@ impl Store {
             ));
             tx
         });
+        let restore =
+            match sqlx::query("SELECT restored_at, gen_floor FROM restore_epoch WHERE id = 1")
+                .fetch_optional(&pool)
+                .await?
+            {
+                Some(r) => (
+                    r.try_get::<i64, _>(0)?,
+                    r.try_get::<i64, _>(1)?.max(0) as u64,
+                ),
+                None => (0, 0),
+            };
         Ok(Self {
             pool,
             kek,
+            restore: Arc::new(std::sync::RwLock::new(restore)),
             group,
             redis: None,
             write_lock,
@@ -452,6 +480,7 @@ impl Store {
         Ok(Self {
             pool,
             kek,
+            restore: Default::default(),
             group: None,
             redis: Some(kv.wal().clone()),
             write_lock: None,
@@ -561,6 +590,50 @@ impl Store {
             .collect()
     }
 
+    /// When this database was restored from a backup (ms), 0 if never (RLB-03).
+    pub fn restored_at_ms(&self) -> i64 {
+        self.restore.read().expect("restore").0
+    }
+
+    /// RLB-03: marks this database as restored from a backup (`OC_RESTORED=1` at start).
+    /// Every offline generation then reads at least a floor far above any generation issued
+    /// before (so a device revoked after the backup was taken stays revoked; every offline copy
+    /// is dropped once), and schedule slots due before `now_ms` are skipped by the sweep.
+    pub async fn mark_restored(&self, now_ms: i64) -> anyhow::Result<()> {
+        if self.kv.is_some() {
+            anyhow::bail!("OC_RESTORED needs a database (SQLite, MySQL or MariaDB)");
+        }
+        let top: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(gen), 0) FROM offline_generation")
+            .fetch_one(&self.pool)
+            .await?;
+        let floor =
+            (top.max(0) as u64).max(self.restore.read().expect("restore").1) + RESTORE_GEN_JUMP;
+        let up =
+            sqlx::query("UPDATE restore_epoch SET restored_at = ?, gen_floor = ? WHERE id = 1")
+                .bind(now_ms)
+                .bind(floor as i64)
+                .execute(&self.pool)
+                .await?;
+        if up.rows_affected() == 0 {
+            sqlx::query("INSERT INTO restore_epoch (id, restored_at, gen_floor) VALUES (1, ?, ?)")
+                .bind(now_ms)
+                .bind(floor as i64)
+                .execute(&self.pool)
+                .await?;
+        }
+        *self.restore.write().expect("restore") = (now_ms, floor);
+        tracing::warn!(
+            restored_at = now_ms,
+            gen_floor = floor,
+            "restore epoch set: offline copies are dropped once, earlier schedule slots are skipped"
+        );
+        Ok(())
+    }
+
+    fn gen_floor(&self) -> u64 {
+        self.restore.read().expect("restore").1
+    }
+
     /// The offline generation of a person on a host (OFF-01, ADR-063): 0 until the first
     /// revoke. One metadata row per host and user, no content.
     pub async fn offline_gen(&self, host: &str, user: &str) -> anyhow::Result<u64> {
@@ -576,7 +649,8 @@ impl Store {
         Ok(match row {
             Some(r) => r.try_get::<i64, _>(0)?.max(0) as u64,
             None => 0,
-        })
+        }
+        .max(self.gen_floor()))
     }
 
     /// Raises a person's offline generation by one (`POST /api/v1/offline/revoke`); returns
@@ -586,11 +660,14 @@ impl Store {
             return kv.offline_revoke(host, user).await;
         }
         let now = crate::util::now_secs();
+        let floor = self.gen_floor() as i64;
         for _ in 0..3 {
             let up = sqlx::query(
-                "UPDATE offline_generation SET gen = gen + 1, updated_at = ? \
-                 WHERE host_id = ? AND user_id = ?",
+                "UPDATE offline_generation SET gen = (CASE WHEN gen < ? THEN ? ELSE gen END) + 1, \
+                 updated_at = ? WHERE host_id = ? AND user_id = ?",
             )
+            .bind(floor)
+            .bind(floor)
             .bind(now)
             .bind(host)
             .bind(user)
@@ -599,10 +676,11 @@ impl Store {
             if up.rows_affected() == 0 {
                 let ins = sqlx::query(
                     "INSERT INTO offline_generation (host_id, user_id, gen, updated_at) \
-                     VALUES (?, ?, 1, ?)",
+                     VALUES (?, ?, ?, ?)",
                 )
                 .bind(host)
                 .bind(user)
+                .bind(floor + 1)
                 .bind(now)
                 .execute(&self.pool)
                 .await;

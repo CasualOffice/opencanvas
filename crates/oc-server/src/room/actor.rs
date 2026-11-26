@@ -242,6 +242,10 @@ pub(super) async fn run(
         inbox,
     } = chans;
     let id = seed.room.clone();
+    // RLB-01b: at most `load_permits()` rooms load at once. After a restart every room reopens
+    // together; unbounded, their WAL reads and outbox writes held every database connection and
+    // launches failed with "pool timed out" for about 20 s (crash drill on MySQL).
+    let permit = load_permits().acquire().await;
     let loaded = match Room::load(ctx.clone(), host, &seed, self_tx, inbox).await {
         Ok(mut r) => match r.split_on_open().await {
             Ok(()) => Ok(r),
@@ -249,6 +253,7 @@ pub(super) async fn run(
         },
         Err(e) => Err(e),
     };
+    drop(permit);
     let mut room = match loaded {
         Ok(r) => r,
         Err(e) => {
@@ -3302,6 +3307,20 @@ impl PutPayload {
         }
         Err(last)
     }
+}
+
+/// Rooms loading at once (`OC_ROOM_LOADS`, default 8): leaves database connections for
+/// launches, saves and WAL writes while many rooms reopen after a restart (RLB-01b).
+pub fn load_permits() -> &'static tokio::sync::Semaphore {
+    static P: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
+    P.get_or_init(|| {
+        let n = std::env::var("OC_ROOM_LOADS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|n| *n > 0)
+            .unwrap_or(8);
+        tokio::sync::Semaphore::new(n)
+    })
 }
 
 #[cfg(test)]

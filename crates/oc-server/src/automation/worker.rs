@@ -159,6 +159,8 @@ async fn run_row(state: &SharedState, row: &ScheduleRow) -> anyhow::Result<()> {
         Ok((None, json!({})))
     });
     let slot = row.next_run_at;
+    // RLB-03: a slot due before a restore from backup may have run after the backup was taken.
+    let restored = slot <= state.store.restored_at_ms();
     match applier
         .apply(runner::origin_of(&row.rule_id), String::new(), read)
         .await
@@ -206,7 +208,28 @@ async fn run_row(state: &SharedState, row: &ScheduleRow) -> anyhow::Result<()> {
     };
     let tz =
         Tz::load(rule.time_zone.as_deref().unwrap_or(&cfg.time_zone)).unwrap_or_else(|_| Tz::utc());
-    if rule.runnable() && rule.trigger.is_timed() {
+    if restored {
+        tracing::info!(room = %row.room_id, rule = %row.rule_id, slot, "scheduled automation skipped: due before the restore");
+        let _ = state
+            .store
+            .automation_run_insert(&RunRow {
+                id: format!("run_{}_{}", row.rule_id, slot / 1000),
+                room_id: row.room_id.clone(),
+                host_id: row.host_id.clone(),
+                file_id: row.file_id.clone(),
+                rule_id: row.rule_id.clone(),
+                trigger: "schedule".into(),
+                result: "skipped".into(),
+                error_code: "RESTORED".into(),
+                http_status: 0,
+                changes: 0,
+                notified: 0,
+                depth: 0,
+                duration_ms: 0,
+                at: now,
+            })
+            .await;
+    } else if rule.runnable() && rule.trigger.is_timed() {
         let job = Job {
             host: host.clone(),
             room: row.room_id.clone(),
