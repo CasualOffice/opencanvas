@@ -99,6 +99,9 @@ pub fn table() -> Table {
         .op(M::POST, p!("/comments"), add_comment)
         .op(M::GET, p!("/members"), list_members)
         .op(M::GET, p!("/export/{format}"), export_file)
+        .op(M::GET, p!("/render"), render_file)
+        .op(M::POST, p!("/live"), make_live)
+        .op(M::GET, p!("/references"), list_references)
         .op(M::POST, p!("/import"), import_file)
         .op(M::POST, p!("/commit"), commit)
         .op(M::POST, p!("/role"), set_role)
@@ -755,11 +758,13 @@ async fn export_file(
     } else {
         Some(export::member_names(&state, &host, &grant, &doc).await)
     };
+    let live = export::live_for(&state, &host, &grant, &doc, &fmt).await;
     let req = export::RenderReq {
         token: &grant.callback_token,
         author: &grant.user.id,
         wopi_room: wopi.then_some(grant.room.as_str()),
         people: names.as_ref(),
+        live: live.as_ref(),
     };
     let (body, ctype, _) = export::render(&state, &host, &doc, &fmt, req).await?;
     Ok((
@@ -771,6 +776,122 @@ async fn export_file(
         body,
     )
         .into_response())
+}
+
+#[derive(Deserialize, Default)]
+struct RenderQ {
+    format: Option<String>,
+}
+
+/// `GET …/render?format=html` (LIVE-06, docs/27 §2.2 "Host surfaces"): the canvas as one
+/// read-only, sanitised HTML page from the export renderer, for host surfaces that cannot run
+/// the web component (a live block's compact view). Live blocks inside resolve for the caller.
+async fn render_file(
+    State(state): State<SharedState>,
+    Path(file_id): Path<String>,
+    Query(q): Query<RenderQ>,
+    headers: HeaderMap,
+) -> Answer {
+    let p = caller(&state, &headers).await?;
+    check_file(&file_id)?;
+    if q.format.as_deref().is_some_and(|f| f != "html") {
+        return Err(Problem::not_found("FORMAT_UNSUPPORTED", "formats: html"));
+    }
+    p.scope_ok(crate::ai::tools::Scope::Read, "render")?;
+    let grant = p.grant(&state, &file_id).await?;
+    let host = p.host.clone();
+    let doc = export::load(&state, &host, &grant).await?;
+    let names = export::member_names(&state, &host, &grant, &doc).await;
+    let live = export::live_for(&state, &host, &grant, &doc, "html").await;
+    let req = export::RenderReq {
+        token: &grant.callback_token,
+        author: &grant.user.id,
+        wopi_room: None,
+        people: Some(&names),
+        live: live.as_ref(),
+    };
+    let rev = crate::ai::tools::rev(&oc_model::doc_to_json(&doc)["content"]);
+    let (body, ctype, _) = export::render(&state, &host, &doc, "html", req).await?;
+    let mut res = (
+        [
+            (header::CONTENT_TYPE, ctype.to_string()),
+            (header::CACHE_CONTROL, "no-store".into()),
+            (header::CONTENT_SECURITY_POLICY, export::EXPORT_CSP.into()),
+        ],
+        body,
+    )
+        .into_response();
+    if let Ok(v) = HeaderValue::from_str(&format!("\"{rev}\"")) {
+        res.headers_mut().insert(header::ETAG, v);
+    }
+    Ok(res)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MakeLiveBody {
+    #[serde(default)]
+    block_ids: Vec<String>,
+    #[serde(default)]
+    name: String,
+}
+
+/// `POST …/live {blockIds, name}` (LIVE-01, docs/27 §2.4): "Make live". The host creates the
+/// live file (`POST /files`, with the host key's callback token), the blocks move into it and
+/// one `liveBlock` takes their place. `201 {liveFileId, blockId, kind}`.
+async fn make_live(
+    State(state): State<SharedState>,
+    Path(file_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Answer {
+    let p = caller(&state, &headers).await?;
+    check_file(&file_id)?;
+    p.scope_ok(crate::ai::tools::Scope::Write, "makeLive")?;
+    crate::live::require_on(&p.host)?;
+    let b: MakeLiveBody = serde_json::from_slice(&body).map_err(|e| {
+        Problem::bad_request("BAD_INPUT", format!("expected {{blockIds, name}}: {e}"))
+    })?;
+    let name = crate::live::clean_name(&b.name)?;
+    let grant_a = p.grant(&state, &file_id).await?;
+    crate::live::precheck(&state, &p.host, &grant_a, &b.block_ids).await?;
+    let key = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+        .unwrap_or_else(|| ulid::Ulid::new().to_string());
+    let live_file =
+        crate::live::create_file(&state, &p.host, &p.callback_token, &name, &file_id, &key).await?;
+    let mut grant_l = p.grant(&state, &live_file).await?;
+    grant_l.file.name = name.clone();
+    let out = crate::live::make_live(
+        &state,
+        &p.host,
+        &grant_a,
+        &grant_l,
+        &b.block_ids,
+        &name,
+        &format!("api:{}", p.sub),
+    )
+    .await?;
+    Ok((StatusCode::CREATED, Json(out)).into_response())
+}
+
+/// `GET …/references` (LIVE-01, docs/27 §2.4): the live blocks and block references in this
+/// canvas, each with the caller's access to its source (`edit|comment|view|none`).
+async fn list_references(
+    State(state): State<SharedState>,
+    Path(file_id): Path<String>,
+    headers: HeaderMap,
+) -> Answer {
+    let p = caller(&state, &headers).await?;
+    check_file(&file_id)?;
+    p.scope_ok(crate::ai::tools::Scope::Read, "listReferences")?;
+    let grant = p.grant(&state, &file_id).await?;
+    let host = p.host.clone();
+    let doc = crate::live::doc_json(&state, &host, &grant).await?;
+    let items = crate::live::references(&state, &host, &grant, &doc).await;
+    Ok(Json(json!({"items": items})).into_response())
 }
 
 async fn import_file(

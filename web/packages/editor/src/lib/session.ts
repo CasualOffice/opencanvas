@@ -243,7 +243,8 @@ export function connectCollab(s: Session): Collab {
   const provider = new WebsocketProvider(s.wsUrl, s.room, doc, {
     // `caps=ext`: this editor keeps SDK blocks (BSDK-02); the server refuses an update that
     // removes one from a connection without it (an editor older than 0.2).
-    params: { ticket: s.ticket, caps: "ext" },
+    // `caps=live`: it keeps `liveBlock` and `blockRef` too (LIVE-02, an editor older than 0.3).
+    params: { ticket: s.ticket, caps: "ext,live" },
     maxBackoffTime: 10000,
     shouldReconnect: (e: CloseEvent) => !isTerminalClose(e.code, e.reason, reloading),
   });

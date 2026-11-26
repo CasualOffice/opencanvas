@@ -344,7 +344,7 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
     Ok(redirect_to_app(&host, &ticket))
 }
 
-fn ws_url(state: &SharedState, headers: &HeaderMap) -> String {
+pub(crate) fn ws_url(state: &SharedState, headers: &HeaderMap) -> String {
     if let Some(base) = &state.cfg.public_url {
         let base = base
             .replacen("https://", "wss://", 1)

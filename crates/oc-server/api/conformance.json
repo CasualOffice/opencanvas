@@ -344,6 +344,44 @@
           "expect": {"error": {"status": 401, "code": "UNAUTHENTICATED", "kind": "Unauthorized"}}
         }
       ]
+    },
+    {
+      "name": "live blocks",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "batchBlocks",
+          "params": {"fileId": "{file}", "body": {"ops": [{"op": "append", "markdown": "Q1 objectives\n\nStays here"}]}},
+          "expect": {"body": {"/applied": 1}},
+          "save": {"moved": "/blockIds/0"}
+        },
+        {
+          "call": "makeLive",
+          "params": {"fileId": "{file}", "body": {"blockIds": ["{moved}"], "name": "Q1 OKRs"}},
+          "expect": {"body": {"/kind": "blocks", "/liveFileId": {"exists": true}, "/blockId": {"exists": true}}},
+          "save": {"liveFile": "/liveFileId", "liveBlock": "/blockId"}
+        },
+        {
+          "call": "listReferences",
+          "params": {"fileId": "{file}"},
+          "expect": {"body": {"/items": {"length": 1}, "/items/0/fileId": "{liveFile}", "/items/0/blockId": "{liveBlock}", "/items/0/type": "liveBlock"}}
+        },
+        {
+          "call": "readFile",
+          "params": {"fileId": "{liveFile}", "query": {"format": "markdown"}},
+          "expect": {"body": {"/markdown": {"contains": "Q1 objectives"}}}
+        },
+        {
+          "call": "makeLive",
+          "params": {"fileId": "{liveFile}", "body": {"blockIds": ["b_missing"], "name": "Nested"}},
+          "expect": {"error": {"status": 403, "code": "LIVE_DEPTH", "kind": "Forbidden"}}
+        },
+        {
+          "call": "renderFile",
+          "params": {"fileId": "{liveFile}", "query": {"format": "pdf"}},
+          "expect": {"error": {"status": 404, "code": "FORMAT_UNSUPPORTED", "kind": "NotFound"}}
+        }
+      ]
     }
   ]
 }

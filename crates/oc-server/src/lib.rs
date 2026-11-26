@@ -19,6 +19,7 @@ pub mod history;
 pub mod host_client;
 pub mod hosts;
 pub mod jwt;
+pub mod live;
 pub mod metrics;
 pub mod notify;
 pub mod pdf;
@@ -78,6 +79,8 @@ pub struct AppState {
     pub webhooks: Arc<webhooks::Webhooks>,
     /// Installed SDK block packages (BSDK-01) and the ones refused at start.
     pub blocks: Arc<blocks::Installed>,
+    /// LIVE-02: connected live block rooms per parent session (at most `[host.live] max_open`).
+    pub live_slots: Arc<live::OpenSlots>,
 }
 
 #[derive(Clone, Copy)]
@@ -217,6 +220,7 @@ impl AppState {
             limiter,
             webhooks,
             blocks,
+            live_slots: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
@@ -289,6 +293,7 @@ impl AppState {
             };
             let grant = grant::Grant {
                 ext_blocks: false,
+                live: Default::default(),
                 wopi_history: None,
                 host_id: row.host_id.clone(),
                 room: row.room_id.clone(),

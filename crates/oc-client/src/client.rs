@@ -816,6 +816,40 @@ impl Client {
             .await
     }
 
+    /// `GET …/render?format=html` (LIVE-06): the canvas as one read-only, sanitised HTML page.
+    pub async fn render_file(&self, file_id: &str) -> Result<Vec<u8>> {
+        self.bytes("renderFile", Params::file(file_id).query("format", "html"))
+            .await
+    }
+
+    /// `POST …/live` (LIVE-01): moves top-level blocks into a new live file the host creates
+    /// and puts one `liveBlock` in their place: `{liveFileId, blockId, kind}`.
+    pub async fn make_live(
+        &self,
+        file_id: &str,
+        block_ids: &[&str],
+        name: &str,
+        opts: &CallOptions,
+    ) -> Result<Value> {
+        self.typed(
+            "makeLive",
+            Params::file(file_id).json(json!({"blockIds": block_ids, "name": name})),
+            opts,
+        )
+        .await
+    }
+
+    /// `GET …/references` (LIVE-01): the canvas's live blocks and block references with the
+    /// caller's access to each source.
+    pub async fn list_references(&self, file_id: &str) -> Result<Value> {
+        self.typed(
+            "listReferences",
+            Params::file(file_id),
+            &CallOptions::default(),
+        )
+        .await
+    }
+
     /// `POST …/import?format=`
     pub async fn import_file(
         &self,

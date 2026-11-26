@@ -305,7 +305,16 @@ pub const ACCESS_TTL: Duration = Duration::from_secs(30);
 /// A `/access` answer: `None` = the host does not implement the callback, `Some(None)` = no
 /// access, `Some(Some(role))`.
 pub type AccessAnswer = Option<Option<crate::grant::Role>>;
-type AccessCache = HashMap<(String, String, String), (std::time::Instant, AccessAnswer)>;
+type AccessCache = HashMap<(String, String, String), (std::time::Instant, Option<AccessDetail>)>;
+
+/// A full `/access` answer (LIVE-01, docs/05 §5): the role (`None` = no access) and, for live
+/// files, the optional `name` and `callbackToken` the server uses for that file's room.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccessDetail {
+    pub role: Option<crate::grant::Role>,
+    pub name: Option<String>,
+    pub callback_token: Option<String>,
+}
 
 impl Default for HostClient {
     fn default() -> Self {
@@ -958,11 +967,25 @@ impl HostClient {
         file_id: &str,
         user_id: &str,
     ) -> Result<AccessAnswer, HostError> {
+        Ok(self
+            .access_detail(host, file_id, user_id)
+            .await?
+            .map(|d| d.role))
+    }
+
+    /// [`HostClient::access`] with the whole answer (LIVE-01): `Ok(None)` when the host does
+    /// not implement `/access`. Cached [`ACCESS_TTL`] per (host, file, user).
+    pub async fn access_detail(
+        &self,
+        host: &HostConfig,
+        file_id: &str,
+        user_id: &str,
+    ) -> Result<Option<AccessDetail>, HostError> {
         let key = (host.id.clone(), file_id.to_string(), user_id.to_string());
         let cached = self.access_cache.lock().ok().and_then(|m| {
             m.get(&key)
                 .filter(|(at, _)| at.elapsed() < ACCESS_TTL)
-                .map(|(_, a)| *a)
+                .map(|(_, a)| a.clone())
         });
         if let Some(a) = cached {
             return Ok(a);
@@ -976,7 +999,7 @@ impl HostClient {
             if m.len() > 50_000 {
                 m.retain(|_, (at, _)| at.elapsed() < ACCESS_TTL);
             }
-            m.insert(key, (std::time::Instant::now(), a));
+            m.insert(key, (std::time::Instant::now(), a.clone()));
         }
         Ok(a)
     }
@@ -995,7 +1018,7 @@ impl HostClient {
         host: &HostConfig,
         file_id: &str,
         user_id: &str,
-    ) -> Result<AccessAnswer, HostError> {
+    ) -> Result<Option<AccessDetail>, HostError> {
         let url = Self::url(host, &["access"])?;
         let body = serde_json::to_vec(&serde_json::json!({"fileId": file_id, "userId": user_id}))
             .map_err(|e| HostError::Body(e.to_string()))?;
@@ -1029,12 +1052,87 @@ impl HostClient {
         }
         let v: serde_json::Value =
             serde_json::from_slice(&bytes).map_err(|e| HostError::Body(e.to_string()))?;
-        match v["role"].as_str() {
-            Some("none") => Ok(Some(None)),
-            Some(r) => crate::grant::Role::parse(r)
-                .map(|r| Some(Some(r)))
-                .ok_or_else(|| HostError::Body(format!("unknown role {r:?}"))),
-            None => Err(HostError::Body("no role in the access answer".into())),
+        let role = match v["role"].as_str() {
+            Some("none") => None,
+            Some(r) => Some(
+                crate::grant::Role::parse(r)
+                    .ok_or_else(|| HostError::Body(format!("unknown role {r:?}")))?,
+            ),
+            None => return Err(HostError::Body("no role in the access answer".into())),
+        };
+        let text = |k: &str, max: usize| {
+            v[k].as_str()
+                .map(str::trim)
+                .filter(|s| !s.is_empty() && s.len() <= max)
+                .map(String::from)
+        };
+        Ok(Some(AccessDetail {
+            // Nothing of a file the person cannot open is kept (docs/27 §2.5).
+            name: role.and(text("name", 512)),
+            callback_token: role.and(text("callbackToken", 4096)),
+            role,
+        }))
+    }
+
+    /// `POST {callback_base}/files` (LIVE-01, docs/05 §5): asks the host to create the backing
+    /// file of a new live block, `{name, parentFileId, kind: "ocanvas"}`, with the bearer of
+    /// the person making it and an `Idempotency-Key`. The host picks the folder and ACL (by
+    /// default the parent's). `Ok(None)` when the host does not implement it (404, 405, 501).
+    pub async fn create_file(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        name: &str,
+        parent_file_id: &str,
+        idempotency_key: &str,
+    ) -> Result<Option<String>, HostError> {
+        let started = std::time::Instant::now();
+        let r = self
+            .create_file_once(host, token, name, parent_file_id, idempotency_key)
+            .await;
+        let result = r.as_ref().map_or_else(err_class, |_| "ok");
+        self.record(host, "create", result, started);
+        r
+    }
+
+    async fn create_file_once(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        name: &str,
+        parent_file_id: &str,
+        idempotency_key: &str,
+    ) -> Result<Option<String>, HostError> {
+        let url = Self::url(host, &["files"])?;
+        let body = serde_json::to_vec(&serde_json::json!({
+            "name": name, "parentFileId": parent_file_id, "kind": "ocanvas",
+        }))
+        .map_err(|e| HostError::Body(e.to_string()))?;
+        let res = self
+            .request(host, token, Method::POST, url, body, 10)
+            .header(header::CONTENT_TYPE, "application/json")
+            .header("Idempotency-Key", idempotency_key)
+            .send()
+            .await?;
+        let status = res.status();
+        if matches!(
+            status,
+            StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED | StatusCode::NOT_IMPLEMENTED
+        ) {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            return Err(HostError::Status(status));
+        }
+        let bytes = res.bytes().await?;
+        if bytes.len() > 64 * 1024 {
+            return Err(HostError::Body("create answer too large".into()));
+        }
+        let v: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|e| HostError::Body(e.to_string()))?;
+        match v["fileId"].as_str() {
+            Some(id) if !id.is_empty() && id.len() <= 1024 => Ok(Some(id.to_string())),
+            _ => Err(HostError::Body("create answer without fileId".into())),
         }
     }
 

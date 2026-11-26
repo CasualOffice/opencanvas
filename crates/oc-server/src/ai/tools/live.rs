@@ -229,11 +229,14 @@ impl CanvasTools for LiveTools {
 const IMPORT_CSV: &str = "import_csv";
 /// The server's own diagram import step (DGM-15), never offered to models or MCP.
 const IMPORT_BOARD: &str = "import_board";
+/// "Make live" (LIVE-01): writes a new live file's first content, never offered to models
+/// or MCP.
+const LIVE_INIT: &str = "live_init";
 /// The API's block paging step (HAPI-04), never offered to models or MCP.
 pub const BLOCKS_PAGE: &str = "blocks_page";
 
 fn import_specs() -> Vec<ToolSpec> {
-    [IMPORT_CSV, IMPORT_BOARD]
+    [IMPORT_CSV, IMPORT_BOARD, LIVE_INIT]
         .into_iter()
         .map(|name| ToolSpec {
             name,
@@ -276,6 +279,12 @@ impl LiveTools {
     /// forwarding as a tool call, with the import row limit.
     pub async fn import_csv(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
         self.run(ctx, IMPORT_CSV, input, true, true).await
+    }
+
+    /// "Make live" (LIVE-01): makes the live file's document `input.doc` (a `document.json`
+    /// with `meta.kind = "live"`) as one edit, with cluster forwarding.
+    pub async fn live_init(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, LIVE_INIT, input, true, true).await
     }
 
     /// A diagram import (DGM-15): converted shapes onto a new board block or an open board.
@@ -378,6 +387,11 @@ impl LiveTools {
             "db_create" => Box::new(move |d| write::db_create(d, &i)),
             IMPORT_CSV => Box::new(move |d| write::import_csv(d, &i)),
             IMPORT_BOARD => Box::new(move |d| write::import_board(d, &i)),
+            LIVE_INIT => Box::new(move |d| {
+                let u =
+                    oc_model::restore::restore_update(d, &i["doc"]).map_err(ToolError::BadInput)?;
+                Ok((Some(u).filter(|u| !u.is_empty()), json!({"ok": true})))
+            }),
             BLOCKS_PAGE => Box::new(move |d| Ok((None, read::blocks_page(d, &i)?))),
             "db_add_field" => Box::new(move |d| write::db_add_field(d, &i)),
             "board_add_shapes" => Box::new(move |d| write::board_add_shapes(d, &i)),

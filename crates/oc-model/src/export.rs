@@ -183,6 +183,9 @@ pub fn to_markdown(doc: &Value) -> String {
 }
 
 pub fn to_markdown_with(doc: &Value, opts: &Options) -> String {
+    // LIVE-05: references the server did not resolve show their caption or snapshot.
+    let live = crate::live::expand(doc);
+    let doc = live.as_ref();
     let cx = &Cx { doc, opts };
     let mut out = String::new();
     if !title(doc).is_empty() && !starts_with_h1(doc) {
@@ -607,7 +610,8 @@ pub fn to_html(doc: &Value) -> String {
 
 pub fn to_html_with(doc: &Value, opts: &Options) -> String {
     // BSDK-02: SDK blocks become their template (or fallback) rendering first.
-    let expanded = crate::ext::expand(doc, &crate::ext::installed());
+    let live = crate::live::expand(doc);
+    let expanded = crate::ext::expand(live.as_ref(), &crate::ext::installed());
     let doc = expanded.as_ref();
     let cx = &Cx { doc, opts };
     let t = title(doc);

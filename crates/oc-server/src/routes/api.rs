@@ -212,6 +212,7 @@ pub struct PatchBody {
 pub(super) fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -> Grant {
     Grant {
         ext_blocks: false,
+        live: Default::default(),
         wopi_history: None,
         host_id: host.id.clone(),
         room: room_id(&host.id, file_id),
@@ -437,6 +438,7 @@ pub(super) async fn convert_for(
         author: "opencanvas",
         wopi_room: None,
         people: None,
+        live: None,
     };
     let (bytes, ctype, _) = super::export::render(state, host, &doc, &p.to, req).await?;
     Ok((

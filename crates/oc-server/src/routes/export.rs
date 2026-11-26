@@ -95,11 +95,13 @@ pub async fn export(
     } else {
         Some(member_names(&state, &host, &grant, &doc).await)
     };
+    let live = live_for(&state, &host, &grant, &doc, &fmt).await;
     let req = RenderReq {
         token: &grant.callback_token,
         author: &grant.user.id,
         wopi_room: wopi.then_some(grant.room.as_str()),
         people: names.as_ref(),
+        live: live.as_ref(),
     };
     let (body, ctype, ext) = render(&state, &host, &doc, &fmt, req).await?;
     let disposition = format!(
@@ -244,6 +246,25 @@ pub(super) async fn member_names(
         .collect()
 }
 
+/// for the grant's person.
+/// for 's person.
+pub(crate) async fn live_for(
+    state: &SharedState,
+    host: &Arc<HostConfig>,
+    grant: &Grant,
+    doc: &Doc,
+    fmt: &str,
+) -> Option<crate::live::LiveExport> {
+    if matches!(fmt, "ocanvas" | "json") {
+        return None;
+    }
+    let json = oc_model::doc_to_json(doc);
+    if oc_model::live::references(&json).is_empty() {
+        return None;
+    }
+    Some(crate::live::LiveExport::load(state, host, grant, &json).await)
+}
+
 pub const FORMATS: &str = "md, html, json, ocanvas, docx, pdf";
 
 /// Who an export is made for.
@@ -257,6 +278,9 @@ pub(super) struct RenderReq<'a> {
     pub wopi_room: Option<&'a str>,
     /// Members' current names; `None` renders the document's snapshot labels.
     pub people: Option<&'a std::collections::HashMap<String, String>>,
+    /// LIVE-05: live files the exporting person may read; references become their content or
+    /// a placeholder. `None`: captions only (no session, or the `.ocanvas`/JSON file itself).
+    pub live: Option<&'a crate::live::LiveExport>,
 }
 
 /// `document.json` as this export's viewer sees it.
@@ -266,6 +290,9 @@ fn doc_json(doc: &Doc, req: &RenderReq<'_>) -> serde_json::Value {
         oc_model::people::relabel(&mut json, names);
     } else {
         oc_model::people::strip_emails(&mut json);
+    }
+    if let Some(l) = req.live {
+        l.apply(&mut json);
     }
     json
 }
@@ -335,8 +362,9 @@ async fn render_once(
             "text/html; charset=utf-8",
             "html",
         ),
+        // The document itself: references stay references (LIVE-05).
         "json" => (
-            serde_json::to_vec_pretty(&doc_json(doc, &req))
+            serde_json::to_vec_pretty(&doc_json(doc, &RenderReq { live: None, ..req }))
                 .map_err(ApiError::internal)?
                 .into(),
             "application/json",

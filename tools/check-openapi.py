@@ -34,12 +34,13 @@ import apilib  # noqa: E402
 ROOT = apilib.ROOT
 SRC = ROOT / "crates/oc-server/src"
 # The code paths /api/v1 and the 0.1 routes run through.
-SOURCES = ["routes/v1/*.rs", "routes/api.rs", "routes/import.rs", "routes/export.rs", "routes/mod.rs",
+SOURCES = ["routes/v1/*.rs", "routes/api.rs", "routes/import.rs", "routes/export.rs", "routes/mod.rs", "live/*.rs",
            "authz.rs", "ai/tools.rs", "ai/tools/*.rs"]
 # Codes in those files that are not API error codes: editor-session errors and board image
 # exports (editor routes), the room's own
-# restore answers, and CSV values.
-NOT_API = {"TICKET_INVALID", "TRUE", "VERSION_INVALID", "BOARD_NOT_FOUND"}
+# restore answers, CSV values, and the editor-only live block session routes (LIVE-01).
+NOT_API = {"TICKET_INVALID", "TRUE", "VERSION_INVALID", "BOARD_NOT_FOUND", "LIVE_NOT_EMBEDDED",
+           "LIVE_NO_ACCESS"}
 
 
 def source_codes() -> set[str]:

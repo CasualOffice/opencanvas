@@ -66,6 +66,13 @@ pub struct HostState {
     pub access: Option<HashMap<String, String>>,
     /// (fileId, userId, v2 signature ok) of every access call.
     pub access_calls: Vec<(String, String, bool)>,
+    /// LIVE-01: per-file `/access` answers, (fileId, userId) -> role word; checked before
+    /// `access`. A file listed here for nobody answers `none`.
+    pub access_files: HashMap<(String, String), String>,
+    /// LIVE-01: `POST /files` answers on (the default); off = 404 (not implemented).
+    pub create_off: bool,
+    /// LIVE-01: `POST /files` calls (body, headers, v2 signature ok).
+    pub creates: Vec<RecordedPut>,
     /// `GET /files/{id}/versions` answer (docs/30 §3.1); `None` = 404 (not implemented).
     pub versions: Option<Value>,
     /// `GET /files/{id}/versions/{v}` bodies by version id (absent = 404).
@@ -337,7 +344,16 @@ async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> imp
         v["userId"].as_str().unwrap_or_default().to_string(),
     );
     let mut st = s.lock().unwrap();
-    st.access_calls.push((file, user.clone(), ok));
+    st.access_calls.push((file.clone(), user.clone(), ok));
+    if let Some(role) = st.access_files.get(&(file.clone(), user.clone())) {
+        return (
+            StatusCode::OK,
+            axum::Json(json!({"role": role, "name": format!("Name of {file}")})),
+        );
+    }
+    if st.access_files.keys().any(|(f, _)| *f == file) {
+        return (StatusCode::OK, axum::Json(json!({"role": "none"})));
+    }
     match &st.access {
         None => (StatusCode::NOT_FOUND, axum::Json(json!({"error": "no"}))),
         Some(m) => {
@@ -345,6 +361,33 @@ async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> imp
             (StatusCode::OK, axum::Json(json!({"role": role})))
         }
     }
+}
+
+/// `POST /files` (LIVE-01): creates `live_<n>` (empty: the first load is a new canvas) and
+/// gives the caller edit on it, as a host would by default (the parent's ACL).
+async fn create_file(
+    State(s): State<Shared>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> impl IntoResponse {
+    let ok = verify_v2(&headers, "/api/files", &body);
+    let mut st = s.lock().unwrap();
+    st.creates.push(RecordedPut {
+        headers: headers.clone(),
+        body: body.to_vec(),
+        signature_ok: ok,
+    });
+    if st.create_off {
+        return (StatusCode::NOT_FOUND, axum::Json(json!({})));
+    }
+    let id = format!("live_{}", st.creates.len());
+    let user = bearer(&headers)
+        .strip_prefix("cb-")
+        .unwrap_or_default()
+        .to_string();
+    st.access_files
+        .insert((id.clone(), user), "edit".to_string());
+    (StatusCode::CREATED, axum::Json(json!({"fileId": id})))
 }
 
 async fn list_versions(
@@ -416,6 +459,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/hooks", axum::routing::post(hooks))
         .route("/api/elsewhere", axum::routing::any(elsewhere))
         .route("/api/access", axum::routing::post(access))
+        .route("/api/files", axum::routing::post(create_file))
         .route("/assets/{id}", get(asset))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -451,6 +495,7 @@ pub fn host_config(base: &str) -> HostConfig {
         webhooks: Default::default(),
         blocks: Default::default(),
         editor: Default::default(),
+        live: Default::default(),
     }
 }
 
@@ -552,6 +597,7 @@ pub async fn app_ai(
 pub fn grant(user: &str, role: Role) -> Grant {
     Grant {
         ext_blocks: false,
+        live: Default::default(),
         wopi_history: None,
         host_id: "sample".into(),
         room: room_id("sample", FILE),
@@ -575,6 +621,7 @@ pub fn grant(user: &str, role: Role) -> Grant {
             download: true,
             comment: true,
             print: true,
+            live: false,
         },
         callback_token: format!("cb-{user}"),
         members: vec![],

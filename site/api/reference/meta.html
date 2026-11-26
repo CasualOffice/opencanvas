@@ -62,7 +62,7 @@
     &quot;version&quot;: &quot;1.0.0&quot;
   },
   &quot;paths&quot;: {}
-}</code></pre></div></details></div><aside class="op-code" aria-label="This document: examples"><div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Request</span><div class="sample-tabs" role="tablist" aria-label="Request: language"><button type="button" role="tab" id="s38-curl-tab" aria-controls="s38-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s38-ts-tab" aria-controls="s38-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s38-rust-tab" aria-controls="s38-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s38-python-tab" aria-controls="s38-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s38-curl" aria-labelledby="s38-curl-tab" data-lang="curl"><pre><code class="language-curl">curl -s &quot;https://canvas.example.com/api/v1/openapi.json&quot;</code></pre></div><div role="tabpanel" id="s38-ts" aria-labelledby="s38-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">import { OpenCanvas } from &quot;@opencanvas/client&quot;;
+}</code></pre></div></details></div><aside class="op-code" aria-label="This document: examples"><div class="sample" data-sample><div class="sample-bar"><span class="sample-label">Request</span><div class="sample-tabs" role="tablist" aria-label="Request: language"><button type="button" role="tab" id="s41-curl-tab" aria-controls="s41-curl" aria-selected="true" tabindex="0" data-lang="curl">curl</button><button type="button" role="tab" id="s41-ts-tab" aria-controls="s41-ts" aria-selected="false" tabindex="-1" data-lang="ts">TypeScript</button><button type="button" role="tab" id="s41-rust-tab" aria-controls="s41-rust" aria-selected="false" tabindex="-1" data-lang="rust">Rust</button><button type="button" role="tab" id="s41-python-tab" aria-controls="s41-python" aria-selected="false" tabindex="-1" data-lang="python">Python</button></div></div><div role="tabpanel" id="s41-curl" aria-labelledby="s41-curl-tab" data-lang="curl"><pre><code class="language-curl">curl -s &quot;https://canvas.example.com/api/v1/openapi.json&quot;</code></pre></div><div role="tabpanel" id="s41-ts" aria-labelledby="s41-ts-tab" data-lang="ts" hidden><pre><code class="language-ts">import { OpenCanvas } from &quot;@opencanvas/client&quot;;
 
 const oc = new OpenCanvas({
   baseUrl: &quot;https://canvas.example.com&quot;,
@@ -70,7 +70,7 @@ const oc = new OpenCanvas({
 });
 
 const result = await oc.getOpenApi();
-console.log(result);</code></pre></div><div role="tabpanel" id="s38-rust" aria-labelledby="s38-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::{Auth, CallOptions, Client, Params};
+console.log(result);</code></pre></div><div role="tabpanel" id="s41-rust" aria-labelledby="s41-rust-tab" data-lang="rust" hidden><pre><code class="language-rust">use opencanvas_client::{Auth, CallOptions, Client, Params};
 
 let oc = Client::builder(&quot;https://canvas.example.com&quot;)
     .auth(Auth::host_key(&quot;acme&quot;, std::env::var(&quot;OC_API_KEY&quot;).expect(&quot;OC_API_KEY&quot;)))
@@ -84,7 +84,7 @@ let res = oc
     )
     .await?;
 let answer: serde_json::Value = res.value()?;
-println!(&quot;{answer:#}&quot;);</code></pre></div><div role="tabpanel" id="s38-python" aria-labelledby="s38-python-tab" data-lang="python" hidden><pre><code class="language-python">import requests
+println!(&quot;{answer:#}&quot;);</code></pre></div><div role="tabpanel" id="s41-python" aria-labelledby="s41-python-tab" data-lang="python" hidden><pre><code class="language-python">import requests
 
 r = requests.get(
     &quot;https://canvas.example.com/api/v1/openapi.json&quot;,

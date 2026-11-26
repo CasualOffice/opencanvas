@@ -90,11 +90,11 @@ export interface CreateDatabase {
 export interface Event {
   /** ev_<ulid>; pass the last one back as Last-Event-ID to resume (also the webhook Idempotency-Key) */
   id: string;
-  type: "edited" | "commented" | "mentioned" | "member.joined" | "member.left" | "session.closed" | "restored" | "saved" | "resync";
+  type: "edited" | "commented" | "mentioned" | "member.joined" | "member.left" | "session.closed" | "restored" | "saved" | "live.embedded" | "live.removed" | "resync";
   fileId: string;
   /** Unix milliseconds */
   at: number;
-  /** edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; resync {reason} */
+  /** edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; resync {reason} */
   data: Record<string, unknown>;
 }
 
@@ -431,6 +431,50 @@ export interface Operations {
     body: never;
     response: Uint8Array;
   };
+  /** GET /api/v1/files/{fileId}/render: Render the canvas as read-only HTML */
+  renderFile: {
+    path: { fileId: string; };
+    query: {
+      /** html (the only format) */
+      format?: "html";
+    };
+    body: never;
+    response: Uint8Array;
+  };
+  /** POST /api/v1/files/{fileId}/live: Make blocks live */
+  makeLive: {
+    path: { fileId: string; };
+    query: {};
+    body: {
+      /** Top-level blocks to move, 1-500 */
+      blockIds: Array<string>;
+      /** The live file's name, 1-200 characters */
+      name: string;
+    };
+    response: {
+      liveFileId: string;
+      blockId: string;
+      kind: "blocks" | "database" | "board";
+      [key: string]: unknown;
+    };
+  };
+  /** GET /api/v1/files/{fileId}/references: List the live blocks and block references */
+  listReferences: {
+    path: { fileId: string; };
+    query: {};
+    body: never;
+    response: {
+      items: Array<{
+        blockId: string;
+        type: "liveBlock" | "blockRef";
+        fileId: string;
+        refBlockId?: string;
+        kind?: string;
+        access: "edit" | "comment" | "view" | "none";
+        [key: string]: unknown;
+      }>;
+    };
+  };
   /** POST /api/v1/files/{fileId}/import: Import Markdown, HTML or CSV into the canvas */
   importFile: {
     path: { fileId: string; };
@@ -578,6 +622,9 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   addComment: {"method": "POST", "path": "/api/v1/files/{fileId}/comments", "scope": "canvas:comment", "pathParams": ["fileId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
   listMembers: {"method": "GET", "path": "/api/v1/files/{fileId}/members", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["q", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
   exportFile: {"method": "GET", "path": "/api/v1/files/{fileId}/export/{format}", "scope": "canvas:read", "pathParams": ["fileId", "format"], "query": [], "body": null, "response": "binary", "paged": null, "idempotent": false},
+  renderFile: {"method": "GET", "path": "/api/v1/files/{fileId}/render", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["format"], "body": null, "response": "binary", "paged": null, "idempotent": false},
+  makeLive: {"method": "POST", "path": "/api/v1/files/{fileId}/live", "scope": "canvas:write", "pathParams": ["fileId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
+  listReferences: {"method": "GET", "path": "/api/v1/files/{fileId}/references", "scope": "canvas:read", "pathParams": ["fileId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
   importFile: {"method": "POST", "path": "/api/v1/files/{fileId}/import", "scope": "canvas:write", "pathParams": ["fileId"], "query": ["format", "blockId", "name", "types"], "body": "binary", "response": "json", "paged": null, "idempotent": true},
   commitFile: {"method": "POST", "path": "/api/v1/files/{fileId}/commit", "scope": "canvas:admin", "pathParams": ["fileId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": true},
   setRole: {"method": "POST", "path": "/api/v1/files/{fileId}/role", "scope": "canvas:admin", "pathParams": ["fileId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
@@ -697,6 +744,21 @@ export abstract class GeneratedApi {
   /** Export the canvas (`GET /api/v1/files/{fileId}/export/{format}`, canvas:read). */
   async exportFile(params: Params<"exportFile">, options?: CallOptions): Promise<Operations["exportFile"]["response"]> {
     return (await this.call("exportFile", params, options)).data;
+  }
+
+  /** Render the canvas as read-only HTML (`GET /api/v1/files/{fileId}/render`, canvas:read). */
+  async renderFile(params: Params<"renderFile">, options?: CallOptions): Promise<Operations["renderFile"]["response"]> {
+    return (await this.call("renderFile", params, options)).data;
+  }
+
+  /** Make blocks live (`POST /api/v1/files/{fileId}/live`, canvas:write). */
+  async makeLive(params: Params<"makeLive">, options?: CallOptions): Promise<Operations["makeLive"]["response"]> {
+    return (await this.call("makeLive", params, options)).data;
+  }
+
+  /** List the live blocks and block references (`GET /api/v1/files/{fileId}/references`, canvas:read). */
+  async listReferences(params: Params<"listReferences">, options?: CallOptions): Promise<Operations["listReferences"]["response"]> {
+    return (await this.call("listReferences", params, options)).data;
   }
 
   /** Import Markdown, HTML or CSV into the canvas (`POST /api/v1/files/{fileId}/import`, canvas:write). */

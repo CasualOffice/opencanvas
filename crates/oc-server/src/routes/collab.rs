@@ -151,9 +151,28 @@ pub async fn upgrade(
     }
     let (host, mut grant) = session(&state, &p.ticket).await?;
     grant.ext_blocks = p.caps.split(',').any(|c| c.trim() == "ext");
+    // LIVE-02: `caps=live` keeps `liveBlock`/`blockRef` nodes (editors from 0.3).
+    grant.live.caps = p.caps.split(',').any(|c| c.trim() == "live");
     if grant.room != room {
         return Err(ApiError::forbidden("ticket is for another room"));
     }
+    // LIVE-02: a live block room counts against its parent session's open live blocks.
+    let slot = match &grant.live.parent {
+        Some(parent) => {
+            let max = crate::live::LiveCfg::of(&host).max_open;
+            match state.live_slots.take(&parent.session, max) {
+                Some(s) => Some(s),
+                None => {
+                    return Err(ApiError::new(
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "LIVE_LIMIT",
+                        format!("at most {max} live blocks are connected at once"),
+                    ));
+                }
+            }
+        }
+        None => None,
+    };
     {
         let mut tickets = state.tickets.lock().expect("tickets lock");
         let entry = tickets.entry(p.ticket.clone()).or_insert(TicketUse {
@@ -166,8 +185,12 @@ pub async fn upgrade(
         entry.connected = true;
     }
     let limit = state.cfg.rooms.max_frame_bytes;
-    Ok(ws_config(ws, limit * 2)
-        .on_upgrade(move |socket| serve(state, host, grant, socket, p.ticket)))
+    Ok(
+        ws_config(ws, limit * 2).on_upgrade(move |socket| async move {
+            serve(state, host, grant, socket, p.ticket).await;
+            drop(slot);
+        }),
+    )
 }
 
 struct Bucket {

@@ -21,6 +21,21 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   fits; no results offers "Did you mean". Recent stays in the browser. The gallery takes the same
   categories with variant chips. `[host.editor] intents` and `chips` turn off or replace the
   goal chips (docs/05 §2b). Profiles with 8 or fewer blocks get a flat list.
+- Portable live blocks, server side (v0.3, behind `[host.flags] live_blocks`, off by default):
+  the host contract (LIVE-01, docs/05 §2c, ADR-070): `[host.live]` checked at start-up, the
+  `POST /files` callback, `/access` required (with optional `name` and `callbackToken`), the
+  token's `perms.live` and `live` claims, derived sessions for embedded live files
+  (`POST /v1/live/session`) and "Make live" (`POST /v1/live/make`).
+- Live block rooms (LIVE-02, docs/15 §3 and §4.4, ADR-071): the `liveBlock` and `blockRef` nodes in
+  the editor schema (no node view yet), `caps=live` and the 4426 guard so a 0.2 editor deletes no
+  live block, the depth rule, at most 50 references, the snapshot policy and `perms.live` on every
+  write path, at most 8 live rooms per session, presence `from` and the `live.embedded` /
+  `live.removed` events (ADR-069).
+- Live block projections, snapshots, exports and render (LIVE-04/05/06, ADR-072): `GET
+  /v1/live/projection` with ETags, `POST /v1/live/refresh` under the snapshot policy, exports that
+  inline only what the exporting person can read, and API operations `makeLive`, `listReferences`
+  and `renderFile` (`GET /api/v1/files/{id}/render`) in the OpenAPI document, both clients and the
+  conformance suite.
 
 ### Fixed
 
