@@ -60,7 +60,7 @@ pub fn apply_document_json(doc: &Doc, value: &Value) {
         };
         let map = txn.get_or_insert_map(name);
         for (k, v) in obj {
-            if name == roots::EXT {
+            if name == roots::EXT || name == roots::AUTOMATIONS {
                 // One Y.Map per block, one plain JSON value per field (per-field LWW).
                 if let Some(fields) = v.as_object() {
                     let prelim: MapPrelim = fields

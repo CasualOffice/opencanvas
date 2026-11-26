@@ -286,6 +286,60 @@ unsent_mb    = 5          # unsent changes per canvas before editing pauses (1-5
 `auto_recent` above `max_canvases`, and `enabled = true` on a WOPI-only host refuse to start,
 naming the host.
 
+### 2e. Automation (AUTO-01..07, docs/34 §5, ADR-067, ADR-068; `[host.automation]`)
+
+Rules such as "when Status changes to Done, move the row to Archive and notify the owner" are
+**stored in the canvas** (the `automations` root, additive to format 1), so you store them with
+the file and they travel with copies (a copy's rules are switched off and ownerless). The
+OpenCanvas server runs them as the collaborator "Automation" **on behalf of the person who last
+saved or switched on the rule**, re-checking that person's role with your `POST /access` at every
+run (cached 30 s): below edit, the rule pauses. Without `/access`, the owner must have opened the
+canvas in the last 30 days. Automation is off until you add the table:
+
+```toml
+[host.automation]
+enabled          = true
+actions          = ["field.set", "row.move", "todo.set", "todo.add", "comment.add", "notify", "http.post"]
+allow_origins    = ["https://ci.acme.example"]  # URL calls may reach these besides your callback origin
+max_rules        = 25      # per canvas, at most 100
+runs_per_minute  = 60      # per rule
+runs_per_day     = 1000    # per canvas
+max_changes      = 50      # per run
+max_depth        = 3       # rules started by rules
+min_interval_min = 15      # schedules
+time_zone        = "Europe/Berlin"   # IANA name, UTC, or UTC+05:30; rules may name their own
+```
+
+- **Who may create rules:** editors whose launch token has `perms.automate: true` (default
+  false). Others see the rules read-only; the run history is shown to editors only. The server
+  refuses a client write to `automations` without it, an invalid rule, an action you did not
+  allow, a URL on another origin, and an enabled rule not owned by the person saving it.
+- **Automation needs a database** (SQLite, MySQL or MariaDB) for its schedule and run log;
+  with Redis-only storage the server refuses `[host.automation]` at start-up. Both tables hold
+  ids, times, counts and codes, never canvas text; runs are kept 30 days.
+- **Date and schedule rules run with nobody in the canvas.** A worker on every node claims due
+  rows (one node per slot) and opens the file the way the API does: `GET` and `PUT
+  /files/{fileId}` arrive **with no bearer token**, signed (v2) as always. Treat such a signed call
+  as your own service acting for the file. A file that does not load is retried every 5 minutes
+  for an hour, then the run is logged as failed.
+- **`notify`** calls your `POST /mentions` (§5) with `by: "automation:<ruleId>"`,
+  `onBehalfOf: <owner id>`, `mentioned`, `excerpt` (the rule's message) and
+  `automation: {ruleId, name, runId}`, with no bearer token. OpenCanvas sends no mail.
+- **`http.post`** sends `{rule: {id, name}, runId, fileId, by, trigger, fields, at}` (only the
+  fields the rule names) to your callback origin or an `allow_origins` origin, signed like
+  webhooks (`X-OpenCanvas-Signature` v2 with `[host.webhooks] secret` or your callback secret,
+  `X-OpenCanvas-Event: automation.url`, `Idempotency-Key: <runId>`), 10 s timeout, no redirects,
+  3 tries (now, after 1 minute, after 10 minutes; a 3xx or 4xx other than 408/425/429 is final).
+- Ten failed runs in a row pause a rule and notify its owner once. Events `automation.ran` and
+  `automation.failed` go to the events stream and webhooks; edits by a rule carry
+  `by: "automation:<ruleId>"`, and the save's `X-OpenCanvas-Authors` lists `automation:<ruleId>`.
+- Rules are document data: anyone who can read the file can read every rule, its owner, its URL
+  targets and the fields it sends. Never put secrets in a rule.
+- API and MCP: `GET/PUT/DELETE /api/v1/files/{fileId}/automations[/{ruleId}]`,
+  `POST …/automations/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs`
+  (§7b); MCP `canvas_automations`, `canvas_automation_save`, `canvas_automation_enable`,
+  `canvas_automation_test`.
+
 ## 3. JWT launch token
 
 Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
@@ -323,7 +377,8 @@ exchanged for a session ticket on open).
     "restore": true,                // editors may restore a version (default true)
     "mention": true,
     "live": true,                   // may make live blocks and embed them (default false, §2c)
-    "offline": true                 // may keep THIS canvas on the device (default false, §2d)
+    "offline": true,                // may keep THIS canvas on the device (default false, §2d)
+    "automate": true                // may create and switch on automation rules (default false, §2e)
   },
   "offlineReason": "shared-device", // optional (§2d): shown when perms.offline is false
   "live": [                         // optional (§2c): live files to show read-only when you
@@ -943,6 +998,7 @@ same tool layer as MCP, §7a):
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
 | Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
 | Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
+| Automation rules | `GET /api/v1/files/{id}/automations`, `PUT`/`DELETE …/automations/{ruleId}`, `POST …/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs` | needs `[host.automation]`; writes need `canvas:write` and edit; the caller becomes the rule's owner; runs are editors only (§2e) |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
 | Revoke offline copies | `POST /api/v1/offline/revoke {userId}` | host key or `canvas:admin`; raises the person's offline generation → `{gen}`; their devices delete every offline copy for your host at the next session answer (§2d) |
 | Events | `GET …/events` (SSE or WebSocket) | change events, below |

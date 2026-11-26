@@ -107,6 +107,19 @@ pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
     if let Some(ext) = obj.get("ext") {
         crate::ext::check_root(ext, &mut |p, m| cx.r.err(&p, m));
     }
+    if let Some(a) = obj.get(crate::automation::ROOT) {
+        let mut errs = vec![];
+        let mut warns = vec![];
+        crate::automation::check_root(a, &mut |p, m| errs.push((p, m)), &mut |p, m| {
+            warns.push((p, m))
+        });
+        for (p, m) in errs {
+            cx.r.err(&p, m);
+        }
+        for (p, m) in warns {
+            cx.r.warn(&p, m);
+        }
+    }
     for key in ["meta", "databases", "boards", "comments", "people"] {
         if obj.get(key).is_some_and(|m| !m.is_object()) {
             cx.r.err(&format!("/{key}"), format!("{key} must be an object"));

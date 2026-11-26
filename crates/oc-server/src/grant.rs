@@ -89,6 +89,10 @@ pub struct Perms {
         skip_serializing_if = "Option::is_none"
     )]
     pub offline_reason: Option<String>,
+    /// AUTO-01 (ADR-067): may create, edit and switch on automation rules (with edit access,
+    /// on a host with `[host.automation]`). Default false.
+    #[serde(default)]
+    pub automate: bool,
 }
 
 /// A launch token's `live: [{fileId, role}]` entry (LIVE-01): a live file this person may

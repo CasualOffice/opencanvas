@@ -54,11 +54,14 @@ pub const SAVED: &str = "saved";
 /// LIVE-07 (ADR-069): a `liveBlock` or `blockRef` was added to the canvas, or removed.
 pub const LIVE_EMBEDDED: &str = "live.embedded";
 pub const LIVE_REMOVED: &str = "live.removed";
+/// AUTO-05 (ADR-067): an automation rule ran (`done`, `skipped`, `stopped`) or failed.
+pub const AUTOMATION_RAN: &str = "automation.ran";
+pub const AUTOMATION_FAILED: &str = "automation.failed";
 /// Stream only: the resume point is gone; re-read the canvas.
 pub const RESYNC: &str = "resync";
 
 /// Every event type a room publishes (what `[host.webhooks] events` may list).
-pub const TYPES: [&str; 10] = [
+pub const TYPES: [&str; 12] = [
     EDITED,
     COMMENTED,
     MENTIONED,
@@ -69,6 +72,8 @@ pub const TYPES: [&str; 10] = [
     SAVED,
     LIVE_EMBEDDED,
     LIVE_REMOVED,
+    AUTOMATION_RAN,
+    AUTOMATION_FAILED,
 ];
 
 /// One event. `host_id` and `room` route it; the public JSON is [`FileEvent::public`].

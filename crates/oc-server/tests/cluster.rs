@@ -54,6 +54,9 @@ async fn node(
             toml::Value::Array(vec![toml::Value::String("*".into())]),
         );
         h.webhooks = hooks;
+        // AUTO-A1: automation on every node; the owner runs rules.
+        h.automation = toml::from_str("enabled = true").unwrap();
+        h.flags.insert("api_v1".into(), toml::Value::Boolean(true));
     })
     .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -636,4 +639,69 @@ async fn webhooks_are_sent_once_in_a_cluster() {
     unique.sort();
     unique.dedup();
     assert_eq!((sent.len(), unique.len()), (3, 3), "{sent:?}");
+}
+
+/// AUTO-A1 in a cluster: a status change made through the other node runs the rule once, on
+/// the room's owner, and notifies the row's owner once.
+#[tokio::test]
+async fn an_automation_runs_once_on_the_owner_in_a_two_node_cluster() {
+    let (host, _fake, n1, n2) = two_nodes().await;
+    host.lock().unwrap().access = Some([("u_lea".to_string(), "edit".to_string())].into());
+    let _a = Peer::join(&n1.state, grant("u_a", Role::Edit)).await;
+    let call = async |addr: &str, m: reqwest::Method, path: &str, body: Value| -> (u16, Value) {
+        let r = http()
+            .request(m, format!("http://{addr}/api/v1/files/{FILE}{path}"))
+            .header("x-opencanvas-host", "sample")
+            .header("x-opencanvas-key", "test-api-key")
+            .header("x-opencanvas-author", "u_lea")
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        let s = r.status().as_u16();
+        (s, r.json().await.unwrap_or(Value::Null))
+    };
+    let (s, v) = call(&n1.addr, reqwest::Method::POST, "/databases", serde_json::json!({"name": "Backlog",
+        "fields": [{"name": "Task", "type": "title"}, {"name": "Status", "type": "select", "options": ["Open", "Done"]}, {"name": "Owner", "type": "person"}],
+        "rows": [{"values": {"Task": "Ship it", "Status": "Open", "Owner": "u_noor"}}]})).await;
+    assert_eq!(s, 200, "{v}");
+    let (db, row) = (
+        v["dbId"].as_str().unwrap().to_string(),
+        v["rowIds"][0].as_str().unwrap().to_string(),
+    );
+    let status = v["fieldIds"][1].as_str().unwrap().to_string();
+    let rule = serde_json::json!({"name": "Tell the owner", "trigger": {"kind": "field.changed", "database": db, "field": "Status", "to": "Done"},
+        "actions": [{"kind": "notify", "people": ["field:Owner"], "text": "{row.title} is done"}]});
+    let (s, v) = call(&n1.addr, reqwest::Method::PUT, "/automations/au_1", rule).await;
+    assert_eq!(s, 200, "{v}");
+    // A person connected to the other node sets Status to Done; the frame is relayed to the owner.
+    let mut b = Peer::join(&n2.state, grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    b.edit(|d| {
+        use yrs::Map;
+        let root = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let Some(yrs::Out::YMap(dbm)) = root.get(&txn, &db) else {
+            panic!("no db")
+        };
+        let Some(yrs::Out::YMap(rows)) = dbm.get(&txn, "rows") else {
+            panic!("no rows")
+        };
+        let Some(yrs::Out::YMap(r)) = rows.get(&txn, &row) else {
+            panic!("no row")
+        };
+        r.insert(&mut txn, status.as_str(), "Done");
+    });
+    wait_until(|| !host.lock().unwrap().mentions.is_empty()).await;
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert_eq!(host.lock().unwrap().mentions.len(), 1, "notified once");
+    let room = grant("u_a", Role::Edit).room;
+    let runs = n1
+        .state
+        .store
+        .automation_runs(&room, None, None, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].result, "done");
 }

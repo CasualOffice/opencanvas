@@ -15,6 +15,16 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   inside live blocks are found and labelled; Replace all skips them and says so.
 - Search all canvases (SRCH-04): results from the host's own search (`GET /search` callback),
   grouped by canvas, with deep links to the block; hidden when the host has no search callback.
+- Automation, server side (AUTO-01..05, AUTO-07, ADR-067, ADR-068; off unless
+  `[host.automation]`): rules stored in the canvas (`automations` root) run by the server as
+  "Automation" on behalf of their owner, re-checked with the host's `/access` at every run.
+  Triggers: row added, field changed, checklist item checked, comment or mention added, a date
+  reached and schedules (every 15 minutes or more, in the canvas time zone, even with the canvas
+  closed). Actions: set a field, move a row, check or add checklist items, comment, notify through
+  the host's `POST /mentions`, and call a URL signed like webhooks on allowed origins only. Loop
+  guard (never itself, 3 deep), limits, auto-pause after 10 failures, a metadata-only run log
+  (30 days), `automation.ran`/`automation.failed` events, `perms.automate`, migration 0010, the
+  API (`/api/v1/files/{id}/automations…`) and MCP tools.
 - Offline copies, server side (OFF-01, OFF-07, ADR-063/064): `[host.offline]` (off by default;
   checked at start-up; JWT hosts only), the launch token's `perms.offline` and `offlineReason`,
   an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on

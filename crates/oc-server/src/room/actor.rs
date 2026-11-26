@@ -188,6 +188,8 @@ struct Room {
     /// `storage = "ephemeral"` (ADR-043): never loaded from or saved to the host; destroyed
     /// when the room closes.
     ephemeral: bool,
+    /// AUTO-02/03: what the rules watch, and the loop guard's chains.
+    auto: super::auto::AutoState,
 }
 
 /// What clients of an ephemeral room are told when it ends (ADR-043).
@@ -545,7 +547,25 @@ impl Room {
         let ephemeral = host.ephemeral();
         let notify = crate::notify::enabled(&host, &seed.file.id);
         let mentions = Some(super::mentions::Tracker::new(&doc));
+        let mut auto = super::auto::AutoState::new(&doc, &host);
+        if !host.ephemeral()
+            && ctx.store.automation_supported()
+            && let Some(rows) = auto.schedule(&doc, &host, ctx.clock.now_ms())
+        {
+            let (store, room, h, f) = (
+                ctx.store.clone(),
+                id.clone(),
+                host.id.clone(),
+                seed.file.id.clone(),
+            );
+            tokio::spawn(async move {
+                if let Err(e) = store.automation_schedule_set(&room, &h, &f, &rows).await {
+                    tracing::warn!(room = %room, error = %e, "automation schedule not written");
+                }
+            });
+        }
         Ok(Self {
+            auto,
             mentions,
             notify,
             watch: super::changes::Watch::attach(&doc),
@@ -1420,6 +1440,11 @@ impl Room {
                 &format!("an SDK block does not match its schema ({e})"),
             );
         }
+        // AUTO-01 (ADR-067): rules are changed by editors with perms.automate, valid, owned.
+        if let Err(e) = super::auto::check_client(&self.doc, &bytes, &grant, &self.host) {
+            tracing::info!(room = %self.id, "update refused: automation rule");
+            return self.deny(conn, &e);
+        }
         // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
         if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {
             return self.deny(conn, "icons are changed through the server");
@@ -1551,6 +1576,7 @@ impl Room {
         users.sort();
         users.dedup();
         let touched = self.watch.take();
+        self.automation_batch(&users);
         if touched.comments {
             self.comments_dirty = true;
             self.comment_by.extend(users.iter().cloned());
@@ -1599,6 +1625,61 @@ impl Room {
             self.accepted().await;
         }
         true
+    }
+
+    /// AUTO-02/03: the runs a durable batch starts, and the room's schedule rows when its
+    /// timed rules changed. Runs are tasks; their writes come back as `Cmd::Tool`.
+    fn automation_batch(&mut self, users: &[String]) {
+        if self.ephemeral || !self.ctx.store.automation_supported() {
+            return;
+        }
+        let names: HashMap<String, String> = self
+            .peers
+            .values()
+            .map(|p| (p.grant.user.id.clone(), p.grant.user.name.clone()))
+            .collect();
+        let jobs = self.auto.after_batch(
+            &self.doc,
+            &self.host,
+            &self.id,
+            &self.file_id,
+            users,
+            &|u| names.get(u).cloned(),
+        );
+        for job in jobs {
+            let deps = self.auto_deps();
+            let applier =
+                super::auto::ActorApplier(self.self_tx.clone(), job.depth, job.chain.clone());
+            tokio::spawn(async move {
+                crate::automation::runner::run(&deps, &applier, job).await;
+            });
+        }
+        if let Some(rows) = self
+            .auto
+            .schedule(&self.doc, &self.host, self.ctx.clock.now_ms())
+        {
+            let (store, room, h, f) = (
+                self.ctx.store.clone(),
+                self.id.clone(),
+                self.host.id.clone(),
+                self.file_id.clone(),
+            );
+            tokio::spawn(async move {
+                if let Err(e) = store.automation_schedule_set(&room, &h, &f, &rows).await {
+                    tracing::warn!(room = %room, error = %e, "automation schedule not written");
+                }
+            });
+        }
+    }
+
+    fn auto_deps(&self) -> crate::automation::runner::Deps {
+        crate::automation::runner::Deps {
+            store: self.ctx.store.clone(),
+            host_client: self.ctx.host.clone(),
+            events: self.ctx.events.clone(),
+            http: self.ctx.auto_http.clone(),
+            clock: self.ctx.clock.clone(),
+        }
     }
 
     /// A persistence write failed for good: a fenced write means another node owns the room
@@ -1926,6 +2007,16 @@ impl Room {
         let (update, answer) = run(&self.doc)?;
         let Some(update) = update.filter(|u| !u.is_empty()) else {
             return Ok(answer);
+        };
+        // AUTO-02: an automation write carries its chain; the transaction gets the plain origin.
+        let plain;
+        let origin = match super::auto::split_origin(origin) {
+            Some((rule, depth, chain)) => {
+                self.auto.pending.insert(author.to_string(), (depth, chain));
+                plain = crate::automation::runner::origin_of(&rule);
+                plain.as_str()
+            }
+            None => origin,
         };
         if self.conflict.is_some() {
             return Err(ToolError::Internal(
@@ -2512,8 +2603,15 @@ impl Room {
                     at: rfc3339(now_ms()),
                     ..Default::default()
                 };
+                // ADR-067: a copy keeps its automation rules switched off and ownerless.
+                let copy = oc_model::new_doc();
+                let _ = oc_model::ocanvas::apply_update_bytes(
+                    &copy,
+                    &oc_model::ocanvas::encode_state(&self.doc),
+                );
+                oc_model::automation::disable_all(&copy);
                 match oc_model::ocanvas::write_ocanvas_opts(
-                    &self.doc,
+                    &copy,
                     &commit,
                     None,
                     self.host.search().model_options(),

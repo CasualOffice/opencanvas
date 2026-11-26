@@ -119,6 +119,7 @@ impl LaunchClaims {
             live: false,
             offline: false,
             offline_reason: None,
+            automate: false,
         });
         if self.role == Role::View {
             perms.comment = false;

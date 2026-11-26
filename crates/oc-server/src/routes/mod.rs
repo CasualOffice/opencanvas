@@ -265,6 +265,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/search", get(v1::search::editor_search))
         .route("/v1/offline/clear", get(crate::offline::clear_page))
         .route("/v1/offline/clear.js", get(crate::offline::clear_js))
+        .route("/v1/automations/runs", get(v1::automation::editor_runs))
+        .route("/v1/automations/test", post(v1::automation::editor_test))
         .route("/hosting/discovery", get(launch::discovery))
         .route("/hosting/capabilities", get(launch::capabilities))
         .route("/v1/import", post(import::import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))

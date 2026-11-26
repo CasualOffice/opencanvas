@@ -17,7 +17,9 @@ use tokio::sync::{mpsc, oneshot};
 use crate::crypto::{self, Kek};
 use crate::grant::{Grant, Role};
 
+mod automation;
 mod webhooks;
+pub use automation::{RunRow, ScheduleRow};
 pub use webhooks::{WebhookRow, WebhookState};
 
 static SQLITE: Migrator = sqlx::migrate!("../../migrations/sqlite");
