@@ -9,6 +9,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- The automations panel (AUTO-06): "Automations" in the canvas menu, when the host turns
+  automation on. Rules read as sentences ("When Status changes to Done in Backlog, then move the
+  row to Archive"), switch on and off in place, and say when they ran or run next. Suggestions
+  built from the canvas, a rule editor with a grouped trigger picker, conditions, up to five
+  actions and a test run that changes nothing, and a run history with failed and stopped
+  filters. Paused rules say why and offer "Run it as me". Viewers see the rules read-only. On
+  phones the panel is a full-screen page.
 - Find and replace in a canvas (SRCH-01, ADR-066, [approved prototype](docs/prototypes/v03-approved/search.html)):
   ⌘F opens a find bar over text, databases and boards; case, whole word and regular expressions
   (50 ms budget); Replace all is one undo step; view-only people can find but not replace. Matches

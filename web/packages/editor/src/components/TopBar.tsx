@@ -70,6 +70,10 @@ export function TopBar(props: {
   onFind?: () => void;
   /** SRCH-04: "Search all canvases ⌘⇧F"; absent (hidden, not disabled) without the host's callback (frame 2e). */
   onSearchAll?: () => void;
+  /** AUTO-06: "Automations" with the number of rules; absent without `[host.automation]`. */
+  onAutomations?: () => void;
+  /** AUTO-06 frame 5d: a host without automation shows a quiet line when the canvas has rules. */
+  automationsHere?: number;
 }) {
   const { compact } = useShell();
   const pressed = useRef<{ id: number; fired: boolean } | null>(null);
@@ -262,7 +266,19 @@ export function TopBar(props: {
               {!compact ? <span className="mk">{isMac ? "⇧⌘F" : "Ctrl+Shift+F"}</span> : null}
             </button>
           ) : null}
-          {props.onFind || props.onSearchAll ? <div className="msep" /> : null}
+          {props.onAutomations ? (
+            <button className="mi" onClick={() => (close(), props.onAutomations!())}>
+              <Ic name="zap" />
+              Automations
+              {props.automationsHere ? <span className="mk">{props.automationsHere}</span> : null}
+            </button>
+          ) : props.automationsHere ? (
+            <div className="mi mi-quiet" role="note">
+              <Ic name="zap" />
+              {props.automationsHere} {props.automationsHere === 1 ? "automation" : "automations"} (not run here)
+            </div>
+          ) : null}
+          {props.onFind || props.onSearchAll || props.onAutomations || props.automationsHere ? <div className="msep" /> : null}
           {props.onHistory ? (
             <>
               <button className="mi" onClick={() => (close(), props.onHistory!())}>

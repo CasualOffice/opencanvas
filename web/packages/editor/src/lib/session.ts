@@ -51,6 +51,8 @@ export interface Session {
   templates?: { team?: boolean } | null;
   /** SRCH-04 (ADR-065): "Search all canvases" only when the host answers `GET /search`. */
   search?: { enabled?: boolean } | null;
+  /** AUTO-06 (ADR-067): the automation panel; `canEdit` = edit access and perms.automate. */
+  automation?: { enabled?: boolean; canEdit?: boolean; history?: boolean; limits?: import("../automation/model").Limits } | null;
   /** BSDK-01: the SDK block packages this host enables (docs/15 §2). */
   blocks?: BlockPackage[];
   /** EDP-01: the host's editor profile, insertable blocks and feature switches (docs/15 §2). */
