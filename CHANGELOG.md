@@ -15,6 +15,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   update byte for byte (property tests; checked on the 50 MB fixture, where the main document
   holds 6.7 MB against 737 MB for the whole). The WAL keeps rows per document id (migration 0012:
   `room_updates.doc_id`, `room_part_snapshots`).
+- Partial sync in the room (PSYNC-02, ADR-076), behind `[host.flags] partial_sync` (**off by
+  default**; leave it off until the 0.4 editor ships): databases and boards become subdocuments on
+  the room socket (message type 101, docs/15 §3.2), loaded when a connection asks, the role checked
+  per request, evicted when unheld; the API, MCP, history, templates, AI tools, automation and saves
+  work on a whole view flattened with the original item ids, so saves stay `.ocanvas` format v1.
+  Editors without `caps=subdoc` are closed with 4426 on a split room. Room memory on the 50 MB fixture with 20 viewers (caps=subdoc, first page, no edits; release build, Apple M4, local; one process per figure, test-process RSS): split room opened from its WAL 220 MB (a high-water mark: opening walks every part once, one at a time, to index its ids) against 4,401 MB for the same room whole (2,382 MB in a second run), 5-9%, under the 30% bar (tests/partial_sync.rs room_memory_on_the_fixture).
 
 ### Fixed
 

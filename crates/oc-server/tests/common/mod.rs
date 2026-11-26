@@ -639,6 +639,7 @@ pub async fn app_ai(
 pub fn grant(user: &str, role: Role) -> Grant {
     Grant {
         ext_blocks: false,
+        subdoc: false,
         live: Default::default(),
         wopi_history: None,
         host_id: "sample".into(),
@@ -681,6 +682,8 @@ pub struct Peer {
     pub controls: Vec<Value>,
     pub denied: usize,
     pub awareness: Vec<yrs::sync::AwarenessUpdate>,
+    /// PSYNC-02: subdocument frames (type 101) as received: `(guid, inner message)`.
+    pub subs: Vec<(String, Message)>,
     /// Close code the server sent, if any.
     pub closed: Option<u16>,
 }
@@ -699,6 +702,7 @@ impl Peer {
             denied: 0,
             awareness: vec![],
             closed: None,
+            subs: vec![],
         };
         let sv = peer.doc.transact().state_vector();
         peer.send(protocol::step1(sv));
@@ -728,6 +732,12 @@ impl Peer {
                 }
                 Message::Custom(100, body) => {
                     self.controls.push(serde_json::from_slice(&body).unwrap())
+                }
+                Message::Custom(101, body) => {
+                    use yrs::encoding::read::Read;
+                    let mut d = DecoderV1::new(Cursor::new(&body));
+                    let guid = d.read_string().unwrap().to_string();
+                    self.subs.push((guid, Message::decode(&mut d).unwrap()));
                 }
                 Message::Auth(Some(_)) => self.denied += 1,
                 Message::Awareness(a) => self.awareness.push(a),

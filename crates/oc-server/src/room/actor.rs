@@ -31,6 +31,9 @@ use crate::store::{NotifyRow, OutboxRow, WalRow};
 use crate::util::{now_ms, rfc3339};
 use reqwest::StatusCode;
 
+#[path = "split.rs"]
+mod split;
+
 const BACKOFF_SECS: [u64; 4] = [1, 2, 5, 10];
 const MAX_AWARENESS_BYTES: usize = 2048;
 /// Connections per room (docs/07 §3: 50 editors + 500 viewers). Later joins are closed
@@ -195,6 +198,8 @@ struct Room {
     ephemeral: bool,
     /// AUTO-02/03: what the rules watch, and the loop guard's chains.
     auto: super::auto::AutoState,
+    /// PSYNC-02 (ADR-076): the parts of a split room; `None` when the room is whole.
+    split: Option<split::SplitState>,
 }
 
 /// What clients of an ephemeral room are told when it ends (ADR-043).
@@ -235,7 +240,14 @@ pub(super) async fn run(
         inbox,
     } = chans;
     let id = seed.room.clone();
-    let mut room = match Room::load(ctx.clone(), host, &seed, self_tx, inbox).await {
+    let loaded = match Room::load(ctx.clone(), host, &seed, self_tx, inbox).await {
+        Ok(mut r) => match r.split_on_open().await {
+            Ok(()) => Ok(r),
+            Err(e) => Err(e.context("partial sync")),
+        },
+        Err(e) => Err(e),
+    };
+    let mut room = match loaded {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(room = %id, error = %e, "room load failed");
@@ -624,6 +636,7 @@ impl Room {
             ai_undo: HashMap::new(),
             ai_presence: HashMap::new(),
             ephemeral,
+            split: None,
             ctx,
         })
     }
@@ -633,6 +646,23 @@ impl Room {
         // saves, commits) sees durable state only.
         if !matches!(cmd, Cmd::Frame { .. }) {
             self.flush_wal().await;
+        }
+        // PSYNC-02: server work on the canvas runs on a whole view of a split room.
+        if self.split.is_some()
+            && matches!(
+                cmd,
+                Cmd::Patch { .. }
+                    | Cmd::Template { .. }
+                    | Cmd::History { .. }
+                    | Cmd::Icons { .. }
+                    | Cmd::TemplateUndo { .. }
+                    | Cmd::Tool { .. }
+                    | Cmd::AutomationUndo { .. }
+                    | Cmd::AiTrack { .. }
+                    | Cmd::AiUndo { .. }
+            )
+        {
+            self.ensure_whole().await;
         }
         match cmd {
             Cmd::Join {
@@ -647,16 +677,21 @@ impl Room {
                 drop(permit);
             }
             Cmd::Info { reply } => {
+                let no_parts = self.split.as_ref().is_none_or(|s| s.headers.is_empty());
                 let _ = reply.send(RoomInfo {
-                    is_new: oc_model::is_empty(&self.doc),
+                    is_new: oc_model::is_empty(&self.doc) && no_parts,
                 });
             }
             Cmd::State { reply } => {
-                let _ = reply.send(
+                // A split room merges the parts' bytes: no whole view for a read.
+                let state = if self.split.as_ref().is_some_and(|s| s.whole_since.is_none()) {
+                    self.flat_state().await
+                } else {
                     self.doc
                         .transact()
-                        .encode_state_as_update_v1(&StateVector::default()),
-                );
+                        .encode_state_as_update_v1(&StateVector::default())
+                };
+                let _ = reply.send(state);
             }
             Cmd::SaveDone { id, result } => self.save_done(&id, result).await,
             Cmd::ConflictDone { result } => self.conflict_done(result).await,
@@ -876,12 +911,25 @@ impl Room {
             let _ = reply.send(());
             return;
         }
+        // PSYNC-02 (owner decision): an editor without `caps=subdoc` cannot hold a split room.
+        if self.split.is_some() && !grant.subdoc {
+            tracing::info!(room = %self.id, "connection refused: split room, no caps=subdoc");
+            let _ = tx.send(Outbound::Close(
+                4426,
+                "editor out of date: reopen the canvas".into(),
+            ));
+            let _ = reply.send(());
+            return;
+        }
         if grant.can_write() && !grant.callback_token.is_empty() {
             self.revoked_tokens.remove(&grant.callback_token);
             self.callback_token = grant.callback_token.clone();
         }
         let sv = self.doc.transact().state_vector();
         let _ = tx.send(Outbound::Frame(protocol::step1(sv).into()));
+        if let Some(frame) = self.parts_control() {
+            let _ = tx.send(Outbound::Frame(frame.into()));
+        }
         if !self
             .peers
             .values()
@@ -1018,6 +1066,7 @@ impl Room {
         let Some(peer) = self.peers.remove(&conn) else {
             return;
         };
+        self.forget_holder(conn, None);
         self.inbox.forget(conn);
         if !self
             .peers
@@ -1185,6 +1234,7 @@ impl Room {
                 Message::Awareness(update) => self.on_awareness(conn, update),
                 Message::AwarenessQuery => self.send_awareness_to(conn),
                 Message::Custom(protocol::MSG_CONTROL, body) => self.on_control(conn, &body),
+                Message::Custom(split::MSG_SUBDOC, body) => self.on_subdoc(conn, &body).await,
                 Message::Auth(_) | Message::Custom(..) => {}
             }
         }
@@ -1224,6 +1274,10 @@ impl Room {
                     origin: format!("automation:{rule}#{run}"),
                 });
             }
+            return;
+        }
+        if msg["t"] == "sub-unload" {
+            self.forget_holder(conn, Some(msg["id"].as_str().unwrap_or_default()));
             return;
         }
         let wants_save = msg["t"] == "save";
@@ -1587,6 +1641,9 @@ impl Room {
         if self.lost.is_some() {
             return;
         }
+        if self.route_queued(&bytes, user_id, from, edit).is_some() {
+            return;
+        }
         self.doc_bytes += bytes.len();
         self.seq += 1;
         self.wal_queue.push(Queued {
@@ -1688,6 +1745,21 @@ impl Room {
                 self.contributors.insert(q.user_id.clone());
                 edited = true;
             }
+        }
+        // PSYNC-02: a batch with part updates goes out update by update, each to its holders.
+        if batch.iter().any(|q| !q.doc.is_empty()) {
+            self.batch_in_order = true;
+            for q in batch {
+                if q.doc.is_empty() {
+                    self.broadcast(protocol::update(q.bytes), q.from);
+                } else {
+                    self.fan_out_part(&q.doc, &q.bytes, q.from);
+                }
+            }
+            if edited {
+                self.accepted().await;
+            }
+            return true;
         }
         // One frame for the whole batch, shared by every peer (docs/22 §9.3).
         let in_order = std::mem::replace(&mut self.batch_in_order, true);
@@ -2260,7 +2332,12 @@ impl Room {
             && !c.in_flight
             && c.retry_at.is_none_or(|t| now >= t)
         {
+            self.ensure_whole().await;
             self.start_conflict_task();
+        }
+        if self.split.is_some() {
+            self.evict_parts().await;
+            self.release_whole().await;
         }
         if self.mentions.as_ref().is_some_and(|m| m.has_pending())
             && now - self.last_update >= MENTION_SETTLE
@@ -2393,6 +2470,11 @@ impl Room {
     }
 
     async fn compact(&mut self) {
+        // A whole view's updates are in the parts' rows: the main snapshot waits for the split.
+        if self.split.as_ref().is_some_and(|s| s.whole_since.is_some()) {
+            self.last_compact = Instant::now();
+            return;
+        }
         let state = self
             .doc
             .transact()
@@ -2469,6 +2551,10 @@ impl Room {
     /// The commit to send: the pending outbox row when it still matches the doc, else a new
     /// one, written to `commit_outbox` before anything goes to the host.
     async fn prepare_save(&mut self) -> Result<Pending, String> {
+        // PSYNC-02: a save flattens the parts (format v1, item ids kept).
+        if !self.ensure_whole().await {
+            return Err("the canvas parts could not be merged".into());
+        }
         if let Some(p) = &self.save.pending
             && p.seq == self.seq
             && self.next_meta.is_none()
@@ -2864,6 +2950,11 @@ impl Room {
         }
         self.peers.clear();
         self.idle_since = Some(Instant::now());
+        if self.split.take().is_some()
+            && let Err(e) = self.split_on_open().await
+        {
+            tracing::error!(room = %self.id, error = %e, "splitting the reloaded version failed; the room stays whole");
+        }
         tracing::info!(room = %self.id, version = ?self.host_version, "conflict: reloaded the host version");
     }
 

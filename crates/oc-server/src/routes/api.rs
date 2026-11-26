@@ -212,6 +212,7 @@ pub struct PatchBody {
 pub(super) fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token: String) -> Grant {
     Grant {
         ext_blocks: false,
+        subdoc: false,
         live: Default::default(),
         wopi_history: None,
         host_id: host.id.clone(),

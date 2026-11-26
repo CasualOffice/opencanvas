@@ -320,6 +320,7 @@ impl AppState {
             };
             let grant = grant::Grant {
                 ext_blocks: false,
+                subdoc: false,
                 live: Default::default(),
                 wopi_history: None,
                 host_id: row.host_id.clone(),

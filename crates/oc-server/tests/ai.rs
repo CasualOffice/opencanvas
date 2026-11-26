@@ -474,6 +474,7 @@ struct Harness {
 fn grant(role: Role, user: &str) -> Grant {
     Grant {
         ext_blocks: false,
+        subdoc: false,
         live: Default::default(),
         wopi_history: None,
         host_id: "acme".into(),

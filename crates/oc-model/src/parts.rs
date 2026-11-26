@@ -513,6 +513,24 @@ impl OwnerIndex {
         Ok(())
     }
 
+    /// The ranges `part` owns, `(client, start, end)` in order.
+    pub fn ranges_of(&self, part: &str) -> Vec<(u64, u32, u32)> {
+        let Some(&p) = self.by_part.get(part) else {
+            return Vec::new();
+        };
+        let mut out: Vec<(u64, u32, u32)> = self
+            .ranges
+            .iter()
+            .flat_map(|(c, m)| {
+                m.iter()
+                    .filter(move |(_, (_, q))| *q == p)
+                    .map(move |(s, (e, _))| (*c, *s, *e))
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
     /// The parts that own something.
     pub fn parts(&self) -> impl Iterator<Item = &str> {
         self.parts.iter().map(String::as_str)
@@ -861,6 +879,31 @@ pub fn route(
     owners: &dyn Owners,
     state: &dyn Fn(&str, u64) -> u32,
 ) -> Result<Routed, Error> {
+    route_with(update, owners, state, MAIN)
+}
+
+/// What an update made on part `part` may change in any other document: its own items, the
+/// deletions of items it owns, and every client's clock range (fillers elsewhere). yrs encodes a
+/// document's GC structs in its delete set, so a part's update names its fillers as deleted;
+/// applied as it is to the whole canvas (a whole view, a flattened copy) it would delete every
+/// other part's items. Every update that comes from a part goes through this before it reaches
+/// anything but that part.
+pub fn own_share(update: &[u8], part: &str, owners: &dyn Owners) -> Result<Vec<u8>, Error> {
+    let routed = route_with(update, owners, &|_, _| u32::MAX, part)?;
+    Ok(routed
+        .parts
+        .get(part)
+        .cloned()
+        .unwrap_or_else(|| vec![0, 0]))
+}
+
+/// [`route`], with `full` (rather than the main document) getting every client's range.
+fn route_with(
+    update: &[u8],
+    owners: &dyn Owners,
+    state: &dyn Fn(&str, u64) -> u32,
+    full: &str,
+) -> Result<Routed, Error> {
     let p = parse(update)?;
     let classes = classify(&p, owners);
     let mut items_of: BTreeMap<u32, HashMap<u64, bool>> = BTreeMap::new();
@@ -946,7 +989,7 @@ pub fn route(
     // The main document gets every client's range (fillers where it owns nothing), so the
     // parts together always cover every clock: a range that is all GC (inserted and collected
     // before it was routed) would otherwise be nowhere, and the flatten's state vector short.
-    touched.push(MAIN.to_string());
+    touched.push(full.to_string());
     touched.sort();
     touched.dedup();
     let mut parts = BTreeMap::new();
@@ -960,7 +1003,7 @@ pub fn route(
         let mut out = Vec::new();
         let mut sections = Vec::new();
         for (ci, (client, structs)) in p.clients.iter().enumerate() {
-            if !(key == MAIN || mine.is_some_and(|m| m.contains_key(client))) {
+            if !(key == full || mine.is_some_and(|m| m.contains_key(client))) {
                 continue;
             }
             let first = structs.first().map_or(0, |s| s.clock);

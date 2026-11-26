@@ -93,6 +93,10 @@ pub const DEFAULT_ROOM_IDLE: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone)]
 pub struct RoomConfig {
+    /// PSYNC-02: a part nobody holds is evicted after this (30 s).
+    pub part_evict: Duration,
+    /// PSYNC-02: a whole view goes back to parts after this without server work (20 s).
+    pub whole_release: Duration,
     pub autosave_debounce: Duration,
     pub autosave_max: Duration,
     /// A room with no peers (and nothing unsaved) for this long is dropped from memory.
@@ -118,6 +122,8 @@ pub struct RoomConfig {
 impl Default for RoomConfig {
     fn default() -> Self {
         Self {
+            part_evict: Duration::from_secs(30),
+            whole_release: Duration::from_secs(20),
             autosave_debounce: Duration::from_millis(2000),
             autosave_max: Duration::from_millis(10_000),
             room_ttl: DEFAULT_ROOM_IDLE,

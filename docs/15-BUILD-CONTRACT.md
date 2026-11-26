@@ -86,7 +86,7 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
 
 ## 3. Collaboration WebSocket
 
-`GET /v1/collab/<room>?ticket=<ticket>[&caps=ext,live]`, upgraded to a WebSocket. This is compatible
+`GET /v1/collab/<room>?ticket=<ticket>[&caps=ext,live,subdoc]`, upgraded to a WebSocket. This is compatible
 with the stock `y-websocket` `WebsocketProvider(wsUrl, room, doc, { params: { ticket } })`.
 
 *(BSDK-02)* `caps` lists client capabilities, comma-separated. `ext`: the client keeps `extBlock`
@@ -119,6 +119,7 @@ Binary frames, y-protocols encoding (lib0 varuint message type first):
 | 2 | auth: the server sends `[2, 0 (permission denied), varString reason]` when a write is rejected |
 | 3 | query awareness (client → server; the server answers with all awareness states) |
 | 100 | OpenCanvas control: varString JSON, both directions |
+| 101 | subdocument (PSYNC-02, §3.2): varString guid, then one y-protocols message |
 
 (Changed 2026-11-21 by the server build: auth is type **2** and query-awareness is 3, as in
 y-protocols / y-websocket and yrs. The earlier draft said 3 for auth.)
@@ -211,6 +212,48 @@ cancelled when its user's last connection leaves. Audit events go to the host as
 `{runId, fileId, userId, agent, event, counts, at}` with `event` one of `run.started`,
 `tool.called`, `run.finished`, `run.cancelled`, `run.undone`. No prompts, outputs or tool
 arguments are sent or logged.
+
+### 3.2 Partial sync: subdocuments on the room socket (PSYNC-02, ADR-076)
+
+With `[host.flags] partial_sync` (docs/05 §2; off by default until the editor speaks it,
+PSYNC-03) a room keeps every `databases` and `boards` entry (diagrams are boards) as a
+**subdocument** of the main document. Only rooms on a database WAL split (not with the Redis WAL,
+not under memory durability, not temporary canvases).
+
+- **Capability.** A client that speaks it connects with `caps=subdoc` (with `ext,live`). A split
+  room closes a connection without it at once with **4426** `"editor out of date: reopen the
+  canvas"` (owner decision: 0.3 editors are not served a flattened view).
+- **Main document.** The ordinary messages (types 0-3, 100) carry the main document: text,
+  outline, meta, comments, people, automations, and the `databases`/`boards` roots without the
+  split entries. Awareness stays on the main document.
+- **Parts list.** After its sync step 1 the server sends
+  `{"t":"parts","parts":[{"id":"<fileId>/block/<blockId>","kind":"database"|"board","name","count"}]}`
+  (sorted by id), and sends it again when a part is added. `count` is the rows or items, for the
+  placeholder's size.
+- **Subdocument frames, type 101:** `[101, varString guid, <one y-protocols message>]`, guid
+  `<fileId>/block/<blockId>`, the inner message a sync message (0: step 1, step 2, update).
+  - *Load:* the client sends `[101, guid, step 1(sv)]`. The server checks, on every request, that
+    the connection still has access, that the guid names a block of **this** file (another file's
+    block or an unknown block: `{"t":"sub-denied","id","reason"}`), loads the part if it is not in
+    memory, answers `[101, guid, step 2(diff)]` and `[101, guid, step 1(server sv)]`, and from then
+    on sends that connection the part's updates as `[101, guid, update]`.
+  - *Edit:* `[101, guid, step 2 | update]`, only for a loaded part (else `sub-denied`, "load the
+    block first"). Roles as for the main document: `view` and `comment` are refused with an auth
+    frame. **One client id per document:** an update whose client id has written further in
+    another document of the room is refused (`sub-denied`, "one client id per document"); Yjs
+    subdocuments have their own client ids, so this only stops a client that reuses one.
+  - *Unload:* control `{"t":"sub-unload","id":guid}`; leaving the socket unloads everything. A
+    part nobody holds leaves the room's memory after 30 s.
+- **What a part is.** A part is a stock Yjs document whose root map (`databases` or `boards`)
+  holds that one key. Its items keep the ids they have in the whole canvas; clock ranges of other
+  documents are GC structs ("fillers"). A client must not apply a part's update to anything but
+  that part: yrs and Yjs list GC in the delete set, so the fillers read as deletions elsewhere
+  (`oc_model::parts::own_share` cuts an update to what the part owns).
+- **Server work and saves.** The API, MCP, templates, icons, AI tools, history, automation, the
+  conflict policy and saves see the whole canvas: the room flattens the parts into one document
+  for them (item ids kept) and splits again 20 s after the last such work. A save is
+  `.ocanvas` format v1, readable by 0.3 and 0.2. `GET` state (exports, `document.json`,
+  `search.json`) merges the parts' bytes without building the whole canvas.
 
 ## 4. Y.Doc layout (shared by server export and web)
 

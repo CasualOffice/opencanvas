@@ -151,6 +151,7 @@ pub async fn upgrade(
     }
     let (host, mut grant) = session(&state, &p.ticket).await?;
     grant.ext_blocks = p.caps.split(',').any(|c| c.trim() == "ext");
+    grant.subdoc = p.caps.split(',').any(|c| c.trim() == "subdoc");
     // LIVE-02: `caps=live` keeps `liveBlock`/`blockRef` nodes (editors from 0.3).
     grant.live.caps = p.caps.split(',').any(|c| c.trim() == "live");
     if grant.room != room {
