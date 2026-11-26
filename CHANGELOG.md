@@ -81,6 +81,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- A release refused to start on a database a newer release had migrated, so a downgrade needed
+  a manual database step; migrations it does not know are now ignored (they are additive;
+  RLB-08, docs/13 "Upgrades and downgrades").
 - After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room
   reopened at once (connection pool exhausted). Rooms now load at most 8 at a time
   (`OC_ROOM_LOADS`), and the pool is 32 connections (`OC_DB_MAX_CONNECTIONS`; RLB-01b).
