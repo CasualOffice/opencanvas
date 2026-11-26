@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+#
+# PSYNC-01 spike (docs/36 §2): throwaway, not part of the product build. Its own workspace.
+[package]
+name = "psync-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+oc-model = { path = "../../crates/oc-model" }
+yrs = { version = "0.28", features = ["sync"] }
+serde_json = "1"

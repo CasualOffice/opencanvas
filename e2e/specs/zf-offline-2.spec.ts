@@ -29,6 +29,10 @@ async function keepOffline(p: Person) {
 }
 
 async function goOffline(p: Person) {
+  // The editor code must be cached before the network goes: the service worker installs in the
+  // background, and on a slow CI runner the reload offline came before it (ERR_INTERNET_DISCONNECTED
+  // for /app/, no locked copy). zf-offline checks the same before it goes offline.
+  await expect.poll(() => frame(p).evaluate(async () => (await navigator.serviceWorker.ready).active?.state), { timeout: 20_000 }).toBe("activated");
   await p.ctx.setOffline(true);
   await expect(pill(p)).toHaveAttribute("aria-label", /^Offline/, { timeout: 25_000 });
 }
