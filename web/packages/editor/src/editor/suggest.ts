@@ -21,6 +21,16 @@ export interface SuggestState {
 
 export const suggestStore = createStore<SuggestState | null>(null);
 
+/** The caret's box at `pos`, as a DOMRect (null when the view can't measure it). */
+function caretRect(editor: Editor, pos: number): DOMRect | null {
+  try {
+    const c = editor.view.coordsAtPos(Math.min(pos, editor.state.doc.content.size));
+    return new DOMRect(c.left, c.top, Math.max(1, c.right - c.left), c.bottom - c.top);
+  } catch {
+    return null;
+  }
+}
+
 /** Query the user dismissed (Escape / tap outside); stays hidden until the query changes. */
 let dismissed: string | null = null;
 export function dismissSuggest() {
@@ -39,7 +49,10 @@ export function suggestRender(kind: SuggestState["kind"], onKey?: (e: KeyboardEv
         items: p.items,
         query: p.query,
         sel: keepSel && prev ? Math.min(prev.sel, Math.max(0, p.items.length - 1)) : 0,
-        rect: p.clientRect?.() ?? null,
+        // The decoration rect can be missing when the menu opens on the late-plugin install
+        // transaction (text typed before the plugins loaded); fall back to the caret, or the menu
+        // stays hidden until the next keystroke (p-people on CI: "@" typed, no picker).
+        rect: p.clientRect?.() ?? caretRect(p.editor, p.range.to),
         editor: p.editor,
         pick: (item) => p.command(item),
         replace: (text) => {
