@@ -241,7 +241,7 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| V4UI-01 | Prototypes (docs/36 §7), owner approval | Todo | M; Prototypes |
+| V4UI-01 | Prototypes (docs/36 §7), owner approval | Done | Approved by the owner 2026-11-26 (all four pages; owner notes in docs/prototypes/v04-approved/README.md) |
 | PSYNC-01 | Spike and ADR-076: subdocuments vs projection, measured on the 50 MB fixture | Done (2026-11-26): subdocuments chosen (docs/36 §2.5); fixture generator in `scripts/bench/fixtures/`, spike in `spikes/psync/` | M; Partial sync |
 | PSYNC-02 | Server: subdocuments, multiplexed sync, per-request role check, WAL per document, lazy load and evict, flatten on save | Done (server; flag off by default until PSYNC-03): split/flatten with item ids kept, WAL per document id (0012), room load on demand/evict/role per request, whole view for server work and saves, type 101 (docs/15 §3.2), `caps=subdoc` + 4426, `[host.flags] partial_sync` (docs/05); see integration log | L; Partial sync |
 | PSYNC-03 | Editor: load on view, placeholders to the prototype, unload, undo across documents, offline loads all | Done except the first-screen figure (editor: type 101 client, skeleton placeholders, 2-minute release, cross-document undo, offline copy keeps and replays parts, one block accessor; spec zh) | L; Partial sync |
