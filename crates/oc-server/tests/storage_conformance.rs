@@ -781,16 +781,18 @@ async fn automation_schedule_and_runs() {
                     .unwrap()
             );
         }
+        // 1 ms after the last failure: at the same millisecond the order of the two is undefined
+        // and the failure streak counted 1 or 0 (it flaked 1 in 3).
         let once = uid("run");
         assert!(
             store
-                .automation_run_insert(&row(&once, "done", now))
+                .automation_run_insert(&row(&once, "done", now + 1))
                 .await
                 .unwrap()
         );
         assert!(
             !store
-                .automation_run_insert(&row(&once, "done", now))
+                .automation_run_insert(&row(&once, "done", now + 1))
                 .await
                 .unwrap(),
             "{name}: a run id is logged once"
