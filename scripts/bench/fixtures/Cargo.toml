@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+#
+# Seeded fixture canvases for the benchmark program and the PSYNC-01 spike (docs/36 §2.3).
+# Its own workspace: a tool, not part of the product build.
+#   cargo run --release --manifest-path scripts/bench/fixtures/Cargo.toml -- canvas-50mb out.ocanvas
+[package]
+name = "oc-fixtures"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+oc-model = { path = "../../../crates/oc-model" }
+serde_json = "1"

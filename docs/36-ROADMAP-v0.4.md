@@ -68,7 +68,7 @@ A Yjs document syncs whole. A 50 MB canvas sends and builds 50 MB before the fir
 browser holds all of it, and the room holds all of it for every open canvas even when everyone is
 reading the first page.
 
-### 2.2 Design (to be confirmed by the PSYNC-01 spike)
+### 2.2 Design (confirmed by the PSYNC-01 spike, §2.5)
 
 1. **Heavy blocks become subdocuments.** Each database, board and diagram keeps its content in a
    Yjs subdocument (`guid = <fileId>/block/<blockId>`); the main document keeps the text, the
@@ -117,6 +117,79 @@ encoded. The same generator makes the S/M/L memory fixtures (§3.4).
 | PSYNC-A4 | Convergence fuzz with subdocuments (`tests/fuzz.rs`, 10,000 iterations nightly) and a two-node cluster test where peers on both nodes load different subdocuments |
 | PSYNC-A5 | Save round trip: the saved file is format v1 and byte-equal in content to a 0.3 save of the same edits; opens in 0.3.x; exports, API, MCP and `search.json` unchanged |
 | PSYNC-A6 | Room RSS for the 50 MB canvas with 20 viewers on the first page ≤ 30% of the 0.3 figure; an offline copy holds every subdocument |
+
+### 2.5 Spike result (PSYNC-01, 2026-11-26)
+
+**Decision: (a) subdocuments**, as ADR-076 states. The first-screen projection paints as fast but
+leaves the caret, the room and the browser where 0.3 is, so it fails PSYNC-A1 (caret placeable)
+and PSYNC-A6 (room memory).
+
+**Fixture.** `scripts/bench/fixtures/` (new; the benchmark generator had not landed): a seeded
+Rust generator, `cargo run --release --manifest-path scripts/bench/fixtures/Cargo.toml --
+canvas-50mb out.ocanvas` (also `l`, `m`, `s`). 200 pages of text, 20 databases × 5,000 rows × 12
+fields, 10 boards × 2,000 items, 5 diagrams × 1,000 shapes; heavy blocks from page 2 on, so the
+first screen is text. **50.85 MB Yjs state** (56.5 MB `.ocanvas`; 10.5 MB gzip).
+
+**Method** (throwaway code in `spikes/psync/`, not wired into the product). `psync-spike split`
+cuts the fixture into what each approach sends: the whole update (0.3 and the projection's full
+sync); a main document (text, outline, meta, one header per heavy block) plus 35 subdocuments
+(largest 2.2 MB); and a first-screen projection (the first 8 blocks as JSON; with a database on
+the first screen, its fields and first 30 rows). It checks that main + every subdocument flattens
+back to the same logical document. `psync-spike hold` loads each set into `yrs` as a room does;
+resident memory from `/usr/bin/time -l`, minus an empty process (1.7 MB). `web/bench.mjs` serves
+the parts gzip-encoded to a minimal page (Yjs and a DOM render of the first blocks, the same in
+every mode; not the editor) in Playwright Chromium with CDP: **4× CPU throttle, 40 Mbit/s, 40 ms
+latency**, 1280×800, cache off, fresh context per run, **median of 5**. "First screen" is the first
+frame after the first blocks are in the DOM; "caret" is when the Y document behind them is
+complete. Bytes are the transfer sizes before the first screen, page and script included (25 KB).
+Machine: Apple M4, 16 GB, **local** (owner's decision for v0.4 benchmarks). Load mix: one viewer,
+no edits.
+
+| Approach | First screen, median (worst) | Caret placeable | Bytes before first screen | Room RSS | Browser JS heap |
+|---|---|---|---|---|---|
+| 0.3 today (whole document) | 6,059 ms (6,101) | 6,059 ms | 10.53 MB | 734 MB | 385 MB |
+| (a) subdocuments, text on screen | **228 ms** (233) | **228 ms** | **191 KB** | **5.0 MB** (main only) | **3.4 MB** |
+| (a) subdocuments, a database on screen | 531 ms (532) | 531 ms | 655 KB | 38.9 MB (main + that database) | 20.2 MB |
+| (b) projection, text on screen | 182 ms (184) | 6,310 ms | 26 KB | 734 MB (+ the render; 1.34 GB peak when made from the logical JSON) | 385 MB |
+| (b) projection, a database on screen | 200 ms (221) | 7,548 ms | 28 KB | as above | 385 MB |
+
+Other figures: the main document is 809 KB v1 (743 KB v2; 166 KB gzip, 185 KB zstd at its
+default level, so gzip is enough for the launch snapshot); the 35 subdocuments are 49.1 MB in all.
+Every subdocument loaded (an offline copy, an API read of the whole file) holds 651 MB in the room,
+11% less than the single document. The room decodes the main document in 2 ms and a database in
+15 ms, against 375 ms for the whole document, so loading on scroll fits PSYNC-A2's 1 s.
+
+Against the acceptance rows: (a) meets PSYNC-A1 with room to spare for the real editor's script
+and mount (228–531 ms of a 2 s budget; to be re-measured with the editor in PSYNC-02) and
+PSYNC-A6 (20 viewers on the first page hold the main document: 5 MB, 0.7% of 734 MB, against a
+30% target). (b) meets neither: nobody can type for 6.3 s, and the room and browser still hold
+the whole document.
+
+**Complexity** (what changes):
+
+| Area | (a) Subdocuments | (b) Projection |
+|---|---|---|
+| Room | Documents by id; load on request, evict unheld; role check per request, same file only; awareness on the main document | Unchanged, plus a cached first-screen render per document version |
+| WAL | A document id on every row (`room_updates`, `room_snapshots`, the Redis stream key); compaction per document; migration | Unchanged |
+| Saves | Flatten to format v1. Must merge encoded parts without building the whole document, or a save costs the 0.3 memory for its duration | Unchanged |
+| Offline | Asks for every subdocument (owner decision); IndexedDB per document | Unchanged |
+| Undo | One undo manager per document; a step across documents grouped by transaction origin | Unchanged |
+| Live blocks | A live block over a split database asks for that subdocument (client) or loads it (server) | Unchanged |
+| API, MCP, exports, `search.json` | Whole-file reads load every subdocument or read the host's file; patches target the owning document | Unchanged |
+| Editor | Placeholders sized by the header; request on approach; release after 2 minutes out of view | A read-only first paint swapped for the live editor when the sync ends: edits made before the swap are lost or queued, and the swap can move the caret and the scroll |
+| Older editors | Closed with 4426 on a split room (owner decision) | Unchanged |
+
+**What the spike did not prove, and PSYNC-02 must:** it split the logical JSON, so each part got
+new Yjs item ids. The product split must **keep the item ids** (partition the v1 struct store and
+delete set by subtree; the header for a block lives beside it, not inside it) so that the save is a
+byte-level merge of the parts into exactly the v1 document, and so offline copies and reconnecting
+peers merge without duplicating rows. Sizes and memory are the same either way; this is the one
+risk left in (a), and it is what the PSYNC-A5 byte-equal save test checks.
+
+Reproduce: `cargo build --release --manifest-path spikes/psync/Cargo.toml`, run the fixture
+generator, `psync-spike split <fixture> <dir>`, `/usr/bin/time -l psync-spike hold <dir>
+none|full|proj|main|main+db|main+all`, then `node spikes/psync/web/bench.mjs <dir> $PWD/web
+<e2e dir with Playwright installed>`.
 
 ---
 
