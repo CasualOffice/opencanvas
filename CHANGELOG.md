@@ -9,6 +9,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Benchmarks page on the site (BENCH-05): every result in `bench/results/` with its hardware, store and
+  load mix beside the numbers; `local` runs marked as such. `/metrics` adds `oc_alloc_allocated_bytes`
+  and `oc_alloc_resident_bytes`. The server raises its soft open-file limit to the hard limit at start
+  (PERF-11).
+
 - Benchmark results after PERF-11/12: X10K short passes (p99 ≤ 64 ms per bucket, was 11.3 s);
   R1K short at `OC_MAX_PEERS=1000` (scenario now sets it) passes latency (p99 ≤ 81 ms) and fails
   its RSS drift rule (docs/36 §4.1).

@@ -207,6 +207,7 @@ DOCS = [
     ("operations", "Operations and deployment", "Operate", "docs/13-OPERATIONS-AND-DEPLOYMENT.md"),
     ("security", "Security and limits", "Operate", "docs/07-SECURITY-AND-LIMITS.md"),
     ("capacity", "Capacity and sizing", "Operate", "docs/22-CAPACITY-AND-SIZING.md"),
+    ("benchmarks", "Benchmarks", "Operate", "bench/results"),
     ("ai", "AI and MCP", "Operate", "docs/24-AI-AND-MCP.md"),
     ("architecture", "Architecture", "Understand", "docs/03-HLD-ARCHITECTURE.md"),
     ("collaboration", "Collaboration and presence", "Understand", "docs/06-COLLABORATION-AND-PRESENCE.md"),
@@ -569,6 +570,7 @@ DOC_SEO_TITLES = {
     "mattermost": "Mattermost integration",
     "ai": "AI assistant and MCP endpoint",
     "capacity": "Capacity and sizing: users per server",
+    "benchmarks": "OpenCanvas benchmarks: latency, memory and reconnects",
     "index": "OpenCanvas documentation",
 }
 
