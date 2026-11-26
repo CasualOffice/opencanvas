@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 
 const LONG_PRESS_MS = 450;
 import { nameWithDetail, type Role } from "@opencanvas/ui";
@@ -13,6 +13,11 @@ import { Avatar, Popover, useShell, type Anchor } from "./overlay";
 import { readableOn } from "../lib/color";
 import { isMac } from "../lib/keys";
 import type { ExportFormat } from "../lib/exports";
+import { useStore } from "../lib/store";
+import { keepLine, offlineLook, offlineView } from "../offline/status";
+
+// OFF-06: the offline popover is off the first paint.
+const OfflinePopover = lazy(() => import("../offline/ui").then((m) => ({ default: m.OfflinePopover })));
 
 /** VH-01d frame 1a: the shortcut shown next to "Version history". */
 export const HISTORY_KEY = isMac ? "⌥⌘H" : "Ctrl+Alt+H";
@@ -70,6 +75,8 @@ export function TopBar(props: {
   onFind?: () => void;
   /** SRCH-04: "Search all canvases ⌘⇧F"; absent (hidden, not disabled) without the host's callback (frame 2e). */
   onSearchAll?: () => void;
+  /** OFF-06 (frames 2a, 2d, 3b): offline copies, when the host enables them. */
+  offline?: { onToggle(on: boolean): void; onList(): void; onTryNow(): void };
 }) {
   const { compact } = useShell();
   const pressed = useRef<{ id: number; fired: boolean } | null>(null);
@@ -78,6 +85,14 @@ export function TopBar(props: {
     setPop(pop?.kind === kind ? null : { kind, anchor: e.currentTarget as HTMLElement });
   const close = () => setPop(null);
   const { meta, save } = props;
+  const ov = useStore(offlineView);
+  // 3b: what needs the server stays in the menu, greyed, with the reason.
+  const away = ov.net !== "online";
+  const needsNet = (
+    <span className="ml">
+      <span>Needs a connection</span>
+    </span>
+  );
   const visible = compact ? props.peers.slice(0, 2) : props.peers.slice(0, 6);
   const extra = props.peers.length - visible.length;
   // docs/21: shared names carry their second line; initials get a subscript on collision.
@@ -105,7 +120,7 @@ export function TopBar(props: {
           </span>
         ) : null}
       </div>
-      <StatusButton save={save} hostName={props.hostName} onClick={open("status")} />
+      <StatusButton save={save} hostName={props.hostName} onClick={open("status")} offline={offlineLook(ov)} />
       <div className="avs" aria-label="People here">
         {visible.map((p) =>
           p.agent ? (
@@ -169,11 +184,11 @@ export function TopBar(props: {
       </div>
       {props.onAssistant ? (
         compact ? (
-          <button className="ib" onClick={props.onAssistant} title="Assistant" aria-label="Assistant" aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
+          <button className="ib" disabled={away} onClick={props.onAssistant} title={away ? "Assistant · needs a connection" : "Assistant"} aria-label={away ? "Assistant, needs a connection" : "Assistant"} aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
             <Ic name="sparkles" style={{ color: "var(--ai)" }} />
           </button>
         ) : (
-          <button className="btn out ai-hbtn" onClick={props.onAssistant} title={`Ask about this canvas (${isMac ? "⌘J" : "Ctrl+J"})`} aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
+          <button className="btn out ai-hbtn" disabled={away} onClick={props.onAssistant} title={away ? "Needs a connection" : `Ask about this canvas (${isMac ? "⌘J" : "Ctrl+J"})`} aria-keyshortcuts={isMac ? "Meta+J" : "Control+J"}>
             <Ic name="sparkles" style={{ color: "var(--ai)" }} />
             Assistant
           </button>
@@ -203,7 +218,12 @@ export function TopBar(props: {
         <Ic name="ellipsis" />
       </button>
 
-      {pop?.kind === "status" ? <StatusPopover anchor={pop.anchor} save={save} hostName={props.hostName} onClose={close} onHistory={props.onHistory} onRetry={props.onRetry} /> : null}
+      {pop?.kind === "status" && offlineLook(ov) ? (
+        <Suspense fallback={null}>
+          <OfflinePopover anchor={pop.anchor} hostName={props.hostName} onClose={close} onTryNow={() => (close(), props.offline?.onTryNow())} onKeep={() => props.offline?.onToggle(true)} />
+        </Suspense>
+      ) : null}
+      {pop?.kind === "status" && !offlineLook(ov) ? <StatusPopover anchor={pop.anchor} save={save} hostName={props.hostName} onClose={close} onHistory={props.onHistory} onRetry={props.onRetry} /> : null}
       {pop?.kind === "people" ? (
         <Popover anchor={pop.anchor} onClose={close} title="People here" alignRight>
           {props.peers.map((p) => (
@@ -256,19 +276,19 @@ export function TopBar(props: {
             </button>
           ) : null}
           {props.onSearchAll ? (
-            <button className="mi" onClick={() => (close(), props.onSearchAll!())}>
+            <button className="mi" disabled={away} onClick={() => (close(), props.onSearchAll!())}>
               <Ic name="file-search" />
               Search all canvases
-              {!compact ? <span className="mk">{isMac ? "⇧⌘F" : "Ctrl+Shift+F"}</span> : null}
+              {away ? needsNet : !compact ? <span className="mk">{isMac ? "⇧⌘F" : "Ctrl+Shift+F"}</span> : null}
             </button>
           ) : null}
           {props.onFind || props.onSearchAll ? <div className="msep" /> : null}
           {props.onHistory ? (
             <>
-              <button className="mi" onClick={() => (close(), props.onHistory!())}>
+              <button className="mi" disabled={away} onClick={() => (close(), props.onHistory!())}>
                 <Ic name="history" />
                 Version history
-                {!compact ? <span className="mk">{HISTORY_KEY}</span> : null}
+                {away ? needsNet : !compact ? <span className="mk">{HISTORY_KEY}</span> : null}
               </button>
               {props.onNameVersion ? (
                 <button className="mi" onClick={() => (close(), props.onNameVersion!())}>
@@ -314,6 +334,34 @@ export function TopBar(props: {
                   JSON<span className="mk">.json</span>
                 </button>
               ) : null}
+              <div className="msep" />
+            </>
+          ) : null}
+          {props.offline && ov.enabled ? (
+            <>
+              {(() => {
+                const k = keepLine(ov, props.hostName, compact);
+                return (
+                  <button
+                    className="mi off-keep"
+                    role="menuitemcheckbox"
+                    aria-checked={k.on}
+                    disabled={k.disabled}
+                    onClick={() => (close(), props.offline!.onToggle(!k.on))}
+                  >
+                    <Ic name="cloud-off" />
+                    <span className="ml">
+                      <b>Available offline on this {compact ? "phone" : "device"}</b>
+                      <span>{k.sub}</span>
+                    </span>
+                    <span className={"off-sw" + (k.on ? " on" : "")} aria-hidden="true" />
+                  </button>
+                );
+              })()}
+              <button className="mi" onClick={() => (close(), props.offline!.onList())}>
+                <Ic name="file-text" />
+                Offline canvases on this device
+              </button>
               <div className="msep" />
             </>
           ) : null}
@@ -385,9 +433,9 @@ function statusLook(save: SaveState): { cls: string; icon: string; label: string
   }
 }
 
-function StatusButton({ save, hostName, onClick }: { save: SaveState; hostName: string; onClick(e: React.MouseEvent): void }) {
-  const l = statusLook(save);
-  const title = l.label + (save.kind === "saved" ? ` to ${hostName}` : "");
+function StatusButton({ save, hostName, onClick, offline }: { save: SaveState; hostName: string; onClick(e: React.MouseEvent): void; offline: { cls: string; icon: string; label: string } | null }) {
+  const l = offline ?? statusLook(save);
+  const title = l.label + (!offline && save.kind === "saved" ? ` to ${hostName}` : "");
   return (
     <>
       <button className={"status " + l.cls} onClick={onClick} title={title} aria-label={title} aria-haspopup="dialog">

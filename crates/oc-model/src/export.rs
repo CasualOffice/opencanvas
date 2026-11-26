@@ -178,6 +178,17 @@ fn data_url(bytes: &[u8]) -> Option<String> {
     ))
 }
 
+/// OFF-05 (docs/34 §3.3, ADR-064): what an export shows for an image added offline whose
+/// device has not uploaded it yet (`src = "oc-pending:<uuid>"`).
+pub const PENDING_TEXT: &str = "Image uploading from another device";
+/// The same for a file attachment (`url = "oc-pending:<uuid>"`).
+pub const PENDING_FILE_TEXT: &str = "File uploading from another device";
+
+/// An `oc-pending:` asset reference (never fetched, linked or embedded).
+pub fn is_pending(u: &str) -> bool {
+    u.trim_start().starts_with("oc-pending:")
+}
+
 pub fn to_markdown(doc: &Value) -> String {
     to_markdown_with(doc, &Options::default())
 }
@@ -376,6 +387,14 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             .join("\n"),
         "codeBlock" => format!("```{}\n{}\n```", attr_str(n, "language"), plain_text(n)),
         "horizontalRule" => "---".into(),
+        "image" if is_pending(attr_str(n, "src")) => {
+            let alt = md_text(attr_str(n, "alt"));
+            if alt.is_empty() {
+                format!("*[{PENDING_TEXT}]*")
+            } else {
+                format!("*[{PENDING_TEXT}: {alt}]*")
+            }
+        }
         "image" => {
             let alt = md_text(attr_str(n, "alt"));
             let img = match md_url(attr_str(n, "src")) {
@@ -450,6 +469,9 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             fallback(attr_str(n, "title"), attr_str(n, "provider")),
             attr_str(n, "url"),
         ),
+        "fileAttachment" if is_pending(attr_str(n, "url")) => {
+            format!("*[{PENDING_FILE_TEXT}: {}]*", md_text(attr_str(n, "name")))
+        }
         "fileAttachment" => {
             let meta = file_meta(n).join(", ");
             let link = md_link(attr_str(n, "name"), attr_str(n, "url"));
@@ -736,6 +758,13 @@ fn html_block(cx: &Cx, n: &Value) -> String {
         "callout" => format!("<aside class=\"callout\">{}</aside>", html_children(cx, n)),
         "codeBlock" => format!("<pre><code>{}</code></pre>", escape(&plain_text(n))),
         "horizontalRule" => "<hr>".into(),
+        "image" if is_pending(attr_str(n, "src")) => format!(
+            "<figure class=\"oc-upload-pending\"><p>{PENDING_TEXT}{}</p></figure>",
+            match attr_str(n, "alt") {
+                "" => String::new(),
+                a => format!(": {}", escape(a)),
+            }
+        ),
         "image" => {
             let src = attr_str(n, "src");
             let alt = escape(attr_str(n, "alt"));
@@ -791,6 +820,10 @@ fn html_block(cx: &Cx, n: &Value) -> String {
         }
         // FILE-01: a card (link + type + size). `display` records how the canvas showed it; an
         // embedded viewer is never exported.
+        "fileAttachment" if is_pending(attr_str(n, "url")) => format!(
+            "<p class=\"oc-file oc-upload-pending\">{PENDING_FILE_TEXT}: {}</p>",
+            escape(attr_str(n, "name"))
+        ),
         "fileAttachment" => format!(
             "<p class=\"oc-file\" data-display=\"{}\"><a href=\"{}\">{}</a> <span class=\"oc-file-meta\">{}</span></p>",
             file_display(n),
@@ -934,6 +967,24 @@ mod tests {
         assert!(md.contains("`<b>`"), "code spans stay literal: {md}");
     }
     use super::*;
+
+    /// OFF-05 (ADR-064): an image or file added offline (`oc-pending:<uuid>`) is drawn as a
+    /// placeholder, never fetched or linked.
+    #[test]
+    fn pending_uploads_export_as_placeholders() {
+        let doc = json!({"type": "doc", "content": [
+            {"type": "image", "attrs": {"src": "oc-pending:7d1c", "pendingBy": "u1", "alt": "chart"}},
+            {"type": "fileAttachment", "attrs": {"url": "oc-pending:9f2a", "pendingBy": "u1", "name": "deck.pdf"}},
+        ]});
+        let md = to_markdown(&doc);
+        let html = to_html(&doc);
+        for out in [&md, &html] {
+            assert!(out.contains(PENDING_TEXT), "{out}");
+            assert!(!out.contains("oc-pending"), "{out}");
+        }
+        assert!(md.contains("chart") && md.contains("deck.pdf"), "{md}");
+        assert!(crate::docx::image_sources(&doc).is_empty(), "never fetched");
+    }
     use serde_json::json;
 
     #[test]

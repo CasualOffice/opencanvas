@@ -265,6 +265,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/search", get(v1::search::editor_search))
         .route("/v1/offline/clear", get(crate::offline::clear_page))
         .route("/v1/offline/clear.js", get(crate::offline::clear_js))
+        .route("/v1/offline/files", get(crate::offline::files_page))
         .route("/hosting/discovery", get(launch::discovery))
         .route("/hosting/capabilities", get(launch::capabilities))
         .route("/v1/import", post(import::import).layer(DefaultBodyLimit::max(import::MAX_IMPORT_BYTES)))
@@ -299,6 +300,8 @@ pub fn router(state: SharedState) -> Router {
         .nest_service("/app/", spa)
         // Host pages load the embed SDK from here (docs/05 §4).
         .route_service("/sdk/embed.js", ServeFile::new(web.join("sdk/embed.js")))
+        // OFF-03: the editor's service worker, at the root so its scope covers `/v1/launch`.
+        .route_service("/sw.js", ServeFile::new(web.join("sw.js")))
         .layer(cors)
         .layer(axum::middleware::from_fn(
             move |req: Request<axum::body::Body>, next: axum::middleware::Next| {

@@ -611,6 +611,21 @@ posts `{type:"OC_OfflineCleared", host, removed}` to the parent. Device storage:
 `…/<fileId>` (the encrypted Yjs update log, y-indexeddb scheme, plus the grant), `…/uploads` (queued
 files); names are `encodeURIComponent`-encoded.
 
+*Offline reconnect (OFF-04/05, ADR-064, ADR-073):* after a fresh launch the editor answers the
+room's first SyncStep1 with an empty step 2 and sends its unsent log as sync update frames
+(`[0, 2, update]`) of at most 900 KB, 20 a second. Before a log over 10 minutes or 200 changes it
+sends control `{"t":"offline_merge","changes","since"}`; the room saves a named checkpoint version
+"Before <name>'s offline changes" and answers that connection `{"t":"offline_checkpoint","version"}`
+(`error: "REFUSED"` for viewers, a second request on the connection, or a conflict), and tells the
+others `{"t":"offline_arrived","by","byName","changes"}`. Queued uploads: `image.src` /
+`fileAttachment.url` = `oc-pending:<uuid>` with `pendingBy` = the writer (MOD-01 refuses another
+user id or a malformed reference; exports draw "Image uploading from another device"; the REST
+patch API refuses the scheme). The editor's service worker is served at `/sw.js` (scope `/`): it
+caches the files in `/app/shell.json` (the editor build, no content) and redirects a `POST
+/v1/launch` navigation with `offline=1` that cannot reach the server to `/app/#offline=1&h=&u=&f=`.
+`GET /v1/offline/files?host=&user=` runs the same script in `files` mode and posts
+`{type:"OC_OfflineFiles", files}`.
+
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
 `POST /v1/files/:fileId/role {"userId","role":"view|comment|edit|none"}` → `{"connections","sessions"}`;

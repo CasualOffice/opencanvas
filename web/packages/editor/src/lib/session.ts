@@ -10,6 +10,22 @@ import * as decoding from "lib0/decoding";
 import type { Role } from "@opencanvas/ui";
 import { setInstalledBlocks, type BlockPackage } from "../ext/model";
 import { setEditorProfile, setInsertScope, type EditorProfile } from "../editor/profile";
+import { chunks, FROM_DEVICE, MAX_CHUNK, PendingLog, REPLAY_PER_SEC, type PendingEntry } from "../offline/pending";
+
+/** The session answer's `offline` member (OFF-01, docs/15 §6). */
+export interface OfflineInfo {
+  enabled: boolean;
+  allowed: boolean;
+  gen?: number;
+  reason?: string;
+  maxDays?: number;
+  autoRecent?: number;
+  limits?: { maxCanvases: number; maxMb: number; uploadsMb: number; uploadsFiles: number; unsentMb: number };
+  key?: JsonWebKey;
+  role?: Role;
+  exp?: number;
+  grant?: string;
+}
 
 export interface Session {
   ticket: string;
@@ -54,6 +70,10 @@ export interface Session {
   blocks?: BlockPackage[];
   /** EDP-01: the host's editor profile, insertable blocks and feature switches (docs/15 §2). */
   editor?: EditorProfile | null;
+  /** OFF-01: offline copies for this host and launch. */
+  offline?: OfflineInfo;
+  /** OFF-03: opened from the device copy, without a launch (no ticket yet). */
+  openedOffline?: boolean;
 }
 
 export class SessionError extends Error {
@@ -105,7 +125,11 @@ export type Control =
   | { t: "restored"; by: string; byName?: string; from: string; name?: string; at: number; restoreId: string }
   | { t: "closed"; reason?: string }
   /** Heartbeat, every 10 s (docs/15 §3). Nothing to do: any frame resets the silence timer. */
-  | { t: "ping" };
+  | { t: "ping" }
+  /** OFF-04 (ADR-064): the checkpoint before an offline merge was saved (or refused). */
+  | { t: "offline_checkpoint"; version?: string; error?: string }
+  /** OFF-07: a collaborator's long offline session is arriving (the toast, frame 4e). */
+  | { t: "offline_arrived"; by: string; byName?: string; changes?: number };
 
 export const MESSAGE_CONTROL = 100;
 // y-protocols auth message (docs/15 §3): [2, 0 = permission denied, reason]
@@ -135,7 +159,26 @@ export interface Collab {
   onTerminal(fn: (e: { code: number; reason: string }) => void): () => void;
   /** docs/23 PERM-07: carry on with a renewed ticket (reconnects; local edits stay in the doc). */
   retarget(ticket: string): void;
+  /** OFF-02/04: the local changes the server may not have yet. */
+  pending: PendingLog;
+  /** OFF-04: stop reconnecting on our own (every reconnect is a fresh launch, ADR-064). */
+  pause(): void;
+  /** OFF-04: connect with `ticket` and replay the unsent changes in frames. */
+  resume(ticket: string, replay?: ReplayOpts): Promise<ReplayResult>;
   destroy(): void;
+}
+
+export interface ReplayOpts {
+  /** Ask for a checkpoint version first (over 10 minutes or 200 changes). */
+  checkpoint?: { changes: number; since: number } | null;
+  onProgress?(sent: number, total: number): void;
+}
+
+export interface ReplayResult {
+  frames: number;
+  /** The server refused a frame (role, validation, limits). */
+  refused: boolean;
+  checkpoint?: string | null;
 }
 
 class Emitter<T> {
@@ -232,9 +275,13 @@ export function throttleOutgoing(provider: WebsocketProvider, ms = 50) {
   });
 }
 
-/** Connects the Y.Doc to the room over the stock y-websocket protocol. */
-export function connectCollab(s: Session): Collab {
-  const doc = new Y.Doc();
+const EMPTY_UPDATE = Y.encodeStateAsUpdate(new Y.Doc());
+const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+
+/** Connects the Y.Doc to the room over the stock y-websocket protocol. `doc`: an existing
+ *  document (an offline copy); `connect: false` waits for `resume` (opened offline). */
+export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean } = {}): Collab {
+  const doc = opts.doc ?? new Y.Doc();
   const control = new Emitter<Control>();
   const conn = new Emitter<ConnState>();
   const denied = new Emitter<string>();
@@ -248,9 +295,85 @@ export function connectCollab(s: Session): Collab {
     // `caps=live`: it keeps `liveBlock` and `blockRef` too (LIVE-02, an editor older than 0.3).
     params: { ticket: s.ticket, caps: "ext,live" },
     maxBackoffTime: 10000,
+    connect: opts.connect !== false,
     shouldReconnect: (e: CloseEvent) => !isTerminalClose(e.code, e.reason, reloading),
   });
   throttleOutgoing(provider);
+  // OFF-02: every local change waits in the unsent log until a save that started after it
+  // went out confirms it.
+  const pending = new PendingLog();
+  type Run = { opts: ReplayOpts; answered: boolean; done(r: ReplayResult): void; fail(e: Error): void; refused: boolean };
+  let replay: Run | null = null;
+  doc.on("update", (u: Uint8Array, origin: unknown) => {
+    if (origin === provider || origin === FROM_DEVICE) return;
+    const live = provider.wsconnected && provider.synced && !replay;
+    pending.add(u, Date.now(), live ? Date.now() + 60 : undefined);
+  });
+  let savingAt: number | null = null;
+  // OFF-04: the first SyncStep1 after `resume` is answered with an empty step 2; the unsent
+  // changes then go out in frames of at most MAX_CHUNK, REPLAY_PER_SEC a second, each checked
+  // by the server like typing.
+  const syncHandler = provider.messageHandlers[0];
+  provider.messageHandlers[0] = (encoder, decoder, prov, emitSynced, mt) => {
+    if (replay && !replay.answered) {
+      const peek = decoding.clone(decoder);
+      if (decoding.readVarUint(peek) === 0) {
+        const sv = decoding.readVarUint8Array(peek);
+        decoder.pos = peek.pos;
+        replay.answered = true;
+        encoding.writeVarUint(encoder, 0);
+        encoding.writeVarUint(encoder, 1);
+        encoding.writeVarUint8Array(encoder, EMPTY_UPDATE);
+        void runReplay(replay, sv);
+        return;
+      }
+    }
+    syncHandler(encoder, decoder, prov, emitSynced, mt);
+  };
+  const sendUpdate = (u: Uint8Array) => {
+    const ws = provider.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error("closed");
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, 0);
+    encoding.writeVarUint(enc, 2);
+    encoding.writeVarUint8Array(enc, u);
+    ws.send(encoding.toUint8Array(enc));
+  };
+  const waitControl = (t: string, ms: number) =>
+    new Promise<Control | null>((resolve) => {
+      const off = control.on((c) => {
+        if (c.t !== t) return;
+        window.clearTimeout(timer);
+        off();
+        resolve(c);
+      });
+      const timer = window.setTimeout(() => (off(), resolve(null)), ms);
+    });
+  async function runReplay(r: Run, sv: Uint8Array) {
+    try {
+      const entries: PendingEntry[] = pending.entries.slice();
+      let checkpoint: string | null = null;
+      if (r.opts.checkpoint) {
+        sendControlRaw({ t: "offline_merge", changes: r.opts.checkpoint.changes, since: r.opts.checkpoint.since });
+        const c = (await waitControl("offline_checkpoint", 20_000)) as { version?: string } | null;
+        checkpoint = c?.version ?? null;
+      }
+      const diff = Y.encodeStateAsUpdate(doc, sv);
+      const frames = diff.length <= MAX_CHUNK ? [[diff]] : chunks(entries.map((e) => e.update));
+      for (let i = 0; i < frames.length; i++) {
+        const f = frames[i];
+        sendUpdate(f.length === 1 ? f[0] : Y.mergeUpdates(f));
+        r.opts.onProgress?.(i + 1, frames.length);
+        if (i + 1 < frames.length) await sleep(1000 / REPLAY_PER_SEC);
+      }
+      if (entries.length) pending.markSent(entries[entries.length - 1].id);
+      replay = null;
+      r.done({ frames: frames.length, refused: r.refused, checkpoint });
+    } catch (e) {
+      replay = null;
+      r.fail(e as Error);
+    }
+  }
   provider.on("closed", (e: { code: number; reason: string }) => {
     if (isTerminalClose(e.code, e.reason, reloading)) terminal.emit(e);
   });
@@ -261,6 +384,8 @@ export function connectCollab(s: Session): Collab {
     try {
       const c = JSON.parse(decoding.readVarString(dec)) as Control;
       if (c.t === "conflict" && c.policy === "reload") reloading = true;
+      if (c.t === "saving") savingAt = Date.now();
+      else if (c.t === "saved" && savingAt !== null) pending.confirmBefore(savingAt);
       control.emit(c);
     } catch (e) {
       console.warn("bad control frame", e);
@@ -269,7 +394,12 @@ export function connectCollab(s: Session): Collab {
   provider.messageHandlers[MESSAGE_AUTH] = (_enc, dec) => {
     // [2, 0 = permission denied, reason]
     const kind = decoding.readVarUint(dec);
-    if (kind === 0) denied.emit(decoding.readVarString(dec));
+    if (kind === 0) {
+      const reason = decoding.readVarString(dec);
+      // During a replay the offline controller reports it (merge summary) instead.
+      if (replay) replay.refused = true;
+      else denied.emit(reason);
+    }
   };
 
   // ---------- connection state (docs/06 §5) ----------
@@ -290,6 +420,7 @@ export function connectCollab(s: Session): Collab {
     offlineTimer = window.setTimeout(() => downSince !== null && conn.emit("offline"), left);
   };
   provider.on("status", ({ status }: { status: string }) => {
+    if (status !== "connected") savingAt = null;
     if (status === "connected") {
       downSince = null;
       window.clearTimeout(offlineTimer);
@@ -331,18 +462,33 @@ export function connectCollab(s: Session): Collab {
     else provider.once("sync", (ok: boolean) => ok && resolve());
   });
 
+  function sendControlRaw(msg: Record<string, unknown>) {
+    const ws = provider.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, MESSAGE_CONTROL);
+    encoding.writeVarString(enc, JSON.stringify(msg));
+    ws.send(encoding.toUint8Array(enc));
+  }
+
   return {
     doc,
     awareness: provider.awareness,
     provider,
     synced,
-    sendControl(msg) {
-      const ws = provider.ws;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const enc = encoding.createEncoder();
-      encoding.writeVarUint(enc, MESSAGE_CONTROL);
-      encoding.writeVarString(enc, JSON.stringify(msg));
-      ws.send(encoding.toUint8Array(enc));
+    pending,
+    sendControl: sendControlRaw,
+    pause() {
+      provider.disconnect();
+    },
+    resume(ticket, ropts = {}) {
+      provider.params.ticket = ticket;
+      const p = new Promise<ReplayResult>((done, fail) => {
+        replay = { opts: ropts, answered: false, done, fail, refused: false };
+      });
+      if (provider.wsconnected || provider.wsconnecting) provider.disconnect();
+      provider.connect();
+      return p;
     },
     onControl: (f) => control.on(f),
     onConn: (f) => conn.on(f),
@@ -377,6 +523,9 @@ export function localCollab(user: Session["user"], role: Role): Collab {
     awareness,
     provider: null,
     synced: Promise.resolve(),
+    pending: new PendingLog(),
+    pause: () => undefined,
+    resume: () => Promise.resolve({ frames: 0, refused: false }),
     sendControl(msg) {
       // Demo autosave: pretend the server saved shortly after a commit request.
       if (msg.t === "commit") window.setTimeout(() => control.emit({ t: "saved", at: Date.now() }), 400);

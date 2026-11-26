@@ -7,6 +7,7 @@ import { BASE_EXTENSIONS } from "./base";
 import { withInputRules } from "./profile";
 import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
+import { OfflineMarks } from "../offline/marks";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaretBase from "@tiptap/extension-collaboration-caret";
 import { yCursorPlugin } from "@tiptap/y-tiptap";
@@ -259,6 +260,7 @@ export function CanvasEditor(p: EditorProps) {
         ...BASE_EXTENSIONS,
         OcCodeBlock,
         BlockId,
+        OfflineMarks,
         Collaboration.configure({ document: p.doc, field: "content" }),
         CollaborationCaret.configure({
           provider: { awareness: p.awareness },

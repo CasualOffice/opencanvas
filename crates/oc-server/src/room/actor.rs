@@ -60,6 +60,8 @@ struct Peer {
     clients: HashSet<ClientID>,
     denied: bool,
     synced: bool,
+    /// OFF-04 (ADR-064): this connection announced an offline merge (once per connection).
+    offline_merge: bool,
 }
 
 /// A commit recorded in `commit_outbox`: retries resend exactly these bytes with this key.
@@ -859,6 +861,7 @@ impl Room {
                 clients: HashSet::new(),
                 denied: false,
                 synced: false,
+                offline_merge: false,
             },
         );
         self.send_awareness_to(conn);
@@ -1162,12 +1165,58 @@ impl Room {
             self.on_ai_control(conn, &msg);
             return;
         }
+        if msg["t"] == "offline_merge" {
+            self.offline_merge(conn, &msg);
+            return;
+        }
         let wants_save = msg["t"] == "save";
         let can_write = self.peers.get(&conn).is_some_and(|p| p.grant.can_write());
         if wants_save && can_write && self.dirty_since.is_some() && self.conflict.is_none() {
             self.save.retry_at = None;
             self.dirty_since = Some(Instant::now() - self.ctx.cfg.autosave_max);
         }
+    }
+
+    /// `{"t":"offline_merge","changes":N,"since":ms}` (OFF-04, ADR-064, docs/34 §3.3 step 5):
+    /// a device is about to send a long offline session (over 10 minutes or 200 changes). The
+    /// room saves a checkpoint version "Before <name>'s offline changes" first and answers
+    /// `{"t":"offline_checkpoint","version"}` (or `error`) to that connection; the others get
+    /// `{"t":"offline_arrived","by","byName","changes"}` once, for the collaborator toast. Only
+    /// writers, once per connection; the updates that follow are checked like any other.
+    fn offline_merge(&mut self, conn: ConnId, msg: &Value) {
+        let Some(peer) = self.peers.get_mut(&conn) else {
+            return;
+        };
+        let out = peer.tx.clone();
+        let reply = |v: Value| {
+            let _ = out.send(Outbound::Frame(protocol::control(&v).into()));
+        };
+        if !peer.grant.can_write() || peer.offline_merge || self.conflict.is_some() {
+            reply(json!({"t": "offline_checkpoint", "error": "REFUSED"}));
+            return;
+        }
+        peer.offline_merge = true;
+        let changes = msg["changes"].as_u64().unwrap_or(0).min(10_000_000);
+        let (user_id, name) = (peer.grant.user.id.clone(), peer.grant.user.name.clone());
+        let label: String = name.chars().take(80).collect();
+        let meta = SaveMeta {
+            kind: oc_model::ocanvas::CommitKind::Named,
+            message: Some(format!("Before {label}'s offline changes")),
+            restored_from: None,
+            checkpoint: true,
+        };
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.commit_with(meta, tx, json!({"t": "offline_checkpoint"}));
+        let fwd = out.clone();
+        tokio::spawn(async move {
+            if let Ok(v) = rx.await {
+                let _ = fwd.send(Outbound::Frame(protocol::control(&v).into()));
+            }
+        });
+        tracing::info!(room = %self.id, changes, "offline merge announced");
+        let ctl =
+            json!({"t": "offline_arrived", "by": user_id, "byName": name, "changes": changes});
+        self.broadcast(protocol::control(&ctl), Some(conn));
     }
 
     /// `ai-run`, `ai-cancel`, `ai-approve`, `ai-undo` (docs/15, docs/24 §10.5). Replies go to `conn` only.
@@ -1419,6 +1468,11 @@ impl Room {
                 conn,
                 &format!("an SDK block does not match its schema ({e})"),
             );
+        }
+        // OFF-05: a queued upload (`oc-pending:`) names the person whose device holds it.
+        if let Some(e) = filter::pending_error(&self.doc, &bytes, &grant.user.id) {
+            tracing::info!(room = %self.id, "update refused: a pending upload names someone else");
+            return self.deny(conn, &e);
         }
         // DGM-17 (ADR-057): only the server writes the `icons` root (POST /v1/icons).
         if filter::touches_root(&self.doc, &bytes, oc_model::roots::ICONS) {

@@ -10,6 +10,10 @@ import type { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { bridge } from "./bridge";
 import { createStore, toast } from "./store";
+import { pendingPreviews } from "./assets";
+
+/** OFF-05: while offline with a kept copy, uploads wait on the device (`oc-pending:<id>`). */
+export const offlineUploads: { queue: ((f: File) => Promise<{ ref: string; by: string } | null>) | null } = { queue: null };
 
 export const MAX_UPLOAD = 25 * 1024 * 1024; // docs/15 §6
 
@@ -55,6 +59,14 @@ async function run(id: string) {
   const u = uploadStore.get()[id];
   if (!u) return;
   patch(id, { state: "uploading", progress: 0 });
+  const queued = offlineUploads.queue ? await offlineUploads.queue(u.file).catch(() => null) : null;
+  if (queued) {
+    const base = u.kind === "image" ? { src: queued.ref } : { url: queued.ref, mime: u.file.type, size: u.file.size, name: u.file.name };
+    if (u.preview) pendingPreviews.set(queued.ref, u.preview);
+    finish(u.editor, id, { ...base, pendingBy: queued.by });
+    patch(id, null);
+    return;
+  }
   try {
     const up = await bridge.upload(u.file, (p) => patch(id, { progress: p }));
     const attrs = u.kind === "image" ? { src: up.url } : { url: up.url, mime: up.mime, size: up.size, name: up.name };

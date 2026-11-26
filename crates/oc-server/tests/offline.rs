@@ -304,9 +304,40 @@ async fn the_clear_page() {
     assert_eq!(res.headers()["cache-control"], "no-store");
     let html = res.text().await.unwrap();
     assert!(
-        html.contains(r#"src="/v1/offline/clear.js" data-host="sample" data-user="u_1""#),
+        html.contains(
+            r#"src="/v1/offline/clear.js" data-mode="clear" data-host="sample" data-user="u_1""#
+        ),
         "{html}"
     );
+    // Without a host: every host's copies in this partition, framable by every host's origins.
+    let res = http()
+        .get(format!("http://{addr}/v1/offline/clear"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert!(
+        res.text()
+            .await
+            .unwrap()
+            .contains(r#"data-mode="clear" data-host="""#)
+    );
+    // offlineFiles(): the list page needs host and user.
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/offline/files?host=sample&user=u_1"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert!(res.text().await.unwrap().contains(r#"data-mode="files""#));
+    let res = http()
+        .get(format!("http://{addr}/v1/offline/files?host=sample"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 400);
     let res = http()
         .get(format!("http://{addr}/v1/offline/clear.js"))
         .send()
@@ -321,7 +352,12 @@ async fn the_clear_page() {
     );
     let js = res.text().await.unwrap();
     assert!(js.contains("OC_OfflineCleared") && js.contains("deleteDatabase"));
-    for q in ["host=nope", "", "host=sample&user=a%22b", "host=a%3Cb"] {
+    for q in [
+        "host=nope",
+        "user=u_1",
+        "host=sample&user=a%22b",
+        "host=a%3Cb",
+    ] {
         let res = http()
             .get(format!("http://{addr}/v1/offline/clear?{q}"))
             .send()
@@ -363,5 +399,187 @@ async fn the_server_keeps_only_a_number() {
     assert!(
         !bytes.windows(sig.len()).any(|w| w == sig.as_bytes()),
         "no grant stored"
+    );
+}
+
+fn header(p: &RecordedPut, name: &str) -> Option<String> {
+    p.headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+}
+
+fn push_text(doc: &yrs::Doc, s: &str) {
+    use yrs::{Transact, XmlFragment, XmlTextPrelim};
+    let content = doc.get_or_insert_xml_fragment("content");
+    let mut txn = doc.transact_mut();
+    content.push_back(&mut txn, XmlTextPrelim::new(s));
+}
+
+/// OFF-04 (ADR-064, docs/34 §3.3 step 5): `offline_merge` saves a checkpoint version "Before
+/// <name>'s offline changes" (a named checkpoint save) and answers its version to the device;
+/// collaborators get `offline_arrived` once. Once per connection, writers only.
+#[tokio::test]
+async fn offline_merge_saves_a_checkpoint_first() {
+    let (base, host) = mock_host().await;
+    let st = app(&base, room_cfg()).await;
+    let mut a = Peer::join(&st, grant("u_a", oc_server::grant::Role::Edit)).await;
+    let mut b = Peer::join(&st, grant("u_b", oc_server::grant::Role::Edit)).await;
+    let mut v = Peer::join(&st, grant("u_v", oc_server::grant::Role::View)).await;
+    a.edit(|d| push_text(d, "before the merge"));
+    a.settle().await;
+    let ctl = |j: Value| oc_server::room::protocol::control(&j);
+    a.send(ctl(
+        json!({"t": "offline_merge", "changes": 230, "since": 1}),
+    ));
+    wait_until(|| !host.lock().unwrap().puts.is_empty()).await;
+    a.settle().await;
+    b.settle().await;
+    let put = host.lock().unwrap().puts.last().unwrap().clone();
+    assert_eq!(
+        header(&put, "x-opencanvas-commit-message").as_deref(),
+        Some("Before%20Name%20of%20u_a%27s%20offline%20changes")
+    );
+    assert_eq!(
+        header(&put, "x-opencanvas-checkpoint").as_deref(),
+        Some("1")
+    );
+    assert!(ocanvas_text(&put.body).contains("before the merge"));
+    let cp = a
+        .controls
+        .iter()
+        .find(|c| c["t"] == "offline_checkpoint")
+        .expect("checkpoint answer");
+    assert!(cp["version"].is_string(), "{cp}");
+    let arrived: Vec<_> = b
+        .controls
+        .iter()
+        .filter(|c| c["t"] == "offline_arrived")
+        .collect();
+    assert_eq!(arrived.len(), 1);
+    assert_eq!(arrived[0]["by"], "u_a");
+    assert_eq!(arrived[0]["changes"], 230);
+    assert!(
+        !a.controls.iter().any(|c| c["t"] == "offline_arrived"),
+        "not to the sender"
+    );
+    // Once per connection; viewers never.
+    a.send(ctl(json!({"t": "offline_merge", "changes": 1})));
+    v.send(ctl(json!({"t": "offline_merge", "changes": 1})));
+    a.settle().await;
+    v.settle().await;
+    let refused = |p: &Peer| {
+        p.controls
+            .iter()
+            .any(|c| c["t"] == "offline_checkpoint" && c["error"] == "REFUSED")
+    };
+    assert!(refused(&a) && refused(&v));
+    assert_eq!(host.lock().unwrap().puts.len(), 1, "one checkpoint");
+}
+
+/// OFF-A2 (docs/34 §3.7): a 5 MB offline catch-up sent as the editor does, in frames of at
+/// most 1 MB at 20 frames a second, is accepted over a real socket: no 1009 (too big), no
+/// 4429 (rate limit), every change applied.
+#[tokio::test]
+async fn chunked_catch_up_of_5_mb_is_accepted() {
+    use futures::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
+    use yrs::{ReadTxn, Transact};
+    let (base, _host) = mock_host().await;
+    let st = app(&base, room_cfg()).await;
+    let addr = serve_state(st.clone()).await;
+    let g = grant("u_a", oc_server::grant::Role::Edit);
+    let ticket = format!("01OFFLINE{}", ulid::Ulid::new());
+    st.store
+        .insert_session(&ticket, &g, i64::MAX / 2, 0)
+        .await
+        .unwrap();
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!(
+        "ws://{addr}/v1/collab/{}?ticket={ticket}",
+        g.room
+    ))
+    .await
+    .unwrap();
+    // 5 MB of offline transactions (50 paragraphs of 100 KB), merged into chunks under 1 MB.
+    let doc = yrs::Doc::new();
+    let mut updates = vec![];
+    for i in 0..50 {
+        let sv = doc.transact().state_vector();
+        push_text(&doc, &format!("{i:02}{}", "x".repeat(100 * 1024)));
+        updates.push(doc.transact().encode_state_as_update_v1(&sv));
+    }
+    let mut chunks: Vec<Vec<Vec<u8>>> = vec![vec![]];
+    let mut size = 0;
+    for u in updates {
+        if size + u.len() > 900 * 1024 {
+            chunks.push(vec![]);
+            size = 0;
+        }
+        size += u.len();
+        chunks.last_mut().unwrap().push(u);
+    }
+    assert!(chunks.len() >= 6, "{}", chunks.len());
+    let sv = yrs::StateVector::default();
+    ws.send(WsMessage::Binary(
+        oc_server::room::protocol::step1(sv).into(),
+    ))
+    .await
+    .unwrap();
+    for c in chunks {
+        let merged = yrs::merge_updates_v1(&c).unwrap();
+        assert!(merged.len() < 1024 * 1024);
+        ws.send(WsMessage::Binary(
+            oc_server::room::protocol::update(merged).into(),
+        ))
+        .await
+        .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    // Drain: the socket stays open.
+    let end = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
+    while let Ok(Some(m)) = tokio::time::timeout_at(end, ws.next()).await {
+        if let Ok(WsMessage::Close(f)) = m {
+            panic!("closed: {f:?}");
+        }
+    }
+    let text = server_json(&st).await.to_string();
+    for i in 0..50 {
+        assert!(text.contains(&format!("{i:02}xxxx")), "paragraph {i}");
+    }
+}
+
+fn image(src: &'static str, by: &'static str) -> impl FnOnce(&yrs::Doc) {
+    move |d: &yrs::Doc| {
+        use yrs::{Transact, Xml, XmlElementPrelim, XmlFragment};
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let el = c.push_back(&mut t, XmlElementPrelim::empty("image"));
+        el.insert_attribute(&mut t, "src", src);
+        el.insert_attribute(&mut t, "pendingBy", by);
+    }
+}
+
+/// OFF-05 (MOD-01, ADR-064): an image added offline (`oc-pending:<uuid>`) is accepted only
+/// with `pendingBy` naming the writer: nobody can point a placeholder at someone else's device.
+#[tokio::test]
+async fn a_queued_upload_must_name_the_person_whose_device_holds_it() {
+    let (base, _host) = mock_host().await;
+    let st = app(&base, room_cfg()).await;
+    let mut a = Peer::join(&st, grant("u_1", oc_server::grant::Role::Edit)).await;
+    a.settle().await;
+    a.edit(image("oc-pending:0f9e2c", "u_2"));
+    a.settle().await;
+    assert_eq!(a.denied, 1, "someone else's pending upload is refused");
+    assert!(!server_json(&st).await.to_string().contains("oc-pending"));
+    let mut b = Peer::join(&st, grant("u_2", oc_server::grant::Role::Edit)).await;
+    b.settle().await;
+    b.edit(image("oc-pending:77aa", "u_2"));
+    b.settle().await;
+    assert_eq!(b.denied, 0);
+    assert!(
+        server_json(&st)
+            .await
+            .to_string()
+            .contains("oc-pending:77aa")
     );
 }

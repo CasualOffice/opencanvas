@@ -129,7 +129,7 @@ export function Popover(props: {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || sheet) return;
-    if (kind === "menu") el.querySelectorAll(".mi").forEach((b) => b.setAttribute("role", "menuitem"));
+    if (kind === "menu") el.querySelectorAll(".mi:not([role=menuitemcheckbox])").forEach((b) => b.setAttribute("role", "menuitem"));
     if (kind === "listbox")
       el.querySelectorAll(".mi, .sgrid > button").forEach((b) => {
         b.setAttribute("role", "option");

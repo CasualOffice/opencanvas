@@ -1248,11 +1248,14 @@ offline: an installed web app or a native shell):
 **Sign-out must clear the device.** The editor's storage is partitioned by your site, so the
 clearing must run under your site, in one of two ways:
 
-```js
-import { OpenCanvas } from "https://canvas.acme.example/sdk/embed.js";
-const r = await OpenCanvas.clearOffline({ userId: "u_123" }); // or clearOffline() for everyone
-// r = { removed: 4 } canvases removed from this browser
-await fetch("/logout", { method: "POST" });
+```html
+<script src="https://canvas.acme.example/sdk/embed.js"></script>
+<script>
+  // host: your host id; leave out userId for every person of your host, both for every host
+  const r = await OpenCanvas.clearOffline({ host: "acme", userId: "u_123" });
+  // r = { removed: 4, done: true }: canvases removed from this browser
+  await fetch("/logout", { method: "POST" });
+</script>
 ```
 
 ```html
@@ -1262,9 +1265,19 @@ await fetch("/logout", { method: "POST" });
 
 Both delete the person's **device key first** (the copies are unreadable even if deleting the
 databases is interrupted), then the databases and queued uploads, for your host on this browser.
-Leave out `user` to clear every person of your host. `OpenCanvas.offlineFiles({ userId })` lists
-the canvases kept on this device (id, title, size, unsent changes, last sent) for your own offline
-page or a "3 changes haven't been sent" warning before signing out. The editor posts
+Leave out `user` to clear every person of your host (and `host` too, for every host). The editor
+code cache (no content) goes with the last copy. `OpenCanvas.offlineFiles({ host, userId })`
+(through `/v1/offline/files?host=&user=`) lists the canvases kept on this device
+(`[{id, title, bytes, pending, lastSent, validUntil}]`) for your own offline page or a "3 changes
+haven't been sent" warning before signing out.
+
+**Reconnecting (ADR-064, ADR-073).** Every reconnect after an offline spell is a fresh launch: the
+editor posts `Token_Expiring { inSeconds: 0, reason: "reconnect" }` and waits for your
+`Action_RefreshToken { token }` (a new launch token for the same person and file), or
+`Action_RefreshToken { access: "none" }` when the person has no access any more (the copy and its
+unsent changes are then deleted). Hosts that already renew tokens (PERM-07) only add the second
+answer. Without an answer within 8 s the editor carries on with the running session, which the
+server re-checks. The editor posts
 `UI_OfflineState { state, pending }` as the save pill changes (`saved`, `offline-device`,
 `offline-tab`, `reconnecting`, `sending`, `paused`, `locked`).
 
@@ -3642,6 +3655,21 @@ posts `{type:"OC_OfflineCleared", host, removed}` to the parent. Device storage:
 (the non-extractable AES-GCM device key), `…/index` (the encrypted list of kept canvases),
 `…/<fileId>` (the encrypted Yjs update log, y-indexeddb scheme, plus the grant), `…/uploads` (queued
 files); names are `encodeURIComponent`-encoded.
+
+*Offline reconnect (OFF-04/05, ADR-064, ADR-073):* after a fresh launch the editor answers the
+room's first SyncStep1 with an empty step 2 and sends its unsent log as sync update frames
+(`[0, 2, update]`) of at most 900 KB, 20 a second. Before a log over 10 minutes or 200 changes it
+sends control `{"t":"offline_merge","changes","since"}`; the room saves a named checkpoint version
+"Before <name>'s offline changes" and answers that connection `{"t":"offline_checkpoint","version"}`
+(`error: "REFUSED"` for viewers, a second request on the connection, or a conflict), and tells the
+others `{"t":"offline_arrived","by","byName","changes"}`. Queued uploads: `image.src` /
+`fileAttachment.url` = `oc-pending:<uuid>` with `pendingBy` = the writer (MOD-01 refuses another
+user id or a malformed reference; exports draw "Image uploading from another device"; the REST
+patch API refuses the scheme). The editor's service worker is served at `/sw.js` (scope `/`): it
+caches the files in `/app/shell.json` (the editor build, no content) and redirects a `POST
+/v1/launch` navigation with `offline=1` that cannot reach the server to `/app/#offline=1&h=&u=&f=`.
+`GET /v1/offline/files?host=&user=` runs the same script in `files` mode and posts
+`{type:"OC_OfflineFiles", files}`.
 
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):
@@ -7267,7 +7295,7 @@ The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is
 
 ## Unreleased
 
-Added Offline copies, server side (OFF-01, OFF-07, ADR-063/064): [host.offline] (off by default; checked at start-up; JWT hosts only), the launch token's perms.offline and offlineReason , an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on the device, a revocation generation per host and person (migration 0011; Redis oc:offgen: ) raised by POST /api/v1/offline/revoke , and the GET /v1/offline/clear sign-out page. The server stores one number per host and person, never content.
+Added Offline copies, server side (OFF-01, OFF-07, ADR-063/064): [host.offline] (off by default; checked at start-up; JWT hosts only), the launch token's perms.offline and offlineReason , an ES256 offline grant in the session answer that the editor keeps with its copy and uses only on the device, a revocation generation per host and person (migration 0011; Redis oc:offgen: ) raised by POST /api/v1/offline/revoke , and the GET /v1/offline/clear sign-out page. The server stores one number per host and person, never content. Added Offline-first editing in the editor (OFF-02..07, ADR-063/064/073, the approved prototype): a person keeps a canvas on their device ("Available offline on this device"), encrypted in IndexedDB under a per-person device key; it opens and edits without a network (a service worker caches the editor code, never content) and locks when its 7-day grant runs out. The save pill shows where changes are (on this device, or this tab only). Reconnecting is a fresh launch through the host; unsent changes go in frames under the frame and rate limits, long sessions get a "Before <name>'s offline changes" version first and collaborators a toast. A merge summary appears only for edits inside a deleted block (restore as a new block) and both-sides cell changes (use mine). View only on reconnect holds the changes (download or discard); no access deletes the copy. Images added offline wait as oc-pending: and upload first. Hosts clear the device at sign-out with OpenCanvas.clearOffline() or the /v1/offline/clear iframe and list copies with OpenCanvas.offlineFiles() .
 
 ## 0.2.1 (2026-11-26)
 

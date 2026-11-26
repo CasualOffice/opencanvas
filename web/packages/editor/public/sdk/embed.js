@@ -4,6 +4,14 @@
 /*! @opencanvas/embed — <open-canvas server="…" token="…"> (docs/05 §4). No dependencies. */
 (() => {
   if (typeof customElements === "undefined" || customElements.get("open-canvas")) return;
+  // Where this script came from: the OpenCanvas server (for the offline helpers below).
+  const SELF = (() => {
+    try {
+      return new URL(document.currentScript.src).origin;
+    } catch {
+      return null;
+    }
+  })();
 
   // canvas → host MessageIds mapped to DOM events on the element
   const EVENTS = {
@@ -17,13 +25,14 @@
     UI_FileVersions: (v) => ["oc:versions", v],
     UI_Close: (v) => ["oc:close", v],
     Error: (v) => ["oc:error", v],
+    UI_OfflineState: (v) => ["oc:offline-state", v],
   };
 
   let seq = 0;
 
   class OpenCanvas extends HTMLElement {
     static get observedAttributes() {
-      return ["server", "token", "theme"];
+      return ["server", "token", "theme", "offline"];
     }
 
     constructor() {
@@ -79,6 +88,14 @@
       input.name = "token";
       input.value = token;
       form.appendChild(input);
+      // OFF-03: without a network, open the copy kept on this device (the service worker).
+      if (this.hasAttribute("offline")) {
+        const off = document.createElement("input");
+        off.type = "hidden";
+        off.name = "offline";
+        off.value = "1";
+        form.appendChild(off);
+      }
       this.shadowRoot.appendChild(form);
       form.submit();
       form.remove();
@@ -138,5 +155,46 @@
     }
   }
 
+  // ---- offline copies (OFF-07, docs/05 §4c) ----
+  // The editor's storage is partitioned by the host's site, so both helpers run a small page
+  // of the OpenCanvas server in a hidden iframe on the host's own page.
+  function framePage(path, params, want, opts) {
+    const server = ((opts && opts.server) || SELF || "").replace(/\/$/, "");
+    if (!server) return Promise.reject(new Error("OpenCanvas: pass { server } to " + want));
+    const origin = new URL(server, location.href).origin;
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
+    return new Promise((resolve) => {
+      const f = document.createElement("iframe");
+      f.hidden = true;
+      f.title = "OpenCanvas offline";
+      const done = (v) => {
+        window.removeEventListener("message", on);
+        clearTimeout(t);
+        f.remove();
+        resolve(v);
+      };
+      const on = (e) => {
+        if (e.origin !== origin || e.source !== f.contentWindow || !e.data || e.data.type !== want) return;
+        done(e.data);
+      };
+      const t = setTimeout(() => done(null), 10000);
+      window.addEventListener("message", on);
+      f.src = server + path + (q.toString() ? "?" + q : "");
+      document.body.appendChild(f);
+    });
+  }
+
+  /** Sign-out: deletes the device key first, then the offline copies, for this host (and
+   *  person) in this browser. Resolves `{ removed }` (canvases removed). */
+  OpenCanvas.clearOffline = (opts = {}) =>
+    framePage("/v1/offline/clear", { host: opts.host, user: opts.userId }, "OC_OfflineCleared", opts).then((d) => ({ removed: d ? d.removed || 0 : 0, done: !!d }));
+
+  /** The canvases kept on this device for `{ host, userId }`: `[{ id, title, bytes, pending,
+   *  lastSent, validUntil }]`, for the host's own offline page or a sign-out warning. */
+  OpenCanvas.offlineFiles = (opts = {}) =>
+    framePage("/v1/offline/files", { host: opts.host, user: opts.userId }, "OC_OfflineFiles", opts).then((d) => (d ? d.files || [] : []));
+
+  window.OpenCanvas = OpenCanvas;
   customElements.define("open-canvas", OpenCanvas);
 })();
