@@ -54,6 +54,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   after GC, DOM size, script bytes and long frames on the S, M, L and 50 MB fixtures through the
   real server (Chromium, 4× CPU throttle, 40 Mbit/s, 40 ms RTT); budgets per fixture in
   `bench/budgets.toml`, checked nightly by `scripts/bench/check-browser.mjs`.
+- `OC_MAX_PEERS`: the room cap per server, default 550, at most 1,000 (R1K; PERF-11). Profile of
+  the X10K latency miss in docs/36 §4.1.
 - Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): `scripts/bench/run <scenario>`
   with scenario files in `bench/scenarios/` that state their load mix (X10K, R1K, STORM, SOAK, and
   the docs/22 scenarios run unchanged), `oc-bench scenario` (idle, presence-only and typing peers,

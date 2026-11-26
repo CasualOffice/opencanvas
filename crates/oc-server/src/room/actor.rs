@@ -34,8 +34,11 @@ use reqwest::StatusCode;
 const BACKOFF_SECS: [u64; 4] = [1, 2, 5, 10];
 const MAX_AWARENESS_BYTES: usize = 2048;
 /// Connections per room (docs/07 §3: 50 editors + 500 viewers). Later joins are closed
-/// with 1013 "room full".
+/// with 1013 "room full". The default; `OC_MAX_PEERS` sets it per server up to
+/// [`MAX_PEERS_LIMIT`].
 pub const MAX_PEERS: usize = 550;
+/// The most `OC_MAX_PEERS` may be set to (R1K, docs/36 §4.2).
+pub const MAX_PEERS_LIMIT: usize = 1_000;
 /// Awareness client ids one connection may own (one per Y.Doc; a few for tabs/reconnects).
 const MAX_CLIENTS_PER_CONN: usize = 8;
 /// Outbound tick (docs/22 §9.3): a room writes its WAL batch and sends one merged update frame
@@ -867,7 +870,7 @@ impl Room {
         tx: mpsc::UnboundedSender<Outbound>,
         reply: tokio::sync::oneshot::Sender<()>,
     ) {
-        if self.peers.len() >= MAX_PEERS {
+        if self.peers.len() >= self.ctx.cfg.max_peers {
             tracing::warn!(room = %self.id, peers = self.peers.len(), "room full; connection refused");
             let _ = tx.send(Outbound::Close(1013, "room full".into()));
             let _ = reply.send(());

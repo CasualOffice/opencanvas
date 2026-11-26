@@ -283,6 +283,19 @@ that shows it fixed. Nothing is tuned without a scenario that measures it.
 
 ### 4.1 Connections and rooms (X10K, STORM)
 
+**Profile of the X10K miss (2026-11-26, Apple M4, local, SQLite, memory durability, short form;
+10k clients / 500 rooms, 80% idle, 15% presence 2/s, 5% typing 1/s; the machine shared with other
+work, load average 18–24).** Baseline re-run: worst-bucket p99 20,044 ms (committed baseline
+11,329 ms). The same run with autosave pushed out of the window (`OC_AUTOSAVE_MAX_MS` /
+`OC_AUTOSAVE_DEBOUNCE_MS` = 900 s, 2 min, no fault): worst p99 1,747 ms. A `sample` of the server in
+the spike shows about half of room-actor CPU in `prepare_save` (whole-document `doc_to_json`,
+`.ocanvas` serialization, `FileHistory::advance`), run inline on the actor, so a room's edits wait
+behind its own save every ~10 s. The SQLite worker threads were 98% idle; memory-mode dumps took
+5.6 s on average (2,920 of 6,203 over 5 s) because each takes the exclusive snapshot gate and its
+own transaction, but they run off the actor and are not on the edit path. Next (open): build the
+save payload off the actor (snapshot the doc state, encode on a blocking thread), then group the
+dumps; the remaining ~1.7 s is to be profiled on an unloaded machine.
+
 1. **Per-connection footprint.** Break down the 0.20 MB per idle connection (buffers, the socket
    task, awareness copies, the grant) and cut it: shrink buffers after a large frame (done for
    frames, docs/22 §7), one shared encoded awareness state per room, release an idle viewer's
