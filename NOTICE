@@ -23,6 +23,10 @@ Third-party components keep their own licences:
   uses Lucide through the lucide-react package (ISC), and the full Lucide set as diagram icons
   (web/packages/board/src/lucide, generated from lucide-static and the Lucide repository by
   tools/build-lucide-icons.py; same licence). No vendor or product logo is bundled.
+- The Spreadsheet block's engine (crates/oc-sheet, ADR-080) is built on OpenCalc
+  (https://github.com/CasualOffice/opencalc, Copyright 2026 CasualOffice, Apache-2.0),
+  pinned to a revision in crates/oc-sheet/Cargo.toml. Its own dependencies keep their
+  licences (Apache-2.0, MIT, BSD, ISC, Zlib, Unicode-3.0).
 
 Trademarks:
 
