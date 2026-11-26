@@ -54,6 +54,8 @@ const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ def
 const HistoryRoot = lazy(() => import("./history/root"));
 // SRCH-01/04: the find bar and "Search all canvases" load when first opened (initial JS budget).
 const FindBar = lazy(() => import("./find/FindBar").then((m) => ({ default: m.FindBar })));
+// AUTO-06: the automations panel loads when first opened.
+const AutomationPanel = lazy(() => import("./automation/AutomationPanel").then((m) => ({ default: m.AutomationPanel })));
 const SearchAll = lazy(() => import("./search/SearchAll").then((m) => ({ default: m.SearchAll })));
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
@@ -226,7 +228,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [screen, setScreen] = useState<"editor" | "gallery">("editor");
-  const [side, setSide] = useState<"comments" | "history" | null>(null);
+  const [side, setSide] = useState<"comments" | "history" | "automations" | null>(null);
   // VH-01d: bumped on every save and restore so an open history panel refreshes its list;
   // `nameReq` opens the naming popover from the menu; `previewing` hides the live canvas.
   const [historyTick, setHistoryTick] = useState(0);
@@ -620,6 +622,16 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const openFindRef = useRef(openFind);
   openFindRef.current = openFind;
   const searchOn = !!session.search?.enabled && !session.demo;
+  // AUTO-06: rules in this canvas (counted for the menu, also when the host runs none, frame 5d).
+  const autoOn = !!session.automation?.enabled && !!session.automation.limits && !session.demo;
+  const [ruleCount, setRuleCount] = useState(0);
+  useEffect(() => {
+    const m = doc.getMap("automations");
+    const count = () => setRuleCount(m.size);
+    count();
+    m.observe(count);
+    return () => m.unobserve(count);
+  }, [doc]);
   const searchOnRef = useRef(searchOn);
   searchOnRef.current = searchOn;
 
@@ -1161,6 +1173,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onAssistant={ai.on ? openAssistant : undefined}
               onFind={editor ? () => openFind(false) : undefined}
               onSearchAll={searchOn ? () => setSearchAll(true) : undefined}
+              onAutomations={autoOn ? () => (side === "automations" ? closeSide() : setSide("automations")) : undefined}
+              automationsHere={ruleCount}
             />
             {banners}
             <div className="body">
@@ -1219,6 +1233,25 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     scrollEl={scrollRef.current}
                     toast={(m, o) => toast(m, o ?? {})}
                     onClose={() => setFind(null)}
+                  />
+                </Suspense>
+              ) : null}
+              {side === "automations" && autoOn ? (
+                <Suspense fallback={<aside className="side" aria-label="Automations" aria-busy="true" />}>
+                  <AutomationPanel
+                    doc={doc}
+                    ticket={session.ticket}
+                    info={{
+                      enabled: true,
+                      canEdit: !!session.automation?.canEdit && effectiveRole === "edit",
+                      history: !!session.automation?.history,
+                      limits: session.automation!.limits!,
+                    }}
+                    me={{ id: me.id, name: me.name }}
+                    hostName={hostName}
+                    compact={compact}
+                    person={(id) => people.get(id)?.name ?? id}
+                    onClose={() => setSide(null)}
                   />
                 </Suspense>
               ) : null}

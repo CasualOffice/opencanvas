@@ -9,6 +9,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- The automations panel (AUTO-06): "Automations" in the canvas menu, when the host turns
+  automation on. Rules read as sentences ("When Status changes to Done in Backlog, then move the
+  row to Archive"), switch on and off in place, and say when they ran or run next. Suggestions
+  built from the canvas, a rule editor with a grouped trigger picker, conditions, up to five
+  actions and a test run that changes nothing, and a run history with failed and stopped
+  filters. Paused rules say why and offer "Run it as me". Viewers see the rules read-only. On
+  phones the panel is a full-screen page.
 - Automation, server side (AUTO-01..05, AUTO-07, ADR-067, ADR-068; off unless
   `[host.automation]`): rules stored in the canvas (`automations` root) run by the server as
   "Automation" on behalf of their owner, re-checked with the host's `/access` at every run.

@@ -41,6 +41,10 @@ enabled = ["e2e.okr@^1", "e2e.hostile", "e2e.mig", "e2e.tampered", "oc.progress"
 const SEARCH_HOST = `
 [host.search]
 callback = true
+
+[host.automation]
+enabled   = true
+time_zone = "Europe/Berlin"
 `;
 /** The block origin: a different origin from the editor's (localhost), same server. */
 export const BLOCKS_ORIGIN = "http://127.0.0.1:8280";
