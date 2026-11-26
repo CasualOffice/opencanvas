@@ -5,6 +5,8 @@
 # The fast CI gates, run locally before every push to main: formatting, lint, licence headers,
 # units, types and the site. (Tests run separately; this catches the checks that fail in seconds.)
 set -euo pipefail
+# No unresolved merge conflict markers anywhere in the tree.
+if git grep -nI -e "^<<<<<<< " -e "^>>>>>>> " -- . ":!*.lock" >/dev/null; then echo "prepush: conflict markers in the tree"; git grep -nI -e "^<<<<<<< " -e "^>>>>>>> " -- . | head; exit 1; fi
 cd "$(dirname "$0")/.."
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
