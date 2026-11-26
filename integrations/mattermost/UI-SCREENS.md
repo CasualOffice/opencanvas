@@ -59,7 +59,7 @@ run plugin UI.
   (no dialog: creates directly with the given or default title), and an empty-state button in S4.
 - **Content:** title field (optional, placeholder "Untitled canvas"), kind: **Blank canvas** or
   **Meeting notes** (Agenda, Notes, Decisions, Action items), note "Everyone in
-  ~channel-name can open and edit it. It's saved in Mattermost." Buttons: Create, Cancel.
+  ~channel-name can open and edit it. It's saved on your Mattermost server." Buttons: Create, Cancel.
 - **States:** idle; creating (button busy); **error** "Couldn't create the canvas. Try again.";
   **not allowed** (guest without edit): the entry point is hidden, and the slash command answers
   "You can't create a canvas in this channel."

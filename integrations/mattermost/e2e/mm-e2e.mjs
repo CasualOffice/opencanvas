@@ -252,10 +252,10 @@ check('S1e the ring moves to the new card', await card(A.page, 'Design review no
 check('S1c meeting notes card', /Meeting notes · (Edited|Created) /.test(await card(A.page, 'Design review notes').innerText()));
 await shot(A.page, 'S2d-light');
 await api(alice.tok, 'POST', '/api/v4/commands/execute', {channel_id: channel.id, team_id: team.id, command: '/canvas help'});
-await until(async () => (await A.page.getByText('Canvases in Mattermost').count()) > 0, 15000);
+await until(async () => (await A.page.getByText('Canvases in Mattermost channels').count()) > 0, 15000);
 await sleep(500);
 await shot(A.page, 'S5b-light');
-check('S5b /canvas help reply', await A.page.getByText('They\'re saved in Mattermost.', {exact: false}).count() > 0);
+check('S5b /canvas help reply', await A.page.getByText('They\'re saved on your Mattermost server.', {exact: false}).count() > 0);
 
 // S4: channel canvases (App Bar grid, then /canvas list through the webapp hook)
 await appBarButton(A.page, 'lucide-layout-grid').click();

@@ -8,7 +8,9 @@
 	<summary>Collaborative canvases: documents, databases and whiteboards in one file</summary>
 	<description><![CDATA[Create .ocanvas files in Files and edit them together in real time with OpenCanvas.
 One canvas holds rich text, databases (table, board, calendar views) and whiteboards side by side.
-Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and versions.]]></description>
+Requires a running OpenCanvas server; Nextcloud keeps the files, permissions and versions.
+
+Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by either company.]]></description>
 	<version>0.1.0</version>
 	<licence>apache</licence>
 	<author>CasualOffice</author>

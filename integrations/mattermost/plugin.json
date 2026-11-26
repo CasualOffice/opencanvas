@@ -1,7 +1,7 @@
 {
   "id": "com.casualoffice.opencanvas",
   "name": "OpenCanvas",
-  "description": "Collaborative canvases in channels: notes, databases and whiteboards, edited live. Files are stored in Mattermost.",
+  "description": "Collaborative canvases in channels: notes, databases and whiteboards, edited live. Files are stored on your Mattermost server.",
   "homepage_url": "https://github.com/casualoffice/opencanvas",
   "support_url": "https://github.com/casualoffice/opencanvas/issues",
   "version": "0.1.0",
@@ -16,7 +16,7 @@
     "bundle_path": "webapp/dist/main.js"
   },
   "settings_schema": {
-    "header": "Connect Mattermost to an OpenCanvas server. Register this server in OpenCanvas hosts.toml with the same host id, shared secret and API key (see the plugin README).",
+    "header": "Connect your Mattermost server to an OpenCanvas server. Register this server in OpenCanvas hosts.toml with the same host id, shared secret and API key (see the plugin README).",
     "settings": [
       {
         "key": "OpenCanvasURL",
@@ -59,7 +59,7 @@
         "display_name": "API key",
         "type": "text",
         "secret": true,
-        "help_text": "Same as api_key in hosts.toml. Lets Mattermost close a canvas at once when someone leaves the channel."
+        "help_text": "Same as api_key in hosts.toml. Lets your Mattermost server close a canvas at once when someone leaves the channel."
       },
       {
         "key": "GuestRole",

@@ -221,7 +221,7 @@ func (b *backend) CreateCanvasPost(rec *canvas.Record, userID string) (string, e
 // cardMessage is the card's text where the card component does not run (mobile apps,
 // notifications, search).
 func cardMessage(title string) string {
-	return "Canvas: " + title + " (open it in Mattermost on the web or desktop)"
+	return "Canvas: " + title + " (open it in the Mattermost web or desktop app)"
 }
 
 func (b *backend) UpdateCanvasPost(rec *canvas.Record) error {

@@ -295,6 +295,8 @@ revoke without this, and switched (read-only / closed) with it.
 > Export to PDF, Word, Markdown, HTML or images. Images live inside the `.ocanvas` file, so
 > versions, downloads and sync clients keep everything. Nextcloud stays in charge of files,
 > sharing and permissions; OpenCanvas stores no documents.
+>
+> Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by either company.
 
 Check every claim against the release notes before publishing. Export formats depend on the
 OpenCanvas host's `export_formats`. PDF needs the PDF renderer.

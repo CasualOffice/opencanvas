@@ -32,11 +32,11 @@ func TestCommandRegistration(t *testing.T) {
 // MM-02 S5: the approved replies, word for word.
 func TestCommandReplies(t *testing.T) {
 	want := map[string]string{
-		"help": "#### Canvases in Mattermost\n" +
+		"help": "#### Canvases in Mattermost channels\n" +
 			"`/canvas new [title]` creates a canvas in this channel and opens it. " +
 			"`/canvas notes [title]` creates meeting notes with Agenda, Notes, Decisions and Action items. " +
 			"`/canvas list` shows this channel's canvases.\n\n" +
-			"Everyone in the channel can open and edit its canvases. They're saved in Mattermost. " +
+			"Everyone in the channel can open and edit its canvases. They're saved on your Mattermost server. " +
 			"On the phone apps a canvas shows as a message; open it on the web or desktop.",
 		"notConfigured":      "Canvases aren't set up yet. Ask your Mattermost admin to finish the OpenCanvas plugin settings.",
 		"notConfiguredAdmin": "Canvases aren't set up yet. Ask your Mattermost admin to finish the OpenCanvas plugin settings.\nOpen **System Console → Plugins → OpenCanvas**.",
@@ -51,5 +51,13 @@ func TestCommandReplies(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("%s:\n got %q\nwant %q", k, got[k], v)
 		}
+	}
+}
+
+// LEGAL-01: "Mattermost" is used only as an adjective in what people read.
+func TestCardMessageUsesMattermostAsAnAdjective(t *testing.T) {
+	want := "Canvas: Sprint 42 (open it in the Mattermost web or desktop app)"
+	if got := cardMessage("Sprint 42"); got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
 	}
 }
