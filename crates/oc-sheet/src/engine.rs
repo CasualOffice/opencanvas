@@ -10,6 +10,8 @@
 //! recalculated. The output is each cell's display text (`12.5`, `#DIV/0!`, `$1,200.00`).
 //! Values are never written back to the document (ADR-078's rule).
 
+use std::collections::BTreeMap;
+
 use casual_calc_model::Id;
 use casual_calc_sdk::{CellRef, EditOperation, Sheet, SheetId, WorkbookSession};
 
@@ -50,44 +52,160 @@ pub fn grid_of(sheets: &[BookSheet]) -> MemGrid {
     }
 }
 
-/// Builds the workbook and computes every cell that has an input.
-pub fn compute(sheets: &[BookSheet]) -> Result<Vec<Shown>, BookError> {
-    let grid = grid_of(sheets);
-    let mut book = WorkbookSession::blank();
-    for (k, s) in sheets.iter().enumerate() {
-        let sheet = Sheet::new(SheetId(Id::from_parts(1, k as u64 + 1)), s.name.clone());
-        book.edit(EditOperation::InsertSheet {
-            index: k,
-            sheet: Box::new(sheet),
-        })
-        .map_err(|e| BookError(format!("sheet {}: {e:?}", s.name)))?;
+/// A block's workbook kept between edits (one per open block): opening builds it once, a cell
+/// edit is applied in place and answers only the cells whose display changed.
+pub struct Book {
+    sheets: Vec<BookSheet>,
+    grid: MemGrid,
+    session: WorkbookSession,
+    /// `(sheet index, row id, col id)` → what it shows, for every cell with an input.
+    shown: BTreeMap<(usize, String, String), String>,
+}
+
+impl std::fmt::Debug for Book {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Book")
+            .field("sheets", &self.sheets.len())
+            .field("cells", &self.shown.len())
+            .finish()
     }
-    let mut placed = Vec::new();
-    for (k, s) in sheets.iter().enumerate() {
-        for (rid, cid, stored) in &s.cells {
-            // A cell whose row or column was deleted is gone with it.
-            let (Some(row), Some(col)) = (grid.row_index(&s.id, rid), grid.col_index(&s.id, cid))
+}
+
+impl Book {
+    /// Builds the workbook from the block's sheets and computes it.
+    pub fn open(sheets: Vec<BookSheet>) -> Result<Self, BookError> {
+        let grid = grid_of(&sheets);
+        let mut session = WorkbookSession::blank();
+        for (k, s) in sheets.iter().enumerate() {
+            let sheet = Sheet::new(SheetId(Id::from_parts(1, k as u64 + 1)), s.name.clone());
+            session
+                .edit(EditOperation::InsertSheet {
+                    index: k,
+                    sheet: Box::new(sheet),
+                })
+                .map_err(|e| BookError(format!("sheet {}: {e:?}", s.name)))?;
+        }
+        let mut book = Book {
+            sheets,
+            grid,
+            session,
+            shown: BTreeMap::new(),
+        };
+        let cells: Vec<(usize, String, String, String)> = book
+            .sheets
+            .iter()
+            .enumerate()
+            .flat_map(|(k, s)| {
+                s.cells
+                    .iter()
+                    .map(move |(r, c, v)| (k, r.clone(), c.clone(), v.clone()))
+            })
+            .collect();
+        for (k, rid, cid, stored) in cells {
+            if book.enter(k, &rid, &cid, &stored)? {
+                book.shown.insert((k, rid, cid), String::new());
+            }
+        }
+        book.session.recalculate();
+        book.refresh();
+        Ok(book)
+    }
+
+    /// Enters one stored input as typed; false when its row or column is gone.
+    fn enter(&mut self, k: usize, rid: &str, cid: &str, stored: &str) -> Result<bool, BookError> {
+        let sid = self.sheets[k].id.clone();
+        let (Some(row), Some(col)) = (
+            self.grid.row_index(&sid, rid),
+            self.grid.col_index(&sid, cid),
+        ) else {
+            return Ok(false);
+        };
+        let typed = refs::to_a1(stored, &sid, &self.grid);
+        let op = self.session.input_edit(k, CellRef { row, col }, &typed);
+        self.session
+            .edit(op)
+            .map_err(|e| BookError(format!("{}!{rid}:{cid}: {e:?}", self.sheets[k].name)))?;
+        Ok(true)
+    }
+
+    /// Reads every cell's display again; returns the ones that changed.
+    fn refresh(&mut self) -> Vec<Shown> {
+        let mut changed = Vec::new();
+        for ((k, rid, cid), text) in self.shown.iter_mut() {
+            let sid = &self.sheets[*k].id;
+            let (Some(row), Some(col)) =
+                (self.grid.row_index(sid, rid), self.grid.col_index(sid, cid))
             else {
                 continue;
             };
-            let at = CellRef { row, col };
-            let typed = refs::to_a1(stored, &s.id, &grid);
-            let op = book.input_edit(k, at, &typed);
-            book.edit(op)
-                .map_err(|e| BookError(format!("{}!{rid}:{cid}: {e:?}", s.name)))?;
-            placed.push((k, at, rid, cid));
+            let now = self.session.cell_display(*k, CellRef { row, col });
+            if *text != now {
+                *text = now.clone();
+                changed.push(Shown {
+                    sheet: sid.clone(),
+                    row: rid.clone(),
+                    col: cid.clone(),
+                    text: now,
+                });
+            }
         }
+        changed
     }
-    book.recalculate();
-    Ok(placed
-        .into_iter()
-        .map(|(k, at, rid, cid)| Shown {
-            sheet: sheets[k].id.clone(),
-            row: rid.clone(),
-            col: cid.clone(),
-            text: book.cell_display(k, at),
-        })
-        .collect())
+
+    /// Sets one cell's stored input (empty clears it); returns every cell whose display changed.
+    pub fn set(
+        &mut self,
+        sheet: &str,
+        rid: &str,
+        cid: &str,
+        stored: &str,
+    ) -> Result<Vec<Shown>, BookError> {
+        let Some(k) = self.sheets.iter().position(|s| s.id == sheet) else {
+            return Err(BookError(format!("no sheet {sheet}")));
+        };
+        let cells = &mut self.sheets[k].cells;
+        cells.retain(|(r, c, _)| !(r == rid && c == cid));
+        if !stored.is_empty() {
+            cells.push((rid.to_string(), cid.to_string(), stored.to_string()));
+        }
+        if self.enter(k, rid, cid, stored)? {
+            let key = (k, rid.to_string(), cid.to_string());
+            if stored.is_empty() {
+                self.shown.remove(&key);
+            } else {
+                self.shown.entry(key).or_default();
+            }
+        }
+        self.session.recalculate();
+        let mut changed = self.refresh();
+        if stored.is_empty() {
+            changed.push(Shown {
+                sheet: sheet.to_string(),
+                row: rid.to_string(),
+                col: cid.to_string(),
+                text: String::new(),
+            });
+        }
+        Ok(changed)
+    }
+
+    /// Every cell with an input and what it shows.
+    pub fn values(&self) -> Vec<Shown> {
+        self.shown
+            .iter()
+            .map(|((k, rid, cid), text)| Shown {
+                sheet: self.sheets[*k].id.clone(),
+                row: rid.clone(),
+                col: cid.clone(),
+                text: text.clone(),
+            })
+            .collect()
+    }
+}
+
+/// Builds the workbook and computes every cell that has an input (for one-off use: exports).
+pub fn compute(sheets: &[BookSheet]) -> Result<Vec<Shown>, BookError> {
+    Ok(Book::open(sheets.to_vec())?.values())
 }
 
 #[cfg(test)]
@@ -196,5 +314,45 @@ mod tests {
         let out = compute(&sheets).unwrap();
         assert_eq!(text(&out, "sb", "b3", "x2"), "#REF!");
         assert_eq!(text(&out, "ss", "s0", "z0"), "#REF!");
+    }
+
+    #[test]
+    fn a_kept_book_answers_only_what_an_edit_changed() {
+        let mut book = Book::open(launch_budget()).unwrap();
+        // Catering quantity 120 -> 100: its cost, the total and the summary change; nothing else.
+        let changed = book.set("sb", "b2", "x1", "100").unwrap();
+        let mut got: Vec<(String, String, String)> = changed
+            .into_iter()
+            .map(|s| (s.row, s.col, s.text))
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec![
+                ("b2".into(), "x1".into(), "100".into()),
+                ("b2".into(), "x2".into(), "3500".into()),
+                ("b3".into(), "x2".into(), "7700".into()),
+                ("s0".into(), "z0".into(), "7700".into()),
+            ]
+        );
+        // The same edit from scratch gives the same values.
+        let mut sheets = launch_budget();
+        for c in sheets[0].cells.iter_mut() {
+            if c.0 == "b2" && c.1 == "x1" {
+                c.2 = "100".into();
+            }
+        }
+        let mut a = book.values();
+        let mut b = compute(&sheets).unwrap();
+        a.sort_by(|x, y| (&x.sheet, &x.row, &x.col).cmp(&(&y.sheet, &y.row, &y.col)));
+        b.sort_by(|x, y| (&x.sheet, &x.row, &x.col).cmp(&(&y.sheet, &y.row, &y.col)));
+        assert_eq!(a, b);
+        // Clearing a cell answers it as empty.
+        let cleared = book.set("sb", "b2", "x1", "").unwrap();
+        assert!(
+            cleared
+                .iter()
+                .any(|s| s.row == "b2" && s.col == "x1" && s.text.is_empty())
+        );
     }
 }
