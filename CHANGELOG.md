@@ -57,11 +57,6 @@ Release and upgrade notes: [docs/35](docs/35-RELEASE-v0.3.0.md). Every new featu
   `oc-pending:` and upload first. Hosts clear the device at sign-out with `OpenCanvas.clearOffline()`
   or the `/v1/offline/clear` iframe and list copies with `OpenCanvas.offlineFiles()`.
 
-## [0.2.1] - 2026-11-26
-
-### Added
-
-- The categorised insert menu (INS-01, [approved prototype](docs/prototypes/insert-menu-approved/)):
 - Live blocks in the editor (LIVE-03, LIVE-07, [approved prototype](docs/prototypes/v03-approved/live-blocks.html),
   ADR-073): an always-visible header (Live mark, title, the people in it, Open source, options),
   editing in place with presence, a one-time hint on the first
@@ -76,10 +71,12 @@ Release and upgrade notes: [docs/35](docs/35-RELEASE-v0.3.0.md). Every new featu
   References refresh on their own and flash once. "Convert to a copy" and "Who can see this"
   (`GET /v1/live/audience`). A host answers `/access` with 410 for a deleted live file. Phones get
   a compact header and an options sheet. The live block code loads only when a canvas shows one.
+
 - `<open-canvas view="block">` (LIVE-06): one live block with compact chrome for chats and side
   panels; its height follows the content (`UI_Resize`, `oc:resize`). The SDK gains
   `insertLiveBlock()`, `livePicker()`, `liveBlockUsage()` and the `oc:pick-live-block`,
   `oc:live-block-open` and `oc:live-block-usage` events.
+
 - Search across canvases, server side (SRCH-02/03/05, ADR-065): every saved `.ocanvas` carries
   `search.json`, a plain-text projection with block ids and heading trails for the host to index
   (comments only with `[host.search] comments = true`; never in-file history; at most 2 MB).
@@ -88,20 +85,24 @@ Release and upgrade notes: [docs/35](docs/35-RELEASE-v0.3.0.md). Every new featu
   `canvas_search` proxy it for user tokens only, 10 a minute per user, dropping files the host's
   `/access` refuses. OpenCanvas keeps no index and caches no result. The sample host indexes
   `search.json` and serves the callback and a search page.
+
 - Nextcloud app (SRCH-05): canvases appear in Nextcloud's unified search. Every write of an
   `.ocanvas` indexes its `search.json` into the app's `oc_opencanvas_search` table (Nextcloud's
   index, not OpenCanvas's), results are only files the person can open in Nextcloud, and each one
   opens the canvas at the matching block. `occ opencanvas:search-index` indexes existing files.
+
 - Portable live blocks, server side (v0.3, behind `[host.flags] live_blocks`, off by default):
   the host contract (LIVE-01, docs/05 §2c, ADR-070): `[host.live]` checked at start-up, the
   `POST /files` callback, `/access` required (with optional `name` and `callbackToken`), the
   token's `perms.live` and `live` claims, derived sessions for embedded live files
   (`POST /v1/live/session`) and "Make live" (`POST /v1/live/make`).
+
 - Live block rooms (LIVE-02, docs/15 §3 and §4.4, ADR-071): the `liveBlock` and `blockRef` nodes in
   the editor schema (no node view yet), `caps=live` and the 4426 guard so a 0.2 editor deletes no
   live block, the depth rule, at most 50 references, the snapshot policy and `perms.live` on every
   write path, at most 8 live rooms per session, presence `from` and the `live.embedded` /
   `live.removed` events (ADR-069).
+
 - Live block projections, snapshots, exports and render (LIVE-04/05/06, ADR-072): `GET
   /v1/live/projection` with ETags, `POST /v1/live/refresh` under the snapshot policy, exports that
   inline only what the exporting person can read, and API operations `makeLive`, `listReferences`
