@@ -39,11 +39,11 @@ func command() *model.Command {
 }
 
 // The approved replies (MM S5b, S5c). Ephemeral posts: only the person who typed sees them.
-const helpText = "#### Canvases in Mattermost\n" +
+const helpText = "#### Canvases in Mattermost channels\n" +
 	"`/canvas new [title]` creates a canvas in this channel and opens it. " +
 	"`/canvas notes [title]` creates meeting notes with Agenda, Notes, Decisions and Action items. " +
 	"`/canvas list` shows this channel's canvases.\n\n" +
-	"Everyone in the channel can open and edit its canvases. They're saved in Mattermost. " +
+	"Everyone in the channel can open and edit its canvases. They're saved on your Mattermost server. " +
 	"On the phone apps a canvas shows as a message; open it on the web or desktop."
 
 const (

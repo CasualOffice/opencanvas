@@ -20,3 +20,5 @@ Decisions taken with the approval:
 
 Before the app store listing (S14) is published, check its claims: supported Nextcloud versions
 (only 31 is tested), the version shown on the admin page, and the 10-hour session limit.
+
+The Nextcloud header shows a neutral placeholder mark, not the Nextcloud logo (LEGAL-01, 2026-11-26).

@@ -20,6 +20,8 @@ versions. OpenCanvas does the editing and stores no documents.
 - Talk screens (S9-S11) are not built: canvases shared into Talk open through the Viewer handler,
   with no Talk-specific card or message action yet.
 
+*Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by either company.*
+
 ## How it works
 
 1. **Open.** Someone opens an `.ocanvas` file. Nextcloud mints a short-lived access token for

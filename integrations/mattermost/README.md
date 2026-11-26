@@ -22,11 +22,13 @@ A Mattermost plugin that adds collaborative canvases to channels:
 > canvases open on the page, not the template picker (the plugin sends `"start": "page"`).
 > Design and security details: [DESIGN.md](DESIGN.md).
 
+*Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by either company.*
+
 ## How it works
 
 1. **Create.** The plugin checks that you can edit in the channel, saves a canvas record and
    posts a `custom_opencanvas` card as you. Mobile apps, notifications and search show the
-   card's text: "Canvas: <title> (open it in Mattermost on the web or desktop)".
+   card's text: "Canvas: <title> (open it in the Mattermost web or desktop app)".
 2. **Open.** Clicking **Open** asks the plugin for a launch token. The plugin checks that you
    are a channel member and signs a short-lived token (HS256, 10 minutes by default, single use)
    with your name, the channel's members and your role. The panel posts the token to OpenCanvas

@@ -157,3 +157,16 @@ func TestSaveRefreshesTheCards(t *testing.T) {
 		t.Fatalf("events %v", f.events)
 	}
 }
+
+// LEGAL-01: the signed-out page uses "Mattermost" only as an adjective.
+func TestOpenPageSignedOutWording(t *testing.T) {
+	svc, _ := newSvc()
+	rec := create(t, svc, "Sprint 42", "")
+	w := do(svc, userReq("GET", "/open/"+rec.ID, "", nil))
+	body := w.Body.String()
+	if w.Code != http.StatusUnauthorized ||
+		!strings.Contains(body, "Sign in to your Mattermost account first") ||
+		!strings.Contains(body, "Sign in to your Mattermost account in this browser, then open the canvas again.") {
+		t.Fatalf("%d %s", w.Code, body)
+	}
+}

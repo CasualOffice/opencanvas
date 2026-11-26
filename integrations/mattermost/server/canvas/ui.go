@@ -151,7 +151,7 @@ func (s *Service) serveOpenPage(w http.ResponseWriter, r *http.Request, fileID s
 			`<h1 style="font-size:20px;margin:0 0 8px">`+html.EscapeString(title)+`</h1><p style="margin:0">`+html.EscapeString(text)+`</p></body></html>`)
 	}
 	if userID == "" {
-		page(http.StatusUnauthorized, "Sign in to Mattermost first", "Sign in to Mattermost in this browser, then open the canvas again.")
+		page(http.StatusUnauthorized, "Sign in to your Mattermost account first", "Sign in to your Mattermost account in this browser, then open the canvas again.")
 		return
 	}
 	res, err := s.Launch(userID, strings.Trim(fileID, "/"))

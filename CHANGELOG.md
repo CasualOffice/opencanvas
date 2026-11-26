@@ -69,6 +69,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   and `renderFile` (`GET /api/v1/files/{id}/render`) in the OpenAPI document, both clients and the
   conformance suite.
 
+### Changed
+
+- Trademarks (LEGAL-01): the Nextcloud and Mattermost docs pages, the Nextcloud app's description
+  and planned App Store text, and NOTICE now say that Nextcloud and Mattermost are trademarks of
+  their owners and that OpenCanvas is not affiliated with or endorsed by either. The Mattermost
+  plugin's text uses "Mattermost" only as an adjective ("Files are stored on your Mattermost
+  server", "open it in the Mattermost web or desktop app", "Sign in to your Mattermost account
+  first"). The approved Nextcloud prototype no longer draws the Nextcloud logo.
+
 ## [0.2.1] - 2026-11-26
 
 ### Added

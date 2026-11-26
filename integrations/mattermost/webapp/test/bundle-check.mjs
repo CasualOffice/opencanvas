@@ -55,4 +55,11 @@ assert.deepEqual(calls.sort(), [
     'registerWebSocketEventHandler', // canvas_updated
 ]);
 assert.ok(styles && /--center-channel-bg/.test(styles.textContent), 'styles follow the Mattermost theme variables');
+// LEGAL-01: "Mattermost" appears in people-facing text only as an adjective.
+for (const s of ["saved on your Mattermost server", "Your Mattermost server didn't answer in time."]) {
+    assert.ok(src.includes(s), `bundle should say: ${s}`);
+}
+for (const s of ['saved in Mattermost', "Mattermost didn't answer"]) {
+    assert.ok(!src.includes(s), `bundle still says: ${s}`);
+}
 console.log('bundle-check: ok,', calls.length, 'registrations');

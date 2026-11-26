@@ -67,7 +67,7 @@ request bodies (the server itself does not, apart from CSRF form parsing).
 role in that channel is `edit` (member, not a guest without edit, not a bot or deactivated),
 creates the record and posts a `custom_opencanvas` card as that user. Props:
 `opencanvas_file_id`, `opencanvas_title`, `opencanvas_template`. `Message` is
-"Canvas: <title> (open it in Mattermost on the web or desktop)", for mobile, notifications and
+"Canvas: <title> (open it in the Mattermost web or desktop app)", for mobile, notifications and
 search. The webapp opens it in the panel right away.
 
 **Meeting notes (`/canvas notes [title]`, or the create dialog's "Meeting notes").** The same,

@@ -92,7 +92,7 @@ function CreateDialog({channelId, onCreated}: {channelId: string; onCreated: (fi
                 </div>
                 <div className='oc-note'>
                     <UsersRound size={16} strokeWidth={1.75} aria-hidden='true'/>
-                    <span>{'Everyone in '}<b>{name ? `~${name}` : 'this channel'}</b>{" can open and edit it. It's saved in Mattermost."}</span>
+                    <span>{'Everyone in '}<b>{name ? `~${name}` : 'this channel'}</b>{" can open and edit it. It's saved on your Mattermost server."}</span>
                 </div>
                 {error && (
                     <div className='oc-err' role='alert'>

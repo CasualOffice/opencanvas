@@ -364,7 +364,7 @@ function ChannelList() {
     }
     if (st.s === 'error') {
         return (
-            <State tile={icon(CloudOff, 20)} title="Couldn't load canvases" text="Mattermost didn't answer in time.">
+            <State tile={icon(CloudOff, 20)} title="Couldn't load canvases" text="Your Mattermost server didn't answer in time.">
                 <button type='button' className='oc-btn pri' onClick={() => setAttempt(attempt + 1)}>{icon(RotateCcw, 14)}{'Retry'}</button>
             </State>
         );
