@@ -145,6 +145,34 @@ pub struct Problem {
     pub extra: Map<String, Value>,
 }
 
+/// search.json: the plain-text projection of a canvas (in every saved .ocanvas, and the answer of extract)
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SearchJson {
+    pub blocks: Vec<Value>,
+    pub boards: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments: Option<Vec<Value>>,
+    pub databases: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lang: Option<String>,
+    pub live: Vec<Map<String, Value>>,
+    pub title: String,
+    pub truncated: bool,
+    pub v: i64,
+    /// Members the document does not name.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SearchResults {
+    pub items: Vec<Value>,
+    #[serde(default)]
+    pub next: Option<String>,
+    pub partial: bool,
+    pub scopes: Vec<Value>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SyncTicket {
     #[serde(rename = "connectWithinSecs")]
@@ -204,6 +232,18 @@ pub const OPERATIONS: &[Operation] = &[
         query: &["from", "to"],
         body: BodyKind::Binary,
         response: ResponseKind::Binary,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "extract",
+        method: "POST",
+        path: "/api/v1/extract",
+        scope: Some("canvas:read"),
+        path_params: &[],
+        query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
         paged: None,
         idempotent: false,
     },
@@ -550,6 +590,18 @@ pub const OPERATIONS: &[Operation] = &[
         scope: None,
         path_params: &[],
         query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "search",
+        method: "GET",
+        path: "/api/v1/search",
+        scope: Some("canvas:read"),
+        path_params: &[],
+        query: &["q", "scope", "cursor", "limit"],
         body: BodyKind::None,
         response: ResponseKind::Json,
         paged: None,

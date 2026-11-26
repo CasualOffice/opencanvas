@@ -29,6 +29,11 @@ file_max_kb       = 1024
 file_max_versions = 50
 prefer_host       = true                       # the host's list comes first; in-file is "recent changes"
 
+# Search across canvases (SRCH-03, ADR-065): the sample host indexes search.json from each save
+# and answers GET /search; OpenCanvas keeps no index.
+[host.search]
+callback = true
+
 # WOPI-compatible host (docs/05 §6): examples/wopi-host/server.mjs. No JWT; OpenCanvas calls
 # CheckFileInfo / GetFile / PutFile on WOPISrc, which must match wopi_allowlist.
 [[host]]

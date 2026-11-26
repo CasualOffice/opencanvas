@@ -340,6 +340,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
 | canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
+| canvas → host | `UI_OpenFile` | `{ fileId, blockId?, newTab? }`: a "Search all canvases" result in another canvas (SRCH-04). Open that file in your viewer, at `#block=<blockId>` when given, in a new tab when `newTab` is true. A result in the same canvas just scrolls there |
 | canvas → host | `Error` | `{ code, message }`. `code: "SESSION_CLOSED"` (message `revoked`, `host` or `other`) when the editor shows its closed screen, so your chrome can offer to reopen (ADR-048) |
 | canvas → host | `UI_StartNew` | `{}`: "Start a new canvas" on the ended screen of a temporary canvas with room wording (§8a, ADR-049). Open a fresh canvas, for example by reloading your page |
 | host → canvas | `Host_PostmessageReady` | `{}` |
@@ -392,6 +393,32 @@ OpenCanvas:
 | **Get version** *(optional)* `GET /files/{fileId}/versions/{version}` | signed | that version's `.ocanvas` bytes (≤ 100 MB). `404`/`410` = gone (expired) |
 | **Refresh token** *(optional)* `POST /tokens/refresh` | `{fileId,userId}` | `{ "token": "<new jwt>" }` |
 | **Mentions** *(optional)* `POST /mentions` | JSON `{fileId, blockId?, threadId?, mentioned:[userId], by:userId, excerpt}`; header `Idempotency-Key` | any `2xx`. `404`/`405`/`410`/`501` = not implemented (never retried) |
+| **Search** *(optional, `[host.search] callback = true`, SRCH-03, ADR-065)* `GET /search?q=&scope=&cursor=&limit=&userId=` | signed like every callback (v2 covers the query, so `userId` can be trusted), with the `callbackToken` of the person searching (empty for API and MCP tokens); 8 s timeout (`timeout_ms`) | `200 {"items":[{"fileId","title","path?","blockId?","snippet","updatedAt?"}],"scopes":[{"id","label"}],"partial":false,"next":null}` (`results` is accepted for `items`). Only files that person may open, at most 50 per page, up to 4 scopes, `partial: true` when some folders were not searched in time. Snippets are plain text. `404`/`405`/`501` = not implemented: "Search all canvases" is hidden. Never cached by OpenCanvas |
+
+**Search across canvases** (SRCH-02/03, ADR-065). OpenCanvas keeps no index: **you** index the
+text of each canvas in your own search engine, under your own permissions.
+
+- Every `.ocanvas` a save sends you contains **`search.json`** (additive to format 1; older
+  readers skip it): `{v: 1, title, lang?, blocks: [{id?, type, path, text, done?}], databases:
+  [{id, title, rows: [{id, text}]}], boards: [{id, text: [..]}], live: [{blockId?, fileId,
+  title}], comments?: [{id, text}], truncated}`. `path` is the heading trail, `id` the block id
+  for a deep link (`#block=<id>`), `done` the state of a checklist item. Comments are left out
+  unless `[host.search] comments = true` (a comment's audience can differ from the file's);
+  in-file history is never included. At most 2 MB, then `truncated: true`. Read it from the zip
+  in your save handler and index it; `examples/sample-host` does this in about 60 lines.
+- Hosts that cannot open a zip, or want to re-index old files, call **`POST /api/v1/extract`**
+  (§7b) with the `.ocanvas` (or Markdown) bytes; it answers the same JSON and stores nothing.
+- Optionally implement **`GET /search`** (table above) and set `[host.search] callback = true`:
+  the editor then offers "Search all canvases" (⌘⇧F), and `GET /api/v1/search` and the MCP
+  tool `canvas_search` work for user tokens. OpenCanvas also drops hits on files your `/access`
+  callback refuses for that person.
+
+```toml
+[host.search]
+callback   = true    # we implement GET /search (default false: the entry is hidden)
+comments   = false   # put comment text in search.json
+timeout_ms = 8000    # how long OpenCanvas waits for GET /search (500-30000)
+```
 
 **Mentions** (ADR-027). When someone @mentions people in a comment, or puts a mention chip in
 the canvas text, we tell you so you can notify them (we never send mail or push ourselves).
@@ -796,6 +823,8 @@ same tool layer as MCP, §7a):
 | Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |
 | Live blocks (§2c) | `POST …/live {blockIds, name}` ("Make live", `canvas:write`), `GET …/references`, `GET …/render?format=html` | `makeLive` asks your `POST /files` with the `X-OpenCanvas-Callback-Token` you send, `201 {liveFileId, blockId, kind}`; `references` lists `{blockId, type, fileId, refBlockId?, kind?, access}`; `render` is the read-only, sanitised HTML of a canvas (a live block's compact view for surfaces without the web component), live blocks resolved for the caller |
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
+| Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
+| Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
 | Events | `GET …/events` (SSE or WebSocket) | change events, below |
 | CRDT sync | `POST …/sync-token` | a room WebSocket ticket, below |

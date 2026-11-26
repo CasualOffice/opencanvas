@@ -24,6 +24,7 @@ pub mod patch;
 pub mod people;
 pub mod preview;
 pub mod restore;
+pub mod search;
 pub mod sync;
 pub mod templates;
 pub mod validate;

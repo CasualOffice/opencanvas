@@ -48,6 +48,10 @@
     },
     {
       "name": "0.1 aliases"
+    },
+    {
+      "name": "search",
+      "description": "Search across canvases through the host (ADR-065); OpenCanvas keeps no index"
     }
   ],
   "x-opencanvas-error-codes": [
@@ -437,6 +441,54 @@
       "detail": "op 1: blockId is required",
       "description": "0.1 `patch`: an op is malformed.",
       "kind": "legacy"
+    },
+    {
+      "code": "USER_TOKEN_REQUIRED",
+      "status": [
+        400
+      ],
+      "detail": "search needs a user token; a host key cannot search as everyone",
+      "description": "Search runs as a person, so the host's permissions apply; a host key has no person."
+    },
+    {
+      "code": "SEARCH_UNAVAILABLE",
+      "status": [
+        404
+      ],
+      "detail": "the host has no search callback ([host.search] callback)",
+      "description": "The host has not turned on `[host.search] callback`, or its `GET /search` answered 404, 405 or 501."
+    },
+    {
+      "code": "HOST_TIMEOUT",
+      "status": [
+        504
+      ],
+      "detail": "the host did not answer the search in time",
+      "description": "The host's search callback took longer than `[host.search] timeout_ms` (default 8 s)."
+    },
+    {
+      "code": "HOST_ERROR",
+      "status": [
+        502
+      ],
+      "detail": "the host answered 500 Internal Server Error",
+      "description": "The host's search callback failed or answered something that is not a search answer."
+    },
+    {
+      "code": "NOT_OCANVAS",
+      "status": [
+        422
+      ],
+      "detail": "the body is not a .ocanvas file",
+      "description": "The extract body is not a readable `.ocanvas` (or not UTF-8 Markdown)."
+    },
+    {
+      "code": "EXTRACT_TOO_SLOW",
+      "status": [
+        422
+      ],
+      "detail": "the file took longer than 2 s to read",
+      "description": "Extraction has a 2 s budget per file."
     }
   ],
   "paths": {
@@ -5802,6 +5854,305 @@
           "PDF_RENDERER_NOT_CONFIGURED"
         ]
       }
+    },
+    "/api/v1/extract": {
+      "post": {
+        "operationId": "extract",
+        "summary": "Extract search.json",
+        "tags": [
+          "search"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "description": "The `search.json` of a `.ocanvas` (or Markdown) body: the same plain-text projection every save carries, for hosts that cannot open the zip or want to re-index old files. Stateless: nothing is stored. Up to 100 MB and 2 s; comments only with `[host.search] comments = true`. Changes nothing, so it takes no `Idempotency-Key`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.opencanvas+zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "example": "<.ocanvas bytes>"
+            },
+            "text/markdown": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "# Release 4.2\n\nSSO set-up docs updated"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "search.json",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchJson"
+                },
+                "example": {
+                  "v": 1,
+                  "title": "Sprint 42 planning",
+                  "blocks": [
+                    {
+                      "id": "b_9f2",
+                      "type": "heading",
+                      "path": [],
+                      "text": "Release 4.2"
+                    },
+                    {
+                      "id": "b_a10",
+                      "type": "todo",
+                      "path": [
+                        "Release 4.2"
+                      ],
+                      "text": "SSO set-up docs updated",
+                      "done": false
+                    }
+                  ],
+                  "databases": [
+                    {
+                      "id": "db_1",
+                      "title": "Sprint 42 backlog",
+                      "rows": [
+                        {
+                          "id": "r_1",
+                          "text": "Fix CSV export timeout · Marco Bianchi · In review"
+                        }
+                      ]
+                    }
+                  ],
+                  "boards": [
+                    {
+                      "id": "bd_1",
+                      "text": [
+                        "Hero copy is too long on phones"
+                      ]
+                    }
+                  ],
+                  "live": [],
+                  "truncated": false
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: send application/vnd.opencanvas+zip or text/markdown",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "RATE_LIMITED",
+          "INTERNAL",
+          "BODY_TOO_LARGE",
+          "NOT_OCANVAS",
+          "EXTRACT_TOO_SLOW"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "search",
+        "summary": "Search across canvases",
+        "tags": [
+          "search"
+        ],
+        "security": [
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "description": "Searches the canvases the token's user can open, through the host's own `GET /search` callback (the host indexes `search.json`; OpenCanvas keeps no index and caches nothing). Needs a **user** token: a host key gets 400 `USER_TOKEN_REQUIRED`. Hits on files the host's `/access` refuses are dropped. At most 10 searches a minute per user. The MCP tool `canvas_search` answers the same items.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "The words to look for (at most 200 bytes)",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "example": "SSO"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "A scope id the host offered",
+            "schema": {
+              "type": "string"
+            },
+            "example": "all"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`next` of the previous page",
+            "schema": {
+              "type": "string"
+            },
+            "example": "p2"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page, 1-50 (default 20)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Results",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "fileId": "doc_8812",
+                      "title": "Sprint 42 planning",
+                      "path": "Engineering",
+                      "blockId": "b_3fQ1",
+                      "snippet": "Admins can sign in with SSO, and…",
+                      "updatedAt": "2026-11-26T09:41:00Z"
+                    }
+                  ],
+                  "scopes": [
+                    {
+                      "id": "all",
+                      "label": "All canvases"
+                    }
+                  ],
+                  "partial": false,
+                  "next": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "504": {
+            "description": "HOST_TIMEOUT: the host did not answer in time",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-opencanvas-scope": "canvas:read",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "RATE_LIMITED",
+          "BAD_INPUT",
+          "USER_TOKEN_REQUIRED",
+          "SEARCH_UNAVAILABLE",
+          "HOST_TIMEOUT",
+          "HOST_ERROR"
+        ]
+      }
     }
   },
   "components": {
@@ -6130,6 +6481,221 @@
             "type": "integer"
           }
         }
+      },
+      "SearchJson": {
+        "type": "object",
+        "description": "search.json: the plain-text projection of a canvas (in every saved .ocanvas, and the answer of extract)",
+        "properties": {
+          "v": {
+            "type": "integer",
+            "const": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "lang": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "text": {
+                  "type": "string"
+                },
+                "done": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "type",
+                "path",
+                "text"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "databases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "rows"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "boards": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ]
+            }
+          },
+          "live": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "v",
+          "title",
+          "blocks",
+          "databases",
+          "boards",
+          "live",
+          "truncated"
+        ],
+        "additionalProperties": true
+      },
+      "SearchResults": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "blockId": {
+                  "type": "string"
+                },
+                "snippet": {
+                  "type": "string",
+                  "description": "Plain text; escape it before showing"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fileId",
+                "title",
+                "snippet"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scopes": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "scopes",
+          "partial",
+          "next"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {

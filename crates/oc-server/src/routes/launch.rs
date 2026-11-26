@@ -423,6 +423,8 @@ pub async fn session_info(
         "unfurl": super::unfurl::enabled(&state, &host),
         // TPL-01: whether the gallery shows "From your team" (applying needs the edit role).
         "templates": {"team": host.team_templates()},
+        // SRCH-04 (ADR-065): "Search all canvases" only when the host has the callback.
+        "search": {"enabled": state.search_probe.available(&host)},
         "ticket": ticket,
         "room": grant.room,
         "role": grant.role,

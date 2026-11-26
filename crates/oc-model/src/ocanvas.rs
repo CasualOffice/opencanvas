@@ -114,6 +114,16 @@ pub fn write_ocanvas_with(
     commit: &CommitInfo,
     history: Option<&crate::history::FileHistory>,
 ) -> Result<Vec<u8>, Error> {
+    write_ocanvas_opts(doc, commit, history, crate::search::Options::default())
+}
+
+/// Like [`write_ocanvas_with`], with the `search.json` options (SRCH-02, ADR-065).
+pub fn write_ocanvas_opts(
+    doc: &Doc,
+    commit: &CommitInfo,
+    history: Option<&crate::history::FileHistory>,
+    search: crate::search::Options,
+) -> Result<Vec<u8>, Error> {
     let document = doc_to_json(doc);
     let title = document["meta"]["title"]
         .as_str()
@@ -144,6 +154,12 @@ pub fn write_ocanvas_with(
         SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
     )?;
     zip.write_all(&encode_state(doc))?;
+    // SRCH-02 (ADR-065): the plain-text projection the host indexes; additive to format 1
+    // (older readers skip the entry). Never read back: every save writes it afresh.
+    zip.start_file(crate::search::ENTRY, deflate)?;
+    zip.write_all(&serde_json::to_vec(&crate::search::search_json(
+        &document, search,
+    ))?)?;
     if let Some(h) = history.filter(|h| !h.entries.is_empty()) {
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
         for (name, bytes) in h.to_files() {

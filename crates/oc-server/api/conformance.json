@@ -382,6 +382,17 @@
           "expect": {"error": {"status": 404, "code": "FORMAT_UNSUPPORTED", "kind": "NotFound"}}
         }
       ]
+    },
+    {
+      "name": "search needs a person",
+      "host": "conf",
+      "steps": [
+        {
+          "call": "search",
+          "params": {"query": {"q": "SSO"}},
+          "expect": {"error": {"status": 400, "code": "USER_TOKEN_REQUIRED", "kind": "BadRequest"}}
+        }
+      ]
     }
   ]
 }

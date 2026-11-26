@@ -30,6 +30,7 @@ pub mod redis_store;
 pub mod redis_wal;
 pub mod room;
 pub mod routes;
+pub mod search;
 pub mod store;
 pub mod team_templates;
 pub mod unfurl;
@@ -77,6 +78,8 @@ pub struct AppState {
     pub limiter: ratelimit::Limiter,
     /// Webhook delivery (WH-01): HTTP client and the worker's wake-up.
     pub webhooks: Arc<webhooks::Webhooks>,
+    /// SRCH-03: hosts whose `GET /search` answered "not implemented" (entry hidden for a while).
+    pub search_probe: search::Probe,
     /// Installed SDK block packages (BSDK-01) and the ones refused at start.
     pub blocks: Arc<blocks::Installed>,
     /// LIVE-02: connected live block rooms per parent session (at most `[host.live] max_open`).
@@ -219,6 +222,7 @@ impl AppState {
             history: Default::default(),
             limiter,
             webhooks,
+            search_probe: Default::default(),
             blocks,
             live_slots: Default::default(),
         });

@@ -1136,6 +1136,55 @@ impl HostClient {
         }
     }
 
+    /// `GET {callback_base}/search?q=&scope=&cursor=&limit=&userId=` (SRCH-03, ADR-065): the
+    /// host's own search, as the person searching (their callback token as bearer; `userId`
+    /// is in the signed query, so a host can trust it without a token). Returns status and
+    /// body (at most 1 MB); the caller interprets them. Waits at most `timeout_ms`.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn search(
+        &self,
+        host: &HostConfig,
+        token: &str,
+        user_id: &str,
+        q: &str,
+        scope: Option<&str>,
+        cursor: Option<&str>,
+        limit: usize,
+        timeout_ms: u64,
+    ) -> Result<(StatusCode, Bytes), HostError> {
+        let started = std::time::Instant::now();
+        let r = async {
+            let mut url = Self::url(host, &["search"])?;
+            {
+                let mut qp = url.query_pairs_mut();
+                qp.append_pair("q", q);
+                if let Some(s) = scope {
+                    qp.append_pair("scope", s);
+                }
+                if let Some(c) = cursor {
+                    qp.append_pair("cursor", c);
+                }
+                qp.append_pair("limit", &limit.to_string());
+                qp.append_pair("userId", user_id);
+            }
+            let res = self
+                .request(host, token, Method::GET, url, vec![], 30)
+                .timeout(Duration::from_millis(timeout_ms))
+                .header(header::ACCEPT, "application/json")
+                .send()
+                .await?;
+            let status = res.status();
+            let body = Self::capped(res, 1024 * 1024).await?;
+            Ok((status, body))
+        }
+        .await;
+        let result = r
+            .as_ref()
+            .map_or_else(err_class, |(s, _)| status_result(*s));
+        self.record(host, "search", result, started);
+        r
+    }
+
     /// `GET {callback_base}/files/{fileId}/members?q=&limit=` (docs/21 revision 2): the people
     /// with access to this file, signed like every callback. Returns status and body.
     pub async fn members(

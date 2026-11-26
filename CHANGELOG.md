@@ -12,6 +12,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 ### Added
 
 - The categorised insert menu (INS-01, [approved prototype](docs/prototypes/insert-menu-approved/)):
+- Search across canvases, server side (SRCH-02/03/05, ADR-065): every saved `.ocanvas` carries
+  `search.json`, a plain-text projection with block ids and heading trails for the host to index
+  (comments only with `[host.search] comments = true`; never in-file history; at most 2 MB).
+  `POST /api/v1/extract` answers it statelessly for a `.ocanvas` or Markdown body. Hosts may
+  implement `GET /search` (`[host.search] callback = true`); `GET /api/v1/search` and the MCP tool
+  `canvas_search` proxy it for user tokens only, 10 a minute per user, dropping files the host's
+  `/access` refuses. OpenCanvas keeps no index and caches no result. The sample host indexes
+  `search.json` and serves the callback and a search page.
+- The categorised insert menu (INS-01, v0.2.1, [approved prototype](docs/prototypes/insert-menu-approved/)):
   "/" opens Quick insert, Recent, goal chips and five categories (Content, Data & planning,
   Visual & diagrams, Layout, Extensions) with flyouts on desktop and drill-in on phones.
   Heading, List, Callout and Columns pick their variant inline (Tab); Database and Diagram have

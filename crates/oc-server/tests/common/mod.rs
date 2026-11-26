@@ -85,6 +85,12 @@ pub struct HostState {
     pub hook_answers: std::collections::VecDeque<(u16, Vec<(&'static str, String)>)>,
     /// Requests that reached `/api/elsewhere` (a redirect target that must never be followed).
     pub elsewhere: usize,
+    /// `GET /search` answer (SRCH-03); `None` = 404 (not implemented).
+    pub search: Option<Value>,
+    /// (path and query, v2 signature ok, bearer) of every search call.
+    pub search_calls: Vec<(String, bool, String)>,
+    /// `GET /search` waits this long before answering.
+    pub search_delay_ms: u64,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -429,6 +435,30 @@ async fn get_version(
     }
 }
 
+async fn search(
+    State(s): State<Shared>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> axum::response::Response {
+    let (answer, delay) = {
+        let mut st = s.lock().unwrap();
+        let pq = uri
+            .path_and_query()
+            .map(|p| p.to_string())
+            .unwrap_or_default();
+        let ok = verify_v2_pq(&headers, "GET", &pq, b"");
+        st.search_calls.push((pq, ok, bearer(&headers)));
+        (st.search.clone(), st.search_delay_ms)
+    };
+    if delay > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
+    match answer {
+        Some(v) => axum::Json(v).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 /// v2 signature check for any method and path with query.
 fn verify_v2_pq(headers: &HeaderMap, method: &str, pq: &str, body: &[u8]) -> bool {
     let Some(sig) = headers
@@ -460,6 +490,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/elsewhere", axum::routing::any(elsewhere))
         .route("/api/access", axum::routing::post(access))
         .route("/api/files", axum::routing::post(create_file))
+        .route("/api/search", get(search))
         .route("/assets/{id}", get(asset))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -496,6 +527,8 @@ pub fn host_config(base: &str) -> HostConfig {
         blocks: Default::default(),
         editor: Default::default(),
         live: Default::default(),
+        search: Default::default(),
+        automation: Default::default(),
     }
 }
 
