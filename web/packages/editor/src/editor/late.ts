@@ -129,16 +129,16 @@ const installed = new WeakSet<Editor>();
 export function installLate(editor: Editor, search: (q: string) => Promise<MentionItem[]>, nested = false) {
   if (editor.isDestroyed || installed.has(editor)) return;
   installed.add(editor);
-  if (nested) {
-    editor.registerPlugin(slashPlugin(editor), (pl, all) => [pl, ...all]);
-    editor.registerPlugin(dropCursor({ color: "currentColor", width: 3, class: "ProseMirror-dropcursor" }));
-    editor.registerPlugin(gapCursor());
-    return;
-  }
+  const cursors = [dropCursor({ color: "currentColor", width: 3, class: "ProseMirror-dropcursor" }), gapCursor()];
   // Suggestion plugins go first, as their extensions' priority put them before: their
   // keydown (Enter / arrows in an open menu) must win over the base keymap.
-  for (const p of [mentionPlugin(editor, search), slashPlugin(editor)]) editor.registerPlugin(p, (pl, all) => [pl, ...all]);
-  for (const p of linkPlugins(editor)) editor.registerPlugin(p);
-  editor.registerPlugin(dropCursor({ color: "currentColor", width: 3, class: "ProseMirror-dropcursor" }));
-  editor.registerPlugin(gapCursor());
+  const first = nested ? [slashPlugin(editor)] : [slashPlugin(editor), mentionPlugin(editor, search)];
+  const last = nested ? cursors : [...linkPlugins(editor), ...cursors];
+  // One reconfigure: each one destroys and recreates every plugin view, and a suggestion view
+  // destroyed while its menu is open closes the menu for good (the "@Ra" typed before these
+  // plugins arrived stays active with the same query, so nothing reopens it).
+  editor.registerPlugin(first[0], (_, all) => [...first, ...all, ...last]);
+  // Recreated plugin views get no update: let the suggestions see a "/" or "@query" typed
+  // before they loaded (a slow first paint on CI; p-people).
+  editor.view.dispatch(editor.state.tr);
 }
