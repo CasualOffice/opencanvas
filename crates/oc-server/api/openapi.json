@@ -346,6 +346,30 @@
       "description": "`role` is not `view`, `comment`, `edit` or `none`."
     },
     {
+      "code": "LIVE_OFF",
+      "status": [
+        404
+      ],
+      "detail": "live blocks are off for this host ([host.flags] live_blocks)",
+      "description": "Live block operations need `[host.flags] live_blocks = true` in the host's entry of the hosts file."
+    },
+    {
+      "code": "LIVE_DEPTH",
+      "status": [
+        403
+      ],
+      "detail": "a live file holds no live blocks",
+      "description": "The canvas is itself a live file (`meta.kind = \"live\"`), which may not contain live blocks or references (the depth rule, docs/27 §2.2)."
+    },
+    {
+      "code": "LIVE_CREATE_UNSUPPORTED",
+      "status": [
+        501
+      ],
+      "detail": "the host does not create files (POST /files)",
+      "description": "Your `POST {callback_base}/files` answered 404, 405 or 501: \"Make live\" needs it."
+    },
+    {
       "code": "TOO_MANY_STREAMS",
       "status": [
         429
@@ -3589,6 +3613,429 @@
         ]
       }
     },
+    "/api/v1/files/{fileId}/render": {
+      "get": {
+        "operationId": "renderFile",
+        "summary": "Render the canvas as read-only HTML",
+        "tags": [
+          "files"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "html (the only format)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "html"
+              ]
+            },
+            "example": "html"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One read-only, sanitised HTML page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Q1 OKRs</title></head>\n<body>\n<h1>Q1 OKRs</h1>\n<p>Ship the client this week</p>\n</body></html>\n"
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "The document revision",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The compact, read-only view of a canvas (LIVE-06, docs/27 §2.2 \"Host surfaces\") for host surfaces that cannot run the `<open-canvas>` web component, such as a chat message showing a live block: the export renderer's HTML, sanitised, served with a sandboxing `Content-Security-Policy` and `Cache-Control: no-store`. Live blocks inside are resolved for the caller (what they cannot read is a placeholder). `ETag` is the document revision.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "FORMAT_UNSUPPORTED",
+          "HOST_UNAVAILABLE"
+        ]
+      }
+    },
+    "/api/v1/files/{fileId}/live": {
+      "post": {
+        "operationId": "makeLive",
+        "summary": "Make blocks live",
+        "tags": [
+          "blocks"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "blockIds",
+                  "name"
+                ],
+                "properties": {
+                  "blockIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Top-level blocks to move, 1-500"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The live file's name, 1-200 characters"
+                  }
+                }
+              },
+              "example": {
+                "blockIds": [
+                  "b_01j9k2m3n4"
+                ],
+                "name": "Q1 OKRs"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The live file and the block that now references it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "liveFileId",
+                    "blockId",
+                    "kind"
+                  ],
+                  "additionalProperties": true,
+                  "properties": {
+                    "liveFileId": {
+                      "type": "string"
+                    },
+                    "blockId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "blocks",
+                        "database",
+                        "board"
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "liveFileId": "f_8812",
+                  "blockId": "b_01j9k2m3n5",
+                  "kind": "blocks"
+                }
+              }
+            },
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "true when this is the stored answer of an earlier request with the same Idempotency-Key",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              },
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:write",
+        "description": "\"Make live\" (LIVE-01, docs/27 §2.2): OpenCanvas asks your `POST {callback_base}/files` to create the live file (with the `X-OpenCanvas-Callback-Token` you send), writes the blocks into it as one edit with `meta.kind = \"live\"`, saves it through the normal commit path, and replaces them in this canvas with one `liveBlock` node, one edit. Needs `[host.flags] live_blocks`. The blocks must be top-level; SDK blocks and blocks that hold live blocks cannot move. Databases and boards the blocks show move with them.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL",
+          "BAD_INPUT",
+          "BLOCK_NOT_FOUND",
+          "LIVE_OFF",
+          "LIVE_DEPTH",
+          "LIVE_CREATE_UNSUPPORTED",
+          "HOST_UNAVAILABLE",
+          "IDEMPOTENCY_KEY_INVALID",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_IN_PROGRESS"
+        ]
+      }
+    },
+    "/api/v1/files/{fileId}/references": {
+      "get": {
+        "operationId": "listReferences",
+        "summary": "List the live blocks and block references",
+        "tags": [
+          "blocks"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          },
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every reference, with the caller's access to its source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "blockId",
+                          "type",
+                          "fileId",
+                          "access"
+                        ],
+                        "additionalProperties": true,
+                        "properties": {
+                          "blockId": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "liveBlock",
+                              "blockRef"
+                            ]
+                          },
+                          "fileId": {
+                            "type": "string"
+                          },
+                          "refBlockId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "access": {
+                            "type": "string",
+                            "enum": [
+                              "edit",
+                              "comment",
+                              "view",
+                              "none"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "items": [
+                    {
+                      "blockId": "b_01j9k2m3n5",
+                      "type": "liveBlock",
+                      "fileId": "f_8812",
+                      "kind": "blocks",
+                      "access": "edit"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read",
+        "description": "The `liveBlock` and `blockRef` nodes in this canvas (LIVE-01, docs/27 §2.4) with the caller's access to each source, from your `POST /access` answers (cached 30 s). \"Where is this live block used\" is yours to answer: OpenCanvas keeps no usage index, and tells you with the `live.embedded` and `live.removed` events instead.",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "FILES_REQUIRED",
+          "RATE_LIMITED",
+          "UNAVAILABLE",
+          "INTERNAL"
+        ]
+      }
+    },
     "/api/v1/files/{fileId}/import": {
       "post": {
         "operationId": "importFile",
@@ -5628,6 +6075,8 @@
               "session.closed",
               "restored",
               "saved",
+              "live.embedded",
+              "live.removed",
               "resync"
             ]
           },
@@ -5640,7 +6089,7 @@
           },
           "data": {
             "type": "object",
-            "description": "edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; resync {reason}"
+            "description": "edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; resync {reason}"
           }
         }
       },

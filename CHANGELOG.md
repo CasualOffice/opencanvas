@@ -29,6 +29,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   live block, the depth rule, at most 50 references, the snapshot policy and `perms.live` on every
   write path, at most 8 live rooms per session, presence `from` and the `live.embedded` /
   `live.removed` events (ADR-069).
+- Live block projections, snapshots, exports and render (LIVE-04/05/06, ADR-072): `GET
+  /v1/live/projection` with ETags, `POST /v1/live/refresh` under the snapshot policy, exports that
+  inline only what the exporting person can read, and API operations `makeLive`, `listReferences`
+  and `renderFile` (`GET /api/v1/files/{id}/render`) in the OpenAPI document, both clients and the
+  conformance suite.
 
 ## [0.2.0] - 2026-11-25
 

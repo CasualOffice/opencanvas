@@ -580,6 +580,13 @@ parent session, `403 LIVE_DEPTH` from a derived session; 2 opens/s per person (b
 `POST /v1/live/make` `{ticket, blockIds, name}` (edit + `perms.live`; header `Idempotency-Key` is
 passed to the host's `POST /files`) → `201 {liveFileId, blockId, kind}`; `501 LIVE_CREATE_UNSUPPORTED`
 when the host does not create files.
+`GET /v1/live/projection?ticket=&fileId=[&blockId=]` (LIVE-04, ADR-072) → `{access, name, fileId, blockId,
+rev, doc, markdown, live}` with `ETag: "<rev>"` (`304` on `If-None-Match`): the read-only view of an
+embedded live file, or of one block for a `blockRef` (`404 BLOCK_NOT_FOUND` when gone), for the person
+(`403 LIVE_NO_ACCESS`). · `POST /v1/live/refresh` `{ticket, blockId}` (edit) → `{access, title, rev}`:
+writes the title and, under `[host.live] snapshot = "content"`, `snapshot {markdown}` and `snapshotAt`
+into the node; `{access: "none"}` writes nothing. Rendered exports (`/v1/export/md|html|docx|pdf`)
+inline the live files the exporting person can read (LIVE-05); `ocanvas` and `json` keep references.
 
 Host → server (docs/05 §7), headers `X-OpenCanvas-Host: <id>` + `X-OpenCanvas-Key: <api_key>`
 (`api_key` in the host entry; 401 `API_KEY_INVALID` otherwise):

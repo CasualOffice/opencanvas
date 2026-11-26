@@ -68,6 +68,9 @@ pub async fn start() -> Conformance {
         toml::Value::Array(vec![toml::Value::String("*".into())]),
     );
     conf.webhooks = hooks;
+    // LIVE-01/06: `makeLive`, `listReferences` and `renderFile` (the mock host creates files).
+    conf.flags
+        .insert("live_blocks".into(), toml::Value::Boolean(true));
     let mut tight = host_config(&base);
     api(&mut tight, "tight", "tight-key");
     for (k, v) in [

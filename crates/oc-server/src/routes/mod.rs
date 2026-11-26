@@ -273,8 +273,10 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/history/{v}/restore", post(history::restore))
         .route("/v1/icons", post(icons::upload).layer(DefaultBodyLimit::max(icons::MAX_BODY)))
         .route("/v1/icons/{id}", post(icons::change))
-        // LIVE-01: derived sessions and "Make live" (docs/27 §2).
+        // LIVE-01/02/04: derived sessions, projections, refresh and "Make live" (docs/27 §2).
         .route("/v1/live/session", post(crate::live::open_session))
+        .route("/v1/live/projection", get(crate::live::projection))
+        .route("/v1/live/refresh", post(crate::live::refresh))
         .route("/v1/live/make", post(crate::live::make))
         .route("/v1/templates", get(templates::index))
         .route("/v1/templates/undo", post(templates::undo))

@@ -110,7 +110,7 @@ pub struct CreateDatabase {
 pub struct Event {
     /// Unix milliseconds
     pub at: i64,
-    /// edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; resync {reason}
+    /// edited {blockIds, removedBlockIds, databaseIds?, boardIds?, by, truncated?, untracked?}; commented {threadId, blockId?, added, by}; mentioned {mentioned, by, blockId?, threadId?}; member.joined {userId, role}; member.left {userId}; session.closed {reason: host|idle}; restored {restoreId, from, by}; saved {version}; live.embedded / live.removed {blockId, type: liveBlock|blockRef, liveFileId, by}; resync {reason}
     pub data: Map<String, Value>,
     #[serde(rename = "fileId")]
     pub file_id: String,
@@ -448,6 +448,18 @@ pub const OPERATIONS: &[Operation] = &[
         idempotent: true,
     },
     Operation {
+        id: "makeLive",
+        method: "POST",
+        path: "/api/v1/files/{fileId}/live",
+        scope: Some("canvas:write"),
+        path_params: &["fileId"],
+        query: &[],
+        body: BodyKind::Json,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: true,
+    },
+    Operation {
         id: "listMembers",
         method: "GET",
         path: "/api/v1/files/{fileId}/members",
@@ -470,6 +482,30 @@ pub const OPERATIONS: &[Operation] = &[
         response: ResponseKind::Json,
         paged: None,
         idempotent: true,
+    },
+    Operation {
+        id: "listReferences",
+        method: "GET",
+        path: "/api/v1/files/{fileId}/references",
+        scope: Some("canvas:read"),
+        path_params: &["fileId"],
+        query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "renderFile",
+        method: "GET",
+        path: "/api/v1/files/{fileId}/render",
+        scope: Some("canvas:read"),
+        path_params: &["fileId"],
+        query: &["format"],
+        body: BodyKind::None,
+        response: ResponseKind::Binary,
+        paged: None,
+        idempotent: false,
     },
     Operation {
         id: "setRole",

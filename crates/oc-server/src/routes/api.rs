@@ -438,6 +438,7 @@ pub(super) async fn convert_for(
         author: "opencanvas",
         wopi_room: None,
         people: None,
+        live: None,
     };
     let (bytes, ctype, _) = super::export::render(state, host, &doc, &p.to, req).await?;
     Ok((

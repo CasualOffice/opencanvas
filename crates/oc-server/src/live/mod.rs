@@ -38,6 +38,9 @@ use crate::hosts::HostConfig;
 use crate::routes::ApiError;
 use crate::util::now_ms;
 
+mod view;
+pub use view::{LiveExport, projection, references, refresh};
+
 /// Most live block rooms one session may have connected at once (docs/27 §2.2).
 pub const MAX_OPEN: usize = 8;
 

@@ -794,6 +794,7 @@ same tool layer as MCP, §7a):
 | Comments | `GET …/comments?resolved=`, `POST …/comments {text, blockId\|quote, threadId?}` | |
 | Members | `GET …/members?q=&limit=` | never e-mail addresses |
 | Export / import | `GET …/export/{md\|html\|json\|ocanvas\|docx\|pdf}`, `POST …/import?format=` | import as in §7 (raw body, `import_formats`) |
+| Live blocks (§2c) | `POST …/live {blockIds, name}` ("Make live", `canvas:write`), `GET …/references`, `GET …/render?format=html` | `makeLive` asks your `POST /files` with the `X-OpenCanvas-Callback-Token` you send, `201 {liveFileId, blockId, kind}`; `references` lists `{blockId, type, fileId, refBlockId?, kind?, access}`; `render` is the read-only, sanitised HTML of a canvas (a live block's compact view for surfaces without the web component), live blocks resolved for the caller |
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
 | Events | `GET …/events` (SSE or WebSocket) | change events, below |
@@ -846,6 +847,7 @@ versions and counts only, never document text (ADR-001):
 | `member.joined` / `member.left` | `{userId, role}` / `{userId}` | A person's first connection to the live room opened, or their last one closed |
 | `saved` | `{version}` | The host accepted a save |
 | `restored` | `{restoreId, from, by}` | A version was restored (docs/30) |
+| `live.embedded` / `live.removed` | `{blockId, type: liveBlock\|blockRef, liveFileId, by}` | A live block or block reference was added to or removed from this canvas (§2c): keep your own "where is it used" index from these |
 | `session.closed` | `{reason: "host" \| "idle"}` | The live room ended (`DELETE …/session`, or everyone left and it closed) |
 | `resync` | `{reason}` | Stream only: the resume point is gone; re-read the file |
 

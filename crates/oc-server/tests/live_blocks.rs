@@ -809,6 +809,280 @@ mod cluster {
     }
 }
 
+// ---------- LIVE-04, LIVE-05, LIVE-06: projections, snapshots, exports, render ----------
+
+/// Puts a live file `id` with one paragraph `text` (blockId `p_<id>`) on the mock host.
+fn host_live_file(host: &Shared, id: &str, text: &str) {
+    let doc = oc_model::new_doc();
+    oc_model::import::apply_document_json(
+        &doc,
+        &json!({"type": "doc", "meta": {"kind": "live", "title": format!("Live {id}")}, "content": [
+            {"type": "paragraph", "attrs": {"blockId": format!("p_{id}")}, "content": [{"type": "text", "text": text}]}
+        ]}),
+    );
+    let bytes = oc_model::write_ocanvas(&doc, &oc_model::CommitInfo::default()).unwrap();
+    host.lock().unwrap().files.insert(id.into(), (bytes, 1));
+}
+
+async fn get(addr: &str, path: &str) -> reqwest::Response {
+    http()
+        .get(format!("http://{addr}{path}"))
+        .send()
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn projections_answer_for_the_reader_and_refresh_with_etags() {
+    let (addr, _state, host) = serve().await;
+    host_live_file(&host, "L", "Shared status");
+    grant_access(&host, "L", "u_1", "view");
+    let (s, out) = batch(
+        &addr,
+        FILE,
+        json!([{"op": "append", "blocks": [live_node("b_live", "L"),
+            {"type": "blockRef", "attrs": {"blockId": "b_ref", "fileId": "L", "refBlockId": "p_L", "title": ""}}]}]),
+    )
+    .await;
+    assert_eq!(s, 200, "{out}");
+    let ticket = launch(&addr, "u_1", json!({})).await;
+    let res = get(
+        &addr,
+        &format!("/v1/live/projection?ticket={ticket}&fileId=L"),
+    )
+    .await;
+    assert_eq!(res.status().as_u16(), 200);
+    let etag = res.headers()["etag"].to_str().unwrap().to_string();
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["access"], "view");
+    assert!(v["markdown"].as_str().unwrap().contains("Shared status"));
+    assert_eq!(v["live"], true);
+    // Unchanged: 304.
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/live/projection?ticket={ticket}&fileId=L"
+        ))
+        .header("If-None-Match", &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status().as_u16(), 304);
+    // A blockRef: one block.
+    let v: Value = get(
+        &addr,
+        &format!("/v1/live/projection?ticket={ticket}&fileId=L&blockId=p_L"),
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(v["doc"]["content"].as_array().unwrap().len(), 1);
+    assert_eq!(v["doc"]["content"][0]["attrs"]["blockId"], "p_L");
+    // A block the canvas does not reference: refused.
+    let res = get(
+        &addr,
+        &format!("/v1/live/projection?ticket={ticket}&fileId=L&blockId=other"),
+    )
+    .await;
+    assert_eq!(res.status().as_u16(), 404);
+    // Someone without access sees nothing.
+    let t2 = launch(&addr, "u_2", json!({})).await;
+    let res = get(&addr, &format!("/v1/live/projection?ticket={t2}&fileId=L")).await;
+    assert_eq!(res.status().as_u16(), 403);
+    let body = res.text().await.unwrap();
+    assert!(
+        !body.contains("Shared status") && !body.contains("Live L"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn refresh_keeps_what_the_snapshot_policy_allows() {
+    for (policy, title, content) in [
+        ("none", false, false),
+        ("title", true, false),
+        ("content", true, true),
+    ] {
+        let (addr, state, host) = serve_with(|h| {
+            live_on(h);
+            h.live
+                .insert("snapshot".into(), toml::Value::String(policy.into()));
+        })
+        .await;
+        host_live_file(&host, "L", "Q1 numbers");
+        grant_access(&host, "L", "u_1", "edit");
+        let node = json!({"type": "liveBlock", "attrs": {"blockId": "b_live", "fileId": "L", "kind": "blocks", "title": ""}});
+        let (s, out) = batch(&addr, FILE, json!([{"op": "append", "blocks": [node]}])).await;
+        assert_eq!(s, 200, "{policy}: {out}");
+        let ticket = launch(&addr, "u_1", json!({})).await;
+        let (s, out) = post(
+            &addr,
+            "/v1/live/refresh",
+            json!({"ticket": ticket, "blockId": "b_live"}),
+        )
+        .await;
+        assert_eq!(s, 200, "{policy}: {out}");
+        let doc = server_json(&state).await;
+        let attrs = &oc_model::live::references(&doc);
+        assert_eq!(attrs.len(), 1);
+        assert_eq!(!attrs[0].title.is_empty(), title, "{policy}: {doc}");
+        assert_eq!(attrs[0].has_snapshot, content, "{policy}: {doc}");
+        assert_eq!(doc.to_string().contains("Q1 numbers"), content, "{policy}");
+        // A reader without access to L refreshes nothing.
+        let t2 = launch(&addr, "u_2", json!({})).await;
+        let (s, out) = post(
+            &addr,
+            "/v1/live/refresh",
+            json!({"ticket": t2, "blockId": "b_live"}),
+        )
+        .await;
+        assert_eq!((s, out["access"].as_str()), (200, Some("none")), "{policy}");
+    }
+}
+
+#[tokio::test]
+async fn exports_inline_only_what_the_exporting_person_can_read() {
+    let (addr, _state, host) = serve_with(|h| {
+        live_on(h);
+        h.live.insert(
+            "link".into(),
+            toml::Value::String("https://host.example/files/{fileId}".into()),
+        );
+    })
+    .await;
+    host_live_file(&host, "L", "Only for readers");
+    grant_access(&host, "L", "u_1", "view");
+    embed(&addr, &["L"]).await;
+    let reader = launch(&addr, "u_1", json!({})).await;
+    let md = get(&addr, &format!("/v1/export/md?ticket={reader}"))
+        .await
+        .text()
+        .await
+        .unwrap();
+    assert!(md.contains("Only for readers"), "{md}");
+    assert!(md.contains("Live block: Title L"), "{md}");
+    assert!(md.contains("https://host.example/files/L"), "{md}");
+    let html = get(&addr, &format!("/v1/export/html?ticket={reader}"))
+        .await
+        .text()
+        .await
+        .unwrap();
+    assert!(html.contains("Only for readers"));
+
+    let other = launch(&addr, "u_2", json!({})).await;
+    for fmt in ["md", "html", "docx", "ocanvas", "json"] {
+        let bytes = get(&addr, &format!("/v1/export/{fmt}?ticket={other}"))
+            .await
+            .bytes()
+            .await
+            .unwrap();
+        assert!(!bytes.is_empty(), "{fmt}");
+        let found = if fmt == "docx" || fmt == "ocanvas" {
+            let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
+            (0..zip.len()).any(|i| {
+                let mut buf = Vec::new();
+                std::io::Read::read_to_end(&mut zip.by_index(i).unwrap(), &mut buf).unwrap();
+                buf.windows(16).any(|w| w == b"Only for readers")
+            })
+        } else {
+            bytes.windows(16).any(|w| w == b"Only for readers")
+        };
+        assert!(
+            !found,
+            "{fmt} leaks the live file to someone without access"
+        );
+    }
+    let md = get(&addr, &format!("/v1/export/md?ticket={other}"))
+        .await
+        .text()
+        .await
+        .unwrap();
+    assert!(md.contains("Live block: Title L (no access)"), "{md}");
+}
+
+#[tokio::test]
+async fn api_make_live_references_and_render() {
+    let (addr, state, host) = serve().await;
+    let (s, _) = batch(
+        &addr,
+        FILE,
+        json!([{"op": "append", "markdown": "Plan A\n\nStay"}]),
+    )
+    .await;
+    assert_eq!(s, 200);
+    let doc = server_json(&state).await;
+    let id = doc["content"][0]["attrs"]["blockId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let res = api(&addr, reqwest::Method::POST, FILE, "/live")
+        .json(&json!({"blockIds": [id], "name": "Plan"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status().as_u16(), 201);
+    let made: Value = res.json().await.unwrap();
+    let live_file = made["liveFileId"].as_str().unwrap().to_string();
+    assert_eq!(host.lock().unwrap().creates.len(), 1);
+    // The references, with the caller's access (the mock host gave u_1 edit on the new file).
+    let refs: Value = api(&addr, reqwest::Method::GET, FILE, "/references")
+        .header("X-OpenCanvas-Author", "u_1")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let items = refs["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "{refs}");
+    assert_eq!(items[0]["fileId"], live_file);
+    assert_eq!(items[0]["type"], "liveBlock");
+    assert_eq!(items[0]["blockId"], made["blockId"]);
+    // The compact view of the live file: sanitised HTML from the export renderer.
+    let res = api(
+        &addr,
+        reqwest::Method::GET,
+        &live_file,
+        "/render?format=html",
+    )
+    .send()
+    .await
+    .unwrap();
+    assert_eq!(res.status().as_u16(), 200);
+    assert!(
+        res.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("sandbox")
+    );
+    assert!(res.headers().contains_key("etag"));
+    let html = res.text().await.unwrap();
+    assert!(html.contains("Plan A"), "{html}");
+    let res = api(
+        &addr,
+        reqwest::Method::GET,
+        &live_file,
+        "/render?format=pdf",
+    )
+    .send()
+    .await
+    .unwrap();
+    assert_eq!(res.status().as_u16(), 404);
+    // The canvas itself renders with the live block resolved for the caller.
+    let html = api(&addr, reqwest::Method::GET, FILE, "/render")
+        .header("X-OpenCanvas-Author", "u_1")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        html.contains("Live block: Plan") && html.contains("Plan A"),
+        "{html}"
+    );
+}
+
 // ---------- ADR-069: usage events and presence origin ----------
 
 #[tokio::test]
