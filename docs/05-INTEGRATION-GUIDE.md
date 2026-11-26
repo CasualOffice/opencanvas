@@ -513,11 +513,14 @@ offline: an installed web app or a native shell):
 **Sign-out must clear the device.** The editor's storage is partitioned by your site, so the
 clearing must run under your site, in one of two ways:
 
-```js
-import { OpenCanvas } from "https://canvas.acme.example/sdk/embed.js";
-const r = await OpenCanvas.clearOffline({ userId: "u_123" }); // or clearOffline() for everyone
-// r = { removed: 4 } canvases removed from this browser
-await fetch("/logout", { method: "POST" });
+```html
+<script src="https://canvas.acme.example/sdk/embed.js"></script>
+<script>
+  // host: your host id; leave out userId for every person of your host, both for every host
+  const r = await OpenCanvas.clearOffline({ host: "acme", userId: "u_123" });
+  // r = { removed: 4, done: true }: canvases removed from this browser
+  await fetch("/logout", { method: "POST" });
+</script>
 ```
 
 ```html
@@ -527,9 +530,19 @@ await fetch("/logout", { method: "POST" });
 
 Both delete the person's **device key first** (the copies are unreadable even if deleting the
 databases is interrupted), then the databases and queued uploads, for your host on this browser.
-Leave out `user` to clear every person of your host. `OpenCanvas.offlineFiles({ userId })` lists
-the canvases kept on this device (id, title, size, unsent changes, last sent) for your own offline
-page or a "3 changes haven't been sent" warning before signing out. The editor posts
+Leave out `user` to clear every person of your host (and `host` too, for every host). The editor
+code cache (no content) goes with the last copy. `OpenCanvas.offlineFiles({ host, userId })`
+(through `/v1/offline/files?host=&user=`) lists the canvases kept on this device
+(`[{id, title, bytes, pending, lastSent, validUntil}]`) for your own offline page or a "3 changes
+haven't been sent" warning before signing out.
+
+**Reconnecting (ADR-064, ADR-074).** Every reconnect after an offline spell is a fresh launch: the
+editor posts `Token_Expiring { inSeconds: 0, reason: "reconnect" }` and waits for your
+`Action_RefreshToken { token }` (a new launch token for the same person and file), or
+`Action_RefreshToken { access: "none" }` when the person has no access any more (the copy and its
+unsent changes are then deleted). Hosts that already renew tokens (PERM-07) only add the second
+answer. Without an answer within 8 s the editor carries on with the running session, which the
+server re-checks. The editor posts
 `UI_OfflineState { state, pending }` as the save pill changes (`saved`, `offline-device`,
 `offline-tab`, `reconnecting`, `sending`, `paused`, `locked`).
 

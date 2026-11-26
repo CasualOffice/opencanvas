@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import { HOST, HOST_RELOAD } from "./env";
+import { HOST, HOST_OFFLINE, HOST_RELOAD } from "./env";
 
 export function unzip(buf: Buffer): Map<string, Buffer> {
   let eocd = buf.length - 22;
@@ -31,7 +31,7 @@ export function unzip(buf: Buffer): Map<string, Buffer> {
 
 /** `document.json` of the host's stored copy of a file, as text (null when the host has no bytes yet). */
 export function storedDocument(fileId: string, host = HOST): string | null {
-  const dir = host === HOST_RELOAD ? "host-reload" : "host";
+  const dir = host === HOST_RELOAD ? "host-reload" : host === HOST_OFFLINE ? "host-offline" : "host";
   const f = path.join(process.env.E2E_TMP!, dir, "files", `${fileId}.ocanvas`);
   if (!fs.existsSync(f)) return null;
   return unzip(fs.readFileSync(f)).get("document.json")?.toString("utf8") ?? null;

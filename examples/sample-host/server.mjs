@@ -35,6 +35,9 @@ const API_KEY = process.env.OC_API_KEY || "dev-api-key-change-me";
 const DATA = path.resolve(process.env.DATA_DIR || "./data");
 const SELF = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const TEST_HOOKS = process.env.SAMPLE_HOST_TEST === "1";
+// docs/05 §2d: offline copies. The host's `[host.offline]` must be on too; `perms.offline` is
+// this host's per-launch decision (here: always, a real app says no for shared sessions).
+const OFFLINE = process.env.OC_HOST_OFFLINE === "1";
 fs.mkdirSync(path.join(DATA, "files"), { recursive: true });
 fs.mkdirSync(path.join(DATA, "assets"), { recursive: true });
 
@@ -130,7 +133,7 @@ function launchToken(fileId, userId) {
     ...(members ? { members } : {}),
     role, mode: role === "view" ? "view" : "edit",
     // perms.automate (AUTO-01): editors may create automation rules (Sam, the partner, may not).
-    perms: { export: true, download: true, comment: role !== "view", mention: true, live: true, automate: role === "edit" && userId !== "u_sam" },
+    perms: { export: true, download: true, comment: role !== "view", mention: true, live: true, ...(OFFLINE ? { offline: true } : {}), automate: role === "edit" && userId !== "u_sam" },
     callbackToken: callbackToken(fileId, userId),
   });
 }
@@ -496,7 +499,7 @@ function openFile(res, me, id) {
   <section class="panel" id="mpanel" hidden aria-label="Mentions"><h2>Mentions in this canvas</h2><ol id="mlist"></ol></section>
   <div class="toast" id="toast" role="status" hidden></div>
   <dialog id="livepick" aria-label="Insert a live block"><h2>Insert a live block</h2><ul style="list-style:none;padding:0;display:grid;gap:6px"></ul><button class="btn" data-cancel>Cancel</button></dialog>
-  <form id="oc" method="post" target="oc" action="${OC_SERVER}/v1/launch"><input type="hidden" name="token" value="${token}"><input type="hidden" name="block" id="block"></form>
+  <form id="oc" method="post" target="oc" action="${OC_SERVER}/v1/launch"><input type="hidden" name="token" value="${token}"><input type="hidden" name="block" id="block">${OFFLINE ? '<input type="hidden" name="offline" value="1">' : ""}</form>
   <div class="frame"><iframe name="oc" title="Canvas" allow="clipboard-read; clipboard-write; fullscreen"></iframe></div>
   <script>
   const OC = ${JSON.stringify(ocOrigin)}, FILE = ${JSON.stringify(id)}, frame = document.querySelector('iframe[name=oc]');
@@ -506,7 +509,8 @@ function openFile(res, me, id) {
   document.getElementById('oc').submit();
   const post = (MessageId, Values = {}) => frame.contentWindow.postMessage({ MessageId, SendTime: Date.now(), Values }, OC);
   const toast = document.getElementById('toast'); let tt;
-  window.ocRenew = () => fetch('/files/' + FILE + '/token', { method: 'POST' }).then(r => r.json()).then(j => post('Action_RefreshToken', { token: j.token }));
+  // A fresh token; no access any more answers {access: "none"} (docs/05 §4c, the offline reconnect).
+  window.ocRenew = () => fetch('/files/' + FILE + '/token', { method: 'POST' }).then(r => r.status === 403 ? post('Action_RefreshToken', { access: 'none' }) : r.json().then(j => post('Action_RefreshToken', { token: j.token })));
   const say = t => { toast.textContent = t; toast.hidden = false; clearTimeout(tt); tt = setTimeout(() => toast.hidden = true, 4000); };
   addEventListener('message', e => {
     if (e.origin !== OC || e.source !== frame.contentWindow) return;
@@ -638,9 +642,16 @@ http.createServer(async (req, res) => {
     // docs/05 §4 Token_Expiring: a fresh launch token for the same person and file (PERM-07).
     const tk = req.method === "POST" && url.pathname.match(/^\/files\/([\w-]+)\/token$/);
     if (tk && meta.files[tk[1]]?.acl[me]) return send(res, 200, { token: launchToken(tk[1], me) }, { "cache-control": "no-store" });
+    if (tk && meta.files[tk[1]]) return send(res, 403, { access: "none" }, { "cache-control": "no-store" });
     const fm = url.pathname.match(/^\/files\/([\w-]+)$/);
     if (fm) return openFile(res, me, fm[1]);
     if (url.pathname === "/search") return searchPage(res, me, url.searchParams.get("q") || "");
+    if (url.pathname === "/signout") return send(res, 200, page("Signed out", `<main><h2 id="out">Signing out…</h2><p class="mut" id="what"></p>
+  <iframe hidden src="${OC_SERVER}/v1/offline/clear?host=${encodeURIComponent(HOST_ID)}&user=${encodeURIComponent(me)}"></iframe>
+  <script>addEventListener('message', e => { if (e.origin !== ${JSON.stringify(new URL(OC_SERVER).origin)} || !e.data || e.data.type !== 'OC_OfflineCleared') return;
+    document.getElementById('out').textContent = 'You’re signed out';
+    document.getElementById('what').textContent = e.data.removed ? 'Offline canvases were removed from this browser: ' + e.data.removed + '.' : 'Nothing was kept offline in this browser.';
+    document.body.dataset.cleared = String(e.data.removed); });</script></main>`), { "content-type": "text/html; charset=utf-8" });
     if (url.pathname === "/") return home(res, me);
     send(res, 404, { error: "not found" });
   } catch (e) { console.error(e); send(res, 500, { error: String(e.message || e) }); }

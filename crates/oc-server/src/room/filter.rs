@@ -256,6 +256,36 @@ pub fn live_check(doc: &Doc, update: &[u8], rules: &LiveRules) -> LiveVerdict {
 /// True when `update` removes an `extBlock` from the document (BSDK-02): what an editor older
 /// than 0.2 does to a node its schema lacks. Cheap when the document has none. Updates that
 /// cannot be decoded or fully integrated count as removing one.
+/// OFF-05 (ADR-064): the first `oc-pending:` reference `update` adds or re-points that does
+/// not name `writer` in `pendingBy` (or is malformed). Cheap unless the update mentions one.
+pub fn pending_error(doc: &Doc, update: &[u8], writer: &str) -> Option<String> {
+    let has = |needle: &[u8]| update.windows(needle.len()).any(|w| w == needle);
+    if !has(b"oc-pending:") && !has(b"pendingBy") {
+        return None;
+    }
+    let Ok(decoded) = Update::decode_v1(update) else {
+        return Some("malformed update".into());
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return None;
+    }
+    {
+        let mut txn = scratch.transact_mut();
+        if txn.apply_update(decoded).is_err() {
+            return Some("update could not be applied".into());
+        }
+    }
+    oc_model::pending::error(
+        &oc_model::doc_to_json(doc),
+        &oc_model::doc_to_json(&scratch),
+        writer,
+    )
+}
+
 pub fn removes_ext_block(doc: &Doc, update: &[u8]) -> bool {
     let before = ext_block_count(&doc.transact());
     if before == 0 {

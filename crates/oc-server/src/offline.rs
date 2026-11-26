@@ -306,15 +306,36 @@ pub struct ClearQuery {
 /// The clear page's script (a file, so the page needs no inline script under the CSP).
 pub const CLEAR_JS: &str = include_str!("offline_clear.js");
 
-/// `GET /v1/offline/clear?host=<id>[&user=<id>]`: a page for a hidden iframe on the host's
+/// `GET /v1/offline/clear[?host=<id>[&user=<id>]]`: a page for a hidden iframe on the host's
 /// sign-out page (docs/05 §4c). It deletes the device keys first, then the databases, for that
-/// host (and person) in this browser, and posts `{"type":"OC_OfflineCleared"}` to the parent.
-pub async fn clear_page(State(state): State<SharedState>, Query(q): Query<ClearQuery>) -> Response {
-    let Some(host) = q.host.filter(|h| valid_id(h)) else {
-        return (StatusCode::BAD_REQUEST, "host is required").into_response();
-    };
-    if state.hosts.get(&host).is_none() {
+/// host (and person; without `host`, every host) in this browser partition, and posts
+/// `{"type":"OC_OfflineCleared", removed}` to the parent.
+pub async fn clear_page(state: State<SharedState>, q: Query<ClearQuery>) -> Response {
+    frame_page(state, q, "clear")
+}
+
+/// `GET /v1/offline/files?host=<id>&user=<id>`: the same kind of page for
+/// `OpenCanvas.offlineFiles()`; posts `{"type":"OC_OfflineFiles", files}` (id, title, size,
+/// unsent changes, last sent, valid until) to the parent. Titles are read on the device only.
+pub async fn files_page(state: State<SharedState>, q: Query<ClearQuery>) -> Response {
+    if q.host.is_none() || q.user.is_none() {
+        return (StatusCode::BAD_REQUEST, "host and user are required").into_response();
+    }
+    frame_page(state, q, "files")
+}
+
+fn frame_page(
+    State(state): State<SharedState>,
+    Query(q): Query<ClearQuery>,
+    mode: &str,
+) -> Response {
+    // Without `host`: every host's copies in this browser partition (the host's own site).
+    let host = q.host.unwrap_or_default();
+    if !host.is_empty() && (!valid_id(&host) || state.hosts.get(&host).is_none()) {
         return (StatusCode::NOT_FOUND, "no such host").into_response();
+    }
+    if host.is_empty() && q.user.is_some() {
+        return (StatusCode::BAD_REQUEST, "user needs host").into_response();
     }
     if q.user.as_deref().is_some_and(|u| !valid_id(u)) {
         return (StatusCode::BAD_REQUEST, "bad user").into_response();
@@ -323,7 +344,7 @@ pub async fn clear_page(State(state): State<SharedState>, Query(q): Query<ClearQ
     let html = format!(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>OpenCanvas</title>\
          <meta name=\"robots\" content=\"noindex\"></head><body>\
-         <script src=\"/v1/offline/clear.js\" data-host=\"{host}\" data-user=\"{user}\"></script>\
+         <script src=\"/v1/offline/clear.js\" data-mode=\"{mode}\" data-host=\"{host}\" data-user=\"{user}\"></script>\
          </body></html>"
     );
     let mut res = (
@@ -344,7 +365,11 @@ pub async fn clear_page(State(state): State<SharedState>, Query(q): Query<ClearQ
 /// ancestors.
 fn clear_csp(state: &SharedState, host: &str) -> String {
     let mut fa = String::from("frame-ancestors 'self'");
-    if let Some(h) = state.hosts.get(host) {
+    let hosts: Vec<_> = match state.hosts.get(host) {
+        Some(h) => vec![h],
+        None => state.hosts.iter().cloned().collect(),
+    };
+    for h in hosts {
         for o in h.allowed_origins.iter().chain(&h.frame_ancestors) {
             if o.bytes()
                 .all(|b| b.is_ascii_graphic() && !matches!(b, b';' | b',' | b'\'' | b'"'))

@@ -80,7 +80,8 @@ pub fn image_sources(doc: &Value) -> Vec<String> {
     fn walk(n: &Value, out: &mut Vec<String>) {
         if s(n, "type") == "image" {
             let src = attr_str(n, "src");
-            if !src.is_empty() && !out.iter().any(|x| x == src) {
+            // OFF-05: an upload still on someone's device is never fetched.
+            if !src.is_empty() && !crate::export::is_pending(src) && !out.iter().any(|x| x == src) {
                 out.push(src.to_string());
             }
         }

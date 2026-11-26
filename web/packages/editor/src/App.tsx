@@ -37,6 +37,7 @@ import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
 import { Modal, ModalHead, ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
+import { leaveGuard, offlineView, patchView, reconnectToken } from "./offline/status";
 import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
 import type { Template } from "./templates";
 import { applyTeamTemplate, loadTeamTemplates, teamEnabled, undoTeamTemplate, type TeamItem, type TeamState } from "./lib/teamtemplates";
@@ -53,6 +54,11 @@ const AssistantRoot = lazy(() => import("./assistant/root"));
 const Shortcuts = lazy(() => import("./components/Shortcuts").then((m) => ({ default: m.Shortcuts })));
 // VH-01d: the version history panel, preview and changes (its own chunk, with its CSS).
 const HistoryRoot = lazy(() => import("./history/root"));
+// OFF-06: offline dialogs, banners and the merge summary (only for hosts with offline copies).
+const OfflineRoot = lazy(() => import("./offline/ui").then((m) => ({ default: m.OfflineRoot })));
+const OfflineBanners = lazy(() => import("./offline/ui").then((m) => ({ default: m.OfflineBanners })));
+const LockedCanvas = lazy(() => import("./offline/ui").then((m) => ({ default: m.LockedCanvas })));
+const offlineUi = () => import("./offline/ui");
 // SRCH-01/04: the find bar and "Search all canvases" load when first opened (initial JS budget).
 const FindBar = lazy(() => import("./find/FindBar").then((m) => ({ default: m.FindBar })));
 // AUTO-06: the automations panel loads when first opened.
@@ -115,6 +121,16 @@ function Splash() {
   );
 }
 
+/** OFF-03: the kept canvas a ticket opened (ids only), so a reload without a network finds it. */
+function keptFor(ticket: string): { h: string; u: string; f: string } | null {
+  try {
+    const v = JSON.parse(localStorage.getItem("oc:offline-launch") ?? "null");
+    return v && v.t === ticket ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 type Boot =
   | { phase: "loading" }
   | { phase: "error"; title: string; message: string; retry?: boolean }
@@ -150,6 +166,23 @@ export default function App() {
         setBoot({ phase: "ready", session: m.demoSession(role), collab: d.collab, demo: d, gen });
         return;
       }
+      // OFF-03: opened from the device without a launch (the service worker, or `<open-canvas offline>`).
+      const kept = ticket ? keptFor(ticket) : null;
+      const openKept = async (h: string, u: string, f: string) => {
+        const m = await import("./offline/controller");
+        const o = await m.openOffline(h, u, f).catch(() => null);
+        if (cancelled) return;
+        if (!o) {
+          setBoot({ phase: "error", title: "This canvas isn't on this device", message: "Connect to the internet and open it again from your app." });
+          return;
+        }
+        o.session.openedOffline = true;
+        collab = connectCollab(o.session, { doc: o.doc, connect: false });
+        collab.pending.restore(o.pending);
+        patchView({ locked: o.locked, openedOffline: true, kept: true, net: "offline", validUntil: o.claims ? o.claims.exp * 1000 : null });
+        setBoot({ phase: "ready", session: o.session, collab, demo: null, gen });
+      };
+      if (!ticket && params.get("offline") === "1") return openKept(params.get("h") ?? "", params.get("u") ?? "", params.get("f") ?? "");
       if (!ticket) {
         setBoot({ phase: "error", title: "Open this canvas from your app", message: "This page needs a launch link from the app that stores the canvas." });
         return;
@@ -164,6 +197,8 @@ export default function App() {
         if (cancelled) return;
         setBoot({ phase: "ready", session: s, collab, demo: null, gen });
       } catch (e) {
+        // A kept canvas reloaded without a network: open the copy on this device.
+        if (!(e instanceof SessionError) && kept && !cancelled) return openKept(kept.h, kept.u, kept.f);
         const msg = e instanceof SessionError ? e.message : "We couldn't reach the canvas server. Check your connection and try again.";
         postToHost("Error", { code: e instanceof SessionError ? e.code : "NETWORK", message: msg });
         // An expired link can't be retried from here; a network or server error can.
@@ -292,6 +327,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   useEffect(
     () =>
       onHost("Action_RefreshToken", (v) => {
+        // OFF-04: a reconnect waits for this answer (a token, or `{access: "none"}`).
+        if (reconnectToken.take) return reconnectToken.take(v);
         if (typeof v.token !== "string" || !v.token) return;
         void renewSession(v.token).then(
           (r) => {
@@ -309,7 +346,83 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     [session, collab],
   );
 
-  const effectiveRole: Role = forcedReadOnly || conflict || closed || access === "expired" ? "view" : role;
+  // OFF-02..06: offline copies (lazy controller), the pill's offline states and the stop-work states.
+  const ov = useStore(offlineView);
+  const offlineOn = !session.demo && (!!session.offline?.enabled || !!session.openedOffline);
+  useEffect(() => {
+    if (session.demo) return;
+    const sync = () => {
+      const v = offlineView.get();
+      if (!v.kept) patchView({ pending: collab.pending.size, pendingBytes: collab.pending.bytes });
+    };
+    const offs = [
+      collab.pending.version.subscribe(sync),
+      // Session resilience for every host: the pill says where the changes are (1c).
+      collab.onConn((c) => {
+        if (offlineOn) return; // the controller decides (every reconnect is a fresh launch)
+        patchView({ net: c === "connected" ? "online" : c === "offline" ? "offline" : "online", offlineSince: c === "offline" ? Date.now() : null });
+      }),
+    ];
+    // docs/05 §4c: the host page hears the pill's state.
+    let last = "";
+    offs.push(
+      offlineView.subscribe(() => {
+        const v = offlineView.get();
+        const state = v.locked ? "locked" : v.paused ? "paused" : v.net === "sending" ? "sending" : v.net === "reconnecting" ? "reconnecting" : v.net === "offline" ? (v.kept ? "offline-device" : "offline-tab") : "saved";
+        const key = state + ":" + v.pending;
+        if (key === last) return;
+        last = key;
+        postToHost("UI_OfflineState", { state, pending: v.pending });
+      }),
+    );
+    window.addEventListener("beforeunload", leaveGuard);
+    return () => {
+      offs.forEach((f) => f());
+      window.removeEventListener("beforeunload", leaveGuard);
+    };
+  }, [collab, session, offlineOn]);
+  useEffect(() => {
+    if (!offlineOn) return;
+    let stop: (() => void) | null = null;
+    void import("./offline/controller").then(async (m) => {
+      const c = await m.start(
+        {
+          session,
+          collab,
+          hostName,
+          reboot: onReboot,
+          setTicket: (t, e) => {
+            session.ticket = t;
+            setAssetTicket(t);
+            setExp(e);
+            try {
+              const h = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+              h.delete("offline");
+              h.delete("h");
+              h.delete("u");
+              h.delete("f");
+              h.set("t", t);
+              window.history.replaceState(null, "", "#" + h.toString());
+            } catch {
+              /* the next reboot reads the session again */
+            }
+          },
+          nameOfClient: (client) => {
+            const st = awareness.getStates().get(client) as { user?: { name?: string } } | undefined;
+            return st?.user?.name?.split(" ")[0] ?? null;
+          },
+          toast: (t, o) => toast(t, o ?? {}),
+        },
+        !!session.openedOffline,
+      );
+      stop = () => c.destroy();
+    });
+    return () => stop?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collab, session, offlineOn]);
+  const offlineStop = ov.paused || ov.locked || ov.held > 0 || !!ov.revoked;
+
+  const effectiveRole: Role = forcedReadOnly || conflict || closed || access === "expired" || offlineStop ? "view" : role;
   // docs/24 §10.2: the assistant shows only when the session's AI flag is on (or `?ai=1`, `#demo`).
   const ai = useMemo(() => aiAvailability(session, effectiveRole), [session, effectiveRole]);
   useEffect(() => aiStore.set(ai), [ai]);
@@ -450,6 +563,15 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                 avatar: { name: c.byName ?? "Someone", color: people.get(c.by).color },
                 ms: 8000,
                 action: canHistoryRef.current ? { label: "View", run: () => setSide("history") } : undefined,
+              });
+            break;
+          case "offline_arrived":
+            // OFF-07 (frame 4e): one toast when a long offline session arrives.
+            if (c.by !== session.user.id)
+              toast(`${c.byName?.split(" ")[0] ?? "Someone"} was offline. ${c.changes ? `Their ${c.changes} changes` : "Their changes"} just arrived.`, {
+                avatar: { name: c.byName ?? "Someone", color: people.get(c.by).color },
+                ms: 8000,
+                action: canHistoryRef.current ? { label: "See changes", run: () => setSide("history") } : undefined,
               });
             break;
           case "closed": {
@@ -1104,12 +1226,12 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
         <span>{hostName} changed your access to {role === "comment" ? "comment only" : "view only"}. Edits that hadn't synced weren't kept.</span>
       </div>,
     );
-  if (conn === "offline")
+  // OFF-06: offline is a state of the save pill, not a banner; banners only stop work (5a, 5c, 5d).
+  if (offlineOn && (ov.held || ov.locked || ov.paused))
     banners.push(
-      <div key="offline" className="banner warn">
-        <Ic name="wifi-off" />
-        <span>You're offline. Keep working. Your changes sync when you reconnect.</span>
-      </div>,
+      <Suspense key="offline" fallback={null}>
+        <OfflineBanners hostName={hostName} title={meta.title || session.file.name} canDownload={session.perms.download !== false} />
+      </Suspense>,
     );
   if (save.kind === "error" && conn === "connected")
     banners.push(
@@ -1187,11 +1309,40 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onSearchAll={searchOn ? () => setSearchAll(true) : undefined}
               onAutomations={autoOn ? () => (side === "automations" ? closeSide() : setSide("automations")) : undefined}
               automationsHere={ruleCount}
+              offline={
+                offlineOn
+                  ? {
+                      onToggle: (on) => void offlineUi().then((m) => m.toggleKeep(on)),
+                      onList: () => void offlineUi().then((m) => m.openList()),
+                      onTryNow: () => void import("./offline/controller").then((m) => m.controller()?.kick()),
+                    }
+                  : undefined
+              }
             />
             {banners}
+            {offlineOn ? (
+              <Suspense fallback={null}>
+                <OfflineRoot
+                  hostName={hostName}
+                  me={session.user.name}
+                  title={meta.title || session.file.name}
+                  doc={doc}
+                  canDownload={session.perms.download !== false}
+                  onHistory={canHistory ? () => setSide("history") : undefined}
+                  nameOfClient={(client) => (awareness.getStates().get(client) as { user?: { name?: string } } | undefined)?.user?.name?.split(" ")[0] ?? null}
+                  onBack={() => postToHost("UI_Close", { reason: "offline-revoked" })}
+                />
+              </Suspense>
+            ) : null}
             <div className="body">
               <div className="scroll" ref={scrollRef}>
                 <div className={"doc" + (wide && !compact ? " wide" : "")}>
+                  {ov.locked || ov.revoked ? (
+                    <Suspense fallback={null}>
+                      <LockedCanvas title={ov.revoked ? "" : meta.title || session.file.name} />
+                    </Suspense>
+                  ) : null}
+                  <div hidden={ov.locked || !!ov.revoked}>
                   <DocHeader
                     doc={doc}
                     meta={meta}
@@ -1214,6 +1365,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     onComment={onComment}
                     emptyState={emptyActions}
                   />
+                  </div>
                 </div>
               </div>
               {searchAll && searchOn ? (

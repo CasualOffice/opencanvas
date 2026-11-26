@@ -188,6 +188,13 @@ fn op_blocks(
     if let Some(e) = report.first_error() {
         return Err(PatchError::Invalid(n, e));
     }
+    // OFF-05: `oc-pending:` uploads come only from an editor's offline queue.
+    if nodes.iter().any(|b| !crate::pending::refs(b).is_empty()) {
+        return Err(PatchError::Invalid(
+            n,
+            "oc-pending: references are written only by an editor uploading from its device".into(),
+        ));
+    }
     Ok(nodes)
 }
 

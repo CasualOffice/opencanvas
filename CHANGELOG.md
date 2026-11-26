@@ -38,6 +38,23 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   the device, a revocation generation per host and person (migration 0011; Redis `oc:offgen:`)
   raised by `POST /api/v1/offline/revoke`, and the `GET /v1/offline/clear` sign-out page. The server
   stores one number per host and person, never content.
+- Offline-first editing in the editor (OFF-02..07, ADR-063/064/073, the approved prototype): a person
+  keeps a canvas on their device ("Available offline on this device"), encrypted in IndexedDB under a
+  per-person device key; it opens and edits without a network (a service worker caches the editor
+  code, never content) and locks when its 7-day grant runs out. The save pill shows where changes are
+  (on this device, or this tab only). Reconnecting is a fresh launch through the host; unsent changes
+  go in frames under the frame and rate limits, long sessions get a "Before <name>'s offline changes"
+  version first and collaborators a toast. A merge summary appears only for edits inside a deleted
+  block (restore as a new block) and both-sides cell changes (use mine). View only on reconnect holds
+  the changes (download or discard); no access deletes the copy. Images added offline wait as
+  `oc-pending:` and upload first. Hosts clear the device at sign-out with `OpenCanvas.clearOffline()`
+  or the `/v1/offline/clear` iframe and list copies with `OpenCanvas.offlineFiles()`.
+
+## [0.2.1] - 2026-11-26
+
+### Added
+
+- The categorised insert menu (INS-01, [approved prototype](docs/prototypes/insert-menu-approved/)):
 - Live blocks in the editor (LIVE-03, LIVE-07, [approved prototype](docs/prototypes/v03-approved/live-blocks.html),
   ADR-073): an always-visible header (Live mark, title, the people in it, Open source, options),
   editing in place with presence labels that say where a person is, a one-time hint on the first

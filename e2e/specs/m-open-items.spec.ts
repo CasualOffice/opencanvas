@@ -92,11 +92,13 @@ test("a silent network drop shows Offline within 20 s, and the canvas recovers",
   const ms = Date.now() - t0;
   test.info().annotations.push({ type: "offline", description: `shown after ${ms} ms` });
   expect(ms).toBeLessThan(20_000);
-  await expect(priya.oc.getByText("You're offline. Keep working.")).toBeVisible();
+  // OFF-06 (frame 1c): offline is a state of the save pill, not a banner.
+  await expect(priya.oc.getByText("You're offline. Keep working.")).toHaveCount(0);
 
   // Typing while offline is kept and syncs once the network is back.
   await editor(priya).locator("p").last().click();
   await priya.page.keyboard.type("Written offline");
+  await expect(status).toHaveAttribute("aria-label", /^Offline · \d+ changes? not saved yet/);
   await priya.ctx.setOffline(false);
   await expect(status).toHaveAttribute("aria-label", /^(Saved|Saving|Unsaved)/, { timeout: 20_000 });
   await expect(status).toHaveAttribute("aria-label", /^Saved/, { timeout: 15_000 });

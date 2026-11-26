@@ -22,6 +22,7 @@ pub mod import;
 pub mod live;
 pub mod ocanvas;
 pub mod patch;
+pub mod pending;
 pub mod people;
 pub mod preview;
 pub mod restore;

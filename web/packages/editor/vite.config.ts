@@ -3,6 +3,19 @@
 
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react";
+import { createHash } from "node:crypto";
+
+// OFF-03: the list of files the service worker (public/sw.js) caches for opening offline:
+// the editor code only, never content.
+const shell = {
+  name: "oc-shell",
+  apply: "build" as const,
+  generateBundle(this: { emitFile(f: { type: "asset"; fileName: string; source: string }): void }, _o: unknown, bundle: Record<string, unknown>) {
+    const files = Object.keys(bundle).filter((f) => !f.endsWith(".map") && !f.startsWith(".vite/")).sort();
+    const version = createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 12);
+    this.emitFile({ type: "asset", fileName: "shell.json", source: JSON.stringify({ version, files }) });
+  },
+};
 
 // The server serves the built editor at /app/ (docs/15 §1). In dev the SPA
 // talks to the Rust server on :8080 through this proxy (docs/15 §8).
@@ -15,7 +28,7 @@ if (base !== "./" && !/^\/(.*\/)?$/.test(base)) throw new Error(`OC_EDITOR_BASE 
 
 export default defineConfig({
   base,
-  plugins: [react()],
+  plugins: [react(), shell],
   server: {
     port: 5173,
     strictPort: true,
