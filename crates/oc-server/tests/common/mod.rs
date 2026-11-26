@@ -527,7 +527,9 @@ pub fn host_config(base: &str) -> HostConfig {
         storage: "host".into(),
         template: None,
         template_bytes: None,
-        flags: Default::default(),
+        // Partial sync is on by default from 0.4; these suites test whole rooms and opt in
+        // where they test parts (tests/partial_sync.rs).
+        flags: toml::toml! { partial_sync = false },
         versions: Default::default(),
         ai: Default::default(),
         api: Default::default(),

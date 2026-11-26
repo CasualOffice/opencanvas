@@ -35,7 +35,20 @@ async fn node(
     id: &str,
     bus: Arc<dyn Bus>,
 ) -> Node {
+    node_with(base, db, fake, id, bus, false).await
+}
+
+async fn node_with(
+    base: &str,
+    db: &std::path::Path,
+    fake: &Arc<FakeLeases>,
+    id: &str,
+    bus: Arc<dyn Bus>,
+    partial_sync: bool,
+) -> Node {
     let state = app_ai(base, room_cfg(), db, |h| {
+        h.flags
+            .insert("partial_sync".into(), toml::Value::Boolean(partial_sync));
         h.api_key = Some("test-api-key".into());
         h.ai.insert("mcp".into(), toml::Value::Boolean(true));
         h.ai.insert(
@@ -704,4 +717,124 @@ async fn an_automation_runs_once_on_the_owner_in_a_two_node_cluster() {
         .unwrap();
     assert_eq!(runs.len(), 1);
     assert_eq!(runs[0].result, "done");
+}
+
+/// PSYNC-A4: a split room in a cluster. Editors on both nodes (one relayed to the owner) load
+/// different parts, edit them, and see each other's edits once they load the other part; the
+/// parts list and type 101 frames go through the relay.
+#[tokio::test]
+async fn a_split_room_serves_parts_to_editors_on_both_nodes() {
+    let (base, host) = mock_host().await;
+    let doc = oc_model::new_doc();
+    oc_model::import::apply_document_json(
+        &doc,
+        &json!({
+            "type": "doc",
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Intro"}]}],
+            "databases": {
+                "d1": {"name": "Tasks", "rows": {"r1": {"title": "One"}}, "order": ["r1"]},
+                "d2": {"name": "Bugs", "rows": {"r1": {"title": "Two"}}, "order": ["r1"]}
+            }
+        }),
+    );
+    host.lock().unwrap().files.insert(
+        FILE.into(),
+        (
+            oc_model::write_ocanvas(&doc, &Default::default()).unwrap(),
+            1,
+        ),
+    );
+    let db = temp_db();
+    let fake = Arc::new(FakeLeases::default());
+    let bus: Arc<dyn Bus> = Arc::new(FakeBus::default());
+    let n1 = node_with(&base, &db, &fake, "n1", bus.clone(), true).await;
+    let n2 = node_with(&base, &db, &fake, "n2", bus, true).await;
+    let mut ga = grant("u_a", Role::Edit);
+    ga.subdoc = true;
+    let mut gb = grant("u_b", Role::Edit);
+    gb.subdoc = true;
+    let mut a = Peer::join(&n1.state, ga).await;
+    let mut b = Peer::join(&n2.state, gb).await;
+    a.settle().await;
+    b.settle().await;
+    assert!(
+        b.controls.iter().any(|c| c["t"] == "parts"),
+        "parts list relayed"
+    );
+    let guid = |id: &str| format!("{FILE}/block/{id}");
+    let ask = |p: &Peer, id: &str| {
+        p.send(oc_server::room::protocol::subdoc(
+            &guid(id),
+            &oc_server::room::protocol::step1(yrs::StateVector::default()),
+        ))
+    };
+    let apply = |p: &mut Peer, id: &str, d: &Doc| {
+        for (g, m) in std::mem::take(&mut p.subs) {
+            if g != guid(id) {
+                continue;
+            }
+            if let yrs::sync::Message::Sync(
+                yrs::sync::SyncMessage::SyncStep2(u) | yrs::sync::SyncMessage::Update(u),
+            ) = m
+            {
+                use yrs::updates::decoder::Decode;
+                d.transact_mut()
+                    .apply_update(yrs::Update::decode_v1(&u).unwrap())
+                    .unwrap();
+            }
+        }
+    };
+    let title = |d: &Doc, id: &str| {
+        oc_model::doc_to_json(d)["databases"][id]["rows"]["r1"]["title"].clone()
+    };
+    let set_title = |p: &Peer, d: &Doc, id: &str, t: &str| {
+        use yrs::{Map, Out, ReadTxn};
+        let sv = d.transact().state_vector();
+        {
+            let dbs = d.get_or_insert_map("databases");
+            let mut txn = d.transact_mut();
+            let Some(Out::YMap(m)) = dbs.get(&txn, id) else {
+                panic!("{id}")
+            };
+            let Some(Out::YMap(rows)) = m.get(&txn, "rows") else {
+                panic!("rows")
+            };
+            let Some(Out::YMap(r)) = rows.get(&txn, "r1") else {
+                panic!("r1")
+            };
+            r.insert(&mut txn, "title", t);
+        }
+        let u = d.transact().encode_state_as_update_v1(&sv);
+        p.send(oc_server::room::protocol::subdoc(
+            &guid(id),
+            &oc_server::room::protocol::update(u),
+        ));
+    };
+    let (da, db2) = (oc_model::new_doc(), oc_model::new_doc());
+    ask(&a, "d1");
+    ask(&b, "d2");
+    a.settle().await;
+    b.settle().await;
+    apply(&mut a, "d1", &da);
+    apply(&mut b, "d2", &db2);
+    assert_eq!(title(&da, "d1"), "One");
+    assert_eq!(title(&db2, "d2"), "Two", "relayed part load");
+    set_title(&a, &da, "d1", "One from n1");
+    set_title(&b, &db2, "d2", "Two from n2");
+    a.settle().await;
+    b.settle().await;
+    // Each loads the other's part and sees the other's edit.
+    let (da2, db1) = (oc_model::new_doc(), oc_model::new_doc());
+    ask(&a, "d2");
+    ask(&b, "d1");
+    a.settle().await;
+    b.settle().await;
+    apply(&mut a, "d2", &da2);
+    apply(&mut b, "d1", &db1);
+    assert_eq!(title(&da2, "d2"), "Two from n2");
+    assert_eq!(title(&db1, "d1"), "One from n1");
+    // The room's merged state (read through the relay) has both.
+    let j = server_json(&n2.state).await;
+    assert_eq!(j["databases"]["d1"]["rows"]["r1"]["title"], "One from n1");
+    assert_eq!(j["databases"]["d2"]["rows"]["r1"]["title"], "Two from n2");
 }

@@ -1,0 +1,253 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-26",
+  "commit": "b55cb66",
+  "machine": "local",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 5,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 296886,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-BRiPvsLK.js",
+        "gzipBytes": 128469
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/index-BibZ_d1D.js",
+        "gzipBytes": 68193
+      },
+      {
+        "file": "assets/yjs-DYXjVKFe.js",
+        "gzipBytes": 30157
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "50mb": {
+      "firstScreenMs": {
+        "median": 9182,
+        "worst": 13096
+      },
+      "heapMb": 15.5,
+      "domNodes": 5739,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "50mb_b17457463_0",
+          "firstScreenMs": 8055,
+          "heapMb": 15.5,
+          "domNodes": 5739,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "partsListed": 35,
+          "scrolledPx": 221906,
+          "longFrames": {
+            "load": {
+              "count": 17,
+              "totalMs": 15366,
+              "blockingMs": 14227,
+              "worstMs": 7268
+            },
+            "scroll": {
+              "count": 16,
+              "totalMs": 2488,
+              "blockingMs": 1226,
+              "worstMs": 552
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.7,
+            "decodedKb": 959.3
+          }
+        },
+        {
+          "fileId": "50mb_b17494793_1",
+          "firstScreenMs": 13096,
+          "heapMb": 15.4,
+          "domNodes": 5739,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "partsListed": 35,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 17,
+              "totalMs": 23765,
+              "blockingMs": 22768,
+              "worstMs": 11365
+            },
+            "scroll": {
+              "count": 12,
+              "totalMs": 729,
+              "blockingMs": 18,
+              "worstMs": 83
+            }
+          },
+          "parts": {
+            "views": 35,
+            "shown": 0
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.7,
+            "decodedKb": 959.3
+          }
+        },
+        {
+          "fileId": "50mb_b17539849_2",
+          "firstScreenMs": 8537,
+          "heapMb": 16.3,
+          "domNodes": 5739,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "partsListed": 35,
+          "scrolledPx": 221906,
+          "longFrames": {
+            "load": {
+              "count": 10,
+              "totalMs": 15768,
+              "blockingMs": 14974,
+              "worstMs": 7631
+            },
+            "scroll": {
+              "count": 19,
+              "totalMs": 2257,
+              "blockingMs": 534,
+              "worstMs": 373
+            }
+          },
+          "parts": {
+            "views": 36,
+            "shown": 2
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.7,
+            "decodedKb": 959.3
+          }
+        },
+        {
+          "fileId": "50mb_b17561301_3",
+          "firstScreenMs": 9711,
+          "heapMb": 15.4,
+          "domNodes": 5740,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "partsListed": 35,
+          "scrolledPx": 17400,
+          "longFrames": {
+            "load": {
+              "count": 10,
+              "totalMs": 16842,
+              "blockingMs": 16049,
+              "worstMs": 8230
+            },
+            "scroll": {
+              "count": 20,
+              "totalMs": 1181,
+              "blockingMs": 18,
+              "worstMs": 84
+            }
+          },
+          "parts": {
+            "views": 35,
+            "shown": 0
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.7,
+            "decodedKb": 959.3
+          }
+        },
+        {
+          "fileId": "50mb_b17585219_4",
+          "firstScreenMs": 9182,
+          "heapMb": 15.5,
+          "domNodes": 5738,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "partsListed": 35,
+          "scrolledPx": 221906,
+          "longFrames": {
+            "load": {
+              "count": 10,
+              "totalMs": 16033,
+              "blockingMs": 15419,
+              "worstMs": 7871
+            },
+            "scroll": {
+              "count": 35,
+              "totalMs": 4025,
+              "blockingMs": 768,
+              "worstMs": 469
+            }
+          },
+          "parts": {
+            "views": 36,
+            "shown": 2
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 299.7,
+            "decodedKb": 959.3
+          }
+        }
+      ]
+    }
+  }
+}

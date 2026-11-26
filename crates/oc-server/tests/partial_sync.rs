@@ -46,9 +46,7 @@ async fn server(partial: bool) -> (oc_server::SharedState, Shared) {
     cfg.part_evict = Duration::from_millis(200);
     cfg.whole_release = Duration::from_millis(200);
     let state = app_custom(&base, cfg, &temp_db(), |h| {
-        if partial {
-            h.flags.insert("partial_sync".into(), true.into());
-        }
+        h.flags.insert("partial_sync".into(), partial.into());
     })
     .await;
     (state, mock)
@@ -486,14 +484,17 @@ async fn room_memory_on_the_fixture() {
     cfg.max_doc_bytes = 1 << 30;
     let on = phase != "whole";
     let state = app_custom(&base, cfg, &db, |h| {
-        if on {
-            h.flags.insert("partial_sync".into(), true.into());
-        }
+        h.flags.insert("partial_sync".into(), on.into());
     })
     .await;
     if phase == "prepare" {
+        let t = std::time::Instant::now();
         let mut e = Peer::join(&state, subdoc_grant("u_e", Role::Edit)).await;
         e.settle().await;
+        println!(
+            "first open (load from the host, split, sync): {} ms",
+            t.elapsed().as_millis()
+        );
         e.edit(|d| {
             let c = d.get_or_insert_xml_fragment("content");
             let mut txn = d.transact_mut();
@@ -612,4 +613,206 @@ async fn memory_durability_keeps_part_edits_made_during_a_whole_view() {
     let d2 = oc_model::new_doc();
     load(&mut a, "d1", &d2).await;
     assert_eq!(row_title(&d2, "d1", "r1").as_deref(), Some("During whole"));
+}
+
+/// A split room on a given storage (`tweak` picks it), with fast timings.
+async fn server_on(
+    tweak_cfg: impl FnOnce(&mut oc_server::config::Config),
+    durability: oc_server::config::Durability,
+) -> (oc_server::SharedState, Shared, std::path::PathBuf) {
+    let (base, mock) = mock_host().await;
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (canvas(), 1));
+    let mut cfg = room_cfg();
+    cfg.durability = durability;
+    cfg.part_evict = Duration::from_millis(200);
+    cfg.whole_release = Duration::from_millis(200);
+    let db = temp_db();
+    let state = app_full(
+        &base,
+        cfg,
+        &db,
+        |h| {
+            h.flags.insert("partial_sync".into(), true.into());
+        },
+        tweak_cfg,
+    )
+    .await;
+    (state, mock, db)
+}
+
+/// Edits a part, crashes the room (no save, no dump), opens it again: the part edit is back.
+async fn part_edit_survives_a_crash(state: &oc_server::SharedState) {
+    let room = oc_server::grant::room_id("sample", FILE);
+    let mut a = Peer::join(state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    assert!(a.controls.iter().any(|c| c["t"] == "parts"), "split");
+    let d = oc_model::new_doc();
+    load(&mut a, "d1", &d).await;
+    assert!(
+        row_title(&d, "d1", "r1").is_some(),
+        "part loaded: {:?}",
+        a.controls
+    );
+    edit_part(&a, &d, "d1", "Before the crash");
+    a.settle().await;
+    a.leave();
+    state.rooms.crash(&room);
+    let mut b = Peer::join(state, subdoc_grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    let d2 = oc_model::new_doc();
+    load(&mut b, "d1", &d2).await;
+    assert_eq!(
+        row_title(&d2, "d1", "r1").as_deref(),
+        Some("Before the crash"),
+        "controls after reopening: {:?}",
+        b.controls
+    );
+}
+
+/// PSYNC-02 crash safety: under memory durability a part's edits are in the WAL as they
+/// happen (only the main document waits for the periodic dump).
+#[tokio::test]
+async fn memory_durability_writes_part_edits_to_the_wal() {
+    let (state, _, _) = server_on(|_| {}, oc_server::config::Durability::Memory).await;
+    part_edit_survives_a_crash(&state).await;
+}
+
+/// Redis: parts on the Redis WAL in front of the database, and on Redis-only storage
+/// (`OC_TEST_REDIS_URL`, for example `redis://127.0.0.1:16399/`).
+#[tokio::test]
+async fn parts_on_redis_survive_a_crash() {
+    let Ok(url) = std::env::var("OC_TEST_REDIS_URL") else {
+        eprintln!("OC_TEST_REDIS_URL not set: Redis skipped");
+        return;
+    };
+    // The room id is fixed (FILE): start from an empty Redis (a dedicated test instance), or a
+    // dirty room left by an earlier run would be recovered instead of opened from the host.
+    let client = redis::Client::open(url.as_str()).unwrap();
+    let mut c = client.get_multiplexed_async_connection().await.unwrap();
+    let _: () = redis::cmd("FLUSHDB").query_async(&mut c).await.unwrap();
+    let u = url.clone();
+    let (state, _, _) = server_on(
+        move |c| c.wal_redis_url = Some(u),
+        oc_server::config::Durability::Wal,
+    )
+    .await;
+    part_edit_survives_a_crash(&state).await;
+    let (state, _, _) = server_on(
+        move |c| {
+            c.storage_redis_url = Some(url);
+            c.database_url = String::new();
+        },
+        oc_server::config::Durability::Wal,
+    )
+    .await;
+    part_edit_survives_a_crash(&state).await;
+}
+
+/// PSYNC-A4: random concurrent work on a split room (text, cells in parts, API writes that
+/// take whole views, view releases, unloads and reloads) converges: every editor's documents
+/// and the room's merged state agree. `OC_PSYNC_FUZZ` sets the iterations (nightly: 10,000).
+#[tokio::test]
+async fn fuzz_split_rooms_converge() {
+    let iters: u64 = std::env::var("OC_PSYNC_FUZZ")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(6);
+    for seed in 1..=iters {
+        let mut rng = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let mut next = move |n: u64| {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng % n
+        };
+        let (state, _) = server(true).await;
+        let host = state.hosts.get("sample").unwrap();
+        let mut peers = Vec::new();
+        for i in 0..3 {
+            let mut p = Peer::join(&state, subdoc_grant(&format!("u_{i}"), Role::Edit)).await;
+            p.settle().await;
+            let d = oc_model::new_doc();
+            load(&mut p, "d1", &d).await;
+            assert!(
+                row_title(&d, "d1", "r1").is_some(),
+                "seed {seed}: first load: {:?}",
+                p.controls
+            );
+            peers.push((p, d));
+        }
+        for step in 0..12 {
+            let i = next(3) as usize;
+            match next(5) {
+                0 => {
+                    let (p, d) = &peers[i];
+                    assert!(
+                        row_title(d, "d1", "r1").is_some(),
+                        "seed {seed} step {step} peer {i}: lost d1: {}",
+                        oc_model::doc_to_json(d)["databases"]
+                    );
+                    edit_part(p, d, "d1", &format!("s{seed}-{step}-{i}"));
+                }
+                1 => {
+                    let (p, _) = &peers[i];
+                    let text = format!("t{seed}-{step}");
+                    p.edit(|d| {
+                        let c = d.get_or_insert_xml_fragment("content");
+                        let mut txn = d.transact_mut();
+                        yrs::XmlFragment::push_back(&c, &mut txn, yrs::XmlTextPrelim::new(text));
+                    });
+                }
+                2 => {
+                    let md = format!("api {seed}-{step}");
+                    let ops = vec![
+                        serde_json::from_value(json!({"op": "append", "markdown": md})).unwrap(),
+                    ];
+                    state
+                        .rooms
+                        .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+                        .await
+                        .unwrap()
+                        .unwrap();
+                }
+                3 => tokio::time::sleep(Duration::from_millis(250)).await,
+                _ => {
+                    // Unload and load again (maybe after an eviction).
+                    let (p, _) = &mut peers[i];
+                    p.send(protocol::control(
+                        &json!({"t": "sub-unload", "id": guid("d1")}),
+                    ));
+                    if next(2) == 0 {
+                        tokio::time::sleep(Duration::from_millis(450)).await;
+                    }
+                    let d = oc_model::new_doc();
+                    load(p, "d1", &d).await;
+                    assert!(
+                        row_title(&d, "d1", "r1").is_some(),
+                        "seed {seed} step {step}: reload: {:?}",
+                        p.controls.iter().rev().take(4).collect::<Vec<_>>()
+                    );
+                    peers[i].1 = d;
+                }
+            }
+            for (p, d) in peers.iter_mut() {
+                p.settle().await;
+                take_into(p, "d1", d);
+            }
+        }
+        let want = server_json(&state).await;
+        for (i, (p, d)) in peers.iter().enumerate() {
+            let main = json_of(&p.doc);
+            assert_eq!(
+                main["content"], want["content"],
+                "seed {seed}: peer {i} text"
+            );
+            assert_eq!(
+                db(d, "d1"),
+                want["databases"]["d1"],
+                "seed {seed}: peer {i} database"
+            );
+        }
+    }
 }

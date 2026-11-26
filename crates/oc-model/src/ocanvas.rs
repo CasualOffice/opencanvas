@@ -220,8 +220,8 @@ fn read_capped<R: Read>(
     Ok(buf)
 }
 
-/// Reads a `.ocanvas` with zip-bomb and path-traversal limits (docs/07 §2).
-pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
+/// The entries a reader needs, inflated with zip-bomb and path-traversal limits (docs/07 §2).
+fn read_entries(bytes: &[u8]) -> Result<std::collections::HashMap<String, Vec<u8>>, Error> {
     let mut zip = ZipArchive::new(Cursor::new(bytes))?;
     if zip.len() > MAX_ENTRIES {
         return Err(Error::Limit("too many entries"));
@@ -253,6 +253,51 @@ pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
             files.insert(name, buf);
         }
     }
+    Ok(files)
+}
+
+/// A `.ocanvas` as stored, without building the document (PSYNC-02: a room that splits the
+/// canvas cuts `ydoc.bin` as it is). `None` when the file has no usable `ydoc.bin` (an older
+/// schema, or JSON only): read it with [`read_ocanvas`].
+pub struct RawLoaded {
+    pub state: Vec<u8>,
+    /// `document.json`: the logical JSON of `state` as the writer saved it.
+    pub document: Option<Vec<u8>>,
+    pub manifest: Value,
+    pub history: crate::history::FileHistory,
+}
+
+pub fn read_ocanvas_raw(bytes: &[u8]) -> Result<Option<RawLoaded>, Error> {
+    let mut files = read_entries(bytes)?;
+    let manifest: Value = match files.get("manifest.json") {
+        Some(b) => serde_json::from_slice(b)?,
+        None => json!({}),
+    };
+    let schema_ok = manifest
+        .get("schemaVersion")
+        .and_then(Value::as_u64)
+        .is_none_or(|v| v == u64::from(SCHEMA_VERSION));
+    if !schema_ok {
+        return Ok(None);
+    }
+    let Some(state) = files.remove("ydoc.bin") else {
+        return Ok(None);
+    };
+    let history = match files.get(crate::history::INDEX) {
+        Some(index) => crate::history::FileHistory::from_files(index, |n| files.get(n).cloned()),
+        None => Default::default(),
+    };
+    Ok(Some(RawLoaded {
+        state,
+        document: files.remove("document.json"),
+        manifest,
+        history,
+    }))
+}
+
+/// Reads a `.ocanvas` with zip-bomb and path-traversal limits (docs/07 §2).
+pub fn read_ocanvas(bytes: &[u8]) -> Result<Loaded, Error> {
+    let files = read_entries(bytes)?;
     let manifest: Value = match files.get("manifest.json") {
         Some(b) => serde_json::from_slice(b)?,
         None => json!({}),

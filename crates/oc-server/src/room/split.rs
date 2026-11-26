@@ -26,6 +26,7 @@ use oc_model::parts::{self, MAIN, OwnerIndex};
 use yrs::encoding::read::Read;
 
 use super::*;
+use crate::host_client::Fetched;
 
 pub(super) use protocol::MSG_SUBDOC;
 /// Longest part key the WAL stores (`room_part_snapshots.doc_id`).
@@ -82,7 +83,11 @@ pub(super) fn header_of(key: &str, doc: &Doc) -> Value {
     let Some((root, id)) = parts::part_root(key) else {
         return Value::Null;
     };
-    let v = oc_model::doc_to_json(doc)[root][id].take();
+    header_json(root, &oc_model::doc_to_json(doc)[root][id])
+}
+
+/// The header of a block from its logical JSON.
+fn header_json(root: &str, v: &Value) -> Value {
     let count = ["order", "rows", "items"]
         .iter()
         .find_map(|k| match &v[k] {
@@ -97,6 +102,74 @@ pub(super) fn header_of(key: &str, doc: &Doc) -> Value {
         "board"
     };
     json!({"kind": kind, "name": v.get("name").cloned().unwrap_or(Value::Null), "count": count})
+}
+
+/// A canvas cut while the room loads it from the host (PSYNC-02 fast open): the file's
+/// `ydoc.bin` is split as it is, so the room never builds the whole canvas.
+pub(super) struct Presplit {
+    split: parts::Split,
+    headers: BTreeMap<String, Value>,
+}
+
+/// What the fast open gives the room: the main document, the host version, the in-file
+/// history and the cut canvas.
+pub(super) type Opened = (Doc, Option<String>, FileHist, Presplit);
+
+/// The fast open: `None` when the file is not a `.ocanvas` with a usable `ydoc.bin` and a
+/// `document.json` (the room then loads it whole and splits after). The main document is
+/// validated (MOD-01) here; a part is validated when it is first loaded.
+pub(super) fn open_split(fetched: &Fetched) -> anyhow::Result<Option<Opened>> {
+    let Fetched::Found { bytes, etag, .. } = fetched else {
+        return Ok(None);
+    };
+    if bytes.starts_with(crate::hosts::TEMPLATE_JSON_TAG) || !oc_model::ocanvas::is_zip(bytes) {
+        return Ok(None);
+    }
+    let Some(raw) = oc_model::ocanvas::read_ocanvas_raw(bytes)? else {
+        return Ok(None);
+    };
+    let Some(document) = raw.document.as_deref() else {
+        return Ok(None);
+    };
+    let split = parts::split(&raw.state)?;
+    if split.parts.keys().any(|k| k.len() > KEY_MAX) {
+        return Ok(None);
+    }
+    drop(raw.state);
+    let main = doc_of(&split.parts[MAIN])?;
+    let live_file = {
+        let txn = main.transact();
+        txn.get_map(oc_model::roots::META)
+            .and_then(|m| m.get(&txn, "kind"))
+            .is_some_and(|k| k.to_string(&txn) == "live")
+    };
+    if live_file {
+        return Ok(None);
+    }
+    let report = oc_model::validate::record(oc_model::validate(&main));
+    if let Some(e) = report.first_error() {
+        anyhow::bail!("{e}");
+    }
+    // The file's own logical JSON: the history's starting point and the parts' headers.
+    let prev: Value = serde_json::from_slice(document)?;
+    let mut headers = BTreeMap::new();
+    for k in split.parts.keys().filter(|k| !k.is_empty()) {
+        if let Some((root, id)) = parts::part_root(k) {
+            headers.insert(k.clone(), header_json(root, &prev[root][id]));
+        }
+    }
+    let hist = FileHist {
+        history: raw.history,
+        prev,
+        prev_meta: oc_model::history::VersionMeta::from_manifest(&raw.manifest),
+        keep_prev: true,
+    };
+    Ok(Some((
+        main,
+        etag.clone(),
+        hist,
+        Presplit { split, headers },
+    )))
 }
 
 impl Room {
@@ -121,6 +194,18 @@ impl Room {
     /// parts back in (flag turned off since).
     pub(super) async fn split_on_open(&mut self) -> anyhow::Result<()> {
         let keys = self.ctx.store.part_keys(&self.id).await?;
+        // A live block's own file (LIVE-01) stays whole: it is small, and the canvases that
+        // embed it read its blocks from its document.
+        let live_file = self
+            .doc
+            .transact()
+            .get_map(oc_model::roots::META)
+            .and_then(|m| m.get(&self.doc.transact(), "kind"))
+            .is_some_and(|k| k.to_string(&self.doc.transact()) == "live");
+        if live_file && keys.is_empty() {
+            self.presplit = None;
+            return Ok(());
+        }
         let recovered = self.dirty_since.is_some() && !keys.is_empty();
         if !self.split_enabled() {
             if recovered {
@@ -150,7 +235,35 @@ impl Room {
             whole_since: None,
             dirty_parts: HashSet::new(),
         };
-        if recovered {
+        if let Some(pre) = self.presplit.take() {
+            // Fast open: every part starts at the original state vector (fillers).
+            let sv = sv_of(&self.doc);
+            let mut rows = Vec::new();
+            for (k, b) in pre.split.parts.iter().filter(|(k, _)| !k.is_empty()) {
+                st.svs.insert(k.clone(), sv.clone());
+                let header = pre.headers.get(k).cloned().unwrap_or(Value::Null);
+                st.headers.insert(k.clone(), header.clone());
+                rows.push((k.clone(), b.clone(), header));
+            }
+            st.svs.insert(MAIN.into(), sv);
+            self.ctx
+                .store
+                .compact_parts(&self.id, self.epoch, self.seq, &rows, now_ms())
+                .await?;
+            drop(rows);
+            self.ctx
+                .store
+                .compact(
+                    &self.id,
+                    self.epoch,
+                    self.seq,
+                    &pre.split.parts[MAIN],
+                    now_ms(),
+                )
+                .await?;
+            self.compacted_seq = self.seq;
+            st.owners = pre.split.owners;
+        } else if recovered {
             st.svs.insert(MAIN.into(), sv_of(&self.doc));
             st.owners.record_update(MAIN, &encode(&self.doc))?;
             for (k, header) in keys {
@@ -205,8 +318,15 @@ impl Room {
         Ok(())
     }
 
-    async fn load_part_doc(&self, key: &str) -> anyhow::Result<Doc> {
+    /// A part from its snapshot and rows. The room's `seq` covers every document's rows (a
+    /// room recovered from the WAL resumes after the highest seq of any part, or its next rows
+    /// would collide with a part's).
+    async fn load_part_doc(&mut self, key: &str) -> anyhow::Result<Doc> {
         let wal = self.ctx.store.load_part(&self.id, key).await?;
+        if wal.last_seq() > self.seq {
+            self.seq = wal.last_seq();
+            self.compacted_seq = self.compacted_seq.min(self.seq);
+        }
         let doc = oc_model::new_doc();
         if let Some((_, s)) = &wal.snapshot {
             oc_model::ocanvas::apply_update_bytes(&doc, s)?;
@@ -227,6 +347,11 @@ impl Room {
             return Ok(());
         }
         let doc = self.load_part_doc(key).await?;
+        // MOD-01 for a part the fast open did not validate.
+        let report = oc_model::validate::record(oc_model::validate(&doc));
+        if let Some(e) = report.first_error() {
+            anyhow::bail!("part {key} is invalid: {e}");
+        }
         if let Some(s) = self.split.as_mut() {
             s.loaded.insert(
                 key.to_string(),

@@ -78,6 +78,30 @@ pub fn stream_key(room: &str) -> String {
     format!("oc:wal:{{{room}}}")
 }
 
+/// PSYNC-02: a part's own stream (`doc` = `databases/<id>` or `boards/<id>`), so trimming the
+/// main document's stream after a snapshot never drops a part's rows.
+pub fn part_stream_key(room: &str, doc: &str) -> String {
+    format!("oc:wal:{{{room}}}:p:{doc}")
+}
+
+/// The room's part ids that have rows or a snapshot in Redis.
+pub fn parts_key(room: &str) -> String {
+    format!("oc:wal:{{{room}}}:parts")
+}
+
+/// A part's snapshot under Redis-only storage: `seq`, `state`, `header`.
+pub fn part_snap_key(room: &str, doc: &str) -> String {
+    format!("oc:psnap:{{{room}}}:{doc}")
+}
+
+const PART_SNAP: &str = r"
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return redis.error_reply('FENCED stale epoch') end
+redis.call('HSET', KEYS[2], 'seq', ARGV[2], 'state', ARGV[3], 'header', ARGV[4])
+redis.call('XTRIM', KEYS[3], 'MINID', (tonumber(ARGV[2]) + 1) .. '-0')
+redis.call('SADD', KEYS[4], ARGV[5])
+return 1
+";
+
 pub fn epoch_key(room: &str) -> String {
     format!("oc:epoch:{{{room}}}")
 }
@@ -206,11 +230,45 @@ impl RedisWal {
         Ok(())
     }
 
-    /// Appends a batch in one round trip; [`Fenced`] when `epoch` is stale.
+    /// Appends a batch in one round trip; [`Fenced`] when `epoch` is stale. Rows of a part
+    /// (`doc` set) go to the part's stream, one round trip per document.
     pub async fn append(&self, room: &str, epoch: i64, rows: &[WalRow]) -> anyhow::Result<()> {
+        if rows.iter().any(|r| !r.doc.is_empty()) {
+            let mut docs: Vec<&str> = rows.iter().map(|r| r.doc.as_str()).collect();
+            docs.sort_unstable();
+            docs.dedup();
+            for d in docs {
+                let mine: Vec<WalRow> = rows.iter().filter(|r| r.doc == d).cloned().collect();
+                self.append_to(room, d, epoch, &mine).await?;
+            }
+            return Ok(());
+        }
+        self.append_to(room, "", epoch, rows).await
+    }
+
+    async fn append_to(
+        &self,
+        room: &str,
+        doc: &str,
+        epoch: i64,
+        rows: &[WalRow],
+    ) -> anyhow::Result<()> {
         let mut c = self.conn.clone();
+        if !doc.is_empty() {
+            let _: i64 = redis::cmd("SADD")
+                .arg(parts_key(room))
+                .arg(doc)
+                .query_async(&mut c)
+                .await
+                .context("recording a part in Redis")?;
+        }
+        let key = if doc.is_empty() {
+            stream_key(room)
+        } else {
+            part_stream_key(room, doc)
+        };
         let script = redis::Script::new(APPEND);
-        let mut inv = script.key(stream_key(room));
+        let mut inv = script.key(key);
         inv.key(epoch_key(room)).arg(epoch);
         for r in rows {
             inv.arg(r.seq).arg(r.data.as_slice()).arg(r.origin.as_str());
@@ -225,9 +283,112 @@ impl RedisWal {
 
     /// Entries with `seq > after`, in order.
     pub async fn read_after(&self, room: &str, after: i64) -> anyhow::Result<Vec<(i64, Vec<u8>)>> {
+        self.read_stream(&stream_key(room), after).await
+    }
+
+    /// A part's entries with `seq > after`, in order.
+    pub async fn read_part_after(
+        &self,
+        room: &str,
+        doc: &str,
+        after: i64,
+    ) -> anyhow::Result<Vec<(i64, Vec<u8>)>> {
+        self.read_stream(&part_stream_key(room, doc), after).await
+    }
+
+    /// The room's parts known to Redis.
+    pub async fn part_ids(&self, room: &str) -> anyhow::Result<Vec<String>> {
+        let mut c = self.conn.clone();
+        Ok(redis::cmd("SMEMBERS")
+            .arg(parts_key(room))
+            .query_async(&mut c)
+            .await?)
+    }
+
+    /// Drops a part's rows up to `upto` (its snapshot is in the database now).
+    pub async fn trim_part(&self, room: &str, doc: &str, upto: i64) -> anyhow::Result<()> {
+        let mut c = self.conn.clone();
+        let _: i64 = redis::cmd("XTRIM")
+            .arg(part_stream_key(room, doc))
+            .arg("MINID")
+            .arg(format!("{}-0", upto + 1))
+            .query_async(&mut c)
+            .await?;
+        Ok(())
+    }
+
+    /// Redis-only storage: a part's snapshot (and header), epoch-guarded; trims its rows.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn put_part_snapshot(
+        &self,
+        room: &str,
+        epoch: i64,
+        doc: &str,
+        seq: i64,
+        state: &[u8],
+        header: &str,
+    ) -> anyhow::Result<()> {
+        let mut c = self.conn.clone();
+        match redis::Script::new(PART_SNAP)
+            .key(epoch_key(room))
+            .key(part_snap_key(room, doc))
+            .key(part_stream_key(room, doc))
+            .key(parts_key(room))
+            .arg(epoch)
+            .arg(seq)
+            .arg(state)
+            .arg(header)
+            .arg(doc)
+            .invoke_async::<i64>(&mut c)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) if e.to_string().contains("FENCED") => Err(Fenced(room.into()).into()),
+            Err(e) => Err(anyhow::Error::new(e).context("writing a part snapshot to Redis")),
+        }
+    }
+
+    /// Redis-only storage: a part's snapshot `(seq, state, header)`.
+    pub async fn part_snapshot(
+        &self,
+        room: &str,
+        doc: &str,
+    ) -> anyhow::Result<Option<(i64, Vec<u8>, String)>> {
+        let mut c = self.conn.clone();
+        let (seq, state, header): (Option<i64>, Option<Vec<u8>>, Option<String>) =
+            redis::cmd("HMGET")
+                .arg(part_snap_key(room, doc))
+                .arg("seq")
+                .arg("state")
+                .arg("header")
+                .query_async(&mut c)
+                .await?;
+        Ok(seq
+            .zip(state)
+            .map(|(s, st)| (s, st, header.unwrap_or_else(|| "null".into()))))
+    }
+
+    /// Deletes every part's stream and snapshot.
+    pub async fn purge_parts(&self, room: &str) -> anyhow::Result<()> {
+        let mut c = self.conn.clone();
+        for d in self.part_ids(room).await? {
+            let _: i64 = redis::cmd("DEL")
+                .arg(part_stream_key(room, &d))
+                .arg(part_snap_key(room, &d))
+                .query_async(&mut c)
+                .await?;
+        }
+        let _: i64 = redis::cmd("DEL")
+            .arg(parts_key(room))
+            .query_async(&mut c)
+            .await?;
+        Ok(())
+    }
+
+    async fn read_stream(&self, key: &str, after: i64) -> anyhow::Result<Vec<(i64, Vec<u8>)>> {
         let mut c = self.conn.clone();
         let reply: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
-            .arg(stream_key(room))
+            .arg(key)
             .arg(format!("({after}-0"))
             .arg("+")
             .query_async(&mut c)

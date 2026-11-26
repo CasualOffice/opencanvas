@@ -1765,18 +1765,122 @@ async fn compact_in(
 }
 
 impl Store {
-    /// PSYNC-02: the WAL keeps parts per document id only in a database (not with the Redis
-    /// WAL or in Redis only); a room splits only when this is true.
+    /// PSYNC-02: every storage keeps parts per document id: a database (`room_updates.doc_id`,
+    /// `room_part_snapshots`), the Redis WAL in front of it (a stream per part), and Redis-only
+    /// storage (a stream and a snapshot hash per part).
     pub fn supports_parts(&self) -> bool {
-        self.redis.is_none() && self.kv.is_none()
+        true
     }
 
-    /// The parts a split room left in the WAL: `(doc id, header)` for every part with a
-    /// snapshot or rows (a part with rows only has header `null`).
+    /// The parts a split room left: `(doc id, header)` for every part with a snapshot or rows
+    /// (a part with rows only has header `null`).
     pub async fn part_keys(&self, room: &str) -> anyhow::Result<Vec<(String, Value)>> {
-        if !self.supports_parts() {
-            return Ok(Vec::new());
+        let mut out: std::collections::BTreeMap<String, Value> = Default::default();
+        if self.kv.is_none() {
+            out.extend(self.part_keys_db(room).await?);
         }
+        if let Some(r) = &self.redis {
+            for d in r.part_ids(room).await? {
+                let header = match self.kv.is_some() {
+                    true => r
+                        .part_snapshot(room, &d)
+                        .await?
+                        .and_then(|(_, _, h)| serde_json::from_str(&h).ok())
+                        .unwrap_or(Value::Null),
+                    false => Value::Null,
+                };
+                let e = out.entry(d).or_insert(Value::Null);
+                if e.is_null() {
+                    *e = header;
+                }
+            }
+        }
+        Ok(out.into_iter().collect())
+    }
+
+    /// One part's snapshot and the rows after it.
+    pub async fn load_part(&self, room: &str, doc: &str) -> anyhow::Result<Wal> {
+        let mut wal = match (&self.kv, &self.redis) {
+            (Some(_), Some(r)) => Wal {
+                snapshot: r.part_snapshot(room, doc).await?.map(|(s, st, _)| (s, st)),
+                updates: Vec::new(),
+            },
+            _ => self.load_part_db(room, doc).await?,
+        };
+        if let Some(r) = &self.redis {
+            let after = wal.last_seq();
+            wal.updates
+                .extend(r.read_part_after(room, doc, after).await?);
+        }
+        Ok(wal)
+    }
+
+    /// Replaces a part's snapshot (and header) and drops the part's rows it covers. Refused
+    /// with [`Fenced`] when `epoch` is no longer the room's latest.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn compact_part(
+        &self,
+        room: &str,
+        epoch: i64,
+        doc: &str,
+        seq: i64,
+        state: &[u8],
+        header: &Value,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        if let (Some(_), Some(r)) = (&self.kv, &self.redis) {
+            return r
+                .put_part_snapshot(room, epoch, doc, seq, state, &header.to_string())
+                .await;
+        }
+        self.compact_part_db(room, epoch, doc, seq, state, header, now_ms)
+            .await?;
+        if let Some(r) = &self.redis
+            && let Err(e) = r.trim_part(room, doc, seq).await
+        {
+            tracing::warn!(room, doc, error = %e, "trimming a part's Redis WAL failed; replay skips the covered entries");
+        }
+        Ok(())
+    }
+
+    /// Writes many parts' snapshots (one transaction on a database).
+    pub async fn compact_parts(
+        &self,
+        room: &str,
+        epoch: i64,
+        seq: i64,
+        parts: &[(String, Vec<u8>, Value)],
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        if self.kv.is_some() {
+            for (doc, state, header) in parts {
+                self.compact_part(room, epoch, doc, seq, state, header, now_ms)
+                    .await?;
+            }
+            return Ok(());
+        }
+        self.compact_parts_db(room, epoch, seq, parts, now_ms)
+            .await?;
+        if let Some(r) = &self.redis {
+            for (doc, _, _) in parts {
+                let _ = r.trim_part(room, doc, seq).await;
+            }
+        }
+        Ok(())
+    }
+
+    /// Drops every part of a room (its state was folded back into the main document).
+    pub async fn drop_parts(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
+        if self.kv.is_none() {
+            self.drop_parts_db(room, epoch).await?;
+        }
+        if let Some(r) = &self.redis {
+            r.purge_parts(room).await?;
+        }
+        Ok(())
+    }
+
+    async fn part_keys_db(&self, room: &str) -> anyhow::Result<Vec<(String, Value)>> {
         retry_transient("part list", move || async move {
             let mut out: std::collections::BTreeMap<String, Value> = Default::default();
             for r in sqlx::query("SELECT doc_id, header FROM room_part_snapshots WHERE room_id = ?")
@@ -1804,8 +1908,7 @@ impl Store {
         .await
     }
 
-    /// One part's snapshot and the rows after it.
-    pub async fn load_part(&self, room: &str, doc: &str) -> anyhow::Result<Wal> {
+    async fn load_part_db(&self, room: &str, doc: &str) -> anyhow::Result<Wal> {
         retry_transient("part load", move || async move {
             let snapshot = sqlx::query(
                 "SELECT seq, state FROM room_part_snapshots WHERE room_id = ? AND doc_id = ?",
@@ -1837,7 +1940,7 @@ impl Store {
     /// Replaces a part's snapshot (and header) and drops the part's rows it covers. Refused
     /// with [`Fenced`] when `epoch` is no longer the room's latest.
     #[allow(clippy::too_many_arguments)]
-    pub async fn compact_part(
+    async fn compact_part_db(
         &self,
         room: &str,
         epoch: i64,
@@ -1847,7 +1950,6 @@ impl Store {
         header: &Value,
         now_ms: i64,
     ) -> anyhow::Result<()> {
-        anyhow::ensure!(self.supports_parts(), "parts need a database WAL");
         let header = header.to_string();
         let header = header.as_str();
         retry_transient("part compaction", move || async move {
@@ -1884,11 +1986,48 @@ impl Store {
         .await
     }
 
-    /// Drops every part of a room (its state was folded back into the main document).
-    pub async fn drop_parts(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
-        if !self.supports_parts() {
+    async fn compact_parts_db(
+        &self,
+        room: &str,
+        epoch: i64,
+        seq: i64,
+        parts: &[(String, Vec<u8>, Value)],
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        if parts.is_empty() {
             return Ok(());
         }
+        retry_transient("part compaction", move || async move {
+            let _g = self.snapshot_gate.write().await;
+            let _w = self.write_turn().await;
+            let mut tx = self.pool.begin().await?;
+            hold_epoch(&mut tx, room, epoch).await?;
+            for (doc, state, header) in parts {
+                sqlx::query("DELETE FROM room_part_snapshots WHERE room_id = ? AND doc_id = ?")
+                    .bind(room)
+                    .bind(doc)
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query(
+                    "INSERT INTO room_part_snapshots (room_id, doc_id, seq, state, header, updated_at) \
+                     VALUES (?, ?, ?, ?, ?, ?)",
+                )
+                .bind(room)
+                .bind(doc)
+                .bind(seq)
+                .bind(state.clone())
+                .bind(header.to_string())
+                .bind(now_ms)
+                .execute(&mut *tx)
+                .await?;
+            }
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn drop_parts_db(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
         retry_transient("part drop", move || async move {
             let _g = self.snapshot_gate.write().await;
             let _w = self.write_turn().await;
@@ -2056,7 +2195,8 @@ impl Store {
     /// another writer took the room since (its WAL is not ours to drop).
     pub async fn purge_room_fenced(&self, room: &str, epoch: i64) -> anyhow::Result<()> {
         if let Some(kv) = &self.kv {
-            return kv.purge_room(room, Some(epoch)).await;
+            kv.purge_room(room, Some(epoch)).await?;
+            return kv.wal().purge_parts(room).await;
         }
         retry_transient("room purge", move || async move {
             let _g = self.snapshot_gate.write().await;
@@ -2070,6 +2210,7 @@ impl Store {
         .await?;
         if let Some(r) = &self.redis {
             r.purge(room, Some(epoch)).await?;
+            r.purge_parts(room).await?;
         }
         Ok(())
     }
@@ -2165,7 +2306,8 @@ impl Store {
 
     pub async fn purge_room(&self, room: &str) -> anyhow::Result<()> {
         if let Some(kv) = &self.kv {
-            return kv.purge_room(room, None).await;
+            kv.purge_room(room, None).await?;
+            return kv.wal().purge_parts(room).await;
         }
         retry_transient("room purge", move || async move {
             let _g = self.snapshot_gate.write().await;
@@ -2178,6 +2320,7 @@ impl Store {
         .await?;
         if let Some(r) = &self.redis {
             r.purge(room, None).await?;
+            r.purge_parts(room).await?;
         }
         Ok(())
     }

@@ -304,11 +304,12 @@ impl HostConfig {
         self.flags.get("live_blocks").and_then(|v| v.as_bool()) == Some(true)
     }
 
-    /// `[host.flags] partial_sync` (PSYNC-02, ADR-076, docs/05 §2): rooms keep databases and
-    /// boards as subdocuments, loaded when a connection asks for them. Off by default until the
-    /// editor speaks it (PSYNC-03); connections without `caps=subdoc` are then closed with 4426.
+    /// `[host.flags] partial_sync` (PSYNC-02/03, ADR-076, docs/05 §2): rooms keep databases and
+    /// boards as subdocuments, loaded when a connection asks for them. On by default from 0.4
+    /// (`partial_sync = false` turns it off); connections without `caps=subdoc` (editors before
+    /// 0.4) are closed with 4426 on a split room.
     pub fn partial_sync(&self) -> bool {
-        self.flags.get("partial_sync").and_then(|v| v.as_bool()) == Some(true)
+        self.flags.get("partial_sync").and_then(|v| v.as_bool()) != Some(false)
     }
 
     /// `[host.api] default_mode = "direct" | "suggest"`: where API writes to existing blocks

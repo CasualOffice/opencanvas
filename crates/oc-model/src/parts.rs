@@ -69,7 +69,8 @@ pub struct Id {
 enum Parent {
     /// Not encoded: the parent of the origin (or right origin).
     Inferred,
-    Named(String),
+    /// The root's name, as a byte range of the update (no allocation per item).
+    Named((usize, usize)),
     Id(Id),
 }
 
@@ -90,7 +91,8 @@ struct Struct {
     origin: Option<Id>,
     right: Option<Id>,
     parent: Parent,
-    sub: Option<String>,
+    /// The parent map key, as a byte range of the update.
+    sub: Option<(usize, usize)>,
 }
 
 impl Struct {
@@ -171,6 +173,14 @@ impl<'a> Reader<'a> {
 
     fn string(&mut self) -> Result<&'a str, Error> {
         std::str::from_utf8(self.bytes()?).map_err(|_| Error::Malformed)
+    }
+
+    /// A string's byte range (checked UTF-8), without copying it.
+    fn str_range(&mut self) -> Result<(usize, usize), Error> {
+        let b = self.bytes()?;
+        std::str::from_utf8(b).map_err(|_| Error::Malformed)?;
+        let start = self.pos - b.len();
+        Ok((start, self.pos))
     }
 
     fn id(&mut self) -> Result<Id, Error> {
@@ -272,12 +282,12 @@ fn parse_struct(r: &mut Reader, clock: u32) -> Result<Struct, Error> {
             }
             if info & 0xc0 == 0 {
                 s.parent = if r.var()? == 1 {
-                    Parent::Named(r.string()?.to_string())
+                    Parent::Named(r.str_range()?)
                 } else {
                     Parent::Id(r.id()?)
                 };
                 if info & 0x20 != 0 {
-                    s.sub = Some(r.string()?.to_string());
+                    s.sub = Some(r.str_range()?);
                 }
             }
             s.len = match content {
@@ -600,7 +610,10 @@ fn classify(p: &Parsed, outside: &dyn Owners) -> Classes {
                 } else {
                     let dep = match &st.parent {
                         Parent::Named(name) => {
-                            let k = st.sub.as_deref().and_then(|k| part_key(name, k));
+                            let text = |(a, b): (usize, usize)| {
+                                std::str::from_utf8(&p.buf[a..b]).unwrap_or("")
+                            };
+                            let k = st.sub.and_then(|k| part_key(text(*name), text(k)));
                             Err(k)
                         }
                         Parent::Id(id) => Ok(*id),
@@ -888,6 +901,24 @@ pub fn route(
 /// applied as it is to the whole canvas (a whole view, a flattened copy) it would delete every
 /// other part's items. Every update that comes from a part goes through this before it reaches
 /// anything but that part.
+/// A main-document update made against the main document as a client holds it, before it
+/// meets the whole canvas: the client's main document has GC fillers where parts own items, and
+/// its delete set names them. Deletions of a part's items are kept only when the update also
+/// writes items into that part (an editor still editing a block that the last split moved into
+/// a part); everything else of the update is kept as it is.
+pub fn main_share(update: &[u8], owners: &dyn Owners) -> Result<Vec<u8>, Error> {
+    let routed = route(update, owners, &|_, _| u32::MAX)?;
+    let writes: std::collections::HashSet<&str> =
+        routed.owned.iter().map(|(_, _, _, k)| k.as_str()).collect();
+    let keep: Vec<&Vec<u8>> = routed
+        .parts
+        .iter()
+        .filter(|(k, _)| k.is_empty() || writes.contains(k.as_str()))
+        .map(|(_, b)| b)
+        .collect();
+    flatten(&keep)
+}
+
 pub fn own_share(update: &[u8], part: &str, owners: &dyn Owners) -> Result<Vec<u8>, Error> {
     let routed = route_with(update, owners, &|_, _| u32::MAX, part)?;
     Ok(routed

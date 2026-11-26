@@ -7,6 +7,24 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Upgrading to 0.4
+
+- **Partial sync is on by default** (`[host.flags] partial_sync`, ADR-076, docs/05 §2c-bis):
+  databases and boards load as subdocuments. Editors before 0.4 are closed with 4426 on such
+  rooms ("reopen the canvas" loads the current editor). Deploy the 0.4 editor with the 0.4 server,
+  or set `partial_sync = false` for hosts that embed an older editor or a client without
+  `caps=subdoc`. Files, the API, MCP, exports and `search.json` are unchanged. Migration 0012 (WAL
+  per document id) runs at start-up.
+
+### Changed
+
+- Partial sync is complete and on by default: rooms on the Redis WAL and on Redis-only storage
+  split too (a stream per part, part snapshots in Redis), a part's edits reach the WAL as they
+  happen under memory durability, Find searches every database and board (it loads the parts
+  while there is a query), a room opens a large canvas by cutting the stored state as it is (no
+  whole document in memory), and a main-document edit that reaches the room during a whole view
+  no longer deletes parts' items (found by the new partial sync fuzz test).
+
 ### Added
 
 - Crash drills (RLB-01, docs/13 "Crash drills"): `scripts/crash-drill.sh` kills the server
