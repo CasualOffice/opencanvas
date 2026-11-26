@@ -52,3 +52,36 @@ jobs:
           path: |
             e2e/playwright-report
             e2e/test-results
+
+  crash-drill:
+    # RLB-01: scripts/crash-drill.sh --reduced (100 rooms x 2, 30 s per drill): kill -9 during
+    # edits, during in-flight saves and during migrations; 0 acknowledged edits lost.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        store:
+          - { name: sqlite, url: "" }
+          - { name: mysql, url: "mysql://root:root@127.0.0.1:33062/opencanvas" }
+    services:
+      mysql:
+        image: mysql:8.4
+        env: { MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: opencanvas }
+        ports: ["33062:3306"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p oc-server --bin opencanvas -p oc-bench --bin oc-bench
+      - name: wait for the database
+        if: matrix.store.name != 'sqlite'
+        run: for i in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/33062) 2>/dev/null && exit 0; sleep 2; done; exit 1
+      - name: reduced crash drill
+        env:
+          SKIP_BUILD: "1"
+          DATABASE_URL: ${{ matrix.store.url }}
+        run: bash scripts/crash-drill.sh --reduced
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: crash-drill-${{ matrix.store.name }}, path: bench/results }

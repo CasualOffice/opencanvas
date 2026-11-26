@@ -4589,6 +4589,25 @@ Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a
 period of ≥ 30 s. While draining, `/readyz` answers 503 and new WebSocket upgrades get HTTP 503
 with `Retry-After: 5` (refused before the upgrade), so clients and load balancers move on.
 
+## Crash drills (RLB-01)
+
+`scripts/crash-drill.sh [--reduced] [edits|save|migration]` runs single-node `kill -9` drills
+on SQLite (default) or on MySQL/MariaDB (`DATABASE_URL`; the migration drill makes fresh
+databases with the `mysql` client or `DRILL_MYSQL_EXEC`). With `DRILL_DURABILITY=wal` (default)
+every edit is in the WAL before it is fanned out.
+
+| Drill | Fault | Pass |
+|---|---|---|
+| edits | `kill -9` while 2 clients per room type; restart on the same database | every acknowledged edit in the recovered state, rooms converge, the host's last save holds every sent edit |
+| save | the same with every host save taking 1.5-2.5 s, so saves are in flight | the same; the commit outbox resumes after the restart |
+| migration | start on an empty database, `kill -9` after 20, 60, 120, 250, 500, 1,000 ms | the next start becomes ready on that database; then the edits drill passes on it |
+
+A MySQL/MariaDB migration killed halfway used to leave `_sqlx_migrations` dirty, and every
+later start failed with "migration N is partially applied". The server now finishes such a
+migration at the next start, under the migration lock, skipping the statements the killed run
+had applied. The reduced drill (100 rooms × 2, 30 s) runs nightly on SQLite and MySQL 8.4
+(`.github/workflows/reliability-nightly.yml`).
+
 ## Flaky tests (RLB-04)
 
 A test that fails and then passes on the same commit is a bug, in the test or in the product,

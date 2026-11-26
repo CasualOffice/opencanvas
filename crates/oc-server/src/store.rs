@@ -39,11 +39,101 @@ async fn mysql_migrate(pool: &AnyPool) -> Result<(), sqlx::migrate::MigrateError
     }
     let mut m = sqlx::migrate!("../../migrations/mysql");
     m.set_locking(false);
-    let r = m.run_direct(None, &mut *conn, false).await;
+    let r = match finish_dirty_mysql(&m, &mut conn).await {
+        Ok(()) => m.run_direct(None, &mut *conn, false).await,
+        Err(e) => Err(e.into()),
+    };
     let _ = sqlx::query("SELECT RELEASE_LOCK('opencanvas_migrations')")
         .execute(&mut *conn)
         .await;
     r
+}
+
+/// RLB-01: MySQL/MariaDB commit each DDL statement on its own, so a `kill -9` in the middle of
+/// a migration left a dirty `_sqlx_migrations` row and sqlx refused every later start ("migration
+/// N is partially applied"; scripts/crash-drill.sh). Under the migration lock, a dirty
+/// migration is run again statement by statement, skipping what the killed run already did
+/// (table or column or index already there, table already dropped), and then marked done.
+async fn finish_dirty_mysql(
+    m: &Migrator,
+    conn: &mut sqlx::pool::PoolConnection<sqlx::Any>,
+) -> Result<(), sqlx::Error> {
+    // No table yet: nothing ran.
+    let dirty: Vec<i64> =
+        match sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success = FALSE")
+            .fetch_all(&mut **conn)
+            .await
+        {
+            Ok(v) => v,
+            Err(_) => return Ok(()),
+        };
+    for v in dirty {
+        let Some(mig) = m.iter().find(|x| x.version == v) else {
+            continue;
+        };
+        tracing::warn!(version = v, "finishing a migration a crash left half done");
+        for stmt in sql_statements(mig.sql.as_str()) {
+            match sqlx::query(sqlx::AssertSqlSafe(stmt.to_string()))
+                .execute(&mut **conn)
+                .await
+            {
+                Ok(_) => {}
+                Err(e) if already_applied(&e) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        sqlx::query("UPDATE _sqlx_migrations SET success = TRUE WHERE version = ?")
+            .bind(v)
+            .execute(&mut **conn)
+            .await?;
+    }
+    Ok(())
+}
+
+/// The statements of a migration file: `--` comment lines dropped, split on `;` (the migrations
+/// have no `;` inside strings and no procedures).
+fn sql_statements(sql: &str) -> Vec<String> {
+    let body: String = sql
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    body.split(';')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The error a statement gives when the killed run had already applied it.
+fn already_applied(e: &sqlx::Error) -> bool {
+    let Some(d) = e.as_database_error() else {
+        return false;
+    };
+    let msg = d.message();
+    // 1050 table exists, 1051 unknown table (DROP), 1060 duplicate column, 1061 duplicate key
+    // name, 1091 can't drop (already gone).
+    matches!(d.code().as_deref(), Some("42S01" | "42S02" | "42S21"))
+        || msg.contains("Duplicate key name")
+        || msg.contains("Duplicate column name")
+        || msg.contains("already exists")
+        || msg.contains("Unknown table")
+        || msg.contains("check that it exists")
+        || msg.contains("check that column/key exists")
+}
+
+#[cfg(test)]
+mod migrate_tests {
+    #[test]
+    fn statements_drop_comments_and_split() {
+        let s = super::sql_statements(
+            "-- a; comment\nCREATE TABLE a (x INT);\n\nALTER TABLE a ADD COLUMN y INT;\n",
+        );
+        assert_eq!(
+            s,
+            vec!["CREATE TABLE a (x INT)", "ALTER TABLE a ADD COLUMN y INT"]
+        );
+    }
 }
 
 #[derive(Clone)]
