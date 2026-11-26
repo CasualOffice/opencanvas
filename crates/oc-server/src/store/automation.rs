@@ -64,13 +64,17 @@ impl Store {
     }
 
     /// Makes the room's schedule rows exactly `rules` (rule id, next run): rows of other rules
-    /// go; a row whose time is unchanged keeps its claim.
+    /// go; a row whose time is unchanged keeps its claim. A row already due at `now_ms` keeps its
+    /// slot (and claim) when the new time is later: the sweep runs it, then advances it. The
+    /// room opening at 09:00:05, before the sweep, used to move the 09:00 slot to tomorrow and
+    /// skip the run (RLB-04).
     pub async fn automation_schedule_set(
         &self,
         room_id: &str,
         host_id: &str,
         file_id: &str,
         rules: &[(String, i64)],
+        now_ms: i64,
     ) -> anyhow::Result<()> {
         self.no_tables()?;
         let have =
@@ -94,6 +98,7 @@ impl Store {
         for (rule, next) in rules {
             match existing.get(rule) {
                 Some(n) if n == next => {}
+                Some(n) if *n <= now_ms && *next > now_ms => {}
                 Some(_) => {
                     sqlx::query(
                         "UPDATE automation_schedule SET next_run_at = ?, claimed_by = '', claimed_until = 0 \

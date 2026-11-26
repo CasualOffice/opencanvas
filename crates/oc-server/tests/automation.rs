@@ -510,6 +510,55 @@ async fn a_date_rule_runs_once_at_nine_with_the_room_closed() {
     assert_no_text(&st, &["SSO settings page", "due tomorrow"]).await;
 }
 
+/// RLB-04: the room opening after 09:00 but before the sweep must not move the due slot to
+/// tomorrow (an editor opening the canvas at 09:00:05 skipped the reminder; CI flaked on it in
+/// `a_date_rule_runs_once_at_nine_with_the_room_closed` when the room's last schedule write
+/// landed after the clock moved).
+#[tokio::test]
+async fn opening_the_room_after_nine_keeps_the_due_slot() {
+    let (addr, st, _host, _dbfile) = serve(on).await;
+    let start = 1_795_647_600_000i64;
+    st.clock.set_ms(start);
+    let (s, v) = api(&addr, reqwest::Method::POST, "/databases", "u_lea", Some(json!({"name": "Backlog",
+        "fields": [{"name": "Task", "type": "title"}, {"name": "Owner", "type": "person"}, {"name": "Due", "type": "date"}],
+        "rows": [{"values": {"Task": "SSO settings page", "Owner": "u_noor", "Due": "2026-11-27"}}]}))).await;
+    assert_eq!(s, 200, "{v}");
+    let db = v["dbId"].as_str().unwrap().to_string();
+    let rule = json!({"name": "Due tomorrow reminder", "trigger": {"kind": "date.reached", "database": db, "field": "Due", "offsetDays": -1, "time": "09:00"},
+        "actions": [{"kind": "notify", "people": ["field:Owner"], "text": "{row.title} is due tomorrow"}]});
+    let (s, v) = api(
+        &addr,
+        reqwest::Method::PUT,
+        "/automations/au_due",
+        "u_lea",
+        Some(rule),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let room = oc_server::grant::room_id("sample", FILE);
+    let next = 1_795_680_000_000i64;
+    eventually(async || {
+        st.store.automation_schedule_of(&room).await.unwrap() == vec![("au_due".to_string(), next)]
+    })
+    .await;
+    st.rooms.close(&room).await;
+    // 09:00:05: someone opens the canvas before the sweep.
+    st.clock.set_ms(next + 5_000);
+    let mut lea = Peer::join(&st, grant("u_lea", Role::Edit)).await;
+    lea.settle().await;
+    assert_eq!(
+        st.store.automation_schedule_of(&room).await.unwrap(),
+        vec![("au_due".to_string(), next)],
+        "the due slot stays until a sweep runs it"
+    );
+    assert_eq!(
+        oc_server::automation::worker::sweep(&st, "node-a")
+            .await
+            .unwrap(),
+        1
+    );
+}
+
 /// AUTO-01: a client may change rules only with edit and perms.automate, owning what it enables.
 #[tokio::test]
 async fn clients_need_perms_automate_and_own_what_they_enable() {

@@ -4589,6 +4589,29 @@ Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a
 period of ≥ 30 s. While draining, `/readyz` answers 503 and new WebSocket upgrades get HTTP 503
 with `Retry-After: 5` (refused before the upgrade), so clients and load balancers move on.
 
+## Flaky tests (RLB-04)
+
+A test that fails and then passes on the same commit is a bug, in the test or in the product,
+until a root cause says otherwise.
+
+- **Every flake gets a tracker row** (docs/10, v0.4 table or the integration log) with the failing
+  run, the cause and the fix. The fix comes with the test seen failing first (a repeat run, a
+  forced interleaving, or a deterministic test of the race).
+- **No timeout raises, no retries, no fixed waits** as a fix. Wait for the condition (`expect`,
+  `eventually`), await the work the test depends on, or fix the race in the product. Timeouts
+  stay as they are unless the work itself got slower, and then that is the finding.
+- **Quarantine** only when the root cause is not fixed within a week: the test is marked
+  (`test.fixme` / `#[ignore = "RLB-04 quarantine: <row>"]`), listed below with an owner and an
+  expiry of at most 14 days, and the release checklist requires the list to be empty
+  (RLB-A5).
+- **Repeated runs.** `.github/workflows/reliability-nightly.yml` runs the Rust tests five times
+  (`scripts/repeat-tests.sh 5 --workspace`) and the browser suite with `--repeat-each=3`, at
+  background CPU priority. In CI, specs added or changed by a push or pull request run
+  `--repeat-each=5`. Locally: `scripts/repeat-tests.sh 20 -p oc-server --test automation`, and
+  `E2E_PORT_SHIFT=1000 npx playwright test specs/x.spec.ts --repeat-each=10` in `e2e/`.
+
+**Quarantine list:** empty.
+
 ## Ephemeral hosts (ADR-043)
 
 A host with `storage = "ephemeral"` keeps canvases only while their room is open. Room close
