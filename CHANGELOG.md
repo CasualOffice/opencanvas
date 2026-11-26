@@ -9,6 +9,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Backup and restore (RLB-03, docs/13): a runbook for SQLite, MySQL/MariaDB and Redis,
+  `scripts/restore-drill.sh`, and a restore epoch. Start once with `OC_RESTORED=1` after a
+  restore. Devices revoked after the backup stay revoked (every offline copy is dropped once),
+  and schedule slots due before the restore are skipped instead of running twice. Migration
+  0013 adds the `restore_epoch` table.
 - Crash drills (RLB-01, docs/13 "Crash drills"): `scripts/crash-drill.sh` kills the server
   with `kill -9` during edits, during in-flight saves and during migrations, on SQLite and
   MySQL/MariaDB, and checks that no acknowledged edit is lost. A reduced drill runs nightly.

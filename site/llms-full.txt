@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-26.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-27.
 
 
 # Documentation
@@ -811,7 +811,7 @@ Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyr
 
 ## Where to check
 
-The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-26 .
+The code and every document: github.com/CasualOffice/opencanvas . What each release changed: CHANGELOG.md and the site's changelog , with how each change was verified. How the numbers were measured: Capacity and sizing . What is not built yet: the roadmap and the release notes . The same facts as plain text: llms.txt . Last changed 2026-11-27 .
 
 
 # Integration guide
@@ -4589,6 +4589,46 @@ Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a
 period of ≥ 30 s. While draining, `/readyz` answers 503 and new WebSocket upgrades get HTTP 503
 with `Retry-After: 5` (refused before the upgrade), so clients and load balancers move on.
 
+## Backup and restore (RLB-03)
+
+The server's database holds no documents (ADR-001): only transient room state and metadata.
+That is the WAL not yet committed to the host, the commit and webhook outboxes, automation
+schedules and the run log, offline generations, idempotency keys, sessions and epochs. The host
+keeps the files. A lost database costs at most the edits not yet saved to the host. Back it up
+so those survive, too.
+
+| Store | Backup (online) | Restore |
+|---|---|---|
+| SQLite | `sqlite3 opencanvas.db "VACUUM INTO '/backup/oc-$(date +%F-%H%M).db'"` (consistent while the server runs; do not copy the file and its `-wal` by hand) | stop the server, copy the backup to the database path, start with `OC_RESTORED=1` once |
+| MySQL / MariaDB | `mysqldump --single-transaction opencanvas > oc.sql`, plus binary logs for point-in-time recovery | stop every node, load the dump (and replay binlogs up to the chosen time) into an empty database, start one node with `OC_RESTORED=1` once, then the others without it |
+| Redis (cluster bus, hot WAL, Redis-only storage) | RDB snapshots or AOF (`appendfsync everysec`); the hot WAL is synced to the database every `OC_DB_SYNC_MS` | restore the RDB/AOF before the nodes start. `OC_RESTORED` needs a database and refuses Redis-only storage |
+
+**The restore epoch (`OC_RESTORED=1`).** An older database brings back older state that the
+server would otherwise trust:
+
+- **Offline revocation.** An offline generation from the backup is lower than one raised
+  after it, so a device revoked after the backup was taken would be accepted again. A restore
+  raises every generation, including people with no row, to a floor of the highest in the
+  backup + 1,000,000. Revoked devices stay revoked. **Every offline copy is dropped once** and
+  is fetched again online.
+- **Schedules.** A slot that ran after the backup would run again. Slots due before the restore
+  are skipped (`skipped` / `RESTORED` in the run log), and the next slot runs as usual.
+- **Webhooks.** An event delivered after the backup can be delivered again. Receivers
+  deduplicate by `Idempotency-Key`, as they must for retries anyway.
+- **Idempotency keys** (HAPI-03). A request that finished after the backup is unknown to the
+  restored table, so the same key sent again runs again. **Decision:** accepted and documented.
+  Keys are retried within seconds to minutes, and a restore is a stop of minutes or more. A
+  client retrying across a restore should read the state first.
+
+Start with `OC_RESTORED=1` exactly once after a restore, and remove it afterwards. The epoch is
+stored in the database (`restore_epoch`). Starting with it again raises the floor again, which
+drops offline copies again and does nothing else.
+
+**Drill:** `scripts/restore-drill.sh` (SQLite, or MySQL with `DATABASE_URL`). It takes a backup
+under load (50 rooms × 2), revokes devices after the backup, restores, starts with
+`OC_RESTORED=1`, and checks that the server is ready, the database is intact, the epoch is set
+above every generation issued before, and a new load converges and reaches the host (RLB-A4).
+
 ## Crash drills (RLB-01)
 
 `scripts/crash-drill.sh [--reduced] [edits|save|migration]` runs single-node `kill -9` drills
@@ -7781,7 +7821,7 @@ The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is
 
 ## Unreleased
 
-Added Partial sync in the room (PSYNC-02, ADR-076), behind [host.flags] partial_sync ( off by default ; leave it off until the 0.4 editor ships): databases and boards become subdocuments on the room socket (message type 101, docs/15 §3.2), loaded when a connection asks, the role checked per request, evicted when unheld; the API, MCP, history, templates, AI tools, automation and saves work on a whole view flattened with the original item ids, so saves stay .ocanvas format v1. Editors without caps=subdoc are closed with 4426 on a split room. Room memory on the 50 MB fixture with 20 viewers (caps=subdoc, first page, no edits; release build, Apple M4, local; one process per figure, test-process RSS): split room opened from its WAL 220 MB (a high-water mark: opening walks every part once, one at a time, to index its ids) against 4,401 MB for the same room whole (2,382 MB in a second run), 5-9%, under the 30% bar (tests/partial_sync.rs room_memory_on_the_fixture). Fixed After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room reopened at once (connection pool exhausted). Rooms now load at most 8 at a time ( OC_ROOM_LOADS ), and the pool is 32 connections ( OC_DB_MAX_CONNECTIONS ; RLB-01b). Fixed Load generator: a client refused by a full room retried every 0.5 s and counted as a drop; it now backs off and is counted as refused. Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running". Added Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): scripts/bench/run <scenario> with scenario files in bench/scenarios/ that state their load mix (X10K, R1K, STORM, SOAK, and the docs/22 scenarios run unchanged), oc-bench scenario (idle, presence-only and typing peers, latency per bucket, kill -9 and restart mid-run with reconnect timing, source addresses), JSON results with hardware, load average and mix in bench/results/ , seeded fixtures ( oc-bench fixture s|m|l|50mb ), bench/budgets.toml , the initial-JS and --forbid gate in scripts/prepush.sh and CI, and a nightly benchmark workflow. Added OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board objects, block deletes and moves, comments; the real replay frames, cut connections, the pending log and the merge summary; seeds 1, 7, 42 and OC_FUZZ_SEED , a long run behind OC_FUZZ_LONG=1 ), and Playwright zf-offline-2 (expiry by the browser clock, queued upload end to end, the 5 MB pause).
+Added Backup and restore (RLB-03, docs/13): a runbook for SQLite, MySQL/MariaDB and Redis, scripts/restore-drill.sh , and a restore epoch. Start once with OC_RESTORED=1 after a restore. Devices revoked after the backup stay revoked (every offline copy is dropped once), and schedule slots due before the restore are skipped instead of running twice. Migration 0013 adds the restore_epoch table. Added Partial sync in the room (PSYNC-02, ADR-076), behind [host.flags] partial_sync ( off by default ; leave it off until the 0.4 editor ships): databases and boards become subdocuments on the room socket (message type 101, docs/15 §3.2), loaded when a connection asks, the role checked per request, evicted when unheld; the API, MCP, history, templates, AI tools, automation and saves work on a whole view flattened with the original item ids, so saves stay .ocanvas format v1. Editors without caps=subdoc are closed with 4426 on a split room. Room memory on the 50 MB fixture with 20 viewers (caps=subdoc, first page, no edits; release build, Apple M4, local; one process per figure, test-process RSS): split room opened from its WAL 220 MB (a high-water mark: opening walks every part once, one at a time, to index its ids) against 4,401 MB for the same room whole (2,382 MB in a second run), 5-9%, under the 30% bar (tests/partial_sync.rs room_memory_on_the_fixture). Fixed After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room reopened at once (connection pool exhausted). Rooms now load at most 8 at a time ( OC_ROOM_LOADS ), and the pool is 32 connections ( OC_DB_MAX_CONNECTIONS ; RLB-01b). Fixed Load generator: a client refused by a full room retried every 0.5 s and counted as a drop; it now backs off and is counted as refused. Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running". Added Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): scripts/bench/run <scenario> with scenario files in bench/scenarios/ that state their load mix (X10K, R1K, STORM, SOAK, and the docs/22 scenarios run unchanged), oc-bench scenario (idle, presence-only and typing peers, latency per bucket, kill -9 and restart mid-run with reconnect timing, source addresses), JSON results with hardware, load average and mix in bench/results/ , seeded fixtures ( oc-bench fixture s|m|l|50mb ), bench/budgets.toml , the initial-JS and --forbid gate in scripts/prepush.sh and CI, and a nightly benchmark workflow. Added OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board objects, block deletes and moves, comments; the real replay frames, cut connections, the pending log and the merge summary; seeds 1, 7, 42 and OC_FUZZ_SEED , a long run behind OC_FUZZ_LONG=1 ), and Playwright zf-offline-2 (expiry by the browser clock, queued upload end to end, the 5 MB pause).
 
 ## 0.3.0 (2026-11-26)
 
@@ -7809,7 +7849,7 @@ Added Block schema validation (MOD-01) in oc-model on .ocanvas read, REST patch,
 
 ## 0.1.0-alpha.1 (2026-11-23)
 
-Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development. Last changed 2026-11-26 .
+Added Host integration: HS256, RS256, EdDSA and JWKS launch tokens; signed callbacks; the live role API; host members and revocation; the <open-canvas> embed SDK and postMessage API; access expiry warning and quiet renewal (ADR-036). Added WOPI client mode: discovery, CheckFileInfo, GetFile, PutFile, PUT_RELATIVE conflict copies, assets and mentions, and a reference WOPI host. Added AI assistant and MCP endpoint (experimental, disabled by default): server-side model providers (Claude Platform, OpenAI-compatible servers), plan → approve → act → review → undo runs, suggestions, limits, quotas and audit; MCP at POST /mcp/{hostId} with host-issued tokens (ADR-031 to ADR-035). Fixed Saves kept using a revoked editor's token after a role change (docs/23 PERM-05). Security Callback and outbox tokens sealed at rest with AES-256-GCM under OC_KEK ; the server refuses to start without OC_KEK outside development. Last changed 2026-11-27 .
 
 
 # API reference: Canvas

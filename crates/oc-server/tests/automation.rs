@@ -559,6 +559,60 @@ async fn opening_the_room_after_nine_keeps_the_due_slot() {
     );
 }
 
+/// RLB-03: after a restore from backup (`OC_RESTORED=1`) a slot that was due before the restore
+/// may already have run after the backup was taken: it is skipped and logged, not run again.
+/// The next slot runs as usual.
+#[tokio::test]
+async fn a_slot_due_before_a_restore_is_skipped_not_run_twice() {
+    let (addr, st, host, _dbfile) = serve(on).await;
+    let start = 1_795_647_600_000i64;
+    st.clock.set_ms(start);
+    let (s, v) = api(&addr, reqwest::Method::POST, "/databases", "u_lea", Some(json!({"name": "Backlog",
+        "fields": [{"name": "Task", "type": "title"}, {"name": "Owner", "type": "person"}, {"name": "Due", "type": "date"}],
+        "rows": [{"values": {"Task": "SSO settings page", "Owner": "u_noor", "Due": "2026-11-27"}}]}))).await;
+    assert_eq!(s, 200, "{v}");
+    let db = v["dbId"].as_str().unwrap().to_string();
+    let rule = json!({"name": "Due tomorrow reminder", "trigger": {"kind": "date.reached", "database": db, "field": "Due", "offsetDays": -1, "time": "09:00"},
+        "actions": [{"kind": "notify", "people": ["field:Owner"], "text": "{row.title} is due tomorrow"}]});
+    let (s, v) = api(
+        &addr,
+        reqwest::Method::PUT,
+        "/automations/au_due",
+        "u_lea",
+        Some(rule),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let room = oc_server::grant::room_id("sample", FILE);
+    let next = 1_795_680_000_000i64;
+    eventually(async || {
+        st.store.automation_schedule_of(&room).await.unwrap() == vec![("au_due".to_string(), next)]
+    })
+    .await;
+    // Restored at 09:05 from a backup taken before 09:00.
+    st.clock.set_ms(next + 300_000);
+    st.store.mark_restored(next + 300_000).await.unwrap();
+    assert_eq!(
+        oc_server::automation::worker::sweep(&st, "node-a")
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(
+        host.lock().unwrap().mentions.is_empty(),
+        "the 09:00 slot ran again after the restore"
+    );
+    let r = runs(&addr).await;
+    assert!(
+        r.iter().any(|x| x["result"] == "skipped"),
+        "the skipped slot is in the run log: {r:?}"
+    );
+    assert_eq!(
+        st.store.automation_schedule_of(&room).await.unwrap(),
+        vec![("au_due".to_string(), next + 86_400_000)]
+    );
+}
+
 /// AUTO-01: a client may change rules only with edit and perms.automate, owning what it enables.
 #[tokio::test]
 async fn clients_need_perms_automate_and_own_what_they_enable() {

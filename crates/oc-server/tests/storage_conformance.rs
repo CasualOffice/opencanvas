@@ -82,6 +82,32 @@ async fn a_migration_killed_halfway_is_finished_at_the_next_start() {
     assert_eq!(dirty, 0);
 }
 
+/// RLB-03 restore epoch: the backup has u_a at generation 1 and no row for u_b; after it was
+/// taken, u_a was revoked twice more (devices hold grants up to 2) and u_b once. Restored, both
+/// must read a generation above anything issued before the restore, so those devices stay
+/// revoked; a later revoke still raises it; and the epoch survives a restart.
+#[tokio::test]
+async fn a_restored_database_never_un_revokes_a_device() {
+    for (name, store) in backends().await {
+        if store.is_redis_only() {
+            continue;
+        }
+        let (host, a, b) = (uid("h"), uid("u_a"), uid("u_b"));
+        assert_eq!(store.offline_revoke(&host, &a).await.unwrap(), 1, "{name}");
+        assert_eq!(store.restored_at_ms(), 0, "{name}");
+        store.mark_restored(5_000).await.unwrap();
+        assert_eq!(store.restored_at_ms(), 5_000, "{name}");
+        let (ga, gb) = (
+            store.offline_gen(&host, &a).await.unwrap(),
+            store.offline_gen(&host, &b).await.unwrap(),
+        );
+        assert!(ga > 1_000 && gb > 1_000, "{name}: {ga} {gb}");
+        let gb2 = store.offline_revoke(&host, &b).await.unwrap();
+        assert!(gb2 > gb, "{name}: {gb2} after {gb}");
+        assert_eq!(store.offline_gen(&host, &b).await.unwrap(), gb2, "{name}");
+    }
+}
+
 /// A new, empty database on the MySQL/MariaDB server of `url`. Each test gets its own, as
 /// each gets its own SQLite file: tests run in parallel, and one that sweeps tables (for
 /// example `purge_expired`, which drops week-old `room_epochs` rows, and every test's rows

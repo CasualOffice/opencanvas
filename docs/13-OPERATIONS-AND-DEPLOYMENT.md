@@ -403,6 +403,46 @@ Rolling deploys move rooms with a ≤ 5 s client reconnect. Give the container a
 period of ≥ 30 s. While draining, `/readyz` answers 503 and new WebSocket upgrades get HTTP 503
 with `Retry-After: 5` (refused before the upgrade), so clients and load balancers move on.
 
+## Backup and restore (RLB-03)
+
+The server's database holds no documents (ADR-001): only transient room state and metadata.
+That is the WAL not yet committed to the host, the commit and webhook outboxes, automation
+schedules and the run log, offline generations, idempotency keys, sessions and epochs. The host
+keeps the files. A lost database costs at most the edits not yet saved to the host. Back it up
+so those survive, too.
+
+| Store | Backup (online) | Restore |
+|---|---|---|
+| SQLite | `sqlite3 opencanvas.db "VACUUM INTO '/backup/oc-$(date +%F-%H%M).db'"` (consistent while the server runs; do not copy the file and its `-wal` by hand) | stop the server, copy the backup to the database path, start with `OC_RESTORED=1` once |
+| MySQL / MariaDB | `mysqldump --single-transaction opencanvas > oc.sql`, plus binary logs for point-in-time recovery | stop every node, load the dump (and replay binlogs up to the chosen time) into an empty database, start one node with `OC_RESTORED=1` once, then the others without it |
+| Redis (cluster bus, hot WAL, Redis-only storage) | RDB snapshots or AOF (`appendfsync everysec`); the hot WAL is synced to the database every `OC_DB_SYNC_MS` | restore the RDB/AOF before the nodes start. `OC_RESTORED` needs a database and refuses Redis-only storage |
+
+**The restore epoch (`OC_RESTORED=1`).** An older database brings back older state that the
+server would otherwise trust:
+
+- **Offline revocation.** An offline generation from the backup is lower than one raised
+  after it, so a device revoked after the backup was taken would be accepted again. A restore
+  raises every generation, including people with no row, to a floor of the highest in the
+  backup + 1,000,000. Revoked devices stay revoked. **Every offline copy is dropped once** and
+  is fetched again online.
+- **Schedules.** A slot that ran after the backup would run again. Slots due before the restore
+  are skipped (`skipped` / `RESTORED` in the run log), and the next slot runs as usual.
+- **Webhooks.** An event delivered after the backup can be delivered again. Receivers
+  deduplicate by `Idempotency-Key`, as they must for retries anyway.
+- **Idempotency keys** (HAPI-03). A request that finished after the backup is unknown to the
+  restored table, so the same key sent again runs again. **Decision:** accepted and documented.
+  Keys are retried within seconds to minutes, and a restore is a stop of minutes or more. A
+  client retrying across a restore should read the state first.
+
+Start with `OC_RESTORED=1` exactly once after a restore, and remove it afterwards. The epoch is
+stored in the database (`restore_epoch`). Starting with it again raises the floor again, which
+drops offline copies again and does nothing else.
+
+**Drill:** `scripts/restore-drill.sh` (SQLite, or MySQL with `DATABASE_URL`). It takes a backup
+under load (50 rooms × 2), revokes devices after the backup, restores, starts with
+`OC_RESTORED=1`, and checks that the server is ready, the database is intact, the epoch is set
+above every generation issued before, and a new load converges and reaches the host (RLB-A4).
+
 ## Crash drills (RLB-01)
 
 `scripts/crash-drill.sh [--reduced] [edits|save|migration]` runs single-node `kill -9` drills
