@@ -50,6 +50,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   errors as you type, error cells with their reason, sums that skip errors; relations two-way on one
   canvas with a row picker; rollups (count, sum, percent checked, earliest, latest) with a dash when
   nothing relates; links to a deleted database kept for 30 days.
+- Large tables and boards (DB4-07/08): from 1,000 rows the table and board are virtualized, with a
+  sticky header, frozen title column, Go to row (Ctrl+G), sorting in a worker, Select all N and bulk
+  edit undone as one step, and a card list with long-press selection on phones.
+- Partial-sync placeholders (PSYNC-03) to the prototype: sized from the block header, "Loading" after
+  400 ms, retry with a countdown, "Not on this device" offline.
+- Fixed: a new formula field's editor stayed on "Loading formulas…" when the database had no formula
+  field yet.
 
 - Benchmarks page on the site (BENCH-05): every result in `bench/results/` with its hardware, store and
   load mix beside the numbers; `local` runs marked as such. `/metrics` adds `oc_alloc_allocated_bytes`

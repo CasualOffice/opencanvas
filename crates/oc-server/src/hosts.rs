@@ -305,11 +305,12 @@ impl HostConfig {
     }
 
     /// `[host.flags] partial_sync` (PSYNC-02/03, ADR-076, docs/05 §2): rooms keep databases and
-    /// boards as subdocuments, loaded when a connection asks for them. On by default from 0.4
-    /// (`partial_sync = false` turns it off); connections without `caps=subdoc` (editors before
+    /// boards as subdocuments, loaded when a connection asks for them. Off by default until database
+    /// edits sync across parts in the browser (the full Playwright run found they don't); `true`
+    /// turns it on. Connections without `caps=subdoc` (editors before
     /// 0.4) are closed with 4426 on a split room.
     pub fn partial_sync(&self) -> bool {
-        self.flags.get("partial_sync").and_then(|v| v.as_bool()) != Some(false)
+        self.flags.get("partial_sync").and_then(|v| v.as_bool()) == Some(true)
     }
 
     /// `[host.flags] formulas` (DB4-03..06, ADR-078, docs/05 §2): formula, relation and rollup

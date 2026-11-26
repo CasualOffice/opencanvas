@@ -118,6 +118,18 @@ describe("formula fields", () => {
 });
 
 describe("formula editor", () => {
+  it("a brand-new formula field loads the engine when its panel opens", async () => {
+    const doc = new Y.Doc();
+    const id = createDatabase(doc, "blank");
+    const el = await mount(<DatabaseBlock doc={doc} dbId={id} env={env()} />);
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Add a field"]')!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-t="formula"]')!.click());
+    await act(async () => void (await loadEngine()));
+    await act(async () => {});
+    expect(document.body.textContent).not.toContain("Loading formulas");
+    expect(document.querySelector(".ocdb-fx")).toBeTruthy();
+  });
+
   it("checks as you type, disables Save on an error, autocompletes and saves upper case", async () => {
     const { doc, id, total } = budget();
     const engine = await loadEngine();

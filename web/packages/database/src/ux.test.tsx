@@ -257,11 +257,12 @@ describe("table interaction", () => {
       for (let i = 0; i < 1000; i++) addRow(doc, id, { title: "Row " + i });
     });
     const el = mount(<DatabaseBlock doc={doc} dbId={id} env={env()} />);
-    const rendered = el.querySelectorAll("tbody tr[data-row]").length;
+    // From LARGE_AT (1,000) rows the large table takes over (DB4-07): a virtualized grid.
+    const rendered = el.querySelectorAll(".ocdb-lt-r").length;
     expect(rendered).toBeGreaterThan(10);
     expect(rendered).toBeLessThan(120);
-    expect(el.querySelector("table")!.getAttribute("aria-rowcount")).toBe("1004");
-    expect(el.querySelector("tfoot")!.textContent).toContain("1003");
+    expect(el.querySelector("[role=grid]")!.getAttribute("aria-rowcount")).toBe("1004");
+    expect(el.querySelector(".ocdb-hcb")!.textContent).toBe("1,003 rows");
   });
 
   it("undoes this user's own edits with Ctrl+Z, outside text fields", () => {
