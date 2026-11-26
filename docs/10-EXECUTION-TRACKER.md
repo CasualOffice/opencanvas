@@ -251,7 +251,7 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 | BENCH-03 | Browser benchmarks: first screen, heap per fixture (baseline now), initial JS, long frames | Todo | M; Benchmark |
 | BENCH-04 | Regression gates: PR budgets (`bench/budgets.toml`, `--forbid`), nightly comparison, issue on failure (ADR-079) | In progress | `bench/budgets.toml`; `scripts/bench/check-fast.sh` in prepush and CI (initial JS + `--forbid`); nightly job `.github/workflows/bench-nightly.yml` (quick X10K/R1K/STORM on SQLite, MySQL, MariaDB; browser S/M vs budgets). Left: median-of-7 comparison, issue on failure |
 | BENCH-05 | Benchmarks page on the site from `bench/results/` with hardware and mix; docs/22 summary | Todo | M; Benchmark |
-| PERF-11 | Connection and room footprint, idle-viewer path, reconnect storm control, fd limits (X10K, STORM) | Todo | M; Performance |
+| PERF-11 | Connection and room footprint, idle-viewer path, reconnect storm control, fd limits (X10K, STORM) | In progress: X10K profiled (in-actor save is the spike, docs/36 §4.1); `OC_MAX_PEERS` (≤ 1,000) | M; Performance |
 | PERF-12 | Presence throttling and per-tick merged awareness (ADR-077) | Todo | M; Performance |
 | PERF-13 | Encode once and fan-out shards across cores; relayed peers once per node (ADR-077) | Todo | L; Performance |
 | PERF-14 | Full X10K and STORM runs passing, published | Todo | M; Performance |
@@ -361,6 +361,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-26 | PERF-11 X10K profile (short, local, loaded Mac) and `OC_MAX_PEERS` | Baseline re-run worst p99 20,044 ms; autosave out of window 1,747 ms; sample: ~50% of actor CPU in inline `prepare_save`. Cap configurable to 1,000 (default 550); config unit test seen failing first |
 | 2026-11-21 | Blocks UX audit (database + board) in a two-doc harness, Playwright 1440/390 px, light/dark | vitest database 156, board 56; typecheck green; harness removed |
 | 2026-11-21 | Merged server, database/board, editor branches into main | cargo test (30) + vitest (131) + typecheck + editor build green |
 | 2026-11-21 | Two-browser live test via sample host (Priya edit, Sam view) | Template applied; content, cursors, avatars both ways; DB checkbox live to viewer; autosaves v1–v3 landed in host |

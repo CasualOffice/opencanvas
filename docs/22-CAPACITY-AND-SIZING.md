@@ -124,8 +124,9 @@ Rules of thumb (keep ≤ 60 % of what was measured):
 | one room at the 550 cap, 20 % typing | 3 vCPU, 512 MB, ≥ 600 Mbit/s | measured 1.8 cores, 193 MB, 65 MB/s |
 
 Large documents move the memory line: with 400 KB databases/boards per room, budget about 6 MB per
-open room (C). **Maximum users in one room is 550** (`MAX_PEERS`, every role counts); the latency
-curve up to it is table A.
+open room (C). **Maximum users in one room is 550** (`MAX_PEERS`, every role counts) by default; a server may set
+`OC_MAX_PEERS` up to 1,000 (values above are clamped), but 1,000 is not a supported default until the
+R1K, X10K, SOAK and drill gates pass (docs/36 §4.2, PERF-16). The latency curve up to 550 is table A.
 
 **Database:** SQLite holds only transient state (sessions, WAL tail, snapshots, outbox); the size
 under sustained typing was not measured in this round (scenario D below).

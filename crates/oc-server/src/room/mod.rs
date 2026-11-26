@@ -12,7 +12,7 @@ pub mod presence;
 pub mod protocol;
 mod remote;
 
-pub use actor::EPHEMERAL_CLOSED;
+pub use actor::{EPHEMERAL_CLOSED, MAX_PEERS, MAX_PEERS_LIMIT};
 pub use remote::RemoteOp;
 
 use std::collections::HashMap;

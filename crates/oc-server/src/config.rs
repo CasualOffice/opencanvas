@@ -69,6 +69,15 @@ impl Durability {
     }
 }
 
+/// The room cap: `OC_MAX_PEERS` (default [`MAX_PEERS`](crate::room::MAX_PEERS), 550),
+/// clamped to 1..=[`MAX_PEERS_LIMIT`](crate::room::MAX_PEERS_LIMIT) (1,000).
+pub fn max_peers(v: Option<&str>) -> usize {
+    v.and_then(|v| v.trim().parse::<usize>().ok())
+        .map_or(crate::room::MAX_PEERS, |n| {
+            n.clamp(1, crate::room::MAX_PEERS_LIMIT)
+        })
+}
+
 /// Idle eviction: `OC_ROOM_IDLE_MS` (default 60 s); the older `OC_ROOM_TTL_SECS` still works.
 pub fn room_idle(idle_ms: Option<&str>, ttl_secs: Option<&str>) -> Duration {
     if let Some(ms) = idle_ms.and_then(|v| v.trim().parse::<u64>().ok()) {
@@ -97,6 +106,8 @@ pub struct RoomConfig {
     /// Control `{"t":"ping"}` to every connection this often, so clients can tell a silent
     /// network drop from a quiet room (docs/15 §3; `OC_HEARTBEAT_MS`, default 10 s).
     pub heartbeat: Duration,
+    /// Connections per room (`OC_MAX_PEERS`, default 550, at most 1,000; docs/22 §4).
+    pub max_peers: usize,
     /// docs/30 §4: after this much editing since the last checkpoint, the next save is one again
     /// (`X-OpenCanvas-Checkpoint`; `OC_CHECKPOINT_MINUTES`, default 30).
     pub checkpoint_every: Duration,
@@ -117,6 +128,7 @@ impl Default for RoomConfig {
             compact_interval: Duration::from_secs(30),
             tick: Duration::from_millis(250),
             heartbeat: Duration::from_secs(10),
+            max_peers: crate::room::MAX_PEERS,
             checkpoint_every: Duration::from_secs(30 * 60),
             restore_undo_window: Duration::from_secs(30),
         }
@@ -234,6 +246,7 @@ impl Config {
                 max_frame_bytes: num("OC_MAX_FRAME_KB", 1024) as usize * 1024,
                 max_doc_bytes: num("OC_MAX_DOC_MB", 20) as usize * 1024 * 1024,
                 heartbeat: Duration::from_millis(num("OC_HEARTBEAT_MS", 10_000).max(1000)),
+                max_peers: max_peers(var("OC_MAX_PEERS").as_deref()),
                 ..d
             },
         })
@@ -272,6 +285,19 @@ mod tests {
             Duration::from_millis(1500)
         );
         assert_eq!(room_idle(None, Some("600")), Duration::from_secs(600));
+    }
+
+    #[test]
+    fn the_room_cap_defaults_to_550_and_is_configurable_up_to_1000() {
+        // PERF-11/R1K: the default stays 550 (owner, 2026-11-26); 1,000 is the most a server
+        // may be configured to.
+        assert_eq!(max_peers(None), 550);
+        assert_eq!(RoomConfig::default().max_peers, 550);
+        assert_eq!(max_peers(Some("1000")), 1000);
+        assert_eq!(max_peers(Some(" 800 ")), 800);
+        assert_eq!(max_peers(Some("5000")), 1000);
+        assert_eq!(max_peers(Some("0")), 1);
+        assert_eq!(max_peers(Some("lots")), 550);
     }
 
     #[test]
