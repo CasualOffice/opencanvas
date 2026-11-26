@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# R1K (docs/36 §3.3): 1,000 peers in one room, 100 typing at 2 edits/s, 900 cursors at 5 moves/s.
+# The room cap (MAX_PEERS) is 550 by default and not configurable yet: peers past it are refused
+# with 4429 and retry; the result shows how many were admitted (liveEnd, closes).
+name = "R1K"
+description = "1 room of 1,000 peers: 100 typing at 2 edits/s, 900 moving cursors at 5 moves/s; 15 min"
+not_measured = [
+  "all clients converge (state vectors and text equal): oc-bench verify checks convergence, this load run does not",
+]
+
+[machine]
+nodes = 1
+vcpu = 4
+ram_gb = 8
+
+[load]
+connections = 1000
+rooms = 1
+docs = "demo"
+connect_rate = 100
+probes_per_room = 10
+
+[mix]
+idle = 0.0
+presence = 0.9
+typing = 0.1
+presence_hz = 5
+typing_hz = 2
+
+[run]
+minutes = 15
+bucket_secs = 60
+
+[pass]
+p99_ms = 500
+rss_drift_pct = 10
+no_drops = true
+
+[size.quick]    # pull-request gate: 200 peers
+connections = 200
+minutes = 3
+bucket_secs = 30
+
+[size.short]
+minutes = 4
+bucket_secs = 30

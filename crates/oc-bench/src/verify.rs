@@ -389,7 +389,9 @@ pub async fn run(a: Args) -> anyhow::Result<()> {
             secret: a.s("secret", "bench-secret-0123456789abcdef0123456789"),
             host_id: a.s("host-id", "bench"),
             run_id,
-            doc: DocKind::Empty,
+            docs: vec![DocKind::Empty],
+            reconnect: false,
+            source_addrs: Vec::new(),
             cps: (1.0, 1.0),
             active: 1.0,
         },
@@ -401,6 +403,8 @@ pub async fn run(a: Args) -> anyhow::Result<()> {
         closes: Default::default(),
         errors: Default::default(),
         quiet: false.into(),
+        reconnect_ms: Default::default(),
+        stopping: false.into(),
     });
     let ctl = Arc::new(Ctl {
         typing: true.into(),

@@ -64,16 +64,32 @@ struct Ctx {
     stats: Arc<HostStats>,
     demo: Option<Vec<u8>>,
     big: Option<Vec<u8>>,
+    /// Benchmark fixtures, read from `OC_BENCH_FIXTURES` (`canvas-<kind>.ocanvas`, written by
+    /// `oc-bench fixture`) or generated on first use.
+    fixtures: Mutex<HashMap<&'static str, Arc<Vec<u8>>>>,
 }
 
+/// The seed a file id asks for: its prefix before the first `_` (`demo_…`, `m_…`, `50mb_…`).
 pub fn kind_of(file: &str) -> DocKind {
-    if file.starts_with("demo_") {
-        DocKind::Demo
-    } else if file.starts_with("big_") {
-        DocKind::Big
-    } else {
-        DocKind::Empty
+    file.split('_')
+        .next()
+        .and_then(|k| DocKind::parse(k).ok())
+        .unwrap_or(DocKind::Empty)
+}
+
+fn fixture_bytes(ctx: &Ctx, kind: DocKind) -> Option<Arc<Vec<u8>>> {
+    let mut m = ctx.fixtures.lock().expect("lock");
+    if let Some(b) = m.get(kind.name()) {
+        return Some(b.clone());
     }
+    let dir = std::env::var("OC_BENCH_FIXTURES").unwrap_or_else(|_| "bench/fixtures".into());
+    let path = std::path::Path::new(&dir).join(format!("canvas-{}.ocanvas", kind.name()));
+    let b = Arc::new(match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(_) => ocanvas(kind).ok()??,
+    });
+    m.insert(kind.name(), b.clone());
+    Some(b)
 }
 
 async fn load(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>) -> Response {
@@ -94,6 +110,15 @@ async fn load(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>) -> Response
         DocKind::Empty => None,
         DocKind::Demo => ctx.demo.clone(),
         DocKind::Big => ctx.big.clone(),
+        // The fixture task is blocking (a 50 MB read or generation), off the async workers.
+        k => {
+            let c = ctx.clone();
+            tokio::task::spawn_blocking(move || fixture_bytes(&c, k))
+                .await
+                .ok()
+                .flatten()
+                .map(|b| b.to_vec())
+        }
     };
     match bytes {
         None => StatusCode::NOT_FOUND.into_response(),
@@ -145,6 +170,7 @@ pub async fn serve(port: u16, stats: Arc<HostStats>) -> anyhow::Result<()> {
         stats,
         demo: ocanvas(DocKind::Demo)?,
         big: ocanvas(DocKind::Big)?,
+        fixtures: Mutex::default(),
     });
     let app = Router::new()
         .route("/api/files/{id}", get(load).put(save))

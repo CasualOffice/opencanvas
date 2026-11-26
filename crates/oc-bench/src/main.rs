@@ -16,6 +16,7 @@
 mod client;
 mod docs;
 mod mockhost;
+mod scenario;
 mod verify;
 
 use std::collections::HashMap;
@@ -191,7 +192,15 @@ async fn snap(sh: &Shared, pids: &[u32]) -> Snap {
     }
 }
 
-fn editor_at(k: usize, frac: f64) -> bool {
+/// `--source-addrs 127.0.0.1,127.0.0.2`: local addresses to open sockets from.
+pub fn source_addrs(s: &str) -> anyhow::Result<Vec<std::net::IpAddr>> {
+    s.split(',')
+        .filter(|x| !x.is_empty())
+        .map(|x| Ok(x.trim().parse()?))
+        .collect()
+}
+
+pub fn editor_at(k: usize, frac: f64) -> bool {
     ((k + 1) as f64 * frac).floor() > (k as f64 * frac).floor()
 }
 
@@ -201,6 +210,46 @@ async fn main() -> anyhow::Result<()> {
     match argv.first().map(String::as_str) {
         Some("run") => run(Args::parse(&argv[1..])?).await,
         Some("verify") => verify::run(Args::parse(&argv[1..])?).await,
+        Some("scenario") if argv.len() > 1 => {
+            scenario::run(&argv[1], Args::parse(&argv[2..])?).await
+        }
+        Some("hardware") => {
+            println!("{}", serde_json::to_string_pretty(&scenario::hardware())?);
+            Ok(())
+        }
+        // `oc-bench fixture s|m|l|50mb|all [--out-dir bench/fixtures]`: the seeded benchmark
+        // fixtures (docs/36 §2.3), written as `canvas-<kind>.ocanvas`.
+        Some("fixture") if argv.len() > 1 => {
+            let a = Args::parse(&argv[2..])?;
+            let dir = a.s("out-dir", "bench/fixtures");
+            std::fs::create_dir_all(&dir)?;
+            let kinds = if argv[1] == "all" {
+                DocKind::fixtures().to_vec()
+            } else {
+                vec![DocKind::parse(&argv[1])?]
+            };
+            for k in kinds {
+                let t = Instant::now();
+                let bytes = docs::ocanvas(k)?.unwrap_or_default();
+                let path = format!("{dir}/canvas-{}.ocanvas", k.name());
+                std::fs::write(&path, &bytes)?;
+                println!(
+                    "{path}: .ocanvas {:.1} MB, Yjs state {:.1} MB ({:.1} s)",
+                    bytes.len() as f64 / 1e6,
+                    docs::ydoc_len(k) as f64 / 1e6,
+                    t.elapsed().as_secs_f64()
+                );
+            }
+            Ok(())
+        }
+        // `oc-bench host --host-port 8702`: only the mock host (browser benchmarks).
+        Some("host") => {
+            let a = Args::parse(&argv[1..])?;
+            mockhost::serve(a.n("host-port", 8702), Arc::default()).await?;
+            println!("mock host on :{}", a.n("host-port", 8702u16));
+            std::future::pending::<()>().await;
+            Ok(())
+        }
         Some("sizes") => {
             for k in [DocKind::Empty, DocKind::Demo, DocKind::Big] {
                 let ocanvas = docs::ocanvas(k)?.map_or(0, |b| b.len());
@@ -215,7 +264,7 @@ async fn main() -> anyhow::Result<()> {
         }
         _ => {
             eprintln!(
-                "usage: oc-bench run --server URL[,URL…] --server-pid PID[,PID…] [options] | oc-bench sizes\n(see crates/oc-bench/src/main.rs and docs/22)"
+                "usage: oc-bench run --server URL[,URL…] --server-pid PID[,PID…] [options] | scenario FILE [options] | fixture KIND|all | host | hardware | sizes\n(see crates/oc-bench/src/main.rs and docs/22)"
             );
             std::process::exit(2);
         }
@@ -296,7 +345,9 @@ async fn run(a: Args) -> anyhow::Result<()> {
             secret: a.s("secret", "bench-secret-0123456789abcdef0123456789"),
             host_id: a.s("host-id", "bench"),
             run_id,
-            doc: DocKind::parse(&a.s("doc", "empty"))?,
+            docs: docs::parse_mix(&a.s("doc", "empty"))?,
+            reconnect: a.s("reconnect", "0") == "1",
+            source_addrs: source_addrs(&a.s("source-addrs", ""))?,
             cps: (
                 cps.first().copied().unwrap_or(3.0),
                 cps.get(1).copied().unwrap_or(6.0),
@@ -311,6 +362,8 @@ async fn run(a: Args) -> anyhow::Result<()> {
         closes: Default::default(),
         errors: Default::default(),
         quiet: (active <= 0.0).into(),
+        reconnect_ms: Default::default(),
+        stopping: false.into(),
     });
 
     // 1 Hz timeline of the server process.
@@ -347,7 +400,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
     let gate = Arc::new(tokio::sync::Semaphore::new(a.n("max-inflight", 128)));
     println!(
         "# {label}: per-room {per_room}, editors {editors}, doc {}, steps {steps:?}, {step_secs}s/step; server RSS at start {} MB",
-        sh.cfg.doc.name(),
+        docs::mix_name(&sh.cfg.docs),
         base_rss / 1024
     );
     println!(
@@ -368,6 +421,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
                 room,
                 editor: editor_at(k, editors),
                 probe: k < probes,
+                presence_hz: 0.0,
             };
             let (sh2, permit) = (sh.clone(), gate.clone().acquire_owned().await?);
             users.push(tokio::spawn(async move {
@@ -492,7 +546,7 @@ async fn run(a: Args) -> anyhow::Result<()> {
     });
     let report = json!({
         "label": label,
-        "config": {"perRoom": per_room, "editors": editors, "probes": probes, "doc": sh.cfg.doc.name(),
+        "config": {"perRoom": per_room, "editors": editors, "probes": probes, "doc": docs::mix_name(&sh.cfg.docs),
                    "stepSecs": step_secs, "connectRate": rate, "active": active, "cps": cps,
                    "servers": sh.cfg.http_base, "sticky": sh.cfg.sticky},
         "baseRssMb": base_rss as f64 / 1024.0,

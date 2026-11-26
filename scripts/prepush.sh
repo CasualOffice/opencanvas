@@ -13,6 +13,8 @@ cargo test -q -p opencanvas-client --test models >/dev/null
 bash scripts/check-spdx.sh
 node tools/px-to-rem.mjs --check >/dev/null
 (cd web && node ../tools/check-px.mjs && node packages/client/scripts/gen.mjs --check >/dev/null && pnpm -r --if-present typecheck)
+# ADR-079 START: the editor's initial JS within bench/budgets.toml, no advanced module in it.
+bash scripts/bench/check-fast.sh
 python3 -I tools/test_sitelib.py
 python3 -I tools/test_apilib.py && python3 -I tools/check-openapi.py >/dev/null
 # One step per line: under `set -e` a failure inside an `a && b` chain does not stop the script.

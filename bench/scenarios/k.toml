@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario K, unchanged: run by `scripts/bench.sh K` (old numbers stay comparable).
+name = "K"
+legacy = "K"
+description = "cluster chaos: 3 nodes, 300 rooms x 5 at 20% + one 550 room; kill -9 the owner, rolling restart, Redis restart, SIGSTOP"
+mix_note = "editors type 3-6 chars/s in bursts, active 60% of the time, plus caret awareness; 6% cell edits, 2% board drags"
+
+[load]
+connections = 2050
+rooms = 301
+docs = "demo"
+
+[mix]
+idle = 0.8
+presence = 0
+typing = 0.2
+typing_hz = 2.7
+
+[run]
+minutes = 10

@@ -41,7 +41,12 @@ pub struct RunCfg {
     pub secret: String,
     pub host_id: String,
     pub run_id: String,
-    pub doc: crate::docs::DocKind,
+    /// Seed per room, cycled (`[demo, demo, demo, big]` = demo and big 3:1).
+    pub docs: Vec<crate::docs::DocKind>,
+    /// Reconnect with backoff after a drop (fault scenarios); otherwise a drop ends the client.
+    pub reconnect: bool,
+    /// Local addresses to open sockets from, round robin (past the ≈ 16k ports of one address).
+    pub source_addrs: Vec<std::net::IpAddr>,
     /// Typing speed range, chars/s.
     pub cps: (f64, f64),
     /// Fraction of time an editor spends in a typing burst.
@@ -64,6 +69,9 @@ pub struct Counters {
     pub update_bytes_out: AtomicU64,
     pub awareness_out: AtomicU64,
     pub denied: AtomicU64,
+    pub reconnects: AtomicU64,
+    /// Joins refused by a full room (close 1013).
+    pub refused: AtomicU64,
 }
 
 type SentLog = Arc<Mutex<VecDeque<(u32, Instant)>>>;
@@ -79,6 +87,10 @@ pub struct Shared {
     pub closes: Mutex<BTreeMap<String, u64>>,
     pub errors: Mutex<BTreeMap<String, u64>>,
     pub quiet: AtomicBool,
+    /// Drop to ready again, per reconnection (ms).
+    pub reconnect_ms: Mutex<Vec<u32>>,
+    /// Set at the end of a run: clients stop reconnecting.
+    pub stopping: AtomicBool,
 }
 
 impl Shared {
@@ -124,8 +136,14 @@ struct Claims<'a> {
     callback_token: &'a str,
 }
 
+impl RunCfg {
+    pub fn doc_for(&self, room: usize) -> crate::docs::DocKind {
+        self.docs[room % self.docs.len().max(1)]
+    }
+}
+
 pub fn file_id(cfg: &RunCfg, room: usize) -> String {
-    format!("{}_{}_{room}", cfg.doc.name(), cfg.run_id)
+    format!("{}_{}_{room}", cfg.doc_for(room).name(), cfg.run_id)
 }
 
 fn now_secs() -> i64 {
@@ -456,6 +474,40 @@ pub struct Spec {
     pub room: usize,
     pub editor: bool,
     pub probe: bool,
+    /// Presence-only peer: moves its cursor this many times a second, never edits (0 = off).
+    pub presence_hz: f64,
+}
+
+/// WebSocket connect, from the next source address when several are configured.
+async fn connect(sh: &Shared, idx: usize, url: &str) -> anyhow::Result<WsStream> {
+    if sh.cfg.source_addrs.is_empty() {
+        return Ok(tokio_tungstenite::connect_async(url).await?.0);
+    }
+    let authority = url
+        .split("://")
+        .nth(1)
+        .and_then(|r| r.split('/').next())
+        .unwrap_or("127.0.0.1:80");
+    let authority = if authority.contains(':') {
+        authority.to_string()
+    } else {
+        format!("{authority}:80")
+    };
+    let dst = tokio::net::lookup_host(authority.as_str())
+        .await?
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("no address for {authority}"))?;
+    let src = sh.cfg.source_addrs[idx % sh.cfg.source_addrs.len()];
+    let sock = if src.is_ipv4() {
+        tokio::net::TcpSocket::new_v4()?
+    } else {
+        tokio::net::TcpSocket::new_v6()?
+    };
+    sock.bind(std::net::SocketAddr::new(src, 0))?;
+    let tcp = sock.connect(dst).await?;
+    let (ws, _) =
+        tokio_tungstenite::client_async(url, tokio_tungstenite::MaybeTlsStream::Plain(tcp)).await?;
+    Ok(ws)
 }
 
 pub async fn run_user(sh: Arc<Shared>, spec: Spec) {
@@ -477,30 +529,56 @@ pub async fn run_user(sh: Arc<Shared>, spec: Spec) {
         }
     };
     let url = format!("{ws_base}/v1/collab/{room}?ticket={ticket}");
-    let ws = match tokio::time::timeout(
-        Duration::from_secs(30),
-        tokio_tungstenite::connect_async(url),
-    )
-    .await
-    {
-        Ok(Ok((ws, _))) => ws,
-        Ok(Err(e)) => {
-            sh.c.ws_err.fetch_add(1, Ordering::Relaxed);
-            Shared::note(&sh.errors, format!("ws: {e}"));
+    // With `reconnect`, a dropped client comes back with the same ticket after an exponential
+    // backoff with jitter (0.5 s doubling to 8 s), as the editor does; `dropped_at` times it.
+    let mut dropped_at: Option<Instant> = None;
+    let mut attempt = 0u32;
+    let mut rng = Rng::new(spec.idx as u64 + 7);
+    loop {
+        let t = Instant::now();
+        match tokio::time::timeout(Duration::from_secs(30), connect(&sh, spec.idx, &url)).await {
+            Ok(Ok(ws)) => {
+                sh.c.live.fetch_add(1, Ordering::Relaxed);
+                let began = Instant::now();
+                let outcome = session(&sh, &spec, ws, t0, dropped_at).await;
+                sh.c.live.fetch_sub(1, Ordering::Relaxed);
+                let Some(reason) = outcome else { return };
+                Shared::note(&sh.closes, reason.clone());
+                // A full room (1013) refuses the join: not a drop, and the backoff keeps
+                // growing. Only a session that lasted resets it (else refused clients would
+                // retry every 0.5 s, a storm of their own).
+                if reason.starts_with("close 1013") {
+                    sh.c.refused.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    sh.c.dropped.fetch_add(1, Ordering::Relaxed);
+                    // Keep the first drop's time until a session lasts (back for real).
+                    if dropped_at.is_none() || began.elapsed() > Duration::from_secs(10) {
+                        dropped_at = Some(Instant::now());
+                    }
+                }
+                if began.elapsed() > Duration::from_secs(10) {
+                    attempt = 0;
+                }
+            }
+            Ok(Err(e)) => {
+                sh.c.ws_err.fetch_add(1, Ordering::Relaxed);
+                Shared::note(&sh.errors, format!("ws: {e}"));
+            }
+            Err(_) => {
+                sh.c.ws_err.fetch_add(1, Ordering::Relaxed);
+                Shared::note(&sh.errors, "ws: connect timeout".into());
+            }
+        }
+        if !sh.cfg.reconnect || sh.stopping.load(Ordering::Relaxed) {
             return;
         }
-        Err(_) => {
-            sh.c.ws_err.fetch_add(1, Ordering::Relaxed);
-            Shared::note(&sh.errors, "ws: connect timeout".into());
+        let base = (500u64 << attempt.min(4)) as f64;
+        attempt += 1;
+        let wait = Duration::from_millis(rng.range(base * 0.5, base * 1.5) as u64);
+        tokio::time::sleep(wait.saturating_sub(t.elapsed().min(wait))).await;
+        if sh.stopping.load(Ordering::Relaxed) {
             return;
         }
-    };
-    sh.c.live.fetch_add(1, Ordering::Relaxed);
-    let outcome = session(&sh, &spec, ws, t0).await;
-    sh.c.live.fetch_sub(1, Ordering::Relaxed);
-    if let Some(reason) = outcome {
-        sh.c.dropped.fetch_add(1, Ordering::Relaxed);
-        Shared::note(&sh.closes, reason);
     }
 }
 
@@ -508,7 +586,13 @@ type WsStream =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 /// Runs until the socket ends; returns why it ended.
-async fn session(sh: &Shared, spec: &Spec, ws: WsStream, t0: Instant) -> Option<String> {
+async fn session(
+    sh: &Shared,
+    spec: &Spec,
+    ws: WsStream,
+    t0: Instant,
+    reconnecting: Option<Instant>,
+) -> Option<String> {
     let (mut sink, mut stream) = ws.split();
     // Like a browser's WebSocket (`bufferedAmount`): sending never stops the client reading.
     // A server that pushes back (bounded room inbox) delays this client's frames, not its reads.
@@ -532,6 +616,12 @@ async fn session(sh: &Shared, spec: &Spec, ws: WsStream, t0: Instant) -> Option<
     let mut tick = tokio::time::interval(Duration::from_millis(50));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut last_tick = Instant::now();
+    let presence = spec.presence_hz > 0.0;
+    let mut moves =
+        tokio::time::interval(Duration::from_secs_f64(1.0 / spec.presence_hz.max(0.01)));
+    moves.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let pcid = ClientID::new(spec.idx as u64 + 1_000_000_000);
+    let (mut pclock, mut prng) = (1u32, Rng::new(spec.idx as u64 + 99));
     loop {
         for f in out.drain(..) {
             sh.c.frames_out.fetch_add(1, Ordering::Relaxed);
@@ -541,6 +631,13 @@ async fn session(sh: &Shared, spec: &Spec, ws: WsStream, t0: Instant) -> Option<
             }
         }
         tokio::select! {
+            _ = moves.tick(), if ready && presence => {
+                pclock += 1;
+                let pos = json!({"type": null, "tname": null, "item": {"client": pcid.get(), "clock": prng.next() % 4000}, "assoc": 0});
+                let state = json!({"user": {"name": format!("Bench user {}", spec.idx)}, "cursor": {"anchor": pos, "head": pos}});
+                sh.c.awareness_out.fetch_add(1, Ordering::Relaxed);
+                out.push(awareness_frame(pcid, pclock, &state));
+            }
             _ = tick.tick(), if ready && editor.is_some() => {
                 let e = editor.as_mut().expect("editor");
                 let dt = last_tick.elapsed().as_secs_f64();
@@ -612,8 +709,16 @@ async fn session(sh: &Shared, spec: &Spec, ws: WsStream, t0: Instant) -> Option<
                                     let v: Value = serde_json::from_slice(&body).unwrap_or_default();
                                     if v["t"] == "role" && !ready {
                                         ready = true;
-                                        sh.c.ready.fetch_add(1, Ordering::Relaxed);
-                                        sh.connect_ms.lock().expect("lock").push(t0.elapsed().as_millis() as u32);
+                                        match reconnecting {
+                                            Some(at) => {
+                                                sh.c.reconnects.fetch_add(1, Ordering::Relaxed);
+                                                sh.reconnect_ms.lock().expect("lock").push(at.elapsed().as_millis() as u32);
+                                            }
+                                            None => {
+                                                sh.c.ready.fetch_add(1, Ordering::Relaxed);
+                                                sh.connect_ms.lock().expect("lock").push(t0.elapsed().as_millis() as u32);
+                                            }
+                                        }
                                         let state = json!({"user": {"name": format!("Bench user {}", spec.idx)}});
                                         let cid = editor.as_ref().map_or(ClientID::new(spec.idx as u64 + 1_000_000_000), |e| e.cid);
                                         out.push(awareness_frame(cid, 1, &state));

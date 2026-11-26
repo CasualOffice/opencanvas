@@ -9,6 +9,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- Load generator: a client refused by a full room retried every 0.5 s and counted as a drop;
+  it now backs off and is counted as refused.
 - Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does
   not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was
   open on another node could be put off for five minutes at a time; the node holding the canvas
@@ -36,6 +38,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): `scripts/bench/run <scenario>`
+  with scenario files in `bench/scenarios/` that state their load mix (X10K, R1K, STORM, SOAK, and
+  the docs/22 scenarios run unchanged), `oc-bench scenario` (idle, presence-only and typing peers,
+  latency per bucket, `kill -9` and restart mid-run with reconnect timing, source addresses),
+  JSON results with hardware, load average and mix in `bench/results/`, seeded fixtures
+  (`oc-bench fixture s|m|l|50mb`), `bench/budgets.toml`, the initial-JS and `--forbid` gate in
+  `scripts/prepush.sh` and CI, and a nightly benchmark workflow.
 - OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board
   objects, block deletes and moves, comments; the real replay frames, cut connections, the
   pending log and the merge summary; seeds 1, 7, 42 and `OC_FUZZ_SEED`, a long run behind

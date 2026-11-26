@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+# docs/22 scenario D, unchanged: run by `scripts/bench.sh D` (old numbers stay comparable).
+name = "D"
+legacy = "D"
+description = "autosave/WAL pressure: 200 rooms x 2 editors typing for 120 s"
+mix_note = "every client types with no pauses (active 1)"
+
+[load]
+connections = 400
+rooms = 200
+docs = "demo"
+
+[mix]
+idle = 0
+presence = 0
+typing = 1
+typing_hz = 4.5
+
+[run]
+minutes = 2
