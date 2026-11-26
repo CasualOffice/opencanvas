@@ -44,6 +44,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   errors as you type, error cells with their reason, sums that skip errors; relations two-way on one
   canvas with a row picker; rollups (count, sum, percent checked, earliest, latest) with a dash when
   nothing relates; links to a deleted database kept for 30 days.
+- Editing a cell in a large database re-reads only that row (DB100K: 100,000 rows x 30 fields keep
+  16.7 ms frames while editing; each edit cost about half a second before).
 - Large tables and boards (DB4-07/08): from 1,000 rows the table and board are virtualized, with a
   sticky header, frozen title column, Go to row (Ctrl+G), sorting in a worker, Select all N and bulk
   edit undone as one step, and a card list with long-press selection on phones.
