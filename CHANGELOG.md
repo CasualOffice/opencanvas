@@ -19,8 +19,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 - Find and replace in a canvas (SRCH-01, ADR-066, [approved prototype](docs/prototypes/v03-approved/search.html)):
   ⌘F opens a find bar over text, databases and boards; case, whole word and regular expressions
   (50 ms budget); Replace all is one undo step; view-only people can find but not replace. Matches
-  inside live blocks are found and labelled; Replace all skips them and says so. (Replacing inside
-  a live block after a separate confirmation, SRCH-06, is not finished.)
+  inside live blocks are found (in the block's own text when it is connected) and labelled;
+  Replace all changes this canvas, then asks separately "Replace in “<live block>” too?" for each
+  live block you can edit, and applies it in that block's own room as one undo step (SRCH-06).
+  View-only live blocks are never changed.
 - Search all canvases (SRCH-04): results from the host's own search (`GET /search` callback),
   grouped by canvas, with deep links to the block; hidden when the host has no search callback.
 - Automation, server side (AUTO-01..05, AUTO-07, ADR-067, ADR-068; off unless

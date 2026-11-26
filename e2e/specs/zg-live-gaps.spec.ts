@@ -113,10 +113,7 @@ test("the insert menu inside a live block, without live blocks", async ({ browse
   await priya.ctx.close();
 });
 
-// OPEN (2026-11-26): find does not yet see the connected live block's text in the browser ("1 of
-// 1" where 2 are expected), although engine.test.ts passes with the same engine; the registry
-// of live block editors (live/state.ts `liveEditors`) needs checking in a real page.
-test.fixme("replace inside a live block is a separate confirmation in its own room (ADR-066)", async ({ browser }) => {
+test("replace inside a live block is a separate confirmation in its own room (ADR-066)", async ({ browser }) => {
   test.setTimeout(150_000);
   const priya = await person(browser, "u_priya");
   const { a, liveId } = await canvasWithLive(priya, "E2E zg · Q4 planning", "Make SSO self-serve", "Q4 OKRs", [["u_sam", "edit"]]);
@@ -160,7 +157,6 @@ test.fixme("replace inside a live block is a separate confirmation in its own ro
   const sfb = bar(sam);
   await sfb.getByLabel("Find in canvas").fill("SSO");
   await expect(sfb).toContainText("of 2");
-  await sam.page.keyboard.press("Enter");
   await expect(sfb).toContainText("In live block Q4 OKRs · view only");
   await sfb.getByRole("button", { name: "Show replace" }).click();
   await sfb.getByLabel("Replace with").fill("SAML");
