@@ -15,6 +15,8 @@ class CanvasCardTest extends TestCase {
 		$url = CanvasCard::link('https://cloud.example/index.php/apps/opencanvas/open/', 42, 'jonas');
 		$this->assertSame('https://cloud.example/index.php/apps/opencanvas/open/42?talk=1&by=jonas', $url);
 		$this->assertSame(['fileId' => 42, 'by' => 'jonas'], CanvasCard::parse($url));
+		// The router's link for id 0 (what the controller has) ends in /0 (found in the scripted run).
+		$this->assertSame($url, CanvasCard::link('https://cloud.example/index.php/apps/opencanvas/open/0', 42, 'jonas'));
 		$this->assertSame(['fileId' => 42, 'by' => ''], CanvasCard::parse('https://cloud.example/apps/opencanvas/open/42'));
 		$this->assertNull(CanvasCard::parse('https://cloud.example/apps/files/42'));
 		$this->assertNull(CanvasCard::parse('https://cloud.example/apps/opencanvas/open/x'));

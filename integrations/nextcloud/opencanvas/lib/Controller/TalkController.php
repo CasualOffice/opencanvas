@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace OCA\OpenCanvas\Controller;
 
+use OCA\OpenCanvas\Reference\CanvasReferenceProvider;
 use OCA\OpenCanvas\Service\ConfigService;
 use OCA\OpenCanvas\Service\TokenService;
 use OCA\OpenCanvas\Talk\CanvasCard;
@@ -19,6 +20,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\JSONResponse;
+use OCP\Collaboration\Reference\IReferenceManager;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -39,6 +41,8 @@ class TalkController extends Controller {
 		private ConfigService $config,
 		private IUserSession $userSession,
 		private IURLGenerator $urls,
+		private IReferenceManager $references,
+		private CanvasReferenceProvider $cards,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -149,8 +153,18 @@ class TalkController extends Controller {
 				throw new TalkException('FORBIDDEN');
 			}
 			$this->talk->shareWithRoom($fileId, $room, $a->id, $level);
+			// Cards resolved before the share showed "no access": resolve them again.
+			$this->references->invalidateCache(CanvasReferenceProvider::cachePrefix($fileId));
 			return ['link' => $this->link($fileId, $a->id)];
 		});
+	}
+
+	/** 1b / 5c: the card for this reader now (not browser-cached like Nextcloud's resolve answer). */
+	#[NoAdminRequired]
+	public function card(int $fileId, string $by = ''): JSONResponse {
+		$res = new JSONResponse($this->cards->card($fileId, $by));
+		$res->cacheFor(0);
+		return $res;
 	}
 
 	private function link(int $fileId, string $by): string {

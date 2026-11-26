@@ -21,6 +21,7 @@ return [
 		['name' => 'meeting_wopi#putFile', 'url' => '/wopi/meetings/{meetingId}/contents', 'verb' => 'POST', 'requirements' => ['meetingId' => '\d+']],
 
 		// TALK-01 Canvas panel in Talk.
+		['name' => 'talk#card', 'url' => '/talk/card/{fileId}', 'verb' => 'GET', 'requirements' => ['fileId' => '\d+']],
 		['name' => 'talk#state', 'url' => '/talk/{room}/state', 'verb' => 'GET'],
 		['name' => 'talk#start', 'url' => '/talk/{room}/meeting', 'verb' => 'POST'],
 		['name' => 'talk#launch', 'url' => '/talk/{room}/meeting/{id}/launch', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],

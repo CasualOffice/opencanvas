@@ -52,7 +52,7 @@ function define(tag, mount) {
 
 export function registerSharing({ commentRole }) {
 	try {
-		define('oca_opencanvas-share-card', (host, el) => new Vue({ el, render: (h) => h(ShareCard, { props: { commentRole } }) }))
+		define('oca_opencanvas-share-card', (host, el) => new Vue({ el, render: (h) => h(ShareCard, { props: { commentRole, fileId: Number(host.node?.fileid ?? host.node?.id ?? 0) } }) }))
 		registerSidebarSection({
 			id: 'opencanvas-share-card',
 			element: 'oca_opencanvas-share-card',

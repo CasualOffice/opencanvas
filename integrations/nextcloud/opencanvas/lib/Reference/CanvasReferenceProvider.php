@@ -39,6 +39,22 @@ class CanvasReferenceProvider implements IReferenceProvider {
 		if ($p === null) {
 			return null;
 		}
+		$card = $this->card($p['fileId'], $p['by']);
+		$ref = new Reference($referenceText);
+		$ref->setTitle($card['title']);
+		$ref->setDescription($card['access'] ? implode(' ', $card['preview']) : "You don't have access to this canvas.");
+		$ref->setUrl($referenceText);
+		$ref->setRichObject(CanvasCard::RICH_TYPE, $card);
+		return $ref;
+	}
+
+	/**
+	 * The card for the signed-in reader now. The widget asks again on display (TalkController
+	 * card): Nextcloud's resolve answer is browser-cached for an hour, and a share given after the
+	 * post must show at once.
+	 */
+	public function card(int $fileId, string $by): array {
+		$p = ['fileId' => $fileId, 'by' => $by];
 		$sharer = $p['by'] !== '' ? ($this->users->getDisplayName($p['by']) ?? $p['by']) : '';
 		$uid = $this->session->getUser()?->getUID();
 		$file = null;
@@ -65,16 +81,16 @@ class CanvasReferenceProvider implements IReferenceProvider {
 			$card = CanvasCard::build($p['fileId'], $name, '', '', 0, $sharer, false);
 		}
 		$card['by'] = $p['by'];
-		$ref = new Reference($referenceText);
-		$ref->setTitle($card['title']);
-		$ref->setDescription($card['access'] ? implode(' ', $card['preview']) : "You don't have access to this canvas.");
-		$ref->setUrl($referenceText);
-		$ref->setRichObject(CanvasCard::RICH_TYPE, $card);
-		return $ref;
+		return $card;
 	}
 
+	/** Per file, so sharing it with the conversation can drop every reader's cached card at once. */
 	public function getCachePrefix(string $referenceId): string {
-		return $referenceId;
+		return self::cachePrefix(CanvasCard::parse($referenceId)['fileId'] ?? 0);
+	}
+
+	public static function cachePrefix(int $fileId): string {
+		return 'opencanvas-' . $fileId;
 	}
 
 	public function getCacheKey(string $referenceId): ?string {

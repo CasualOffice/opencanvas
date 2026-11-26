@@ -12,6 +12,8 @@ export default createAppConfig({
 	fullpage: 'src/fullpage.js',
 	public: 'src/public.js',
 	admin: 'src/admin.js',
+	talk: 'src/talk.js',
+	reference: 'src/reference.js',
 }, {
 	inlineCSS: { relativeCSSInjection: true },
 	thirdPartyLicense: false,

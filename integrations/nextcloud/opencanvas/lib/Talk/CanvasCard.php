@@ -18,7 +18,9 @@ final class CanvasCard {
 	private const PATTERN = '#/apps/opencanvas/open/(\d+)(?:\?([^\#]*))?(?:\#.*)?$#';
 
 	public static function link(string $openBase, int $fileId, string $by): string {
-		return rtrim($openBase, '/') . '/' . $fileId . '?' . http_build_query(['talk' => 1, 'by' => $by]);
+		// The router's link for id 0 ends in "/0": that placeholder goes.
+		$base = preg_replace('#/0$#', '', rtrim($openBase, '/')) ?? $openBase;
+		return $base . '/' . $fileId . '?' . http_build_query(['talk' => 1, 'by' => $by]);
 	}
 
 	/** @return array{fileId: int, by: string}|null */
