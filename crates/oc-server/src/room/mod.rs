@@ -95,6 +95,8 @@ pub(crate) enum Cmd {
     ConflictDone {
         result: Result<ConflictOutcome, String>,
     },
+    /// A save built off the actor (PERF-11) is ready to send, or failed.
+    SaveBuilt(Box<actor::SaveBuilt>),
     /// A background state dump (memory durability, ADR-029) finished.
     Dumped {
         seq: i64,

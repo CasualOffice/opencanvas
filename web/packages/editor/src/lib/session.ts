@@ -208,6 +208,17 @@ const isTerminalClose = (code: number, reason: string, reloading: boolean) =>
   code !== RATE_LIMITED &&
   (code === 1000 || (code === 1008 && !TRANSIENT_1008.test(reason)) || (code === 1012 && reloading) || (code >= 4400 && code < 4500));
 
+/** ADR-077: presence goes out at most every 100 ms (latest state wins). */
+export const PRESENCE_MS = 100;
+
+/**
+ * PERF-11 (STORM, docs/36 §4.1): full jitter before each reconnect, 0–5 s at first, the
+ * ceiling doubling to 60 s, so a restarted server is not hit by every client at once.
+ */
+export function reconnectDelay(attempt: number, r = Math.random()): number {
+  return r * Math.min(60000, 5000 * 2 ** Math.min(attempt, 4));
+}
+
 type AwarenessChange = { added: number[]; updated: number[]; removed: number[] };
 
 /**
@@ -218,7 +229,7 @@ type AwarenessChange = { added: number[]; updated: number[]; removed: number[] }
  * The first change in a quiet period goes out at once (no added latency);
  * changes inside the next `ms` are merged into one frame at its end.
  */
-export function throttleOutgoing(provider: WebsocketProvider, ms = 50) {
+export function throttleOutgoing(provider: WebsocketProvider, ms = 50, presenceMs = PRESENCE_MS) {
   const p = provider as unknown as {
     _updateHandler: (u: Uint8Array, origin: unknown) => void;
     _awarenessUpdateHandler: (c: AwarenessChange, origin: unknown) => void;
@@ -228,7 +239,7 @@ export function throttleOutgoing(provider: WebsocketProvider, ms = 50) {
   provider.doc.off("update", sendDoc);
   provider.awareness.off("update", sendAwareness);
 
-  const lane = (send: () => void) => {
+  const lane = (send: () => void, ms: number) => {
     let timer: number | undefined;
     let last = -Infinity;
     const flush = () => {
@@ -256,14 +267,14 @@ export function throttleOutgoing(provider: WebsocketProvider, ms = 50) {
     const u = updates.length === 1 ? updates[0] : Y.mergeUpdates(updates);
     updates = [];
     sendDoc(u, null);
-  });
+  }, ms);
   const clients = new Set<number>();
   const awLane = lane(() => {
     if (!clients.size) return;
     const changed = [...clients];
     clients.clear();
     sendAwareness({ added: [], updated: changed, removed: [] }, null);
-  });
+  }, presenceMs);
 
   p._updateHandler = (u, origin) => {
     if (origin === provider) return; // came from the server
@@ -304,7 +315,39 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
     params: { ticket: s.ticket, caps: "ext,live" },
     maxBackoffTime: 10000,
     connect: opts.connect !== false,
-    shouldReconnect: (e: CloseEvent) => !isTerminalClose(e.code, e.reason, reloading),
+    shouldReconnect: (e: CloseEvent) => {
+      if (isTerminalClose(e.code, e.reason, reloading)) return false;
+      // y-websocket would retry after 100 ms with no jitter: hold it and come back after a
+      // full-jitter delay instead (STORM).
+      holdReconnect();
+      return true;
+    },
+  });
+  let reconnectTimer: number | undefined;
+  let reconnects = 0;
+  function holdReconnect() {
+    provider.shouldConnect = false;
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = undefined;
+      provider.connect();
+    }, reconnectDelay(reconnects++));
+  }
+  const resumeNow = () => {
+    if (reconnectTimer === undefined) return false;
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+    provider.connect();
+    return true;
+  };
+  const disconnectProvider = provider.disconnect.bind(provider);
+  provider.disconnect = () => {
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+    disconnectProvider();
+  };
+  provider.on("sync", (ok: boolean) => {
+    if (ok) reconnects = 0;
   });
   throttleOutgoing(provider);
   // OFF-02: every local change waits in the unsent log until a save that started after it
@@ -452,6 +495,7 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
   const onOffline = () => provider.wsconnected && drop();
   // Back online: try now instead of waiting out the backoff.
   const onOnline = () => {
+    if (resumeNow()) return;
     if (!provider.wsconnected && provider.shouldConnect && !provider.ws) provider.connect();
   };
   window.addEventListener("offline", onOffline);
