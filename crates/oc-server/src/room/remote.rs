@@ -51,6 +51,12 @@ pub enum RemoteOp {
         icon_op: oc_model::doc_icons::IconOp,
         author: String,
     },
+    /// AUTO-05/07: a rule operation (`routes::v1::automation::AutoCall`), answered by the
+    /// cluster route with the server state, not by [`Rooms::serve_remote`].
+    Automation {
+        grant: Grant,
+        call: Value,
+    },
     CommitLive,
     SetRole {
         user_id: String,
@@ -69,6 +75,7 @@ impl RemoteOp {
             | Self::TemplateUndo { grant, .. }
             | Self::History { grant, .. }
             | Self::Icons { grant, .. }
+            | Self::Automation { grant, .. }
             | Self::Commit { grant } => Some(grant),
             Self::CommitLive | Self::SetRole { .. } | Self::Close => None,
         }
@@ -173,6 +180,7 @@ impl Rooms {
                 json!(self.set_role_local(room, &user_id, role).await)
             }
             RemoteOp::Close => json!(self.close_local(room).await),
+            RemoteOp::Automation { .. } => anyhow::bail!("automation calls need the server state"),
         })
     }
 }

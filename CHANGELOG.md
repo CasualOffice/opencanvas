@@ -7,6 +7,20 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Fixed
+
+- Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does
+  not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was
+  open on another node could be put off for five minutes at a time; the node holding the canvas
+  now runs it. A run cut off by a node that stopped is logged as failed (`INTERRUPTED`) after an
+  hour instead of staying "running".
+
+### Tests
+
+- `tests/automation_cluster.rs`: three nodes on Redis and MySQL/MariaDB (schedule once, also
+  when a node dies; row changes once; loop guard, daily limit and auto-pause cluster-wide; no
+  duplicate runs). CI job `automation-cluster` (MySQL 8.4, MariaDB 10.11).
+
 ## [0.3.0] - 2026-11-26
 
 Release and upgrade notes: [docs/35](docs/35-RELEASE-v0.3.0.md). Every new feature is off until the host turns it on.

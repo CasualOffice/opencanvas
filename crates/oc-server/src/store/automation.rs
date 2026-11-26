@@ -329,6 +329,18 @@ impl Store {
             .count() as i64)
     }
 
+    /// Runs still `running` that started before `before_ms` become `failed` / `INTERRUPTED`.
+    pub async fn automation_interrupt_stale(&self, before_ms: i64) -> anyhow::Result<u64> {
+        self.no_tables()?;
+        let res = sqlx::query(
+            "UPDATE automation_runs SET result = 'failed', error_code = 'INTERRUPTED' WHERE result = 'running' AND at < ?",
+        )
+        .bind(before_ms)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected())
+    }
+
     /// Runs of the room since `since_ms` (the daily limit).
     pub async fn automation_runs_since(&self, room_id: &str, since_ms: i64) -> anyhow::Result<i64> {
         self.no_tables()?;

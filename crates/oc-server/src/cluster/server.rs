@@ -147,6 +147,14 @@ async fn call(
         },
         None => None,
     };
+    if let (RemoteOp::Automation { grant, call }, Some(h)) = (&op, &host) {
+        return match crate::routes::v1::automation::serve_owned(&state, h, grant, call.clone())
+            .await
+        {
+            Some(v) => axum::Json(v).into_response(),
+            None => status(StatusCode::CONFLICT, "not the owner"),
+        };
+    }
     match state.rooms.serve_remote(&room, host, op).await {
         Ok(v) => axum::Json(v).into_response(),
         Err(e) if e.is::<NotOwner>() || state.rooms.draining() => {

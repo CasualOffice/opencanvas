@@ -146,6 +146,39 @@ jobs:
       - run: scripts/e2e-db.sh ${{ matrix.db.name }} ${{ matrix.db.url }}
         env: { OC_PDF_RENDERER: "${{ matrix.db.pdf }}" }
 
+  automation-cluster:
+    # AUTO-01..07 in a real cluster: three in-process nodes on MySQL/MariaDB with Redis for
+    # leases, the bus and the hot WAL (crates/oc-server/tests/automation_cluster.rs).
+    if: github.event_name != 'schedule'
+    needs: [rust]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - { name: mysql, url: "mysql://root:root@127.0.0.1:33062/opencanvas" }
+          - { name: mariadb, url: "mysql://root:root@127.0.0.1:33061/opencanvas" }
+    services:
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+      mariadb:
+        image: mariadb:10.11
+        env: { MARIADB_ROOT_PASSWORD: root, MARIADB_DATABASE: opencanvas }
+        ports: ["33061:3306"]
+        options: --health-cmd="healthcheck.sh --connect" --health-interval=5s --health-retries=20
+      mysql:
+        image: mysql:8.4
+        env: { MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: opencanvas }
+        ports: ["33062:3306"]
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p oc-server --test automation_cluster -- --nocapture
+        env: { OC_TEST_REDIS_URL: "redis://127.0.0.1:6379", OC_TEST_MYSQL_URL: "${{ matrix.db.url }}" }
+
   browser-e2e:
     # Playwright (e2e/): real oc-server on :8280 + sample hosts on :4200/:4201 started by the
     # suite, two browser contexts per spec, Chromium desktop + WebKit at phone size.

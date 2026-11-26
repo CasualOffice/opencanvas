@@ -439,7 +439,7 @@ impl Rooms {
 
     /// The owner did not answer: take the room over when its process is gone, else wait a
     /// moment (it may be handing the room over).
-    async fn owner_failed(&self, room: &str, owner: &Owner, why: &str) {
+    pub(crate) async fn owner_failed(&self, room: &str, owner: &Owner, why: &str) {
         let Some(c) = self.cluster() else { return };
         if c.alive(owner).await {
             tokio::time::sleep(RETRY).await;
