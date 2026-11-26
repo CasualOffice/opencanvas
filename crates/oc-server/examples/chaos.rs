@@ -59,7 +59,7 @@ async fn client(
     let mut down_since: Option<Instant> = None;
     let mut n = 0usize;
     while !stop.load(Ordering::SeqCst) {
-        let url = format!("{base}/{room}?ticket={ticket}");
+        let url = format!("{base}/{room}?ticket={ticket}&caps=ext,live,subdoc");
         let mut ws = match tokio_tungstenite::connect_async(&url).await {
             Ok((ws, _)) => ws,
             Err(_) => {
