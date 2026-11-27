@@ -136,6 +136,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- After a restart with a slow host, rooms reopen and save at full speed (RLB-01c): a room no
+  longer holds one of the `OC_ROOM_LOADS` slots while the host answers its file request.
 - Spreadsheet safety (SEC-62..64): `.xlsx` imports are read with server limits (64 MiB inflated,
   200,000 cells, no recalculation, 250,000 rows and columns in all) off the async workers, two at
   a time; a Spreadsheet block whose formulas take longer than 2 s to compute shows its inputs in
