@@ -164,7 +164,9 @@ const remPx = () => {
 };
 
 /** Re-renders on every change to this block (local or remote) and keeps the engine in step. */
-function useBlock(doc: Y.Doc, blockId: string, toast: BlockEnv["toast"]) {
+function useBlock(doc: Y.Doc, blockId: string, toast: BlockEnv["toast"], onRefLost?: (keys: string[]) => void) {
+  const lostRef = useRef(onRefLost);
+  lostRef.current = onRefLost;
   const [version, bump] = useReducer((n: number) => n + 1, 0);
   const [engine, setEngine] = useState<SheetEngine | null>(null);
   const shown = useRef(new Map<string, string>());
@@ -204,7 +206,7 @@ function useBlock(doc: Y.Doc, blockId: string, toast: BlockEnv["toast"]) {
   }, [blockId, reopen]);
   useEffect(() => {
     const root = sheetsRoot(doc);
-    const h = (events: Y.YEvent<Y.AbstractType<unknown>>[]) => {
+    const h = (events: Y.YEvent<Y.AbstractType<unknown>>[], tr: Y.Transaction) => {
       let mine = false;
       let structural = false;
       const cells: [string, string][] = [];
@@ -228,8 +230,16 @@ function useBlock(doc: Y.Doc, blockId: string, toast: BlockEnv["toast"]) {
       }
       if (!mine) return;
       if (engine) {
-        if (structural) reopen(engine);
-        else
+        if (structural) {
+          // A change from someone else (live, or merged on reconnect) that turns formulas into
+          // #REF! is named, so it does not go unnoticed (frame 10b).
+          const before = tr.local ? null : new Set([...shown.current].filter(([, v]) => v.startsWith("#REF!")).map(([k]) => k));
+          reopen(engine);
+          if (before) {
+            const lost = [...shown.current].filter(([k, v]) => v.startsWith("#REF!") && !before.has(k)).map(([k]) => k);
+            if (lost.length) lostRef.current?.(lost);
+          }
+        } else
           try {
             for (const [s, key] of cells) {
               const [r, c] = key.split(":");
@@ -294,7 +304,12 @@ const POINT_AFTER = /[=(,+\-*/^&<>:;]\s*$/;
 
 export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   injectCss();
-  const { version, engine, shown } = useBlock(doc, blockId, env.toast);
+  const refLost = useRef<((keys: string[]) => void) | null>(null);
+  const { version, engine, shown } = useBlock(doc, blockId, env.toast, (k) => refLost.current?.(k));
+  /** Phone layout (frames 9a-9b): taller rows, the bar edits, insert keys, an action bar. */
+  const phone = env.compact;
+  const defH = phone ? 2.75 : DEF_H;
+  const fxRef = useRef<HTMLInputElement | null>(null);
   const canEdit = env.role === "edit";
   const order = useMemo(() => ((blockMap(doc, blockId)?.get("order") as Y.Array<string> | undefined)?.toArray() ?? []), [doc, blockId, version]);
   const [sheetSel, setSheetSel] = useState<string | null>(null);
@@ -367,8 +382,8 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   }, [view, filter, display]);
   const colW = useMemo(() => (view ? view.cols.map((id, i) => (live?.kind === "w" && live.i === i ? live.v : view.widths.get(id) ?? DEF_W)) : []), [view, live]);
   const rowH = useMemo(
-    () => (view ? view.rows.map((id, i) => (hidden.has(i) ? 0 : live?.kind === "h" && live.i === i ? live.v : view.heights.get(id) ?? DEF_H)) : []),
-    [view, live, hidden],
+    () => (view ? view.rows.map((id, i) => (hidden.has(i) ? 0 : live?.kind === "h" && live.i === i ? live.v : view.heights.get(id) ?? defH)) : []),
+    [view, live, hidden, defH],
   );
   const colOff = useMemo(() => offsets(colW), [colW]);
   const rowOff = useMemo(() => offsets(rowH), [rowH]);
@@ -453,6 +468,20 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     const n = clampSel(s);
     setSel(n);
     if (show) requestAnimationFrame(() => reveal(n.focus));
+  };
+  refLost.current = (keys) => {
+    const n = keys.length;
+    env.toast(`${n} ${n === 1 ? "formula now shows" : "formulas now show"} #REF!: a row, column or sheet ${n === 1 ? "it" : "they"} used was deleted.`, {
+      label: "Show",
+      run: () => {
+        const [s0, r, c] = keys[0].split(":");
+        const v = readView(doc, blockId, s0);
+        if (!v) return;
+        setSheetSel(s0);
+        select(at(v.rIx.get(r) ?? 0, v.cIx.get(c) ?? 0));
+        gridRef.current?.focus({ preventScroll: true });
+      },
+    });
   };
   useEffect(() => {
     if (sel.anchor.r >= nR || sel.anchor.c >= nC || sel.focus.r >= nR || sel.focus.c >= nC) setSel((s) => clampSel(s));
@@ -760,6 +789,22 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       if (q) setSel((s) => (s.focus.r === q.r && s.focus.c === q.c ? s : { anchor: s.anchor, focus: q }));
     });
   };
+  /** Phone: the round handles at two corners of the selection extend it (9b). */
+  const onKnobDown = (e: React.PointerEvent, corner: "tl" | "br") => {
+    e.preventDefault();
+    e.stopPropagation();
+    const q0 = rectOf(sel);
+    const fixed = corner === "br" ? { r: q0.r0, c: q0.c0 } : { r: q0.r1, c: q0.c1 };
+    drag((ev) => {
+      const p = cellFrom(ev.clientX, ev.clientY);
+      if (p) setSel({ anchor: fixed, focus: p });
+    });
+  };
+  /** Ctrl+D (and the phone's Fill): the top row of the selection fills the rest. */
+  const fillDown = () => {
+    const q0 = rectOf(sel);
+    if (q0.r1 > q0.r0) applyFill({ ...q0, r1: q0.r0 }, q0);
+  };
   const onFillDown = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -896,7 +941,15 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     "sep",
     fr === q.r1 + 1 ? { label: "Unfreeze rows", icon: <Snowflake size={15} />, run: () => freezeTo(0, fc) } : { label: `Freeze up to row ${q.r1 + 1}`, icon: <Snowflake size={15} />, run: () => freezeTo(q.r1 + 1, fc) },
   ];
-  const cellItems = (): MenuEntry[] => [
+  const cellItems = (): MenuEntry[] =>
+    canEdit
+      ? editCellItems()
+      : [
+          { label: "Copy", hint: "Ctrl C", run: () => document.execCommand?.("copy") },
+          "sep",
+          filter ? { label: "Remove filter", icon: <Funnel size={15} />, run: () => filterOn(null) } : { label: "Create a filter", icon: <Funnel size={15} />, run: createFilter },
+        ];
+  const editCellItems = (): MenuEntry[] => [
     { label: "Copy", hint: "Ctrl C", run: () => document.execCommand?.("copy") },
     { label: "Cut", hint: "Ctrl X", run: () => document.execCommand?.("cut") },
     "sep",
@@ -950,6 +1003,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (mod && (k === "v" || k === "V")) {
       valuesOnly.current = e.shiftKey;
       return; // the paste event
+    }
+    if (mod && k === "d" && canEdit) {
+      e.preventDefault();
+      fillDown();
+      return;
     }
     if (mod && (k === "b" || k === "i")) {
       e.preventDefault();
@@ -1123,7 +1181,12 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         data-c={c}
         onPointerDown={(e) => onCellDown(e, p)}
         onMouseDown={(e) => !(e.target as HTMLElement).closest?.(".ocsh-ce") && e.preventDefault()}
-        onDoubleClick={() => canEdit && (setSel(at(r, c)), setEdit({ sheet: view.id, r, c, draft: inputAt(r, c), mode: "edit" }))}
+        onDoubleClick={() => {
+          if (!canEdit) return;
+          setSel(at(r, c));
+          setEdit({ sheet: view.id, r, c, draft: inputAt(r, c), mode: "edit", bar: phone });
+          if (phone) requestAnimationFrame(() => fxRef.current?.focus());
+        }}
         onContextMenu={(e) => {
           e.preventDefault();
           if (!inSel) setSel(at(r, c));
@@ -1169,7 +1232,9 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
             <Funnel size={12} />
           </button>
         ) : null}
-        {showFill && r === q.r1 && c === q.c1 ? <i className="ocsh-fh" aria-hidden="true" onPointerDown={onFillDown} /> : null}
+        {showFill && !phone && r === q.r1 && c === q.c1 ? <i className="ocsh-fh" aria-hidden="true" onPointerDown={onFillDown} /> : null}
+        {phone && !edit && r === q.r0 && c === q.c0 ? <i className="ocsh-knob tl" aria-hidden="true" onPointerDown={(e) => onKnobDown(e, "tl")} /> : null}
+        {phone && !edit && r === q.r1 && c === q.c1 ? <i className="ocsh-knob br" aria-hidden="true" onPointerDown={(e) => onKnobDown(e, "br")} /> : null}
       </div>
     );
   };
@@ -1390,6 +1455,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       <span className="ocsh-fxi" aria-hidden="true">fx</span>
       {canEdit ? null : <Lock size={13} aria-label="View only" />}
       <input
+        ref={fxRef}
         className="ocsh-fxv"
         aria-label="Formula bar"
         readOnly={!canEdit}
@@ -1578,6 +1644,72 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     </div>
   ) : null;
 
+  const tsvOf = (q0: Rect) => {
+    const out: string[][] = [];
+    for (let r = q0.r0; r <= q0.r1; r++) if (!hidden.has(r)) out.push(Array.from({ length: q0.c1 - q0.c0 + 1 }, (_, i) => formatValue(display(r, q0.c0 + i), styleAt(r, q0.c0 + i))));
+    return toTsv(out);
+  };
+  const keep = (e: React.MouseEvent) => e.preventDefault();
+  const insertKeys =
+    phone && edit ? (
+      <div className="ocsh-acc" role="toolbar" aria-label="Insert into the formula">
+        {["=", "(", ")", ":", "$", ",", "SUM(", a1(sel.anchor)].map((t, i) => (
+          <button key={i} onMouseDown={keep} onClick={() => setEdit((ed) => (ed ? { ...ed, draft: ed.draft + t } : ed))} aria-label={i === 7 ? `Insert ${t}` : undefined}>
+            {t}
+          </button>
+        ))}
+      </div>
+    ) : null;
+  const aaSheet = (
+    <div>
+      <div className="ocsh-sw" role="group" aria-label="Style">
+        <button className="ocsh-ib" aria-label="Bold" aria-pressed={!!cur.b} onClick={() => toggle("b")}><Bold size={16} /></button>
+        <button className="ocsh-ib" aria-label="Italic" aria-pressed={!!cur.i} onClick={() => toggle("i")}><Italic size={16} /></button>
+        <button className="ocsh-ib" aria-label="Strikethrough" aria-pressed={!!cur.st} onClick={() => toggle("st")}><Strikethrough size={16} /></button>
+        <button className="ocsh-ib" aria-label="Align left" aria-pressed={cur.al === "l"} onClick={() => style({ al: cur.al === "l" ? null : "l" })}><AlignLeft size={16} /></button>
+        <button className="ocsh-ib" aria-label="Align centre" aria-pressed={cur.al === "c"} onClick={() => style({ al: cur.al === "c" ? null : "c" })}><AlignCenter size={16} /></button>
+        <button className="ocsh-ib" aria-label="Align right" aria-pressed={cur.al === "r"} onClick={() => style({ al: cur.al === "r" ? null : "r" })}><AlignRight size={16} /></button>
+      </div>
+      <div className="ocsh-mcap">Text colour</div>
+      {swatches("fg")}
+      <div className="ocsh-mcap">Fill colour</div>
+      {swatches("bg")}
+      <div className="ocsh-msep" />
+      {fmtItems.map((it, i) =>
+        it === "sep" ? null : (
+          <button key={i} role="menuitem" className="ocsh-mi" onClick={() => (it.run(), setMenu(null))}>
+            {it.label}
+            {it.hint ? <small>{it.hint}</small> : null}
+          </button>
+        ),
+      )}
+    </div>
+  );
+  const actionBar =
+    phone && canEdit && !edit ? (
+      <div className="ocsh-act" role="toolbar" aria-label="Selection">
+        <button className="ocsh-tbt" onClick={() => void navigator.clipboard?.writeText(tsvOf(q)).then(() => setNote({ text: `Copied ${rectA1(q)}.` }), () => undefined)}>Copy</button>
+        <button
+          className="ocsh-tbt"
+          onClick={() =>
+            void navigator.clipboard?.readText().then(
+              (t) => {
+                const got = pasteGrid(parseTsv(t).map((r) => r.map((v) => ({ v }))), "the clipboard", false, null);
+                if (got) setNote({ text: `Pasted ${got.h} × ${got.w}.` });
+              },
+              () => env.toast("Paste needs clipboard access."),
+            )
+          }
+        >
+          Paste
+        </button>
+        <button className="ocsh-tbt" onClick={fillDown} disabled={q.r1 === q.r0}>Fill</button>
+        <button className="ocsh-tbt" onClick={() => clearRect(q)}>Clear</button>
+        <span className="ocsh-grow" />
+        <button className="ocsh-tbt" aria-label="Format" aria-haspopup="dialog" onClick={(e) => pop(e, "Format", aaSheet)}>Aa</button>
+      </div>
+    ) : null;
+
   const menuEl = menu ? <Menu m={typeof menu.items === "string" ? { ...menu, items: { row: rowItems, col: colItems, cell: cellItems }[menu.items]() } : menu} onClose={(refocus) => (setMenu(null), refocus && gridRef.current?.focus({ preventScroll: true }))} /> : null;
   const noteEl = note ? (
     <div className="ocsh-note" role="status">
@@ -1601,9 +1733,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
               <span className="ocsh-grow" />
               {canEdit ? null : <span className="ocsh-tbt"><Lock size={13} /> View only</span>}
             </div>
-            {toolbar}
+            {phone ? null : toolbar}
             {fxBar}
+            {insertKeys}
             {grid}
+            {actionBar}
             <div className="ocsh-sb">{tabs}{aggEl}</div>
             {noteEl}
           </div>,
@@ -1614,19 +1748,23 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     );
 
   return (
-    <div className={"ocsh compact" + (flash ? " flash" : "")} data-sheet-block={blockId}>
+    <div className={"ocsh compact" + (phone ? " ph" : "") + (flash ? " flash" : "")} data-sheet-block={blockId}>
       <div className="ocsh-h">
         <span className="ocsh-hi"><SheetIcon size={15} /></span>
         <b className="ocsh-hn">Spreadsheet</b>
-        {tabs}
+        {phone ? null : tabs}
         <span className="ocsh-grow" />
-        {aggEl}
+        {canEdit ? null : <span className="ocsh-tbt"><Lock size={13} /> View only</span>}
+        {phone ? null : aggEl}
         <button className="ocsh-ib hot" aria-label="Open full screen" title="Open full screen (Ctrl Shift E)" onClick={toggleFull}>
           <Maximize2 size={15} />
         </button>
       </div>
       {fxBar}
+      {insertKeys}
       {grid}
+      {actionBar}
+      {phone ? <div className="ocsh-sb">{tabs}{aggEl}</div> : null}
       {noteEl}
       {menuEl}
     </div>

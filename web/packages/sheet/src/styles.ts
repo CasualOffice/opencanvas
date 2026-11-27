@@ -62,7 +62,7 @@ export const CSS = `
 .ocsh-pane{position:absolute;overflow:hidden}
 .ocsh-in{position:absolute;left:0;top:0;will-change:transform}
 .ocsh-row{display:contents}
-.ocsh-c{position:absolute;display:flex;align-items:center;gap:.375rem;padding:0 .375rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;background:var(--app);user-select:none}
+.ocsh-c{position:absolute;display:flex;align-items:center;gap:.375rem;padding:0 .375rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:visible;background:var(--app);user-select:none}
 .ocsh-c.n{justify-content:flex-end;font-variant-numeric:tabular-nums}
 .ocsh-c.al-l{justify-content:flex-start}.ocsh-c.al-c{justify-content:center}.ocsh-c.al-r{justify-content:flex-end}
 .ocsh-c.b{font-weight:600}.ocsh-c.i{font-style:italic}.ocsh-c.st{text-decoration:line-through}
@@ -109,10 +109,22 @@ export const CSS = `
 .ocsh-note{position:absolute;left:50%;bottom:3rem;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;max-width:calc(100% - 1rem);padding:.5rem .5rem .5rem .75rem;border-radius:.625rem;background:var(--pop);box-shadow:var(--sh-pop);font-size:.8125rem}
 .ocsh-note .ocsh-btn{height:1.75rem}
 .ocsh-load{display:grid;place-items:center;height:20rem;color:var(--fg-3);font-size:.8125rem}
+/* phone (frames 9a-9b) */
+.ocsh.ph .ocsh-grid,.ocsh-full .ph-grid{font-size:.875rem;height:22rem}
+.ocsh.ph .ocsh-fx{height:2.75rem;font-size:.9375rem;background:var(--app)}
+.ocsh.ph .ocsh-fxv{font-size:.9375rem}
+.ocsh-acc{display:flex;gap:.25rem;padding:.375rem;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.ocsh-acc button{flex:1 0 auto;min-width:2.75rem;height:2.75rem;border:0;border-radius:.5rem;background:var(--app);font-family:var(--mono);font-size:.8125rem;box-shadow:inset 0 0 0 1px var(--line)}
+.ocsh-act{display:flex;align-items:center;gap:.25rem;padding:.25rem .375rem;border-top:1px solid var(--line);background:var(--panel);flex:none;overflow-x:auto}
+.ocsh-act .ocsh-tbt{height:2.75rem;min-width:2.75rem;padding:0 .75rem;font-size:.8125rem;color:var(--fg)}
+.ocsh-tbt:disabled{opacity:.4;cursor:default}
+.ocsh-knob{position:absolute;width:.875rem;height:.875rem;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--app);z-index:6;touch-action:none}
+.ocsh-knob::before{content:"";position:absolute;inset:-.9375rem}
+.ocsh-knob.tl{left:-.4375rem;top:-.4375rem}.ocsh-knob.br{right:-.4375rem;bottom:-.4375rem}
+.ocsh-mcap{font-size:.75rem;font-weight:600;color:var(--fg-3);padding:.375rem .625rem 0}
 @media (max-width:45em){
   .ocsh-nb{width:4rem}
   .ocsh-tb{border-radius:.625rem}
-  .ocsh-grid{height:16rem}
   .ocsh-ib{width:2.25rem;height:2.25rem}
 }
 `;

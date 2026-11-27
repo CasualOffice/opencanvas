@@ -6,10 +6,17 @@
 // formula reads A1:A4), types into the new row, and Sam sees every value live.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type FrameLocator } from "@playwright/test";
-import { sharedFile, typeAfterHeading } from "../helpers";
+import { editor, setAccess, sharedFile, typeAfterHeading, type Person } from "../helpers";
 
 const grid = (oc: FrameLocator) => oc.locator(".ocsh-grid").first();
 const cell = (oc: FrameLocator, r: number, c: number) => grid(oc).locator(`[data-r="${r}"][data-c="${c}"]`);
+
+async function newSheet(p: Person) {
+  await typeAfterHeading(p, "Notes", "");
+  await p.page.keyboard.type("/spreadsheet");
+  await p.page.keyboard.press("Enter");
+  await expect(grid(p.oc)).toBeVisible({ timeout: 15_000 });
+}
 
 test("SHEET-04: insert a spreadsheet, SUM, insert a row inside the range, a second person sees it", async ({ browser }) => {
   test.setTimeout(120_000);
@@ -155,4 +162,71 @@ test("SHEET-04: fill handle, paste from Excel, formats, freeze, filter and full 
     const b = document.querySelector(".ocsh")!.getBoundingClientRect();
     return b.left >= 0 && b.right <= document.documentElement.clientWidth + 1;
   })).toBe(true);
+});
+
+test("SHEET-06: phone layout, #REF! named after someone else's delete, view only", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { priya, sam, fileId } = await sharedFile(browser, { name: "E2E sheet 3", samRole: "edit" });
+  await newSheet(priya);
+  await cell(priya.oc, 0, 0).click();
+  await priya.page.keyboard.type("5");
+  await priya.page.keyboard.press("Enter");
+
+  // Phone (9a): taller rows; a double tap edits in the formula bar with insert keys; tapping a
+  // cell while typing a formula inserts its reference.
+  await priya.page.setViewportSize({ width: 390, height: 844 });
+  await expect(priya.oc.locator(".ocsh.ph")).toBeVisible();
+  const ax = await new AxeBuilder({ page: priya.page }).include(['iframe[name="oc"]', ".ocsh"]).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  expect(ax.violations.map((v) => `${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+  await cell(priya.oc, 0, 1).dblclick();
+  await expect(priya.oc.getByLabel("Formula bar")).toBeFocused();
+  const keys = priya.oc.getByRole("toolbar", { name: "Insert into the formula" });
+  await keys.getByRole("button", { name: "=", exact: true }).click();
+  await cell(priya.oc, 0, 0).click();
+  await expect(priya.oc.getByLabel("Formula bar")).toHaveValue("=A1");
+  await priya.page.keyboard.type("*2");
+  await priya.page.keyboard.press("Enter");
+  await expect(cell(priya.oc, 0, 1)).toHaveText("10");
+
+  // 9b: the action bar's Aa sheet formats; the round handle extends the selection.
+  await cell(priya.oc, 0, 0).click();
+  await priya.oc.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Format" }).click();
+  await priya.oc.getByRole("dialog", { name: "Format" }).getByRole("button", { name: "Bold" }).click();
+  await expect(cell(priya.oc, 0, 0)).toHaveClass(/\bb\b/);
+  await priya.page.keyboard.press("Escape");
+  await cell(priya.oc, 0, 0).click();
+  const knob = (await grid(priya.oc).locator(".ocsh-knob.br").boundingBox())!;
+  const a3 = (await cell(priya.oc, 2, 0).boundingBox())!;
+  await priya.page.mouse.move(knob.x + knob.width / 2, knob.y + knob.height / 2);
+  await priya.page.mouse.down();
+  await priya.page.mouse.move(a3.x + a3.width / 2, a3.y + a3.height / 2, { steps: 5 });
+  await priya.page.mouse.up();
+  await expect(priya.oc.getByLabel("Name box")).toHaveValue("A1:A3");
+
+  // 10b: a formula Sam's delete breaks is named on Priya's screen, with a way to show it.
+  await cell(priya.oc, 2, 2).click();
+  await priya.page.keyboard.type("=A1*3");
+  await priya.page.keyboard.press("Enter");
+  await expect(cell(priya.oc, 2, 2)).toHaveText("15");
+  await expect(cell(sam.oc, 2, 2)).toHaveText("15", { timeout: 10_000 });
+  await grid(sam.oc).locator('[data-hr="0"]').click({ button: "right" });
+  await sam.oc.getByRole("menuitem", { name: "Delete row 1" }).click();
+  await expect(cell(priya.oc, 1, 2)).toHaveText("#REF!", { timeout: 10_000 });
+  await expect(priya.oc.getByText("1 formula now shows #REF!", { exact: false })).toBeVisible();
+
+  // 10a: view only. Selecting and filters work; typing, the fill handle and edit commands do not.
+  await setAccess(priya, fileId, "u_sam", "view");
+  await sam.page.reload();
+  await expect(editor(sam)).toHaveAttribute("contenteditable", "false", { timeout: 15_000 });
+  await expect(grid(sam.oc)).toBeVisible({ timeout: 15_000 });
+  await expect(sam.oc.getByText("View only").first()).toBeVisible();
+  await expect(sam.oc.getByLabel("Formula bar")).toHaveAttribute("readonly", "");
+  await cell(sam.oc, 1, 2).click();
+  await expect(grid(sam.oc).locator(".ocsh-fh")).toHaveCount(0);
+  await sam.page.keyboard.type("99");
+  await sam.page.keyboard.press("Enter");
+  await expect(cell(sam.oc, 1, 2)).toHaveText("#REF!");
+  await cell(sam.oc, 1, 2).click({ button: "right" });
+  await expect(sam.oc.getByRole("menuitem", { name: "Create a filter" })).toBeVisible();
+  await expect(sam.oc.getByRole("menuitem", { name: /Delete/ })).toHaveCount(0);
 });

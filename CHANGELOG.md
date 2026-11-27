@@ -41,6 +41,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   freeze rows and columns from the header menus; fill handle, copy and paste with Excel and Google
   Sheets, number formats, bold, italic, colours, alignment, filters and full screen
   (Ctrl+Shift+E). Edits sync live through Yjs; other people's selections show in their colour.
+- Spreadsheet block on phones, view only and offline (SHEET-06, frames 9-10): a double tap edits
+  in the formula bar with a row of insert keys, an action bar (copy, paste, fill, clear, Aa) and
+  round handles to extend the selection; viewers select, copy, filter for themselves and see sums
+  with nothing to edit; a change from someone else that turns formulas into `#REF!` is named in a
+  toast with Show.
 
 - Nextcloud Talk (TALK-01): post a canvas to a conversation as a card (posting never grants
   access; the dialog offers to share the file with the conversation), open it beside the chat or
