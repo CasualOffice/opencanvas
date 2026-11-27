@@ -1,0 +1,25 @@
+{
+  "scenario": "SHEET100K",
+  "at": "2026-11-27T19:06:03Z",
+  "label": "local-m4",
+  "bench": "cargo test --release -p oc-sheet --test bench_100k -- --ignored --nocapture",
+  "machine": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "Darwin 25.3.0",
+    "loadBefore": [9.01, 11.24, 9.59]
+  },
+  "mix": "one sheet, 100,000 rows: A = n, B = A*2 on every row, C1 = SUM(B1:B100000) (200,001 cells, stored with id references); open = build the opencalc workbook from the block and compute every cell (oc_sheet::engine::Book::open); edit = set A50000 and answer the changed displays (Book::set). Native release build, one thread, no network, no Yjs.",
+  "runs": [
+    {"openMs": 519, "editMs": 257},
+    {"openMs": 567, "editMs": 284},
+    {"openMs": 589, "editMs": 258}
+  ],
+  "before": {
+    "linearLookups": "MemGrid row/column lookups by linear search and one engine edit (with its recalculation) per cell: no result after 300 s (stopped)",
+    "indexOnly": "indexed lookups, still one engine edit per cell (each rebuilds the dependency graph): no result after 150 s (stopped)"
+  },
+  "budget": {"openS": 30, "editS": 3},
+  "notes": "The edit time is the engine's recalculation plus re-reading every cell's display (Book::refresh walks all 200,001 cells); narrowing refresh to the cells the engine recomputed is the next step if edits on large sheets need to be faster."
+}

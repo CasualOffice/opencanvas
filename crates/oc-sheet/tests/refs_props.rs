@@ -19,8 +19,8 @@ const COLS: u32 = 12;
 const SHEETS: [&str; 3] = ["Budget", "Q1 plan", "Amara's"];
 
 fn grid() -> MemGrid {
-    MemGrid {
-        sheets: SHEETS
+    MemGrid::new(
+        SHEETS
             .iter()
             .enumerate()
             .map(|(k, name)| {
@@ -29,7 +29,7 @@ fn grid() -> MemGrid {
                 (format!("s{k}"), name.to_string(), rows, cols)
             })
             .collect(),
-    }
+    )
 }
 
 fn axis(max: u32) -> impl Strategy<Value = Axis> {
@@ -134,7 +134,7 @@ proptest! {
     fn inserting_a_row_moves_exactly_the_references_at_or_after_it((src, refs) in formula(), sheet in 0..SHEETS.len(), at in 0..ROWS) {
         let mut g = grid();
         let stored = to_ids(&src, "s0", &g);
-        g.sheets[sheet].2.insert(at as usize, "inserted".into());
+        g.edit(|s| s[sheet].2.insert(at as usize, "inserted".into()));
         let bump = |a: Axis| Axis { index: if a.index >= at { a.index + 1 } else { a.index }, ..a };
         let expected = rebuild(&src, &refs, |r| {
             if sheet_index(r) != sheet { return Some(r.clone()); }
@@ -152,7 +152,7 @@ proptest! {
     fn deleting_a_column_breaks_exactly_the_references_to_it((src, refs) in formula(), sheet in 0..SHEETS.len(), at in 0..COLS) {
         let mut g = grid();
         let stored = to_ids(&src, "s0", &g);
-        g.sheets[sheet].3.remove(at as usize);
+        g.edit(|s| { s[sheet].3.remove(at as usize); });
         let expected = rebuild(&src, &refs, |r| {
             if sheet_index(r) != sheet { return Some(r.clone()); }
             let mv = |e: &End| -> Option<End> {

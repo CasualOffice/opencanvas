@@ -358,7 +358,7 @@ fn apply_formats(
             _ => continue,
         };
         session
-            .edit(op)
+            .apply_raw(op)
             .map_err(|e| BookError(format!("format: {e:?}")))?;
     }
     Ok(())
