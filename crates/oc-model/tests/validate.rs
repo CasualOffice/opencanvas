@@ -488,3 +488,32 @@ fn deeply_nested_content_is_an_error_not_a_crash() {
     // the validator (the server never builds such a value from a request: serde caps parse depth).
     std::mem::forget(doc);
 }
+
+/// SHEET-08: a Spreadsheet block is a known node: `sheetId` must be an id, it has no content,
+/// and a block whose sheets are missing from the `sheets` root is a warning.
+#[test]
+fn spreadsheet_blocks_follow_the_schema() {
+    let d = json!({"type": "doc", "content": [
+        {"type": "spreadsheet", "attrs": {"sheetId": "sh1"}},
+        {"type": "spreadsheet", "attrs": {"sheetId": "gone"}},
+    ], "sheets": {"sh1": {"order": [], "sheets": {}, "styles": {}}}});
+    let r = validate_json(&d);
+    assert!(r.is_ok(), "{:?}", r.errors);
+    let w: Vec<String> = r.warnings.iter().map(ToString::to_string).collect();
+    assert!(
+        w.iter()
+            .any(|w| w.contains("/content/1/attrs/sheetId: sheet \"gone\" is not in sheets")),
+        "{w:?}"
+    );
+    assert_eq!(w.len(), 1, "{w:?}");
+    let bad = validate_blocks(
+        "blocks",
+        &[json!({"type": "spreadsheet", "attrs": {"sheetId": 7}})],
+    );
+    assert!(!bad.is_ok());
+    let child = validate_blocks(
+        "blocks",
+        &[json!({"type": "spreadsheet", "attrs": {"sheetId": "a"}, "content": [t("x")]})],
+    );
+    assert!(!child.is_ok(), "a spreadsheet has no content");
+}

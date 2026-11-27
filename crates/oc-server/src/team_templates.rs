@@ -163,9 +163,9 @@ fn new_id(prefix: &str) -> String {
     format!("{prefix}{}", ulid::Ulid::new().to_string().to_lowercase())
 }
 
-/// Gives every database and board fresh ids (so applying a template twice, or into a canvas
+/// Gives every database, board and spreadsheet fresh ids (so applying a template twice, or into a canvas
 /// with its own databases, never shares one), drops block ids (fresh ones are set when the
-/// blocks are inserted) and keeps only `content`, `databases`, `boards` and the meta
+/// blocks are inserted) and keeps only `content`, `databases`, `boards`, `sheets` and the meta
 /// `title`/`icon`/`tone`/`template`. Comments, people and assets of the template file are
 /// not copied.
 pub fn prepare(tpl: &Value, meta: Map<String, Value>) -> Result<Value, TemplateError> {
@@ -186,15 +186,25 @@ pub fn prepare(tpl: &Value, meta: Map<String, Value>) -> Result<Value, TemplateE
     };
     let databases = copy("databases", "db");
     let boards = copy("boards", "bd");
+    let sheets = copy("sheets", "sh");
     let mut content: Vec<Value> = tpl
         .get("content")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
     fn walk(n: &mut Value, remap: &HashMap<String, String>) {
+        let sheet = n.get("type").and_then(Value::as_str) == Some(oc_model::export::SHEET_NODE);
         if let Some(attrs) = n.get_mut("attrs").and_then(Value::as_object_mut) {
-            attrs.remove(oc_model::patch::BLOCK_ID);
-            for key in ["dbId", "boardId"] {
+            let block_id = attrs.remove(oc_model::patch::BLOCK_ID);
+            // A spreadsheet without `sheetId` is keyed by its block id, which is dropped here.
+            if sheet
+                && !attrs.contains_key("sheetId")
+                && let Some(id) = block_id.as_ref().and_then(Value::as_str)
+                && remap.contains_key(id)
+            {
+                attrs.insert("sheetId".into(), json!(id));
+            }
+            for key in ["dbId", "boardId", "sheetId"] {
                 if let Some(new) = attrs
                     .get(key)
                     .and_then(Value::as_str)
@@ -226,6 +236,7 @@ pub fn prepare(tpl: &Value, meta: Map<String, Value>) -> Result<Value, TemplateE
         "meta": meta,
         "databases": databases,
         "boards": boards,
+        "sheets": sheets,
     });
     // MOD-01: the template must fit the block schema (unknown content is kept, as on load).
     let report = oc_model::validate::record(oc_model::validate::validate_json(&out));
@@ -325,6 +336,32 @@ mod tests {
             prepare(&json!({"content": []}), Map::new()),
             Err(TemplateError::Invalid(_))
         ));
+    }
+
+    /// SHEET-08: a template's spreadsheets are copied under fresh keys, and applied.
+    #[test]
+    fn spreadsheets_are_copied_with_fresh_ids() {
+        let sheet = json!({"order": ["s"], "styles": {}, "sheets": {"s": {
+            "name": "Budget", "rows": ["r"], "cols": ["c"], "cells": {"r:c": {"in": "42"}}}}});
+        let tpl = json!({
+            "content": [{"type": "spreadsheet", "attrs": {"sheetId": "shOld", "blockId": "b_x"}}],
+            "sheets": {"shOld": sheet},
+        });
+        let p = prepare(&tpl, Map::new()).unwrap();
+        let sheets = p["sheets"].as_object().expect("sheets are copied");
+        assert_eq!(sheets.len(), 1);
+        let (key, copied) = sheets.iter().next().unwrap();
+        assert_ne!(key, "shOld");
+        assert_eq!(copied, &sheet);
+        assert_eq!(p["content"][0]["attrs"]["sheetId"], json!(key));
+        let doc = oc_model::new_doc();
+        let (u, _) = apply(&doc, &p).unwrap();
+        oc_model::ocanvas::apply_update_bytes(&doc, &u).unwrap();
+        let out = oc_model::doc_to_json(&doc);
+        assert_eq!(
+            out["sheets"][key]["sheets"]["s"]["cells"]["r:c"]["in"],
+            "42"
+        );
     }
 
     #[test]
