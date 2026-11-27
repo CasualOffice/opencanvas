@@ -86,6 +86,15 @@ pub(super) fn header_of(key: &str, doc: &Doc) -> Value {
     header_json(root, &oc_model::doc_to_json(doc)[root][id])
 }
 
+/// A part's block kind from its root (the editor's `PartHeader.kind`).
+fn kind_of(root: &str) -> &'static str {
+    match root {
+        oc_model::roots::DATABASES => "database",
+        oc_model::roots::SHEETS => "sheet",
+        _ => "board",
+    }
+}
+
 /// The header of a block from its logical JSON.
 fn header_json(root: &str, v: &Value) -> Value {
     let count = ["order", "rows", "items"]
@@ -96,12 +105,7 @@ fn header_json(root: &str, v: &Value) -> Value {
             _ => None,
         })
         .unwrap_or(0);
-    let kind = if root == oc_model::roots::DATABASES {
-        "database"
-    } else {
-        "board"
-    };
-    json!({"kind": kind, "name": v.get("name").cloned().unwrap_or(Value::Null), "count": count})
+    json!({"kind": kind_of(root), "name": v.get("name").cloned().unwrap_or(Value::Null), "count": count})
 }
 
 /// A canvas cut while the room loads it from the host (PSYNC-02 fast open): the file's
@@ -1028,7 +1032,7 @@ impl Room {
                 s.dirty_parts.insert(k.clone());
             }
             if !k.is_empty() && !s.headers.contains_key(&k) {
-                s.headers.insert(k.clone(), json!({"kind": if k.starts_with("databases/") {"database"} else {"board"}, "name": null, "count": 0}));
+                s.headers.insert(k.clone(), json!({"kind": kind_of(parts::part_root(&k).map_or("", |r| r.0)), "name": null, "count": 0}));
             }
             self.seq += 1;
             self.doc_bytes += share.len();

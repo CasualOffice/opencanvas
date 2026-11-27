@@ -311,9 +311,9 @@ fn split_then_flatten_is_the_original_byte_for_byte() {
         }
         let main = json(&docs[MAIN]);
         for root in SPLIT_ROOTS {
-            assert_eq!(
-                main[root],
-                serde_json::json!({}),
+            // `sheets` is left out of the JSON when empty.
+            assert!(
+                main[root] == serde_json::json!({}) || main[root].is_null(),
                 "seed {seed}: main keeps {root}"
             );
         }
@@ -526,4 +526,25 @@ fn routing_leaves_new_databases_in_main_until_the_next_split() {
         [MAIN]
     );
     assert_eq!(routed.parts[MAIN], update);
+}
+
+#[test]
+fn a_spreadsheet_block_is_a_part_of_its_own() {
+    let doc = doc_with(1);
+    {
+        let sheets = doc.get_or_insert_map("sheets");
+        let mut txn = doc.transact_mut();
+        let block = sheets.insert(&mut txn, "k", MapPrelim::default());
+        block.insert(&mut txn, "styles", MapPrelim::default());
+    }
+    let update = encode(&doc);
+    let cut = split(&update).unwrap();
+    assert_eq!(
+        cut.parts.keys().map(String::as_str).collect::<Vec<_>>(),
+        [MAIN, "sheets/k"]
+    );
+    assert_eq!(part_root("sheets/k"), Some(("sheets", "k")));
+    let whole = flatten(&cut.parts.values().collect::<Vec<_>>()).unwrap();
+    assert_eq!(json(&load(&whole, 9)), json(&doc));
+    assert!(json(&doc)["sheets"]["k"]["styles"].is_object());
 }

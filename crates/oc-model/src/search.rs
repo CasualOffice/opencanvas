@@ -187,6 +187,24 @@ impl Walk<'_> {
             }
             "database" => self.database(attr_str(n, "dbId")),
             "board" => self.board(attr_str(n, "boardId")),
+            crate::export::SHEET_NODE => {
+                // SHEET-03: the displayed values, one line per row, as the grid shows them.
+                let mut text = Vec::new();
+                for t in crate::export::sheet_tables(self.doc, n) {
+                    text.push(t.name.clone());
+                    for r in &t.rows {
+                        let line: Vec<&str> = r
+                            .iter()
+                            .map(|c| c.trim())
+                            .filter(|c| !c.is_empty())
+                            .collect();
+                        if !line.is_empty() {
+                            text.push(line.join(" · "));
+                        }
+                    }
+                }
+                self.push(n, "sheet", text.join("\n"), None);
+            }
             "image" => {
                 let t = [attr_str(n, "alt"), attr_str(n, "caption")]
                     .iter()

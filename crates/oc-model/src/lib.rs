@@ -56,7 +56,9 @@ pub mod roots {
     pub const EXT: &str = "ext";
     /// AUTO-01 (ADR-067): automation rules, `{ruleId → Y.Map}` with one key per rule field.
     pub const AUTOMATIONS: &str = "automations";
-    pub const MAPS: [&str; 8] = [
+    /// SHEET-02 (ADR-080): Spreadsheet blocks, `{blockId → Y.Map {order, sheets, styles}}`.
+    pub const SHEETS: &str = "sheets";
+    pub const MAPS: [&str; 9] = [
         META,
         DATABASES,
         BOARDS,
@@ -65,5 +67,6 @@ pub mod roots {
         PEOPLE,
         EXT,
         AUTOMATIONS,
+        SHEETS,
     ];
 }
