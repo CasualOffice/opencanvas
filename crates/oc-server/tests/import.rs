@@ -445,3 +445,76 @@ async fn hostile_diagram_files_are_refused_with_a_reason() {
             .is_none_or(|b| b.is_empty())
     );
 }
+
+/// An `.xlsx` with a formula, built through the engine: Budget!B4 = SUM(B2:B3).
+fn budget_xlsx() -> Vec<u8> {
+    let cells = |pairs: &[(&str, &str)]| -> Value {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), json!({ "in": v })))
+            .collect::<serde_json::Map<_, _>>()
+            .into()
+    };
+    let mut d = json!({"sheets": {"k": {"order": ["s"], "styles": {}, "sheets": {"s": {
+        "name": "Budget", "rows": ["a", "b", "c", "d"], "cols": ["x", "y"],
+        "cells": cells(&[("a:x", "Item"), ("a:y", "Cost"), ("b:x", "Venue"), ("b:y", "4200"),
+            ("c:x", "Food"), ("c:y", "800"), ("d:x", "Total")])}}}}});
+    // Typed in A1, as a person would; stored with ids.
+    let sum = oc_model::export::sheet_input_to_ids(&d, "k", "s", "=SUM(B2:B3)");
+    d["sheets"]["k"]["sheets"]["s"]["cells"]["d:y"] = json!({ "in": sum });
+    oc_model::export::sheet_to_xlsx(&d, "k").unwrap().unwrap()
+}
+
+#[tokio::test]
+async fn xlsx_becomes_a_spreadsheet_block_and_exports_back() {
+    let (addr, state) = serve_import(
+        |h| {
+            all_formats(h);
+            h.flags.insert(
+                "import_formats".into(),
+                toml::Value::Array(vec!["md".into(), "xlsx".into(), "ods".into()]),
+            );
+        },
+        false,
+    )
+    .await;
+    let t = ticket(&state, Role::Edit).await;
+    let (s, v) = import(&addr, &t, "format=xlsx", budget_xlsx()).await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(v["format"], "xlsx");
+    assert_eq!(v["sheets"], 1, "{v}");
+    let key = v["sheetId"].as_str().unwrap().to_string();
+    let j = doc(&state).await;
+    let md = oc_model::export::to_markdown(&j);
+    assert!(md.contains("### Budget"), "{md}");
+    assert!(md.contains("| Total | 5000 |"), "{md}");
+
+    // Garbage is refused with a reason and adds nothing.
+    let (s, v) = import(&addr, &t, "format=ods", "not a zip").await;
+    assert_eq!(s, 400, "{v}");
+
+    // `GET /v1/export/sheet/<sheetId>.xlsx` gives the block back as a workbook.
+    let res = reqwest::get(format!(
+        "http://{addr}/v1/export/sheet/{key}.xlsx?ticket={t}"
+    ))
+    .await
+    .unwrap();
+    assert_eq!(res.status().as_u16(), 200);
+    assert!(
+        res.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .contains("spreadsheetml")
+    );
+    let bytes = res.bytes().await.unwrap();
+    let back = oc_model::export::sheet_from_file(&bytes, "xlsx").unwrap();
+    let md = oc_model::export::to_markdown(&json!({"type": "doc",
+        "content": [{"type": "spreadsheet", "attrs": {"sheetId": "z"}}], "sheets": {"z": back}}));
+    assert!(md.contains("| Total | 5000 |"), "{md}");
+    let res = reqwest::get(format!(
+        "http://{addr}/v1/export/sheet/nope.xlsx?ticket={t}"
+    ))
+    .await
+    .unwrap();
+    assert_eq!(res.status().as_u16(), 404);
+}

@@ -229,6 +229,8 @@ impl CanvasTools for LiveTools {
 const IMPORT_CSV: &str = "import_csv";
 /// The server's own diagram import step (DGM-15), never offered to models or MCP.
 const IMPORT_BOARD: &str = "import_board";
+/// The server's own spreadsheet import step (SHEET-03), never offered to models or MCP.
+const IMPORT_SHEET: &str = "import_sheet";
 /// "Make live" (LIVE-01): writes a new live file's first content, never offered to models
 /// or MCP.
 const LIVE_INIT: &str = "live_init";
@@ -236,7 +238,7 @@ const LIVE_INIT: &str = "live_init";
 pub const BLOCKS_PAGE: &str = "blocks_page";
 
 fn import_specs() -> Vec<ToolSpec> {
-    [IMPORT_CSV, IMPORT_BOARD, LIVE_INIT]
+    [IMPORT_CSV, IMPORT_BOARD, IMPORT_SHEET, LIVE_INIT]
         .into_iter()
         .map(|name| ToolSpec {
             name,
@@ -285,6 +287,12 @@ impl LiveTools {
     /// with `meta.kind = "live"`) as one edit, with cluster forwarding.
     pub async fn live_init(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
         self.run(ctx, LIVE_INIT, input, true, true).await
+    }
+
+    /// An `.xlsx` or `.ods` import (SHEET-03): `input.block` (a Spreadsheet block's logical
+    /// JSON) as a new block after `afterBlockId` or at the end.
+    pub async fn import_sheet(&self, ctx: &ToolCtx, input: Value) -> Result<Value, ToolError> {
+        self.run(ctx, IMPORT_SHEET, input, true, true).await
     }
 
     /// A diagram import (DGM-15): converted shapes onto a new board block or an open board.
@@ -387,6 +395,7 @@ impl LiveTools {
             "db_create" => Box::new(move |d| write::db_create(d, &i)),
             IMPORT_CSV => Box::new(move |d| write::import_csv(d, &i)),
             IMPORT_BOARD => Box::new(move |d| write::import_board(d, &i)),
+            IMPORT_SHEET => Box::new(move |d| write::import_sheet(d, &i)),
             LIVE_INIT => Box::new(move |d| {
                 let u =
                     oc_model::restore::restore_update(d, &i["doc"]).map_err(ToolError::BadInput)?;

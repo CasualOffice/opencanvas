@@ -10,6 +10,9 @@
 //! draw.io and Excalidraw (DGM-15, docs/29 §7) become a board block, or join `boardId`;
 //! `dryRun=1` returns the conversion report and adds nothing; `page` picks a draw.io page.
 //!
+//! `.xlsx` and `.ods` (SHEET-03) become one Spreadsheet block: values and formulas as typed,
+//! references stored as ids (ADR-080).
+//!
 //! Gate: `[host.flags] import_formats` (absent or empty: off) and `OC_IMPORT=off` for all.
 
 use std::collections::HashSet;
@@ -227,6 +230,30 @@ pub(super) async fn run(
         tracing::info!(host = %host.id, room = %grant.room, format = %p.format,
             dry_run = out["dryRun"] == true, "import");
         return Ok(out);
+    }
+    if matches!(p.format.as_str(), "xlsx" | "ods") {
+        let block = oc_model::export::sheet_from_file(body, &p.format).map_err(invalid)?;
+        let sheets = block["order"].as_array().map_or(0, Vec::len);
+        let mut input = json!({ "block": block });
+        if let Some(id) = &p.block_id {
+            input["afterBlockId"] = json!(id);
+        }
+        let ctx = ToolCtx {
+            host_id: host.id.clone(),
+            file_id: grant.file.id.clone(),
+            user: grant.clone(),
+            origin: format!("import:{}", grant.user.id),
+            mode_default: WriteMode::Direct,
+        };
+        let v = LiveTools::new(state.clone())
+            .import_sheet(&ctx, input)
+            .await
+            .map_err(tool_error)?;
+        tracing::info!(host = %host.id, room = %grant.room, format = %p.format, "import");
+        return Ok(
+            json!({"format": p.format, "sheets": sheets, "sheetId": v["sheetId"],
+            "blockIds": [v["blockId"]]}),
+        );
     }
     let text = std::str::from_utf8(body).map_err(|_| invalid("the file must be UTF-8 text"))?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);

@@ -513,6 +513,31 @@ fn create_db(doc: &Doc, input: &Value, max_rows: usize) -> Step {
     ))
 }
 
+/// A spreadsheet import (SHEET-03, `POST /v1/import?format=xlsx|ods`): `input.block`, a
+/// Spreadsheet block's logical JSON, written under a new `sheets` key, and its node inserted
+/// after `afterBlockId` or at the end, as one edit.
+pub fn import_sheet(doc: &Doc, input: &Value) -> Step {
+    let block = &input["block"];
+    if !block["sheets"].is_object() || !block["order"].is_array() {
+        return Err(ToolError::BadInput("block must be a spreadsheet".into()));
+    }
+    let key = new_id("sh");
+    let s = scratch(doc);
+    let before = s.transact().state_vector();
+    let block_id = insert_block(
+        &s,
+        input,
+        json!({"type": oc_model::export::SHEET_NODE, "attrs": {"sheetId": key}}),
+    )?;
+    {
+        let mut txn = s.transact_mut();
+        let sheets = txn.get_or_insert_map(roots::SHEETS);
+        sheets.insert(&mut txn, key.as_str(), json_to_in("", block));
+    }
+    let update = s.transact().encode_state_as_update_v1(&before);
+    Ok((Some(update), json!({"sheetId": key, "blockId": block_id})))
+}
+
 pub fn db_add_field(doc: &Doc, input: &Value) -> Step {
     let db_id = input["dbId"]
         .as_str()

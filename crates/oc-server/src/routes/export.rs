@@ -120,6 +120,56 @@ pub async fn export(
         .into_response())
 }
 
+/// `GET /v1/export/sheet/:sheetId.xlsx?ticket=` (SHEET-03): one Spreadsheet block as a workbook,
+/// formulas in A1 and values as computed. `[host.flags] export_formats` gates it as `xlsx`.
+pub async fn export_sheet(
+    State(state): State<SharedState>,
+    Path(file): Path<String>,
+    Query(p): Query<ExportParams>,
+) -> Result<Response, ApiError> {
+    let (host, grant) = session(&state, &p.ticket).await?;
+    if !grant.perms.export || !host.export_allowed("xlsx") {
+        return Err(ApiError::forbidden("export not permitted for this session"));
+    }
+    let key = file.strip_suffix(".xlsx").ok_or_else(|| {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "FORMAT_UNSUPPORTED",
+            "supported: <sheetId>.xlsx",
+        )
+    })?;
+    let doc = load(&state, &host, &grant).await?;
+    let json = oc_model::doc_to_json(&doc);
+    let key = key.to_string();
+    let out = tokio::task::spawn_blocking(move || oc_model::export::sheet_to_xlsx(&json, &key))
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::NOT_FOUND,
+                "BLOCK_NOT_FOUND",
+                "no such spreadsheet in this canvas",
+            )
+        })?
+        .map_err(ApiError::internal)?;
+    Ok((
+        [
+            (
+                header::CONTENT_TYPE,
+                oc_model::export::XLSX_MIME.to_string(),
+            ),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"spreadsheet.xlsx\"".to_string(),
+            ),
+            (header::CACHE_CONTROL, "no-store".into()),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
+        ],
+        out,
+    )
+        .into_response())
+}
+
 /// `GET /v1/export/board/:boardId.svg|png?ticket=`: one board, fitted to its content.
 pub async fn export_board(
     State(state): State<SharedState>,

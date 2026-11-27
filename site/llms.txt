@@ -2,7 +2,7 @@
 
 > A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). Status: 0.3.0 released 2026-11-26; best-effort support and no production SLA.
 
-Made by CasualOffice (https://github.com/CasualOffice). This file was last updated 2026-11-27. The facts below are from https://canvas.casualoffice.org/docs/facts.html, where each one links to the repository file, test or tracker entry it comes from.
+Made by CasualOffice (https://github.com/CasualOffice). This file was last updated 2026-11-28. The facts below are from https://canvas.casualoffice.org/docs/facts.html, where each one links to the repository file, test or tracker entry it comes from.
 
 ## Facts
 - Name: OpenCanvas, made by CasualOffice (source: https://github.com/CasualOffice/opencanvas/blob/main/NOTICE)

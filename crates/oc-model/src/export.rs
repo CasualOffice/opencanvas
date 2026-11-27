@@ -112,6 +112,34 @@ pub fn sheet_tables(doc: &Value, n: &Value) -> Vec<oc_sheet::block::Table> {
         .collect()
 }
 
+/// An `.xlsx` package's MIME type.
+pub const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/// A Spreadsheet block (its `sheets` root key) as an `.xlsx`; `None` when there is no such block.
+pub fn sheet_to_xlsx(doc: &Value, key: &str) -> Option<Result<Vec<u8>, String>> {
+    let block = &doc["sheets"][key];
+    block
+        .is_object()
+        .then(|| oc_sheet::block::to_xlsx(block).map_err(|e| e.0))
+}
+
+/// An `.xlsx` (`format` "xlsx") or `.ods` ("ods") file as a new Spreadsheet block's logical
+/// JSON, ready for the `sheets` root.
+pub fn sheet_from_file(bytes: &[u8], format: &str) -> Result<Value, String> {
+    let f = match format {
+        "xlsx" => oc_sheet::block::FileFormat::Xlsx,
+        "ods" => oc_sheet::block::FileFormat::Ods,
+        other => return Err(format!("not a spreadsheet format: {other}")),
+    };
+    oc_sheet::block::from_file(bytes, f).map_err(|e| e.0)
+}
+
+/// A formula typed in A1 on one sheet of a block, in its stored form (references as ids).
+pub fn sheet_input_to_ids(doc: &Value, key: &str, sheet: &str, typed: &str) -> String {
+    let sheets = oc_sheet::block::book_sheets(&doc["sheets"][key]);
+    oc_sheet::refs::to_ids(typed, sheet, &oc_sheet::engine::grid_of(&sheets))
+}
+
 /// `(field name, description)` for fields that carry a non-blank description, whitespace runs
 /// (line breaks included) collapsed to one space.
 pub(crate) fn database_notes(doc: &Value, id: &str) -> Vec<(String, String)> {

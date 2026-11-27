@@ -33,6 +33,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Spreadsheet blocks on the server (SHEET-03, ADR-080): Markdown, HTML, Word, `.ocanvas`
+  (`document.json`, `search.json`), `GET …/blocks/{blockId}` and MCP `canvas_read` show a
+  spreadsheet as tables of the values the grid displays, computed with opencalc's engine;
+  `POST /v1/import?format=xlsx|ods` turns a workbook into a Spreadsheet block (host
+  `import_formats`), and `GET /v1/export/sheet/<sheetId>.xlsx` exports one. The `sheets` root is
+  a partial-sync part (`sheets/<id>`, header kind `sheet`).
+
 - Nextcloud Talk (TALK-01): post a canvas to a conversation as a card (posting never grants
   access; the dialog offers to share the file with the conversation), open it beside the chat or
   call, in a sidebar tab on narrow windows, full screen, or full screen with a call tile on a

@@ -290,6 +290,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/preview", get(preview::preview))
         .route("/v1/export/{fmt}", get(export::export))
         .route("/v1/export/board/{file}", get(export::export_board))
+        .route("/v1/export/sheet/{file}", get(export::export_sheet))
         .route("/v1/assets", post(proxy::upload_asset).layer(DefaultBodyLimit::max(MAX_ASSET_BYTES)))
         .route("/v1/assets/fetch", get(proxy::fetch_asset))
         .route("/v1/assets/{id}", get(proxy::get_asset))
