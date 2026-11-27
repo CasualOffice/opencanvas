@@ -101,3 +101,61 @@ test("DB5-01: timeline bars, dependencies, shift dependents, critical path, mile
   await expect(d.getByRole("region", { name: /^Week of / }).first()).toBeVisible();
   await expect(d.locator(".ocdb-tl-it").filter({ hasText: "API freeze" })).toBeVisible();
 });
+
+test("DB5-01: drag to move, resize and link; the bar menu removes dates", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { priya } = await sharedFile(browser, { name: "E2E timeline drag", samRole: "edit" });
+  const page = priya.page;
+  await typeAfterHeading(priya, "Notes", "");
+  await page.keyboard.type("/database");
+  await page.keyboard.press("Enter");
+  dbId = "";
+  let d = db(priya.oc);
+  await expect(d).toBeVisible({ timeout: 15_000 });
+  dbId = (await d.evaluate((el) => el.closest("[data-db]")?.getAttribute("data-db"))) ?? "";
+  d = db(priya.oc);
+  const names = d.locator("tbody").getByRole("textbox", { name: "Name" });
+  for (const [i, n] of ["API freeze", "SDK docs"].entries()) {
+    await names.nth(i).fill(n);
+    await names.nth(i).press("Enter");
+  }
+  await d.getByRole("tab", { name: "Timeline" }).click();
+  await d.getByRole("button", { name: "Timeline view settings" }).click();
+  await priya.oc.getByRole("button", { name: "Add Due field" }).click();
+  await page.keyboard.press("Escape");
+  for (const n of ["API freeze", "SDK docs"]) await d.getByLabel("No dates").getByRole("button", { name: n }).click();
+  await d.getByRole("group", { name: "Zoom" }).getByRole("button", { name: "Day" }).click();
+
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 8 });
+    await page.mouse.up();
+  };
+  const label = async (n: string) => (await bar(priya.oc, n).getAttribute("aria-label")) ?? "";
+
+  // Move: drag the bar body three days right; its dates change.
+  const before = await label("API freeze");
+  let b = (await bar(priya.oc, "API freeze").boundingBox())!;
+  await drag({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, { x: b.x + b.width / 2 + b.width * 3, y: b.y + b.height / 2 });
+  await expect.poll(() => label("API freeze")).not.toBe(before);
+
+  // Resize: drag the right edge two days; the bar gets longer.
+  const w0 = (await bar(priya.oc, "API freeze").boundingBox())!.width;
+  b = (await bar(priya.oc, "API freeze").boundingBox())!;
+  await drag({ x: b.x + b.width - 2, y: b.y + b.height / 2 }, { x: b.x + b.width - 2 + w0 * 2, y: b.y + b.height / 2 });
+  await expect.poll(async () => (await bar(priya.oc, "API freeze").boundingBox())!.width).toBeGreaterThan(w0 * 2);
+
+  // Link: drag the round handle at API freeze's end onto SDK docs.
+  b = (await bar(priya.oc, "API freeze").boundingBox())!;
+  const t = (await bar(priya.oc, "SDK docs").boundingBox())!;
+  await bar(priya.oc, "API freeze").hover();
+  await drag({ x: b.x + b.width + 5, y: b.y + b.height / 2 }, { x: t.x + t.width / 2, y: t.y + t.height / 2 });
+  await expect(bar(priya.oc, "SDK docs")).toHaveAttribute("aria-label", /blocked by API freeze/);
+
+  // The bar menu (Shift+F10): Remove dates sends SDK docs back to the tray.
+  await bar(priya.oc, "SDK docs").focus();
+  await page.keyboard.press("Shift+F10");
+  await priya.oc.getByRole("menuitem", { name: "Remove dates" }).click();
+  await expect(d.getByLabel("No dates").getByRole("button", { name: "SDK docs" })).toBeVisible();
+});
