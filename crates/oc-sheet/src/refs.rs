@@ -21,6 +21,8 @@
 //!
 //! Ids are opaque but must not contain `$ ; : !` or the two delimiters.
 
+use std::collections::HashMap;
+
 /// Opens a stored reference.
 pub const OPEN: char = '\u{E000}';
 /// Closes a stored reference.
@@ -562,25 +564,74 @@ pub fn shift(src: &str, dr: i64, dc: i64) -> String {
     out
 }
 
+/// One sheet of a [`MemGrid`]: `(id, name, row ids, column ids)`.
+pub type GridSheet = (String, String, Vec<String>, Vec<String>);
+
 /// A grid held in memory: the server builds one from the Yjs document; tests use it directly.
+/// Lookups by id are indexed (hash maps built once), so a 100,000-row sheet opens in linear time.
 #[derive(Clone, Debug, Default)]
 pub struct MemGrid {
-    /// `(id, name, row ids, column ids)` in tab order.
-    pub sheets: Vec<(String, String, Vec<String>, Vec<String>)>,
+    /// In tab order.
+    sheets: Vec<GridSheet>,
+    /// Sheet id -> (position in `sheets`, row id -> index, column id -> index).
+    index: HashMap<String, SheetIndex>,
+    /// Lower-cased sheet name -> sheet id.
+    names: HashMap<String, String>,
 }
 
+type SheetIndex = (usize, HashMap<String, u32>, HashMap<String, u32>);
+
 impl MemGrid {
-    fn sheet(&self, id: &str) -> Option<&(String, String, Vec<String>, Vec<String>)> {
-        self.sheets.iter().find(|s| s.0 == id)
+    /// A grid of these sheets, in tab order.
+    pub fn new(sheets: Vec<GridSheet>) -> Self {
+        let mut g = MemGrid {
+            sheets,
+            ..Default::default()
+        };
+        g.reindex();
+        g
+    }
+
+    /// The sheets, in tab order.
+    pub fn sheets(&self) -> &[GridSheet] {
+        &self.sheets
+    }
+
+    /// Changes the sheets (insert, delete or rename) and rebuilds the index.
+    pub fn edit(&mut self, f: impl FnOnce(&mut Vec<GridSheet>)) {
+        f(&mut self.sheets);
+        self.reindex();
+    }
+
+    fn reindex(&mut self) {
+        let at = |ids: &[String]| -> HashMap<String, u32> {
+            let mut m = HashMap::with_capacity(ids.len());
+            for (i, id) in ids.iter().enumerate() {
+                // The first wins, as a linear search would find it.
+                m.entry(id.clone()).or_insert(i as u32);
+            }
+            m
+        };
+        self.index.clear();
+        self.names.clear();
+        for (k, s) in self.sheets.iter().enumerate() {
+            self.index
+                .entry(s.0.clone())
+                .or_insert_with(|| (k, at(&s.2), at(&s.3)));
+            self.names
+                .entry(s.1.to_lowercase())
+                .or_insert_with(|| s.0.clone());
+        }
+    }
+
+    fn sheet(&self, id: &str) -> Option<&GridSheet> {
+        self.index.get(id).map(|(k, _, _)| &self.sheets[*k])
     }
 }
 
 impl Grid for MemGrid {
     fn sheet_by_name(&self, name: &str) -> Option<String> {
-        self.sheets
-            .iter()
-            .find(|s| s.1.to_lowercase() == name.to_lowercase())
-            .map(|s| s.0.clone())
+        self.names.get(&name.to_lowercase()).cloned()
     }
     fn sheet_name(&self, sheet: &str) -> Option<String> {
         self.sheet(sheet).map(|s| s.1.clone())
@@ -592,18 +643,10 @@ impl Grid for MemGrid {
         self.sheet(sheet)?.3.get(index as usize).cloned()
     }
     fn row_index(&self, sheet: &str, id: &str) -> Option<u32> {
-        self.sheet(sheet)?
-            .2
-            .iter()
-            .position(|x| x == id)
-            .map(|i| i as u32)
+        self.index.get(sheet)?.1.get(id).copied()
     }
     fn col_index(&self, sheet: &str, id: &str) -> Option<u32> {
-        self.sheet(sheet)?
-            .3
-            .iter()
-            .position(|x| x == id)
-            .map(|i| i as u32)
+        self.index.get(sheet)?.2.get(id).copied()
     }
 }
 
@@ -613,13 +656,11 @@ mod tests {
 
     fn grid() -> MemGrid {
         let ids = |p: &str, n: usize| (0..n).map(|i| format!("{p}{i}")).collect::<Vec<_>>();
-        MemGrid {
-            sheets: vec![
-                ("s1".into(), "Budget".into(), ids("r", 100), ids("c", 26)),
-                ("s2".into(), "Rates".into(), ids("q", 20), ids("d", 10)),
-                ("s3".into(), "Q1 plan".into(), ids("p", 10), ids("e", 5)),
-            ],
-        }
+        MemGrid::new(vec![
+            ("s1".into(), "Budget".into(), ids("r", 100), ids("c", 26)),
+            ("s2".into(), "Rates".into(), ids("q", 20), ids("d", 10)),
+            ("s3".into(), "Q1 plan".into(), ids("p", 10), ids("e", 5)),
+        ])
     }
 
     fn round(src: &str) -> String {
@@ -688,13 +729,15 @@ mod tests {
     fn inserting_and_deleting_rows_moves_or_breaks_references() {
         let mut g = grid();
         let stored = to_ids("=SUM(B2:B9)+B10+Rates!A3", "s1", &g);
-        g.sheets[0].2.insert(4, "new".into());
+        g.edit(|s| s[0].2.insert(4, "new".into()));
         assert_eq!(to_a1(&stored, "s1", &g), "=SUM(B2:B10)+B11+Rates!A3");
-        g.sheets[0].2.retain(|r| r != "r9");
+        g.edit(|s| s[0].2.retain(|r| r != "r9"));
         assert_eq!(to_a1(&stored, "s1", &g), "=SUM(B2:B10)+#REF!+Rates!A3");
-        g.sheets[1].1 = "Prices".into();
+        g.edit(|s| s[1].1 = "Prices".into());
         assert_eq!(to_a1(&stored, "s1", &g), "=SUM(B2:B10)+#REF!+Prices!A3");
-        g.sheets.remove(1);
+        g.edit(|s| {
+            s.remove(1);
+        });
         assert_eq!(to_a1(&stored, "s1", &g), "=SUM(B2:B10)+#REF!+#REF!");
     }
 

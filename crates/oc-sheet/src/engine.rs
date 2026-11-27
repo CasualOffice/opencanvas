@@ -44,12 +44,12 @@ pub struct BookError(pub String);
 
 /// The grid the references resolve against.
 pub fn grid_of(sheets: &[BookSheet]) -> MemGrid {
-    MemGrid {
-        sheets: sheets
+    MemGrid::new(
+        sheets
             .iter()
             .map(|s| (s.id.clone(), s.name.clone(), s.rows.clone(), s.cols.clone()))
             .collect(),
-    }
+    )
 }
 
 /// A block's workbook kept between edits (one per open block): opening builds it once, a cell
@@ -102,7 +102,7 @@ impl Book {
             })
             .collect();
         for (k, rid, cid, stored) in cells {
-            if book.enter(k, &rid, &cid, &stored)? {
+            if book.enter(k, &rid, &cid, &stored, true)? {
                 book.shown.insert((k, rid, cid), String::new());
             }
         }
@@ -111,8 +111,18 @@ impl Book {
         Ok(book)
     }
 
-    /// Enters one stored input as typed; false when its row or column is gone.
-    fn enter(&mut self, k: usize, rid: &str, cid: &str, stored: &str) -> Result<bool, BookError> {
+    /// Enters one stored input as typed; false when its row or column is gone. `bulk` (opening)
+    /// applies it without the per-edit recalculation and undo step: an edit rebuilds the
+    /// dependency graph, so entering a 100,000-row sheet edit by edit is quadratic. The caller
+    /// recalculates once after the last one.
+    fn enter(
+        &mut self,
+        k: usize,
+        rid: &str,
+        cid: &str,
+        stored: &str,
+        bulk: bool,
+    ) -> Result<bool, BookError> {
         let sid = self.sheets[k].id.clone();
         let (Some(row), Some(col)) = (
             self.grid.row_index(&sid, rid),
@@ -122,9 +132,12 @@ impl Book {
         };
         let typed = refs::to_a1(stored, &sid, &self.grid);
         let op = self.session.input_edit(k, CellRef { row, col }, &typed);
-        self.session
-            .edit(op)
-            .map_err(|e| BookError(format!("{}!{rid}:{cid}: {e:?}", self.sheets[k].name)))?;
+        let done = if bulk {
+            self.session.apply_raw(op).map(|_| ())
+        } else {
+            self.session.edit(op)
+        };
+        done.map_err(|e| BookError(format!("{}!{rid}:{cid}: {e:?}", self.sheets[k].name)))?;
         Ok(true)
     }
 
@@ -168,7 +181,7 @@ impl Book {
         if !stored.is_empty() {
             cells.push((rid.to_string(), cid.to_string(), stored.to_string()));
         }
-        if self.enter(k, rid, cid, stored)? {
+        if self.enter(k, rid, cid, stored, false)? {
             let key = (k, rid.to_string(), cid.to_string());
             if stored.is_empty() {
                 self.shown.remove(&key);
@@ -194,6 +207,16 @@ impl Book {
         self.session
             .save_as(format)
             .map_err(|e| BookError(format!("save: {e}")))
+    }
+
+    /// The engine's workbook (exports apply cell formats and sizes through it).
+    pub(crate) fn session_mut(&mut self) -> &mut WorkbookSession {
+        &mut self.session
+    }
+
+    /// The grid the block's ids resolve against.
+    pub(crate) fn grid(&self) -> &MemGrid {
+        &self.grid
     }
 
     /// Every cell with an input and what it shows.

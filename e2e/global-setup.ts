@@ -136,7 +136,7 @@ allowed_origins = ["${origin}"${extra.map((o) => `, "${o}"`).join("")}]
 export_formats = ["md", "html", "json", "docx", "pdf", "ocanvas", "svg", "png"]
 on_conflict    = "${policy}"
 ${id === "sample-psync" ? "partial_sync   = true" : partialFlag}
-${id === "sample" ? 'import_formats = ["md", "html", "csv", "drawio", "excalidraw"]' : "# no import_formats: import stays off (FC-10)"}
+${id === "sample" ? 'import_formats = ["md", "html", "csv", "drawio", "excalidraw", "xlsx", "ods"]' : "# no import_formats: import stays off (FC-10)"}
 ${id === "sample" ? "team_templates = true" : "# no team_templates: no team section in the gallery (TPL-01)"}
 ${id === "sample" ? "history        = true" : "# no host versions: in-file history only (VH-01, ADR-055)"}
 ${id === "sample" ? "live_blocks    = true" : "# no live_blocks (LIVE-01)"}

@@ -58,6 +58,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   with Excel's wildcards), a warning before deleting rows or columns that formulas use, Ctrl-drag
   on the fill handle, moving, hiding and unhiding rows and columns, and tab colours and order.
   The matcher, border placements and merge rule are ported from OpenCalc.
+- Spreadsheet import keeps formatting (SHEET-08): `.xlsx` and `.ods` files keep bold, italic,
+  strikethrough, text and fill colours, alignment, number formats (currency, percent, number,
+  scientific, date, decimals), column widths and row heights, and `.xlsx` export writes them.
+  "Import" in the editor takes Excel and OpenDocument files. Team templates copy their
+  spreadsheets, and the block validator knows the `spreadsheet` node. A 100,000-row sheet
+  opens on the server in about half a second (indexed id lookups, one recalculation on open).
 - Spreadsheet block on phones, view only and offline (SHEET-06, frames 9-10): a double tap edits
   in the formula bar with a row of insert keys, an action bar (copy, paste, fill, clear, Aa) and
   round handles to extend the selection; viewers select, copy, filter for themselves and see sums
