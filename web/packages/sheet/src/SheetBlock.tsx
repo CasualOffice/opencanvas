@@ -19,6 +19,8 @@ import {
   ArrowUpZA,
   Baseline,
   Bold,
+  ChartColumn,
+  Database as DatabaseIcon,
   ChevronDown,
   Euro,
   Funnel,
@@ -949,6 +951,19 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
           "sep",
           filter ? { label: "Remove filter", icon: <Funnel size={15} />, run: () => filterOn(null) } : { label: "Create a filter", icon: <Funnel size={15} />, run: createFilter },
         ];
+  // SHEET-06 (4h, 8a): the selection as a linked chart or a new database, placed after the block.
+  const rangeIds = () => (view ? { sheetId: blockId, sheet: view.id, r0: view.rows[q.r0], r1: view.rows[q.r1], c0: view.cols[q.c0], c1: view.cols[q.c1] } : null);
+  const chartSel = () => void (rangeIds() && env.sheetActions?.chart(rangeIds()!));
+  const toDb = () => {
+    const r = rangeIds();
+    if (!r || !view) return;
+    const vals = Array.from({ length: nRows }, (_, i) => Array.from({ length: nCols }, (_, j) => display(q.r0 + i, q.c0 + j)));
+    env.sheetActions?.toDatabase(r, vals, view.name);
+  };
+  const rangeItems = (): MenuEntry[] =>
+    env.sheetActions
+      ? ["sep", { label: "Chart from selection", icon: <ChartColumn size={15} />, run: chartSel }, { label: "Convert to database", icon: <DatabaseIcon size={15} />, run: toDb }]
+      : [];
   const editCellItems = (): MenuEntry[] => [
     { label: "Copy", hint: "Ctrl C", run: () => document.execCommand?.("copy") },
     { label: "Cut", hint: "Ctrl X", run: () => document.execCommand?.("cut") },
@@ -961,6 +976,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     "sep",
     filter ? { label: "Remove filter", icon: <Funnel size={15} />, run: () => filterOn(null) } : { label: "Create a filter", icon: <Funnel size={15} />, run: createFilter },
     fr || fc ? { label: "Unfreeze", icon: <Snowflake size={15} />, run: () => freezeTo(0, 0) } : { label: `Freeze up to ${a1(sel.anchor)}`, icon: <Snowflake size={15} />, run: () => freezeTo(sel.anchor.r, sel.anchor.c) },
+    ...rangeItems(),
   ];
 
   const addTab = () => {
@@ -1641,6 +1657,12 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       >
         <Snowflake size={15} />
       </button>
+      {env.sheetActions ? (
+        <>
+          <i className="ocsh-tbs" />
+          <button className="ocsh-ib" aria-label="Chart from selection" title="Chart from selection" onClick={chartSel}><ChartColumn size={15} /></button>
+        </>
+      ) : null}
     </div>
   ) : null;
 

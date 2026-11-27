@@ -15,7 +15,7 @@ export const MAX_TRIES = 5;
 export const backoffS = (fails: number) => Math.min(60, 2 ** fails);
 
 export interface PhInfo {
-  kind: "db" | "board" | "sheet";
+  kind: "db" | "board" | "sheet" | "chart";
   name?: string | null;
   count?: number;
   fields?: number;
@@ -37,7 +37,7 @@ function useOnline() {
 
 export function BlockPlaceholder({ info, failed }: { info: PhInfo; failed?: { fails: number; retryAt: number; retry: () => void } }) {
   const { kind, count, view = "table" } = info;
-  const name = info.name || (kind === "db" ? "Database" : kind === "sheet" ? "Spreadsheet" : "Board");
+  const name = info.name || (kind === "db" ? "Database" : kind === "sheet" ? "Spreadsheet" : kind === "chart" ? "Chart" : "Board");
   const [late, setLate] = useState(false);
   const [, tick] = useState(0);
   const online = useOnline();
@@ -51,7 +51,7 @@ export function BlockPlaceholder({ info, failed }: { info: PhInfo; failed?: { fa
     const t = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, [waiting]);
-  const what = kind === "db" ? (view === "board" ? "board" : "table") : kind === "sheet" ? "spreadsheet" : "board";
+  const what = kind === "db" ? (view === "board" ? "board" : "table") : kind === "sheet" ? "spreadsheet" : kind === "chart" ? "chart" : "board";
   const sub = count == null ? null : kind === "db" && view !== "board" ? `${fmt(count)} rows${info.fields ? ` · ${info.fields} fields` : ""}` : `${fmt(count)} cards`;
   let msg: ReactNode = null;
   if (!online) msg = <p className="bph-msg off">Not on this device. {name} wasn’t opened before you went offline, so it loads when you reconnect.</p>;

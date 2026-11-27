@@ -10,6 +10,7 @@ import { CanvasEditor } from "./editor/CanvasEditor";
 import { flashBlock } from "./editor/blockId";
 import { followScroll, reportView } from "./editor/follow";
 import { loadDatabase } from "./editor/blockdata";
+import { blockActions } from "./editor/chart/actions";
 import type { TB } from "./editor/content";
 import type { EmptyAction } from "./editor/CanvasEditor";
 import { featureOn, insertable } from "./editor/profile";
@@ -931,9 +932,11 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       // AUTO-06 frame 1c: the database header's Automate button (editors who may automate).
       automations: autoEdit ? (id: string) => rulesOf(id).length : undefined,
       automate: autoEdit ? (id: string, anchor: HTMLElement) => setDbMenu({ dbId: id, anchor }) : undefined,
+      // SHEET-06 (4h, 8a): charts and spreadsheet ⇄ database, placed after the block (loaded on use).
+      ...(effectiveRole === "edit" && editor ? blockActions(editor, doc, (id) => (collab.parts?.isPart(id) ? collab.parts.doc(id) : null) ?? doc, () => allUsers, (m) => toast(m)) : {}),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, session.formulas, doc, autoEdit, ruleCount],
+    [effectiveRole, me, allUsers, people, compact, upload, undoManager, session.demo, session.ticket, impFormats, session.maxDocBytes, session.formulas, doc, autoEdit, ruleCount, editor, collab],
   );
 
   const openThread = useCallback((id: string) => {

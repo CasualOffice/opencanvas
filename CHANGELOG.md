@@ -53,6 +53,19 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   round handles to extend the selection; viewers select, copy, filter for themselves and see sums
   with nothing to edit; a change from someone else that turns formulas into `#REF!` is named in a
   toast with Show.
+- **Linked chart block** (SHEET-06, frame 4h, `core.chart`, node `chart`): "Chart" in the insert
+  and / menus, "Chart from selection" in the spreadsheet toolbar and cell menu, and "Chart" in a
+  database's menu. Column, line, area, pie, donut and scatter charts of a sheet range (the computed
+  values; the range follows inserted rows) or of a database grouped by a field with count, sum,
+  average, min or max. It redraws when the data changes, for everyone; a title (automatic, "Total by
+  Category"), legend and axis labels are set in its side panel; a data table is always there for
+  screen readers and shown with the table button; light and dark themes. Plain SVG, loaded on
+  demand (not in the editor's initial JS). Markdown, HTML and Word exports write the charted
+  values as a table.
+- **Database ⇄ spreadsheet** (SHEET-06, frame 8a): "Open as spreadsheet…" on a database either
+  views it live (fields as typed columns, edits written back to the records, free columns on the
+  right for formulas) or converts a copy into a new Spreadsheet block; "Convert to database" in the
+  spreadsheet's cell menu turns the selected range into a database (types detected as for CSV).
 
 - Nextcloud Talk (TALK-01): post a canvas to a conversation as a card (posting never grants
   access; the dialog offers to share the file with the conversation), open it beside the chat or

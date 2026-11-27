@@ -44,7 +44,7 @@ export function setEditorProfile(p: EditorProfile | null | undefined): void {
 /** Stable core block ids (mirrors `oc_server::editor::CORE_BLOCKS`; a test keeps them equal). */
 export const CORE_BLOCKS = [
   "core.text", "core.heading", "core.checklist", "core.bulleted_list", "core.numbered_list", "core.toggle", "core.quote",
-  "core.callout", "core.divider", "core.code", "core.database", "core.kanban", "core.calendar", "core.table", "core.spreadsheet", "core.image",
+  "core.callout", "core.divider", "core.code", "core.database", "core.kanban", "core.calendar", "core.table", "core.spreadsheet", "core.chart", "core.image",
   "core.file", "core.date", "core.link_preview", "core.embed", "core.whiteboard", "core.diagram", "core.shapes",
   "core.columns", "core.import", "core.assistant",
 ] as const;
@@ -70,6 +70,7 @@ export const SLASH_BLOCKS: Record<string, CoreBlock[]> = {
   csv: ["core.database", "core.kanban", "core.calendar"],
   table: ["core.table"],
   sheet: ["core.spreadsheet"],
+  chart: ["core.chart"],
   image: ["core.image"],
   file: ["core.file"],
   date: ["core.date"],
@@ -100,6 +101,7 @@ export const INTENT: Record<CoreBlock, string> = {
   "core.calendar": "schedule calendar events dates timeline plan",
   "core.table": "grid rows columns compare matrix",
   "core.spreadsheet": "spreadsheet excel budget calculate formulas numbers sheets",
+  "core.chart": "chart graph plot visualize bar line pie trend",
   "core.image": "photo picture screenshot illustration",
   "core.file": "attach upload document pdf",
   "core.date": "due deadline when schedule",

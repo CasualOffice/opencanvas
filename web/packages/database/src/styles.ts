@@ -435,6 +435,13 @@ textarea.ocdb-pin.ocdb-desc{height:auto;min-height:5.25rem;font-family:var(--fon
 @keyframes ocdb-up{from{transform:translateY(100%)}to{transform:none}}
 @keyframes ocdb-in{from{transform:translateX(24px);opacity:0}}
 @keyframes ocdb-modal{from{opacity:0;transform:translate(-50%,-47%) scale(.98)}}
+/* SHEET-06 (8a): Open as spreadsheet, two choices. */
+.ocdb-ch{display:grid;gap:.625rem;padding:0 1.25rem 1rem;border:0;margin:0}
+.ocdb-ch label{display:flex;gap:.75rem;align-items:flex-start;padding:.875rem 1rem;border:1px solid var(--line-2);border-radius:.75rem;cursor:pointer;background:var(--app)}
+.ocdb-ch label:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.ocdb-ch input{margin:.1875rem 0 0;accent-color:var(--accent)}
+.ocdb-ch b{display:block;font-weight:600;color:var(--fg)}
+.ocdb-ch span{display:block;color:var(--fg-2);font-size:.8125rem;line-height:1.45;margin-top:.125rem}
 @media (prefers-reduced-motion:reduce){.ocdb *,.ocdb-layer,.ocdb-layer *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 `;
 

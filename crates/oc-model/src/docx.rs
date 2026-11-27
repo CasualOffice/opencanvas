@@ -604,6 +604,18 @@ impl<'a> Writer<'a> {
                 table.extend(rows.iter().map(|r| r.iter().map(|c| (false, cell(c))).collect()));
                 self.table(&table, ctx);
             }
+            crate::chart::CHART_NODE => {
+                let cell = |t: &String| vec![serde_json::json!({"type": "paragraph", "content": [{"type": "text", "text": t}]})];
+                let data = crate::chart::chart_data(self.doc, n);
+                let title = crate::chart::chart_title(self.doc, n, &data);
+                let cap = format!("{title} ({})", crate::chart::kind_label(n));
+                self.para(ctx, Some("Caption"), "", &Self::run(&cap, ""));
+                let (header, rows) = crate::chart::to_table(&data);
+                let mut table: Vec<Vec<(bool, Vec<Value>)>> =
+                    vec![header.iter().map(|h| (true, cell(h))).collect()];
+                table.extend(rows.iter().map(|r| r.iter().map(|c| (false, cell(c))).collect()));
+                self.table(&table, ctx);
+            }
             crate::export::SHEET_NODE => {
                 let cell = |t: &String| vec![serde_json::json!({"type": "paragraph", "content": [{"type": "text", "text": t}]})];
                 for t in crate::export::sheet_tables(self.doc, n) {

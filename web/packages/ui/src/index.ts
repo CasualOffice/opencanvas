@@ -25,6 +25,17 @@ export interface OcUser {
   lastSeen?: number;
 }
 
+/** A range of a Spreadsheet block by row and column ids (it follows inserted rows). */
+export interface SheetRange {
+  /** The block (`sheets` root key). */
+  sheetId: string;
+  sheet: string;
+  r0: string;
+  r1: string;
+  c0: string;
+  c1: string;
+}
+
 /** What every embedded block view (database, board) receives from the editor. */
 export interface BlockEnv {
   role: Role;
@@ -91,6 +102,19 @@ export interface BlockEnv {
    * canvas, for relations across canvases.
    */
   liveDbs?: () => { fileId: string; dbId: string; name: string; source: string }[];
+  /**
+   * Optional (SHEET-06, frames 4h and 8a), editors only: blocks placed on the canvas after this
+   * one. A sheet range as a linked chart or as a new database; a database as a chart or as a
+   * spreadsheet (a live view, or a copy of its values).
+   */
+  sheetActions?: {
+    chart(r: SheetRange): void;
+    toDatabase(r: SheetRange, values: string[][], name: string): void;
+  };
+  dbActions?: {
+    chart(dbId: string): void;
+    openAsSheet(dbId: string, mode: "view" | "convert"): void;
+  };
   /** Optional: what this reader may see of such a database; `"noAccess"` without access. */
   liveDb?: (fileId: string, dbId: string) => { fields: { id: string; name: string; type: string }[]; rows: { id: string; v: Record<string, unknown> }[] } | "noAccess" | null;
 }

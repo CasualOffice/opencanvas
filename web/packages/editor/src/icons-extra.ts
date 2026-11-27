@@ -16,13 +16,14 @@ import {
   Rocket, Route, Scale, ScrollText, Search, Shapes, Sheet, Siren, Smartphone, Smile, Square, SquareCheck, SquareKanban,
   Strikethrough, Table, TextQuote, Trash2, Type, Underline, Undo2, Upload, UserPlus, UserRound, Users, Workflow,
   Zap, Baseline, CalendarPlus, Minimize2, ZoomIn, ZoomOut, ChevronLeft, MoveVertical, RefreshCw, RectangleHorizontal,
-  Pilcrow, FileSearch, Kanban, Heading, Columns4, PanelLeft, Boxes, Split, AppWindow, CornerDownRight, FileStack, FileX, ImageOff, Puzzle, SquareDashed, Building2, Radio,
+  ChartColumn, Pilcrow, FileSearch, Kanban, Heading, Columns4, PanelLeft, Boxes, Split, AppWindow, CornerDownRight, FileStack, FileX, ImageOff, Puzzle, SquareDashed, Building2, Radio,
   type LucideIcon,
 } from "lucide-react";
 
 export const EXTRA: Record<string, LucideIcon> = {
   // Insert menu (INS-01).
   "file-search": FileSearch,
+  "chart-column": ChartColumn,
   radio: Radio, pilcrow: Pilcrow, kanban: Kanban, heading: Heading, "columns-4": Columns4, "panel-left": PanelLeft, boxes: Boxes, split: Split, "app-window": AppWindow,
   // Diagram import report (DGM-15, approved frames 7b-7e).
   "corner-down-right": CornerDownRight, "file-stack": FileStack, "file-x": FileX, "image-off": ImageOff, puzzle: Puzzle, "square-dashed": SquareDashed, "building-2": Building2,
