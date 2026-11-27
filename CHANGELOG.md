@@ -48,6 +48,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   freeze rows and columns from the header menus; fill handle, copy and paste with Excel and Google
   Sheets, number formats, bold, italic, colours, alignment, filters and full screen
   (Ctrl+Shift+E). Edits sync live through Yjs; other people's selections show in their colour.
+- Spreadsheet import keeps formatting (SHEET-08): `.xlsx` and `.ods` files keep bold, italic,
+  strikethrough, text and fill colours, alignment, number formats (currency, percent, number,
+  scientific, date, decimals), column widths and row heights, and `.xlsx` export writes them.
+  "Import" in the editor takes Excel and OpenDocument files. Team templates copy their
+  spreadsheets, and the block validator knows the `spreadsheet` node. A 100,000-row sheet
+  opens on the server in about half a second (indexed id lookups, one recalculation on open).
 - Spreadsheet block on phones, view only and offline (SHEET-06, frames 9-10): a double tap edits
   in the formula bar with a row of insert keys, an action bar (copy, paste, fill, clear, Aa) and
   round handles to extend the selection; viewers select, copy, filter for themselves and see sums
