@@ -2159,6 +2159,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         <span className="ocsh-grow" />
         {canEdit ? null : <span className="ocsh-tbt"><Lock size={13} /> View only</span>}
         {phone ? null : aggEl}
+        {canEdit && env.sheetActions ? (
+          <button className="ocsh-ib" aria-label="Chart from selection" title="Chart from selection" onClick={chartSel}>
+            <ChartColumn size={15} />
+          </button>
+        ) : null}
         <button className="ocsh-ib hot" aria-label="Open full screen" title="Open full screen (Ctrl Shift E)" onClick={toggleFull}>
           <Maximize2 size={15} />
         </button>

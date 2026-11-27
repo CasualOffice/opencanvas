@@ -62,7 +62,10 @@ fn markdown_shows_the_charted_values() {
 #[test]
 fn html_groups_a_database() {
     let html = oc_model::export::to_html(&db_doc());
-    assert!(html.contains("<figcaption>Sum of Total by Category</figcaption>"), "{html}");
+    assert!(
+        html.contains("<figcaption>Sum of Total by Category</figcaption>"),
+        "{html}"
+    );
     assert!(html.contains("<th>Category</th>"), "{html}");
     assert!(html.contains("<th>Sum of Total</th>"), "{html}");
     assert!(html.contains("<td>Venue</td><td>5090</td>"), "{html}");
@@ -97,5 +100,8 @@ fn rules_match_the_editor() {
     assert_eq!(d.categories, vec!["1", "2"]);
     assert_eq!(d.series[1].0, "Series 2");
     let d = from_grid(&g(&[&["Cost"], &["4"], &[""], &["6"]]));
-    assert_eq!(d.series, vec![("Cost".to_string(), vec![Some(4.0), Some(6.0)])]);
+    assert_eq!(
+        d.series,
+        vec![("Cost".to_string(), vec![Some(4.0), Some(6.0)])]
+    );
 }

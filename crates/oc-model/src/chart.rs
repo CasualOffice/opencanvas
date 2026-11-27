@@ -71,7 +71,10 @@ pub fn from_grid(g: &[Vec<String>]) -> ChartData {
     let first = usize::from(cat_col);
     let mut series: Vec<(String, Vec<Option<f64>>)> = Vec::new();
     for j in first..w {
-        let name = r0.get(j).map(|t| t.trim()).filter(|t| header && !t.is_empty());
+        let name = r0
+            .get(j)
+            .map(|t| t.trim())
+            .filter(|t| header && !t.is_empty());
         let name = name.map_or_else(|| format!("Series {}", series.len() + 1), String::from);
         series.push((name, vec![]));
     }
@@ -188,7 +191,11 @@ pub fn to_table(d: &ChartData) -> (Vec<String>, Vec<Vec<String>>) {
         .enumerate()
         .map(|(i, c)| {
             let mut r = vec![c.clone()];
-            r.extend(d.series.iter().map(|(_, v)| fmt_num(v.get(i).copied().flatten())));
+            r.extend(
+                d.series
+                    .iter()
+                    .map(|(_, v)| fmt_num(v.get(i).copied().flatten())),
+            );
             r
         })
         .collect();
@@ -198,7 +205,9 @@ pub fn to_table(d: &ChartData) -> (Vec<String>, Vec<Vec<String>>) {
 /// What a chart node draws, read from the document (sheet range or database groups).
 pub fn chart_data(doc: &Value, n: &Value) -> ChartData {
     match attr_str(n, "src") {
-        "sheet" => sheet_range(doc, n).map(|g| from_grid(&g)).unwrap_or_default(),
+        "sheet" => sheet_range(doc, n)
+            .map(|g| from_grid(&g))
+            .unwrap_or_default(),
         "db" => db_groups(doc, n),
         _ => ChartData::default(),
     }
@@ -213,8 +222,14 @@ fn sheet_range(doc: &Value, n: &Value) -> Option<Vec<Vec<String>>> {
     let book = oc_sheet::block::book_sheets(block);
     let bs = book.iter().find(|b| b.id == sheet)?;
     let at = |ids: &[String], id: &str| ids.iter().position(|x| x == id);
-    let (r0, r1) = (at(&bs.rows, attr_str(n, "r0"))?, at(&bs.rows, attr_str(n, "r1"))?);
-    let (c0, c1) = (at(&bs.cols, attr_str(n, "c0"))?, at(&bs.cols, attr_str(n, "c1"))?);
+    let (r0, r1) = (
+        at(&bs.rows, attr_str(n, "r0"))?,
+        at(&bs.rows, attr_str(n, "r1"))?,
+    );
+    let (c0, c1) = (
+        at(&bs.cols, attr_str(n, "c0"))?,
+        at(&bs.cols, attr_str(n, "c1"))?,
+    );
     let (r0, r1, c0, c1) = (r0.min(r1), r0.max(r1), c0.min(c1), c0.max(c1));
     let tables = oc_sheet::block::tables(block);
     let t = tables.iter().find(|t| t.id == sheet)?;
@@ -262,7 +277,9 @@ fn db_groups(doc: &Value, n: &Value) -> ChartData {
     // Without a value field only a count makes sense (as the editor draws it).
     let agg = if v.is_none() { "count" } else { agg };
     let mut d = from_groups(&items, agg, field);
-    d.cat_label = g.map(|g| s(&fields[g], "name").to_string()).unwrap_or_default();
+    d.cat_label = g
+        .map(|g| s(&fields[g], "name").to_string())
+        .unwrap_or_default();
     d
 }
 
