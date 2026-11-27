@@ -189,6 +189,13 @@ impl Book {
         Ok(changed)
     }
 
+    /// The workbook as a file (`.xlsx`, `.ods`), formulas in A1 and values as computed.
+    pub fn save_as(&self, format: casual_calc_sdk::SessionFormat) -> Result<Vec<u8>, BookError> {
+        self.session
+            .save_as(format)
+            .map_err(|e| BookError(format!("save: {e}")))
+    }
+
     /// Every cell with an input and what it shows.
     pub fn values(&self) -> Vec<Shown> {
         self.shown

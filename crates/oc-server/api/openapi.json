@@ -4331,7 +4331,7 @@
             }
           }
         },
-        "description": "Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.",
+        "description": "Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) and spreadsheets (`format=xlsx` or `ods`, one Spreadsheet block) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.",
         "x-opencanvas-errors": [
           "API_OFF",
           "UNAUTHENTICATED",

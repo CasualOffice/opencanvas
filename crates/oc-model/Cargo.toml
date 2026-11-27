@@ -9,6 +9,8 @@ license.workspace = true
 
 [dependencies]
 oc-formula.workspace = true
+# SHEET-03 (ADR-080): Spreadsheet blocks computed for exports and search.
+oc-sheet.workspace = true
 yrs.workspace = true
 serde.workspace = true
 serde_json.workspace = true

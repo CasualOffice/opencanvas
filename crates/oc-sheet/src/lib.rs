@@ -8,6 +8,7 @@
 //! deleting rows and columns is then one list edit with no formula rewrites, so concurrent edits
 //! converge, and a reference to a deleted row or column reads `#REF!`.
 
+pub mod block;
 pub mod engine;
 pub mod refs;
 

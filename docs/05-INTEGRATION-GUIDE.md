@@ -35,8 +35,8 @@ asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports
                                            # your callback_base origin is always allowed
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
-export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images); omit for all
-import_formats  = ["md", "html", "csv", "drawio", "excalidraw"]  # formats editors may import (POST /v1/import); absent or empty = import OFF;
+export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images), xlsx (spreadsheet blocks); omit for all
+import_formats  = ["md", "html", "csv", "drawio", "excalidraw", "xlsx", "ods"]  # formats editors may import (POST /v1/import); absent or empty = import OFF;
                                            # any other value is refused at start-up
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
@@ -894,6 +894,14 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   `{"boardId","blockIds","shapeIds","shapes","connectors","report"}`. Unreadable, too deep, too
   large after decompression or entity-declaring files get `400 IMPORT_INVALID` /
   `413 IMPORT_TOO_LARGE` with a plain-words reason. Nothing is ever fetched from a file.
+- Spreadsheets (SHEET-03, ADR-080): `format=xlsx` or `format=ods`, same 5 MB limit and gate,
+  become one Spreadsheet block (every sheet, values and formulas as typed; at most 200,000 cells,
+  number formats and styles not yet kept) after `blockId` or at the end, and answer
+  `{"format","sheets","sheetId","blockIds"}`; an unreadable file gets `400 IMPORT_INVALID`.
+  `GET /v1/export/sheet/<sheetId>.xlsx?ticket=` gives one block back as a workbook (formulas in
+  A1, values computed; `export` permission and `xlsx` in `export_formats`). Markdown, HTML, Word,
+  `search.json`, `GET …/blocks/{blockId}` (`sheet.sheets[].rows`) and MCP `canvas_read` show a
+  Spreadsheet block as tables of the values the grid displays, computed on the server.
 - Add your own icon (DGM-17, ADR-057; editor session, edit role): `POST /v1/icons?ticket=` with an
   SVG or PNG as the raw body (≤ 256 KB; 20 uploads a minute per person, else `429`). The server
   cleans it: SVG without DTDs, ≤ 2,000 elements, nesting ≤ 16, normalised by usvg (scripts, event

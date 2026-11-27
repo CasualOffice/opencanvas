@@ -854,8 +854,8 @@ asset_origins   = ["https://cdn.acme.example"] # extra image origins for exports
                                            # your callback_base origin is always allowed
 [host.flags]
 embeds          = ["youtube", "vimeo", "loom", "figma", "maps"]
-export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images); omit for all
-import_formats  = ["md", "html", "csv", "drawio", "excalidraw"]  # formats editors may import (POST /v1/import); absent or empty = import OFF;
+export_formats  = ["md", "html", "pdf", "ocanvas"]   # formats this host allows: md, html, json, docx, pdf, ocanvas, svg/png (board images), xlsx (spreadsheet blocks); omit for all
+import_formats  = ["md", "html", "csv", "drawio", "excalidraw", "xlsx", "ods"]  # formats editors may import (POST /v1/import); absent or empty = import OFF;
                                            # any other value is refused at start-up
 autosave_secs   = 60
 on_conflict     = "copy"                   # copy | reload
@@ -1599,6 +1599,14 @@ Use `X-OpenCanvas-Key: <api_key>` + `X-OpenCanvas-Host: <host id>`.
   `{"boardId","blockIds","shapeIds","shapes","connectors","report"}`. Unreadable, too deep, too
   large after decompression or entity-declaring files get `400 IMPORT_INVALID` /
   `413 IMPORT_TOO_LARGE` with a plain-words reason. Nothing is ever fetched from a file.
+- Spreadsheets (SHEET-03, ADR-080): `format=xlsx` or `format=ods`, same 5 MB limit and gate,
+  become one Spreadsheet block (every sheet, values and formulas as typed; at most 200,000 cells,
+  number formats and styles not yet kept) after `blockId` or at the end, and answer
+  `{"format","sheets","sheetId","blockIds"}`; an unreadable file gets `400 IMPORT_INVALID`.
+  `GET /v1/export/sheet/<sheetId>.xlsx?ticket=` gives one block back as a workbook (formulas in
+  A1, values computed; `export` permission and `xlsx` in `export_formats`). Markdown, HTML, Word,
+  `search.json`, `GET …/blocks/{blockId}` (`sheet.sheets[].rows`) and MCP `canvas_read` show a
+  Spreadsheet block as tables of the values the grid displays, computed on the server.
 - Add your own icon (DGM-17, ADR-057; editor session, edit role): `POST /v1/icons?ticket=` with an
   SVG or PNG as the raw body (≤ 256 KB; 20 uploads a minute per person, else `429`). The server
   cleans it: SVG without DTDs, ≤ 2,000 elements, nesting ≤ 16, normalised by usvg (scripts, event
@@ -7665,7 +7673,7 @@ Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JS
 
 ## No "try it" console
 
-This reference has no console that sends requests from the page. The site is static (GitHub Pages) with no OpenCanvas server behind it, and a console would mean pasting a host key or a user token into a web page. Use the samples with your own server: every one of them can be copied, and the language you pick is remembered on your device. Last changed 2026-11-27 .
+This reference has no console that sends requests from the page. The site is static (GitHub Pages) with no OpenCanvas server behind it, and a console would mean pasting a host key or a user token into a web page. Use the samples with your own server: every one of them can be copied, and the language you pick is remembered on your device. Last changed 2026-11-28 .
 
 
 # Authentication
@@ -7698,7 +7706,7 @@ Tokens live at most 15 minutes: an exp further ahead than that is refused ( 401 
 
 ## Errors
 
-Status Code When 401 UNAUTHENTICATED No credentials, an unknown host, or a wrong host key. 401 TOKEN_INVALID Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host. 401 TOKEN_EXPIRED The token's exp has passed. 403 SCOPE_REQUIRED The operation needs a scope the token lacks (admin operations: canvas:admin and token_admin ). 403 ROLE_FORBIDDEN The user's role on the file is too low, the file is not in files , or access was revoked. 403 FILES_REQUIRED No POST /access callback, and the token lists no files . 401 answers carry WWW-Authenticate: Bearer realm="opencanvas" (with error="invalid_token" for token problems). The MCP endpoint uses the same check with its own audience; see AI and MCP . Last changed 2026-11-27 .
+Status Code When 401 UNAUTHENTICATED No credentials, an unknown host, or a wrong host key. 401 TOKEN_INVALID Signature, issuer, audience, a lifetime over 15 minutes, not yet valid, or no public base URL for the host. 401 TOKEN_EXPIRED The token's exp has passed. 403 SCOPE_REQUIRED The operation needs a scope the token lacks (admin operations: canvas:admin and token_admin ). 403 ROLE_FORBIDDEN The user's role on the file is too low, the file is not in files , or access was revoked. 403 FILES_REQUIRED No POST /access callback, and the token lists no files . 401 answers carry WWW-Authenticate: Bearer realm="opencanvas" (with error="invalid_token" for token problems). The MCP endpoint uses the same check with its own audience; see AI and MCP . Last changed 2026-11-28 .
 
 
 # Errors
@@ -7737,7 +7745,7 @@ The deprecated /v1/... routes answer {"error": {"code", "message"}} with these a
 
 ## The 0.1 routes
 
-The deprecated /v1/files/{fileId}/... routes keep their old error shape, {"error": {"code": "...", "message": "..."}} , with the same codes. Only /api/v1 answers problem details. Last changed 2026-11-27 .
+The deprecated /v1/files/{fileId}/... routes keep their old error shape, {"error": {"code": "...", "message": "..."}} , with the same codes. Only /api/v1 answers problem details. Last changed 2026-11-28 .
 
 
 # Pagination
@@ -7762,7 +7770,7 @@ Opaque and signed. Do not build or change them; a changed cursor answers 400 CUR
 
 ## Errors
 
-Status Code When 400 CURSOR_INVALID Not a cursor this server signed for this file and query. 410 CURSOR_EXPIRED Older than an hour. 400 BAD_INPUT filter or sort is not a JSON array. Last changed 2026-11-27 .
+Status Code When 400 CURSOR_INVALID Not a cursor this server signed for this file and query. 410 CURSOR_EXPIRED Older than an hour. 400 BAD_INPUT filter or sort is not a JSON array. Last changed 2026-11-28 .
 
 
 # Idempotency
@@ -7791,7 +7799,7 @@ The request's hash and the write's answer: ids, counts and revisions. Never docu
 
 ## In the clients
 
-The TypeScript and Rust clients send a random key on every write and reuse it for each retry of that call. Pass your own key when a retry may come from another process (a job queue that re-runs a job after a crash): Your own key curl TypeScript Rust Python curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H "Idempotency-Key: remind-2026-11-25-doc_1" \ -d '{"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}' const res = await oc.call( "addComment", { fileId: "doc_1", body: { text: "Is Friday still right?", blockId: "b_01m87jv4rtkdxymn93jwtx35sk" } }, { idempotencyKey: "remind-2026-11-25-doc_1" }, ); console.log(res.replayed); // true when the server answered from the stored result use opencanvas_client::{CallOptions, Params}; use serde_json::json; let res = oc .call( "addComment", &Params::file("doc_1").json(json!({"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"})), &CallOptions::key("remind-2026-11-25-doc_1"), ) .await?; println!("replayed: {}", res.replayed); r = api.post( f"{BASE}/files/doc_1/comments", json={"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}, headers={"Idempotency-Key": "remind-2026-11-25-doc_1"}, timeout=30, ) replayed = r.headers.get("Idempotency-Replayed") == "true" Last changed 2026-11-27 .
+The TypeScript and Rust clients send a random key on every write and reuse it for each retry of that call. Pass your own key when a retry may come from another process (a job queue that re-runs a job after a crash): Your own key curl TypeScript Rust Python curl -s -X POST "https://canvas.example.com/api/v1/files/doc_1/comments" \ -H "X-OpenCanvas-Host: acme" -H "X-OpenCanvas-Key: $OC_API_KEY" \ -H "Content-Type: application/json" \ -H "Idempotency-Key: remind-2026-11-25-doc_1" \ -d '{"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}' const res = await oc.call( "addComment", { fileId: "doc_1", body: { text: "Is Friday still right?", blockId: "b_01m87jv4rtkdxymn93jwtx35sk" } }, { idempotencyKey: "remind-2026-11-25-doc_1" }, ); console.log(res.replayed); // true when the server answered from the stored result use opencanvas_client::{CallOptions, Params}; use serde_json::json; let res = oc .call( "addComment", &Params::file("doc_1").json(json!({"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"})), &CallOptions::key("remind-2026-11-25-doc_1"), ) .await?; println!("replayed: {}", res.replayed); r = api.post( f"{BASE}/files/doc_1/comments", json={"text": "Is Friday still right?", "blockId": "b_01m87jv4rtkdxymn93jwtx35sk"}, headers={"Idempotency-Key": "remind-2026-11-25-doc_1"}, timeout=30, ) replayed = r.headers.get("Idempotency-Replayed") == "true" Last changed 2026-11-28 .
 
 
 # Rate limits
@@ -7816,7 +7824,7 @@ The answer is 429 RATE_LIMITED with Retry-After (seconds). Wait that long, then 
 
 ## Other limits
 
-At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true . Last changed 2026-11-27 .
+At most 100 event streams per file on one server ( 429 TOO_MANY_STREAMS ). At most 200 rows per rows:upsert and per page of queryRows ; at most 100 blocks per page of listBlocks . Import files up to 5 MiB; CSV up to 10,000 rows and 200 columns ( 413 IMPORT_TOO_LARGE ). A batch that deletes more than 5 blocks needs "confirm": true . Last changed 2026-11-28 .
 
 
 # Events
@@ -7849,7 +7857,7 @@ At most 100 streams per file on one server: 429 TOO_MANY_STREAMS . Share one str
 
 ## Sync the document itself
 
-A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: POST /api/v1/files/{fileId}/sync-token answers a ticket for the room WebSocket. {"ticket": "01M87JV4T23GYQ773ZF1WN91VA", "room": "r_2whbv4nncveupmqu35cywoidfe", "role": "edit", "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA", "expiresAt": 1795551874, "connectWithinSecs": 60} Connect a y-websocket client to url within 60 seconds. role is the effective one, min(scope, role) : a canvas:read token gets view , and the room refuses its writes as it would a viewer's. The session ends at expiresAt (at most 15 minutes, never after the token's exp ); ask for a new ticket to continue. The answer is a credential: Cache-Control: no-store , and it is never stored for idempotent replays. See createSyncToken . Last changed 2026-11-27 .
+A Yjs-native program (yrs, Yjs, y-crdt bindings) can hold the CRDT document instead of calling the API per change: POST /api/v1/files/{fileId}/sync-token answers a ticket for the room WebSocket. {"ticket": "01M87JV4T23GYQ773ZF1WN91VA", "room": "r_2whbv4nncveupmqu35cywoidfe", "role": "edit", "url": "/v1/collab/r_2whbv4nncveupmqu35cywoidfe?ticket=01M87JV4T23GYQ773ZF1WN91VA", "expiresAt": 1795551874, "connectWithinSecs": 60} Connect a y-websocket client to url within 60 seconds. role is the effective one, min(scope, role) : a canvas:read token gets view , and the room refuses its writes as it would a viewer's. The session ends at expiresAt (at most 15 minutes, never after the token's exp ); ask for a new ticket to continue. The answer is a credential: Cache-Control: no-store , and it is never stored for idempotent replays. See createSyncToken . Last changed 2026-11-28 .
 
 
 # Webhooks
@@ -7886,7 +7894,7 @@ Answer any 2xx quickly (10-second timeout) and do the work afterwards. Your answ
 
 ## Metrics
 
-oc_webhook_deliveries_total{host,result} ( ok , retry , rejected , gave_up , refused ) and oc_webhook_delivery_seconds{host} (one attempt's time), on the operations dashboard's "Webhooks" row. Last changed 2026-11-27 .
+oc_webhook_deliveries_total{host,result} ( ok , retry , rejected , gave_up , refused ) and oc_webhook_delivery_seconds{host} (one attempt's time), on the operations dashboard's "Webhooks" row. Last changed 2026-11-28 .
 
 
 # SDKs
@@ -7923,7 +7931,7 @@ crates/oc-server/api/conformance.json is one list of scenarios that both clients
 
 ## Block SDK
 
-To add your own block types to the editor rather than call the API, use @opencanvas/block-sdk . It is a different package: blocks run sandboxed inside the canvas, not on your server. See the Block SDK guide . Last changed 2026-11-27 .
+To add your own block types to the editor rather than call the API, use @opencanvas/block-sdk . It is a different package: blocks run sandboxed inside the canvas, not on your server. See the Block SDK guide . Last changed 2026-11-28 .
 
 
 # API changelog
@@ -9115,7 +9123,7 @@ curl -s "https://canvas.example.com/api/v1/files/doc_1/render?format=html" \
 
 POST /api/v1/files/{fileId}/import (operationId importFile, scope canvas:write)
 
-Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.
+Add a file's content to the canvas, after `blockId` or at the end, as one change. Send the file as the raw body (UTF-8, at most 5 MiB). Markdown and HTML become blocks (HTML keeps only safe links and images, never scripts or styles); CSV becomes one database block (the first column is the title; the others are typed number, date, checkbox, select or text, or by `types`), at most 10,000 rows and 200 columns. The format must be in the host's `[host.flags] import_formats`. The import path also takes diagrams (`format=drawio` or `excalidraw`, with `dryRun`, `page` and `boardId`) and spreadsheets (`format=xlsx` or `ods`, one Spreadsheet block) as described in the integration guide. If nobody had the file open, the answer carries the saved `version`.
 
 Parameters:
 - fileId (path, string, required): The host's file id

@@ -90,6 +90,56 @@ pub(crate) fn database_table(doc: &Value, id: &str) -> (String, Vec<String>, Vec
     )
 }
 
+/// The Spreadsheet block's node type (SHEET-03, ADR-080). `attrs.sheetId` keys the `sheets`
+/// root (the node's `blockId` when absent).
+pub const SHEET_NODE: &str = "spreadsheet";
+
+/// The `sheets` root key a Spreadsheet node points at.
+pub fn sheet_key(n: &Value) -> &str {
+    fallback(attr_str(n, "sheetId"), attr_str(n, "blockId"))
+}
+
+/// A Spreadsheet node's sheets as tables of computed display values, the empty ones left out
+/// (computed with opencalc's engine through `oc-sheet`, as the editor shows them).
+pub fn sheet_tables(doc: &Value, n: &Value) -> Vec<oc_sheet::block::Table> {
+    let block = &doc["sheets"][sheet_key(n)];
+    if !block.is_object() {
+        return vec![];
+    }
+    oc_sheet::block::tables(block)
+        .into_iter()
+        .filter(|t| !t.rows.is_empty())
+        .collect()
+}
+
+/// An `.xlsx` package's MIME type.
+pub const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/// A Spreadsheet block (its `sheets` root key) as an `.xlsx`; `None` when there is no such block.
+pub fn sheet_to_xlsx(doc: &Value, key: &str) -> Option<Result<Vec<u8>, String>> {
+    let block = &doc["sheets"][key];
+    block
+        .is_object()
+        .then(|| oc_sheet::block::to_xlsx(block).map_err(|e| e.0))
+}
+
+/// An `.xlsx` (`format` "xlsx") or `.ods` ("ods") file as a new Spreadsheet block's logical
+/// JSON, ready for the `sheets` root.
+pub fn sheet_from_file(bytes: &[u8], format: &str) -> Result<Value, String> {
+    let f = match format {
+        "xlsx" => oc_sheet::block::FileFormat::Xlsx,
+        "ods" => oc_sheet::block::FileFormat::Ods,
+        other => return Err(format!("not a spreadsheet format: {other}")),
+    };
+    oc_sheet::block::from_file(bytes, f).map_err(|e| e.0)
+}
+
+/// A formula typed in A1 on one sheet of a block, in its stored form (references as ids).
+pub fn sheet_input_to_ids(doc: &Value, key: &str, sheet: &str, typed: &str) -> String {
+    let sheets = oc_sheet::block::book_sheets(&doc["sheets"][key]);
+    oc_sheet::refs::to_ids(typed, sheet, &oc_sheet::engine::grid_of(&sheets))
+}
+
 /// `(field name, description)` for fields that carry a non-blank description, whitespace runs
 /// (line breaks included) collapsed to one space.
 pub(crate) fn database_notes(doc: &Value, id: &str) -> Vec<(String, String)> {
@@ -451,6 +501,17 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             }
             out
         }
+        SHEET_NODE => sheet_tables(cx.doc, n)
+            .iter()
+            .map(|t| {
+                format!(
+                    "### {}\n\n{}",
+                    md_text(&t.name),
+                    md_table(&t.rows[0], &t.rows[1..])
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n"),
         "board" => {
             let id = attr_str(n, "boardId");
             let mut out = format!("### Board\n\n*{}*", board_note(cx.doc, id));
@@ -807,6 +868,16 @@ fn html_block(cx: &Cx, n: &Value) -> String {
             let (name, header, rows) = database_table(cx.doc, attr_str(n, "dbId"));
             format!("<h3>{}</h3>{}", escape(&name), html_table(&header, &rows))
         }
+        SHEET_NODE => sheet_tables(cx.doc, n)
+            .iter()
+            .map(|t| {
+                format!(
+                    "<h3>{}</h3>{}",
+                    escape(&t.name),
+                    html_table(&t.rows[0], &t.rows[1..])
+                )
+            })
+            .collect(),
         "board" => {
             let id = attr_str(n, "boardId");
             let svg = match cx.opts.images {

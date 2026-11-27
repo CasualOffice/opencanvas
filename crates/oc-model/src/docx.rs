@@ -604,6 +604,19 @@ impl<'a> Writer<'a> {
                 table.extend(rows.iter().map(|r| r.iter().map(|c| (false, cell(c))).collect()));
                 self.table(&table, ctx);
             }
+            crate::export::SHEET_NODE => {
+                let cell = |t: &String| vec![serde_json::json!({"type": "paragraph", "content": [{"type": "text", "text": t}]})];
+                for t in crate::export::sheet_tables(self.doc, n) {
+                    self.para(ctx, Some("Caption"), "", &Self::run(&t.name, ""));
+                    let table: Vec<Vec<(bool, Vec<Value>)>> = t
+                        .rows
+                        .iter()
+                        .enumerate()
+                        .map(|(i, r)| r.iter().map(|c| (i == 0, cell(c))).collect())
+                        .collect();
+                    self.table(&table, ctx);
+                }
+            }
             "board" => self.board(attr_str(n, "boardId"), ctx),
             "bookmark" => {
                 let url = attr_str(n, "url");

@@ -34,6 +34,7 @@ use crate::roots;
 /// The main document's part key.
 pub const MAIN: &str = "";
 /// Roots whose entries become parts.
+/// `sheets` (Spreadsheet blocks) stays in the main document until the editor loads sheet parts.
 pub const SPLIT_ROOTS: [&str; 2] = [roots::DATABASES, roots::BOARDS];
 
 /// `databases/<blockId>` or `boards/<blockId>`; [`MAIN`] for the main document.

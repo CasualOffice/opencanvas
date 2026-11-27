@@ -33,7 +33,7 @@ pub fn is_empty(doc: &Doc) -> bool {
     let content_empty = txn
         .get_xml_fragment(roots::CONTENT)
         .is_none_or(|f| f.len(&txn) == 0);
-    let maps_empty = [roots::META, roots::DATABASES, roots::BOARDS]
+    let maps_empty = [roots::META, roots::DATABASES, roots::BOARDS, roots::SHEETS]
         .iter()
         .all(|n| txn.get_map(*n).is_none_or(|m| m.len(&txn) == 0));
     content_empty && maps_empty
@@ -85,6 +85,11 @@ pub fn doc_to_json(doc: &Doc) -> Value {
     let autos = map_json(&txn, txn.get_map(roots::AUTOMATIONS));
     if autos.as_object().is_some_and(|a| !a.is_empty()) {
         out["automations"] = autos;
+    }
+    // SHEET-03: Spreadsheet blocks, only when there are some.
+    let sheets = map_json(&txn, txn.get_map(roots::SHEETS));
+    if sheets.as_object().is_some_and(|s| !s.is_empty()) {
+        out["sheets"] = sheets;
     }
     // DGM-17: icons people added (server-written), only when there are some.
     let icons = map_json(&txn, txn.get_map(roots::ICONS));

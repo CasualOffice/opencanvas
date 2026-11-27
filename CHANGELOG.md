@@ -33,6 +33,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Spreadsheet blocks on the server (SHEET-03, ADR-080): Markdown, HTML, Word, `.ocanvas`
+  (`document.json`, `search.json`), `GET …/blocks/{blockId}` and MCP `canvas_read` show a
+  spreadsheet as tables of the values the grid displays, computed with opencalc's engine;
+  `POST /v1/import?format=xlsx|ods` turns a workbook into a Spreadsheet block (host
+  `import_formats`), and `GET /v1/export/sheet/<sheetId>.xlsx` exports one. The `sheets` root
+  stays in the main document under partial sync for now.
+
 - **Spreadsheet block** (SHEET-04, ADR-080, prototype v04 frames 1-5): "Spreadsheet" in the insert
   and / menus (`core.spreadsheet`). A virtualized grid with column letters, row numbers, a name box
   and a formula bar; Excel keyboard (typing replaces, F2 edits, Enter/Tab move, Ctrl+arrows, Shift

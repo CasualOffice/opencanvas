@@ -2023,6 +2023,7 @@ dependencies = [
  "flate2",
  "fontdb",
  "oc-formula",
+ "oc-sheet",
  "percent-encoding",
  "regex",
  "resvg",
