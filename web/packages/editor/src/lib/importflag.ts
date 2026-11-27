@@ -6,10 +6,12 @@
 import type { Role } from "@opencanvas/ui";
 import { createStore } from "./store";
 
-export type ImportFormat = "md" | "html" | "csv" | "drawio" | "excalidraw";
-const KNOWN: ImportFormat[] = ["md", "html", "csv", "drawio", "excalidraw"];
+export type ImportFormat = "md" | "html" | "csv" | "drawio" | "excalidraw" | "xlsx" | "ods";
+const KNOWN: ImportFormat[] = ["md", "html", "csv", "drawio", "excalidraw", "xlsx", "ods"];
 /** Diagram files (DGM-15): converted on the server only, after a dry-run report. */
 export const DIAGRAM_FORMATS: ImportFormat[] = ["drawio", "excalidraw"];
+/** Spreadsheet files (SHEET-08): converted on the server into a Spreadsheet block. */
+export const SHEET_FORMATS: ImportFormat[] = ["xlsx", "ods"];
 
 /** Formats this person may import. The host's `import_formats` flag reaches the editor as
  *  `session.import.formats`; absent or empty hides the entry. `#demo` imports locally, so it

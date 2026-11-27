@@ -134,6 +134,7 @@ pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
     }
     let dbs = obj.get("databases").and_then(Value::as_object);
     let boards = obj.get("boards").and_then(Value::as_object);
+    let sheets = obj.get("sheets").and_then(Value::as_object);
     if let Some(dbs) = dbs {
         for (id, db) in dbs {
             database(&mut cx.r, &format!("/databases/{}", esc(id)), db);
@@ -171,6 +172,11 @@ pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
     for (path, id) in std::mem::take(&mut cx.board_refs) {
         if !boards.is_some_and(|b| b.contains_key(&id)) {
             cx.r.warn(&path, format!("board {id:?} is not in boards"));
+        }
+    }
+    for (path, id) in std::mem::take(&mut cx.sheet_refs) {
+        if !sheets.is_some_and(|s| s.contains_key(&id)) {
+            cx.r.warn(&path, format!("sheet {id:?} is not in sheets"));
         }
     }
     cx.r
@@ -319,6 +325,7 @@ fn spec(ty: &str) -> Option<Spec> {
         "toggleContent" => s(Part, &[], C::Blocks(1), false),
         "database" => s(Block, &[("dbId", A::Id)], C::None, true),
         "board" => s(Block, &[("boardId", A::Id)], C::None, true),
+        "spreadsheet" => s(Block, &[("sheetId", A::Id)], C::None, true),
         "bookmark" => s(
             Block,
             &[
@@ -449,6 +456,7 @@ struct Cx {
     block_ids: HashMap<String, String>,
     db_refs: Vec<(String, String)>,
     board_refs: Vec<(String, String)>,
+    sheet_refs: Vec<(String, String)>,
 }
 
 fn type_of(v: &Value) -> Option<&str> {
@@ -642,6 +650,7 @@ impl Cx {
                 match (ty, k.as_str()) {
                     ("database", "dbId") => self.db_refs.push((p.clone(), id.clone())),
                     ("board", "boardId") => self.board_refs.push((p.clone(), id.clone())),
+                    ("spreadsheet", "sheetId") => self.sheet_refs.push((p.clone(), id.clone())),
                     _ => {}
                 }
             }

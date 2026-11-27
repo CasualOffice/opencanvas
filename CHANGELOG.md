@@ -33,6 +33,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- **Timeline and Workload views for databases** (DB5-01): a Gantt chart over start and end dates (or
+  a duration) with day to quarter zoom, dependencies from a "Blocked by" relation created on demand,
+  a toast that shifts dependents when a task moves past them, the critical path, milestones, a No
+  dates tray, drag to move, resize and link, a bar menu and full keyboard use; a Workload view of
+  people against weeks; on phones the Timeline is a list by week.
+- The public demo (`#demo`, "Sprint 42 planning") now shows the v0.4 blocks: a launch budget
+  spreadsheet with formulas and formats, a chart linked to it, and the backlog with Start,
+  Estimate and Blocked by for its Timeline and Workload views.
+
 - Spreadsheet blocks on the server (SHEET-03, ADR-080): Markdown, HTML, Word, `.ocanvas`
   (`document.json`, `search.json`), `GET …/blocks/{blockId}` and MCP `canvas_read` show a
   spreadsheet as tables of the values the grid displays, computed with opencalc's engine;
@@ -52,6 +61,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   with Excel's wildcards), a warning before deleting rows or columns that formulas use, Ctrl-drag
   on the fill handle, moving, hiding and unhiding rows and columns, and tab colours and order.
   The matcher, border placements and merge rule are ported from OpenCalc.
+- Spreadsheet import keeps formatting (SHEET-08): `.xlsx` and `.ods` files keep bold, italic,
+  strikethrough, text and fill colours, alignment, number formats (currency, percent, number,
+  scientific, date, decimals), column widths and row heights, and `.xlsx` export writes them.
+  "Import" in the editor takes Excel and OpenDocument files. Team templates copy their
+  spreadsheets, and the block validator knows the `spreadsheet` node. A 100,000-row sheet
+  opens on the server in about half a second (indexed id lookups, one recalculation on open).
 - Spreadsheet block on phones, view only and offline (SHEET-06, frames 9-10): a double tap edits
   in the formula bar with a row of insert keys, an action bar (copy, paste, fill, clear, Aa) and
   round handles to extend the selection; viewers select, copy, filter for themselves and see sums
