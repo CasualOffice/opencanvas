@@ -55,6 +55,25 @@ test("SHEET-04: insert a spreadsheet, SUM, insert a row inside the range, a seco
   // Sam sees the same sheet, live.
   await expect(cell(sam.oc, 4, 0)).toHaveText("16", { timeout: 15_000 });
   await expect(cell(sam.oc, 1, 0)).toHaveText("10");
+
+  // Both edit at once: Sam types into B1 while Priya types into A6; each sees the other's edit,
+  // and Sam's selection shows on Priya's grid with his name (SHEET-05).
+  await cell(sam.oc, 0, 1).click();
+  await cell(priya.oc, 5, 0).click();
+  await Promise.all([
+    (async () => {
+      await sam.page.keyboard.type("=A5*2");
+      await sam.page.keyboard.press("Enter");
+    })(),
+    (async () => {
+      await priya.page.keyboard.type("4");
+      await priya.page.keyboard.press("Enter");
+    })(),
+  ]);
+  await expect(cell(priya.oc, 0, 1)).toHaveText("32", { timeout: 5_000 });
+  await expect(cell(sam.oc, 5, 0)).toHaveText("4", { timeout: 5_000 });
+  await cell(sam.oc, 2, 2).click();
+  await expect(priya.oc.locator(".ocsh-peer").filter({ hasText: "Sam Ortiz" })).toBeVisible({ timeout: 5_000 });
 });
 
 test("SHEET-04: fill handle, paste from Excel, formats, freeze, filter and full screen", async ({ browser }) => {
