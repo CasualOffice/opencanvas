@@ -290,14 +290,41 @@ def benchmark_markdown() -> str:
         for n in d.get("notMeasured", []):
             out.append(f"- Not measured: {n}")
         out.append("")
+    out += _db_perf_markdown()
     return "\n".join(out)
+
+
+PERF = ROOT / "e2e" / "perf" / "results"
+
+
+def _db_perf_markdown() -> list[str]:
+    """DB4-07: the large-database runs in e2e/perf/results/db100k-*.json (browser frame times)."""
+    files = sorted(PERF.glob("db100k-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        return []
+    out = ["## Large databases (DB100K)", "",
+           "100,000 rows × 30 fields in one database, scrolled for 10 s per scenario with a cell edit "
+           "every 500 ms. Frame times in ms; the gate is p95 at or under 16.7 ms (60 fps) with no long tasks.", ""]
+    for f in files:
+        d = json.loads(f.read_text(encoding="utf8"))
+        m = d.get("machine", {})
+        out += [f"### {d.get('label', f.stem)} — {f.stem}", "",
+                f"- **Run:** {d.get('at', '?')[:10]}; {m.get('cpu', '?')}, {m.get('cores', '?')} cores, "
+                f"{m.get('memGB', '?')} GB RAM, {m.get('os', '?')}; Chromium {m.get('chromium', '?')}, {m.get('viewport', '')}",
+                f"- **Load mix:** {d.get('mix', '')}", "",
+                "| Scenario | p50 | p95 | p99 | Long tasks |", "|---|---|---|---|---|"]
+        for k, v in d.items():
+            if isinstance(v, dict) and "p95" in v:
+                out.append(f"| {k} | {_num(v.get('p50', 0))} | {_num(v.get('p95', 0))} | {_num(v.get('p99', 0))} | {_num(v.get('longTasks', 0))} |")
+        out.append("")
+    return out
 
 
 def benchmarks_doc(slug: str, title: str) -> str:
     body = sitelib.markdown(benchmark_markdown(), root="../")
     lede = f'<p class="lede">{html.escape(DOC_DESCRIPTIONS[slug])}</p>'
     article = f"<h1>{html.escape(title)}</h1>\n{lede}\n{body}"
-    files = [p.relative_to(ROOT).as_posix() for p in BENCH.glob("*.json")]
+    files = [p.relative_to(ROOT).as_posix() for p in [*BENCH.glob("*.json"), *PERF.glob("db100k-*.json")]]
     return sitelib.docs_page(slug, title, DOC_DESCRIPTIONS[slug], article, source="bench/results",
                              modified=sitelib.git_date(*files))
 
