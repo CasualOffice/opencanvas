@@ -46,7 +46,11 @@ async fn server(partial: bool) -> (oc_server::SharedState, Shared) {
     cfg.part_evict = Duration::from_millis(200);
     cfg.whole_release = Duration::from_millis(200);
     let state = app_custom(&base, cfg, &temp_db(), |h| {
-        h.flags.insert("partial_sync".into(), partial.into());
+        if partial {
+            h.flags.remove("partial_sync");
+        } else {
+            h.flags.insert("partial_sync".into(), false.into());
+        }
     })
     .await;
     (state, mock)
@@ -124,7 +128,7 @@ fn edit_part(p: &Peer, doc: &Doc, block: &str, title: &str) {
 }
 
 #[tokio::test]
-async fn old_editors_are_closed_with_4426_on_a_split_room_and_welcome_without_the_flag() {
+async fn old_editors_are_closed_with_4426_by_default_and_welcome_when_disabled() {
     // Mixed versions: a 0.3 editor (no caps=subdoc) next to a 0.4 one.
     let (state, _) = server(true).await;
     let mut new = Peer::join(&state, subdoc_grant("u_new", Role::Edit)).await;
@@ -153,7 +157,7 @@ async fn old_editors_are_closed_with_4426_on_a_split_room_and_welcome_without_th
     assert_eq!(main["boards"], json!({}));
     assert!(main["content"].to_string().contains("Intro"));
 
-    // Without the flag nothing changes: the same old editor gets everything.
+    // Explicit opt-out lets the same old editor receive the complete canvas.
     let (state, _) = server(false).await;
     let mut old = Peer::join(&state, grant("u_old", Role::Edit)).await;
     old.settle().await;

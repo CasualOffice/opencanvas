@@ -73,9 +73,10 @@ test("a viewer runs the block read only; the badge still tells where it comes fr
   const g = frameOf(sam, "e2e.okr");
   await expect(g.locator(".status")).toHaveText("Read only", { timeout: 10_000 });
   await expect(g.getByLabel("Objective")).toHaveJSProperty("readOnly", true);
-  await block(sam, "e2e.okr").hover();
+  // The center of the block is a cross-origin iframe. Hover the host-owned chrome.
+  await block(sam, "e2e.okr").locator(".oc-ext-top").hover();
   const badge = block(sam, "e2e.okr").getByRole("button", { name: "Test OKR block by E2E Corp. About this block" });
-  await expect(badge).toBeVisible();
+  await expect(badge).toHaveCSS("opacity", "1");
   await badge.click();
   const about = sam.oc.getByRole("dialog", { name: "About Test OKR" });
   await expect(about).toContainText("Connect to okr.e2e.example");
