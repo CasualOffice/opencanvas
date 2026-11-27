@@ -232,7 +232,16 @@ pub(super) async fn run(
         return Ok(out);
     }
     if matches!(p.format.as_str(), "xlsx" | "ods") {
-        let block = oc_model::export::sheet_from_file(body, &p.format).map_err(invalid)?;
+        // Off the async workers and two at a time: an `.ods` may still make the reader hold
+        // up to its own cell cap in memory (SEC-62, docs/18 §7).
+        static SHEET_IMPORTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+        let _permit = SHEET_IMPORTS.acquire().await.map_err(ApiError::internal)?;
+        let (bytes, format) = (body.to_vec(), p.format.clone());
+        let block =
+            tokio::task::spawn_blocking(move || oc_model::export::sheet_from_file(&bytes, &format))
+                .await
+                .map_err(ApiError::internal)?
+                .map_err(invalid)?;
         let sheets = block["order"].as_array().map_or(0, Vec::len);
         let mut input = json!({ "block": block });
         if let Some(id) = &p.block_id {

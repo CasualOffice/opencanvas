@@ -517,4 +517,52 @@ async fn xlsx_becomes_a_spreadsheet_block_and_exports_back() {
     .await
     .unwrap();
     assert_eq!(res.status().as_u16(), 404);
+
+    // A session without the export permission cannot take the workbook out (SEC-V4).
+    let mut g = grant("u_b", Role::Edit);
+    g.perms.export = false;
+    let no_export = ulid::Ulid::new().to_string();
+    let exp = oc_server::util::now_secs() + 600;
+    state
+        .store
+        .insert_session(&no_export, &g, exp, 0)
+        .await
+        .unwrap();
+    let res = reqwest::get(format!(
+        "http://{addr}/v1/export/sheet/{key}.xlsx?ticket={no_export}"
+    ))
+    .await
+    .unwrap();
+    assert_eq!(res.status().as_u16(), 403);
+}
+
+/// A workbook whose one value sits in the last cell of the grid is refused, not turned into a
+/// million row ids (SEC-62).
+#[tokio::test]
+async fn a_workbook_spanning_the_whole_grid_is_refused() {
+    let (addr, state) = serve_import(
+        |h| {
+            all_formats(h);
+            h.flags.insert(
+                "import_formats".into(),
+                toml::Value::Array(vec!["xlsx".into()]),
+            );
+        },
+        false,
+    )
+    .await;
+    let t = ticket(&state, Role::Edit).await;
+    let mut far = json!({"order": ["s"], "styles": {}, "sheets": {"s": {
+        "name": "Far", "rows": (0..1_048_576).map(|i| format!("r{i}")).collect::<Vec<_>>(),
+        "cols": ["c"], "cells": {"r1048575:c": {"in": "1"}}}}});
+    let bytes = oc_model::export::sheet_to_xlsx(&json!({"sheets": {"k": far.take()}}), "k")
+        .unwrap()
+        .unwrap();
+    let (s, v) = import(&addr, &t, "format=xlsx", bytes).await;
+    assert_eq!(s, 400, "{v}");
+    assert!(
+        doc(&state).await["sheets"]
+            .as_object()
+            .is_none_or(|m| m.is_empty())
+    );
 }

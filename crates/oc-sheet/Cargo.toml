@@ -19,3 +19,4 @@ casual-calc-model = { git = "https://github.com/CasualOffice/opencalc", rev = "8
 
 [dev-dependencies]
 proptest = "1"
+zip.workspace = true

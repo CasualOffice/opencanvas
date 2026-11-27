@@ -866,6 +866,15 @@ pub async fn audience(
     embedded(&state, &host, &parent, &q.file_id, None).await?;
     admit_open(&state, &host, &parent.user.id).await?;
     let mine = access(&state, &host, &parent, &q.file_id).await?;
+    // Someone who cannot open the live file learns nothing about who else can (SEC-63), and
+    // their call costs the host one `/access` answer, not one per member.
+    if matches!(mine, Access::Denied) {
+        return Ok((
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({"role": "none", "cannotOpen": null, "members": null})),
+        )
+            .into_response());
+    }
     let members = match state
         .members
         .callback(&state.host, &host, &parent, "")

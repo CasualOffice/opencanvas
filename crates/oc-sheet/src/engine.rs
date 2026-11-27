@@ -76,6 +76,9 @@ impl Book {
     pub fn open(sheets: Vec<BookSheet>) -> Result<Self, BookError> {
         let grid = grid_of(&sheets);
         let mut session = WorkbookSession::blank();
+        // Entered cells are computed once, by the recalculation below, not also as each is
+        // entered (twice the work for a costly formula, SEC-64).
+        session.set_calculation_mode(casual_calc_sdk::CalculationMode::Manual);
         for (k, s) in sheets.iter().enumerate() {
             let sheet = Sheet::new(SheetId(Id::from_parts(1, k as u64 + 1)), s.name.clone());
             session
@@ -213,6 +216,105 @@ impl Book {
 /// Builds the workbook and computes every cell that has an input (for one-off use: exports).
 pub fn compute(sheets: &[BookSheet]) -> Result<Vec<Shown>, BookError> {
     Ok(Book::open(sheets.to_vec())?.values())
+}
+
+/// How long the server waits for one block's computation (SEC-64).
+pub const COMPUTE_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
+/// Computations past their budget that may still be running in this process; while this many
+/// are, new ones are refused (their blocks show the inputs as typed) instead of started.
+pub const OVERRUN_THREADS: usize = 2;
+
+/// [`Book::open`] then `f`, on its own thread, for the server (SEC-64). One cell can cost a
+/// billion operations (`MMULT` of two 1000 x 1000 arrays) and the engine only checks for
+/// cancellation between cells, so a computation that passes [`COMPUTE_BUDGET`] is left to
+/// finish on its thread and this answers an error at once; its block (by its inputs) is then
+/// not started again by this process. While [`OVERRUN_THREADS`] such computations still run,
+/// new ones are refused, so costly canvases hold at most that many cores, and saves, exports
+/// and reads go on with the inputs as typed.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn guarded<T: Send + 'static>(
+    sheets: Vec<BookSheet>,
+    f: impl FnOnce(&Book) -> Result<T, BookError> + Send + 'static,
+) -> Result<T, BookError> {
+    use std::hash::{Hash, Hasher};
+    let key = {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for s in &sheets {
+            (&s.id, &s.rows, &s.cols, &s.cells).hash(&mut h);
+        }
+        h.finish()
+    };
+    bounded(key, COMPUTE_BUDGET, move || {
+        Book::open(sheets).and_then(|b| f(&b))
+    })
+}
+
+/// Runs `f` on its own thread and waits at most `budget` for it (SEC-64): past that, `f` is
+/// left to finish, `key` is remembered as too costly (and refused at once from then on), and
+/// while [`OVERRUN_THREADS`] such jobs still run every new one is refused instead of started.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn bounded<T: Send + 'static>(
+    key: u64,
+    budget: std::time::Duration,
+    f: impl FnOnce() -> Result<T, BookError> + Send + 'static,
+) -> Result<T, BookError> {
+    use std::collections::HashSet;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex, mpsc};
+    static OVERRUN: AtomicUsize = AtomicUsize::new(0);
+    static SLOW: Mutex<Option<HashSet<u64>>> = Mutex::new(None);
+    let slow = |add: bool| {
+        let mut g = SLOW.lock().unwrap_or_else(|e| e.into_inner());
+        let set = g.get_or_insert_with(HashSet::new);
+        if add {
+            if set.len() >= 4096 {
+                set.clear();
+            }
+            set.insert(key);
+        }
+        set.contains(&key)
+    };
+    if slow(false) {
+        return Err(BookError("too costly to compute".into()));
+    }
+    if OVERRUN.load(Ordering::SeqCst) >= OVERRUN_THREADS {
+        return Err(BookError("busy with costly spreadsheets".into()));
+    }
+    // Set by the waiter when it gives up; the thread then counts itself out when it ends.
+    let abandoned = Arc::new(AtomicBool::new(false));
+    let mine = abandoned.clone();
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("oc-sheet-compute".into())
+        .spawn(move || {
+            let r = f();
+            if mine.swap(true, Ordering::SeqCst) {
+                OVERRUN.fetch_sub(1, Ordering::SeqCst);
+            }
+            let _ = tx.send(r);
+        })
+        .map_err(|e| BookError(format!("no thread: {e}")))?;
+    match rx.recv_timeout(budget) {
+        Ok(r) => r,
+        Err(_) => {
+            OVERRUN.fetch_add(1, Ordering::SeqCst);
+            if abandoned.swap(true, Ordering::SeqCst) {
+                // It finished just now.
+                OVERRUN.fetch_sub(1, Ordering::SeqCst);
+            }
+            slow(true);
+            Err(BookError("too costly to compute".into()))
+        }
+    }
+}
+
+/// On the editor's WebAssembly there are no threads: the person's own browser computes.
+#[cfg(target_arch = "wasm32")]
+pub fn guarded<T: Send + 'static>(
+    sheets: Vec<BookSheet>,
+    f: impl FnOnce(&Book) -> Result<T, BookError> + Send + 'static,
+) -> Result<T, BookError> {
+    Book::open(sheets).and_then(|b| f(&b))
 }
 
 #[cfg(test)]

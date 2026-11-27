@@ -2016,6 +2016,7 @@ dependencies = [
  "casual-calc-sdk",
  "proptest",
  "serde_json",
+ "zip",
 ]
 
 [[package]]

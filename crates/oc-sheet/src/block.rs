@@ -23,6 +23,45 @@ pub struct Table {
 
 /// Most cells an imported workbook may hold (MOD-01 sets the block cap once measured).
 pub const MAX_IMPORT_CELLS: usize = 200_000;
+/// Most rows plus columns an imported workbook's sheets may span, summed over its sheets. Each
+/// row and column is an id in the block, so one value in the last cell of a sheet
+/// (`XFD1048576`) would otherwise add a million ids from a file of a few hundred bytes.
+pub const MAX_IMPORT_GRID: usize = 250_000;
+/// Most bytes the parts of an imported `.xlsx` may inflate to (the reader's own default is
+/// 4 GiB; uploads are at most 5 MB).
+pub const MAX_IMPORT_INFLATED: u64 = 64 * 1024 * 1024;
+
+/// How long an `.ods` import may take: its reader always recalculates (SEC-64).
+pub const ODS_IMPORT_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// An `.ods` opened under [`engine::bounded`] on the server (the reader recalculates every
+/// formula, and one cell can cost seconds); directly on WebAssembly.
+#[cfg(not(target_arch = "wasm32"))]
+fn open_ods(bytes: &[u8]) -> Result<Result<WorkbookSession, casual_calc_sdk::SdkError>, BookError> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut h);
+    let bytes = bytes.to_vec();
+    engine::bounded(h.finish(), ODS_IMPORT_BUDGET, move || {
+        Ok(WorkbookSession::open_ods(bytes))
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn open_ods(bytes: &[u8]) -> Result<Result<WorkbookSession, casual_calc_sdk::SdkError>, BookError> {
+    Ok(WorkbookSession::open_ods(bytes.to_vec()))
+}
+
+/// The reader's limits for an uploaded `.xlsx`: inflated size and cells bounded for a server,
+/// and no recalculation (only the inputs are kept; the editor and exports compute).
+fn import_config() -> casual_calc_sdk::SessionConfig {
+    let mut c = casual_calc_sdk::SessionConfig::new()
+        .with_calculation(casual_calc_sdk::CalculationMode::Manual);
+    c.limits.package.max_total_uncompressed = MAX_IMPORT_INFLATED;
+    c.limits.spreadsheet.max_populated_cells = MAX_IMPORT_CELLS + 1;
+    c.limits.spreadsheet.max_shared_strings = MAX_IMPORT_CELLS + 1;
+    c
+}
 /// The grid a new sheet starts with (as `web/packages/sheet/src/model.ts`).
 pub const NEW_ROWS: usize = 100;
 pub const NEW_COLS: usize = 26;
@@ -73,21 +112,22 @@ pub fn book_sheets(block: &Value) -> Vec<BookSheet> {
 pub fn tables(block: &Value) -> Vec<Table> {
     let sheets = book_sheets(block);
     let grid = engine::grid_of(&sheets);
-    let shown: Vec<(String, String, String, String)> = match engine::compute(&sheets) {
-        Ok(v) => v
-            .into_iter()
-            .map(|s| (s.sheet, s.row, s.col, s.text))
-            .collect(),
-        Err(_) => sheets
-            .iter()
-            .flat_map(|s| {
-                s.cells.iter().map(|(r, c, v)| {
-                    let typed = refs::to_a1(v, &s.id, &grid);
-                    (s.id.clone(), r.clone(), c.clone(), typed)
+    let shown: Vec<(String, String, String, String)> =
+        match engine::guarded(sheets.clone(), |b| Ok(b.values())) {
+            Ok(v) => v
+                .into_iter()
+                .map(|s| (s.sheet, s.row, s.col, s.text))
+                .collect(),
+            Err(_) => sheets
+                .iter()
+                .flat_map(|s| {
+                    s.cells.iter().map(|(r, c, v)| {
+                        let typed = refs::to_a1(v, &s.id, &grid);
+                        (s.id.clone(), r.clone(), c.clone(), typed)
+                    })
                 })
-            })
-            .collect(),
-    };
+                .collect(),
+        };
     sheets
         .iter()
         .map(|s| {
@@ -123,7 +163,7 @@ pub fn to_xlsx(block: &Value) -> Result<Vec<u8>, BookError> {
     if sheets.is_empty() {
         return Err(BookError("the block has no sheets".into()));
     }
-    engine::Book::open(sheets)?.save_as(SessionFormat::Xlsx)
+    engine::guarded(sheets, |b| b.save_as(SessionFormat::Xlsx))
 }
 
 /// Which spreadsheet format a file is in.
@@ -140,12 +180,13 @@ pub enum FileFormat {
 /// grid, whichever is larger.
 pub fn from_file(bytes: &[u8], format: FileFormat) -> Result<Value, BookError> {
     let session = match format {
-        FileFormat::Xlsx => WorkbookSession::open(bytes.to_vec()),
-        FileFormat::Ods => WorkbookSession::open_ods(bytes.to_vec()),
+        FileFormat::Xlsx => WorkbookSession::open_with(bytes.to_vec(), import_config()),
+        FileFormat::Ods => open_ods(bytes)?,
     }
     .map_err(|e| BookError(format!("not a readable workbook: {e}")))?;
     let wb = session.workbook();
     let mut total = 0usize;
+    let mut grid_lines = 0usize;
     let mut sheets = Vec::new();
     let mut inputs = Vec::new();
     for (k, sheet) in wb.sheets.iter().enumerate() {
@@ -166,6 +207,12 @@ pub fn from_file(bytes: &[u8], format: FileFormat) -> Result<Value, BookError> {
             h = h.max(at.row as usize + 1);
             w = w.max(at.col as usize + 1);
             cells.push((at, input));
+        }
+        grid_lines += h + w;
+        if grid_lines > MAX_IMPORT_GRID {
+            return Err(BookError(format!(
+                "the workbook spans more than {MAX_IMPORT_GRID} rows and columns"
+            )));
         }
         let rows: Vec<String> = (0..h).map(|i| format!("{id}r{i}")).collect();
         let cols: Vec<String> = (0..w).map(|i| format!("{id}c{i}")).collect();
