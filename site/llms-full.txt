@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.3.0, released 2026-11-26; last updated 2026-11-28.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.4.0, released 2026-11-28; last updated 2026-11-28.
 
 
 # Documentation
@@ -9,7 +9,7 @@ URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
-How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.3.0, released 2026-11-26. They describe what is built and say so where something is planned. The roadmap has the full picture.
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.4.0, released 2026-11-28. They describe what is built and say so where something is planned. The roadmap has the full picture.
 
 ## Start
 
@@ -136,7 +136,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.3.0
+  ghcr.io/casualoffice/opencanvas:0.4.0
 ```
 
 From source, with the sample host (Rust stable, Node 24 and pnpm 9):
@@ -179,10 +179,67 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 
 ## Releases and roadmap
 
-The latest release is [0.3.0](docs/35-RELEASE-v0.3.0.md) (2026-11-26); every version is in the
+The latest release is [0.4.0](docs/37-RELEASE-v0.4.0.md) (2026-11-28); every version is in the
 [CHANGELOG](CHANGELOG.md). Next: v0.4 brings advanced databases, partial synchronization and
 performance work; v0.5 a plugin ecosystem, developer tooling and enterprise hardening
 ([roadmap](docs/09-ROADMAP.md)). Support is best-effort, with no production SLA.
+
+
+# Release notes 0.4.0
+
+URL: https://canvas.casualoffice.org/docs/release-040.html
+Source file: docs/37-RELEASE-v0.4.0.md
+
+**Status:** released 2026-11-28, tag `v0.4.0`.
+**Licence:** Apache-2.0 (ADR-037).
+**Plan:** [docs/36](36-ROADMAP-v0.4.md). **Approved prototypes:** [docs/prototypes/v04-approved/](prototypes/v04-approved/).
+**Benchmarks:** [site benchmarks page](https://canvas.casualoffice.org/docs/benchmarks.html); results are in `bench/results/` and `e2e/perf/results/`.
+
+OpenCanvas 0.4.0 adds spreadsheets, advanced databases and charts, and is a performance and
+reliability release. The host still owns users, permissions and files; the server never stores
+documents (ADR-001). Support is best effort, with no SLA.
+
+## 1. What 0.4.0 contains
+
+| Area | What it does | Decisions |
+|---|---|---|
+| Spreadsheet block (SHEET-00..08) | Excel-style grid on opencalc's engine with our own grid: name box, formula bar, Excel keyboard, about 120 functions per cell, sheets, fill and Ctrl-drag, paste from Excel and Sheets with options, formats, freeze, filters, merge, borders, wrap, find and replace, move/hide rows and columns, tab colours; full screen; live editing with peers' selections; phone layout and view only; offline. `.xlsx`/`.ods` import (with formats, styles and widths) and `.xlsx` export; values in exports, `search.json`, the API and MCP | ADR-080 |
+| Linked charts | Column, line, area, pie, donut and scatter charts from a sheet range or a database grouped field; live updates; exports write the values as a table | SHEET-06 |
+| Database ⇄ spreadsheet | "Open as spreadsheet" as a live view or a copy; a sheet range converted to a database | SHEET-06 |
+| Advanced databases | Formulas in spreadsheet syntax, relations and rollups; virtualized tables at 100,000 rows; Timeline (Gantt) with dependencies, milestones and critical path; Workload by person and week | DB4, DB5-01 |
+| Partial sync | Databases and boards load as subdocuments, on by default | ADR-076..079 |
+| Performance | 10,000 connections on one node; up to 1,000 editors in a room (cap 550 by default); progressive first screen; memory fixes | docs/36 |
+| Reliability | Overload answers 503 with `Retry-After`, never 500; recovery admission after a restart; crash and restore drills; downgrade-tolerant migrations; saves after a restart with a slow host | RLB-01..04 |
+| Nextcloud Talk | A canvas beside a chat or call, meeting canvases, the canvas card, Follow me | TALK-01 |
+| Board toolbar | One row with priority overflow; optional left rail | UX4-01 |
+| Security | Dependency upgrades (jsonwebtoken 12, p256 0.14, resvg 0.50); import limits for spreadsheets; a time budget for formula computation on the server; SEC-54..64 | docs/18 §7 |
+
+## 2. Upgrade notes (from 0.3.x)
+
+1. **Partial sync is on by default.** Editors before 0.4 are closed with 4426 on split rooms.
+   Deploy the 0.4 editor with the 0.4 server, or set `[host.flags] partial_sync = false`.
+2. **Migrations** `0012` (WAL per document id) and `0013` (restore epoch) run at start-up.
+3. **HS256 hosts need a non-empty secret** (jsonwebtoken 12 refuses an empty one).
+4. **Busy servers answer 503 with `Retry-After`.** Clients should retry after the given delay; the editor and SDKs already do.
+5. **New block types** `core.spreadsheet` and `core.chart`; `xlsx` and `ods` in `import_formats` and `export_formats` when the host allows them.
+6. **Container:** `ghcr.io/casualoffice/opencanvas:0.4.0`. Helm chart `0.4.0`.
+
+## 3. Known limitations (v0.4.1)
+
+- Partial sync does not split spreadsheets yet; open partial-sync items are PSYNC-BUG-1..4. The 50 MB first screen is above the 2 s target.
+- Spreadsheet: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
+- Charts: no browser test yet for database charts and the live database ⇄ spreadsheet view; the chart is placed after the sheet, not floating over it.
+- Timeline: Workload reassigns through a select, not by dragging; no Months grouping on phones; Timeline is not in the insert menu.
+- The slow-host save drill ran on SQLite; the MySQL run is pending. DEP-01 still needs the SBOM and update policy.
+- Benchmarks marked `local` ran on a developer laptop, not the reference machine.
+
+## 4. Release checklist
+
+1. Pre-push gates, `cargo test` for oc-server, oc-model and oc-sheet, and the full Playwright suite on the release commit (157 of 159 passed in one run; the import-dialog wording test was updated and passes, and the access-expiry test passed alone).
+2. CI green on `main`.
+3. Version 0.4.0 everywhere, CHANGELOG dated.
+4. `gh release create v0.4.0 --target <sha>`.
+5. Check the binaries and the container on the release.
 
 
 # Release notes 0.3.0
@@ -730,7 +787,7 @@ OpenCanvas is an open-source, real-time collaborative canvas that other applicat
 
 ## Can I use it in production today?
 
-OpenCanvas 0.3.0 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.3.0] - 2026-11-26” The limits are in the release notes and on the home page .
+OpenCanvas 0.4.0 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.4.0] - 2026-11-28” The limits are in the release notes and on the home page .
 
 ## Is OpenCanvas free?
 
@@ -807,7 +864,7 @@ OpenCanvas is an open-source, real-time collaborative canvas that other applicat
 
 ## At a glance
 
-Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.3.0, released 2026-11-26 Source: CHANGELOG.md, “## [0.3.0] - 2026-11-26” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
+Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.4.0, released 2026-11-28 Source: CHANGELOG.md, “## [0.4.0] - 2026-11-28” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
 
 ## Where to check
 
@@ -6222,17 +6279,6 @@ Verdict: **fail**.
 
 100,000 rows × 30 fields in one database, scrolled for 10 s per scenario with a cell edit every 500 ms. Frame times in ms; the gate is p95 at or under 16.7 ms (60 fps) with no long tasks.
 
-### local-m4 — db100k-local-m4
-
-- **Run:** 2026-11-26; Apple M4, 10 cores, 16 GB RAM, Darwin 25.3.0; Chromium 159.0.8154.6, 1280x900, headless
-- **Load mix:** one tab, no peers, 100000 rows × 30 fields written in one local transaction; scripted scroll 10 s per scenario with a local cell edit every 500 ms
-
-| Scenario | p50 | p95 | p99 | Long tasks |
-|---|---|---|---|---|
-| table | 16.7 | 483.3 | 500 | 19 |
-| tableSide | 16.7 | 250 | 300.1 | 19 |
-| board | 16.7 | 16.8 | 200.1 | 19 |
-
 ### local-m4-incremental — db100k-local-m4-incremental
 
 - **Run:** 2026-11-26; Apple M4, 10 cores, 16 GB RAM, Darwin 25.3.0; Chromium 159.0.8154.6, 1280x900, headless
@@ -6243,6 +6289,17 @@ Verdict: **fail**.
 | table | 16.7 | 16.7 | 16.8 | 0 |
 | tableSide | 16.7 | 16.7 | 16.8 | 0 |
 | board | 16.7 | 16.7 | 16.8 | 0 |
+
+### local-m4 — db100k-local-m4
+
+- **Run:** 2026-11-26; Apple M4, 10 cores, 16 GB RAM, Darwin 25.3.0; Chromium 159.0.8154.6, 1280x900, headless
+- **Load mix:** one tab, no peers, 100000 rows × 30 fields written in one local transaction; scripted scroll 10 s per scenario with a local cell edit every 500 ms
+
+| Scenario | p50 | p95 | p99 | Long tasks |
+|---|---|---|---|---|
+| table | 16.7 | 483.3 | 500 | 19 |
+| tableSide | 16.7 | 250 | 300.1 | 19 |
+| board | 16.7 | 16.8 | 200.1 | 19 |
 
 
 # AI and MCP
@@ -7968,7 +8025,7 @@ URL: https://canvas.casualoffice.org/api/changelog.html
 
 The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
 
-## Unreleased
+## 0.4.0 (2026-11-28)
 
 Added Backup and restore (RLB-03, docs/13): a runbook for SQLite, MySQL/MariaDB and Redis, scripts/restore-drill.sh , and a restore epoch. Start once with OC_RESTORED=1 after a restore. Devices revoked after the backup stay revoked (every offline copy is dropped once), and schedule slots due before the restore are skipped instead of running twice. Migration 0013 adds the restore_epoch table. Added Partial sync in the room (PSYNC-02, ADR-076), behind [host.flags] partial_sync ( off by default ; leave it off until the 0.4 editor ships): databases and boards become subdocuments on the room socket (message type 101, docs/15 §3.2), loaded when a connection asks, the role checked per request, evicted when unheld; the API, MCP, history, templates, AI tools, automation and saves work on a whole view flattened with the original item ids, so saves stay .ocanvas format v1. Editors without caps=subdoc are closed with 4426 on a split room. Room memory on the 50 MB fixture with 20 viewers (caps=subdoc, first page, no edits; release build, Apple M4, local; one process per figure, test-process RSS): split room opened from its WAL 220 MB (a high-water mark: opening walks every part once, one at a time, to index its ids) against 4,401 MB for the same room whole (2,382 MB in a second run), 5-9%, under the 30% bar (tests/partial_sync.rs room_memory_on_the_fixture). Fixed After a restart with a slow host, rooms reopen and save at full speed (RLB-01c): a room no longer holds one of the OC_ROOM_LOADS slots while the host answers its file request. Fixed Overload never answers 500: while rooms recover after a restart (more than OC_ROOM_LOAD_QUEUE , default 32, waiting to load) or when no database connection is free, launches, session lookups and WebSocket upgrades answer 503 with a Retry-After of 1-5 s. The browser launch shows "Reconnecting…" and posts again; the editor waits out Retry-After for up to 60 s instead of showing an error (RLB-01b). Fixed A launch that failed after its token was recorded (database timeout, server killed mid-launch) spent the token, so every retry was refused as a replay. The token is now spent last (SEC-59). Fixed Partial sync (off by default): one client id writing both the main document and a block's document made the whole view drop the block's content (SEC-54); block edits now count against the document size limit (SEC-55). Fixed After a restart on MySQL/MariaDB, launches failed with 500 for about 20 s while every room reopened at once (connection pool exhausted). Rooms now load at most 8 at a time ( OC_ROOM_LOADS ), and the pool is 32 connections ( OC_DB_MAX_CONNECTIONS ; RLB-01b). Fixed Load generator: a client refused by a full room retried every 0.5 s and counted as a drop; it now backs off and is counted as refused. Fixed Automation in a cluster (AUTO-CL): rule operations (API, editor, MCP) sent to a node that does not hold the canvas answered 503; they now run on the owner. A scheduled rule whose canvas was open on another node could be put off for five minutes at a time; the node holding the canvas now runs it. A run cut off by a node that stopped is logged as failed ( INTERRUPTED ) after an hour instead of staying "running". Added Benchmark program, first part (BENCH-01, BENCH-04, ADR-079): scripts/bench/run <scenario> with scenario files in bench/scenarios/ that state their load mix (X10K, R1K, STORM, SOAK, and the docs/22 scenarios run unchanged), oc-bench scenario (idle, presence-only and typing peers, latency per bucket, kill -9 and restart mid-run with reconnect timing, source addresses), JSON results with hardware, load average and mix in bench/results/ , seeded fixtures ( oc-bench fixture s|m|l|50mb ), bench/budgets.toml , the initial-JS and --forbid gate in scripts/prepush.sh and CI, and a nightly benchmark workflow. Added OFF-08 tests: a three-client simulated day offline in vitest (text, database cells, board objects, block deletes and moves, comments; the real replay frames, cut connections, the pending log and the merge summary; seeds 1, 7, 42 and OC_FUZZ_SEED , a long run behind OC_FUZZ_LONG=1 ), and Playwright zf-offline-2 (expiry by the browser clock, queued upload end to end, the 5 MB pause).
 

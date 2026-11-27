@@ -5,8 +5,8 @@ apiVersion: v2
 name: opencanvas
 description: OpenCanvas, an embeddable real-time collaborative canvas (single binary, SQLite or MySQL/MariaDB + Redis).
 type: application
-version: 0.3.0
-appVersion: "0.3.0"
+version: 0.4.0
+appVersion: "0.4.0"
 kubeVersion: ">=1.25.0-0"
 keywords: [collaboration, editor, yjs, whiteboard]
 annotations:

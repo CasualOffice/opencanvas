@@ -190,6 +190,7 @@ NAV = [
 DOCS = [
     ("index", "Documentation", "Start", None),
     ("getting-started", "Getting started", "Start", "README.md"),
+    ("release-040", "Release notes 0.4.0", "Start", "docs/37-RELEASE-v0.4.0.md"),
     ("release-030", "Release notes 0.3.0", "Start", "docs/35-RELEASE-v0.3.0.md"),
     ("release-020", "Release notes 0.2.0", "Start", "docs/32-RELEASE-v0.2.0.md"),
     ("release-012", "Release notes 0.1.2", "Start", "docs/31-RELEASE-v0.1.2.md"),
@@ -219,6 +220,7 @@ DOCS = [
 # the page, everything else to GitHub.
 DOC_PAGES = {
     "README.md": "getting-started",
+    "docs/37-RELEASE-v0.4.0.md": "release-040",
     "docs/35-RELEASE-v0.3.0.md": "release-030",
     "docs/32-RELEASE-v0.2.0.md": "release-020",
     "docs/31-RELEASE-v0.1.2.md": "release-012",

@@ -1,7 +1,7 @@
 # OpenCanvas
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.3.0-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.3.0)
+[![Release](https://img.shields.io/badge/release-v0.4.0-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.4.0)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-canvas.casualoffice.org-2a5ad7)](https://canvas.casualoffice.org/docs/)
 
@@ -16,7 +16,7 @@ you. It never stores documents. It is open source under Apache-2.0.
 [Try the demo](https://canvas.casualoffice.org/app/#demo) ·
 [Documentation](docs/00-README.md) ·
 [Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
-[Release notes 0.3.0](docs/35-RELEASE-v0.3.0.md) ·
+[Release notes 0.4.0](docs/37-RELEASE-v0.4.0.md) ·
 [Changelog](CHANGELOG.md)
 
 <picture>
@@ -76,7 +76,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.3.0
+  ghcr.io/casualoffice/opencanvas:0.4.0
 ```
 
 From source, with the sample host (Rust stable, Node 24 and pnpm 9):
@@ -119,7 +119,7 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 
 ## Releases and roadmap
 
-The latest release is [0.3.0](docs/35-RELEASE-v0.3.0.md) (2026-11-26); every version is in the
+The latest release is [0.4.0](docs/37-RELEASE-v0.4.0.md) (2026-11-28); every version is in the
 [CHANGELOG](CHANGELOG.md). Next: v0.4 brings advanced databases, partial synchronization and
 performance work; v0.5 a plugin ecosystem, developer tooling and enterprise hardening
 ([roadmap](docs/09-ROADMAP.md)). Support is best-effort, with no production SLA.

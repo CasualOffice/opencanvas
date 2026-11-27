@@ -7,6 +7,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-28
+
+Spreadsheets, advanced databases (formulas, relations, rollups, Timeline and Workload) and linked
+charts; partial sync on by default; performance and reliability. Release notes:
+[docs/37](docs/37-RELEASE-v0.4.0.md).
+
 ### Upgrading to 0.4
 
 - **Partial sync is on by default** (`[host.flags] partial_sync`, ADR-076, docs/05 §2c-bis):
