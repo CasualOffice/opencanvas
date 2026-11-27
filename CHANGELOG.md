@@ -33,6 +33,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- **Timeline and Workload views for databases** (DB5-01): a Gantt chart over start and end dates (or
+  a duration) with day to quarter zoom, dependencies from a "Blocked by" relation created on demand,
+  a toast that shifts dependents when a task moves past them, the critical path, milestones, a No
+  dates tray, drag to move, resize and link, a bar menu and full keyboard use; a Workload view of
+  people against weeks; on phones the Timeline is a list by week.
+
 - Spreadsheet blocks on the server (SHEET-03, ADR-080): Markdown, HTML, Word, `.ocanvas`
   (`document.json`, `search.json`), `GET …/blocks/{blockId}` and MCP `canvas_read` show a
   spreadsheet as tables of the values the grid displays, computed with opencalc's engine;

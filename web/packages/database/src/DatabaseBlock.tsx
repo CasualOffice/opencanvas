@@ -7,7 +7,7 @@ import * as Y from "yjs";
 import {
   ArrowDown, ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ArrowUp, ArrowUpDown, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight,
   ChevronUp, Columns3, Copy, Download, Ellipsis, ExternalLink, GripVertical, Inbox, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search,
-  EyeOff, Info, Pencil, RotateCw, SlidersHorizontal, SquareKanban, Sun, Table, Trash2, TriangleAlert, Upload, X, Zap, type LucideIcon,
+  EyeOff, Info, Pencil, RotateCw, SlidersHorizontal, SquareKanban, Sun, ChartGantt, UsersRound, Table, Trash2, TriangleAlert, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv, OcUser, Tone } from "@opencanvas/ui";
 import { CsvImportDialog } from "./CsvImportDialog";
@@ -23,6 +23,7 @@ import {
 } from "./query";
 import { currentSnapshot, newSnapCache, noteChange, type SnapCache } from "./snapshot";
 import { ensureStyles } from "./styles";
+import { TimelinePhone, TimelineSettings, TimelineView, WorkloadView } from "./timeline/TimelineView";
 import type { CellValue, DbField, DbOption, DbRow, DbSnapshot, FieldType, FilterOp, FilterRule, ViewKind, ViewPrefs } from "./types";
 import { ADV_TYPES, COMPUTED_TYPES, FIELD_TYPES } from "./types";
 import { AdvContext, computedFoot, computedValue, RelationChips, type AdvInfo } from "./formula/cells";
@@ -92,6 +93,8 @@ const VIEWS: [ViewKind, string, LucideIcon][] = [
   ["board", "Board", SquareKanban],
   ["calendar", "Calendar", CalendarDays],
   ["gallery", "Gallery", LayoutGrid],
+  ["timeline", "Timeline", ChartGantt],
+  ["workload", "Workload", UsersRound],
 ];
 const W: Record<FieldType, number> = { title: 300, text: 180, status: 150, select: 160, tags: 190, person: 160, date: 120, number: 110, checkbox: 90, url: 190, progress: 160, formula: 150, relation: 200, rollup: 130 };
 const isEmpty = (v: unknown) => v == null || v === "" || (Array.isArray(v) && !v.length);
@@ -642,10 +645,14 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
           <KanbanView ctx={ctx} />
         ) : view === "calendar" ? (
           <CalendarView ctx={ctx} />
+        ) : view === "timeline" ? (
+          compact ? <TimelinePhone ctx={{ ...ctx, um }} /> : <TimelineView ctx={{ ...ctx, um }} />
+        ) : view === "workload" ? (
+          <WorkloadView ctx={{ ...ctx, um }} />
         ) : (
           <GalleryView ctx={ctx} />
         )}
-        {!rows.length && db.rows.length && view !== "calendar" ? (
+        {!rows.length && db.rows.length && view !== "calendar" && view !== "timeline" && view !== "workload" ? (
           <div className="ocdb-nomatch">
             No rows match.
             <button className="ocdb-btn ghost sm" onClick={() => { patchPrefs({ ...filterPatch([]), q: "" }); setQDraft(null); setShowQ(false); }}>Clear filters</button>
@@ -3115,6 +3122,7 @@ function SettingsBody({ ctx }: { ctx: Ctx }) {
       </>
     );
   }
+  if (view === "timeline" || view === "workload") return <TimelineSettings ctx={ctx} />;
   if (view === "calendar") {
     const d = dateField(db, prefs);
     const opts = db.fields.filter((f) => f.type === "date");

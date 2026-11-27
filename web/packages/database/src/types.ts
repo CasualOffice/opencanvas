@@ -70,8 +70,8 @@ export interface RollDef {
   fn: RollFn;
 }
 
-export type ViewKind = "table" | "board" | "calendar" | "gallery";
-export const VIEW_KINDS: ViewKind[] = ["table", "board", "calendar", "gallery"];
+export type ViewKind = "table" | "board" | "calendar" | "gallery" | "timeline" | "workload";
+export const VIEW_KINDS: ViewKind[] = ["table", "board", "calendar", "gallery", "timeline", "workload"];
 
 /** Per-view preferences, stored as JSON in the db's `views` Y.Map under the view name. */
 export interface ViewPrefs {
@@ -102,6 +102,8 @@ export interface ViewPrefs {
   fields?: string[];
   /** Field ids hidden in this view. The title field is always shown. */
   hidden?: string[];
+  /** Timeline and Workload settings (DB5-01, timeline/logic.ts `TimelinePrefs`). */
+  tl?: import("./timeline/logic").TimelinePrefs;
 }
 
 export interface SortRule {
