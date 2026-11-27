@@ -257,6 +257,13 @@ async fn the_role_is_checked_per_request_and_other_files_blocks_are_refused() {
     v.send(protocol::subdoc(&guid("d1"), &protocol::step2(vec![0, 0])));
     v.settle().await;
     assert_eq!(v.denied, 0);
+    let txn = dv.transact();
+    let echo = txn.encode_state_as_update_v1(&txn.state_vector());
+    drop(txn);
+    assert!(!oc_model::parts::delete_set(&echo).unwrap().is_empty());
+    v.send(protocol::subdoc(&guid("d1"), &protocol::step2(echo)));
+    v.settle().await;
+    assert_eq!(v.denied, 0);
     // ...but not write it.
     edit_part(&v, &dv, "d1", "Hacked");
     v.settle().await;

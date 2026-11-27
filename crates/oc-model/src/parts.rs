@@ -439,6 +439,11 @@ pub trait Owners {
     /// The owner of `id` and the end (exclusive) of the clock range it owns there; `None` when
     /// the id is unknown (GC, or never seen).
     fn owner(&self, id: Id) -> Option<(&str, u32)>;
+
+    /// The next known clock in an interval after an unowned clock.
+    fn next_owned(&self, client: u64, start: u32, end: u32) -> Option<u32> {
+        (start..end).find(|&clock| self.owner(Id { client, clock }).is_some())
+    }
 }
 
 /// Nobody: every outside reference is unknown (a whole update cuts on its own).
@@ -446,6 +451,10 @@ pub struct NoOwners;
 
 impl Owners for NoOwners {
     fn owner(&self, _: Id) -> Option<(&str, u32)> {
+        None
+    }
+
+    fn next_owned(&self, _: u64, _: u32, _: u32) -> Option<u32> {
         None
     }
 }
@@ -555,6 +564,14 @@ impl Owners for OwnerIndex {
             .range(..=id.clock)
             .next_back()?;
         (id.clock < end).then(|| (self.parts[p as usize].as_str(), end))
+    }
+
+    fn next_owned(&self, client: u64, start: u32, end: u32) -> Option<u32> {
+        self.ranges
+            .get(&client)?
+            .range(start..end)
+            .next()
+            .map(|(&clock, _)| clock)
     }
 }
 
@@ -1005,16 +1022,9 @@ fn route_with(
                                 .and_then(|&ci| {
                                     p.clients[ci].1.iter().map(|s| s.clock).find(|&c| c > x)
                                 })
-                                .unwrap_or(b);
-                            // The next owned range, if the index knows one before `next`.
-                            let owned = (x + 1..next).find(|&c| {
-                                owners
-                                    .owner(Id {
-                                        client: *client,
-                                        clock: c,
-                                    })
-                                    .is_some()
-                            });
+                                .unwrap_or(b)
+                                .min(b);
+                            let owned = owners.next_owned(*client, x + 1, next);
                             (Some(MAIN.to_string()), owned.unwrap_or(next))
                         }
                     },

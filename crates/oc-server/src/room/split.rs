@@ -518,11 +518,61 @@ impl Room {
         }
     }
 
+    /// A read-only peer can echo the deletions it received in the sync reply.
+    async fn part_delete_echo(&mut self, key: &str, bytes: &[u8]) -> bool {
+        if bytes.first() != Some(&0) {
+            return false;
+        }
+        let Some(s) = &self.split else {
+            return false;
+        };
+        let filtered;
+        let (doc, bytes) = if s.whole_since.is_some() {
+            // The peer saw fillers where the whole view has another part's live items.
+            let Ok(share) = parts::own_share(bytes, key, &s.owners) else {
+                return false;
+            };
+            filtered = share;
+            (&self.doc, filtered.as_slice())
+        } else {
+            if self.ensure_loaded(key).await.is_err() {
+                return false;
+            }
+            let Some(p) = self.split.as_ref().and_then(|s| s.loaded.get(key)) else {
+                return false;
+            };
+            (&p.doc, bytes)
+        };
+        let Ok(deletes) = parts::delete_set(bytes) else {
+            return false;
+        };
+        if deletes.keys().any(|&client| client >= (1 << 53)) {
+            return false;
+        }
+        let deletes = yrs::IdSet::from_iter(deletes.into_iter().map(|(client, ranges)| {
+            (
+                ClientID::new(client),
+                ranges.into_iter().map(|(start, end)| start..end),
+            )
+        }));
+        let current = doc.transact().snapshot().delete_set;
+        deletes.client_ids().all(|client| {
+            deletes
+                .get(&client)
+                .zip(current.get(&client))
+                .is_some_and(|(echo, known)| echo.subset_of(known))
+        })
+    }
+
     /// A client's edit of a part: the role, then the client id rule, then the part (or the
     /// whole view) and the WAL under the part's id.
     async fn apply_part(&mut self, conn: ConnId, grant: &Grant, key: &str, guid: &str, u: Vec<u8>) {
-        // The step 2 response may be empty, including for viewers and commenters.
-        if u == [0, 0] {
+        if u == Update::EMPTY_V1 {
+            return;
+        }
+        if (grant.role != Role::Edit || self.conflict.is_some())
+            && self.part_delete_echo(key, &u).await
+        {
             return;
         }
         if grant.role == Role::View || self.conflict.is_some() {
