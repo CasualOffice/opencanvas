@@ -46,7 +46,7 @@ test("DGM-15: draw.io → dry-run report → import → board; Undo import remov
   await applyTemplate(priya, "Meeting notes");
   const dlg = await openDialog(priya);
   // 7a: the approved dialog lists the diagram formats, Excalidraw included.
-  await expect(dlg).toContainText("Markdown, HTML, CSV, draw.io or Excalidraw, up to 5 MB");
+  await expect(dlg).toContainText("Markdown, HTML, CSV, draw.io, Excalidraw, Excel (.xlsx) or OpenDocument (.ods), up to 5 MB");
   await expect(dlg).toContainText("draw.io and Excalidraw become a diagram board.");
   await expect(dlg).toContainText("scripts, links in diagram files and embedded entities are removed");
   await shots(priya.page, "dgm15-pick");
