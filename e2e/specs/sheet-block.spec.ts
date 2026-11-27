@@ -174,7 +174,7 @@ test("SHEET-06: phone layout, #REF! named after someone else's delete, view only
 
   // Phone (9a): taller rows; a double tap edits in the formula bar with insert keys; tapping a
   // cell while typing a formula inserts its reference.
-  await priya.page.setViewportSize({ width: 390, height: 844 });
+  await priya.page.setViewportSize({ width: 320, height: 700 });
   await expect(priya.oc.locator(".ocsh.ph")).toBeVisible();
   const ax = await new AxeBuilder({ page: priya.page }).include(['iframe[name="oc"]', ".ocsh"]).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(ax.violations.map((v) => `${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
