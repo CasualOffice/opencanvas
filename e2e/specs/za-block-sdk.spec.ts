@@ -69,6 +69,8 @@ test("insert from the / menu, edit, and a second person sees it", async ({ brows
 test("a viewer runs the block read only; the badge still tells where it comes from", async ({ browser }) => {
   const priya = await person(browser, "u_priya");
   const fileId = await createFile(priya, "E2E za · viewer");
+  // A new canvas is on the host only once its editor has opened it; patch after that.
+  await openFile(priya, fileId);
   await patch(fileId, [{ op: "append", blocks: [{ type: "extBlock", attrs: { type: "e2e.okr", attrs: { objective: "Read me", progress: 0.5 } } }] }]);
   await setAccess(priya, fileId, "u_sam", "view");
   await priya.ctx.close();
