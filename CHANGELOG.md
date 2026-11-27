@@ -48,6 +48,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   freeze rows and columns from the header menus; fill handle, copy and paste with Excel and Google
   Sheets, number formats, bold, italic, colours, alignment, filters and full screen
   (Ctrl+Shift+E). Edits sync live through Yjs; other people's selections show in their colour.
+- Spreadsheet block (SHEET-07): merge cells, borders, wrap text, find and replace (Ctrl+F / Ctrl+H
+  with Excel's wildcards), a warning before deleting rows or columns that formulas use, Ctrl-drag
+  on the fill handle, moving, hiding and unhiding rows and columns, and tab colours and order.
+  The matcher, border placements and merge rule are ported from OpenCalc.
 - Spreadsheet block on phones, view only and offline (SHEET-06, frames 9-10): a double tap edits
   in the formula bar with a row of insert keys, an action bar (copy, paste, fill, clear, Aa) and
   round handles to extend the selection; viewers select, copy, filter for themselves and see sums

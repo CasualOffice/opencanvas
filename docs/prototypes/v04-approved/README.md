@@ -21,3 +21,7 @@ decisions: per-cell Excel formulas (A1, ranges, `$`, `Sheet!A1`); Excel keyboard
 dropdown options; "Open as spreadsheet" on a database offers both view live and convert to a copy;
 about 120 common Excel functions at launch; a sheet's chart can be placed on the canvas as a linked
 chart block in v0.4.
+
+## Timeline and Workload (approved 2026-11-28)
+
+[timeline.html](timeline.html): database Timeline (Gantt) view with dependencies ("Blocked by" self-relation), milestones, critical path, No dates tray, zoom; Workload view (hours per person per week against capacity); phone list by week; keyboard map. Approved by the owner 2026-11-28 for v0.4 ("advanced databases").
