@@ -640,6 +640,29 @@ mod tests {
         assert_eq!(again["sheets"]["s0"]["widths"], s0["widths"]);
     }
 
+    /// A file written by another tool (the e2e fixture: numFmt `"$"#,##0.00`, a bold red header,
+    /// column A 24 characters wide) imports with the same style keys.
+    #[test]
+    fn an_excel_written_file_keeps_its_styles() {
+        let bytes = include_bytes!("../../../e2e/fixtures/sheets/budget.xlsx");
+        let block = from_file(bytes, FileFormat::Xlsx).unwrap();
+        let s0 = &block["sheets"]["s0"];
+        let style = |key: &str| -> Value {
+            let k = s0["cells"][key]["s"].as_str().unwrap();
+            serde_json::from_str(block["styles"][k].as_str().unwrap()).unwrap()
+        };
+        assert_eq!(style("s0r0:s0c0"), json!({"b": true, "fg": "#c00000"}));
+        assert_eq!(style("s0r1:s0c1"), json!({"dp": 2, "nf": "cur"}));
+        assert_eq!(s0["cells"]["s0r1:s0c1"]["in"], "4200");
+        assert!(s0["cells"]["s0r1:s0c0"].get("s").is_none());
+        let w = s0["widths"]["s0c0"].as_f64().unwrap();
+        assert!(
+            (10.0..14.0).contains(&w),
+            "24 characters is about 11.5 rem: {w}"
+        );
+        assert_eq!(tables(&block)[0].rows[3], vec!["Total", "5000"]);
+    }
+
     #[test]
     fn garbage_is_refused() {
         assert!(from_file(b"not a zip", FileFormat::Xlsx).is_err());

@@ -103,6 +103,33 @@ test("FC-10 real server: '…' menu → Markdown lands after the caret block", a
   await priya.ctx.close();
 });
 
+test("SHEET-08 real server: an .xlsx becomes a Spreadsheet block with its formats and styles", async ({ browser }) => {
+  const priya = await person(browser, "u_priya");
+  const fileId = await createFile(priya, "Import xlsx");
+  await openFile(priya, fileId);
+  await applyTemplate(priya, "Meeting notes");
+  let seen: URL | null = null;
+  priya.page.on("request", (r) => {
+    if (r.url().includes("/v1/import?")) seen = new URL(r.url());
+  });
+  await editor(priya).locator("h2").filter({ hasText: "Agenda" }).click();
+  await priya.oc.getByRole("button", { name: "More options" }).click();
+  await priya.oc.locator(".mi", { hasText: "Import…" }).click();
+  const dlg = priya.oc.getByRole("dialog", { name: "Import into this canvas" });
+  await expect(dlg).toContainText("Excel (.xlsx)");
+  await dlg.getByLabel("Choose a file to import").setInputFiles(path.join(ROOT, "e2e/fixtures/sheets/budget.xlsx"));
+  await expect(dlg.getByRole("status")).toContainText("Imported a spreadsheet with 1 sheet");
+  expect((seen as unknown as URL).searchParams.get("format")).toBe("xlsx");
+  await dlg.getByRole("button", { name: "Close" }).click();
+  const sheet = editor(priya).locator(".ocsh").filter({ hasText: "Venue" });
+  await expect(sheet).toBeVisible({ timeout: 10_000 });
+  // The bold header and the currency format came with the file; the SUM computed.
+  await expect(sheet.locator(".ocsh-c.b", { hasText: "Item" })).toBeVisible();
+  await expect(sheet.locator(".ocsh-c", { hasText: /4,200\.00/ })).toBeVisible();
+  await expect(sheet.locator(".ocsh-c", { hasText: /5,000\.00/ })).toBeVisible();
+  await priya.ctx.close();
+});
+
 test("FC-10 mocked: the request carries format, ticket, blockId and the chosen types", async ({ browser }) => {
   const priya = await person(browser, "u_priya");
   const fileId = await createFile(priya, "Import mocked");

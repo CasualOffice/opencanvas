@@ -20,7 +20,7 @@ import { loadDatabase } from "../editor/blockdata";
 import { topBlockAt } from "../editor/blockops";
 import { blockDoc, blockMap } from "../lib/blocks";
 import { ensureBlockIdAt } from "../editor/blockId";
-import { DIAGRAM_FORMATS, type ImportFormat } from "../lib/importflag";
+import { DIAGRAM_FORMATS, SHEET_FORMATS, type ImportFormat } from "../lib/importflag";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const TYPE_LABEL: Partial<Record<FieldType, string>> = { text: "Text", title: "Text", number: "Number", date: "Date", checkbox: "Checkbox", url: "URL", person: "Person", tags: "Tags", status: "Status", progress: "Progress" };
@@ -39,7 +39,7 @@ type Step =
   | { s: "done"; text: string; sub?: string; undo?: string[]; undoShapes?: string[] }
   | { s: "undone" };
 
-const FORMAT_NAME: Record<ImportFormat, string> = { md: "Markdown", html: "HTML", csv: "CSV", drawio: "draw.io", excalidraw: "Excalidraw" };
+const FORMAT_NAME: Record<ImportFormat, string> = { md: "Markdown", html: "HTML", csv: "CSV", drawio: "draw.io", excalidraw: "Excalidraw", xlsx: "Excel (.xlsx)", ods: "OpenDocument (.ods)" };
 const list = (xs: string[], last = "or") => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} ${last} ${xs[xs.length - 1]}`);
 const mb = (n: number) => (n < 100 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 const REPORT_ICON: Record<string, string> = { stencil: "puzzle", shape_box: "puzzle", image_large: "image-off", image_svg: "image-off", image_type: "image-off", image_link: "image-off", page_other: "file-stack", containers: "square-dashed", curved: "corner-down-right", elbow: "corner-down-right" };
@@ -77,6 +77,7 @@ function removeBlocks(editor: Editor, ids: string[]): number {
 }
 
 const formatOf = (f: File): ImportFormat | null =>
+  /\.xlsx$/i.test(f.name) ? "xlsx" : /\.ods$/i.test(f.name) ? "ods" :
   /\.(drawio|xml)$/i.test(f.name) ? "drawio" : /\.excalidraw$/i.test(f.name) ? "excalidraw" :
   /\.csv$/i.test(f.name) || f.type === "text/csv" ? "csv" : /\.html?$/i.test(f.name) || f.type === "text/html" ? "html" : /\.(md|markdown)$/i.test(f.name) || f.type === "text/markdown" ? "md" : null;
 
@@ -104,6 +105,7 @@ export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, b
     setStep({ s: "busy" });
     setErr("");
     const t = target();
+    const sheet = SHEET_FORMATS.includes(format);
     try {
       if (demo) {
         if (format === "csv") {
@@ -125,11 +127,14 @@ export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, b
       }
       // The block id set just now reaches the room with the next update (≤ 50 ms).
       if (t.blockId) await new Promise((r) => setTimeout(r, 120));
-      const r = await fetch(`/v1/import?${q}`, { method: "POST", body: file, headers: { "Content-Type": format === "csv" ? "text/csv" : format === "html" ? "text/html" : "text/markdown" } });
-      const j = (await r.json().catch(() => ({}))) as { rows?: number; blocks?: number; blockIds?: string[]; error?: { message?: string } };
+      const type = sheet ? "application/octet-stream" : format === "csv" ? "text/csv" : format === "html" ? "text/html" : "text/markdown";
+      const r = await fetch(`/v1/import?${q}`, { method: "POST", body: file, headers: { "Content-Type": type } });
+      const j = (await r.json().catch(() => ({}))) as { rows?: number; blocks?: number; sheets?: number; blockIds?: string[]; error?: { message?: string } };
       if (!r.ok) throw new Error(j.error?.message || "The import didn't work.");
       // The server made this edit, so it isn't in this browser's undo history: offer "Undo import".
-      setStep({ s: "done", text: format === "csv" ? `Imported a database with ${j.rows ?? count(text)} rows` : blocksText(j.blocks ?? 1), undo: j.blockIds ?? [] });
+      const n = j.sheets ?? 1;
+      const done = sheet ? `Imported a spreadsheet with ${n} sheet${n === 1 ? "" : "s"}` : format === "csv" ? `Imported a database with ${j.rows ?? count(text)} rows` : blocksText(j.blocks ?? 1);
+      setStep({ s: "done", text: done, undo: j.blockIds ?? [] });
     } catch (e) {
       setErr(e instanceof Error && e.message ? e.message : "The import didn't work. Try again.");
       setStep({ s: "pick" });
@@ -189,6 +194,7 @@ export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, b
       return void dryRun(f.name, format, f, 0);
     }
     if (f.size > MAX_BYTES) return setErr("That file is over 5 MB.");
+    if (SHEET_FORMATS.includes(format)) return void run(format, f.name.replace(/\.[^.]+$/, ""), "", f);
     const text = await f.text();
     const name = f.name.replace(/\.[^.]+$/, "");
     if (format !== "csv") return void run(format, name, text, f);
@@ -202,6 +208,7 @@ export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, b
   const csv = step.s === "csv" ? step.csv : null;
   const dia = step.s === "diagram" ? step.d : null;
   const diagrams = formats.filter((x) => DIAGRAM_FORMATS.includes(x));
+  const sheets = formats.filter((x) => SHEET_FORMATS.includes(x));
   const dataRows = csv ? csv.rows.length - 1 : 0;
   return (
     <Modal onClose={onClose} label={boardId ? "Import into this diagram" : "Import into this canvas"} wide>
@@ -233,14 +240,14 @@ export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, b
             >
               <Ic name={step.s === "busy" ? "loader-circle" : "file"} size={24} className={step.s === "busy" ? "spin" : ""} />
               <strong>{step.s === "busy" ? "Importing…" : "Drop a file here, or choose one"}</strong>
-              <span>{diagrams.length ? `${list(formats.map((x) => FORMAT_NAME[x]))}, up to 5 MB` : "Markdown (.md), HTML (.html) or CSV (.csv), up to 5 MB"}</span>
+              <span>{diagrams.length || sheets.length ? `${list(formats.map((x) => FORMAT_NAME[x]))}, up to 5 MB` : "Markdown (.md), HTML (.html) or CSV (.csv), up to 5 MB"}</span>
             </button>
             <input
               ref={input}
               type="file"
               hidden
               aria-label="Choose a file to import"
-              accept={".md,.markdown,.html,.htm,.csv,text/markdown,text/html,text/csv" + (diagrams.includes("drawio") ? ",.drawio,.xml" : "") + (diagrams.includes("excalidraw") ? ",.excalidraw" : "")}
+              accept={".md,.markdown,.html,.htm,.csv,text/markdown,text/html,text/csv" + (diagrams.includes("drawio") ? ",.drawio,.xml" : "") + (diagrams.includes("excalidraw") ? ",.excalidraw" : "") + sheets.map((x) => "." + x).map((x) => "," + x).join("")}
               onChange={(e) => {
                 void take(e.target.files?.[0]);
                 e.target.value = "";
@@ -258,6 +265,11 @@ export function ImportInto({ editor, doc, ticket, formats: all, demo, onClose, b
               <span>
                 <strong>CSV</strong> becomes a database. You check the column types first.
               </span>
+              {sheets.length ? (
+                <span>
+                  <strong>{list(sheets.map((x) => FORMAT_NAME[x].replace(/ \(.*\)$/, "")), "and")}</strong> files become a spreadsheet, with their formats, styles and column widths.
+                </span>
+              ) : null}
               {diagrams.length ? (
                 <span>
                   <strong>{list(diagrams.map((x) => FORMAT_NAME[x]), "and")}</strong> {diagrams.length > 1 ? "become" : "becomes"} a diagram board. You see what converts before anything is added.
