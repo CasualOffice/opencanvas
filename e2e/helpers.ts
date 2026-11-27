@@ -87,10 +87,12 @@ export async function setAccess(owner: Person, fileId: string, user: UserId, rol
   expect(hostFiles(host)[fileId]?.acl[user] ?? "none").toBe(role);
 }
 
+const EDITOR_READY_TIMEOUT = 15_000;
+
 /** Opens the file in the host page and waits until the editor is connected and rendered. */
 export async function openFile(p: Person, fileId: string, host = HOST) {
   await p.page.goto(`${host}/files/${fileId}?as=${p.user}`);
-  await expect(p.oc.locator(".ProseMirror, .tgrid").first()).toBeVisible({ timeout: 15_000 });
+  await expect(p.oc.locator(".ProseMirror, .tgrid").first()).toBeVisible({ timeout: EDITOR_READY_TIMEOUT });
   // A reopened canvas gives its blocks their ids in a second render (VH-00); text typed before
   // that lands in replaced nodes, and an "@" typed there never keeps its picker (p-people on CI).
   if (await p.oc.locator(".ProseMirror").first().isVisible()) await blocksReady(p.oc);
@@ -100,7 +102,7 @@ export const editor = (p: Person) => p.oc.locator(".ProseMirror");
 
 /** Creator path: the template gallery opens for a new file; pick a template by name. */
 export async function applyTemplate(p: Person, name: string) {
-  await expect(p.oc.locator(".tgrid")).toBeVisible();
+  await expect(p.oc.locator(".tgrid")).toBeVisible({ timeout: EDITOR_READY_TIMEOUT });
   await p.oc.getByLabel("Search templates").fill(name);
   await p.oc.locator(".tcard").filter({ hasText: name }).first().click();
   await p.oc.getByRole("button", { name: "Use template" }).click();

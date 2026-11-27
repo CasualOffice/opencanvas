@@ -1127,7 +1127,7 @@ with your user like any client's.
 
 Clients connecting to a host with partial sync enabled must append `caps=subdoc` to the
 returned URL and handle the parts list and subdocument frames described in
-[the build contract](15-BUILD-CONTRACT.md#32-partial-sync-subdocuments-on-the-room-socket).
+[the build contract](15-BUILD-CONTRACT.md#32-partial-sync-subdocuments-on-the-room-socket-psync-02-adr-076).
 Hosts serving plain y-websocket clients can set `partial_sync = false` in `[host.flags]`.
 
 **Errors** are RFC 9457 `application/problem+json`:
