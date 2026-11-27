@@ -25,7 +25,7 @@ fn token(role: &str, download: bool) -> String {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap()
 }

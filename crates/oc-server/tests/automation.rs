@@ -763,7 +763,7 @@ async fn mcp_tools_match_the_api() {
         &json!({"iss": "sample", "aud": format!("{PUBLIC}/mcp/sample"), "sub": "u_lea", "name": "Lea",
             "exp": oc_server::util::now_secs() + 600, "scope": "canvas:read canvas:write", "role": "edit",
             "files": [FILE], "client_id": "t"}),
-        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap();
     let call = async |name: &str, args: Value| -> Value {

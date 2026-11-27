@@ -32,7 +32,7 @@ fn token(role: &str, perms: Value) -> String {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap()
 }

@@ -302,7 +302,7 @@ fn token(sub: &str, aud: &str) -> String {
         &Header::new(Algorithm::HS256),
         &json!({"iss": "sample", "aud": aud, "sub": sub, "exp": now + 600,
             "scope": "canvas:read canvas:write", "role": "edit", "files": [FILE]}),
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap()
 }

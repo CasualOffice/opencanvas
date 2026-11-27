@@ -159,7 +159,7 @@ impl GrantKey {
                 Err(_) => s = Sha256::digest(s).into(),
             }
         };
-        let point = VerifyingKey::from(&key).to_encoded_point(false);
+        let point = VerifyingKey::from(&key).to_sec1_point(false);
         let (x, y) = (
             B64.encode(point.x().expect("uncompressed")),
             B64.encode(point.y().expect("uncompressed")),

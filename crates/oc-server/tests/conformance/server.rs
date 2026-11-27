@@ -160,7 +160,7 @@ async fn token(Json(v): Json<Value>) -> Json<Value> {
     let t = jsonwebtoken::encode(
         &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
         &c,
-        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap();
     Json(json!({"token": t}))

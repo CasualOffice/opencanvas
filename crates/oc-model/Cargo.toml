@@ -20,8 +20,8 @@ base64.workspace = true
 resvg.workspace = true
 tracing.workspace = true
 # Same versions as resvg/usvg use; `fs` + `memmap` turn on system and OC_FONT_DIRS loading.
-fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "memmap"] }
-ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+fontdb = { version = "0.24", default-features = false, features = ["std", "fs", "memmap"] }
+skrifa = { version = "0.49", default-features = false, features = ["std"] }
 unicode-script = "0.5"
 # DGM-15 diagram import (ADR-053, Proposed): already in Cargo.lock through resvg/usvg and reqwest.
 roxmltree = "0.21"
