@@ -114,7 +114,10 @@ test("crash, Reload block, and the crash-loop guard", async ({ browser }) => {
   await patch(fileId, [{ op: "append", blocks: [{ type: "extBlock", attrs: { type: "e2e.hostile", attrs: {}, fallback: { markdown: "**Saved** copy" } } }] }]);
   const b = block(priya, "e2e.hostile");
   for (let i = 1; i <= 3; i++) {
-    await frameOf(priya, "e2e.hostile").getByRole("button", { name: "Crash" }).click();
+    const crash = frameOf(priya, "e2e.hostile").getByRole("button", { name: "Crash" });
+    await expect(crash).toBeVisible({ timeout: 15_000 });
+    // Trigger the fixture inside the frame. Crash handling can tear it down mid-action.
+    await crash.evaluate((button) => setTimeout(() => (button as HTMLButtonElement).click(), 0));
     // Crash detection rides the frame heartbeat; a loaded machine can take longer than 10 s.
     await expect(b.getByRole("alert")).toContainText("This block stopped working", { timeout: 20_000 });
     await expect(b).toContainText("Last saved copy");
