@@ -27,6 +27,9 @@ Third-party components keep their own licences:
   (https://github.com/CasualOffice/opencalc, Copyright 2026 CasualOffice, Apache-2.0),
   pinned to a revision in crates/oc-sheet/Cargo.toml. Its own dependencies keep their
   licences (Apache-2.0, MIT, BSD, ISC, Zlib, Unicode-3.0).
+  The block's Find and Replace matcher, border placements and merge overlap rule
+  (web/packages/sheet/src/grid/opencalc.ts) are ported from OpenCalc revision 88a2522
+  (crates/casual-calc-wasm/src/find.rs, style.rs, structural.rs), Apache-2.0.
 
 Trademarks:
 

@@ -74,13 +74,22 @@ export interface Grid {
   cols: number;
   /** A cell holds something (Ctrl+arrow, Ctrl+A, End). */
   filled(r: number, c: number): boolean;
-  /** Rows hidden by a filter (arrows skip them). */
+  /** Rows hidden by a filter or by hand (arrows skip them). */
   hidden?(r: number): boolean;
+  /** Hidden columns. */
+  hiddenCol?(c: number): boolean;
   /** Rows a page holds (PageUp, PageDown). */
   page: number;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/** One step from column `c` by `d`, skipping hidden columns; stays when there is nowhere to go. */
+function stepCol(g: Grid, c: number, d: number): number {
+  let n = c + d;
+  while (n >= 0 && n < g.cols && g.hiddenCol?.(n)) n += Math.sign(d);
+  return n >= 0 && n < g.cols ? n : c;
+}
 
 /** One step from row `r` by `d` rows, skipping hidden rows; stays when there is nowhere to go. */
 function stepRow(g: Grid, r: number, d: number): number {
@@ -95,7 +104,7 @@ function stepRow(g: Grid, r: number, d: number): number {
  */
 export function jump(g: Grid, p: Pos, dr: number, dc: number): Pos {
   const ok = (r: number, c: number) => r >= 0 && c >= 0 && r < g.rows && c < g.cols;
-  const next = (q: Pos): Pos => (dr ? { r: stepRow(g, q.r, dr), c: q.c } : { r: q.r, c: q.c + dc });
+  const next = (q: Pos): Pos => (dr ? { r: stepRow(g, q.r, dr), c: q.c } : { r: q.r, c: stepCol(g, q.c, dc) });
   let q = next(p);
   if (!ok(q.r, q.c) || (q.r === p.r && q.c === p.c)) return p;
   if (g.filled(p.r, p.c) && g.filled(q.r, q.c)) {
@@ -159,7 +168,7 @@ export function navigate(g: Grid, sel: Sel, k: Key): Sel | null {
   const arrow: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
   if (arrow[k.key]) {
     const [dr, dc] = arrow[k.key];
-    to = k.mod ? jump(g, from, dr, dc) : dr ? { r: stepRow(g, from.r, dr), c: from.c } : { r: from.r, c: clamp(from.c + dc, 0, last.c) };
+    to = k.mod ? jump(g, from, dr, dc) : dr ? { r: stepRow(g, from.r, dr), c: from.c } : { r: from.r, c: stepCol(g, from.c, dc) };
   } else if (k.key === "Home") to = k.mod ? { r: 0, c: 0 } : { r: from.r, c: 0 };
   else if (k.key === "End") {
     if (k.mod) to = lastUsed(g);
@@ -198,7 +207,7 @@ export function navigate(g: Grid, sel: Sel, k: Key): Sel | null {
       return { anchor: { r, c }, focus: { r, c }, range: q };
     }
     const p = sel.anchor;
-    return at(down ? stepRow(g, p.r, d) : p.r, down ? p.c : clamp(p.c + d, 0, last.c));
+    return at(down ? stepRow(g, p.r, d) : p.r, down ? p.c : stepCol(g, p.c, d));
   } else return null;
   to = { r: clamp(to.r, 0, last.r), c: clamp(to.c, 0, last.c) };
   return k.shift ? { anchor: sel.anchor, focus: to } : at(to.r, to.c);
@@ -216,7 +225,15 @@ export const isNumber = (s: string) => NUM.test(s.trim());
  * cells are repeated. `get` reads a cell's input as typed (A1 formulas), `shift` moves a formula.
  * Returns `[row, col, input]` for every target cell outside the source.
  */
-export function fill(from: Rect, to: Rect, get: (r: number, c: number) => string, shift: (src: string, dr: number, dc: number) => string): [number, number, string][] {
+export function fill(
+  from: Rect,
+  to: Rect,
+  get: (r: number, c: number) => string,
+  shift: (src: string, dr: number, dc: number) => string,
+  /** Ctrl (or Alt) held at the drop: the opposite of the default for numbers, as in Excel. A
+   *  series is copied as is; a single number counts up by 1. */
+  copy = false,
+): [number, number, string][] {
   const out: [number, number, string][] = [];
   const down = to.r0 < from.r0 || to.r1 > from.r1;
   const h = from.r1 - from.r0 + 1;
@@ -226,8 +243,9 @@ export function fill(from: Rect, to: Rect, get: (r: number, c: number) => string
   const lines = down ? w : h;
   for (let k = 0; k < lines; k++) {
     const src = Array.from({ length: down ? h : w }, (_, i) => (down ? get(from.r0 + i, from.c0 + k) : get(from.r0 + k, from.c0 + i)));
-    const nums = src.every((s) => isNumber(s)) && src.length >= 2 ? src.map(Number) : null;
-    const step = nums ? (nums[nums.length - 1] - nums[0]) / (nums.length - 1) : 0;
+    const allNum = src.every((s) => isNumber(s));
+    const nums = allNum && (copy ? src.length === 1 : src.length >= 2) ? src.map(Number) : null;
+    const step = !nums ? 0 : nums.length === 1 ? 1 : (nums[nums.length - 1] - nums[0]) / (nums.length - 1);
     const linear = nums?.every((v, i) => Math.abs(v - (nums[0] + step * i)) < 1e-9);
     const lo = down ? to.r0 : to.c0;
     const hi = down ? to.r1 : to.c1;
@@ -327,6 +345,13 @@ export interface CellStyle {
   /** number format and decimals */
   nf?: NumFmt;
   dp?: number;
+  /** wrap text */
+  wr?: boolean;
+  /** borders: top, bottom, left, right; 1 thin, 2 thick */
+  bt?: number;
+  bb?: number;
+  bl?: number;
+  br?: number;
 }
 export type NumFmt = "num" | "pct" | "cur" | "date" | "sci";
 

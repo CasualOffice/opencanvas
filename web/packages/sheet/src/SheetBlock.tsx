@@ -20,9 +20,14 @@ import {
   Baseline,
   Bold,
   ChevronDown,
+  ChevronUp,
   Euro,
   Funnel,
+  Grid2x2,
   Italic,
+  Search,
+  TableCellsMerge,
+  WrapText,
   Lock,
   Maximize2,
   PaintBucket,
@@ -57,6 +62,14 @@ import {
   setSize,
   setStyle,
   sheetOf,
+  countRefs,
+  moveIds,
+  moveSheet,
+  readHidden,
+  readMerges,
+  setHidden,
+  setMerge,
+  setSheetColor,
   sheetsRoot,
   type SheetFilter,
 } from "./model";
@@ -91,6 +104,7 @@ import {
   type Sel,
 } from "./grid/logic";
 import { injectCss } from "./styles";
+import { borderEdges, mergeHits, Pattern, type BorderKind } from "./grid/opencalc";
 
 /** Default sizes, rem (prototype `.ss-r`, `.ss-hr`). */
 export const DEF_W = 6.25;
@@ -225,7 +239,7 @@ function useBlock(doc: Y.Doc, blockId: string, toast: BlockEnv["toast"], onRefLo
           continue;
         }
         if (p[1] === "sheets" && (p[3] === "widths" || p[3] === "heights" || p[3] === "freeze")) continue;
-        if (p[1] === "sheets" && p.length === 3 && [...(ev as Y.YMapEvent<unknown>).keysChanged].every((k) => k === "filter")) continue;
+        if (p[1] === "sheets" && p.length === 3 && [...(ev as Y.YMapEvent<unknown>).keysChanged].every((k) => k === "filter" || k === "color" || k.startsWith("m:") || k.startsWith("h:"))) continue;
         structural = true;
       }
       if (!mine) return;
@@ -325,6 +339,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   const [localFilter, setLocalFilter] = useState<SheetFilter | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
+  const [moveTo, setMoveTo] = useState<{ kind: "r" | "c"; at: number } | null>(null);
+  const [tabDrop, setTabDrop] = useState<number | null>(null);
+  /** Find and replace (4f): the bar's state. Matching is OpenCalc's Pattern. */
+  const [find, setFind] = useState<{ q: string; by: string; replace: boolean; mc: boolean; whole: boolean; formulas: boolean; all: boolean } | null>(null);
+  const findRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const valuesOnly = useRef(false);
 
@@ -380,10 +399,44 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     for (let r = hr + 1; r <= last; r++) if (cols.some(([c, vals]) => vals.has(display(r, c)))) out.add(r);
     return out;
   }, [view, filter, display]);
-  const colW = useMemo(() => (view ? view.cols.map((id, i) => (live?.kind === "w" && live.i === i ? live.v : view.widths.get(id) ?? DEF_W)) : []), [view, live]);
+  /** Rows and columns hidden by hand (4d), by id. */
+  const handHidden = useMemo(() => (sheet ? readHidden(doc, blockId, sheet) : new Set<string>()), [doc, blockId, sheet, version]);
+  const hiddenRows = useMemo(() => {
+    const out = new Set(hidden);
+    if (view) for (const id of handHidden) if (view.rIx.has(id)) out.add(view.rIx.get(id)!);
+    return out;
+  }, [hidden, handHidden, view]);
+  const hiddenCols = useMemo(() => {
+    const out = new Set<number>();
+    if (view) for (const id of handHidden) if (view.cIx.has(id)) out.add(view.cIx.get(id)!);
+    return out;
+  }, [handHidden, view]);
+  /** Merged ranges (3b) by index: anchors and the cells they cover. */
+  const merges = useMemo(() => {
+    const list: Rect[] = [];
+    const anchor = new Map<string, Rect>();
+    const covered = new Map<string, Rect>();
+    if (!view || !sheet) return { list, anchor, covered };
+    for (const [ra, ca, rb, cb] of readMerges(doc, blockId, sheet)) {
+      const r0m: number | undefined = view.rIx.get(ra);
+      const c0m: number | undefined = view.cIx.get(ca);
+      const r1m: number | undefined = view.rIx.get(rb);
+      const c1m: number | undefined = view.cIx.get(cb);
+      if (r0m == null || c0m == null || r1m == null || c1m == null || r1m < r0m || c1m < c0m) continue;
+      const m = { r0: r0m, c0: c0m, r1: r1m, c1: c1m };
+      list.push(m);
+      anchor.set(`${r0m}:${c0m}`, m);
+      for (let rr: number = r0m; rr <= r1m; rr++) for (let cc: number = c0m; cc <= c1m; cc++) if (rr !== r0m || cc !== c0m) covered.set(`${rr}:${cc}`, m);
+    }
+    return { list, anchor, covered };
+  }, [doc, blockId, sheet, view, version]);
+  const colW = useMemo(
+    () => (view ? view.cols.map((id, i) => (hiddenCols.has(i) ? 0 : live?.kind === "w" && live.i === i ? live.v : view.widths.get(id) ?? DEF_W)) : []),
+    [view, live, hiddenCols],
+  );
   const rowH = useMemo(
-    () => (view ? view.rows.map((id, i) => (hidden.has(i) ? 0 : live?.kind === "h" && live.i === i ? live.v : view.heights.get(id) ?? defH)) : []),
-    [view, live, hidden, defH],
+    () => (view ? view.rows.map((id, i) => (hiddenRows.has(i) ? 0 : live?.kind === "h" && live.i === i ? live.v : view.heights.get(id) ?? defH)) : []),
+    [view, live, hiddenRows, defH],
   );
   const colOff = useMemo(() => offsets(colW), [colW]);
   const rowOff = useMemo(() => offsets(rowH), [rowH]);
@@ -428,10 +481,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       rows: nR,
       cols: nC,
       filled: (r: number, c: number) => display(r, c) !== "",
-      hidden: (r: number) => hidden.has(r),
+      hidden: (r: number) => hiddenRows.has(r),
+      hiddenCol: (c: number) => hiddenCols.has(c),
       page: Math.max(1, Math.floor(vp.h / rp / DEF_H) - 2),
     }),
-    [nR, nC, display, hidden, vp.h],
+    [nR, nC, display, hiddenRows, hiddenCols, vp.h],
   );
 
   /** Scrolls the body so cell (r, c) is visible (frozen cells always are). */
@@ -466,6 +520,8 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   };
   const select = (s: Sel, show = true) => {
     const n = clampSel(s);
+    const m = merges.covered.get(`${n.anchor.r}:${n.anchor.c}`);
+    if (m && !s.range && n.anchor.r === n.focus.r && n.anchor.c === n.focus.c) (n.anchor = { r: m.r0, c: m.c0 }), (n.focus = n.anchor);
     setSel(n);
     if (show) requestAnimationFrame(() => reveal(n.focus));
   };
@@ -569,6 +625,17 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     for (let r = q.r0; r <= q.r1; r++) for (let c = q.c0; c <= q.c1; c++) out.push([v.rows[r], v.cols[c]]);
     return out;
   };
+  /** Clears inputs in `q` inside the caller's transaction (merge keeps the top-left). */
+  const clearRectRaw = (q: Rect, keepFirst = false) => {
+    if (!view) return;
+    view.cells.forEach((cell, k) => {
+      const [rid, cid] = k.split(":");
+      const r = view.rIx.get(rid) ?? -1;
+      const c = view.cIx.get(cid) ?? -1;
+      if (keepFirst && r === q.r0 && c === q.c0) return;
+      if (r >= 0 && c >= 0 && inRect(q, r, c) && cell.get("in")) setInput(doc, blockId, view.id, rid, cid, "");
+    });
+  };
   const clearRect = (q: Rect) => {
     if (!view || !canEdit) return;
     act(() => {
@@ -584,7 +651,29 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (!view || !canEdit) return;
     act(() => patchStyle(doc, blockId, view.id, selIds(rectOf(sel)), patch));
   };
-  const toggle = (k: "b" | "i" | "st") => style({ [k]: !styleAt(sel.anchor.r, sel.anchor.c)?.[k] });
+  const borders = (kind: BorderKind) => {
+    if (!view || !canEdit) return;
+    const q0 = rectOf(sel);
+    const w = kind === "bottomthick" ? 2 : 1;
+    act(() => {
+      for (let r = q0.r0; r <= q0.r1; r++)
+        for (let c = q0.c0; c <= q0.c1; c++) {
+          const cell: [string, string][] = [[view.rows[r], view.cols[c]]];
+          if (kind === "none") {
+            patchStyle(doc, blockId, view.id, cell, { bt: null, bb: null, bl: null, br: null });
+            continue;
+          }
+          const [t, b, l, rt] = borderEdges(kind, r, c, q0);
+          const patch: Record<string, unknown> = {};
+          if (t) patch.bt = w;
+          if (b) patch.bb = w;
+          if (l) patch.bl = w;
+          if (rt) patch.br = w;
+          if (Object.keys(patch).length) patchStyle(doc, blockId, view.id, cell, patch);
+        }
+    });
+  };
+  const toggle = (k: "b" | "i" | "st" | "wr") => style({ [k]: !styleAt(sel.anchor.r, sel.anchor.c)?.[k] });
   const decimals = (d: number) => {
     const p = sel.anchor;
     const cur = decimalsOf(display(p.r, p.c), styleAt(p.r, p.c));
@@ -598,7 +687,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     const cells: Clip["cells"] = [];
     const out: PastedCell[][] = [];
     for (let r = q.r0; r <= q.r1; r++) {
-      if (hidden.has(r)) continue;
+      if (hiddenRows.has(r)) continue;
       const row: Clip["cells"][number] = [];
       const o: PastedCell[] = [];
       for (let c = q.c0; c <= q.c1; c++) {
@@ -723,9 +812,9 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   }, [note]);
 
   /* ---- fill ---- */
-  const applyFill = (from: Rect, to: Rect) => {
+  const applyFill = (from: Rect, to: Rect, copy = false) => {
     if (!view || !engine || !canEdit) return;
-    const out = fill(from, to, (r, c) => inputAt(r, c), (s, dr, dc) => engine.shift(s, dr, dc));
+    const out = fill(from, to, (r, c) => inputAt(r, c), (s, dr, dc) => engine.shift(s, dr, dc), copy);
     act(() => {
       const sheets = readSheets(doc, blockId);
       const h = from.r1 - from.r0 + 1;
@@ -817,9 +906,9 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         to = fillTarget(from, q);
         setFillTo(to);
       },
-      () => {
+      (ev) => {
         setFillTo(null);
-        if (to !== from) applyFill(from, to);
+        if (to !== from) applyFill(from, to, ev.ctrlKey || ev.metaKey || ev.altKey);
       },
     );
   };
@@ -830,6 +919,25 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     gridRef.current?.focus({ preventScroll: true });
     const whole = (a: number, b: number): Sel =>
       kind === "c" ? { anchor: { r: 0, c: a }, focus: { r: nR - 1, c: b } } : { anchor: { r: a, c: 0 }, focus: { r: b, c: nC - 1 } };
+    const wholeSel = kind === "c" ? q.r0 === 0 && q.r1 === nR - 1 && i >= q.c0 && i <= q.c1 : q.c0 === 0 && q.c1 === nC - 1 && i >= q.r0 && i <= q.r1;
+    if (wholeSel && canEdit && !e.shiftKey) {
+      // 4d: drag selected rows or columns by their header to move them (formulas follow the ids).
+      let to = -1;
+      drag(
+        (ev) => {
+          const h = headFrom(ev.clientX, ev.clientY, kind);
+          if (!h) return;
+          const at_ = kind === "c" ? h.c : h.r;
+          to = at_ < (kind === "c" ? q.c0 : q.r0) ? at_ : at_ + 1;
+          setMoveTo({ kind, at: to });
+        },
+        () => {
+          setMoveTo(null);
+          if (to >= 0) move(kind, to);
+        },
+      );
+      return;
+    }
     const start = e.shiftKey ? (kind === "c" ? sel.anchor.c : sel.anchor.r) : i;
     setSel(whole(start, i));
     drag((ev) => {
@@ -885,9 +993,73 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (!view) return;
     act(() => (kind === "r" ? insertRows : insertCols)(doc, blockId, view.id, where, n));
   };
-  const del = (kind: "r" | "c") => {
+  const del = (kind: "r" | "c", sure = false) => {
     if (!view) return;
+    const ids = kind === "r" ? view.rows.slice(q.r0, q.r1 + 1) : view.cols.slice(q.c0, q.c1 + 1);
+    const n = sure ? 0 : countRefs(doc, blockId, kind === "r" ? "rows" : "cols", view.id, ids);
+    if (n) {
+      // 4c: say first how many formulas will break.
+      const what = kind === "r" ? plural(nRows, "row") : plural(nCols, "column");
+      const b = document.getElementById(cellId(sel.anchor))?.getBoundingClientRect();
+      setMenu({
+        x: b ? b.left : 100,
+        y: b ? b.bottom : 100,
+        label: `Delete ${what}`,
+        body: (
+          <div className="ocsh-confirm">
+            <p>
+              {n} {n === 1 ? "formula uses" : "formulas use"} {kind === "r" ? (nRows === 1 ? "this row" : "these rows") : nCols === 1 ? "this column" : "these columns"} and will show #REF!.
+            </p>
+            <div className="ocsh-fact">
+              <button className="ocsh-btn" onClick={() => (setMenu(null), gridRef.current?.focus())}>Cancel</button>
+              <button className="ocsh-btn p dan" onClick={() => (setMenu(null), del(kind, true), gridRef.current?.focus())}>Delete {what}</button>
+            </div>
+          </div>
+        ),
+      });
+      return;
+    }
     act(() => (kind === "r" ? deleteRows(doc, blockId, view.id, q.r0, nRows) : deleteCols(doc, blockId, view.id, q.c0, nCols)));
+    select(at(q.r0, q.c0));
+  };
+  const move = (kind: "r" | "c", to: number) => {
+    if (!view || !canEdit) return;
+    const [a0, a1_] = kind === "r" ? [q.r0, q.r1] : [q.c0, q.c1];
+    const n = a1_ - a0 + 1;
+    const max = kind === "r" ? nR : nC;
+    if (to < 0 || to > max || (to >= a0 && to <= a1_ + 1)) return;
+    act(() => moveIds(doc, blockId, view.id, kind === "r" ? "rows" : "cols", a0, n, to));
+    const start = to > a0 ? to - n : to;
+    if (kind === "r") setSel({ anchor: { r: start, c: 0 }, focus: { r: start + n - 1, c: nC - 1 } });
+    else setSel({ anchor: { r: 0, c: start }, focus: { r: nR - 1, c: start + n - 1 } });
+  };
+  const hide = (kind: "r" | "c", ids: string[], on: boolean) => {
+    if (!view) return;
+    act(() => setHidden(doc, blockId, view.id, ids, on));
+    // The active cell leaves what was hidden: to the next row or column after it.
+    if (on) setSel(kind === "c" ? at(0, Math.min(nC - 1, q.c1 + 1)) : at(Math.min(nR - 1, q.r1 + 1), 0));
+  };
+  const mergeHere = merges.list.filter((m) => mergeHits(m, q));
+  const toggleMerge = () => {
+    if (!view || !canEdit) return;
+    if (mergeHere.length) {
+      act(() => mergeHere.forEach((m) => setMerge(doc, blockId, view.id, view.rows[m.r0], view.cols[m.c0], null)));
+      return;
+    }
+    if (nRows * nCols < 2) return;
+    let dropped = 0;
+    view.cells.forEach((c, k) => {
+      const [rid, cid] = k.split(":");
+      const r = view.rIx.get(rid) ?? -1;
+      const cc = view.cIx.get(cid) ?? -1;
+      if (inRect(q, r, cc) && (r !== q.r0 || cc !== q.c0) && c.get("in")) dropped++;
+    });
+    act(() => {
+      if (dropped) clearRectRaw({ ...q, r0: q.r0, c0: q.c0 }, true);
+      for (const m of mergeHere) setMerge(doc, blockId, view.id, view.rows[m.r0], view.cols[m.c0], null);
+      setMerge(doc, blockId, view.id, view.rows[q.r0], view.cols[q.c0], [view.rows[q.r1], view.cols[q.c1]]);
+    });
+    if (dropped) env.toast(`Merged ${rectA1(q)}; only the top-left value was kept (${dropped} cleared).`, um ? { label: "Undo", run: () => um.undo() } : undefined);
     select(at(q.r0, q.c0));
   };
   const freezeTo = (rows: number, cols: number) => view && act(() => setFreeze(doc, blockId, view.id, rows, cols));
@@ -932,6 +1104,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     "sep",
     fc === q.c1 + 1 ? { label: "Unfreeze columns", icon: <Snowflake size={15} />, run: () => freezeTo(fr, 0) } : { label: `Freeze up to column ${colName(q.c1)}`, icon: <Snowflake size={15} />, run: () => freezeTo(fr, q.c1 + 1) },
     { label: "Fit to data", run: () => autofit(q.c0) },
+    "sep",
+    { label: nCols === 1 ? "Move column left" : "Move columns left", run: () => move("c", q.c0 - 1) },
+    { label: nCols === 1 ? "Move column right" : "Move columns right", run: () => move("c", q.c1 + 2) },
+    { label: nCols === 1 ? "Hide column" : "Hide columns", run: () => hide("c", view!.cols.slice(q.c0, q.c1 + 1), true) },
+    ...(hiddenCols.size ? [{ label: "Unhide all columns", run: () => hide("c", [...hiddenCols].map((c) => view!.cols[c]), false) } as MenuItem] : []),
   ];
   const rowItems = (): MenuEntry[] => [
     { label: `Insert ${plural(nRows, "row")} above`, run: () => ins("r", q.r0, nRows) },
@@ -940,6 +1117,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     { label: nRows === 1 ? "Clear row" : "Clear rows", run: () => clearRect(q) },
     "sep",
     fr === q.r1 + 1 ? { label: "Unfreeze rows", icon: <Snowflake size={15} />, run: () => freezeTo(0, fc) } : { label: `Freeze up to row ${q.r1 + 1}`, icon: <Snowflake size={15} />, run: () => freezeTo(q.r1 + 1, fc) },
+    "sep",
+    { label: nRows === 1 ? "Move row up" : "Move rows up", run: () => move("r", q.r0 - 1) },
+    { label: nRows === 1 ? "Move row down" : "Move rows down", run: () => move("r", q.r1 + 2) },
+    { label: nRows === 1 ? "Hide row" : "Hide rows", run: () => hide("r", view!.rows.slice(q.r0, q.r1 + 1), true) },
+    ...([...hiddenRows].some((r) => !hidden.has(r)) ? [{ label: "Unhide all rows", run: () => hide("r", [...hiddenRows].filter((r) => !hidden.has(r)).map((r) => view!.rows[r]), false) } as MenuItem] : []),
   ];
   const cellItems = (): MenuEntry[] =>
     canEdit
@@ -958,6 +1140,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     { label: nRows === 1 ? "Delete row" : "Delete rows", danger: true, run: () => del("r") },
     { label: nCols === 1 ? "Delete column" : "Delete columns", danger: true, run: () => del("c") },
     { label: "Clear", hint: "Delete", run: () => clearRect(q) },
+    mergeHere.length ? { label: "Unmerge", run: toggleMerge } : { label: "Merge cells", run: toggleMerge },
     "sep",
     filter ? { label: "Remove filter", icon: <Funnel size={15} />, run: () => filterOn(null) } : { label: "Create a filter", icon: <Funnel size={15} />, run: createFilter },
     fr || fc ? { label: "Unfreeze", icon: <Snowflake size={15} />, run: () => freezeTo(0, 0) } : { label: `Freeze up to ${a1(sel.anchor)}`, icon: <Snowflake size={15} />, run: () => freezeTo(sel.anchor.r, sel.anchor.c) },
@@ -976,8 +1159,27 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (id === sheet) setSheetSel(null);
     env.toast(`Deleted “${name}”`, um ? { label: "Undo", run: () => um.undo() } : undefined);
   };
+  const tabColour = (id: string) => {
+    const b = document.querySelector<HTMLElement>(`[data-tab="${id}"]`)?.getBoundingClientRect();
+    setMenu({
+      x: b ? b.left : 100,
+      y: b ? b.bottom + 4 : 100,
+      label: "Tab colour",
+      body: (
+        <div className="ocsh-sw" role="group" aria-label="Tab colour">
+          <button aria-label="No colour" title="No colour" onClick={() => (act(() => setSheetColor(doc, blockId, id, null)), setMenu(null))} style={{ background: "var(--app)" }} />
+          {TONES.map((t) => (
+            <button key={t} aria-label={t} title={t} onClick={() => (act(() => setSheetColor(doc, blockId, id, t)), setMenu(null))} style={{ background: `var(--${t}-fg)` }} />
+          ))}
+        </div>
+      ),
+    });
+  };
   const tabItems = (id: string): MenuEntry[] => [
     { label: "Rename", run: () => setRenaming(id) },
+    { label: "Colour", run: () => setTimeout(() => tabColour(id)) },
+    ...(order.indexOf(id) > 0 ? [{ label: "Move left", run: () => act(() => moveSheet(doc, blockId, id, order.indexOf(id) - 1)) } as MenuItem] : []),
+    ...(order.indexOf(id) < order.length - 1 ? [{ label: "Move right", run: () => act(() => moveSheet(doc, blockId, id, order.indexOf(id) + 1)) } as MenuItem] : []),
     ...(order.length > 1 ? [{ label: "Delete", danger: true, run: () => removeTab(id) } as MenuItem] : []),
   ];
 
@@ -1003,6 +1205,12 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (mod && (k === "v" || k === "V")) {
       valuesOnly.current = e.shiftKey;
       return; // the paste event
+    }
+    if (mod && (k === "f" || k === "h")) {
+      e.preventDefault();
+      setFind((f) => ({ q: f?.q ?? "", by: f?.by ?? "", replace: k === "h" && canEdit, mc: f?.mc ?? false, whole: f?.whole ?? false, formulas: f?.formulas ?? false, all: f?.all ?? false }));
+      requestAnimationFrame(() => findRef.current?.focus());
+      return;
     }
     if (mod && k === "d" && canEdit) {
       e.preventDefault();
@@ -1037,7 +1245,10 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       clearRect(rectOf(sel));
       return;
     }
-    const n = navigate(gridApi, sel, { key: k, shift: e.shiftKey, mod });
+    // From a merged cell, arrows leave from its far edge (otherwise they land inside it again).
+    const mg = merges.anchor.get(`${sel.anchor.r}:${sel.anchor.c}`);
+    const from = mg && !e.shiftKey && (k === "ArrowDown" || k === "ArrowRight" || k === "Enter" || k === "Tab") ? at(k === "ArrowDown" || k === "Enter" ? mg.r1 : mg.r0, k === "ArrowRight" || k === "Tab" ? mg.c1 : mg.c0) : sel;
+    const n = navigate(gridApi, from, { key: k, shift: e.shiftKey, mod });
     if (n) {
       e.preventDefault();
       select(n);
@@ -1127,14 +1338,82 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   const c1 = indexAt(colOff, frozenW + sxr + vw);
   const bodyRows = visRows(r0, r1 + 1);
   const bodyCols: number[] = [];
-  for (let c = c0; c <= c1 + 1 && c < nC; c++) bodyCols.push(c);
+  for (let c = c0; c <= c1 + 1 && c < nC; c++) if (colW[c] > 0) bodyCols.push(c);
   // The active cell is always rendered, so aria-activedescendant names a real element.
   const withActive = (list: number[], v: number, lo: number) => (v >= lo && !list.includes(v) ? [...list, v].sort((a, b) => a - b) : list);
   const fRows = visRows(0, fr - 1);
-  const fCols = Array.from({ length: fc }, (_, i) => i);
+  const fCols = Array.from({ length: fc }, (_, i) => i).filter((c) => colW[c] > 0);
   const bRows = withActive(bodyRows, sel.anchor.r, fr);
   const bCols = withActive(bodyCols, sel.anchor.c, fc);
   const showFill = canEdit && !edit;
+
+  /* ---- find and replace (4f; OpenCalc's Pattern: ? * ~ wildcards, case, entire cell) ---- */
+  const pattern = find?.q ? new Pattern(find.q, find.mc) : null;
+  const inFormulas = !!find && (find.formulas || find.replace);
+  const findList: { s: string; r: number; c: number }[] = [];
+  if (pattern && find) {
+    for (const sid of find.all ? order : [view.id]) {
+      const v = sid === view.id ? view : readView(doc, blockId, sid);
+      if (!v) continue;
+      const hitsHere: { s: string; r: number; c: number }[] = [];
+      v.cells.forEach((_, k) => {
+        const [rid, cid] = k.split(":");
+        const r = v.rIx.get(rid);
+        const c = v.cIx.get(cid);
+        if (r == null || c == null) return;
+        const text = inFormulas ? inputAt(r, c, v) : formatValue(display(r, c, v), styleAt(r, c, v));
+        if (pattern.hits(text, find.whole)) hitsHere.push({ s: sid, r, c });
+      });
+      hitsHere.sort((a, b) => a.r - b.r || a.c - b.c);
+      findList.push(...hitsHere);
+    }
+  }
+  const findHits = new Set(findList.filter((h) => h.s === view.id).map((h) => `${h.r}:${h.c}`));
+  const findStep = (dir: number) => {
+    if (!findList.length) {
+      if (find?.q) env.toast("Nothing found.");
+      return;
+    }
+    const key = (h: { s: string; r: number; c: number }) => [order.indexOf(h.s), h.r, h.c];
+    const here = [order.indexOf(view.id), sel.anchor.r, sel.anchor.c];
+    const cmp = (a: number[], b: number[]) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    let i = dir > 0 ? findList.findIndex((h) => cmp(key(h), here) > 0) : findList.map((h) => cmp(key(h), here) < 0).lastIndexOf(true);
+    if (i < 0) i = dir > 0 ? 0 : findList.length - 1;
+    const h = findList[i];
+    if (h.s !== view.id) setSheetSel(h.s);
+    select(at(h.r, h.c));
+  };
+  const replaceOne = () => {
+    if (!pattern || !find || !canEdit) return;
+    const h = findList.find((x) => x.s === view.id && x.r === sel.anchor.r && x.c === sel.anchor.c);
+    if (h) {
+      const next = pattern.replace(inputAt(h.r, h.c), find.by, find.whole);
+      if (next != null) act(() => writeCell(view, h.r, h.c, next));
+    }
+    findStep(1);
+  };
+  const replaceAll = () => {
+    if (!pattern || !find || !canEdit) return;
+    let n = 0;
+    act(() => {
+      const sheets = readSheets(doc, blockId);
+      for (const h of findList) {
+        const v = h.s === view.id ? view : readView(doc, blockId, h.s);
+        if (!v) continue;
+        const next = pattern.replace(inputAt(h.r, h.c, v), find.by, find.whole);
+        if (next == null) continue;
+        writeCell(v, h.r, h.c, next, sheets);
+        n++;
+      }
+    });
+    env.toast(n ? `Replaced ${n} ${n === 1 ? "cell" : "cells"}.` : "Nothing to replace.", n && um ? { label: "Undo", run: () => um.undo() } : undefined);
+  };
+  /** The hidden indexes just before `i` (an unhide button's run). */
+  const runBefore = (set: Set<number>, i: number) => {
+    const out: number[] = [];
+    for (let j = i - 1; j >= 0 && set.has(j); j--) out.push(j);
+    return out;
+  };
 
   const cellEl = (r: number, c: number, x0: number) => {
     const p = { r, c };
@@ -1150,6 +1429,10 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (st?.b) cls.push("b");
     if (st?.i) cls.push("i");
     if (st?.st) cls.push("st");
+    if (st?.wr) cls.push("wr");
+    if (findHits.has(`${r}:${c}`)) cls.push("fm");
+    const mg = merges.anchor.get(`${r}:${c}`);
+    if (mg) cls.push("mg");
     if (isError(v)) cls.push("err");
     if (inSel && multi && !isAct) cls.push("rs");
     if (isAct) cls.push("act");
@@ -1164,7 +1447,14 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     if (fc && c === fc - 1) cls.push("fzc");
     const ed = editingHere && edit!.r === r && edit!.c === c;
     if (ed) cls.push("ed");
-    const css: CSSProperties = { left: rem(colOff[c] - x0), top: 0, width: rem(colW[c]), height: rem(rowH[r]) };
+    const css: CSSProperties = {
+      left: rem(colOff[c] - x0),
+      top: 0,
+      width: rem(mg ? colOff[mg.c1 + 1] - colOff[c] : colW[c]),
+      height: rem(mg ? rowOff[mg.r1 + 1] - rowOff[r] : rowH[r]),
+    };
+    const bd = [st?.bt && `inset 0 ${st.bt * 0.0625}rem 0 var(--fg)`, st?.bb && `inset 0 -${st.bb * 0.0625}rem 0 var(--fg)`, st?.bl && `inset ${st.bl * 0.0625}rem 0 0 var(--fg)`, st?.br && `inset -${st.br * 0.0625}rem 0 0 var(--fg)`].filter(Boolean);
+    if (bd.length) css.boxShadow = bd.join(",");
     if (st?.fg) css.color = colour(st.fg, "fg");
     if (st?.bg && !(inSel && multi && !isAct)) css.background = colour(st.bg, "bg");
     const isFilterHead = filter && view.rows[r] === filter.row && filter.cols.includes(view.cols[c]);
@@ -1241,16 +1531,25 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   const rowsOf = (rows: number[], cols: number[], x0: number, y0: number) =>
     rows.map((r) => (
       <div key={r} role="row" aria-rowindex={r + 2} style={{ position: "absolute", left: 0, top: rem(rowOff[r] - y0), height: rem(rowH[r]), width: 0 }}>
-        {cols.map((c) => cellEl(r, c, x0))}
+        {cols.filter((c) => !merges.covered.has(`${r}:${c}`)).map((c) => cellEl(r, c, x0))}
       </div>
-    ));
+    )).concat(
+      // A merge whose anchor row or column is scrolled away still shows over its visible cells.
+      merges.list
+        .filter((m) => rows.length && cols.length && !(rows.includes(m.r0) && cols.includes(m.c0)) && rows.some((r) => r >= m.r0 && r <= m.r1) && cols.some((c) => c >= m.c0 && c <= m.c1))
+        .map((m) => (
+          <div key={`m${m.r0}:${m.c0}`} role="row" aria-rowindex={m.r0 + 2} style={{ position: "absolute", left: 0, top: rem(rowOff[m.r0] - y0), height: rem(rowH[m.r0]), width: 0 }}>
+            {cellEl(m.r0, m.c0, x0)}
+          </div>
+        )),
+    );
   const colHead = (c: number, x0: number) => {
     const hl = c >= q.c0 && c <= q.c1;
     const all = hl && q.r0 === 0 && q.r1 === nR - 1;
     return (
       <div
         key={c}
-        className={"ocsh-h1" + (all ? " all" : hl ? " hl" : "")}
+        className={"ocsh-h1" + (all ? " all" : hl ? " hl" : "") + (moveTo?.kind === "c" && moveTo.at === c ? " drop" : "")}
         role="columnheader"
         aria-colindex={c + 2}
         data-hc={c}
@@ -1263,6 +1562,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         }}
       >
         {colName(c)}
+        {canEdit && c > 0 && hiddenCols.has(c - 1) ? (
+          <button className="ocsh-unh v" tabIndex={-1} aria-label={`Unhide columns before ${colName(c)}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => hide("c", runBefore(hiddenCols, c).map((i) => view.cols[i]), false)}>
+            <ChevronDown size={10} />
+          </button>
+        ) : null}
         {canEdit ? <span className="ocsh-rz v" onPointerDown={(e) => onResizeDown(e, "w", c)} onDoubleClick={() => autofit(c)} /> : null}
       </div>
     );
@@ -1273,7 +1577,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     return (
       <div key={r} role="row" aria-rowindex={r + 2} style={{ position: "absolute", left: 0, top: rem(rowOff[r] - y0), width: rem(RHW), height: rem(rowH[r]) }}>
         <div
-          className={"ocsh-h1 rh" + (all ? " all" : hl ? " hl" : "")}
+          className={"ocsh-h1 rh" + (all ? " all" : hl ? " hl" : "") + (moveTo?.kind === "r" && moveTo.at === r ? " drop" : "")}
           role="rowheader"
           aria-colindex={1}
           data-hr={r}
@@ -1286,6 +1590,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
           }}
         >
           {r + 1}
+          {canEdit && r > 0 && hiddenRows.has(r - 1) && !hidden.has(r - 1) ? (
+            <button className="ocsh-unh h" tabIndex={-1} aria-label={`Unhide rows above ${r + 1}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => hide("r", runBefore(hiddenRows, r).filter((i) => !hidden.has(i)).map((i) => view.rows[i]), false)}>
+              <ChevronUp size={10} />
+            </button>
+          ) : null}
           {canEdit ? <span className="ocsh-rz h" onPointerDown={(e) => onResizeDown(e, "h", r)} /> : null}
         </div>
       </div>
@@ -1490,6 +1799,30 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
           <button
             key={id}
             className="ocsh-tab"
+            data-tab={id}
+            onPointerDown={(e) => {
+              if (!canEdit || e.button !== 0) return;
+              const x0 = e.clientX;
+              let moving = false;
+              let to = -1;
+              drag(
+                (ev) => {
+                  if (!moving && Math.abs(ev.clientX - x0) < 6) return;
+                  moving = true;
+                  const tabsEls = [...document.querySelectorAll<HTMLElement>(`[data-sheet-block="${blockId}"] [data-tab]`)];
+                  to = tabsEls.findIndex((t) => ev.clientX < t.getBoundingClientRect().left + t.getBoundingClientRect().width / 2);
+                  if (to < 0) to = tabsEls.length;
+                  setTabDrop(to);
+                },
+                () => {
+                  setTabDrop(null);
+                  if (!moving || to < 0) return;
+                  const from = order.indexOf(id);
+                  const dest = to > from ? to - 1 : to;
+                  if (dest !== from) act(() => moveSheet(doc, blockId, id, dest));
+                },
+              );
+            }}
             role="tab"
             aria-selected={on}
             tabIndex={on ? 0 : -1}
@@ -1521,7 +1854,9 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
               if (canEdit) openMenu(e.clientX, e.clientY, `Sheet ${v.name}`, tabItems(id));
             }}
           >
+            {tabDrop === order.indexOf(id) ? <i className="ocsh-tdrop" aria-hidden="true" /> : null}
             {v.name}
+            {(sheetOf(doc, blockId, id)?.get("color") as string | undefined) ? <i className="ocsh-tc" aria-hidden="true" style={{ background: `var(--${sheetOf(doc, blockId, id)!.get("color")}-fg)` }} /> : null}
           </button>
         );
       })}
@@ -1573,7 +1908,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   );
 
   const values = [] as string[];
-  if ((q.r1 - q.r0 + 1) * (q.c1 - q.c0 + 1) <= 200_000) for (let r = q.r0; r <= q.r1; r++) if (!hidden.has(r)) for (let c = q.c0; c <= q.c1; c++) values.push(display(r, c));
+  if ((q.r1 - q.r0 + 1) * (q.c1 - q.c0 + 1) <= 200_000) for (let r = q.r0; r <= q.r1; r++) if (!hiddenRows.has(r)) for (let c = q.c0; c <= q.c1; c++) values.push(display(r, c));
   const agg = aggregate(values);
   const fmtN = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   const aggEl =
@@ -1610,6 +1945,19 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     { label: "Date", hint: "14 Mar 2026", run: () => style({ nf: "date", dp: null }) },
     { label: "Scientific", hint: "1.01E+03", run: () => style({ nf: "sci", dp: null }) },
   ];
+  const borderItems: MenuEntry[] = [
+    { label: "All borders", run: () => borders("all") },
+    { label: "Outer borders", run: () => borders("outer") },
+    { label: "Inner borders", run: () => borders("inner") },
+    { label: "Top border", run: () => borders("top") },
+    { label: "Bottom border", run: () => borders("bottom") },
+    { label: "Thick bottom border", run: () => borders("bottomthick") },
+    { label: "Top and bottom border", run: () => borders("topandbottom") },
+    { label: "Left border", run: () => borders("left") },
+    { label: "Right border", run: () => borders("right") },
+    "sep",
+    { label: "No border", run: () => borders("none") },
+  ];
   const toolbar = canEdit ? (
     <div className="ocsh-tb" role="toolbar" aria-label="Formatting">
       <button className="ocsh-ib" aria-label="Undo" title="Undo (Ctrl Z)" disabled={!um?.canUndo()} onClick={() => um?.undo()}><Undo2 size={15} /></button>
@@ -1631,6 +1979,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       <button className="ocsh-ib" aria-label="Align centre" aria-pressed={cur.al === "c"} onClick={() => style({ al: cur.al === "c" ? null : "c" })}><AlignCenter size={15} /></button>
       <button className="ocsh-ib" aria-label="Align right" aria-pressed={cur.al === "r"} onClick={() => style({ al: cur.al === "r" ? null : "r" })}><AlignRight size={15} /></button>
       <i className="ocsh-tbs" />
+      <button className="ocsh-ib" aria-label="Borders" aria-haspopup="menu" onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); openMenu(b.left, b.bottom + 4, "Borders", borderItems); }}><Grid2x2 size={15} /></button>
+      <button className="ocsh-ib" aria-label={mergeHere.length ? "Unmerge cells" : "Merge cells"} aria-pressed={!!mergeHere.length} onClick={toggleMerge}><TableCellsMerge size={15} /></button>
+      <button className="ocsh-ib" aria-label="Wrap text" aria-pressed={!!cur.wr} onClick={() => toggle("wr")}><WrapText size={15} /></button>
+      <i className="ocsh-tbs" />
+      <button className="ocsh-ib" aria-label="Find and replace" title="Find (Ctrl F), replace (Ctrl H)" onClick={() => (setFind((f) => f ?? { q: "", by: "", replace: true, mc: false, whole: false, formulas: false, all: false }), requestAnimationFrame(() => findRef.current?.focus()))}><Search size={15} /></button>
       <button className="ocsh-ib" aria-label={filter ? "Remove filter" : "Create a filter"} aria-pressed={!!filter} onClick={() => (filter ? filterOn(null) : createFilter())}><Funnel size={15} /></button>
       <button
         className="ocsh-ib"
@@ -1646,7 +1999,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
 
   const tsvOf = (q0: Rect) => {
     const out: string[][] = [];
-    for (let r = q0.r0; r <= q0.r1; r++) if (!hidden.has(r)) out.push(Array.from({ length: q0.c1 - q0.c0 + 1 }, (_, i) => formatValue(display(r, q0.c0 + i), styleAt(r, q0.c0 + i))));
+    for (let r = q0.r0; r <= q0.r1; r++) if (!hiddenRows.has(r)) out.push(Array.from({ length: q0.c1 - q0.c0 + 1 }, (_, i) => formatValue(display(r, q0.c0 + i), styleAt(r, q0.c0 + i))));
     return toTsv(out);
   };
   const keep = (e: React.MouseEvent) => e.preventDefault();
@@ -1685,6 +2038,33 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       )}
     </div>
   );
+  const findBar = find ? (
+    <div className="ocsh-find" role="search" aria-label="Find and replace">
+      <input
+        ref={findRef}
+        aria-label="Find"
+        placeholder="Find"
+        value={find.q}
+        onChange={(e) => setFind({ ...find, q: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.preventDefault(), findStep(e.shiftKey ? -1 : 1));
+          if (e.key === "Escape") (setFind(null), gridRef.current?.focus());
+        }}
+      />
+      {find.replace ? <input aria-label="Replace with" placeholder="Replace with" value={find.by} onChange={(e) => setFind({ ...find, by: e.target.value })} onKeyDown={(e) => e.key === "Escape" && (setFind(null), gridRef.current?.focus())} /> : null}
+      <span className="ocsh-fcount" aria-live="polite">{find.q ? `${findList.length} found` : ""}</span>
+      <label><input type="checkbox" checked={find.mc} onChange={(e) => setFind({ ...find, mc: e.target.checked })} />Match case</label>
+      <label><input type="checkbox" checked={find.whole} onChange={(e) => setFind({ ...find, whole: e.target.checked })} />Entire cell</label>
+      <label><input type="checkbox" checked={find.formulas || find.replace} disabled={find.replace} onChange={(e) => setFind({ ...find, formulas: e.target.checked })} />In formulas</label>
+      <label><input type="checkbox" checked={find.all} onChange={(e) => setFind({ ...find, all: e.target.checked })} />All sheets</label>
+      <button className="ocsh-btn" onClick={() => findStep(-1)}>Previous</button>
+      <button className="ocsh-btn" onClick={() => findStep(1)}>Next</button>
+      {find.replace && canEdit ? <button className="ocsh-btn" onClick={replaceOne}>Replace</button> : null}
+      {find.replace && canEdit ? <button className="ocsh-btn p" onClick={replaceAll}>Replace all</button> : null}
+      <button className="ocsh-ib" aria-label="Close find" onClick={() => (setFind(null), gridRef.current?.focus())}><X size={14} /></button>
+    </div>
+  ) : null;
+
   const actionBar =
     phone && canEdit && !edit ? (
       <div className="ocsh-act" role="toolbar" aria-label="Selection">
@@ -1735,6 +2115,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
             </div>
             {phone ? null : toolbar}
             {fxBar}
+            {findBar}
             {insertKeys}
             {grid}
             {actionBar}
@@ -1761,6 +2142,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         </button>
       </div>
       {fxBar}
+      {findBar}
       {insertKeys}
       {grid}
       {actionBar}

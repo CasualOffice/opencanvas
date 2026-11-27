@@ -325,3 +325,98 @@ export function reorderRows(doc: Y.Doc, block: string, sheet: string, from: numb
     a.insert(from, ids);
   });
 }
+
+/* ---- merges, hidden rows and columns, moves, tab order and colour (SHEET-04, frames 3b, 4c-4d, 5a) ----
+ * Merges and hidden ids are plain keys on the sheet map (`m:<rowId>:<colId>` → `<rowId>:<colId>`
+ * of the far corner; `h:<id>` → true), not a nested map: two people creating a nested map at the
+ * same time would lose one of them. */
+
+/** The sheet's merges: anchor `[rowId, colId]` → far corner `[rowId, colId]`. */
+export function readMerges(doc: Y.Doc, block: string, sheet: string): [string, string, string, string][] {
+  const s = sheetMap(doc, block, sheet);
+  const out: [string, string, string, string][] = [];
+  s?.forEach((v, k) => {
+    if (!k.startsWith("m:") || typeof v !== "string") return;
+    const [r0, c0] = k.slice(2).split(":");
+    const [r1, c1] = v.split(":");
+    out.push([r0, c0, r1, c1]);
+  });
+  return out;
+}
+export function setMerge(doc: Y.Doc, block: string, sheet: string, r0: string, c0: string, end: [string, string] | null) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  if (end) s.set(`m:${r0}:${c0}`, `${end[0]}:${end[1]}`);
+  else s.delete(`m:${r0}:${c0}`);
+}
+
+/** Hidden rows and columns (ids). */
+export function readHidden(doc: Y.Doc, block: string, sheet: string): Set<string> {
+  const out = new Set<string>();
+  sheetMap(doc, block, sheet)?.forEach((v, k) => k.startsWith("h:") && v && out.add(k.slice(2)));
+  return out;
+}
+export function setHidden(doc: Y.Doc, block: string, sheet: string, ids: string[], hide: boolean) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  doc.transact(() => {
+    for (const id of ids) {
+      if (hide) s.set(`h:${id}`, true);
+      else s.delete(`h:${id}`);
+    }
+  });
+}
+
+/** Moves `n` rows (or columns) at `from` to sit before index `to` (indexes before the move).
+ *  The ids move, so formulas follow them. */
+export function moveIds(doc: Y.Doc, block: string, sheet: string, key: "rows" | "cols", from: number, n: number, to: number) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s || (to >= from && to <= from + n)) return;
+  const a = arr(s, key);
+  doc.transact(() => {
+    const ids = a.slice(from, from + n);
+    a.delete(from, n);
+    a.insert(to > from ? to - n : to, ids);
+  });
+}
+
+/** Moves a sheet's tab to index `to` (after removal). */
+export function moveSheet(doc: Y.Doc, block: string, sheet: string, to: number) {
+  const order = blockMap(doc, block)?.get("order") as Y.Array<string> | undefined;
+  if (!order) return;
+  const i = order.toArray().indexOf(sheet);
+  if (i < 0 || i === to) return;
+  doc.transact(() => {
+    order.delete(i, 1);
+    order.insert(Math.max(0, Math.min(to, order.length)), [sheet]);
+  });
+}
+export function setSheetColor(doc: Y.Doc, block: string, sheet: string, tone: string | null) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  if (tone) s.set("color", tone);
+  else s.delete("color");
+}
+
+/**
+ * How many formulas (outside the deleted ids' own cells) name one of `ids` as a reference end:
+ * deleting those rows or columns turns them into #REF! (4c). Stored references carry
+ * `r<id>;` / `c<id>;` (with `$` when absolute).
+ */
+export function countRefs(doc: Y.Doc, block: string, kind: "rows" | "cols", sheet: string, ids: string[]): number {
+  const b = blockMap(doc, block);
+  if (!b || !ids.length) return 0;
+  const p = kind === "rows" ? "r" : "c";
+  const tokens = ids.flatMap((id) => [`${p}${id};`, `${p}$${id};`]);
+  const gone = new Set(ids);
+  let n = 0;
+  (b.get("sheets") as Y.Map<Y.Map<unknown>>).forEach((s, sid) => {
+    (s.get("cells") as Y.Map<Y.Map<unknown>>).forEach((c, k) => {
+      const v = c.get("in");
+      if (typeof v !== "string" || !v.startsWith("=")) return;
+      if (sid === sheet && gone.has(k.split(":")[kind === "rows" ? 0 : 1])) return;
+      if (tokens.some((t) => v.includes(t))) n++;
+    });
+  });
+  return n;
+}

@@ -97,6 +97,13 @@ describe("keyboard", () => {
     expect(nav(g3, "A3", "ArrowDown").anchor).toBe("A6");
     expect(nav(g3, "A6", "ArrowUp").anchor).toBe("A3");
   });
+  it("arrows, Tab and Ctrl+arrows skip hidden columns", () => {
+    const g4: Grid = { ...grid(["A1", "D1"]), hiddenCol: (c) => c === 1 || c === 2 };
+    expect(nav(g4, "A1", "ArrowRight").anchor).toBe("D1");
+    expect(nav(g4, "D1", "ArrowLeft").anchor).toBe("A1");
+    expect(nav(g4, "A1", "Tab").anchor).toBe("D1");
+    expect(nav(g4, "A1", "ArrowRight", { mod: true }).anchor).toBe("D1");
+  });
 });
 
 describe("fill", () => {
@@ -114,6 +121,10 @@ describe("fill", () => {
   it("repeats text and a single number", () => {
     expect(fill({ r0: 0, c0: 2, r1: 0, c1: 2 }, { r0: 0, c0: 2, r1: 0, c1: 4 }, get, shift)).toEqual([[0, 3, "x"], [0, 4, "x"]]);
     expect(fill({ r0: 0, c0: 0, r1: 0, c1: 0 }, { r0: 0, c0: 0, r1: 2, c1: 0 }, get, shift)).toEqual([[1, 0, "1"], [2, 0, "1"]]);
+  });
+  it("Ctrl-drag copies a series and counts up a single number", () => {
+    expect(fill({ r0: 0, c0: 0, r1: 1, c1: 0 }, { r0: 0, c0: 0, r1: 3, c1: 0 }, get, shift, true)).toEqual([[2, 0, "1"], [3, 0, "3"]]);
+    expect(fill({ r0: 0, c0: 0, r1: 0, c1: 0 }, { r0: 0, c0: 0, r1: 2, c1: 0 }, get, shift, true)).toEqual([[1, 0, "2"], [2, 0, "3"]]);
   });
   it("the drag target grows along one axis", () => {
     expect(fillTarget({ r0: 1, c0: 1, r1: 1, c1: 1 }, { r: 5, c: 2 })).toEqual({ r0: 1, c0: 1, r1: 5, c1: 1 });

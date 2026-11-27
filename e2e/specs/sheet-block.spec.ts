@@ -211,6 +211,8 @@ test("SHEET-06: phone layout, #REF! named after someone else's delete, view only
   await expect(cell(sam.oc, 2, 2)).toHaveText("15", { timeout: 10_000 });
   await grid(sam.oc).locator('[data-hr="0"]').click({ button: "right" });
   await sam.oc.getByRole("menuitem", { name: "Delete row 1" }).click();
+  // Sam is asked first (C3 reads row 1), and deletes anyway.
+  await sam.oc.getByRole("button", { name: "Delete 1 row" }).click();
   await expect(cell(priya.oc, 1, 2)).toHaveText("#REF!", { timeout: 10_000 });
   await expect(priya.oc.getByText("1 formula now shows #REF!", { exact: false })).toBeVisible();
 
@@ -229,4 +231,95 @@ test("SHEET-06: phone layout, #REF! named after someone else's delete, view only
   await cell(sam.oc, 1, 2).click({ button: "right" });
   await expect(sam.oc.getByRole("menuitem", { name: "Create a filter" })).toBeVisible();
   await expect(sam.oc.getByRole("menuitem", { name: /Delete/ })).toHaveCount(0);
+});
+
+test("SHEET-07: merge, borders, wrap, find and replace, delete warning, Ctrl-drag, hide and move, tab colour and order", async ({ browser }) => {
+  test.setTimeout(150_000);
+  const { priya, sam } = await sharedFile(browser, { name: "E2E sheet 4", samRole: "edit" });
+  await newSheet(priya);
+  const page = priya.page;
+  const put = async (r: number, c: number, v: string) => {
+    await cell(priya.oc, r, c).click();
+    await page.keyboard.type(v);
+    await page.keyboard.press("Enter");
+  };
+  await put(0, 0, "a");
+  await put(0, 1, "b");
+  await put(1, 0, "1");
+  await put(2, 0, "2");
+  await put(1, 1, "=A2*10");
+  await expect(cell(priya.oc, 1, 1)).toHaveText("10");
+
+  // Merge A1:B1 from the cell menu: only the top-left value stays, and the toast says so.
+  await cell(priya.oc, 0, 0).click();
+  await cell(priya.oc, 0, 1).click({ modifiers: ["Shift"] });
+  await cell(priya.oc, 0, 0).click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Merge cells" }).click();
+  await expect(priya.oc.getByText(/Merged A1:B1; only the top-left value was kept \(1 cleared\)/)).toBeVisible();
+  await expect(cell(priya.oc, 0, 1)).toHaveCount(0);
+
+  // Full screen: borders, wrap, then Replace all through Ctrl+H.
+  await cell(priya.oc, 1, 0).click();
+  await page.keyboard.press("ControlOrMeta+Shift+E");
+  const full = priya.oc.getByRole("dialog", { name: /Spreadsheet/ });
+  await full.getByRole("button", { name: "Borders" }).click();
+  await priya.oc.getByRole("menuitem", { name: "All borders" }).click();
+  await expect(cell(priya.oc, 1, 0)).toHaveAttribute("style", /box-shadow: inset/);
+  await full.getByRole("button", { name: "Wrap text" }).click();
+  await expect(cell(priya.oc, 1, 0)).toHaveClass(/\bwr\b/);
+  await cell(priya.oc, 1, 0).click();
+  await page.keyboard.press("ControlOrMeta+h");
+  await priya.oc.getByLabel("Find", { exact: true }).fill("A2");
+  await priya.oc.getByLabel("Replace with").fill("A3");
+  await expect(priya.oc.locator(".ocsh-fcount")).toHaveText("1 found");
+  await priya.oc.getByRole("button", { name: "Replace all" }).click();
+  await expect(cell(priya.oc, 1, 1)).toHaveText("20");
+  await priya.oc.getByRole("button", { name: "Close find" }).click();
+  await full.getByRole("button", { name: "Close" }).click();
+
+  // Deleting row 3, which B2 now reads, asks first; Cancel keeps it.
+  await grid(priya.oc).locator('[data-hr="2"]').click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Delete row 3" }).click();
+  await expect(priya.oc.getByText("1 formula uses this row and will show #REF!")).toBeVisible();
+  await priya.oc.getByRole("button", { name: "Cancel" }).click();
+  await expect(cell(priya.oc, 1, 1)).toHaveText("20");
+
+  // Ctrl-drag on the fill handle: a single number counts up.
+  await cell(priya.oc, 1, 0).click();
+  const fh = (await grid(priya.oc).locator(".ocsh-fh").boundingBox())!;
+  const a5 = (await cell(priya.oc, 4, 0).boundingBox())!;
+  await page.mouse.move(fh.x + fh.width / 2, fh.y + fh.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a5.x + a5.width / 2, a5.y + a5.height / 2, { steps: 6 });
+  await page.keyboard.down("Control");
+  await page.mouse.up();
+  await page.keyboard.up("Control");
+  await expect(cell(priya.oc, 4, 0)).toHaveText("4");
+
+  // Move row 4 down; hide column B and unhide it from the header.
+  await grid(priya.oc).locator('[data-hr="3"]').click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Move row down" }).click();
+  await expect(cell(priya.oc, 3, 0)).toHaveText("4");
+  await expect(cell(priya.oc, 4, 0)).toHaveText("3");
+  await grid(priya.oc).locator('[data-hc="2"]').click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Hide column" }).click();
+  await expect(grid(priya.oc).locator('[data-hc="2"]')).toHaveCount(0);
+  await grid(priya.oc).getByRole("button", { name: "Unhide columns before D" }).click();
+  await expect(grid(priya.oc).locator('[data-hc="2"]')).toHaveCount(1);
+
+  // A second sheet: red tab, moved first.
+  await priya.oc.getByRole("button", { name: "Add sheet" }).click();
+  await priya.oc.getByRole("tab", { name: "Sheet2" }).click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Colour" }).click();
+  await priya.oc.getByRole("group", { name: "Tab colour" }).getByRole("button", { name: "red" }).click();
+  await expect(priya.oc.getByRole("tab", { name: "Sheet2" }).locator(".ocsh-tc")).toHaveCount(1);
+  await priya.oc.getByRole("tab", { name: "Sheet2" }).click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Move left" }).click();
+  await expect(priya.oc.getByRole("tab").first()).toHaveText("Sheet2");
+
+  // Sam sees all of it.
+  await expect(sam.oc.getByRole("tab").first()).toHaveText("Sheet2", { timeout: 10_000 });
+  await sam.oc.getByRole("tab", { name: "Sheet1" }).click();
+  await expect(cell(sam.oc, 1, 1)).toHaveText("20");
+  await expect(cell(sam.oc, 0, 1)).toHaveCount(0);
 });

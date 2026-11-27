@@ -109,6 +109,24 @@ export const CSS = `
 .ocsh-note{position:absolute;left:50%;bottom:3rem;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;max-width:calc(100% - 1rem);padding:.5rem .5rem .5rem .75rem;border-radius:.625rem;background:var(--pop);box-shadow:var(--sh-pop);font-size:.8125rem}
 .ocsh-note .ocsh-btn{height:1.75rem}
 .ocsh-load{display:grid;place-items:center;height:20rem;color:var(--fg-3);font-size:.8125rem}
+/* merges, wrap, find, hidden, moves, tabs (SHEET-07) */
+.ocsh-c.mg{z-index:1}
+.ocsh-h1.drop{box-shadow:inset 2px 0 0 var(--accent)}.ocsh-h1.rh.drop{box-shadow:inset 0 2px 0 var(--accent)}
+.ocsh-c.wr{white-space:normal;line-height:1.2;align-items:flex-start;padding-top:.1875rem}
+.ocsh-c.wr .ocsh-ct{white-space:normal;overflow-wrap:anywhere}
+.ocsh-c.fm{outline:2px dashed var(--amber-fg);outline-offset:-2px}
+.ocsh-unh{position:absolute;z-index:3;display:grid;place-items:center;width:.875rem;height:.875rem;padding:0;border:0;border-radius:.1875rem;background:var(--app);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line-2)}
+.ocsh-unh.v{left:-.4375rem;top:.3125rem}.ocsh-unh.h{top:-.4375rem;left:.25rem}
+.ocsh-tab{position:relative}
+.ocsh-tc{position:absolute;left:.5rem;right:.5rem;bottom:0;height:.1875rem;border-radius:2px}
+.ocsh-tdrop{position:absolute;left:-.125rem;top:.125rem;bottom:.125rem;width:2px;background:var(--accent)}
+.ocsh-find{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .625rem;padding:.375rem .75rem;border-bottom:1px solid var(--line);background:var(--panel);font-size:.8125rem;flex:none}
+.ocsh-find input[type=text],.ocsh-find input:not([type]){height:1.75rem;width:11rem;max-width:100%;border:0;border-radius:.375rem;padding:0 .5rem;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--app)}
+.ocsh-find label{display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap}
+.ocsh-fcount{color:var(--fg-3);min-width:4rem}
+.ocsh-confirm{padding:.5rem .625rem;max-width:20rem}
+.ocsh-confirm p{margin:0 0 .5rem;line-height:1.4}
+.ocsh-btn.p.dan{background:var(--red-fg);color:#fff}
 /* phone (frames 9a-9b) */
 .ocsh.ph .ocsh-grid,.ocsh-full .ph-grid{font-size:.875rem;height:22rem}
 .ocsh.ph .ocsh-fx{height:2.75rem;font-size:.9375rem;background:var(--app)}
