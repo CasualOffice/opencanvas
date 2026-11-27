@@ -5,6 +5,7 @@
 // paste menu offers Live block / Reference / Link; a block of an ordinary canvas becomes a
 // read-only reference card that follows its source.
 import { expect, test } from "@playwright/test";
+import { HOST } from "../env";
 import { applyTemplate, createFile, editor, expectSaved, person, typeAfterHeading } from "../helpers";
 
 test("paste a block link as a reference that follows its source", async ({ browser }) => {
@@ -24,7 +25,7 @@ test("paste a block link as a reference that follows its source", async ({ brows
   await createFile(priya, "E2E ze · weekly");
   await applyTemplate(priya, "Meeting notes");
   await typeAfterHeading(priya, "Notes", "");
-  const url = `http://localhost:4200/files/${fileId}#block=${blockId}`;
+  const url = `${HOST}/files/${fileId}#block=${blockId}`;
   await priya.page.frame({ name: "oc" })!.evaluate(
     ({ url, fileId, blockId }) => {
       const dt = new DataTransfer();

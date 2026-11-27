@@ -494,20 +494,21 @@ impl Room {
         })
     }
 
-    /// Records the clocks a main-document update brought (for [`Self::client_id_elsewhere`]).
-    pub(super) fn note_main_clocks(&mut self, inc: &HashMap<u64, u32>) {
+    /// Records updates applied while split, including server writes such as the people map.
+    pub(super) fn note_main_update(&mut self, bytes: &[u8]) {
         if let Some(s) = self.split.as_mut() {
-            let m = s.svs.entry(MAIN.into()).or_default();
-            for (c, end) in inc {
-                let e = m.entry(*c).or_insert(0);
-                *e = (*e).max(*end);
-            }
+            let _ = s.owners.record_update(MAIN, bytes);
+            s.svs.insert(MAIN.into(), sv_of(&self.doc));
         }
     }
 
     /// A client's edit of a part: the role, then the client id rule, then the part (or the
     /// whole view) and the WAL under the part's id.
     async fn apply_part(&mut self, conn: ConnId, grant: &Grant, key: &str, guid: &str, u: Vec<u8>) {
+        // The step 2 response may be empty, including for viewers and commenters.
+        if u == [0, 0] {
+            return;
+        }
         if grant.role == Role::View || self.conflict.is_some() {
             if grant.role == Role::View {
                 return self.deny(conn, "read-only session");
@@ -540,8 +541,8 @@ impl Room {
             .transact()
             .get_map(oc_model::roots::AUTOMATIONS)
             .is_some_and(|m| m.len(&self.doc.transact()) > 0);
-        if has_rules {
-            self.ensure_whole().await;
+        if has_rules && !self.ensure_whole().await {
+            return self.deny_sub(conn, guid, "block unavailable");
         }
         let whole = self.split.as_ref().is_some_and(|s| s.whole_since.is_some());
         if whole {

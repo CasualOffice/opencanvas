@@ -12,6 +12,7 @@
 // started here are stopped.
 //
 //   E2E_SKIP_BUILD=1   reuse target/release/opencanvas (or $CARGO_TARGET_DIR) and web/packages/editor/dist
+//   E2E_PARTIAL=1      enable partial sync on every host in the suite
 //   E2E_KEEP=1         keep the temp dir (logs, DB, host data) after the run
 import { execSync, spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
@@ -132,6 +133,7 @@ allowed_origins = ["${origin}"${extra.map((o) => `, "${o}"`).join("")}]
 [host.flags]
 export_formats = ["md", "html", "json", "docx", "pdf", "ocanvas", "svg", "png"]
 on_conflict    = "${policy}"
+${id === "sample-psync" || process.env.E2E_PARTIAL === "1" ? "partial_sync   = true" : ""}
 ${id === "sample" ? 'import_formats = ["md", "html", "csv", "drawio", "excalidraw"]' : "# no import_formats: import stays off (FC-10)"}
 ${id === "sample" ? "team_templates = true" : "# no team_templates: no team section in the gallery (TPL-01)"}
 ${id === "sample" ? "history        = true" : "# no host versions: in-file history only (VH-01, ADR-055)"}
@@ -147,7 +149,7 @@ ${ai}`;
       // OFF-01..07 (spec zf): offline copies, a short grant for the expiry case.
       entry("sample-offline", "Offline host", HOST_OFFLINE, "copy", [], '\n[host.offline]\nenabled = true\ngrant_days = 7\nmax_canvases = 3\n') +
       // PSYNC-02/03 (spec zh): databases and boards as subdocuments (a line of [host.flags]).
-      entry("sample-psync", "Partial sync host", HOST_PSYNC, "copy", [], "partial_sync = true\n"),
+      entry("sample-psync", "Partial sync host", HOST_PSYNC, "copy"),
   );
   const blocksDir = path.join(tmp, "blocks");
   fs.mkdirSync(blocksDir);

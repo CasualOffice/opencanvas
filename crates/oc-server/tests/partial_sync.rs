@@ -254,6 +254,9 @@ async fn the_role_is_checked_per_request_and_other_files_blocks_are_refused() {
     // A viewer may read a block...
     load(&mut v, "d1", &dv).await;
     assert_eq!(db(&dv, "d1")["name"], "Tasks");
+    v.send(protocol::subdoc(&guid("d1"), &protocol::step2(vec![0, 0])));
+    v.settle().await;
+    assert_eq!(v.denied, 0);
     // ...but not write it.
     edit_part(&v, &dv, "d1", "Hacked");
     v.settle().await;
@@ -601,6 +604,33 @@ async fn room_memory_on_the_fixture() {
         after.saturating_sub(before),
         opened.as_millis()
     );
+}
+
+/// A delete-only main update refers to structs that are absent from that update.
+#[tokio::test]
+async fn a_main_deletion_during_a_whole_view_reaches_other_editors() {
+    let (state, _) = server(true).await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+
+    let ops = vec![serde_json::from_value(json!({"op": "append", "markdown": "keep"})).unwrap()];
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+
+    a.edit(|d| {
+        let content = d.get_or_insert_xml_fragment("content");
+        yrs::XmlFragment::remove_range(&content, &mut d.transact_mut(), 0, 1);
+    });
+    b.settle().await;
+    let json = oc_model::doc_to_json(&b.doc);
+    assert_eq!(json["content"][0]["content"][0]["text"], "keep");
 }
 
 /// A block made in the main document moves into a part when the room next splits. An editor

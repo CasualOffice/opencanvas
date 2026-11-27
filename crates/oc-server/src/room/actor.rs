@@ -1733,8 +1733,11 @@ impl Room {
             return;
         };
         // PSYNC-02: an edit of a block that just became a part goes through a whole view.
-        if grant.role != Role::View && self.main_update_touches_parts(&bytes) {
-            self.ensure_whole().await;
+        if grant.role != Role::View
+            && self.main_update_touches_parts(&bytes)
+            && !self.ensure_whole().await
+        {
+            return self.deny(conn, "block unavailable");
         }
         let read_only = grant.role != Role::Edit || self.conflict.is_some();
         if read_only && filter::adds_nothing(&self.doc, &bytes) {
@@ -1821,21 +1824,14 @@ impl Room {
         }
         // SEC-V4: one client id per document of a split room (the part path checks the same):
         // a main update with a part's client id would collide when the parts are flattened.
-        let main_clocks = match self.split.as_ref().filter(|s| s.whole_since.is_none()) {
-            Some(_) => match oc_model::parts::update_state(&bytes) {
-                Ok(inc) => {
-                    if self.client_id_elsewhere(oc_model::parts::MAIN, &inc) {
-                        tracing::info!(room = %self.id, "update refused: client id used in a block's document");
-                        return self.deny(conn, "one client id per document");
-                    }
-                    Some(inc)
-                }
-                Err(_) => return self.deny(conn, "malformed update"),
-            },
-            None => None,
-        };
-        if let Some(inc) = &main_clocks {
-            self.note_main_clocks(inc);
+        if self.split.as_ref().is_some_and(|s| s.whole_since.is_none()) {
+            let Ok(clocks) = oc_model::parts::update_state(&bytes) else {
+                return self.deny(conn, "malformed update");
+            };
+            if self.client_id_elsewhere(oc_model::parts::MAIN, &clocks) {
+                tracing::info!(room = %self.id, "update refused: client id used in a block's document");
+                return self.deny(conn, "one client id per document");
+            }
         }
         // PSYNC-02: in a whole view, a main-document update must not delete the parts' items
         // its fillers stand for.
@@ -1888,6 +1884,7 @@ impl Room {
         if self.route_queued(&bytes, user_id, from, edit).is_some() {
             return;
         }
+        self.note_main_update(&bytes);
         self.doc_bytes += bytes.len();
         self.seq += 1;
         self.wal_queue.push(Queued {

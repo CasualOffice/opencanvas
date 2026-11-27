@@ -565,7 +565,7 @@ struct Classes {
     owner: Vec<Vec<Option<u32>>>,
 }
 
-fn classify(p: &Parsed, outside: &dyn Owners) -> Classes {
+fn classify(p: &Parsed, outside: &dyn Owners, splitting: bool) -> Classes {
     let mut parts: Vec<PartKey> = vec![MAIN.to_string()];
     let mut by_part: HashMap<PartKey, u32> = HashMap::from([(MAIN.to_string(), 0)]);
     let mut intern = |k: &str, parts: &mut Vec<PartKey>| -> u32 {
@@ -607,13 +607,21 @@ fn classify(p: &Parsed, outside: &dyn Owners) -> Classes {
                 // Some(Ok(part)) resolved here; Some(Err(dep)) wait for dep.
                 let step: Result<u32, (usize, usize)> = if st.kind != Kind::Item {
                     Ok(0)
+                } else if let Some((part, _)) = outside.owner(Id {
+                    client: p.clients[c].0,
+                    clock: st.clock,
+                }) {
+                    Ok(intern(part, &mut parts))
                 } else {
                     let dep = match &st.parent {
                         Parent::Named(name) => {
                             let text = |(a, b): (usize, usize)| {
                                 std::str::from_utf8(&p.buf[a..b]).unwrap_or("")
                             };
-                            let k = st.sub.and_then(|k| part_key(text(*name), text(k)));
+                            let k = st
+                                .sub
+                                .filter(|_| splitting)
+                                .and_then(|k| part_key(text(*name), text(k)));
                             Err(k)
                         }
                         Parent::Id(id) => Ok(*id),
@@ -667,7 +675,7 @@ pub struct Split {
 /// parts start with the original state vector.
 pub fn split(update: &[u8]) -> Result<Split, Error> {
     let p = parse(update)?;
-    let classes = classify(&p, &NoOwners);
+    let classes = classify(&p, &NoOwners, true);
     let mut owners = OwnerIndex::default();
     // Owned item ranges per part and client (normalised), for the delete sets.
     let mut owned: Vec<HashMap<u64, Vec<(u32, u32)>>> = vec![HashMap::new(); classes.parts.len()];
@@ -886,7 +894,8 @@ pub struct Routed {
 /// updates. `state(part, client)` is that part's current clock for the client: a part that
 /// gets items of a client is first given fillers from there, so it never has a gap. A part gets
 /// nothing unless it owns an item or a deletion in the update; the main document always gets
-/// every client's range.
+/// every client's range. New items inherit an existing parent's owner or stay in main until
+/// the next split.
 pub fn route(
     update: &[u8],
     owners: &dyn Owners,
@@ -895,12 +904,6 @@ pub fn route(
     route_with(update, owners, state, MAIN)
 }
 
-/// What an update made on part `part` may change in any other document: its own items, the
-/// deletions of items it owns, and every client's clock range (fillers elsewhere). yrs encodes a
-/// document's GC structs in its delete set, so a part's update names its fillers as deleted;
-/// applied as it is to the whole canvas (a whole view, a flattened copy) it would delete every
-/// other part's items. Every update that comes from a part goes through this before it reaches
-/// anything but that part.
 /// A main-document update made against the main document as a client holds it, before it
 /// meets the whole canvas: the client's main document has GC fillers where parts own items, and
 /// its delete set names them. Deletions of a part's items are kept only when the update also
@@ -910,15 +913,31 @@ pub fn main_share(update: &[u8], owners: &dyn Owners) -> Result<Vec<u8>, Error> 
     let routed = route(update, owners, &|_, _| u32::MAX)?;
     let writes: std::collections::HashSet<&str> =
         routed.owned.iter().map(|(_, _, _, k)| k.as_str()).collect();
-    let keep: Vec<&Vec<u8>> = routed
-        .parts
-        .iter()
-        .filter(|(k, _)| k.is_empty() || writes.contains(k.as_str()))
-        .map(|(_, b)| b)
-        .collect();
-    flatten(&keep)
+    let mut out = struct_section(update)?.to_vec();
+    let mut deletes = BTreeMap::new();
+    for (key, share) in routed.parts {
+        if key.is_empty() || writes.contains(key.as_str()) {
+            for (client, ranges) in delete_set(&share)? {
+                deletes
+                    .entry(client)
+                    .or_insert_with(Vec::new)
+                    .extend(ranges);
+            }
+        }
+    }
+    for ranges in deletes.values_mut() {
+        normalise(ranges);
+    }
+    write_ds(&mut out, &deletes);
+    Ok(out)
 }
 
+/// What an update made on part `part` may change in any other document: its own items, the
+/// deletions of items it owns, and every client's clock range (fillers elsewhere). yrs encodes a
+/// document's GC structs in its delete set, so a part's update names its fillers as deleted;
+/// applied as it is to the whole canvas (a whole view, a flattened copy) it would delete every
+/// other part's items. Every update that comes from a part goes through this before it reaches
+/// anything but that part.
 pub fn own_share(update: &[u8], part: &str, owners: &dyn Owners) -> Result<Vec<u8>, Error> {
     let routed = route_with(update, owners, &|_, _| u32::MAX, part)?;
     Ok(routed
@@ -936,7 +955,7 @@ fn route_with(
     full: &str,
 ) -> Result<Routed, Error> {
     let p = parse(update)?;
-    let classes = classify(&p, owners);
+    let classes = classify(&p, owners, false);
     let mut items_of: BTreeMap<u32, HashMap<u64, bool>> = BTreeMap::new();
     let mut owned = Vec::new();
     for (ci, (client, structs)) in p.clients.iter().enumerate() {
@@ -965,8 +984,8 @@ fn route_with(
                     let si = structs.partition_point(|s| s.end() <= x);
                     (si < structs.len() && structs[si].clock <= x).then_some((ci, si))
                 });
-                // `None`: GC or never seen. GC is deleted wherever it is, and every part that
-                // gets the client's structs gets it as a filler, so nobody needs the range.
+                // An explicit GC struct is already deleted in every part. A deletion outside
+                // the update uses the index and falls back to main for unassigned clocks.
                 let (part, end) = match local {
                     Some((ci, si)) => {
                         let s = &p.clients[ci].1[si];
@@ -996,7 +1015,7 @@ fn route_with(
                                     })
                                     .is_some()
                             });
-                            (None, owned.unwrap_or(next))
+                            (Some(MAIN.to_string()), owned.unwrap_or(next))
                         }
                     },
                 };

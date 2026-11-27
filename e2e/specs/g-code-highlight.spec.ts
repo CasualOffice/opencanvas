@@ -4,6 +4,7 @@
 // Code blocks: grammars load lazily (only once a code block exists), syntax colours come
 // from the theme tokens in light and dark, the language picker syncs, copy works.
 import { expect, test } from "@playwright/test";
+import { OC } from "../env";
 import { editor, sharedFile } from "../helpers";
 
 test("code block highlighting, language picker and copy", async ({ browser }) => {
@@ -45,7 +46,7 @@ test("code block highlighting, language picker and copy", async ({ browser }) =>
   // Copy puts the code on the clipboard.
   // (Reading the clipboard back is blocked by permissions policy in a cross-origin iframe, so
   // record what the button writes.)
-  const frame = priya.page.frames().find((f) => f.url().includes("localhost:8280/app/"))!;
+  const frame = priya.page.frames().find((f) => f.url().startsWith(`${OC}/app/`))!;
   await frame.evaluate(() => {
     const w = window as unknown as { __copied: string[] };
     w.__copied = [];
