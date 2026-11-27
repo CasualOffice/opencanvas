@@ -94,6 +94,8 @@ export const SLASH: SlashItem[] = [
     group: "Data", id: "sheet", icon: "sheet", title: "Spreadsheet", desc: "Cells, formulas and sheets, like Excel", keywords: "excel sheets grid formula calc",
     run: (e, r) => insertLater(e, r, async () => [{ type: "spreadsheet", attrs: { sheetId: (await loadSheet()).createSheetBlock(docOf(e))[0] } }, { type: "paragraph" }]),
   },
+  // SHEET-06 (4h): a linked chart; its panel picks a sheet range or a database.
+  { group: "Data", id: "chart", icon: "chart-column", title: "Chart", desc: "Bar, line, area, pie or scatter, linked to a sheet or database", keywords: "graph plot visualize", run: (e, r) => insertBlock(e, r, [{ type: "chart", attrs: { kind: "bar" } }, { type: "paragraph" }]) },
   { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => {
       insertBlock(e, r, [tableJSON(3, 3), { type: "paragraph" }]);
       // Start typing in the first header cell, not on the line below the table.

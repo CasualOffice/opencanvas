@@ -5,6 +5,7 @@
 
 pub mod automation;
 pub mod board;
+pub mod chart;
 pub mod diagram_export;
 pub mod diagram_import;
 pub mod diff;

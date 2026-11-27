@@ -31,6 +31,7 @@ pub const CORE_BLOCKS: &[&str] = &[
     "core.calendar",
     "core.table",
     "core.spreadsheet",
+    "core.chart",
     "core.image",
     "core.file",
     "core.date",

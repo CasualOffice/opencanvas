@@ -6,11 +6,12 @@ import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import {
   ArrowDown, ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ArrowUp, ArrowUpDown, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronUp, Columns3, Copy, Download, Ellipsis, ExternalLink, GripVertical, Inbox, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search,
+  ChartColumn, ChevronUp, Columns3, Copy, Sheet, Download, Ellipsis, ExternalLink, GripVertical, Inbox, LayoutGrid, ListChecks, ListFilter, PanelRightOpen, Plus, Search,
   EyeOff, Info, Pencil, RotateCw, SlidersHorizontal, SquareKanban, Sun, ChartGantt, UsersRound, Table, Trash2, TriangleAlert, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv, OcUser, Tone } from "@opencanvas/ui";
 import { CsvImportDialog } from "./CsvImportDialog";
+import { OpenAsSheetDialog } from "./OpenAsSheet";
 import {
   addField, addOption, addRow, appendCsv, clearCells, databasesRoot, databaseToCsv, databaseToMarkdown, DB_ORIGIN, deleteField, deleteRow, FIELD_LABEL,
   getDbMap, moveRow, OPTION_TYPES, pasteCells, readDb, renameField, restoreField, restoreRow, setCell, setDbMeta, setFieldType, setNote,
@@ -301,6 +302,7 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
   const [pop, setPop] = useState<PopState | null>(null);
   const [peek, setPeek] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [sheetAsk, setSheetAsk] = useState(false);
   const [showQ, setShowQ] = useState(!!prefs.q);
   const [qDraft, setQDraft] = useState<string | null>(null);
   const [focusRow, setFocusRow] = useState<string | null>(null);
@@ -677,6 +679,7 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
             onImport={() => setImportOpen(true)}
             onExport={exportCsv}
             onCopyMd={copyMd}
+            onSheet={() => setSheetAsk(true)}
             gwRef={gwRef}
           />
         </Pop>
@@ -691,6 +694,9 @@ function DbView({ doc, db, env, adv }: { doc: Y.Doc; db: DbSnapshot; env: BlockE
         onClose={() => setImportOpen(false)}
         onImport={importCsv}
       />
+      {sheetAsk && env.dbActions ? (
+        <OpenAsSheetDialog name={db.name || "Untitled"} rows={db.rows.length} compact={env.compact} onClose={() => setSheetAsk(false)} onOpen={(mode) => (setSheetAsk(false), env.dbActions!.openAsSheet(dbId, mode))} />
+      ) : null}
     </div>
   );
 }
@@ -2321,10 +2327,11 @@ interface PopBodyProps {
   onImport: () => void;
   onExport: () => void;
   onCopyMd: () => void;
+  onSheet: () => void;
   gwRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef }: PopBodyProps) {
+function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, onSheet, gwRef }: PopBodyProps) {
   const { db, doc, edit, prefs, patchPrefs, env } = ctx;
   switch (pop.kind) {
     case "cell": {
@@ -2550,6 +2557,13 @@ function PopBody({ pop, ctx, close, setPop, onImport, onExport, onCopyMd, gwRef 
           {edit ? <button className="ocdb-mi" onClick={() => { close(); onImport(); }}><Ic i={Upload} />Import CSV</button> : null}
           <button className="ocdb-mi" onClick={() => { close(); onExport(); }}><Ic i={Download} />Export CSV<span className="mk">.csv</span></button>
           <button className="ocdb-mi" onClick={() => { close(); onCopyMd(); }}><Ic i={Copy} />Copy as Markdown table</button>
+          {edit && env.dbActions ? (
+            <>
+              <div className="ocdb-msep" />
+              <button className="ocdb-mi" onClick={() => { close(); env.dbActions!.chart(db.id); }}><Ic i={ChartColumn} />Chart</button>
+              <button className="ocdb-mi" onClick={() => { close(); onSheet(); }}><Ic i={Sheet} />Open as spreadsheet…</button>
+            </>
+          ) : null}
           {edit ? (
             <>
               <div className="ocdb-msep" />

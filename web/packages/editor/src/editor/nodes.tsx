@@ -1260,10 +1260,23 @@ export const Board = Node.create({
 
 const loadSheetBlock = () => loadSheet().then((m) => ({ default: m.SheetBlock }));
 
+const loadSheetLink = () => import("./chart/SheetLink").then((m) => ({ default: m.SheetLink }));
+const SheetLinkLazy = lazy(loadSheetLink);
+
+/** The person present with the lowest client id (repairs a live view's rows on open). */
+const isLeader = (b: Bridge) => {
+  const ids = [...(b.awareness?.getStates().keys() ?? [])];
+  return !ids.length || Math.min(...ids) >= b.doc.clientID;
+};
+
 function SpreadsheetView({ node }: ReactNodeViewProps) {
   const b = useBridge();
   const ref = useContentOwnsDrag<HTMLDivElement>();
   const sheetId = String(node.attrs.sheetId);
+  // SHEET-06 (8a): a live view of a database keeps in step with it.
+  const linkMap = (b.doc.getMap("sheets").get(sheetId) as Y.Map<unknown> | undefined)?.get("link") as Y.Map<unknown> | undefined;
+  const linkDb = String(linkMap?.get("db") ?? "");
+  const dbPart = usePartDoc(b, linkDb, ref);
   // The `sheets` root lives in the main document (not a partial-sync part yet), so `part.doc`
   // is the room's document; going through usePartDoc keeps the block ready for that change.
   const part = usePartDoc(b, sheetId, ref);
@@ -1272,11 +1285,49 @@ function SpreadsheetView({ node }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper className="stubhost wideblock" data-sheet={sheetId}>
       <div contentEditable={false} ref={ref}>
+        {linkDb && part.doc ? <Suspense fallback={null}><SheetLinkLazy doc={part.doc} block={sheetId} dbDoc={dbPart.doc} dbId={linkDb} env={part.env} leader={() => isLeader(b)} /></Suspense> : null}
         {part.doc ? wrap(<Suspense fallback={ph}><SheetBlock doc={part.doc} blockId={sheetId} env={part.env} awareness={b.awareness ?? undefined} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );
 }
+
+// ---------- linked chart (SHEET-06, frame 4h; plain SVG, loaded on demand) ----------
+
+const loadChartBlock = () => import("./chart/ChartBlock").then((m) => ({ default: m.ChartBlock }));
+
+function ChartView({ node, updateAttributes }: ReactNodeViewProps) {
+  const b = useBridge();
+  const ref = useContentOwnsDrag<HTMLDivElement>();
+  const a = node.attrs as import("./chart/data").ChartAttrs;
+  const part = usePartDoc(b, a.src === "db" ? a.dbId : "", ref);
+  const { Comp: ChartBlock, failed, wrap } = useRetryingLazy(loadChartBlock);
+  const ph = <BlockPlaceholder info={{ kind: "chart", name: a.title || "Chart" }} failed={failed} />;
+  return (
+    <NodeViewWrapper className="stubhost" data-chart="">
+      <div contentEditable={false} ref={ref}>
+        {wrap(<Suspense fallback={ph}><ChartBlock attrs={a} set={updateAttributes} doc={b.doc} dbDoc={part.doc} env={part.env} /></Suspense>, ph)}
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+const CHART_ATTRS = ["kind", "title", "src", "sheetId", "sheet", "r0", "r1", "c0", "c1", "dbId", "groupBy", "agg", "field", "xLabel", "yLabel"] as const;
+const CHART_DEFAULT: Record<string, string> = { kind: "bar", agg: "count" };
+
+export const Chart = Node.create({
+  name: "chart",
+  ...atom,
+  addAttributes: () => ({
+    ...Object.fromEntries(CHART_ATTRS.map((k) => [k, { default: CHART_DEFAULT[k] ?? "" }])),
+    legend: { default: true },
+  }),
+  parseHTML: () => [{ tag: 'div[data-type="chart"]' }],
+  renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "chart" })],
+  addNodeView() {
+    return ReactNodeViewRenderer(ChartView, ownEvents);
+  },
+});
 
 export const Spreadsheet = Node.create({
   name: "spreadsheet",

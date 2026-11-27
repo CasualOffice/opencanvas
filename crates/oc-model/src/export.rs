@@ -501,6 +501,18 @@ fn md_block(cx: &Cx, n: &Value) -> String {
             }
             out
         }
+        crate::chart::CHART_NODE => {
+            let data = crate::chart::chart_data(cx.doc, n);
+            let (header, rows) = crate::chart::to_table(&data);
+            format!(
+                "### {}\n\n*{}*\n\n{}",
+                md_text(&crate::chart::chart_title(cx.doc, n, &data)),
+                crate::chart::kind_label(n),
+                md_table(&header, &rows)
+            )
+            .trim_end()
+            .to_string()
+        }
         SHEET_NODE => sheet_tables(cx.doc, n)
             .iter()
             .map(|t| {
@@ -867,6 +879,16 @@ fn html_block(cx: &Cx, n: &Value) -> String {
         "database" => {
             let (name, header, rows) = database_table(cx.doc, attr_str(n, "dbId"));
             format!("<h3>{}</h3>{}", escape(&name), html_table(&header, &rows))
+        }
+        crate::chart::CHART_NODE => {
+            let data = crate::chart::chart_data(cx.doc, n);
+            let (header, rows) = crate::chart::to_table(&data);
+            format!(
+                "<figure class=\"oc-chart\" aria-label=\"{}\"><figcaption>{}</figcaption>{}</figure>",
+                crate::chart::kind_label(n),
+                escape(&crate::chart::chart_title(cx.doc, n, &data)),
+                html_table(&header, &rows)
+            )
         }
         SHEET_NODE => sheet_tables(cx.doc, n)
             .iter()

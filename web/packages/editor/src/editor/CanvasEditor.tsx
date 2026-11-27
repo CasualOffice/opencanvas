@@ -41,7 +41,7 @@ import { liveCfg, makeStore, parseBlockLink, insertRef, type BlockLink } from ".
 const MakeLive = lazy(() => import("../live/make"));
 import { galleryStore } from "../ext/model";
 const BlockGallery = lazy(() => import("../ext/Gallery"));
-import { Board, Spreadsheet, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
+import { Board, Chart, Spreadsheet, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
 const InsertMenu = lazy(() => import("./insert/InsertMenu"));
 
 /** Carets with the agent-safe awareness filter (lib/assistant.ts caretFilter). */
@@ -333,6 +333,7 @@ export function CanvasEditor(p: EditorProps) {
         Database,
         Board,
         Spreadsheet,
+        Chart,
         ExtBlock,
         LiveBlock,
         BlockRef,
