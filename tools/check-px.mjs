@@ -43,7 +43,7 @@ const walk = (d, out) => {
   }
   return out;
 };
-for (const pkg of ["editor", "database", "board", "ui"]) {
+for (const pkg of ["editor", "database", "board", "ui", "sheet"]) {
   for (const f of walk(path.join(ROOT, "web/packages", pkg, "src"), [])) {
     fs.readFileSync(f, "utf8")
       .split("\n")

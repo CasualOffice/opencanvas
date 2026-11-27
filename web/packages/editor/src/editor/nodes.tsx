@@ -16,7 +16,7 @@ import { useBridge, bridge, type Bridge } from "../lib/bridge";
 import { EMBED_ALLOW, EMBED_SANDBOX, hostOf, providerLabel, resolveEmbed } from "../lib/embeds";
 import { createStore, toast, useStore } from "../lib/store";
 import { cancelUpload, retryUpload, uploadInto, uploadNow, uploadStore, type UploadState } from "../lib/uploads";
-import { loadBoard, loadDatabase } from "./blockdata";
+import { loadBoard, loadDatabase, loadSheet } from "./blockdata";
 import { BlockPlaceholder, useRetryingLazy } from "./placeholder";
 import { pendingPreviews, pendingSizes, resolveAsset } from "../lib/assets";
 import { CODE_LANGS, canonicalLang, langLabel } from "./codelangs";
@@ -1253,6 +1253,39 @@ export const Board = Node.create({
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "board" })],
   addNodeView() {
     return ReactNodeViewRenderer(BoardView, ownEvents);
+  },
+});
+
+// ---------- spreadsheet (SHEET-04; @opencanvas/sheet, loaded on demand) ----------
+
+const loadSheetBlock = () => loadSheet().then((m) => ({ default: m.SheetBlock }));
+
+function SpreadsheetView({ node }: ReactNodeViewProps) {
+  const b = useBridge();
+  const ref = useContentOwnsDrag<HTMLDivElement>();
+  const sheetId = String(node.attrs.sheetId);
+  // The `sheets` root lives in the main document (not a partial-sync part yet), so `part.doc`
+  // is the room's document; going through usePartDoc keeps the block ready for that change.
+  const part = usePartDoc(b, sheetId, ref);
+  const { Comp: SheetBlock, failed, wrap } = useRetryingLazy(loadSheetBlock);
+  const ph = <BlockPlaceholder info={{ kind: "sheet" }} failed={failed} />;
+  return (
+    <NodeViewWrapper className="stubhost wideblock" data-sheet={sheetId}>
+      <div contentEditable={false} ref={ref}>
+        {part.doc ? wrap(<Suspense fallback={ph}><SheetBlock doc={part.doc} blockId={sheetId} env={part.env} awareness={b.awareness ?? undefined} /></Suspense>, ph) : ph}
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+export const Spreadsheet = Node.create({
+  name: "spreadsheet",
+  ...atom,
+  addAttributes: () => ({ sheetId: { default: "" } }),
+  parseHTML: () => [{ tag: 'div[data-type="spreadsheet"]' }],
+  renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-type": "spreadsheet" })],
+  addNodeView() {
+    return ReactNodeViewRenderer(SpreadsheetView, ownEvents);
   },
 });
 

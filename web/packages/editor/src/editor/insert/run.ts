@@ -15,7 +15,7 @@ const slash = (id: string) => SLASH.find((x) => x.id === id)!;
 
 const LEGACY: Record<string, string> = {
   text: "p", "heading:1": "h1", "heading:2": "h2", "heading:3": "h3", "list:bulleted": "bul", "list:numbered": "num", "list:checklist": "todo",
-  quote: "quote", code: "code", link: "link", file: "file", table: "table", date: "date", csv: "csv", import: "import", board: "board",
+  quote: "quote", code: "code", link: "link", file: "file", table: "table", date: "date", csv: "csv", import: "import", board: "board", spreadsheet: "sheet",
   image: "image", embed: "embed", "columns:2": "cols", "columns:3": "cols3", toggle: "toggle", divider: "divider", assistant: "assistant",
 };
 

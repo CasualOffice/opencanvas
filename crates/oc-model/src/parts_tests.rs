@@ -529,7 +529,7 @@ fn routing_leaves_new_databases_in_main_until_the_next_split() {
 }
 
 #[test]
-fn a_spreadsheet_block_is_a_part_of_its_own() {
+fn a_spreadsheet_block_stays_in_the_main_document() {
     let doc = doc_with(1);
     {
         let sheets = doc.get_or_insert_map("sheets");
@@ -541,9 +541,9 @@ fn a_spreadsheet_block_is_a_part_of_its_own() {
     let cut = split(&update).unwrap();
     assert_eq!(
         cut.parts.keys().map(String::as_str).collect::<Vec<_>>(),
-        [MAIN, "sheets/k"]
+        [MAIN]
     );
-    assert_eq!(part_root("sheets/k"), Some(("sheets", "k")));
+    assert_eq!(part_root("sheets/k"), None);
     let whole = flatten(&cut.parts.values().collect::<Vec<_>>()).unwrap();
     assert_eq!(json(&load(&whole, 9)), json(&doc));
     assert!(json(&doc)["sheets"]["k"]["styles"].is_object());

@@ -37,8 +37,17 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   (`document.json`, `search.json`), `GET …/blocks/{blockId}` and MCP `canvas_read` show a
   spreadsheet as tables of the values the grid displays, computed with opencalc's engine;
   `POST /v1/import?format=xlsx|ods` turns a workbook into a Spreadsheet block (host
-  `import_formats`), and `GET /v1/export/sheet/<sheetId>.xlsx` exports one. The `sheets` root is
-  a partial-sync part (`sheets/<id>`, header kind `sheet`).
+  `import_formats`), and `GET /v1/export/sheet/<sheetId>.xlsx` exports one. The `sheets` root
+  stays in the main document under partial sync for now.
+
+- **Spreadsheet block** (SHEET-04, ADR-080, prototype v04 frames 1-5): "Spreadsheet" in the insert
+  and / menus (`core.spreadsheet`). A virtualized grid with column letters, row numbers, a name box
+  and a formula bar; Excel keyboard (typing replaces, F2 edits, Enter/Tab move, Ctrl+arrows, Shift
+  extends, Ctrl+A, Home/End, PageUp/PageDown, Delete); formulas computed by the opencalc engine in
+  WASM, loaded with the first sheet; sheet tabs (add, rename, delete); insert, delete, resize and
+  freeze rows and columns from the header menus; fill handle, copy and paste with Excel and Google
+  Sheets, number formats, bold, italic, colours, alignment, filters and full screen
+  (Ctrl+Shift+E). Edits sync live through Yjs; other people's selections show in their colour.
 
 - Nextcloud Talk (TALK-01): post a canvas to a conversation as a card (posting never grants
   access; the dialog offers to share the file with the conversation), open it beside the chat or

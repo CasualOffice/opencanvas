@@ -5,3 +5,5 @@
 // is in the initial bundle.
 
 export { loadSheetEngine, setEngineSource, EngineError, type EngineSheet, type SheetEngine, type Shown } from "./engine/engine";
+export { createSheetBlock } from "./model";
+export { SheetBlock, SHEET_ORIGIN, type AwarenessLike } from "./SheetBlock";

@@ -90,7 +90,6 @@ pub(super) fn header_of(key: &str, doc: &Doc) -> Value {
 fn kind_of(root: &str) -> &'static str {
     match root {
         oc_model::roots::DATABASES => "database",
-        oc_model::roots::SHEETS => "sheet",
         _ => "board",
     }
 }

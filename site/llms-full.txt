@@ -949,7 +949,7 @@ import          = true
 
 **Block ids.** `core.text`, `core.heading`, `core.checklist`, `core.bulleted_list`,
 `core.numbered_list`, `core.toggle`, `core.quote`, `core.callout`, `core.divider`, `core.code`,
-`core.database`, `core.kanban`, `core.calendar`, `core.table`, `core.image`, `core.file`,
+`core.database`, `core.kanban`, `core.calendar`, `core.table`, `core.spreadsheet`, `core.image`, `core.file`,
 `core.date`, `core.link_preview`, `core.embed`, `core.whiteboard`, `core.diagram`,
 `core.shapes`, `core.columns`, `core.import`, `core.assistant`. `kanban` and `calendar` are views
 of a database and insert through the Database entry; `diagram` and `shapes` are modes of a

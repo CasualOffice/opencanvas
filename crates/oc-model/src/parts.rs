@@ -2,7 +2,7 @@
 // Copyright 2026 CasualOffice
 
 //! Partial sync (PSYNC-02, ADR-076): the room splits a canvas into a main document and one part
-//! per heavy block (each `databases`, `boards` and `sheets` entry), and flattens the parts back into the
+//! per heavy block (each `databases` and `boards` entry), and flattens the parts back into the
 //! format v1 update on save. **Item ids are kept.** A part is the subset of the original update
 //! whose items descend from that block's map entry, so a part *is* a Yjs document (root
 //! `databases` or `boards` with that one key) that any client or the room can load, and the
@@ -34,9 +34,10 @@ use crate::roots;
 /// The main document's part key.
 pub const MAIN: &str = "";
 /// Roots whose entries become parts.
-pub const SPLIT_ROOTS: [&str; 3] = [roots::DATABASES, roots::BOARDS, roots::SHEETS];
+/// `sheets` (Spreadsheet blocks) stays in the main document until the editor loads sheet parts.
+pub const SPLIT_ROOTS: [&str; 2] = [roots::DATABASES, roots::BOARDS];
 
-/// `databases/<blockId>`, `boards/<blockId>` or `sheets/<blockId>`; [`MAIN`] for the main document.
+/// `databases/<blockId>` or `boards/<blockId>`; [`MAIN`] for the main document.
 pub type PartKey = String;
 
 pub fn part_key(root: &str, key: &str) -> Option<PartKey> {
