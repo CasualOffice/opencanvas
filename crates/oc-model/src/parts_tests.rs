@@ -490,3 +490,40 @@ fn garbage_is_refused_not_panicked_on() {
         assert!(split(bad).is_err() || flatten(&[bad]).is_ok());
     }
 }
+
+#[test]
+fn main_share_keeps_a_delete_without_new_structs() {
+    let doc = doc_with(1);
+    let content = doc.get_or_insert_xml_fragment("content");
+    content.push_back(&mut doc.transact_mut(), XmlTextPrelim::new("delete me"));
+    let cut = split(&encode(&doc)).unwrap();
+
+    let before = doc.transact().state_vector();
+    content.remove_range(&mut doc.transact_mut(), 0, 1);
+    let update = doc.transact().encode_state_as_update_v1(&before);
+    assert!(!delete_set(&update).unwrap().is_empty());
+
+    let share = main_share(&update, &cut.owners).unwrap();
+    assert_eq!(
+        struct_section(&share).unwrap(),
+        struct_section(&update).unwrap()
+    );
+    assert_eq!(delete_set(&share).unwrap(), delete_set(&update).unwrap());
+}
+
+#[test]
+fn routing_leaves_new_databases_in_main_until_the_next_split() {
+    let doc = doc_with(1);
+    let databases = doc.get_or_insert_map(roots::DATABASES);
+    let mut txn = doc.transact_mut();
+    let database = databases.insert(&mut txn, "new", MapPrelim::default());
+    database.insert(&mut txn, "name", "New database");
+    let update = txn.encode_update_v1();
+
+    let routed = route(&update, &OwnerIndex::default(), &|_, _| 0).unwrap();
+    assert_eq!(
+        routed.parts.keys().map(String::as_str).collect::<Vec<_>>(),
+        [MAIN]
+    );
+    assert_eq!(routed.parts[MAIN], update);
+}

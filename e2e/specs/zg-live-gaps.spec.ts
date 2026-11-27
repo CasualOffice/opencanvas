@@ -205,7 +205,7 @@ test("an editor without caps=live that removes a live block is closed with 4426;
   const priya = await person(browser, "u_priya");
   const { a } = await canvasWithLive(priya, "E2E zg · Old editor", "Budget signed off", "Budget", [["u_asha", "edit"]]);
 
-  // Asha's editor connects with the 0.2 caps (`ext` only), as an editor older than 0.3 does.
+  // Drop the live capability while retaining subdoc so the socket can join a split room.
   const asha = await person(browser, "u_asha");
   await asha.ctx.addInitScript(() => {
     const W = window.WebSocket;
@@ -215,7 +215,8 @@ test("an editor without caps=live that removes a live block is closed with 4426;
     class OldCaps extends W {
       constructor(url: string | URL, protocols?: string | string[]) {
         const u = new URL(String(url));
-        if (u.searchParams.has("caps")) u.searchParams.set("caps", "ext");
+        const caps = u.searchParams.get("caps");
+        if (caps) u.searchParams.set("caps", caps.split(",").filter((cap) => cap !== "live").join(","));
         super(u.toString(), protocols);
         w.__ocCaps.push(u.searchParams.get("caps") ?? "");
         this.addEventListener("close", (e) => w.__ocCloses.push(e.code));
@@ -226,7 +227,7 @@ test("an editor without caps=live that removes a live block is closed with 4426;
   await openFile(asha, a);
   await expect(live(asha)).toHaveAttribute("data-state", "connected", { timeout: 15_000 });
   const ashaFrame = asha.page.frame({ name: "oc" })!;
-  expect(await ashaFrame.evaluate(() => (window as unknown as { __ocCaps: string[] }).__ocCaps[0])).toBe("ext");
+  expect(await ashaFrame.evaluate(() => (window as unknown as { __ocCaps: string[] }).__ocCaps[0])).toBe("ext,subdoc");
 
   await live(asha).getByRole("button", { name: "Live block options" }).click();
   await asha.oc.getByRole("button", { name: "Remove from this canvas" }).or(asha.oc.getByRole("menuitem", { name: "Remove from this canvas" })).click();

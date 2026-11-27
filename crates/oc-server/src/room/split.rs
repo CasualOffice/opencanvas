@@ -22,7 +22,7 @@
 
 use std::collections::BTreeMap;
 
-use oc_model::parts::{self, MAIN, OwnerIndex};
+use oc_model::parts::{self, MAIN, OwnerIndex, Owners};
 use yrs::encoding::read::Read;
 
 use super::*;
@@ -477,9 +477,9 @@ impl Room {
         Some((txn.encode_state_as_update_v1(sv), txn.state_vector()))
     }
 
-    /// SEC-V4 (partial sync): whether an update's new clocks (`inc`, client id to end clock)
-    /// use a client id another document of this split room already holds clocks of. The main
-    /// document counts too (its clocks are kept in `svs[MAIN]` as main updates are applied).
+    /// Extending a client stream requires owning its last item if another document has clocks
+    /// for it. A routed filler advances the other document's vector without transferring
+    /// ownership of the stream.
     pub(super) fn client_id_elsewhere(&self, key: &str, inc: &HashMap<u64, u32>) -> bool {
         let Some(s) = &self.split else {
             return false;
@@ -487,27 +487,94 @@ impl Room {
         let mine = s.svs.get(key);
         inc.iter().any(|(c, end)| {
             let have = mine.and_then(|m| m.get(c)).copied().unwrap_or(0);
-            *end > have
-                && s.svs
-                    .iter()
-                    .any(|(k, sv)| k != key && sv.get(c).copied().unwrap_or(0) > 0)
+            if *end <= have {
+                return false;
+            }
+            let elsewhere = s
+                .svs
+                .iter()
+                .filter(|(k, _)| *k != key)
+                .filter_map(|(_, sv)| sv.get(c))
+                .copied()
+                .max()
+                .unwrap_or(0);
+            if elsewhere == 0 {
+                return false;
+            }
+            let owns_tail = have.checked_sub(1).is_some_and(|clock| {
+                s.owners
+                    .owner(parts::Id { client: *c, clock })
+                    .is_some_and(|(owner, _)| owner == key)
+            });
+            elsewhere > have || !owns_tail
         })
     }
 
-    /// Records the clocks a main-document update brought (for [`Self::client_id_elsewhere`]).
-    pub(super) fn note_main_clocks(&mut self, inc: &HashMap<u64, u32>) {
+    /// Records updates applied while split, including server writes such as the people map.
+    pub(super) fn note_main_update(&mut self, bytes: &[u8]) {
         if let Some(s) = self.split.as_mut() {
-            let m = s.svs.entry(MAIN.into()).or_default();
-            for (c, end) in inc {
-                let e = m.entry(*c).or_insert(0);
-                *e = (*e).max(*end);
-            }
+            let _ = s.owners.record_update(MAIN, bytes);
+            s.svs.insert(MAIN.into(), sv_of(&self.doc));
         }
+    }
+
+    /// A read-only peer can echo the deletions it received in the sync reply.
+    async fn part_delete_echo(&mut self, key: &str, bytes: &[u8]) -> bool {
+        if bytes.first() != Some(&0) {
+            return false;
+        }
+        let Some(s) = &self.split else {
+            return false;
+        };
+        let filtered;
+        let (doc, bytes) = if s.whole_since.is_some() {
+            // The peer saw fillers where the whole view has another part's live items.
+            let Ok(share) = parts::own_share(bytes, key, &s.owners) else {
+                return false;
+            };
+            filtered = share;
+            (&self.doc, filtered.as_slice())
+        } else {
+            if self.ensure_loaded(key).await.is_err() {
+                return false;
+            }
+            let Some(p) = self.split.as_ref().and_then(|s| s.loaded.get(key)) else {
+                return false;
+            };
+            (&p.doc, bytes)
+        };
+        let Ok(deletes) = parts::delete_set(bytes) else {
+            return false;
+        };
+        if deletes.keys().any(|&client| client >= (1 << 53)) {
+            return false;
+        }
+        let deletes = yrs::IdSet::from_iter(deletes.into_iter().map(|(client, ranges)| {
+            (
+                ClientID::new(client),
+                ranges.into_iter().map(|(start, end)| start..end),
+            )
+        }));
+        let current = doc.transact().snapshot().delete_set;
+        deletes.client_ids().all(|client| {
+            deletes
+                .get(&client)
+                .zip(current.get(&client))
+                .is_some_and(|(echo, known)| echo.subset_of(known))
+        })
     }
 
     /// A client's edit of a part: the role, then the client id rule, then the part (or the
     /// whole view) and the WAL under the part's id.
     async fn apply_part(&mut self, conn: ConnId, grant: &Grant, key: &str, guid: &str, u: Vec<u8>) {
+        if u == Update::EMPTY_V1 {
+            return;
+        }
+        if (grant.role != Role::Edit || self.conflict.is_some())
+            && self.part_delete_echo(key, &u).await
+        {
+            return;
+        }
         if grant.role == Role::View || self.conflict.is_some() {
             if grant.role == Role::View {
                 return self.deny(conn, "read-only session");
@@ -540,8 +607,8 @@ impl Room {
             .transact()
             .get_map(oc_model::roots::AUTOMATIONS)
             .is_some_and(|m| m.len(&self.doc.transact()) > 0);
-        if has_rules {
-            self.ensure_whole().await;
+        if has_rules && !self.ensure_whole().await {
+            return self.deny_sub(conn, guid, "block unavailable");
         }
         let whole = self.split.as_ref().is_some_and(|s| s.whole_since.is_some());
         if whole {

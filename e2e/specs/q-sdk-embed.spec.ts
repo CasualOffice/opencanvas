@@ -106,8 +106,10 @@ test("an origin the host didn't register gets neither the SDK nor a framed canva
   const app = foreign.page.waitForResponse((r) => r.url().startsWith(`${OC}/app/`));
   await foreign.page.goto(foreignOrigin + path);
   const csp = (await app).headers()["content-security-policy"] ?? "";
-  expect(csp).toMatch(/frame-ancestors [^;]*http:\/\/localhost:4202/);
-  expect(csp).not.toContain("127.0.0.1:4202");
+  const ancestors = csp.split(";").find((directive) => directive.trim().startsWith("frame-ancestors "));
+  const origins = ancestors?.trim().split(/\s+/).slice(1);
+  expect(origins).toContain(SDK_HOST);
+  expect(origins).not.toContain(foreignOrigin);
   await foreign.page.waitForTimeout(2_000);
   await expect(foreign.page.frameLocator('iframe[name="oc"]').locator(".ProseMirror")).toHaveCount(0);
 });

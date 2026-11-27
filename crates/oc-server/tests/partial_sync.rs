@@ -46,7 +46,11 @@ async fn server(partial: bool) -> (oc_server::SharedState, Shared) {
     cfg.part_evict = Duration::from_millis(200);
     cfg.whole_release = Duration::from_millis(200);
     let state = app_custom(&base, cfg, &temp_db(), |h| {
-        h.flags.insert("partial_sync".into(), partial.into());
+        if partial {
+            h.flags.remove("partial_sync");
+        } else {
+            h.flags.insert("partial_sync".into(), false.into());
+        }
     })
     .await;
     (state, mock)
@@ -124,7 +128,7 @@ fn edit_part(p: &Peer, doc: &Doc, block: &str, title: &str) {
 }
 
 #[tokio::test]
-async fn old_editors_are_closed_with_4426_on_a_split_room_and_welcome_without_the_flag() {
+async fn old_editors_are_closed_with_4426_by_default_and_welcome_when_disabled() {
     // Mixed versions: a 0.3 editor (no caps=subdoc) next to a 0.4 one.
     let (state, _) = server(true).await;
     let mut new = Peer::join(&state, subdoc_grant("u_new", Role::Edit)).await;
@@ -153,7 +157,7 @@ async fn old_editors_are_closed_with_4426_on_a_split_room_and_welcome_without_th
     assert_eq!(main["boards"], json!({}));
     assert!(main["content"].to_string().contains("Intro"));
 
-    // Without the flag nothing changes: the same old editor gets everything.
+    // Explicit opt-out lets the same old editor receive the complete canvas.
     let (state, _) = server(false).await;
     let mut old = Peer::join(&state, grant("u_old", Role::Edit)).await;
     old.settle().await;
@@ -254,6 +258,16 @@ async fn the_role_is_checked_per_request_and_other_files_blocks_are_refused() {
     // A viewer may read a block...
     load(&mut v, "d1", &dv).await;
     assert_eq!(db(&dv, "d1")["name"], "Tasks");
+    v.send(protocol::subdoc(&guid("d1"), &protocol::step2(vec![0, 0])));
+    v.settle().await;
+    assert_eq!(v.denied, 0);
+    let txn = dv.transact();
+    let echo = txn.encode_state_as_update_v1(&txn.state_vector());
+    drop(txn);
+    assert!(!oc_model::parts::delete_set(&echo).unwrap().is_empty());
+    v.send(protocol::subdoc(&guid("d1"), &protocol::step2(echo)));
+    v.settle().await;
+    assert_eq!(v.denied, 0);
     // ...but not write it.
     edit_part(&v, &dv, "d1", "Hacked");
     v.settle().await;
@@ -280,6 +294,47 @@ async fn the_role_is_checked_per_request_and_other_files_blocks_are_refused() {
     assert!(e.controls.iter().any(|c| c["t"] == "sub-denied"));
     let whole = server_json(&state).await;
     assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
+}
+
+#[tokio::test]
+async fn canvases_with_the_same_block_id_keep_separate_part_state() {
+    let (state, mock) = server(true).await;
+    let other_file = "doc_2";
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(other_file.into(), (canvas(), 1));
+
+    let mut first = Peer::join(&state, subdoc_grant("u_first", Role::Edit)).await;
+    first.settle().await;
+    let first_part = oc_model::new_doc();
+    load(&mut first, "d1", &first_part).await;
+    edit_part(&first, &first_part, "d1", "Only in the first canvas");
+    first.settle().await;
+
+    let mut other_grant = subdoc_grant("u_other", Role::View);
+    other_grant.file.id = other_file.into();
+    other_grant.room = oc_server::grant::room_id("sample", other_file);
+    let mut other = Peer::join(&state, other_grant).await;
+    let other_guid = format!("{other_file}/block/d1");
+    other.send(protocol::subdoc(
+        &other_guid,
+        &protocol::step1(StateVector::default()),
+    ));
+    other.settle().await;
+    let other_part = oc_model::new_doc();
+    for (guid, msg) in other.subs {
+        if guid == other_guid
+            && let Message::Sync(SyncMessage::SyncStep2(update)) = msg
+        {
+            oc_model::ocanvas::apply_update_bytes(&other_part, &update).unwrap();
+        }
+    }
+    assert_eq!(row_title(&other_part, "d1", "r1").as_deref(), Some("One"));
+    assert_eq!(
+        server_json(&state).await["databases"]["d1"]["rows"]["r1"]["title"],
+        "Only in the first canvas"
+    );
 }
 
 /// SEC-V4 (partial sync): one client id must not write to two documents of a split room, in
@@ -314,13 +369,13 @@ async fn a_client_id_used_in_the_main_document_is_refused_in_a_part() {
                 .as_str()
                 .is_some_and(|r| r.contains("client id"))
     });
-    let whole = server_json(&state).await;
-    let title = whole["databases"]["d1"]["rows"]["r1"]["title"].clone();
     assert!(
-        refused || title == "Mine",
-        "the part edit was accepted but the whole canvas lost it: {title} ({:?})",
+        refused,
+        "cross-document client id was accepted: {:?}",
         e.controls
     );
+    let whole = server_json(&state).await;
+    assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
 }
 
 /// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
@@ -395,11 +450,14 @@ async fn a_part_edit_during_a_whole_view_touches_its_block_only() {
         .unwrap()
         .unwrap();
     edit_part(&a, &d, "d1", "While whole");
+    // Routing the first edit gives main a filler for its clocks. The part still owns the
+    // client stream and must be able to extend it.
+    edit_part(&a, &d, "d1", "Second edit while whole");
     a.settle().await;
     let whole = server_json(&state).await;
     assert_eq!(
         whole["databases"]["d1"]["rows"]["r1"]["title"],
-        "While whole"
+        "Second edit while whole"
     );
     assert_eq!(whole["databases"]["d2"]["name"], "Bugs");
     assert_eq!(whole["boards"]["b1"]["order"], json!(["i1"]));
@@ -601,6 +659,33 @@ async fn room_memory_on_the_fixture() {
         after.saturating_sub(before),
         opened.as_millis()
     );
+}
+
+/// A delete-only main update refers to structs that are absent from that update.
+#[tokio::test]
+async fn a_main_deletion_during_a_whole_view_reaches_other_editors() {
+    let (state, _) = server(true).await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+
+    let ops = vec![serde_json::from_value(json!({"op": "append", "markdown": "keep"})).unwrap()];
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), ops, "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+
+    a.edit(|d| {
+        let content = d.get_or_insert_xml_fragment("content");
+        yrs::XmlFragment::remove_range(&content, &mut d.transact_mut(), 0, 1);
+    });
+    b.settle().await;
+    let json = oc_model::doc_to_json(&b.doc);
+    assert_eq!(json["content"][0]["content"][0]["text"], "keep");
 }
 
 /// A block made in the main document moves into a part when the room next splits. An editor

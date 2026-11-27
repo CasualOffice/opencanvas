@@ -12,7 +12,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type FrameLocator } from "@playwright/test";
 import { OC } from "../env";
-import { editor, sharedFile, type Person } from "../helpers";
+import { createFile, editor, openFile, person, setAccess, sharedFile, type Person } from "../helpers";
 import { storedDocument } from "../ocanvas";
 
 const headers = { "content-type": "application/json", "x-opencanvas-host": "sample", "x-opencanvas-key": "dev-api-key-change-me" };
@@ -67,20 +67,27 @@ test("insert from the / menu, edit, and a second person sees it", async ({ brows
 });
 
 test("a viewer runs the block read only; the badge still tells where it comes from", async ({ browser }) => {
-  const { priya, sam, fileId } = await sharedFile(browser, { name: "E2E za · viewer", samRole: "view" });
+  const priya = await person(browser, "u_priya");
+  const fileId = await createFile(priya, "E2E za · viewer");
   await patch(fileId, [{ op: "append", blocks: [{ type: "extBlock", attrs: { type: "e2e.okr", attrs: { objective: "Read me", progress: 0.5 } } }] }]);
-  await expect(frameOf(priya, "e2e.okr").locator(".status")).toHaveText("Ready", { timeout: 10_000 });
+  await setAccess(priya, fileId, "u_sam", "view");
+  await priya.ctx.close();
+  const sam = await person(browser, "u_sam");
+  await openFile(sam, fileId);
   const g = frameOf(sam, "e2e.okr");
   await expect(g.locator(".status")).toHaveText("Read only", { timeout: 10_000 });
   await expect(g.getByLabel("Objective")).toHaveJSProperty("readOnly", true);
-  await block(sam, "e2e.okr").hover();
+  // The center of the block is a cross-origin iframe. Hover the host-owned chrome.
+  await block(sam, "e2e.okr").locator(".oc-ext-top").hover();
   const badge = block(sam, "e2e.okr").getByRole("button", { name: "Test OKR block by E2E Corp. About this block" });
-  await expect(badge).toBeVisible();
+  await expect(badge).toHaveCSS("opacity", "1");
   await badge.click();
   const about = sam.oc.getByRole("dialog", { name: "About Test OKR" });
   await expect(about).toContainText("Connect to okr.e2e.example");
   await expect(about).toContainText("See the names and pictures of people in this canvas, not their e-mail");
   await about.getByRole("button", { name: "Done" }).click();
+  await expect(about).toBeHidden();
+  await sam.ctx.close();
 });
 
 test("security: the hostile block stays in its sandbox and its bad writes are refused", async ({ browser }) => {
@@ -107,7 +114,10 @@ test("crash, Reload block, and the crash-loop guard", async ({ browser }) => {
   await patch(fileId, [{ op: "append", blocks: [{ type: "extBlock", attrs: { type: "e2e.hostile", attrs: {}, fallback: { markdown: "**Saved** copy" } } }] }]);
   const b = block(priya, "e2e.hostile");
   for (let i = 1; i <= 3; i++) {
-    await frameOf(priya, "e2e.hostile").getByRole("button", { name: "Crash" }).click();
+    const crash = frameOf(priya, "e2e.hostile").getByRole("button", { name: "Crash" });
+    await expect(crash).toBeVisible({ timeout: 15_000 });
+    // Trigger the fixture inside the frame. Crash handling can tear it down mid-action.
+    await crash.evaluate((button) => setTimeout(() => (button as HTMLButtonElement).click(), 0));
     // Crash detection rides the frame heartbeat; a loaded machine can take longer than 10 s.
     await expect(b.getByRole("alert")).toContainText("This block stopped working", { timeout: 20_000 });
     await expect(b).toContainText("Last saved copy");

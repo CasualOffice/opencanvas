@@ -215,10 +215,10 @@ arguments are sent or logged.
 
 ### 3.2 Partial sync: subdocuments on the room socket (PSYNC-02, ADR-076)
 
-With `[host.flags] partial_sync` (docs/05 §2; off by default until the editor speaks it,
-PSYNC-03) a room keeps every `databases` and `boards` entry (diagrams are boards) as a
-**subdocument** of the main document. Only rooms on a database WAL split (not with the Redis WAL,
-not under memory durability, not temporary canvases).
+By default a room keeps each `databases` and `boards` entry (including diagrams) as a
+**subdocument** of the main document. This works with SQLite, MySQL, MariaDB, and Redis under
+either durability mode. Hosts can set `[host.flags] partial_sync = false` to keep the canvas
+whole. Temporary canvases and live block files stay whole.
 
 - **Capability.** A client that speaks it connects with `caps=subdoc` (with `ext,live`). A split
   room closes a connection without it at once with **4426** `"editor out of date: reopen the

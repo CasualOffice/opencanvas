@@ -1125,6 +1125,11 @@ ticket to continue. The answer is a credential: `Cache-Control: no-store`, no `I
 (the same key gets a fresh ticket). Awareness is optional; if you send it, your entry is stamped
 with your user like any client's.
 
+Clients connecting to a host with partial sync enabled must append `caps=subdoc` to the
+returned URL and handle the parts list and subdocument frames described in
+[the build contract](15-BUILD-CONTRACT.md#32-partial-sync-subdocuments-on-the-room-socket-psync-02-adr-076).
+Hosts serving plain y-websocket clients can set `partial_sync = false` in `[host.flags]`.
+
 **Errors** are RFC 9457 `application/problem+json`:
 `{"type":"urn:opencanvas:problem:stale-block","title":"Precondition Failed","status":412,"detail":"…","code":"STALE_BLOCK","fresh":{…}}`.
 The `code` is the same machine code the 0.1 routes use (`BLOCK_NOT_FOUND`, `STALE_BLOCK`,
