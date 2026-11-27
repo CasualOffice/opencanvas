@@ -246,9 +246,9 @@ pub(super) async fn run(
     // together; unbounded, their WAL reads and outbox writes held every database connection and
     // launches failed with "pool timed out" for about 20 s (crash drill on MySQL).
     LOAD_WAITERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let permit = load_permits().acquire().await;
+    let mut permit = load_permits().acquire().await.ok();
     LOAD_WAITERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-    let loaded = match Room::load(ctx.clone(), host, &seed, self_tx, inbox).await {
+    let loaded = match Room::load(ctx.clone(), host, &seed, self_tx, inbox, &mut permit).await {
         Ok(mut r) => match r.split_on_open().await {
             Ok(()) => Ok(r),
             Err(e) => Err(e.context("partial sync")),
@@ -653,6 +653,7 @@ impl Room {
         seed: &Grant,
         self_tx: mpsc::UnboundedSender<Cmd>,
         inbox: Arc<presence::Inbox>,
+        permit: &mut Option<tokio::sync::SemaphorePermit<'static>>,
     ) -> anyhow::Result<Self> {
         let id = seed.room.clone();
         // The epoch comes first: a writer that lost the room can append nothing after this, so
@@ -718,9 +719,15 @@ impl Room {
                     None => Fetched::Missing,
                 }
             } else {
-                ctx.host
+                // RLB-01c: waiting for the host is not database work. Holding a load slot
+                // through a 2 s answer let 8 rooms open per 2 s after a restart.
+                *permit = None;
+                let got = ctx
+                    .host
                     .get_file(&host, &seed.callback_token, &seed.file.id)
-                    .await?
+                    .await;
+                *permit = load_permits().acquire().await.ok();
+                got?
             };
             // PSYNC-02: a room that will split cuts the stored state as it is (no whole canvas).
             let fast = if host.partial_sync() && ctx.store.supports_parts() && !host.ephemeral() {

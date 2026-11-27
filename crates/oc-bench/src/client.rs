@@ -174,7 +174,7 @@ pub fn mint(cfg: &RunCfg, idx: usize, room: usize, editor: bool) -> anyhow::Resu
     Ok(jsonwebtoken::encode(
         &Header::new(jsonwebtoken::Algorithm::HS256),
         &claims,
-        &EncodingKey::from_secret(cfg.secret.as_bytes()),
+        &EncodingKey::from_secret(cfg.secret.as_bytes())?,
     )?)
 }
 

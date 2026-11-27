@@ -33,7 +33,7 @@ fn token(addr: &str, scope: &str, role: &str, f: impl FnOnce(&mut Value)) -> Str
     encode(
         &Header::new(Algorithm::HS256),
         &c,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap()
 }

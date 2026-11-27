@@ -38,7 +38,7 @@ ulid.workspace = true
 base64.workspace = true
 futures.workspace = true
 aes-gcm.workspace = true
-p256 = { version = "0.13", default-features = false, features = ["ecdsa", "std"] }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
 rsa.workspace = true
 getrandom.workspace = true
 bytes = "1"

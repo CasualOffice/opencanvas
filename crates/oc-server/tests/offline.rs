@@ -42,7 +42,7 @@ fn token(user: &str, extra: Value) -> String {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap()
 }
@@ -262,7 +262,7 @@ async fn revoke_needs_admin() {
         &Header::default(),
         &json!({"iss": "sample", "aud": "https://oc.example/api/v1", "sub": "u_9", "name": "Asha",
                 "exp": now() + 600, "scope": "canvas:read canvas:write", "role": "edit"}),
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap();
     let res = http()

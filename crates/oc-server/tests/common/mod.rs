@@ -46,6 +46,8 @@ pub struct HostState {
     pub conflict: bool,
     /// PUTs answer 500 while set (host outage).
     pub fail: bool,
+    /// `GET /files/{id}` waits this long before answering (a slow host, RLB-01c).
+    pub get_delay_ms: u64,
     /// Bodies POSTed to `/files/{id}/copies` (conflict policy `copy`).
     pub copies: Vec<RecordedPut>,
     /// Requests to `/assets/{id}` (with whether the signature verified).
@@ -171,6 +173,10 @@ async fn get_file(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    let delay = s.lock().unwrap().get_delay_ms;
+    if delay > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
     let mut st = s.lock().unwrap();
     st.gets += 1;
     if !verify(&headers, b"") {

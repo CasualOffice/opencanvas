@@ -232,7 +232,8 @@ fn key_for(host: &HostConfig) -> Result<(Algorithm, DecodingKey), JwtError> {
                     .as_deref()
                     .ok_or(JwtError::NoKey)?
                     .as_bytes(),
-            ),
+            )
+            .map_err(|_| JwtError::NoKey)?,
         ),
         "RS256" => (
             Algorithm::RS256,
@@ -531,7 +532,7 @@ pub mod tests {
         encode(
             &Header::new(alg),
             claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
+            &EncodingKey::from_secret(secret.as_bytes()).unwrap(),
         )
         .unwrap()
     }
@@ -719,7 +720,7 @@ pub mod tests {
         let hs = encode(
             &h,
             &claims("edit"),
-            &EncodingKey::from_secret(RSA_PUB.as_bytes()),
+            &EncodingKey::from_secret(RSA_PUB.as_bytes()).unwrap(),
         )
         .unwrap();
         assert!(jwks.verify(&hs, &hosts, now()).await.is_err());

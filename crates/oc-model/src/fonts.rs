@@ -131,9 +131,10 @@ pub fn database() -> Arc<Database> {
 
 fn has_char(db: &Database, id: ID, c: char) -> bool {
     db.with_face_data(id, |data, index| {
-        ttf_parser::Face::parse(data, index)
+        use skrifa::MetadataProvider as _;
+        skrifa::FontRef::from_index(data, index)
             .ok()
-            .and_then(|f| f.glyph_index(c))
+            .and_then(|f| f.charmap().map(c))
             .is_some()
     })
     .unwrap_or(false)

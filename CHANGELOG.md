@@ -153,6 +153,18 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- After a restart with a slow host, rooms reopen and save at full speed (RLB-01c): a room no
+  longer holds one of the `OC_ROOM_LOADS` slots while the host answers its file request.
+- Spreadsheet safety (SEC-62..64): `.xlsx` imports are read with server limits (64 MiB inflated,
+  200,000 cells, no recalculation, 250,000 rows and columns in all) off the async workers, two at
+  a time; a Spreadsheet block whose formulas take longer than 2 s to compute shows its inputs in
+  saves, exports and reads instead of stalling them; "Who can see this" tells nothing to someone
+  who cannot open the live file.
+- Dependency audit (DEP-01): `jsonwebtoken` 12 and `p256` 0.14 remove rsa 0.9 (RUSTSEC-2023-0071) and
+  crypto-bigint 0.5 (RUSTSEC-2026-0387), which the offline-grant signing key went through (SEC-61);
+  `resvg` 0.50 removes the unmaintained rustybuzz and ttf-parser (font fallback checks glyphs with
+  `skrifa`). An empty HS256 host secret is now refused as no key.
+
 - Overload never answers 500: while rooms recover after a restart (more than
   `OC_ROOM_LOAD_QUEUE`, default 32, waiting to load) or when no database connection is free,
   launches, session lookups and WebSocket upgrades answer 503 with a `Retry-After` of 1-5 s.

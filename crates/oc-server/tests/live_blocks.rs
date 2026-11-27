@@ -52,7 +52,7 @@ fn token(user: &str, extra: Value) -> String {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
+        &EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
     )
     .unwrap()
 }
@@ -1285,6 +1285,19 @@ async fn who_can_see_this_counts_members_without_access() {
     assert_eq!(out["cannotOpen"], 2, "u_3 and u_4 cannot open it: {out}");
     assert_eq!(out["members"], 3);
     assert!(!out.to_string().contains("Three"), "{out}");
+    // A member who cannot open the live file learns nothing about who else can (SEC-63).
+    let outsider = launch(&addr, "u_3", json!({"members": members})).await;
+    let out: Value = get(
+        &addr,
+        &format!("/v1/live/audience?ticket={outsider}&fileId=L_a"),
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(out["role"], "none", "{out}");
+    assert_eq!(out["cannotOpen"], Value::Null, "{out}");
+    assert_eq!(out["members"], Value::Null, "{out}");
     // Not embedded: refused like every live route.
     let r = get(
         &addr,

@@ -6,17 +6,10 @@
 
 [advisories]
 ignore = [
-  # rsa 0.9 (Marvin: timing on private-key operations), pulled in by jsonwebtoken's
-  # rust_crypto backend. OpenCanvas only verifies RS256 signatures with public keys.
-  { id = "RUSTSEC-2023-0071", reason = "public-key verification only; no RSA private key is ever used" },
-  # crypto-bigint 0.5 timing variability, through p256/p384 in jsonwebtoken. Launch tokens are
-  # pinned to HS256 / RS256 / EdDSA per host, so no ECDSA code runs, and never on a secret.
-  { id = "RUSTSEC-2026-0387", reason = "ECDSA is never accepted; no secret operand" },
-  # Unmaintained font crates under resvg/usvg (board PNG export). No known vulnerability; they
-  # only parse the fonts compiled into the binary.
-  { id = "RUSTSEC-2026-0206", reason = "unmaintained, no vulnerability; parses bundled fonts only" },
-  { id = "RUSTSEC-2026-0215", reason = "unmaintained, no vulnerability" },
-  { id = "RUSTSEC-2026-0192", reason = "unmaintained, no vulnerability; parses bundled fonts only" },
+  # DEP-01 (2026-11-28): rsa 0.9 and crypto-bigint 0.5 are gone (jsonwebtoken 12, p256 0.14);
+  # rustybuzz and ttf-parser are gone (resvg 0.50; font fallback uses skrifa).
+  # smallstr: unmaintained, through yrs 0.28 (latest). No vulnerability; small inline strings.
+  { id = "RUSTSEC-2026-0215", reason = "unmaintained, no vulnerability; via yrs, no newer yrs" },
   # paste: unmaintained proc-macro (compile time only), via tikv-jemalloc-ctl. No vulnerability,
   # no code of it runs in the binary. Release audit v0.1.0-alpha.1.
   { id = "RUSTSEC-2024-0436", reason = "unmaintained compile-time proc-macro, no vulnerability" },
@@ -29,6 +22,8 @@ wildcards = "allow"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+# The spreadsheet engine (oc-sheet, SHEET-01), pinned to a commit. Same owner.
+allow-git = ["https://github.com/CasualOffice/opencalc"]
 
 # Licences of every dependency: permissive only (no copyleft in the shipped binary). Our own
 # crates are Apache-2.0 (LICENSE, NOTICE), already on the allow-list. `LGPL-2.1-or-later`
