@@ -196,6 +196,16 @@ impl Book {
             .map_err(|e| BookError(format!("save: {e}")))
     }
 
+    /// The engine's workbook (exports apply cell formats and sizes through it).
+    pub(crate) fn session_mut(&mut self) -> &mut WorkbookSession {
+        &mut self.session
+    }
+
+    /// The grid the block's ids resolve against.
+    pub(crate) fn grid(&self) -> &MemGrid {
+        &self.grid
+    }
+
     /// Every cell with an input and what it shows.
     pub fn values(&self) -> Vec<Shown> {
         self.shown
