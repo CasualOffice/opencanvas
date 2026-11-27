@@ -22,7 +22,7 @@
 
 use std::collections::BTreeMap;
 
-use oc_model::parts::{self, MAIN, OwnerIndex};
+use oc_model::parts::{self, MAIN, OwnerIndex, Owners};
 use yrs::encoding::read::Read;
 
 use super::*;
@@ -477,9 +477,9 @@ impl Room {
         Some((txn.encode_state_as_update_v1(sv), txn.state_vector()))
     }
 
-    /// SEC-V4 (partial sync): whether an update's new clocks (`inc`, client id to end clock)
-    /// use a client id another document of this split room already holds clocks of. The main
-    /// document counts too (its clocks are kept in `svs[MAIN]` as main updates are applied).
+    /// Extending a client stream requires owning its last item if another document has clocks
+    /// for it. A routed filler advances the other document's vector without transferring
+    /// ownership of the stream.
     pub(super) fn client_id_elsewhere(&self, key: &str, inc: &HashMap<u64, u32>) -> bool {
         let Some(s) = &self.split else {
             return false;
@@ -487,10 +487,26 @@ impl Room {
         let mine = s.svs.get(key);
         inc.iter().any(|(c, end)| {
             let have = mine.and_then(|m| m.get(c)).copied().unwrap_or(0);
-            *end > have
-                && s.svs
-                    .iter()
-                    .any(|(k, sv)| k != key && sv.get(c).copied().unwrap_or(0) > 0)
+            if *end <= have {
+                return false;
+            }
+            let elsewhere = s
+                .svs
+                .iter()
+                .filter(|(k, _)| *k != key)
+                .filter_map(|(_, sv)| sv.get(c))
+                .copied()
+                .max()
+                .unwrap_or(0);
+            if elsewhere == 0 {
+                return false;
+            }
+            let owns_tail = have.checked_sub(1).is_some_and(|clock| {
+                s.owners
+                    .owner(parts::Id { client: *c, clock })
+                    .is_some_and(|(owner, _)| owner == key)
+            });
+            elsewhere > have || !owns_tail
         })
     }
 

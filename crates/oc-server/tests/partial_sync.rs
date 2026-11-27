@@ -285,6 +285,47 @@ async fn the_role_is_checked_per_request_and_other_files_blocks_are_refused() {
     assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
 }
 
+#[tokio::test]
+async fn canvases_with_the_same_block_id_keep_separate_part_state() {
+    let (state, mock) = server(true).await;
+    let other_file = "doc_2";
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(other_file.into(), (canvas(), 1));
+
+    let mut first = Peer::join(&state, subdoc_grant("u_first", Role::Edit)).await;
+    first.settle().await;
+    let first_part = oc_model::new_doc();
+    load(&mut first, "d1", &first_part).await;
+    edit_part(&first, &first_part, "d1", "Only in the first canvas");
+    first.settle().await;
+
+    let mut other_grant = subdoc_grant("u_other", Role::View);
+    other_grant.file.id = other_file.into();
+    other_grant.room = oc_server::grant::room_id("sample", other_file);
+    let mut other = Peer::join(&state, other_grant).await;
+    let other_guid = format!("{other_file}/block/d1");
+    other.send(protocol::subdoc(
+        &other_guid,
+        &protocol::step1(StateVector::default()),
+    ));
+    other.settle().await;
+    let other_part = oc_model::new_doc();
+    for (guid, msg) in other.subs {
+        if guid == other_guid
+            && let Message::Sync(SyncMessage::SyncStep2(update)) = msg
+        {
+            oc_model::ocanvas::apply_update_bytes(&other_part, &update).unwrap();
+        }
+    }
+    assert_eq!(row_title(&other_part, "d1", "r1").as_deref(), Some("One"));
+    assert_eq!(
+        server_json(&state).await["databases"]["d1"]["rows"]["r1"]["title"],
+        "Only in the first canvas"
+    );
+}
+
 /// SEC-V4 (partial sync): one client id must not write to two documents of a split room, in
 /// either order. A main-document edit and a part edit with the same client id collide when the
 /// room flattens the parts (saves, whole views), so one editor could stop every save.
@@ -317,13 +358,13 @@ async fn a_client_id_used_in_the_main_document_is_refused_in_a_part() {
                 .as_str()
                 .is_some_and(|r| r.contains("client id"))
     });
-    let whole = server_json(&state).await;
-    let title = whole["databases"]["d1"]["rows"]["r1"]["title"].clone();
     assert!(
-        refused || title == "Mine",
-        "the part edit was accepted but the whole canvas lost it: {title} ({:?})",
+        refused,
+        "cross-document client id was accepted: {:?}",
         e.controls
     );
+    let whole = server_json(&state).await;
+    assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
 }
 
 /// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
@@ -398,11 +439,14 @@ async fn a_part_edit_during_a_whole_view_touches_its_block_only() {
         .unwrap()
         .unwrap();
     edit_part(&a, &d, "d1", "While whole");
+    // Routing the first edit gives main a filler for its clocks. The part still owns the
+    // client stream and must be able to extend it.
+    edit_part(&a, &d, "d1", "Second edit while whole");
     a.settle().await;
     let whole = server_json(&state).await;
     assert_eq!(
         whole["databases"]["d1"]["rows"]["r1"]["title"],
-        "While whole"
+        "Second edit while whole"
     );
     assert_eq!(whole["databases"]["d2"]["name"], "Bugs");
     assert_eq!(whole["boards"]["b1"]["order"], json!(["i1"]));
