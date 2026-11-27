@@ -257,7 +257,7 @@ pub const OVERRUN_THREADS: usize = 2;
 #[cfg(not(target_arch = "wasm32"))]
 pub fn guarded<T: Send + 'static>(
     sheets: Vec<BookSheet>,
-    f: impl FnOnce(&Book) -> Result<T, BookError> + Send + 'static,
+    f: impl FnOnce(&mut Book) -> Result<T, BookError> + Send + 'static,
 ) -> Result<T, BookError> {
     use std::hash::{Hash, Hasher};
     let key = {
@@ -268,7 +268,7 @@ pub fn guarded<T: Send + 'static>(
         h.finish()
     };
     bounded(key, COMPUTE_BUDGET, move || {
-        Book::open(sheets).and_then(|b| f(&b))
+        Book::open(sheets).and_then(|mut b| f(&mut b))
     })
 }
 
@@ -335,9 +335,9 @@ pub fn bounded<T: Send + 'static>(
 #[cfg(target_arch = "wasm32")]
 pub fn guarded<T: Send + 'static>(
     sheets: Vec<BookSheet>,
-    f: impl FnOnce(&Book) -> Result<T, BookError> + Send + 'static,
+    f: impl FnOnce(&mut Book) -> Result<T, BookError> + Send + 'static,
 ) -> Result<T, BookError> {
-    Book::open(sheets).and_then(|b| f(&b))
+    Book::open(sheets).and_then(|mut b| f(&mut b))
 }
 
 #[cfg(test)]

@@ -164,12 +164,11 @@ pub fn to_xlsx(block: &Value) -> Result<Vec<u8>, BookError> {
     if sheets.is_empty() {
         return Err(BookError("the block has no sheets".into()));
     }
-<<<<<<< HEAD
-    engine::guarded(sheets, |b| b.save_as(SessionFormat::Xlsx))
-=======
-    let mut book = engine::Book::open(sheets.clone())?;
-    apply_formats(&mut book, block, &sheets)?;
-    book.save_as(SessionFormat::Xlsx)
+    let (blk, list) = (block.clone(), sheets.clone());
+    engine::guarded(sheets, move |b| {
+        apply_formats(b, &blk, &list)?;
+        b.save_as(SessionFormat::Xlsx)
+    })
 }
 
 /* ---------------------------------------------------------------- cell styles (SHEET-07) */
@@ -425,7 +424,6 @@ pub fn style_key(json: &str) -> String {
     let mut out = String::from("s");
     out.extend(digits.iter().rev());
     out
->>>>>>> 566333c
 }
 
 /// Which spreadsheet format a file is in.
@@ -481,14 +479,12 @@ pub fn from_file(bytes: &[u8], format: FileFormat) -> Result<Value, BookError> {
             w = w.max(at.col as usize + 1);
             cells.push((at, input, style));
         }
-<<<<<<< HEAD
         grid_lines += h + w;
         if grid_lines > MAX_IMPORT_GRID {
             return Err(BookError(format!(
                 "the workbook spans more than {MAX_IMPORT_GRID} rows and columns"
             )));
         }
-=======
         let sizes =
             |axis: &casual_calc_model::AxisSizing, n: usize, p: char| -> Map<String, Value> {
                 axis.sizes
@@ -498,7 +494,6 @@ pub fn from_file(bytes: &[u8], format: FileFormat) -> Result<Value, BookError> {
                     .collect()
             };
         sizes_of.push((sizes(&sheet.columns, w, 'c'), sizes(&sheet.rows, h, 'r')));
->>>>>>> 566333c
         let rows: Vec<String> = (0..h).map(|i| format!("{id}r{i}")).collect();
         let cols: Vec<String> = (0..w).map(|i| format!("{id}c{i}")).collect();
         sheets.push(BookSheet {
