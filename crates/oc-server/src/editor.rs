@@ -30,6 +30,7 @@ pub const CORE_BLOCKS: &[&str] = &[
     "core.kanban",
     "core.calendar",
     "core.table",
+    "core.spreadsheet",
     "core.image",
     "core.file",
     "core.date",

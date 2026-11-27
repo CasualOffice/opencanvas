@@ -33,7 +33,7 @@ describe("categories (1a-1e)", () => {
   it("files the built-in blocks in five categories, Media folded in", () => {
     const c = ctx();
     expect(catBlocks("content", c).own.map((b) => b.key)).toEqual(["text", "heading", "list", "quote", "callout", "code", "link", "file"]);
-    expect(catBlocks("data", c).own.map((b) => b.key)).toEqual(["database", "table", "date", "csv"]);
+    expect(catBlocks("data", c).own.map((b) => b.key)).toEqual(["database", "spreadsheet", "table", "date", "csv"]);
     expect(catBlocks("visual", c).own.map((b) => b.key)).toEqual(["diagram", "board", "image", "embed"]);
     expect(catBlocks("layout", c).own.map((b) => b.key)).toEqual(["columns", "toggle", "divider"]);
     // Extensions is absent with no SDK blocks (1e).
@@ -271,7 +271,7 @@ describe("inside a live block's own editor (LIVE-03, depth rule)", () => {
   it("keeps the categories and the host profile's filter", () => {
     const c = nested();
     expect(cats(c).map((x) => x.title)).toEqual(["Content", "Data & planning", "Visual & diagrams", "Layout"]);
-    expect(catBlocks("data", c).own.map((b) => b.key)).toEqual(["database", "table", "date"]);
+    expect(catBlocks("data", c).own.map((b) => b.key)).toEqual(["database", "spreadsheet", "table", "date"]);
     expect(keys(nested({ profile: MEETING }))).toEqual(["text", "heading", "list", "callout", "table", "date", "divider"]);
   });
   it("leaves out what acts on the embedding canvas: assistant, import, uploads, SDK blocks, the gallery", () => {

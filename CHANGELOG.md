@@ -33,6 +33,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- **Spreadsheet block** (SHEET-04, ADR-080, prototype v04 frames 1-5): "Spreadsheet" in the insert
+  and / menus (`core.spreadsheet`). A virtualized grid with column letters, row numbers, a name box
+  and a formula bar; Excel keyboard (typing replaces, F2 edits, Enter/Tab move, Ctrl+arrows, Shift
+  extends, Ctrl+A, Home/End, PageUp/PageDown, Delete); formulas computed by the opencalc engine in
+  WASM, loaded with the first sheet; sheet tabs (add, rename, delete); insert, delete, resize and
+  freeze rows and columns from the header menus; fill handle, copy and paste with Excel and Google
+  Sheets, number formats, bold, italic, colours, alignment, filters and full screen
+  (Ctrl+Shift+E). Edits sync live through Yjs; other people's selections show in their colour.
+
 - Nextcloud Talk (TALK-01): post a canvas to a conversation as a card (posting never grants
   access; the dialog offers to share the file with the conversation), open it beside the chat or
   call, in a sidebar tab on narrow windows, full screen, or full screen with a call tile on a

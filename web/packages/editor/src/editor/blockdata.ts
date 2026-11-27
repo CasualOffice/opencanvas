@@ -7,6 +7,7 @@
 // (type-only imports are fine).
 import type * as Database from "@opencanvas/database";
 import type * as Board from "@opencanvas/board";
+import type * as Sheet from "@opencanvas/sheet";
 
 let db: Promise<typeof Database> | null = null;
 let board: Promise<typeof Board> | null = null;
@@ -14,6 +15,9 @@ let board: Promise<typeof Board> | null = null;
 // A failed load is forgotten so the next attempt fetches again (placeholder retry, ADR-076).
 export const loadDatabase = () => (db ??= import("@opencanvas/database").catch((e) => ((db = null), Promise.reject(e))));
 export const loadBoard = () => (board ??= import("@opencanvas/board").catch((e) => ((board = null), Promise.reject(e))));
+let sheet: Promise<typeof Sheet> | null = null;
+/** The Spreadsheet block (SHEET-04): grid UI; its WASM engine loads on first mount. */
+export const loadSheet = () => (sheet ??= import("@opencanvas/sheet").catch((e) => ((sheet = null), Promise.reject(e))));
 
 export interface BlockData {
   createDatabase: typeof Database.createDatabase;

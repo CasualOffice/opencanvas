@@ -154,6 +154,9 @@ importers:
       '@opencanvas/database':
         specifier: workspace:*
         version: link:../database
+      '@opencanvas/sheet':
+        specifier: workspace:*
+        version: link:../sheet
       '@opencanvas/ui':
         specifier: workspace:*
         version: link:../ui

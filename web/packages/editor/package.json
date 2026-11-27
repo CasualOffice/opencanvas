@@ -17,6 +17,7 @@
     "@fontsource/geist-mono": "^5.2.0",
     "@opencanvas/board": "workspace:*",
     "@opencanvas/database": "workspace:*",
+    "@opencanvas/sheet": "workspace:*",
     "@opencanvas/ui": "workspace:*",
     "@tiptap/core": "^3.10.0",
     "@tiptap/extension-blockquote": "^3.10.0",

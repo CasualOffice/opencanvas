@@ -6,7 +6,7 @@ import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { insertUploads } from "../lib/uploads";
 import { datePickStore, isoDate } from "./inline";
 import { tableJSON } from "./table";
-import { loadBoard, loadDatabase } from "./blockdata";
+import { loadBoard, loadDatabase, loadSheet } from "./blockdata";
 import { bridge, docOf } from "../lib/bridge";
 import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
 import { markPending } from "../lib/unfurl";
@@ -89,6 +89,10 @@ export const SLASH: SlashItem[] = [
       if (r) e.chain().focus().deleteRange(r).run();
       bridge.importCsv((csv) => insertLater(e, null, async () => [{ type: "database", attrs: { dbId: (await loadDatabase()).importCsvToDatabase(docOf(e), csv) } }, { type: "paragraph" }]));
     },
+  },
+  {
+    group: "Data", id: "sheet", icon: "sheet", title: "Spreadsheet", desc: "Cells, formulas and sheets, like Excel", keywords: "excel sheets grid formula calc",
+    run: (e, r) => insertLater(e, r, async () => [{ type: "spreadsheet", attrs: { sheetId: (await loadSheet()).createSheetBlock(docOf(e))[0] } }, { type: "paragraph" }]),
   },
   { group: "Data", id: "table", icon: "table", title: "Simple table", desc: "Rows and columns", run: (e, r) => {
       insertBlock(e, r, [tableJSON(3, 3), { type: "paragraph" }]);

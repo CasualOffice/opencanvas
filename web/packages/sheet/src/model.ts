@@ -196,3 +196,132 @@ export function readSheets(doc: Y.Doc, block: string): EngineSheet[] {
     })
     .filter((x): x is EngineSheet => !!x);
 }
+
+/* ---------------------------------------------------------------- grid UI (SHEET-04) */
+
+/** The sheet's Y.Map (rows, cols, cells, widths, heights, freeze), or null. */
+export const sheetOf = sheetMap;
+
+/** A short stable key for a style's JSON: equal styles share one entry in `styles`. */
+export function styleKey(json: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < json.length; i++) h = Math.imul(h ^ json.charCodeAt(i), 0x01000193);
+  return "s" + (h >>> 0).toString(36);
+}
+
+/** A cell style by key (JSON in the block's `styles`), parsed; undefined when unset. */
+export function readStyle<T = Record<string, unknown>>(doc: Y.Doc, block: string, key: unknown): T | undefined {
+  if (typeof key !== "string") return undefined;
+  const j = (blockMap(doc, block)?.get("styles") as Y.Map<string> | undefined)?.get(key);
+  if (!j) return undefined;
+  try {
+    return JSON.parse(j) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeStyle(doc: Y.Doc, block: string, map: Y.Map<Y.Map<unknown>>, key: string, next: Record<string, unknown> | undefined) {
+  const cell = map.get(key);
+  const keys = next ? Object.keys(next).filter((k) => next[k] != null && next[k] !== false).sort() : [];
+  if (!keys.length) {
+    if (cell?.get("s") != null) {
+      if (cell.get("in")) cell.delete("s");
+      else map.delete(key);
+    }
+    return;
+  }
+  const json = JSON.stringify(next, keys);
+  const sk = styleKey(json);
+  const styles = blockMap(doc, block)!.get("styles") as Y.Map<string>;
+  if (styles.get(sk) !== json) styles.set(sk, json);
+  let c2 = cell;
+  if (!c2) {
+    c2 = new Y.Map();
+    map.set(key, c2);
+  }
+  if (c2.get("s") !== sk) c2.set("s", sk);
+}
+
+/** Merges `patch` into the style of each cell (`[rowId, colId]`); a key set to null or false is
+ *  removed. A cell left with no style and no input is deleted. */
+export function patchStyle(doc: Y.Doc, block: string, sheet: string, cells: [string, string][], patch: Record<string, unknown>) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  const map = s.get("cells") as Y.Map<Y.Map<unknown>>;
+  doc.transact(() => {
+    for (const [r, c] of cells) {
+      const key = `${r}:${c}`;
+      const next: Record<string, unknown> = { ...(readStyle(doc, block, map.get(key)?.get("s")) ?? {}) };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v == null || v === false) delete next[k];
+        else next[k] = v;
+      }
+      writeStyle(doc, block, map, key, next);
+    }
+  });
+}
+
+/** Sets a cell's style outright (paste with formats); undefined clears it. */
+export function setStyle(doc: Y.Doc, block: string, sheet: string, row: string, col: string, style: Record<string, unknown> | undefined) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  doc.transact(() => writeStyle(doc, block, s.get("cells") as Y.Map<Y.Map<unknown>>, `${row}:${col}`, style));
+}
+
+/** A column's width or a row's height in rem (null resets it to the default). */
+export function setSize(doc: Y.Doc, block: string, sheet: string, kind: "widths" | "heights", id: string, rem: number | null) {
+  const m = sheetMap(doc, block, sheet)?.get(kind) as Y.Map<number> | undefined;
+  if (!m) return;
+  if (rem == null) m.delete(id);
+  else m.set(id, Math.round(rem * 1000) / 1000);
+}
+
+/** Freezes the first `rows` rows and `cols` columns (0 unfreezes). */
+export function setFreeze(doc: Y.Doc, block: string, sheet: string, rows: number, cols: number) {
+  const m = sheetMap(doc, block, sheet)?.get("freeze") as Y.Map<number> | undefined;
+  if (!m) return;
+  doc.transact(() => {
+    if (rows > 0) m.set("rows", rows);
+    else m.delete("rows");
+    if (cols > 0) m.set("cols", cols);
+    else m.delete("cols");
+  });
+}
+
+/**
+ * A sheet's filter (Data → Create a filter): the header row and the columns it covers, by id,
+ * and per column the values hidden. Stored as JSON on the sheet (`filter`).
+ */
+export interface SheetFilter {
+  row: string;
+  cols: string[];
+  hide: Record<string, string[]>;
+}
+export function readFilter(doc: Y.Doc, block: string, sheet: string): SheetFilter | null {
+  const j = sheetMap(doc, block, sheet)?.get("filter");
+  if (typeof j !== "string") return null;
+  try {
+    return JSON.parse(j) as SheetFilter;
+  } catch {
+    return null;
+  }
+}
+export function setFilter(doc: Y.Doc, block: string, sheet: string, f: SheetFilter | null) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  if (f) s.set("filter", JSON.stringify(f));
+  else s.delete("filter");
+}
+
+/** Puts the rows from index `from` in the order `ids` (a sort of that range). Formulas keep
+ *  pointing at the same row ids, so a sort moves rows for real, as in Excel. */
+export function reorderRows(doc: Y.Doc, block: string, sheet: string, from: number, ids: string[]) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  const a = arr(s, "rows");
+  doc.transact(() => {
+    a.delete(from, ids.length);
+    a.insert(from, ids);
+  });
+}
