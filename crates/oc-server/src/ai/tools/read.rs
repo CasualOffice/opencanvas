@@ -151,6 +151,14 @@ pub fn canvas_read(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
                     {
                         e["data"] = d["ext"][id].clone();
                     }
+                    // SHEET-03: a Spreadsheet block's sheets as computed display values.
+                    if b.node["type"] == oc_model::export::SHEET_NODE {
+                        let sheets: Vec<Value> = oc_model::export::sheet_tables(&d, b.node)
+                            .into_iter()
+                            .map(|t| json!({"id": t.id, "name": t.name, "rows": t.rows}))
+                            .collect();
+                        e["sheet"] = json!({ "sheets": sheets });
+                    }
                     e
                 })
                 .collect();
@@ -500,4 +508,37 @@ pub fn blocks_page(doc: &Doc, input: &Value) -> Result<Value, ToolError> {
     Ok(wrap(
         json!({"blocks": page, "rev": rev(&d["content"]), "next": next}),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// SHEET-03: a Spreadsheet block reads as computed values, in JSON (API `GET …/blocks/{id}`,
+    /// MCP) and in Markdown.
+    #[test]
+    fn a_spreadsheet_block_reads_as_computed_values() {
+        let doc = oc_model::new_doc();
+        oc_model::import::apply_document_json(
+            &doc,
+            &json!({
+                "content": [{"type": "spreadsheet", "attrs": {"blockId": "b1", "sheetId": "k"}}],
+                "sheets": {"k": {"order": ["s"], "styles": {}, "sheets": {"s": {
+                    "name": "Sheet1", "rows": ["r1", "r2"], "cols": ["c1"],
+                    "cells": {"r1:c1": {"in": "2"}, "r2:c1": {"in": "=1+2"}}}}}}
+            }),
+        );
+        let out = canvas_read(&doc, &json!({"format": "json", "blockIds": ["b1"]})).unwrap();
+        let b = &out["data"]["blocks"][0];
+        assert_eq!(
+            b["sheet"],
+            json!({"sheets": [{"id": "s", "name": "Sheet1", "rows": [["2"], ["3"]]}]}),
+            "{out}"
+        );
+        let md = canvas_read(&doc, &json!({"blockIds": ["b1"]})).unwrap();
+        assert!(
+            md["data"]["markdown"].as_str().unwrap().contains("| 3 |"),
+            "{md}"
+        );
+    }
 }
