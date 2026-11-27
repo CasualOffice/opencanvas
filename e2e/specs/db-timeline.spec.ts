@@ -9,6 +9,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type FrameLocator, type Locator } from "@playwright/test";
 import fs from "node:fs";
+import { OC } from "../env";
 import { sharedFile, typeAfterHeading } from "../helpers";
 
 let dbId = "";
@@ -158,4 +159,19 @@ test("DB5-01: drag to move, resize and link; the bar menu removes dates", async 
   await page.keyboard.press("Shift+F10");
   await priya.oc.getByRole("menuitem", { name: "Remove dates" }).click();
   await expect(d.getByLabel("No dates").getByRole("button", { name: "SDK docs" })).toBeVisible();
+});
+
+test("the public demo shows the newer blocks: a budget sheet, its chart, and the backlog's Timeline and Workload", async ({ page }) => {
+  await page.goto(`${OC}/app/#demo&sim=quiet`);
+  const sheet = page.locator(".ocsh-grid").first();
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  // Total = SUM of four formulas (4,200 + 4,560 + 960 + 1,850), shown as currency.
+  await expect(sheet.locator('[data-r="5"][data-c="1"]')).toHaveText(/11,570\.00/);
+  await expect(page.getByRole("figure", { name: "Budget by item, column chart" })).toBeVisible();
+  const backlog = page.locator(".ocdb").filter({ has: page.getByRole("tab", { name: "Timeline" }) }).first();
+  await backlog.getByRole("tab", { name: "Timeline" }).click();
+  await expect(backlog.locator("[data-bar]").first()).toBeVisible();
+  await expect(backlog.getByRole("button", { name: /blocked by/ }).first()).toBeVisible();
+  await backlog.getByRole("tab", { name: "Workload" }).click();
+  await expect(backlog.locator(".ocdb-wl-t")).toBeVisible();
 });

@@ -12,6 +12,7 @@ import { addMessage, commentsRoot, createThread } from "./comments";
 import { setMeta } from "./meta";
 import type { Collab, Control, ConnState, Session } from "./session";
 import { localCollab } from "./session";
+import { loadDatabase, loadSheet } from "../editor/blockdata";
 
 export const DEMO_USERS: Record<string, OcUser & { role: Role }> = {
   me: { id: "u_priya", name: "Priya Shah", color: "#2a5ad7", role: "edit" },
@@ -137,7 +138,38 @@ export function createDemo(role: Role): Demo {
   const seed = async (setContent: (json: object) => void) => {
     const people = Object.fromEntries(Object.values(DEMO_USERS).map((u) => [u.id, u.name]));
     setMeta(doc, { title: "Sprint 42 planning", icon: "rocket", tone: "blue", template: "demo" });
-    setContent(await buildDoc(demoBlocks(), { doc, people, me: { id: s.user.id, name: s.user.name } }));
+    const json = (await buildDoc(demoBlocks(), { doc, people, me: { id: s.user.id, name: s.user.name } })) as { content: { type: string; attrs?: Record<string, unknown> }[] };
+    // The newer blocks (v0.4): the backlog gets Start, Estimate and Blocked by and opens on its
+    // Timeline; a launch budget spreadsheet with formulas and formats, and a chart linked to it.
+    const dbAt = json.content.findIndex((n) => n.type === "database");
+    try {
+      const [sheetMod, dbMod] = await Promise.all([loadSheet(), loadDatabase()]);
+      if (dbAt >= 0) dbMod.seedTimeline(doc, String(json.content[dbAt].attrs?.dbId), { lengths: [4, 3, 5, 6, 3, 2, 3], hours: [16, 12, 30, 40, 12, 8, 10], deps: [[1, 0], [2, 1], [4, 3], [6, 3]], view: "table" });
+      const b = await sheetMod.seedSheet(
+        doc,
+        "Budget",
+        [
+          ["Item", "Total", "Qty", "Price"],
+          ["Venue hire", "=C2*D2", "1", "4200"],
+          ["Catering lunch", "=C3*D3", "120", "38"],
+          ["Lanyards", "=C4*D4", "400", "2.4"],
+          ["Stage AV", "=C5*D5", "1", "1850"],
+          ["Total", "=SUM(B2:B5)", "", ""],
+        ],
+        { "A1:D1": { b: true, bg: "gray" }, "B2:B6": { nf: "cur" }, "D2:D5": { nf: "cur" }, "A6:D6": { b: true, bt: 2 } },
+        [9, 7, 4, 6],
+      );
+      json.content.splice(
+        dbAt + 1,
+        0,
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Launch budget" }] } as never,
+        { type: "spreadsheet", attrs: { sheetId: b.blockId } },
+        { type: "chart", attrs: { kind: "bar", title: "Budget by item", src: "sheet", sheetId: b.blockId, sheet: b.sheetId, r0: b.rows[0], r1: b.rows[4], c0: b.cols[0], c1: b.cols[1] } },
+      );
+    } catch {
+      /* the demo still opens without the newer blocks (e.g. the engine could not load) */
+    }
+    setContent(json);
     createThread(doc, "t_demo1", "Autosave runs every 60 seconds by default");
     const a = DEMO_USERS.ravi, b = DEMO_USERS.asha;
     addMessage(doc, "t_demo1", { user: a.id, name: a.name, color: a.color, text: "Can hosts set this per channel, or only per tenant?" });

@@ -38,6 +38,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   a toast that shifts dependents when a task moves past them, the critical path, milestones, a No
   dates tray, drag to move, resize and link, a bar menu and full keyboard use; a Workload view of
   people against weeks; on phones the Timeline is a list by week.
+- The public demo (`#demo`, "Sprint 42 planning") now shows the v0.4 blocks: a launch budget
+  spreadsheet with formulas and formats, a chart linked to it, and the backlog with Start,
+  Estimate and Blocked by for its Timeline and Workload views.
 
 - Spreadsheet blocks on the server (SHEET-03, ADR-080): Markdown, HTML, Word, `.ocanvas`
   (`document.json`, `search.json`), `GET …/blocks/{blockId}` and MCP `canvas_read` show a

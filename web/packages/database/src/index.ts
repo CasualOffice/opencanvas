@@ -11,4 +11,5 @@ export { parseCsv, detectType, detectFields, coerce } from "./csv";
 export { COMPUTED_TYPES } from "./types";
 export type { DbPreset } from "./presets";
 export { DB_PRESETS } from "./presets";
+export { seedTimeline } from "./timeline/seed";
 export type { DbField, DbOption, DbRow, DbSnapshot, FieldType, ViewKind, ViewPrefs, CellValue } from "./types";
