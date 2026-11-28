@@ -18,6 +18,7 @@ import { applyStyle, dashOf, fontOf, inkOf, lastFor, normDeg, opOf, rememberLast
 type StyleModule = typeof import("./style/StylePanel");
 let styleModule: Promise<StyleModule> | null = null;
 const loadStyle = () => (styleModule ??= import("./style/StylePanel"));
+import { CORNERS, CURSOR, HANDLES, handleAt, resizeOne, rotateMany, scaleMany, type Handle } from "./select/geom";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
   addShape, bbox, contentBounds, deleteShape, getBoardMap, safeLink, simplify, smooth, updateShape,
@@ -189,7 +190,11 @@ type Drag =
   | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean; seg?: { pts: Pt[]; horiz: boolean } }
   | { kind: "pinch"; d0: number; c0: [number, number]; v: View }
   /** BRD-22: the rotation handle; `c` the centre, `a0` the pointer's angle at the start. */
-  | { kind: "rotate"; sid: string; c: Pt; a0: number; r0: number; moved: boolean };
+  | { kind: "rotate"; sid: string; c: Pt; a0: number; r0: number; moved: boolean }
+  /** Decision 13: a handle of one shape (its own frame) or a corner of several (scaled together). */
+  | { kind: "rz"; h: Handle; ids: string[]; orig: Shape[]; u: Box; ox: number; oy: number; moved: boolean }
+  /** Several shapes turned together about the centre `c` of their box. */
+  | { kind: "rotm"; ids: string[]; orig: Shape[]; c: Pt; a0: number; moved: boolean };
 
 const describeShape = (s: Shape) => {
   const t = (s.text ?? s.label ?? s.alt ?? "").replace(/\s+/g, " ").trim();
@@ -1252,7 +1257,23 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
     }
     if (t === "select") {
+      const rzEl = (e.target as Element).closest?.("[data-rz]");
       const rotEl = (e.target as Element).closest?.("[data-rot]");
+      if ((rzEl || rotEl?.getAttribute("data-rot") === "multi") && S.current.edit) {
+        const list = selShapes().filter((q) => !q.locked);
+        const u = unionBox(list);
+        if (list.length && u) {
+          um?.stopCapturing();
+          const orig = list.map((q) => JSON.parse(JSON.stringify(q)) as Shape);
+          if (rzEl) drag.current = { kind: "rz", h: rzEl.getAttribute("data-rz") as Handle, ids: list.map((q) => q.id), orig, u, ox: x, oy: y, moved: false };
+          else {
+            const c: Pt = [(u[0] + u[2]) / 2, (u[1] + u[3]) / 2];
+            drag.current = { kind: "rotm", ids: list.map((q) => q.id), orig, c, a0: Math.atan2(y - c[1], x - c[0]), moved: false };
+          }
+          cap();
+          return;
+        }
+      }
       if (rotEl && sid && S.current.edit) {
         const s0 = S.current.byId.get(sid);
         if (s0 && !s0.locked) {
@@ -1424,7 +1445,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const b: Box = [Math.min(d.x0, x), Math.min(d.y0, y), Math.max(d.x0, x), Math.max(d.y0, y)];
       if ((b[2] - b[0]) * S.current.view.z < 3 && (b[3] - b[1]) * S.current.view.z < 3) return;
       setMarquee(b);
-      const hits = withGroups(S.current.shapes, scene.inBox(b)).filter((id) => !S.current.byId.get(id)?.locked);
+      // Decision 13: shapes fully inside; with Alt, any the box touches.
+      const met = scene.inBox(b).filter((id) => {
+        const q = S.current.byId.get(id);
+        if (!q || q.locked) return false;
+        if (e.altKey) return true;
+        const bb = bbox(q);
+        return bb[0] >= b[0] && bb[1] >= b[1] && bb[2] <= b[2] && bb[3] <= b[3];
+      });
+      const hits = withGroups(S.current.shapes, met).filter((id) => !S.current.byId.get(id)?.locked);
       const next = d.add ? [...d.base, ...hits.filter((h) => !d.base.includes(h))] : hits;
       const cur = S.current.sel;
       if (next.length !== cur.length || next.some((id, i) => id !== cur[i])) setSel(next);
@@ -1500,6 +1529,25 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
+    if (d.kind === "rz") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      const dd: Pt = [x - d.ox, y - d.oy];
+      if (d.orig.length === 1) {
+        const o = d.orig[0];
+        // Images keep their proportions unless Shift; other shapes keep them with Shift.
+        schedule(o.id, resizeOne(o, d.h, dd, { ratio: o.type === "image" ? !e.shiftKey : e.shiftKey, centre: e.altKey, min: [10, 10] }));
+      } else for (const m of scaleMany(d.orig, d.u, d.h, dd, e.shiftKey)) schedule(m.id, m.patch);
+      return;
+    }
+    if (d.kind === "rotm") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      let deg = ((Math.atan2(y - d.c[1], x - d.c[0]) - d.a0) * 180) / Math.PI;
+      if (!e.altKey) deg = Math.round(deg / 15) * 15;
+      for (const m of rotateMany(d.orig, d.c, normDeg(deg))) schedule(m.id, m.patch);
+      return;
+    }
     if (d.kind === "rotate") {
       if (!d.moved) setDragging(true);
       d.moved = true;
@@ -1544,9 +1592,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
       setGaps(eq.marks.length ? eq.marks : null);
     } else if (d.box && !e.altKey && S.current.snap) {
-      const sn = snapOffset(d.box, d.others, dx, dy, 6 / S.current.view.z);
+      // Decision 9: edges and centres, then equal gaps (as diagram mode), on the whiteboard too.
+      const tol = 6 / S.current.view.z;
+      const sn = snapOffset(d.box, d.others, dx, dy, tol);
       dx = sn.dx;
       dy = sn.dy;
+      const mv: Box = [d.box[0] + dx, d.box[1] + dy, d.box[2] + dx, d.box[3] + dy];
+      const eq = equalGapOffset(mv, d.others, tol, { x: sn.gx.length > 0, y: sn.gy.length > 0 });
+      dx += eq.dx;
+      dy += eq.dy;
+      setGaps(eq.marks.length ? eq.marks : null);
       setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
     } else {
       setGuides(null);
@@ -1603,11 +1658,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const n = d.orig.length + (d.insert ? 1 : 0);
       announceWp(d.i, n);
     }
-    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp" || d.kind === "rotate") {
+    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp" || d.kind === "rotate" || d.kind === "rz" || d.kind === "rotm") {
       doc.transact(() => {
         flush();
-        if (d.moved) syncAfter(d.kind === "move" ? d.ids : [d.sid]);
+        if (d.moved) syncAfter(d.kind === "move" || d.kind === "rz" || d.kind === "rotm" ? d.ids : [d.sid]);
       }, origin);
+    }
+    if (d.kind === "rz" && d.moved) {
+      const s1 = S.current.raw.find((q) => q.id === d.ids[0]);
+      setLive(d.ids.length > 1 ? `Resized ${d.ids.length} shapes` : s1 ? `Resized to ${Math.round(s1.w ?? 0)} by ${Math.round(s1.h ?? 0)}` : "Resized");
+    }
+    if (d.kind === "rotm" && d.moved) {
+      const s1 = S.current.raw.find((q) => q.id === d.ids[0]);
+      setLive(`${d.ids.length} shapes rotated by ${normDeg(rotOf(s1 ?? ({ id: "", type: "rect" } as Shape)) - rotOf(d.orig[0]))} degrees`);
     }
     if (d.kind === "rotate" && d.moved) {
       const r = rotOf(S.current.raw.find((q) => q.id === d.sid) ?? ({ id: "", type: "rect" } as Shape));
@@ -2243,23 +2306,42 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           : null}
         {edit && selShape && SIZED.includes(selShape.type) && !selShape.locked
           ? (() => {
-              const b = bbox(selShape);
+              // Decision 13: eight handles, placed in the shape's own (rotated) frame.
+              const b0 = bbox(selShape);
+              const b: Box = [b0[0] - 6, b0[1] - 6, b0[2] + 6, b0[3] + 6];
+              const hs = (compact ? 14 : 8) / z;
+              return HANDLES.map((h) => {
+                const [hx, hy] = handleAt(b, h, rotOf(selShape));
+                return (
+                  <rect key={h} className="ocbd-rz" data-rz={h} data-s={selShape.id} x={hx - hs / 2} y={hy - hs / 2} width={hs} height={hs} rx={1.5 / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: CURSOR[h] }}>
+                    <title>Drag to resize. Shift keeps proportions, Alt from the centre (Alt+arrow keys too)</title>
+                  </rect>
+                );
+              });
+            })()
+          : null}
+        {edit && selList.length > 1 && selList.some((q) => !q.locked)
+          ? (() => {
+              // Several shapes: corners scale them together, the handle above turns them together.
+              const u0 = unionBox(selList.filter((q) => !q.locked))!;
+              const u: Box = [u0[0] - 12, u0[1] - 12, u0[2] + 12, u0[3] + 12];
+              const hs = (compact ? 14 : 8) / z, cx = (u[0] + u[2]) / 2, hy = u[1] - 24 / z;
               return (
-                <rect
-                  className="ocbd-rz"
-                  data-s={selShape.id}
-                  x={b[2] + 6 - 5 / z}
-                  y={b[3] + 6 - 5 / z}
-                  width={(compact ? 16 : 10) / z}
-                  height={(compact ? 16 : 10) / z}
-                  rx={2 / z}
-                  fill="var(--app)"
-                  stroke="var(--accent)"
-                  strokeWidth={sw}
-                  style={{ cursor: "nwse-resize" }}
-                >
-                  <title>Drag to resize (Alt+arrow keys too)</title>
-                </rect>
+                <g>
+                  {CORNERS.map((h) => {
+                    const [hx, hy2] = handleAt(u, h);
+                    return (
+                      <rect key={h} className="ocbd-rz" data-rz={h} x={hx - hs / 2} y={hy2 - hs / 2} width={hs} height={hs} rx={1.5 / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: CURSOR[h] }}>
+                        <title>Drag to resize them together. Shift keeps proportions</title>
+                      </rect>
+                    );
+                  })}
+                  <line x1={cx} y1={u[1]} x2={cx} y2={hy + 6 / z} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" />
+                  <circle className="ocbd-rot" data-rot="multi" cx={cx} cy={hy} r={(compact ? 10 : 6) / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "grab" }}>
+                    <title>Drag to rotate them together: 15° steps, Alt for free</title>
+                  </circle>
+                  <RotateCw x={cx - 4 / z} y={hy - 4 / z} width={8 / z} height={8 / z} strokeWidth={3} color="var(--accent)" pointerEvents="none" />
+                </g>
               );
             })()
           : null}
@@ -2339,7 +2421,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
     const minTop = compact ? 64 : 56;
     // Above the rotation handle (BRD-22) when one shows, so the handle stays reachable.
-    const handle = selShape && rotates(selShape) && !selShape.locked ? 30 : 0;
+    const handle = (selShape && rotates(selShape) && !selShape.locked) || (selList.length > 1 && selList.some((q) => !q.locked)) ? 30 : 0;
     const above = u[1] * z + ty - 14 - handle, below = u[3] * z + ty + 14;
     const Hd = svgRef.current?.clientHeight ?? 0;
     let flip = above < minTop && below + (compact ? 56 : 44) <= Hd;

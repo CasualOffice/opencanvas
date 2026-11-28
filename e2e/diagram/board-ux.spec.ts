@@ -149,3 +149,66 @@ test.describe("BRD-22: style panel and rotation", () => {
     await expect(wrap).toHaveAttribute("transform", /^rotate\(60 /);
   });
 });
+
+test.describe("Selection (decision 13)", () => {
+  /** Two new rectangles side by side in the empty corner; returns their locators. */
+  async function twoRects(page: Page, board: Locator) {
+    const before = await board.locator("g[data-s]").count();
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).dblclick();
+    const p = await emptySpot(board, -120, -80);
+    await drawRect(page, p.x, p.y);
+    await drawRect(page, p.x + 130, p.y);
+    await page.keyboard.press("Escape");
+    await expect(board.locator("g[data-s]")).toHaveCount(before + 2);
+    return { p, a: board.locator("g[data-s]").nth(before), b: board.locator("g[data-s]").nth(before + 1) };
+  }
+  const rings = (board: Locator) => board.locator(".ocbd-selring").count();
+
+  test("the marquee takes shapes fully inside; with Alt, those it touches", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const { p } = await twoRects(page, board);
+    // Around the first and half of the second.
+    for (const alt of [false, true]) {
+      await page.mouse.click(p.x - 30, p.y + 120);
+      if (alt) await page.keyboard.down("Alt");
+      await page.mouse.move(p.x - 15, p.y - 15);
+      await page.mouse.down();
+      await page.mouse.move(p.x + 80, p.y + 40, { steps: 4 });
+      await page.mouse.move(p.x + 175, p.y + 65, { steps: 4 });
+      await page.mouse.up();
+      if (alt) await page.keyboard.up("Alt");
+      expect(await rings(board)).toBe(alt ? 2 : 1);
+    }
+  });
+
+  test("a side handle resizes one shape; a corner of two scales both", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const { a, b } = await twoRects(page, board);
+    const ra = a.locator("rect").first();
+    await page.mouse.click((await centre(ra)).x, (await centre(ra)).y);
+    const e = board.locator('[data-rz="e"]');
+    await expect(board.locator("[data-rz]")).toHaveCount(8);
+    const w0 = (await ra.boundingBox())!.width;
+    const ec = await centre(e);
+    await page.mouse.move(ec.x, ec.y);
+    await page.mouse.down();
+    await page.mouse.move(ec.x + 15, ec.y, { steps: 3 });
+    await page.mouse.move(ec.x + 30, ec.y, { steps: 3 });
+    await page.mouse.up();
+    expect(Math.abs((await ra.boundingBox())!.width - (w0 + 30))).toBeLessThan(3);
+    // Both: Shift-click the second; four corners; drag the bottom right one.
+    const rb = b.locator("rect").first();
+    const bw0 = (await rb.boundingBox())!.width;
+    await page.keyboard.down("Shift");
+    await page.mouse.click((await centre(rb)).x, (await centre(rb)).y);
+    await page.keyboard.up("Shift");
+    await expect(board.locator("[data-rz]")).toHaveCount(4);
+    const se = await centre(board.locator('[data-rz="se"]'));
+    await page.mouse.move(se.x, se.y);
+    await page.mouse.down();
+    await page.mouse.move(se.x + 20, se.y, { steps: 3 });
+    await page.mouse.move(se.x + 40, se.y, { steps: 3 });
+    await page.mouse.up();
+    expect((await rb.boundingBox())!.width).toBeGreaterThan(bw0 + 5);
+  });
+});
