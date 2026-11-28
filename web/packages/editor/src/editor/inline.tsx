@@ -6,10 +6,9 @@
 // format (docs/15 §4): names and attrs are fixed.
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Ic } from "../icons";
 import { createStore, useStore } from "../lib/store";
-import { Popover } from "../components/overlay";
 
 // ---------- text colour ----------
 
@@ -53,25 +52,12 @@ export const TextColorMark = Mark.create({
   },
 });
 
-/** Swatches for the selection toolbar. */
-export function ColorPicker({ current, onPick }: { current: string | null; onPick(c: TextColor | null): void }) {
-  return (
-    <div className="tcpick" role="group" aria-label="Text colour">
-      <button className={"tcsw none" + (!current ? " on" : "")} aria-label="Default colour" aria-pressed={!current} title="Default" onClick={() => onPick(null)}>
-        <span aria-hidden="true">A</span>
-      </button>
-      {TEXT_COLORS.map((c) => (
-        <button key={c} className={`tcsw tc-${c}` + (current === c ? " on" : "")} aria-label={COLOR_NAME[c]} aria-pressed={current === c} title={COLOR_NAME[c]} onClick={() => onPick(c)}>
-          <span aria-hidden="true">A</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ---------- date mention ----------
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
+export const ISO = /^\d{4}-\d{2}-\d{2}$/;
+// WEB-08 budget: the date picker loads when a chip is opened.
+const DatePopover = lazy(() => import("./pickers").then((m) => ({ default: m.DatePopover })));
 export const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 export const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const parseIso = (s: string) => {
@@ -127,8 +113,10 @@ function DateView({ node, updateAttributes, editor, getPos, deleteNode }: ReactN
         {dateLabel(date)}
       </span>
       {open ? (
-        <Popover anchor={open} onClose={() => setOpen(null)} title="Date" kind="dialog" minWidth={240}>
-          <DatePicker
+        <Suspense fallback={null}>
+          <DatePopover
+            anchor={open}
+            onClose={() => setOpen(null)}
             value={date}
             onPick={(d) => {
               updateAttributes({ date: d });
@@ -141,57 +129,12 @@ function DateView({ node, updateAttributes, editor, getPos, deleteNode }: ReactN
               editor.commands.focus();
             }}
           />
-        </Popover>
+        </Suspense>
       ) : null}
     </NodeViewWrapper>
   );
 }
 
-export function DatePicker({ value, onPick, onRemove }: { value: string; onPick(d: string): void; onRemove?(): void }) {
-  const [v, setV] = useState(ISO.test(value) ? value : isoDate(new Date()));
-  const now = new Date();
-  const quick: [string, Date][] = [
-    ["Today", now],
-    ["Tomorrow", addDays(now, 1)],
-    ["Next week", addDays(now, 7)],
-  ];
-  return (
-    <div className="datepick">
-      <label className="dlab">
-        <span>Date</span>
-        <input
-          type="date"
-          value={v}
-          data-autofocus
-          onChange={(e) => setV(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && ISO.test(v)) (e.preventDefault(), onPick(v));
-          }}
-        />
-      </label>
-      <div className="dquick">
-        {quick.map(([l, d]) => (
-          <button key={l} className="btn sm" onClick={() => onPick(isoDate(d))}>
-            {l}
-          </button>
-        ))}
-      </div>
-      <div className="dfoot">
-        {onRemove ? (
-          <button className="btn sm" onClick={onRemove}>
-            <Ic name="trash-2" size={14} />
-            Remove
-          </button>
-        ) : (
-          <span />
-        )}
-        <button className="btn sm primary" disabled={!ISO.test(v)} onClick={() => onPick(v)}>
-          Done
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export const DateMention = Node.create({
   name: "dateMention",

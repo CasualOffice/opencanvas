@@ -6,28 +6,25 @@
 //
 // Only icons a document can show at first paint are bundled here: the top bar,
 // the header, status and error screens, and the blocks' own views (callout
-// icons, toggles, files, embeds, images). Menu, toolbar, slash-menu, template,
+// icons, toggles). The file, image, link card and embed views bring theirs (atomviews.tsx). Menu, toolbar, slash-menu, template,
 // gallery and picker icons live in icons-extra.ts, which App fetches right after
 // first paint (docs/02 §7 bundle budget); until it arrives <Ic> keeps an empty
 // box of the same size, so nothing shifts.
 import {
-  Calendar, Check, ChevronDown, ChevronRight, File as FileIcon, FileArchive, FileAudio, FileCode, FileImage, FileVideo, CircleCheck, CirclePause, CirclePlay, Clock, CloudOff, Copy, Download, Ellipsis, Eye,
-  FileSpreadsheet, FileText, Flag, Globe, ImagePlus, Info, LayoutTemplate, Lightbulb, Link2, LoaderCircle, Lock,
-  MapPin, Maximize2, MessageSquare, MessageSquarePlus, Paperclip, PenTool, RotateCcw, ShieldCheck, Sparkles, Star,
+  Calendar, Check, ChevronDown, ChevronRight, File as FileIcon, CircleCheck, CirclePause, Clock, CloudOff, Copy, Download, Ellipsis, Eye,
+  FileText, Flag, Info, LayoutTemplate, Lightbulb, LoaderCircle, Lock,
+  MapPin, MessageSquare, MessageSquarePlus, PenTool, RotateCcw, ShieldCheck, Sparkles, Star,
   Target, TriangleAlert, UserRound, UsersRound, WifiOff, X,
   type LucideIcon,
 } from "lucide-react";
 import { createStore, useStore } from "./lib/store";
 
 export const ICONS: Record<string, LucideIcon> = {
-  calendar: Calendar, file: FileIcon, "file-archive": FileArchive, "file-audio": FileAudio, "file-code": FileCode,
-  "file-image": FileImage, "file-video": FileVideo, "chevron-down": ChevronDown, "chevron-right": ChevronRight, check: Check, "circle-check": CircleCheck, "circle-pause": CirclePause,
-  "circle-play": CirclePlay, clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download,
-  ellipsis: Ellipsis, eye: Eye, "file-spreadsheet": FileSpreadsheet, "file-text": FileText, flag: Flag,
-  globe: Globe, "image-plus": ImagePlus, info: Info, "layout-template": LayoutTemplate, lightbulb: Lightbulb,
-  "link-2": Link2, "loader-circle": LoaderCircle, lock: Lock, "map-pin": MapPin, "maximize-2": Maximize2,
-  "message-square": MessageSquare, "message-square-plus": MessageSquarePlus, paperclip: Paperclip,
-  "pen-tool": PenTool, "rotate-ccw": RotateCcw, "shield-check": ShieldCheck, sparkles: Sparkles, star: Star,
+  calendar: Calendar, file: FileIcon,   "chevron-down": ChevronDown, "chevron-right": ChevronRight, check: Check, "circle-check": CircleCheck, "circle-pause": CirclePause,
+  clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download,
+  ellipsis: Ellipsis, eye: Eye, "file-text": FileText, flag: Flag,
+  info: Info, "layout-template": LayoutTemplate, lightbulb: Lightbulb,
+  "loader-circle": LoaderCircle, lock: Lock, "map-pin": MapPin,   "message-square": MessageSquare, "message-square-plus": MessageSquarePlus,   "pen-tool": PenTool, "rotate-ccw": RotateCcw, "shield-check": ShieldCheck, sparkles: Sparkles, star: Star,
   target: Target, "triangle-alert": TriangleAlert, "user-round": UserRound, "users-round": UsersRound, "wifi-off": WifiOff, x: X,
 };
 

@@ -6,7 +6,7 @@
 // and floating-ui, which phones and viewers never need.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Popover } from "../components/overlay";
-import { ColorPicker } from "./inline";
+import { ColorPicker } from "./pickers";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import DragHandle from "@tiptap/extension-drag-handle-react";

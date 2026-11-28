@@ -26,23 +26,26 @@ import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
 import { PartsUndo } from "./partsundo";
 
-import { bookmarkNode, hostOf, resolveEmbed } from "../lib/embeds";
-import { markPending } from "../lib/unfurl";
 import { createStore, useStore } from "../lib/store";
 import { insertUploads } from "../lib/uploads";
 import { loadBoard, loadDatabase } from "./blockdata";
-import { Popover, useShell } from "../components/overlay";
+import { useShell } from "../components/overlay";
 import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
 import { ExtBlock } from "../ext/node";
 import { BlockRef, LiveBlock } from "../live/node";
-import { liveCfg, makeStore, parseBlockLink, insertRef, type BlockLink } from "../live/state";
+import { liveCfg, makeStore, parseBlockLink, type BlockLink } from "../live/state";
 const MakeLive = lazy(() => import("../live/make"));
 import { galleryStore } from "../ext/model";
 const BlockGallery = lazy(() => import("../ext/Gallery"));
 import { Board, Chart, Spreadsheet, Bookmark, Callout, CommentMark, Column, Columns, Database, Embed, FileAttachment, OcCodeBlock, OcImage, Toggle, ToggleContent, ToggleSummary } from "./nodes";
 const InsertMenu = lazy(() => import("./insert/InsertMenu"));
+// WEB-08 budget: the @mention list and the paste-link menus load when first shown (and are
+// fetched right after first paint, with the late plugins).
+const popMenus = () => import("./popmenus");
+const MentionMenu = lazy(() => popMenus().then((m) => ({ default: m.MentionMenu })));
+const PasteOfferMenu = lazy(() => popMenus().then((m) => ({ default: m.PasteOfferMenu })));
 
 /** Carets with the agent-safe awareness filter (lib/assistant.ts caretFilter). */
 const CollaborationCaret = CollaborationCaretBase.extend({
@@ -68,7 +71,7 @@ const LinkPopover = lazy(() => import("./linkpop").then((m) => ({ default: m.Lin
 const TableMenu = lazy(() => import("./tablemenu").then((m) => ({ default: m.TableMenu })));
 const MobileBar = lazy(() => import("./mobilebar").then((m) => ({ default: m.MobileBar })));
 const SelectionToolbar = lazy(() => import("./chrome").then((m) => ({ default: m.SelectionToolbar })));
-import { dismissSuggest, suggestStore } from "./suggest";
+import { suggestStore } from "./suggest";
 import { blockMenuStore, duplicateBlock, moveBlock, openBlockMenuAtCaret, topBlockAt } from "./blockops";
 import { linkStore, openLinkActions, openLinkEditor } from "./linkstate";
 import { postToHost } from "../lib/host";
@@ -110,7 +113,7 @@ export interface EmptyAction {
 
 // ---------- paste a URL → offer link / card / embed ----------
 
-interface PasteOffer {
+export interface PasteOffer {
   /** A link to a live file or to a block of a canvas (1d). */
   block?: BlockLink;
   url: string;
@@ -118,7 +121,7 @@ interface PasteOffer {
   to: number;
   rect: DOMRect;
 }
-const pasteStore = createStore<PasteOffer | null>(null);
+export const pasteStore = createStore<PasteOffer | null>(null);
 
 const PasteUrl = Extension.create({
   name: "pasteUrl",
@@ -249,7 +252,7 @@ const EditorKeys = Extension.create({
   },
 });
 
-function initialsOf(name: string) {
+export function initialsOf(name: string) {
   const p = name.trim().split(/\s+/);
   return ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
 }
@@ -354,6 +357,7 @@ export function CanvasEditor(p: EditorProps) {
   useEffect(() => {
     let off = false;
     const t = window.setTimeout(() => {
+      void popMenus().catch(() => undefined);
       void import("./late")
         .then((m) => {
           if (!off)
@@ -470,72 +474,15 @@ export function CanvasEditor(p: EditorProps) {
 
 function SuggestMenu({ editor }: { editor: Editor }) {
   const s = useStore(suggestStore);
-  const { compact } = useShell();
-  const listRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    listRef.current?.querySelector(".mi.on")?.scrollIntoView({ block: "nearest" });
-  }, [s?.sel]);
   if (!s || !s.rect) return null;
-  const close = () => dismissSuggest();
-  const hold = (e: React.MouseEvent | React.PointerEvent) => e.preventDefault();
-
-  if (s.kind === "mention") {
-    const items = s.items as { id: string; label: string; color: string; avatar?: string; initials?: string; second?: string; note?: string; dup?: boolean; warn?: string; date?: string; pick?: boolean }[];
-    const people = items.filter((u) => !u.date).length;
-    let last = "";
+  if (s.kind === "mention")
     return (
-      <Popover anchor={s.rect} onClose={close} title="Mention" minWidth={240} kind="listbox">
-        <div ref={listRef} onMouseDown={hold}>
-          {!people ? (
-            <div className="mh" style={{ textTransform: "none", letterSpacing: 0, fontSize: ".8125rem" }}>
-              No one matches “{s.query}”
-            </div>
-          ) : null}
-          {items.map((u, i) => {
-            const group = u.date ? "Dates" : "People";
-            const head = group !== last ? <div className="mh">{group}</div> : null;
-            last = group;
-            return (
-              <span key={u.id} style={{ display: "contents" }}>
-                {head}
-                <button className={"mi" + (i === s.sel ? " on" : "") + (u.dup ? " dup" : "")} onClick={() => s.pick(u)}>
-                  {u.date ? (
-                    <span className="ftile tone-blue dateic" aria-hidden="true">
-                      <Ic name={u.pick ? "calendar-plus" : "calendar"} size={14} />
-                    </span>
-                  ) : (
-                    <span className="av sm" style={{ background: u.color, color: readableOn(u.color) }} aria-hidden="true">
-                      {u.avatar ? <img src={u.avatar} alt="" /> : u.initials ?? initialsOf(u.label)}
-                    </span>
-                  )}
-                  {u.date ? (
-                    u.label
-                  ) : (
-                    // Every person has a second line (docs/21): detail, e-mail if allowed, last seen, or the id's end.
-                    <span className="pl">
-                      <span>{u.label}</span>
-                      <span className="p2">{[u.second, u.note].filter(Boolean).join(" · ")}</span>
-                      {u.warn ? (
-                        <span className="warn">
-                          <Ic name="triangle-alert" size={12} />
-                          {u.warn}
-                        </span>
-                      ) : null}
-                    </span>
-                  )}
-                  {u.date && !u.pick ? <span className="mk">{new Date(u.date + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span> : null}
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      </Popover>
+      <Suspense fallback={null}>
+        <MentionMenu s={s} />
+      </Suspense>
     );
-  }
 
   // INS-01: the categorised insert menu (lazy, with its own keyboard model).
-  void editor;
-  void compact;
   return (
     <Suspense fallback={null}>
       <InsertMenu editor={editor} />
@@ -557,101 +504,10 @@ function GalleryHost({ editor }: { editor: Editor }) {
 function PasteMenu({ editor }: { editor: Editor }) {
   const o = useStore(pasteStore);
   if (!o) return null;
-  const close = () => pasteStore.set(null);
-  if (o.block) return <PasteBlock editor={editor} o={o} />;
-  const embed = resolveEmbed(o.url);
-  const replace = (node: object) => {
-    close();
-    const $p = editor.state.doc.resolve(o.from);
-    const blockEnd = $p.after(1);
-    const blockEmpty = editor.state.doc.textBetween($p.before(1), blockEnd).trim() === o.url;
-    let c = editor.chain().focus().deleteRange({ from: o.from, to: o.to });
-    if (blockEmpty) c = c.insertContent(node);
-    else c = c.insertContentAt(blockEnd - (o.to - o.from), node);
-    c.run();
-  };
   return (
-    <Popover anchor={o.rect} onClose={close} title="Paste link" minWidth={200} autoFocus={false}>
-      <div onMouseDown={(e) => e.preventDefault()}>
-        <div className="mh">Paste as</div>
-        <button className="mi" onClick={close}>
-          <Ic name="link" />
-          Link
-        </button>
-        <button className="mi" onClick={() => {
-            markPending(o.url);
-            replace(bookmarkNode(o.url));
-          }}>
-          <Ic name="panel-top" />
-          Link preview
-        </button>
-        <button className="mi" disabled={!embed} title={embed ? undefined : "Only YouTube, Vimeo, Loom, Figma and Maps can be embedded"} onClick={() => embed && replace({ type: "embed", attrs: { provider: embed.provider, url: o.url, title: hostOf(o.url) } })}>
-          <Ic name="circle-play" />
-          Embed
-        </button>
-      </div>
-    </Popover>
-  );
-}
-
-/** 1d: a pasted block link becomes a live block, a reference or stays a link. */
-function PasteBlock({ editor, o }: { editor: Editor; o: PasteOffer }) {
-  const close = () => pasteStore.set(null);
-  const l = o.block!;
-  // A link to a block of an ordinary canvas cannot become a live block (1d).
-  const liveOk = !l.blockId || !!l.live;
-  const refOk = !!l.blockId;
-  const first = liveOk && (l.live || !l.blockId) ? "live" : refOk ? "ref" : "link";
-  const take = (what: "live" | "ref" | "link") => {
-    close();
-    if (what === "link") return;
-    const $p = editor.state.doc.resolve(o.from);
-    const blockEmpty = editor.state.doc.textBetween($p.before(1), $p.after(1)).trim() === o.url;
-    const range = blockEmpty ? { from: $p.before(1), to: $p.after(1) } : { from: o.from, to: o.to };
-    insertRef(editor, what === "ref" ? { fileId: l.fileId, refBlockId: l.blockId } : { fileId: l.fileId }, range);
-  };
-  const takeRef = useRef(take);
-  takeRef.current = take;
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !e.isComposing) {
-        e.preventDefault();
-        e.stopPropagation();
-        takeRef.current(first);
-      }
-    };
-    window.addEventListener("keydown", k, true);
-    return () => window.removeEventListener("keydown", k, true);
-  }, [first]);
-  return (
-    <Popover anchor={o.rect} onClose={close} title="Paste link" minWidth={260} autoFocus={false} className="lb-paste">
-      <div onMouseDown={(e) => e.preventDefault()}>
-        <div className="mh">Paste as</div>
-        <button className="mi" disabled={!liveOk} onClick={() => take("live")}>
-          <Ic name="radio" />
-          <span className="pl">
-            <span>Live block</span>
-            <span className="p2">{liveOk ? "Edit it here; changes show everywhere" : "Make it live in its canvas first"}</span>
-          </span>
-          {first === "live" ? <span className="mk">↵</span> : null}
-        </button>
-        <button className="mi" disabled={!refOk} onClick={() => take("ref")}>
-          <Ic name="link-2" />
-          <span className="pl">
-            <span>Reference</span>
-            <span className="p2">{refOk ? "Read only, updates when the source changes" : "Copy a link to one block for a reference"}</span>
-          </span>
-          {first === "ref" ? <span className="mk">↵</span> : null}
-        </button>
-        <button className="mi" onClick={() => take("link")}>
-          <Ic name="link" />
-          <span className="pl">
-            <span>Link</span>
-            <span className="p2">Just the address</span>
-          </span>
-        </button>
-      </div>
-    </Popover>
+    <Suspense fallback={null}>
+      <PasteOfferMenu editor={editor} o={o} />
+    </Suspense>
   );
 }
 
