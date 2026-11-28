@@ -10,7 +10,7 @@ import { expect, type Page } from "@playwright/test";
 import { ROOT } from "../env";
 
 const DIST = path.join(ROOT, "web/packages/editor/dist");
-const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".json": "application/json", ".woff2": "font/woff2", ".png": "image/png", ".webmanifest": "application/manifest+json" };
+const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".css": "text/css", ".svg": "image/svg+xml", ".json": "application/json", ".woff2": "font/woff2", ".png": "image/png", ".webmanifest": "application/manifest+json" };
 
 export function serve(dir = DIST): Promise<{ url: string; close(): void }> {
   const srv = http.createServer((req, res) => {
