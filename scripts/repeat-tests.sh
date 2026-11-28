@@ -22,7 +22,8 @@ for i in $(seq 1 "$N"); do
   if ! nice cargo test "${ARGS[@]}" -- --quiet >"$LOG/run-$i.log" 2>&1; then
     fails=$((fails + 1))
     echo "run $i: FAILED"
-    grep -E "^test .* FAILED$|panicked at" "$LOG/run-$i.log" | head -10
+    # The panic line and the message under it: the log directory is gone when CI ends.
+    grep -E -A4 "^test .* FAILED$|panicked at" "$LOG/run-$i.log" | head -40
   fi
 done
 echo "repeat-tests: $fails of $N runs failed (logs in $LOG)"
