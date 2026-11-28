@@ -71,5 +71,5 @@ use long random `jwt_secret` / `callback_secret` / `api_key` values (32+ charact
 ## Dependencies
 
 How dependencies are audited and updated, and how fast an advisory is fixed:
-[docs/38](docs/38-DEPENDENCY-UPDATES.md). Each release carries CycloneDX SBOMs (Rust and npm)
+[docs/38](docs/39-DEPENDENCY-UPDATES.md). Each release carries CycloneDX SBOMs (Rust and npm)
 with its binaries.

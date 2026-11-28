@@ -235,7 +235,7 @@ jobs:
               echo
               echo "## Software bill of materials"
               echo
-              echo "CycloneDX SBOMs for the server's crates (\`*-rust.cdx.json\`) and the web packages (\`*-web.cdx.json\`) are attached, with checksums. Update policy: docs/38-DEPENDENCY-UPDATES.md."
+              echo "CycloneDX SBOMs for the server's crates (\`*-rust.cdx.json\`) and the web packages (\`*-web.cdx.json\`) are attached, with checksums. Update policy: docs/39-DEPENDENCY-UPDATES.md."
             } >> body.md
             gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file body.md
           fi

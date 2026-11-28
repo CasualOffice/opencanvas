@@ -38,7 +38,7 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 ### Security
 
 - Every release carries CycloneDX SBOMs for the server's crates and the web packages. The
-  dependency update policy is written down in [docs/38](docs/38-DEPENDENCY-UPDATES.md).
+  dependency update policy is written down in [docs/38](docs/39-DEPENDENCY-UPDATES.md).
 
 ### Verified
 
