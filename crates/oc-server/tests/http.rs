@@ -117,7 +117,10 @@ async fn launch_session_websocket_and_export() {
         .await
         .unwrap();
     assert_eq!(s["role"], "edit");
-    assert_eq!(s["isNew"], true);
+    assert!(
+        session_is_new(&addr, &s).await,
+        "a new canvas (session or join message)"
+    );
     assert_eq!(s["user"]["name"], "Asha Rao");
     assert_eq!(s["file"]["name"], "Doc one");
     assert_eq!(s["host"]["id"], "sample");

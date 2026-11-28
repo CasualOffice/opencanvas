@@ -211,7 +211,10 @@ async fn idle_close_leaves_nothing(tweak_cfg: impl FnOnce(&mut Config)) {
     let (code, s) = session(&addr, &ticket).await;
     assert_eq!(code, 200);
     assert_eq!(s["storage"], "ephemeral");
-    assert_eq!(s["isNew"], true);
+    assert!(
+        session_is_new(&addr, &s).await,
+        "a new canvas (session or join message)"
+    );
     let up = upload(&addr, &ticket).await;
     let asset = http()
         .get(format!(

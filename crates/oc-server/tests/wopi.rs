@@ -52,6 +52,8 @@ struct Wopi {
     conflict: bool,
     /// Per request (method path): whether its `X-WOPI-Proof` verified, as a host would.
     proofs: Vec<(String, bool)>,
+    /// GetFile answers after this long (a slow host, or a busy machine).
+    get_delay: Duration,
 }
 
 /// Verifies the proof headers of every request against the test server's public keys
@@ -148,6 +150,8 @@ async fn get_contents(
     Path(id): Path<String>,
     Query(q): Query<HashMap<String, String>>,
 ) -> Response {
+    let delay = w.lock().unwrap().get_delay;
+    tokio::time::sleep(delay).await;
     let w = w.lock().unwrap();
     if authorized(&w, &q).is_none() {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -539,7 +543,12 @@ async fn check_file_info_sets_role_user_perms_and_expiry() {
         json!({"export": true, "download": true, "comment": true, "print": true,
                "history": true, "restore": true, "commitMessage": true})
     );
-    assert_eq!(s["isNew"], true, "an empty WOPI file is a new canvas");
+    // docs/15 §2 (PSYNC-BUG-2): `isNew` is in the session when the room opened within its wait,
+    // and otherwise `null`, with the room's join message saying it; either way it is true here.
+    assert!(
+        session_is_new(&addr, &s).await,
+        "an empty WOPI file is a new canvas"
+    );
     let (_, exp) = state.store.session(&ticket).await.unwrap().unwrap();
     assert_eq!(exp, ttl / 1000, "access_token_ttl is the session expiry");
     let raw = state.store.raw_grant_json(&ticket).await.unwrap().unwrap();
@@ -603,6 +612,24 @@ async fn check_file_info_sets_role_user_perms_and_expiry() {
 }
 
 /// launch → edit over the WebSocket → autosave arrives at the WOPI host as a PutFile.
+/// RLB-04: the session waits at most 250 ms for its room (PSYNC-BUG-2). A WOPI host whose
+/// GetFile is slower (or a busy machine) gets `isNew: null` in the session, and the room's join
+/// message says the empty file is new. The test above asserted the session's value, which
+/// failed whenever the room took longer than the wait.
+#[tokio::test]
+async fn a_slow_getfile_leaves_is_new_to_the_join_message() {
+    let (origin, w) = wopi_host().await;
+    w.lock().unwrap().get_delay = Duration::from_millis(600);
+    let state = wopi_app(&origin, &temp_db()).await;
+    let addr = serve_state(state.clone()).await;
+    let src = format!("{origin}/wopi/files/doc_1");
+    let (status, ticket) = launch(&addr, &src, "tok-asha", None).await;
+    assert_eq!(status, 303, "{ticket}");
+    let s = session_json(&addr, &ticket).await;
+    assert_eq!(s["isNew"], Value::Null, "answered before the room opened");
+    assert!(session_is_new(&addr, &s).await, "the join says it is new");
+}
+
 #[tokio::test]
 async fn edit_autosaves_through_putfile() {
     let (origin, w) = wopi_host().await;
