@@ -6,6 +6,18 @@ prototype ([docs/prototypes/workspace/workspace.html](prototypes/workspace/works
 **Product name.** *OpenCanvas Workspace*, by CasualOffice. In the app, on the first-run screen and in the docs the brand line is
 "OpenCanvas Workspace · by CasualOffice"; marketing-facing places never say bare "OpenCanvas".
 
+## 0. Owner decisions (2026-11-28)
+
+The owner approved the prototype and ADR-085 with these changes:
+
+1. **SSO (OIDC) moves to the backlog.** It is not in the MVP; WS-07 is backlog. Local accounts, passkeys and invite links are the MVP sign-in.
+2. **UX first.** The Workspace must feel as polished as the editor: the prototype's flows are the bar, with no admin-tool look.
+3. **Lightweight.** A small image, low idle memory and fast start; nothing runs that a small team does not need.
+4. **Benchmarked on the user base.** A WS benchmark for many users and workspaces (sign-in, home and search latency, memory at rest) is published with the engine benchmarks, with the hardware and load mix stated.
+5. **Large participation.** A canvas in the Workspace supports the engine's large rooms (cap 550 by default, configurable up to 1,000) without the Workspace becoming the bottleneck: launches, access checks and presence lookups must scale with it.
+6. **Public links are supported and admin-configurable.** Admins choose whether public links are allowed, and which roles they may grant (view, comment, edit), with an expiry and an optional password.
+7. The other recommendations in §9 are accepted as recommended: no PostgreSQL in the MVP; the setup code is skipped from the same machine; one organisation per deployment; the retention defaults; the image and binary names; the engine's version numbers; a Welcome workspace on by default; a parallel track to v0.5.
+
 ## 1. Why
 
 OpenCanvas by CasualOffice is an embeddable engine: a host app owns users, access and files, and the engine edits, syncs,
