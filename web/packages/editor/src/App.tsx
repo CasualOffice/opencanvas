@@ -41,7 +41,10 @@ import { TopBar, type SaveState } from "./components/TopBar";
 import { leaveGuard, offlineView, patchView, reconnectToken } from "./offline/status";
 import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
 import type { Template } from "./templates";
-import { applyTeamTemplate, loadTeamTemplates, teamEnabled, undoTeamTemplate, type TeamItem, type TeamState } from "./lib/teamtemplates";
+import type { TeamItem, TeamState } from "./lib/teamtemplates";
+import { teamEnabled } from "./lib/teamflag";
+/** The team templates' calls, loaded with the gallery (not in the first load). */
+const teamApi = () => import("./lib/teamtemplates");
 
 // Everything below is off the first paint (docs/02 §7 bundle budget): it loads
 // when first shown.
@@ -1126,7 +1129,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     if (!teamEnabled(session)) return;
     teamLoaded.current = true;
     setTeam({ s: "loading" });
-    loadTeamTemplates(session.ticket).then(
+    teamApi().then((m) => m.loadTeamTemplates(session.ticket)).then(
       (items) => setTeam(items ? { s: "ready", items } : { s: "off" }),
       (e: unknown) => setTeam({ s: "error", message: e instanceof Error ? e.message : "" }),
     );
@@ -1138,7 +1141,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     if (!editor) return;
     const run = async () => {
       try {
-        const r = await applyTeamTemplate(session.ticket, t.id);
+        const r = await (await teamApi()).applyTeamTemplate(session.ticket, t.id);
         setScreen("editor");
         scrollRef.current?.scrollTo({ top: 0 });
         toast(`Started from “${r.name || t.name}”`, {
@@ -1146,7 +1149,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
           action: {
             label: "Undo",
             run: () =>
-              void undoTeamTemplate(session.ticket, r.applyId).then(
+              void teamApi().then((m) => m.undoTeamTemplate(session.ticket, r.applyId)).then(
                 () => toast("Template removed", { icon: "layout-template" }),
                 (e: unknown) => toast(e instanceof Error ? e.message : "That template can no longer be undone.", { icon: "triangle-alert" }),
               ),

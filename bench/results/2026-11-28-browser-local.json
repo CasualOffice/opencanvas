@@ -1,0 +1,353 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-28",
+  "commit": "87a89b6",
+  "machine": "local",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 5,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 299073,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-BRiPvsLK.js",
+        "gzipBytes": 128469
+      },
+      {
+        "file": "assets/index-LrVZtxO2.js",
+        "gzipBytes": 70380
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/yjs-DYXjVKFe.js",
+        "gzipBytes": 30157
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "50mb": {
+      "firstScreenMs": {
+        "median": 4348,
+        "worst": 7335
+      },
+      "heapMb": 26.3,
+      "domNodes": 6255,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "50mb_b73397224_0",
+          "firstScreenMs": 4062,
+          "heapMb": 26.4,
+          "domNodes": 6255,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 884,
+            "firstFrame": 2649,
+            "mainSynced": 2995
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 30,
+              "totalMs": 7650,
+              "blockingMs": 5725,
+              "worstMs": 1133
+            },
+            "scroll": {
+              "count": 26,
+              "totalMs": 8798,
+              "blockingMs": 7178,
+              "worstMs": 726
+            }
+          },
+          "worstLoadFrame": {
+            "at": 2980,
+            "ms": 1133,
+            "layoutMs": 49,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                1044
+              ],
+              [
+                "FrameRequestCallback",
+                35
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_b73418283_1",
+          "firstScreenMs": 3658,
+          "heapMb": 26.3,
+          "domNodes": 6256,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 735,
+            "firstFrame": 2329,
+            "mainSynced": 2672
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 25,
+              "totalMs": 6456,
+              "blockingMs": 4870,
+              "worstMs": 1052
+            },
+            "scroll": {
+              "count": 27,
+              "totalMs": 8589,
+              "blockingMs": 6782,
+              "worstMs": 1336
+            }
+          },
+          "worstLoadFrame": {
+            "at": 2657,
+            "ms": 1052,
+            "layoutMs": 49,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                960
+              ],
+              [
+                "FrameRequestCallback",
+                38
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_b73439132_2",
+          "firstScreenMs": 7335,
+          "heapMb": 14.9,
+          "domNodes": 6254,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 728,
+            "firstFrame": 5811,
+            "mainSynced": 6185
+          },
+          "partsListed": 35,
+          "scrolledPx": 17902,
+          "longFrames": {
+            "load": {
+              "count": 31,
+              "totalMs": 8730,
+              "blockingMs": 6700,
+              "worstMs": 1249
+            },
+            "scroll": {
+              "count": 30,
+              "totalMs": 8973,
+              "blockingMs": 6898,
+              "worstMs": 743
+            }
+          },
+          "worstLoadFrame": {
+            "at": 6172,
+            "ms": 1249,
+            "layoutMs": 83,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                1117
+              ],
+              [
+                "FrameRequestCallback",
+                42
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_b73464086_3",
+          "firstScreenMs": 4348,
+          "heapMb": 26.3,
+          "domNodes": 6255,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 762,
+            "firstFrame": 2965,
+            "mainSynced": 3316
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 30,
+              "totalMs": 7737,
+              "blockingMs": 5748,
+              "worstMs": 1099
+            },
+            "scroll": {
+              "count": 34,
+              "totalMs": 10019,
+              "blockingMs": 7436,
+              "worstMs": 864
+            }
+          },
+          "worstLoadFrame": {
+            "at": 3303,
+            "ms": 1099,
+            "layoutMs": 53,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                1001
+              ],
+              [
+                "FrameRequestCallback",
+                40
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_b73488163_4",
+          "firstScreenMs": 7042,
+          "heapMb": 14.8,
+          "domNodes": 6254,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 743,
+            "firstFrame": 5493,
+            "mainSynced": 5872
+          },
+          "partsListed": 35,
+          "scrolledPx": 17904,
+          "longFrames": {
+            "load": {
+              "count": 31,
+              "totalMs": 8747,
+              "blockingMs": 6750,
+              "worstMs": 1260
+            },
+            "scroll": {
+              "count": 26,
+              "totalMs": 8303,
+              "blockingMs": 6715,
+              "worstMs": 795
+            }
+          },
+          "worstLoadFrame": {
+            "at": 5850,
+            "ms": 1260,
+            "layoutMs": 67,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                1140
+              ],
+              [
+                "FrameRequestCallback",
+                48
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        }
+      ]
+    }
+  }
+}

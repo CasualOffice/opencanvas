@@ -79,6 +79,24 @@ migrations or configuration changes.
 ### Verified
 
 - The crash drill with a slow host passes at full size on MySQL 8.4 as well as SQLite.
+### Changed
+
+- The editor renders a canvas once when it opens, not twice, and gives blocks without ids their
+  ids after the first screen: the editor's mount after the document arrives is 35-43% shorter
+  (PSYNC-BUG-3).
+- Partial sync: a canvas reopened at the version it was saved at opens from the room's kept
+  split instead of reading and cutting the file again (the 50 MB benchmark canvas: 1.3 s to its
+  first screen on a reopen), and the session no longer waits for a large file to be read
+  (`isNew` can be `null`; the room says it on the socket). PSYNC-BUG-2.
+- Partial sync: spreadsheets load as their own parts, as databases and boards do, so a canvas
+  with large spreadsheets opens faster. Charts of a spreadsheet follow its part. Reload any
+  editor tab left open across the upgrade (PSYNC-05).
+
+### Fixed
+
+- Partial sync: the one-client-id-per-document rule now refuses only items at clocks another
+  document was given. An editor that loaded a database during server work had its sync reply
+  refused (PSYNC-BUG-4).
 
 ## [0.4.0] - 2026-11-28
 

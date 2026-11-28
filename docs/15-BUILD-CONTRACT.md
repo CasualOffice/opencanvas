@@ -61,7 +61,11 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    `answer`, `comment`; `view`: none); `mcp` mirrors `[host.ai] mcp`. The editor shows the
    assistant from this; `?ai=1` only turns it on when `ai` is absent (demo, dev).
    `isNew` is true when the host returned 404 / an empty file. The SPA then shows
-   the template gallery.
+   the template gallery. *(0.4.1, PSYNC-BUG-2)* The answer waits at most 250 ms for the room to
+   open; for a canvas that takes longer to read (a large file) `isNew` is `null`, and the room
+   sends control `{"t":"room","isNew":bool}` on the socket right after its sync step 1 (every
+   join sends it), before the first sync completes. A host error that takes longer than the wait
+   closes the socket (1011) instead of failing the session.
    *(docs/21 revision 2)*: `user` is `{id, name, color, avatar, detail?}`, never an e-mail. A `GET`
    lifts a role-API revoke for that viewer (a fresh token means access). `401 {"error":{"code":"TICKET_INVALID"}}` when unknown or expired.
    (Implementation: `isNew` = the room's doc has no `content` and empty `meta`/`databases`/`boards`,
@@ -215,8 +219,8 @@ arguments are sent or logged.
 
 ### 3.2 Partial sync: subdocuments on the room socket (PSYNC-02, ADR-076)
 
-By default a room keeps each `databases` and `boards` entry (including diagrams) as a
-**subdocument** of the main document. This works with SQLite, MySQL, MariaDB, and Redis under
+By default a room keeps each `databases`, `boards` and `sheets` entry (diagrams included;
+spreadsheets since 0.4.1) as a **subdocument** of the main document. This works with SQLite, MySQL, MariaDB, and Redis under
 either durability mode. Hosts can set `[host.flags] partial_sync = false` to keep the canvas
 whole. Temporary canvases and live block files stay whole.
 
@@ -224,12 +228,14 @@ whole. Temporary canvases and live block files stay whole.
   room closes a connection without it at once with **4426** `"editor out of date: reopen the
   canvas"` (owner decision: 0.3 editors are not served a flattened view).
 - **Main document.** The ordinary messages (types 0-3, 100) carry the main document: text,
-  outline, meta, comments, people, automations, and the `databases`/`boards` roots without the
-  split entries. Awareness stays on the main document.
+  outline, meta, comments, people, automations, and the `databases`/`boards`/`sheets` roots
+  without the split entries. Awareness stays on the main document.
 - **Parts list.** After its sync step 1 the server sends
-  `{"t":"parts","parts":[{"id":"<fileId>/block/<blockId>","kind":"database"|"board","name","count"}]}`
-  (sorted by id), and sends it again when a part is added. `count` is the rows or items, for the
-  placeholder's size.
+  `{"t":"parts","parts":[{"id":"<fileId>/block/<blockId>","kind":"database"|"board"|"sheet","name","count"}]}`
+  (sorted by id), and sends it again when a part is added. `count` is the rows, items or sheets,
+  for the placeholder's size. A `sheet` also has `tabs`: `[{"id","name"}]` in tab order (0.4.1),
+  so a chart can name it as a source before it is loaded. A 0.4.0 editor reads spreadsheets from
+  the main document and shows them empty until reloaded.
 - **Subdocument frames, type 101:** a y-protocols custom message like type 100:
   `[101, varUint8Array(payload)]`, payload `[varString guid, <one whole y-protocols message>]`,
   guid `<fileId>/block/<blockId>`. The inner message starts with its own type (0, sync) and then
@@ -243,13 +249,17 @@ whole. Temporary canvases and live block files stay whole.
     on sends that connection the part's updates as `[101, guid, update]`.
   - *Edit:* `[101, guid, step 2 | update]`, only for a loaded part (else `sub-denied`, "load the
     block first"). Roles as for the main document: `view` and `comment` are refused with an auth
-    frame. **One client id per document:** an update whose client id has written further in
-    another document of the room is refused (`sub-denied`, "one client id per document"); Yjs
-    subdocuments have their own client ids, so this only stops a client that reuses one.
+    frame. **One client id per document:** each document owns the clock ranges it was given (at
+    the split, and as each write is applied). An update may claim clocks no other document
+    knows yet, repeat clocks the document owns, and carry fillers (GC) anywhere; an item at a
+    clock another document knows and this one does not own is refused (`sub-denied`, "one
+    client id per document"; on the main document an auth frame). Yjs subdocuments have their
+    own client ids, so this only stops a client that reuses one. (Changed 0.4.1, PSYNC-BUG-4:
+    the rule compared state vectors before and refused a client's sync reply with fillers.)
   - *Unload:* control `{"t":"sub-unload","id":guid}`; leaving the socket unloads everything. A
     part nobody holds leaves the room's memory after 30 s.
-- **What a part is.** A part is a stock Yjs document whose root map (`databases` or `boards`)
-  holds that one key. Its items keep the ids they have in the whole canvas; clock ranges of other
+- **What a part is.** A part is a stock Yjs document whose root map (`databases`, `boards` or
+  `sheets`) holds that one key. Its items keep the ids they have in the whole canvas; clock ranges of other
   documents are GC structs ("fillers"). A client must not apply a part's update to anything but
   that part: yrs and Yjs list GC in the delete set, so the fillers read as deletions elsewhere
   (`oc_model::parts::own_share` cuts an update to what the part owns).

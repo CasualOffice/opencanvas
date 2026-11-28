@@ -202,6 +202,8 @@ struct Room {
     split: Option<split::SplitState>,
     /// The canvas cut while loading (fast open), taken by `split_on_open`.
     presplit: Option<split::Presplit>,
+    /// PSYNC-BUG-2: the split kept at the last clean close, taken by `split_on_open`.
+    kept: Option<split::Kept>,
 }
 
 /// What clients of an ephemeral room are told when it ends (ADR-043).
@@ -349,7 +351,12 @@ pub(super) async fn run(
         End::Idle => {
             room.flush_mentions().await;
             room.close_events("idle");
-            match ctx.store.purge_room_fenced(&id, room.epoch).await {
+            let keep = room.keep_split().await;
+            match if keep {
+                Ok(())
+            } else {
+                ctx.store.purge_room_fenced(&id, room.epoch).await
+            } {
                 Ok(()) => {}
                 Err(e) if crate::store::is_fenced(&e) => {
                     tracing::warn!(room = %id, "room taken by a newer owner; its WAL is kept")
@@ -668,6 +675,7 @@ impl Room {
         // ADR-055: unknown (None) after a WAL recovery; read back from the host before a save.
         let mut file_hist: Option<FileHist> = None;
         let mut presplit: Option<split::Presplit> = None;
+        let mut kept: Option<split::Kept> = None;
         let wal = match &row {
             Some(r) if r.dirty => Some(ctx.store.load_wal(&id).await?).filter(|w| !w.is_empty()),
             _ => None,
@@ -707,7 +715,9 @@ impl Room {
                 .await?;
             tracing::info!(room = %id, "recovered unsaved room state from the commit outbox");
         } else {
-            ctx.store.purge_room(&id).await?;
+            if host.ephemeral() {
+                ctx.store.purge_room(&id).await?;
+            }
             let fetched = if host.ephemeral() {
                 // ADR-043: no load callback; a new canvas, or the host's template.
                 match &host.template_bytes {
@@ -722,20 +732,57 @@ impl Room {
                 // RLB-01c: waiting for the host is not database work. Holding a load slot
                 // through a 2 s answer let 8 rooms open per 2 s after a restart.
                 *permit = None;
+                let t = Instant::now();
                 let got = ctx
                     .host
                     .get_file(&host, &seed.callback_token, &seed.file.id)
                     .await;
+                tracing::info!(room = %id, ms = t.elapsed().as_millis() as u64, "room open: file from the host");
                 *permit = load_permits().acquire().await.ok();
                 got?
             };
+            // PSYNC-BUG-2: the split kept at the last clean close, when the host still has the
+            // version it was kept at; anything else starts from the file.
+            if !host.ephemeral() {
+                let same = match (&row, &fetched) {
+                    (Some(r), Fetched::Found { etag: Some(e), .. }) => {
+                        !r.dirty && r.host_version.as_deref() == Some(e.as_str())
+                    }
+                    _ => false,
+                };
+                if same && host.partial_sync() && ctx.store.supports_parts() {
+                    kept = split::kept_split(&ctx, &id).await?;
+                }
+                if kept.is_none() {
+                    ctx.store.purge_room(&id).await?;
+                }
+            }
+            if kept.is_some() {
+                let wal = ctx.store.load_wal(&id).await?;
+                if let Some((_, state)) = &wal.snapshot {
+                    oc_model::ocanvas::apply_update_bytes(&doc, state).context("kept snapshot")?;
+                }
+                for (_, u) in &wal.updates {
+                    oc_model::ocanvas::apply_update_bytes(&doc, u).context("kept wal entry")?;
+                }
+                seq = wal.last_seq();
+                if let Fetched::Found { etag, .. } = &fetched {
+                    host_version = etag.clone().or(host_version);
+                }
+            }
             // PSYNC-02: a room that will split cuts the stored state as it is (no whole canvas).
-            let fast = if host.partial_sync() && ctx.store.supports_parts() && !host.ephemeral() {
+            let t = Instant::now();
+            let fast = if kept.is_some() {
+                None
+            } else if host.partial_sync() && ctx.store.supports_parts() && !host.ephemeral() {
                 split::open_split(&fetched)?
             } else {
                 None
             };
-            if let Some((main, etag, hist, pre)) = fast {
+            tracing::info!(room = %id, ms = t.elapsed().as_millis() as u64, split = fast.is_some(), "room open: file read and cut");
+            if kept.is_some() {
+                // The file's history is read back from the host before the next save (ADR-055).
+            } else if let Some((main, etag, hist, pre)) = fast {
                 file_hist = Some(hist);
                 doc = main;
                 host_version = etag.or(host_version);
@@ -850,6 +897,7 @@ impl Room {
             ephemeral,
             split: None,
             presplit,
+            kept,
             ctx,
         })
     }
@@ -1141,6 +1189,12 @@ impl Room {
         }
         let sv = self.doc.transact().state_vector();
         let _ = tx.send(Outbound::Frame(protocol::step1(sv).into()));
+        // PSYNC-BUG-2: whether the canvas is new, for a session answered before the room opened.
+        let is_new = oc_model::is_empty(&self.doc)
+            && self.split.as_ref().is_none_or(|s| s.headers.is_empty());
+        let _ = tx.send(Outbound::Frame(
+            protocol::control(&json!({"t": "room", "isNew": is_new})).into(),
+        ));
         if let Some(frame) = self.parts_control() {
             let _ = tx.send(Outbound::Frame(frame.into()));
         }
@@ -1832,12 +1886,13 @@ impl Room {
         // SEC-V4: one client id per document of a split room (the part path checks the same):
         // a main update with a part's client id would collide when the parts are flattened.
         if self.split.as_ref().is_some_and(|s| s.whole_since.is_none()) {
-            let Ok(clocks) = oc_model::parts::update_state(&bytes) else {
-                return self.deny(conn, "malformed update");
-            };
-            if self.client_id_elsewhere(oc_model::parts::MAIN, &clocks) {
-                tracing::info!(room = %self.id, "update refused: client id used in a block's document");
-                return self.deny(conn, "one client id per document");
+            match self.foreign_write(oc_model::parts::MAIN, &bytes) {
+                Ok(false) => {}
+                Ok(true) => {
+                    tracing::info!(room = %self.id, "update refused: client id used in a block's document");
+                    return self.deny(conn, "one client id per document");
+                }
+                Err(_) => return self.deny(conn, "malformed update"),
             }
         }
         // PSYNC-02: in a whole view, a main-document update must not delete the parts' items

@@ -28,10 +28,7 @@ export type TeamState =
 
 const TONES: Tone[] = ["gray", "blue", "green", "amber", "red", "purple", "pink"];
 
-/** Whether this session shows the team section: the host's `team_templates` flag. */
-export function teamEnabled(session: { templates?: { team?: unknown } | null; demo?: boolean }): boolean {
-  return !session.demo && session.templates?.team === true;
-}
+export { teamEnabled } from "./teamflag";
 
 /** Cleans the server's answer (defensive: it already cleaned the host's list). */
 export function parseTeamList(v: unknown): TeamItem[] | null {

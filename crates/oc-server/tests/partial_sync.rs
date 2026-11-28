@@ -378,6 +378,338 @@ async fn a_client_id_used_in_the_main_document_is_refused_in_a_part() {
     assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
 }
 
+/// PSYNC-BUG-4: the client-id rule refuses a write only where another document was given the
+/// clocks. An editor that made a database in its main document (its items moved to a part at
+/// the next split) keeps typing in the main document; and an editor that loads that part
+/// during a whole view answers the room's step 1 with the fillers it was sent. The old rule
+/// (refuse past what every document knows, or without owning the stream's tail) refused both.
+#[tokio::test]
+async fn the_client_id_rule_refuses_only_clocks_another_document_was_given() {
+    let (state, _) = server(true).await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    a.edit(|d| {
+        let dbs = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let db = dbs.insert(&mut txn, "d9", yrs::MapPrelim::default());
+        db.insert(&mut txn, "name", "New");
+    });
+    a.settle().await;
+    let append = |text: &str| -> Vec<oc_model::patch::PatchOp> {
+        vec![serde_json::from_value(json!({"op": "append", "markdown": text})).unwrap()]
+    };
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), append("x"), "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    // Idle: the view splits and d9 (a's items) becomes a part.
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    a.settle().await;
+    b.settle().await;
+    a.edit(|d| {
+        let meta = d.get_or_insert_map("meta");
+        meta.insert(&mut d.transact_mut(), "note", "after the split");
+    });
+    a.settle().await;
+    let refused = |p: &Peer| {
+        p.denied > 0
+            || p.controls.iter().any(|c| {
+                c["reason"]
+                    .as_str()
+                    .is_some_and(|r| r.contains("client id"))
+            })
+    };
+    assert!(!refused(&a), "a main edit was refused: {:?}", a.controls);
+    assert_eq!(server_json(&state).await["meta"]["note"], "after the split");
+    // A whole view; b loads d9 and answers the room's step 1 as a Yjs client does.
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), append("y"), "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    let d = Doc::with_client_id(777);
+    oc_model::ensure_roots(&d);
+    b.send(protocol::subdoc(
+        &guid("d9"),
+        &protocol::step1(d.transact().state_vector()),
+    ));
+    b.settle().await;
+    let mut asked = None;
+    for (g, m) in std::mem::take(&mut b.subs) {
+        if g != guid("d9") {
+            continue;
+        }
+        match m {
+            Message::Sync(SyncMessage::SyncStep2(u) | SyncMessage::Update(u)) => {
+                d.transact_mut()
+                    .apply_update(Update::decode_v1(&u).unwrap())
+                    .unwrap();
+            }
+            Message::Sync(SyncMessage::SyncStep1(sv)) => asked = Some(sv),
+            _ => {}
+        }
+    }
+    let asked = asked.expect("the room asks for the part's state");
+    let reply = d.transact().encode_state_as_update_v1(&asked);
+    b.send(protocol::subdoc(&guid("d9"), &protocol::step2(reply)));
+    b.settle().await;
+    assert!(!refused(&b), "the sync reply was refused: {:?}", b.controls);
+    // b's own edit of the part lands.
+    let sv = d.transact().state_vector();
+    {
+        let dbs: MapRef = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let Some(Out::YMap(db)) = dbs.get(&txn, "d9") else {
+            panic!("d9 not loaded");
+        };
+        db.insert(&mut txn, "name", "Renamed by b");
+    }
+    let u = d.transact().encode_state_as_update_v1(&sv);
+    b.send(protocol::subdoc(&guid("d9"), &protocol::update(u)));
+    b.settle().await;
+    assert!(!refused(&b), "b's edit was refused: {:?}", b.controls);
+    let whole = server_json(&state).await;
+    assert_eq!(whole["databases"]["d9"]["name"], "Renamed by b");
+    assert_eq!(whole["meta"]["note"], "after the split");
+}
+
+/// v0.4.1: a spreadsheet is a part (`sheets/<id>`, header kind `sheet` with its tabs), as
+/// databases and boards are. Its edits survive the room closing and opening again from the
+/// WAL, and the canvas saves with them.
+#[tokio::test]
+async fn a_spreadsheet_is_a_part_and_its_edits_survive_a_reopen() {
+    let (base, mock) = mock_host().await;
+    let doc = oc_model::new_doc();
+    oc_model::import::apply_document_json(
+        &doc,
+        &json!({
+            "type": "doc",
+            "content": [{"type": "spreadsheet", "attrs": {"sheetId": "s1"}}],
+            "sheets": {"s1": {
+                "order": ["t1"],
+                "sheets": {"t1": {"name": "Budget", "rows": ["r1"], "cols": ["c1"],
+                    "cells": {"r1:c1": {"in": "5"}}, "widths": {}, "heights": {}, "freeze": {}}},
+                "styles": {}
+            }}
+        }),
+    );
+    mock.lock().unwrap().files.insert(
+        FILE.into(),
+        (
+            oc_model::write_ocanvas(&doc, &Default::default()).unwrap(),
+            1,
+        ),
+    );
+    let mut cfg = room_cfg();
+    cfg.room_ttl = Duration::from_millis(300);
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.remove("partial_sync");
+    })
+    .await;
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let list = a
+        .controls
+        .iter()
+        .find(|c| c["t"] == "parts")
+        .expect("a split room")["parts"]
+        .clone();
+    assert_eq!(
+        list,
+        json!([{"id": guid("s1"), "kind": "sheet", "name": null, "count": 1,
+                "tabs": [{"id": "t1", "name": "Budget"}]}])
+    );
+    assert!(
+        json_of(&a.doc)["sheets"]["s1"].is_null(),
+        "the main document carries the sheet"
+    );
+    let d = oc_model::new_doc();
+    load(&mut a, "s1", &d).await;
+    assert_eq!(
+        json_of(&d)["sheets"]["s1"]["sheets"]["t1"]["cells"]["r1:c1"]["in"],
+        "5"
+    );
+    let sv = d.transact().state_vector();
+    {
+        let sheets: MapRef = d.get_or_insert_map("sheets");
+        let mut txn = d.transact_mut();
+        let Some(Out::YMap(b)) = sheets.get(&txn, "s1") else {
+            panic!("s1")
+        };
+        let Some(Out::YMap(tabs)) = b.get(&txn, "sheets") else {
+            panic!("tabs")
+        };
+        let Some(Out::YMap(t1)) = tabs.get(&txn, "t1") else {
+            panic!("t1")
+        };
+        let Some(Out::YMap(cells)) = t1.get(&txn, "cells") else {
+            panic!("cells")
+        };
+        let cell = cells.insert(&mut txn, "r1:c1", yrs::MapPrelim::default());
+        cell.insert(&mut txn, "in", "=2+3");
+    }
+    let u = d.transact().encode_state_as_update_v1(&sv);
+    a.send(protocol::subdoc(&guid("s1"), &protocol::update(u)));
+    a.settle().await;
+    assert!(a.denied == 0 && !a.controls.iter().any(|c| c["t"] == "sub-denied"));
+    // Close the canvas: the room goes once idle, then opens again from the WAL.
+    a.leave();
+    tokio::time::sleep(Duration::from_millis(900)).await;
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    assert!(b.controls.iter().any(|c| c["t"] == "parts"));
+    let d2 = oc_model::new_doc();
+    load(&mut b, "s1", &d2).await;
+    assert_eq!(
+        json_of(&d2)["sheets"]["s1"]["sheets"]["t1"]["cells"]["r1:c1"]["in"],
+        "=2+3"
+    );
+    let whole = server_json(&state).await;
+    assert_eq!(
+        whole["sheets"]["s1"]["sheets"]["t1"]["cells"]["r1:c1"]["in"],
+        "=2+3"
+    );
+    assert_eq!(whole["content"][0]["attrs"]["sheetId"], "s1");
+}
+
+/// PSYNC-BUG-2: a split room that closes clean keeps its split (main, parts and an index), and
+/// opening it again at the same host version takes that instead of reading and cutting the
+/// file. When the host has another version, the kept split is dropped and the file is read.
+#[tokio::test]
+async fn a_clean_close_keeps_the_split_for_a_reopen_at_the_same_version() {
+    let (base, mock) = mock_host().await;
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (canvas(), 1));
+    let mut cfg = room_cfg();
+    cfg.room_ttl = Duration::from_millis(400);
+    // Longer than the test: the room closes holding the save's whole view, as after a real save.
+    cfg.whole_release = Duration::from_secs(600);
+    // Keep even this small canvas (the default keeps canvases of 4 MiB and more).
+    cfg.keep_split_min_bytes = 0;
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.remove("partial_sync");
+    })
+    .await;
+    let host = state.hosts.get("sample").unwrap();
+    let room = oc_server::grant::room_id("sample", FILE);
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let d = oc_model::new_doc();
+    load(&mut a, "d1", &d).await;
+    edit_part(&a, &d, "d1", "Saved");
+    a.settle().await;
+    state
+        .rooms
+        .commit(&host, &grant("u_a", Role::Edit))
+        .await
+        .unwrap();
+    a.leave();
+    // The idle room closes (400 ms) still holding the save's whole view.
+    wait_until(|| !state.rooms.is_live(&room)).await;
+    let kept = state.store.part_keys(&room).await.unwrap();
+    assert!(
+        kept.iter().any(|(k, _)| k == "databases/d1"),
+        "the split was purged at a clean close: {kept:?}"
+    );
+    // Proof that the reopen takes the kept split: the host's bytes change under the same
+    // version (etag), and the room must not read them.
+    {
+        let saved = mock.lock().unwrap().files[FILE].clone();
+        let f = oc_model::read_ocanvas(&saved.0).unwrap().doc;
+        {
+            let dbs = f.get_or_insert_map("databases");
+            let mut txn = f.transact_mut();
+            let Some(Out::YMap(d2)) = dbs.get(&txn, "d2") else {
+                panic!("d2")
+            };
+            d2.insert(&mut txn, "name", "Not read");
+        }
+        let bytes = oc_model::write_ocanvas(&f, &Default::default()).unwrap();
+        mock.lock()
+            .unwrap()
+            .files
+            .insert(FILE.into(), (bytes, saved.1));
+    }
+    // Same version: the parts list and the edit, from the kept split.
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    let parts = b
+        .controls
+        .iter()
+        .find(|c| c["t"] == "parts")
+        .expect("split");
+    assert_eq!(parts["parts"].as_array().unwrap().len(), 3);
+    let d2 = oc_model::new_doc();
+    load(&mut b, "d1", &d2).await;
+    assert_eq!(row_title(&d2, "d1", "r1").as_deref(), Some("Saved"));
+    assert_eq!(server_json(&state).await["databases"]["d2"]["name"], "Bugs");
+    // The client-id rule and routing still know the owners: an edit lands, the save has it.
+    edit_part(&b, &d2, "d1", "Again");
+    b.settle().await;
+    assert!(
+        !b.controls.iter().any(|c| c["t"] == "sub-denied"),
+        "{:?}",
+        b.controls
+    );
+    state
+        .rooms
+        .commit(&host, &grant("u_b", Role::Edit))
+        .await
+        .unwrap();
+    let saved = mock.lock().unwrap().files[FILE].0.clone();
+    let file = oc_model::read_ocanvas(&saved).unwrap().doc;
+    assert_eq!(row_title(&file, "d1", "r1").as_deref(), Some("Again"));
+    assert_eq!(db(&file, "d2")["name"], "Bugs");
+    b.leave();
+    wait_until(|| !state.rooms.is_live(&room)).await;
+    // The host changes the file elsewhere: the kept split is not used.
+    let other = oc_model::read_ocanvas(&canvas()).unwrap().doc;
+    {
+        let dbs = other.get_or_insert_map("databases");
+        let mut txn = other.transact_mut();
+        let Some(Out::YMap(d1)) = dbs.get(&txn, "d1") else {
+            panic!("d1")
+        };
+        d1.insert(&mut txn, "name", "Renamed elsewhere");
+    }
+    {
+        let mut m = mock.lock().unwrap();
+        let v = m.files[FILE].1 + 1;
+        m.files.insert(
+            FILE.into(),
+            (
+                oc_model::write_ocanvas(&other, &Default::default()).unwrap(),
+                v,
+            ),
+        );
+    }
+    let mut c = Peer::join(&state, subdoc_grant("u_c", Role::Edit)).await;
+    c.settle().await;
+    let d3 = oc_model::new_doc();
+    load(&mut c, "d1", &d3).await;
+    assert_eq!(db(&d3, "d1")["name"], "Renamed elsewhere");
+    assert_eq!(row_title(&d3, "d1", "r1").as_deref(), Some("One"));
+}
+
+/// PSYNC-BUG-2: every join tells the editor whether the canvas is new (the session may have
+/// been answered before the room opened the file).
+#[tokio::test]
+async fn a_join_says_whether_the_canvas_is_new() {
+    let (state, _) = server(true).await;
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let room = a.controls.iter().find(|c| c["t"] == "room").cloned();
+    assert_eq!(room, Some(json!({"t": "room", "isNew": false})));
+}
+
 /// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
 /// document edits do (`max_doc_bytes`); they bypassed it, so one editor could grow a split
 /// canvas without bound.

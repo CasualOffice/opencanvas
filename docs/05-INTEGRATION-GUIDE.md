@@ -254,7 +254,8 @@ read-only.
 partial_sync = true    # the default from 0.4; false keeps every room whole
 ```
 
-A room keeps each database and board (diagrams included) as a subdocument that the editor loads
+A room keeps each database, board (diagrams included) and spreadsheet (from 0.4.1) as a
+subdocument that the editor loads
 when the block comes near the screen, so a large canvas opens on its text and the server and the
 browser hold only what people look at (on the 50 MB benchmark canvas the room holds the main
 document: 220 MB against 4.4 GB for 20 viewers, and the browser 16 MB against 472 MB). Your files
@@ -268,6 +269,15 @@ the canvas", which loads the current editor. If you embed an older editor build,
 that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` until it is
 updated. Turning it off again is safe: a room folds its parts back into one document when it next
 opens. Temporary canvases and live block files are never split.
+
+**Reopening a large canvas (0.4.1).** A split room of 4 MiB or more that closes with everything
+saved keeps its split in the database (`OC_KEEP_SPLIT_MIN_BYTES`, bytes; smaller canvases are
+purged as before). The next open compares the version your load returns (its `ETag`) with the
+version the room saved; when they match, the room opens from what it kept instead of reading
+and cutting the file (the 50 MB benchmark canvas: 1.3 s to its first screen instead of 3.3 s).
+Any other version, or a host that answers the load with a different version name than the save,
+reads the file as before. This costs database space: about the canvas's Yjs size for each large
+canvas until it is opened at another version.
 
 ### 2c-ter. Formulas, relations and rollups (DB4, ADR-078; `[host.flags] formulas`)
 
