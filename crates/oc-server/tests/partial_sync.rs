@@ -479,6 +479,105 @@ async fn the_client_id_rule_refuses_only_clocks_another_document_was_given() {
     assert_eq!(whole["meta"]["note"], "after the split");
 }
 
+/// v0.4.1: a spreadsheet is a part (`sheets/<id>`, header kind `sheet` with its tabs), as
+/// databases and boards are. Its edits survive the room closing and opening again from the
+/// WAL, and the canvas saves with them.
+#[tokio::test]
+async fn a_spreadsheet_is_a_part_and_its_edits_survive_a_reopen() {
+    let (base, mock) = mock_host().await;
+    let doc = oc_model::new_doc();
+    oc_model::import::apply_document_json(
+        &doc,
+        &json!({
+            "type": "doc",
+            "content": [{"type": "spreadsheet", "attrs": {"sheetId": "s1"}}],
+            "sheets": {"s1": {
+                "order": ["t1"],
+                "sheets": {"t1": {"name": "Budget", "rows": ["r1"], "cols": ["c1"],
+                    "cells": {"r1:c1": {"in": "5"}}, "widths": {}, "heights": {}, "freeze": {}}},
+                "styles": {}
+            }}
+        }),
+    );
+    mock.lock().unwrap().files.insert(
+        FILE.into(),
+        (
+            oc_model::write_ocanvas(&doc, &Default::default()).unwrap(),
+            1,
+        ),
+    );
+    let mut cfg = room_cfg();
+    cfg.room_ttl = Duration::from_millis(300);
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.remove("partial_sync");
+    })
+    .await;
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let list = a
+        .controls
+        .iter()
+        .find(|c| c["t"] == "parts")
+        .expect("a split room")["parts"]
+        .clone();
+    assert_eq!(
+        list,
+        json!([{"id": guid("s1"), "kind": "sheet", "name": null, "count": 1,
+                "tabs": [{"id": "t1", "name": "Budget"}]}])
+    );
+    assert!(
+        json_of(&a.doc)["sheets"]["s1"].is_null(),
+        "the main document carries the sheet"
+    );
+    let d = oc_model::new_doc();
+    load(&mut a, "s1", &d).await;
+    assert_eq!(
+        json_of(&d)["sheets"]["s1"]["sheets"]["t1"]["cells"]["r1:c1"]["in"],
+        "5"
+    );
+    let sv = d.transact().state_vector();
+    {
+        let sheets: MapRef = d.get_or_insert_map("sheets");
+        let mut txn = d.transact_mut();
+        let Some(Out::YMap(b)) = sheets.get(&txn, "s1") else {
+            panic!("s1")
+        };
+        let Some(Out::YMap(tabs)) = b.get(&txn, "sheets") else {
+            panic!("tabs")
+        };
+        let Some(Out::YMap(t1)) = tabs.get(&txn, "t1") else {
+            panic!("t1")
+        };
+        let Some(Out::YMap(cells)) = t1.get(&txn, "cells") else {
+            panic!("cells")
+        };
+        let cell = cells.insert(&mut txn, "r1:c1", yrs::MapPrelim::default());
+        cell.insert(&mut txn, "in", "=2+3");
+    }
+    let u = d.transact().encode_state_as_update_v1(&sv);
+    a.send(protocol::subdoc(&guid("s1"), &protocol::update(u)));
+    a.settle().await;
+    assert!(a.denied == 0 && !a.controls.iter().any(|c| c["t"] == "sub-denied"));
+    // Close the canvas: the room goes once idle, then opens again from the WAL.
+    a.leave();
+    tokio::time::sleep(Duration::from_millis(900)).await;
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    assert!(b.controls.iter().any(|c| c["t"] == "parts"));
+    let d2 = oc_model::new_doc();
+    load(&mut b, "s1", &d2).await;
+    assert_eq!(
+        json_of(&d2)["sheets"]["s1"]["sheets"]["t1"]["cells"]["r1:c1"]["in"],
+        "=2+3"
+    );
+    let whole = server_json(&state).await;
+    assert_eq!(
+        whole["sheets"]["s1"]["sheets"]["t1"]["cells"]["r1:c1"]["in"],
+        "=2+3"
+    );
+    assert_eq!(whole["content"][0]["attrs"]["sheetId"], "s1");
+}
+
 /// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
 /// document edits do (`max_doc_bytes`); they bypassed it, so one editor could grow a split
 /// canvas without bound.

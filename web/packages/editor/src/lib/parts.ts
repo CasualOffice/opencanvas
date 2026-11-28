@@ -3,9 +3,9 @@
 
 // Partial sync, the editor side (PSYNC-03, ADR-076, docs/15 §3.2). A split room sends the
 // main document over the ordinary messages and lists its heavy blocks (`{"t":"parts"}`); each
-// database or board is a Y.Doc of its own, asked for over message type 101 when its block
+// database, board or spreadsheet is a Y.Doc of its own, asked for over message type 101 when its block
 // comes near the screen and released two minutes after it leaves it. A part is shaped like the
-// whole canvas (root `databases` or `boards` with that one key), so the block views take it as
+// whole canvas (root `databases`, `boards` or `sheets` with that one key), so the block views take it as
 // their `doc` unchanged.
 import * as Y from "yjs";
 import * as encoding from "lib0/encoding";
@@ -20,9 +20,11 @@ export const RELEASE_MS = 120_000;
 
 export interface PartHeader {
   id: string;
-  kind: "database" | "board";
+  kind: "database" | "board" | "sheet";
   name?: string | null;
   count?: number;
+  /** A spreadsheet's tabs in order (v0.4.1): chart sources without loading the part. */
+  tabs?: { id: string; name: string | null }[];
 }
 
 /** What the parts client needs from the socket. */
@@ -255,7 +257,7 @@ export class PartsClient {
 }
 
 /** The block map of a part (its root holds one key). */
-const scopeOf = (doc: Y.Doc) => [doc.getMap("databases"), doc.getMap("boards")];
+const scopeOf = (doc: Y.Doc) => [doc.getMap("databases"), doc.getMap("boards"), doc.getMap("sheets")];
 
 /** One undo stack over several documents: each document keeps its own Y.UndoManager (Yjs
  *  undoes per document), and the main manager's `undo`/`redo` (what Ctrl+Z and the buttons

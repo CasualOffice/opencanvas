@@ -2,10 +2,10 @@
 // Copyright 2026 CasualOffice
 
 //! Partial sync (PSYNC-02, ADR-076): the room splits a canvas into a main document and one part
-//! per heavy block (each `databases` and `boards` entry), and flattens the parts back into the
+//! per heavy block (each `databases`, `boards` and `sheets` entry), and flattens the parts back into the
 //! format v1 update on save. **Item ids are kept.** A part is the subset of the original update
 //! whose items descend from that block's map entry, so a part *is* a Yjs document (root
-//! `databases` or `boards` with that one key) that any client or the room can load, and the
+//! `databases`, `boards` or `sheets` with that one key) that any client or the room can load, and the
 //! flatten is a byte merge of the parts' structs.
 //!
 //! Clocks stay contiguous in every part: where a client's clock range belongs to another part,
@@ -16,8 +16,8 @@
 //! delete set of each part counts only for the items it owns (its fillers are GC everywhere).
 //!
 //! Who owns an item: the part of its parent, recursively; an item without encoded parent info
-//! (it has an origin) has the parent of its origin. An item whose parent is the root `databases`
-//! or `boards` with key `k` starts part `databases/k` or `boards/k`. GC and anything unresolved
+//! (it has an origin) has the parent of its origin. An item whose parent is a root of
+//! [`SPLIT_ROOTS`] with key `k` starts part `<root>/k`. GC and anything unresolved
 //! belongs to the main document.
 //!
 //! [`route`] cuts an incremental update (an edit made on a whole, flattened view) the same way,
@@ -33,11 +33,11 @@ use crate::roots;
 
 /// The main document's part key.
 pub const MAIN: &str = "";
-/// Roots whose entries become parts.
-/// `sheets` (Spreadsheet blocks) stays in the main document until the editor loads sheet parts.
-pub const SPLIT_ROOTS: [&str; 2] = [roots::DATABASES, roots::BOARDS];
+/// Roots whose entries become parts: databases, boards and spreadsheets (v0.4.1).
+pub const SPLIT_ROOTS: [&str; 3] = [roots::DATABASES, roots::BOARDS, roots::SHEETS];
 
-/// `databases/<blockId>` or `boards/<blockId>`; [`MAIN`] for the main document.
+/// `databases/<blockId>`, `boards/<blockId>` or `sheets/<blockId>`; [`MAIN`] for the main
+/// document.
 pub type PartKey = String;
 
 pub fn part_key(root: &str, key: &str) -> Option<PartKey> {

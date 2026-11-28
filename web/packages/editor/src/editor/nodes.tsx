@@ -1273,13 +1273,12 @@ function SpreadsheetView({ node }: ReactNodeViewProps) {
   const b = useBridge();
   const ref = useContentOwnsDrag<HTMLDivElement>();
   const sheetId = String(node.attrs.sheetId);
-  // SHEET-06 (8a): a live view of a database keeps in step with it.
-  const linkMap = (b.doc.getMap("sheets").get(sheetId) as Y.Map<unknown> | undefined)?.get("link") as Y.Map<unknown> | undefined;
+  // v0.4.1: in a split room the spreadsheet is a part (`sheets/<id>`), loaded near the screen.
+  const part = usePartDoc(b, sheetId, ref);
+  // SHEET-06 (8a): a live view of a database keeps in step with it (the link is in the sheet).
+  const linkMap = (part.doc?.getMap("sheets").get(sheetId) as Y.Map<unknown> | undefined)?.get("link") as Y.Map<unknown> | undefined;
   const linkDb = String(linkMap?.get("db") ?? "");
   const dbPart = usePartDoc(b, linkDb, ref);
-  // The `sheets` root lives in the main document (not a partial-sync part yet), so `part.doc`
-  // is the room's document; going through usePartDoc keeps the block ready for that change.
-  const part = usePartDoc(b, sheetId, ref);
   const { Comp: SheetBlock, failed, wrap } = useRetryingLazy(loadSheetBlock);
   const ph = <BlockPlaceholder info={{ kind: "sheet" }} failed={failed} />;
   return (
@@ -1301,12 +1300,15 @@ function ChartView({ node, updateAttributes }: ReactNodeViewProps) {
   const ref = useContentOwnsDrag<HTMLDivElement>();
   const a = node.attrs as import("./chart/data").ChartAttrs;
   const part = usePartDoc(b, a.src === "db" ? a.dbId : "", ref);
+  // v0.4.1: a chart of a spreadsheet reads the sheet's part (null while it loads).
+  const sheetPart = usePartDoc(b, a.src === "sheet" ? a.sheetId : "", ref);
+  const parts = b.parts?.split ? b.parts.list() : undefined;
   const { Comp: ChartBlock, failed, wrap } = useRetryingLazy(loadChartBlock);
   const ph = <BlockPlaceholder info={{ kind: "chart", name: a.title || "Chart" }} failed={failed} />;
   return (
     <NodeViewWrapper className="stubhost" data-chart="">
       <div contentEditable={false} ref={ref}>
-        {wrap(<Suspense fallback={ph}><ChartBlock attrs={a} set={updateAttributes} doc={b.doc} dbDoc={part.doc} env={part.env} /></Suspense>, ph)}
+        {wrap(<Suspense fallback={ph}><ChartBlock attrs={a} set={updateAttributes} doc={b.doc} dbDoc={part.doc} sheetDoc={sheetPart.doc} parts={parts} env={part.env} /></Suspense>, ph)}
       </div>
     </NodeViewWrapper>
   );

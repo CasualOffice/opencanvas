@@ -254,7 +254,8 @@ read-only.
 partial_sync = true    # the default from 0.4; false keeps every room whole
 ```
 
-A room keeps each database and board (diagrams included) as a subdocument that the editor loads
+A room keeps each database, board (diagrams included) and spreadsheet (from 0.4.1) as a
+subdocument that the editor loads
 when the block comes near the screen, so a large canvas opens on its text and the server and the
 browser hold only what people look at (on the 50 MB benchmark canvas the room holds the main
 document: 220 MB against 4.4 GB for 20 viewers, and the browser 16 MB against 472 MB). Your files

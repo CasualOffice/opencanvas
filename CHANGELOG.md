@@ -7,6 +7,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Changed
+
+- Partial sync: spreadsheets load as their own parts, as databases and boards do, so a canvas
+  with large spreadsheets opens faster. Charts of a spreadsheet follow its part. Reload any
+  editor tab left open across the upgrade (PSYNC-05).
+
 ### Fixed
 
 - Partial sync: the one-client-id-per-document rule now refuses only items at clocks another

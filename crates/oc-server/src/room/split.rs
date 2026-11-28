@@ -5,7 +5,7 @@
 //!
 //! With `[host.flags] partial_sync` (and a database WAL, not memory durability, not a temporary
 //! canvas) the room splits the canvas when it opens: `doc` becomes the **main document** (text,
-//! outline, meta, comments, …) and every `databases`/`boards` entry becomes a **part**
+//! outline, meta, comments, …) and every `databases`/`boards`/`sheets` entry becomes a **part**
 //! ([`oc_model::parts`], item ids kept), stored as its own snapshot and WAL rows. A part is
 //! loaded when a connection asks for it (message type 101 with a sync step 1), the role checked
 //! on every request, and evicted once nobody has held it for `part_evict` (30 s).
@@ -90,6 +90,7 @@ pub(super) fn header_of(key: &str, doc: &Doc) -> Value {
 fn kind_of(root: &str) -> &'static str {
     match root {
         oc_model::roots::DATABASES => "database",
+        oc_model::roots::SHEETS => "sheet",
         _ => "board",
     }
 }
@@ -104,7 +105,22 @@ fn header_json(root: &str, v: &Value) -> Value {
             _ => None,
         })
         .unwrap_or(0);
-    json!({"kind": kind_of(root), "name": v.get("name").cloned().unwrap_or(Value::Null), "count": count})
+    let mut h = json!({"kind": kind_of(root), "name": v.get("name").cloned().unwrap_or(Value::Null), "count": count});
+    // A spreadsheet's tabs in order (`count` is how many): a chart lists them as sources
+    // before the part is loaded.
+    if root == oc_model::roots::SHEETS {
+        let tabs: Vec<Value> = v["order"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|id| {
+                let id = id.as_str()?;
+                Some(json!({"id": id, "name": v["sheets"][id]["name"].clone()}))
+            })
+            .collect();
+        h["tabs"] = Value::Array(tabs);
+    }
+    h
 }
 
 /// A canvas cut while the room loads it from the host (PSYNC-02 fast open): the file's
