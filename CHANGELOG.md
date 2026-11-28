@@ -7,6 +7,16 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Fixed
+
+- Flaky CI (RLB-04): the sample hosts write their metadata and stored files atomically, so the
+  browser tests no longer read a half-written `meta.json`; WOPI and session tests read `isNew`
+  from the session or, when the session answered first, from the room's join message; WAL test
+  rooms no longer collide when two are made in the same millisecond; the live block repeat test
+  names its block per run.
+- Bench nightly: first-screen budgets are per machine. The nightly runner's fixture S budget is
+  1,600 ms, from its measured baseline (1,191 ms); the reference machine keeps 1,000 ms.
+
 ## [0.4.3] - 2026-11-28
 
 Fixes the release container: since 0.4.0 the image build failed because the Dockerfile did not
