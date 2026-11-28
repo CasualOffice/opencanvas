@@ -67,3 +67,9 @@ See [docs/07](docs/07-SECURITY-AND-LIMITS.md) and the audit in
 `OC_METRICS_TOKEN`; keep `/metrics`, `/readyz` and `/v1/internal/*` off the public listener;
 use long random `jwt_secret` / `callback_secret` / `api_key` values (32+ characters); verify the
 `v2` part of `X-OpenCanvas-Signature` in your host; run `scripts/audit.sh` in CI.
+
+## Dependencies
+
+How dependencies are audited and updated, and how fast an advisory is fixed:
+[docs/38](docs/38-DEPENDENCY-UPDATES.md). Each release carries CycloneDX SBOMs (Rust and npm)
+with its binaries.
