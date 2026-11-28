@@ -392,6 +392,31 @@ ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row
 | WS-23 | Security audit of the Workspace surfaces and fixes | Todo | M; depends on WS-18, WS-19 |
 | WS-24 | Docs and site: quick start, operator guide, admin guide, release notes | Todo | S; depends on WS-22 |
 
+## Board audit fixes ([docs/41](41-BOARD-AUDIT.md))
+
+Owner request 2026-11-28: the whiteboard and diagram block has many issues; audit it and opencanvas.studio. BRD-05..16 are bug fixes with no new UI; BRD-17..22 wait for an approved prototype (ADR-011).
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| BRD-05 | P0: sticky note and text placed with the mouse lose focus at once; typed keys run as tool shortcuts (D1) | Todo | Bug; `preventDefault` on the creating pointer-down; Playwright test that clicks and types, seen failing first; S |
+| BRD-06 | P1: Escape while typing discards the text; make it commit (D2) | Todo | Bug; S |
+| BRD-07 | P1: drag to size for rect, ellipse, diamond, sticky; click keeps the default size (D5) | Todo | Bug, no new UI; S |
+| BRD-08 | P1: auto-layout preview bar half off screen, `.ocdg-pbar` defined twice (AutoLayout, Phone) (D3) | Todo | Bug; S |
+| BRD-09 | P1: auto-layout separates a drawn frame from what it holds, overlaps text, strands connector ends (D4) | Todo | Bug; `#demo` board as fixture; M |
+| BRD-10 | P2: floating shape toolbar covers the board's top actions and zoom pill; placements under the controls (D6, D12) | Todo | Bug; S |
+| BRD-11 | P2: Libraries chooser overflows the window top; add max-height and scroll (D7) | Todo | Bug; S |
+| BRD-12 | P2: panel and keyboard placement go to the nearest free spot, not on top of shapes (D8) | Todo | Bug; S |
+| BRD-13 | P2: command palette gains align, distribute, group, z-order, auto-layout, export, insert shape (D9) | Todo | Bug, existing UI; S |
+| BRD-14 | P2: demo says "Saved" for edits that are not kept (ADR-043) (D10) | Todo | Bug; S |
+| BRD-15 | P3: library shape headings show raw ids ("cylinder") (D13) | Todo | Bug; S |
+| BRD-16 | P3: Import missing from the demo menu without a reason; phone sheet lists Mermaid import that is not built (D14) | Todo | Bug; S |
+| BRD-17 | Diagram header at narrow widths (title cut to one letter at 500 px) (D11) | Todo | UX, needs a prototype; S |
+| BRD-18 | Right-click menu for board and diagram | Todo | UX, needs a prototype; M |
+| BRD-19 | Tool lock | Todo | UX, needs a prototype; S |
+| BRD-20 | Export background (light, dark, transparent) and copy as PNG/SVG (D15) | Todo | UX, needs a prototype; M |
+| BRD-21 | Frames as a real tool (named container with membership) | Todo | UX, needs a prototype; M |
+| BRD-22 | Stroke width, stroke colour and rotation (docs/20 B21) | Todo | UX, needs a prototype; M |
+
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
 Owner approved Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) on 2026-11-24, with seven review
@@ -456,6 +481,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-28 | Board and diagram audit, opencanvas.studio (docs/41) | Live `#demo` (v0.4.1) and opencanvas.studio in Chrome; 15 defects (1 P0, 4 P1), rows BRD-05..22. P0: a sticky or text placed with the mouse loses focus on the `mousedown` default (focus trace in docs/41 D1). opencanvas.studio is an Excalidraw-based AI whiteboard, unrelated to this repository. Analysis only; no build or tests run. |
 | 2026-11-28 | SHEET-06: linked chart block (4h), database ⇄ spreadsheet (8a) | vitest chart 8 + link 5 + insert/profile, cargo chart_exports 4, Playwright chart-block.spec.ts, typecheck, initial JS 299.3 / 300 KB |
 | 2026-11-26 | BENCH-05 benchmarks page; allocator gauges; open-file limit raised at start (PERF-11) | Site checks (links, claims, SEO) green. R1K at 1,000: live heap (`oc_alloc_allocated_bytes`) grows in 50–80 MB steps (186 → 420 MB in 4 min), cause open |
 | 2026-11-26 | X10K short and R1K short (`OC_MAX_PEERS=1000`) after PERF-11/12 (601d2a7), quiet Mac | X10K PASS: p99 50–64 ms per bucket (baseline 11,329 ms), back in 37 s, RSS peak 3.2 GB. R1K: 1,000 joined, p99 53–81 ms, RSS drift FAIL (+62%: one step at the last sample; reruns −25%, +27%). Fan-out sharding not needed for latency |
