@@ -130,7 +130,7 @@ test("full profile: category, variant, intent, /h2 and keyboard only", async ({ 
   await priya.page.keyboard.press("ArrowRight");
   const step = priya.oc.getByRole("listbox", { name: "Database view" });
   await expect(step).toBeVisible();
-  await expect(step.getByRole("option")).toHaveCount(4);
+  await expect(step.getByRole("option")).toHaveCount(6); // Table, Board, Calendar, Gallery, Timeline, Workload (v0.4.1)
   await priya.page.keyboard.press("ArrowRight");
   await expect(active(priya)).toHaveAttribute("aria-label", "Board view");
   await axe(priya, ['iframe[name="oc"]', ".oci"]);

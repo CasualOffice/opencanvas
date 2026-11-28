@@ -324,7 +324,7 @@ function DeskMenu({ s, ctx, nav, root }: P) {
                 </div>
               ) : null}
               {render(top, nav.stack.length)}
-              {top.kind === "step" && top.block?.key === "database" ? <p className="sn">Every database can show all four views later; this picks the first one.</p> : null}
+              {top.kind === "step" && top.block?.key === "database" ? <p className="sn">Every database can show all six views later; this picks the first one.</p> : null}
               <Foot view={top} nav={nav} ctx={ctx} />
             </div>,
             root,
@@ -654,6 +654,13 @@ function ViewPreview({ id }: { id: string }) {
         ))}
       </span>
     );
+  // Timeline: offset bars; Workload: a heat grid (green, amber, red cells).
+  if (id === "timeline" || id === "workload")
+    return (
+      <span className={"pv " + (id === "timeline" ? "vtl" : "vc vwl")} aria-hidden="true">
+        {id === "timeline" ? [0, 25, 45].map((l, i) => <u key={i} style={{ marginLeft: `${l}%` }} />) : Array.from({ length: 12 }, (_, i) => <i key={i} className={["e g", "e", "e r"][i % 3]} />)}
+      </span>
+    );
   return (
     <span className="pv vg" aria-hidden="true">
       {[0, 1, 2].map((i) => (
@@ -765,7 +772,7 @@ function PhoneMenu({ s, ctx, nav, root }: P) {
           </label>
         ) : null}
         {view.kind === "flat" ? <FlatGrid view={view} onClick={click} /> : view.bands.length ? bands : <NoMatch q={s.query} />}
-        {view.kind === "step" && view.block?.key === "database" ? <p className="sn">Every database can show all four views later; this picks the first one.</p> : null}
+        {view.kind === "step" && view.block?.key === "database" ? <p className="sn">Every database can show all six views later; this picks the first one.</p> : null}
       </div>
     </>,
     root,

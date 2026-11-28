@@ -49,6 +49,11 @@ export const TL_CSS = `
 .ocdb-tl-chip{display:inline-flex;gap:.3rem;align-items:center;height:1.75rem;padding:0 .5rem;border:0;border-radius:.375rem;background:var(--sunk);color:var(--fg);font-size:.75rem;cursor:grab;touch-action:none}
 .ocdb-tl-toast{position:sticky;left:50%;bottom:1rem;margin:.5rem auto 0;width:max-content;max-width:100%;background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);border-radius:.75rem;padding:.6rem .75rem;display:flex;gap:.6rem;align-items:center;z-index:9;font-size:.8125rem;flex-wrap:wrap}
 .ocdb-tl-toast .ic{color:var(--amber-fg)}
+.ocdb-tl-gt{position:relative}
+.ocdb-tl-gap{position:absolute;right:1rem;top:4rem;z-index:8;max-width:18rem;background:var(--pop);color:var(--fg-2);box-shadow:var(--sh-pop);border-radius:.75rem;padding:.875rem 1rem;display:flex;flex-direction:column;align-items:flex-start;gap:.3rem;font-size:.8125rem}
+.ocdb-tl-gap b{color:var(--fg);font-size:.875rem}
+.ocdb-tl-gap svg{color:var(--fg-3)}
+.ocdb-tl-gap .acts{display:flex;gap:.375rem;margin-top:.375rem;flex-wrap:wrap}
 .ocdb-tl-none{padding:1rem;color:var(--fg-3);display:flex;flex-direction:column;gap:.25rem}
 .ocdb-tl-none b{color:var(--fg)}
 .ocdb-tl-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.5rem;padding:2rem 1rem;color:var(--fg-3)}
@@ -85,6 +90,13 @@ export const TL_CSS = `
 .lv0{color:var(--fg-4)}.lv1{background:var(--green-bg);color:var(--green-fg)}.lv3{background:var(--amber-bg);color:var(--amber-fg)}.lv4{background:var(--red-bg);color:var(--red-fg)}
 .ocdb-wl-list{list-style:none;margin:0;padding:.25rem;display:flex;flex-direction:column;gap:.25rem;min-width:16rem}
 .ocdb-wl-list li{display:flex;gap:.5rem;align-items:center}
+.ocdb-wl-list .ocdb-mi.drag{cursor:grab;touch-action:none;user-select:none}
+.ocdb-wl-list .ocdb-mi.drag svg{color:var(--fg-3)}
+.ocdb-wl-t tr.drop th,.ocdb-wl-t tr.drop td{box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
+.ocdb-wl-ghost{position:fixed;z-index:10000;pointer-events:none;background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);border-radius:.5rem;padding:.375rem .625rem;font-size:.8125rem;font-weight:500;white-space:nowrap}
+.ocdb-wl-ghost span{color:var(--accent)}
+.ocdb-tl-ph>.ocdb-tl-seg{margin:.25rem 0}
+.ocdb-tl-ph>.ocdb-tl-seg button{height:2.25rem;padding:0 1rem;font-size:.8125rem}
 .ocdb-wl-list select{height:1.875rem;border:0;border-radius:.5rem;background:var(--sunk);font:inherit;color:inherit}
 @media (prefers-reduced-motion:reduce){.ocdb-tl-bar,.ocdb-tl-ms{transition:none}}
 `;

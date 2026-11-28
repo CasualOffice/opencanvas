@@ -286,6 +286,36 @@ export function byWeek(rows: DbRow[], p: TimelinePrefs): { week: number; items: 
   return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([week, items]) => ({ week, items: items.sort((a, b) => a.s - b.s) }));
 }
 
+/** Rows by the month they start in (frame 5a, Months), months (their first day) in order. */
+export function byMonth(rows: DbRow[], p: TimelinePrefs): { month: number; items: Span[] }[] {
+  const m = new Map<number, Span[]>();
+  for (const r of rows) {
+    const sp = spanOf(r, p);
+    if (!sp) continue;
+    const { y, m: mo } = monthOf(sp.s);
+    const k = firstOfMonth(y, mo);
+    m.set(k, [...(m.get(k) ?? []), sp]);
+  }
+  return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([month, items]) => ({ month, items: items.sort((a, b) => a.s - b.s) }));
+}
+
+/**
+ * Frame 6b: when no task overlaps the days `a`..`b` shown, the nearest start after them and the
+ * nearest end before them (for "Jump to"); null when something is in range or nothing has dates.
+ */
+export function emptyRange(spans: Iterable<Span>, a: number, b: number): { next: number | null; prev: number | null } | null {
+  let next: number | null = null;
+  let prev: number | null = null;
+  let any = false;
+  for (const sp of spans) {
+    any = true;
+    if (sp.e >= a && sp.s <= b) return null;
+    if (sp.s > b && (next == null || sp.s < next)) next = sp.s;
+    if (sp.e < a && (prev == null || sp.e > prev)) prev = sp.e;
+  }
+  return any ? { next, prev } : null;
+}
+
 /** The bar's accessible name (frame 7): "API freeze, Dec 14 to Dec 18, blocks SDK docs and Partner beta". */
 export function barLabel(title: string, sp: Span, blocks: string[], blockedBy: string[]): string {
   const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);

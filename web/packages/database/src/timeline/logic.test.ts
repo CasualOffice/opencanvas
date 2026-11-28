@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { DbRow, DbSnapshot } from "../types";
-import { addDays, barLabel, byWeek, conflicts, criticalPath, day, diffDays, edges, iso, resolve, shiftPlan, spanDays, spanOf, workload, type Span } from "./logic";
+import { addDays, barLabel, byMonth, byWeek, emptyRange, conflicts, criticalPath, day, diffDays, edges, iso, resolve, shiftPlan, spanDays, spanOf, workload, type Span } from "./logic";
 
 const D = (s: string) => day(s)!;
 const row = (id: string, v: Record<string, unknown>): DbRow => ({ id, v: v as DbRow["v"] });
@@ -92,5 +92,24 @@ describe("workload and the phone list", () => {
     expect(w.get("u1")!.map((c) => c.hours)).toEqual([40, 30]);
     expect(w.get("")!.map((c) => c.hours)).toEqual([0, 4]);
     expect(byWeek(rows, P).map((g) => [iso(g.week), g.items.length])).toEqual([["2026-12-14", 2], ["2026-12-21", 1]]);
+  });
+});
+
+describe("v0.4.1: phone Months grouping and the empty range (frames 5a, 6b)", () => {
+  const rows = [
+    row("a", { s: "2026-12-14", e: "2026-12-18" }),
+    row("b", { s: "2027-01-04", e: "2027-01-08" }),
+    row("c", { s: "2026-12-30", e: "2027-01-02" }),
+    row("x", {}),
+  ];
+  it("groups rows by the month they start in, months in order", () => {
+    expect(byMonth(rows, P).map((g) => [iso(g.month), g.items.map((i) => i.id)])).toEqual([["2026-12-01", ["a", "c"]], ["2027-01-01", ["b"]]]);
+  });
+  it("says nothing when a task overlaps the range; otherwise names the next and the previous", () => {
+    const spans = rows.map((r) => spanOf(r, P)).filter((s): s is Span => !!s);
+    expect(emptyRange(spans, D("2026-12-17"), D("2026-12-20"))).toBeNull();
+    expect(emptyRange(spans, D("2026-12-19"), D("2026-12-29"))).toEqual({ next: D("2026-12-30"), prev: D("2026-12-18") });
+    expect(emptyRange(spans, D("2027-02-01"), D("2027-03-14"))).toEqual({ next: null, prev: D("2027-01-08") });
+    expect(emptyRange([], D("2027-02-01"), D("2027-03-14"))).toBeNull();
   });
 });

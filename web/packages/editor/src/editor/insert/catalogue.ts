@@ -107,12 +107,14 @@ export const BLOCKS: BlockDef[] = [
   { key: "file", icon: "paperclip", title: "File", desc: "Attach any file", cat: "content", needs: ["core.file"], names: ["attachment", "attach", "upload", "pdf"], intents: ["attach a document", "share a file"], why: "any file, attached" },
   // ---------- Data & planning ----------
   {
-    key: "database", icon: "database", title: "Database", desc: "Table, board, calendar or gallery", cat: "data", mode: "step", segLabel: "view", def: "table", needs: ["core.database", "core.kanban", "core.calendar"], names: ["db"], intents: [], why: "records with properties",
+    key: "database", icon: "database", title: "Database", desc: "Table, board, calendar, gallery, timeline or workload", cat: "data", mode: "step", segLabel: "view", def: "table", needs: ["core.database", "core.kanban", "core.calendar"], names: ["db"], intents: [], why: "records with properties",
     variants: [
       v("table", "Table view", "table", ["core.database"], ["table view", "grid"], ["track tasks", "records", "tracker", "project tracker"], "tasks with due dates and fields", { short: "Table" }),
       v("board", "Board view", "kanban", ["core.kanban", "core.database"], ["board", "kanban", "board view"], ["track tasks", "plan sprint", "backlog", "status", "pipeline", "roadmap", "workflow"], "tasks by status, with owners", { short: "Board" }),
-      v("calendar", "Calendar view", "calendar-days", ["core.calendar", "core.database"], ["calendar", "calendar view"], ["plan dates", "schedule", "events", "release plan", "timeline"], "plan dates and releases", { short: "Calendar" }),
+      v("calendar", "Calendar view", "calendar-days", ["core.calendar", "core.database"], ["calendar", "calendar view"], ["plan dates", "schedule", "events", "release plan"], "plan dates and releases", { short: "Calendar" }),
       v("gallery", "Gallery view", "layout-grid", ["core.database"], ["gallery", "cards", "gallery view"], ["reading list", "collection", "moodboard"], "cards with a cover", { short: "Gallery" }),
+      v("timeline", "Timeline view", "calendar-range", ["core.database"], ["timeline", "gantt", "timeline view"], ["project plan", "dependencies", "milestones"], "tasks on a timeline, with dependencies", { short: "Timeline" }),
+      v("workload", "Workload view", "users-round", ["core.database"], ["workload", "capacity", "workload view"], ["who is busy", "resourcing"], "hours per person, per week", { short: "Workload" }),
     ],
   },
   { key: "spreadsheet", icon: "sheet", title: "Spreadsheet", desc: "Cells, formulas and sheets, like Excel", cat: "data", needs: ["core.spreadsheet"], names: ["sheet", "excel", "spreadsheet", "calc", "formulas"], intents: ["budget", "calculate", "numbers"], why: "cells and formulas, like Excel" },

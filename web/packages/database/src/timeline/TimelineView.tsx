@@ -8,7 +8,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as Y from "yjs";
-import { CalendarDays, Diamond, Link2, Plus, Route, TriangleAlert, Users } from "lucide-react";
+import { CalendarDays, CalendarSearch, Diamond, GripVertical, Link2, Plus, Route, TriangleAlert, Users } from "lucide-react";
 import type { BlockEnv, OcUser } from "@opencanvas/ui";
 import { addField, deleteRow, getDbMap, readDb, setCell, setPrefs, tx } from "../model";
 import { addRelation, setRelation } from "../formula/model";
@@ -18,6 +18,7 @@ import {
   addDays,
   band,
   barLabel,
+  byMonth,
   byWeek,
   conflicts,
   criticalPath,
@@ -25,6 +26,7 @@ import {
   day,
   diffDays,
   edges,
+  emptyRange,
   firstOfMonth,
   isWeekend,
   iso,
@@ -107,6 +109,8 @@ export function TimelineView({ ctx }: { ctx: TlCtx }) {
   const [live, setLive] = useState<Span | null>(null);
   const [link, setLink] = useState<{ from: string; x: number; y: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  /** The days shown in the scroller (frame 6b's "Nothing scheduled" names them). */
+  const [vis, setVis] = useState<[number, number] | null>(null);
   const work = p.work;
   const zoom = p.zoom;
   const dr = DAY_REM[zoom];
@@ -300,10 +304,20 @@ export function TimelineView({ ctx }: { ctx: TlCtx }) {
 
   /* ---- keyboard on a bar (frame 7) ---- */
   const focusBar = (id: string) => requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-tl="${db.id}"] [data-bar="${id}"]`)?.focus());
-  const toToday = () => {
+  const measure = () => {
     const el = scroller.current;
-    if (el) el.scrollLeft = Math.max(0, x(t0) * remPx() - el.clientWidth / 3);
+    if (!el || !el.clientWidth) return;
+    const per = dr * remPx();
+    const a = lo + Math.floor(el.scrollLeft / per);
+    const b = lo + Math.floor((el.scrollLeft + el.clientWidth) / per) - 1;
+    setVis((v) => (v && v[0] === a && v[1] === b ? v : [a, b]));
   };
+  const jumpTo = (d: number) => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = Math.max(0, x(d) * remPx() - el.clientWidth / 3);
+    measure();
+  };
+  const toToday = () => jumpTo(t0);
   const setZoom = (z: Zoom) => patchTl(ctx, { zoom: z });
   const onBarKey = (e: React.KeyboardEvent, id: string) => {
     const sp = spans.get(id);
@@ -359,6 +373,13 @@ export function TimelineView({ ctx }: { ctx: TlCtx }) {
   useLayoutEffect(() => {
     toToday();
   }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [lo, hi, dr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- empty state (frame 6a) ---- */
   if (!p.start) {
@@ -421,6 +442,9 @@ export function TimelineView({ ctx }: { ctx: TlCtx }) {
     const cls = bad.has(`${a}>${b}`) ? "bad" : crit.has(a) && crit.has(b) ? "crit" : "";
     return <path key={`${a}>${b}`} className={cls} d={`M${x1} ${y1} H${mid} V${y2} H${x2}`} markerEnd="url(#ocdb-tl-arrow)" />;
   });
+
+  /* ---- nothing in the shown range (frame 6b) ---- */
+  const gap = vis && scheduled.length ? emptyRange(spans.values(), vis[0], vis[1]) : null;
 
   const bars = flat.map((r) => {
     const sp = spans.get(r.id)!;
@@ -517,7 +541,7 @@ export function TimelineView({ ctx }: { ctx: TlCtx }) {
             </div>
           ))}
         </div>
-        <div className="ocdb-tl-r" ref={scroller}>
+        <div className="ocdb-tl-r" ref={scroller} onScroll={measure}>
           <div className="ocdb-tl-cv" style={{ width: `${width}rem` }}>
             <div className="ocdb-tl-hd" aria-hidden="true">
               {months}
@@ -540,6 +564,21 @@ export function TimelineView({ ctx }: { ctx: TlCtx }) {
             </div>
           </div>
         </div>
+        {gap && vis && !live ? (
+          <div className="ocdb-tl-gap" role="status">
+            <Ic i={CalendarSearch} s={22} />
+            <b>
+              Nothing scheduled {short(vis[0])} – {short(vis[1])}
+            </b>
+            <span>{gap.next != null ? `The next task starts ${short(gap.next)}.` : `The last task ended ${short(gap.prev ?? t0)}.`}</span>
+            <span className="acts">
+              <button className="ocdb-btn sm" onClick={() => jumpTo(gap.next ?? gap.prev ?? t0)}>
+                Jump to {short(gap.next ?? gap.prev ?? t0)}
+              </button>
+              <button className="ocdb-btn ghost sm" onClick={toToday}>Today</button>
+            </span>
+          </div>
+        ) : null}
       </div>
       {!scheduled.length ? (
         <div className="ocdb-tl-none">
@@ -658,7 +697,15 @@ export function TimelinePhone({ ctx }: { ctx: TlCtx }) {
   const { db, edit } = ctx;
   const p = resolve(db, tlPrefs(ctx));
   const [sheet, setSheet] = useState<string | null>(null);
-  const weeks = byWeek(ctx.rows, p);
+  // Weeks or Months (frame 5a); a row's mini bar is its span within the week or the month.
+  const [by, setBy] = useState<"week" | "month">("week");
+  const weeks =
+    by === "week"
+      ? byWeek(ctx.rows, p).map((g) => ({ at: g.week, len: 7, label: `Week of ${short(g.week)}`, items: g.items }))
+      : byMonth(ctx.rows, p).map((g) => {
+          const { y, m } = monthOf(g.month);
+          return { at: g.month, len: firstOfMonth(y, m + 1) - g.month, label: `${monthName(m)} ${y}`, items: g.items };
+        });
   const es = edges(ctx.rows, p.dep);
   const byId = new Map(ctx.rows.map((r) => [r.id, r]));
   const press = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -670,17 +717,21 @@ export function TimelinePhone({ ctx }: { ctx: TlCtx }) {
   };
   return (
     <div className="ocdb-tl-ph" data-tl={db.id}>
+      <div className="ocdb-tl-seg" role="group" aria-label="Group by">
+        <button aria-pressed={by === "week"} onClick={() => setBy("week")}>Weeks</button>
+        <button aria-pressed={by === "month"} onClick={() => setBy("month")}>Months</button>
+      </div>
       {weeks.map((w) => (
-        <section key={w.week} aria-label={`Week of ${short(w.week)}`}>
+        <section key={w.at} aria-label={w.label}>
           <div className="ocdb-tl-wk">
-            <span>Week of {short(w.week)}</span>
+            <span>{w.label}</span>
             <span>{w.items.length}</span>
           </div>
           {w.items.map((s) => {
             const r = byId.get(s.id)!;
             const blocks = es.filter(([a]) => a === s.id).length;
-            const a = Math.max(0, s.s - w.week);
-            const b = Math.min(6, s.e - w.week);
+            const a = Math.max(0, s.s - w.at);
+            const b = Math.min(w.len - 1, s.e - w.at);
             return (
               <button
                 key={s.id}
@@ -697,7 +748,7 @@ export function TimelinePhone({ ctx }: { ctx: TlCtx }) {
                   {blocks ? ` · blocks ${blocks}` : ""}
                 </span>
                 <span className="mini" aria-hidden="true">
-                  <i style={{ left: `${(a / 7) * 100}%`, width: `${((b - a + 1) / 7) * 100}%` }} />
+                  <i style={{ left: `${(a / w.len) * 100}%`, width: `${((b - a + 1) / w.len) * 100}%` }} />
                 </span>
               </button>
             );
@@ -732,6 +783,8 @@ export function WorkloadView({ ctx }: { ctx: TlCtx }) {
   const p = resolve(db, tlPrefs(ctx));
   const [mode, setMode] = useState<"hours" | "tasks">("hours");
   const [open, setOpen] = useState<{ anchor: Anchor; who: string; w: number } | null>(null);
+  const [drag, setDrag] = useState<{ x: number; y: number; t: string; over: string | null } | null>(null);
+  const [say, setSay] = useState("");
   const w0 = weekStart(today());
   const weeks = Array.from({ length: 6 }, (_, i) => w0 + i * 7);
   const load = workload(ctx.rows, p, weeks);
@@ -749,6 +802,42 @@ export function WorkloadView({ ctx }: { ctx: TlCtx }) {
   const rowsOrder = [...people, ...(load.has("") ? [""] : [])];
   const byId = new Map(ctx.rows.map((r) => [r.id, r]));
   const cellOf = open ? load.get(open.who)?.[open.w] : null;
+  const nameOf = (who: string) => (who ? (ctx.people.resolve(who)?.name ?? "Someone") : "Unassigned");
+  const assign = (id: string, who: string) => {
+    ctx.um?.stopCapturing();
+    setCell(doc, db.id, id, whoF.id, who || null);
+    setSay(`${titleOf(db, byId.get(id)!)} assigned to ${nameOf(who)}`);
+  };
+  /** Drag a task from a cell's list onto someone's row to reassign it (frame 4a). */
+  const onTaskDown = (e: React.PointerEvent, id: string) => {
+    if (!edit || e.button !== 0) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const btn = e.currentTarget as HTMLElement;
+    const t = titleOf(db, byId.get(id)!);
+    let moved = false;
+    let over: string | null = null;
+    delete btn.dataset.dragged;
+    const at = (ev: PointerEvent) => document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>(`[data-tl="${db.id}"] tr[data-who]`)?.dataset.who ?? null;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      moved = true;
+      btn.dataset.dragged = "1";
+      over = at(ev);
+      setDrag({ x: ev.clientX, y: ev.clientY, t, over });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDrag(null);
+      if (!moved || over == null) return;
+      const cur = (byId.get(id)?.v[whoF.id] as string | undefined) ?? "";
+      if (over !== cur) assign(id, over);
+      setOpen(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   return (
     <div className="ocdb-wl" data-tl={db.id}>
       <div className="ocdb-tl-tb">
@@ -774,7 +863,7 @@ export function WorkloadView({ ctx }: { ctx: TlCtx }) {
           {rowsOrder.map((who) => {
             const u = who ? ctx.people.resolve(who) : null;
             return (
-              <tr key={who || "none"}>
+              <tr key={who || "none"} data-who={who} className={drag?.over === who ? "drop" : undefined}>
                 <th scope="row">
                   {u ? <Avatar u={u} size="xs" /> : null}
                   {u?.name ?? (who ? "Someone" : "Unassigned")}
@@ -804,12 +893,20 @@ export function WorkloadView({ ctx }: { ctx: TlCtx }) {
           <ul className="ocdb-wl-list">
             {cellOf.rows.map((id) => (
               <li key={id}>
-                <button className="ocdb-mi" onClick={() => (setOpen(null), ctx.setPeek(id))}>{titleOf(db, byId.get(id)!)}</button>
+                <button
+                  className={"ocdb-mi" + (edit && !ctx.compact ? " drag" : "")}
+                  title={edit && !ctx.compact ? "Drag onto someone's row to reassign" : undefined}
+                  onPointerDown={(e) => !ctx.compact && onTaskDown(e, id)}
+                  onClick={(e) => !e.currentTarget.dataset.dragged && (setOpen(null), ctx.setPeek(id))}
+                >
+                  {edit && !ctx.compact ? <Ic i={GripVertical} s={14} /> : null}
+                  {titleOf(db, byId.get(id)!)}
+                </button>
                 {edit ? (
                   <select
                     aria-label={`Assign ${titleOf(db, byId.get(id)!)} to`}
                     value={(byId.get(id)!.v[whoF.id] as string) ?? ""}
-                    onChange={(e) => setCell(doc, db.id, id, whoF.id, e.target.value || null)}
+                    onChange={(e) => assign(id, e.target.value)}
                   >
                     <option value="">Unassigned</option>
                     {ctx.people.pickable.map((u) => (
@@ -822,6 +919,13 @@ export function WorkloadView({ ctx }: { ctx: TlCtx }) {
           </ul>
         </Pop>
       ) : null}
+      {drag ? (
+        <div className="ocdb-wl-ghost" aria-hidden="true" style={{ left: drag.x + 12, top: drag.y + 8 }}>
+          {drag.t}
+          {drag.over != null ? <span> → {nameOf(drag.over)}</span> : null}
+        </div>
+      ) : null}
+      <div className="ocdb-sr" aria-live="polite">{say}</div>
     </div>
   );
 }

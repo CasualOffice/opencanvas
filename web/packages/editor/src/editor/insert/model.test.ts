@@ -76,13 +76,19 @@ describe("variants (2a-2e)", () => {
     nav = menuKey(nav, "ArrowRight", {}, c).nav;
     const v = viewOf(nav, c);
     expect(v.kind).toBe("step");
-    expect(v.bands.map((b) => b.items.map((i) => ("row" in i ? i.row.variant!.short : "")))).toEqual([["Table", "Board"], ["Calendar", "Gallery"]]);
+    expect(v.bands.map((b) => b.items.map((i) => ("row" in i ? i.row.variant!.short : "")))).toEqual([["Table", "Board"], ["Calendar", "Gallery"], ["Timeline", "Workload"]]);
     nav = menuKey(nav, "ArrowRight", {}, c).nav;
     nav = menuKey(nav, "ArrowDown", {}, c).nav;
     const r = menuKey(nav, "Enter", {}, c);
     expect(r.action?.t === "insert" && r.action.row.variant?.label).toBe("Gallery view");
     // Backspace in a step goes back without deleting the query.
     expect(menuKey(nav, "Backspace", {}, c)).toMatchObject({ handled: true, nav: { stack: [] } });
+  });
+
+  it("v0.4.1: /timeline and /workload insert a database opening in that view", () => {
+    expect(rowLabel(first("timeline")!)).toBe("Database, Timeline view");
+    expect(rowLabel(first("workload")!)).toBe("Database, Workload view");
+    expect(rowLabel(first("gantt")!)).toBe("Database, Timeline view");
   });
 
   it("/h2, /todo, /board and the old ids land on the variant", () => {

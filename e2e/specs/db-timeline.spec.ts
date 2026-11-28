@@ -175,3 +175,68 @@ test("the public demo shows the newer blocks: a budget sheet, its chart, and the
   await backlog.getByRole("tab", { name: "Workload" }).click();
   await expect(backlog.locator(".ocdb-wl-t")).toBeVisible();
 });
+
+test("v0.4.1: /timeline inserts a Timeline; jump to from an empty range; drag to reassign in Workload; Months on a phone", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { priya } = await sharedFile(browser, { name: "E2E timeline v041", samRole: "edit" });
+  const page = priya.page;
+  await typeAfterHeading(priya, "Notes", "");
+  await page.keyboard.type("/timeline");
+  await page.keyboard.press("Enter");
+  dbId = "";
+  let d = db(priya.oc);
+  await expect(d).toBeVisible({ timeout: 15_000 });
+  dbId = (await d.evaluate((el) => el.closest("[data-db]")?.getAttribute("data-db"))) ?? "";
+  d = db(priya.oc);
+  // The insert menu's Timeline variant opens the new database on its Timeline.
+  await expect(d.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-selected", "true");
+  await expect(d.locator(".ocdb-tl")).toBeVisible();
+
+  await d.getByRole("tab", { name: "Table" }).click();
+  const names = d.locator("tbody").getByRole("textbox", { name: "Name" });
+  for (const [i, n] of ["API freeze", "SDK docs"].entries()) {
+    await names.nth(i).fill(n);
+    await names.nth(i).press("Enter");
+  }
+  await d.getByRole("tab", { name: "Timeline" }).click();
+  for (const n of ["API freeze", "SDK docs"]) await d.getByLabel("No dates").getByRole("button", { name: n }).click();
+
+  // 6b: scrolled to the far end at Day zoom nothing is in range; Jump to brings the tasks back.
+  await d.getByRole("group", { name: "Zoom" }).getByRole("button", { name: "Day" }).click();
+  await d.locator(".ocdb-tl-r").evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+  const gap = d.locator(".ocdb-tl-gap");
+  await expect(gap).toContainText("Nothing scheduled");
+  await expect(gap).toContainText("The last task ended");
+  await gap.getByRole("button", { name: /^Jump to / }).click();
+  await expect(gap).toHaveCount(0);
+  await expect(bar(priya.oc, "API freeze")).toBeInViewport();
+
+  // Workload: assign API freeze to Sam with the select, then drag SDK docs onto Sam's row.
+  await d.getByRole("tab", { name: "Workload" }).click();
+  const cell = (who: string) => d.locator("tr").filter({ has: priya.oc.getByRole("rowheader", { name: who }) }).locator("td button:enabled").first();
+  await cell("Unassigned").click();
+  const sel = priya.oc.getByRole("combobox", { name: "Assign API freeze to" });
+  const sam = await sel.locator("option", { hasText: "Sam" }).first().getAttribute("value");
+  await sel.selectOption(sam!);
+  await page.keyboard.press("Escape");
+  const samRow = d.locator(`tr[data-who="${sam}"]`);
+  await expect(samRow).toBeVisible();
+  await cell("Unassigned").click();
+  const task = priya.oc.getByRole("dialog").getByRole("button", { name: "SDK docs" });
+  const a = (await task.boundingBox())!;
+  const t = (await samRow.locator("th").boundingBox())!;
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 10 });
+  await expect(samRow).toHaveClass(/\bdrop\b/);
+  await page.mouse.up();
+  await expect(d.locator(".ocdb-sr").last()).toContainText("SDK docs assigned to Sam");
+  await expect(d.getByRole("rowheader", { name: "Unassigned" })).toHaveCount(0);
+
+  // Phone: the list by week switches to Months.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await d.getByRole("tab", { name: "Timeline" }).click();
+  await d.getByRole("group", { name: "Group by" }).getByRole("button", { name: "Months" }).click();
+  await expect(d.getByRole("region", { name: /^[A-Z][a-z]{2} \d{4}$/ }).first()).toBeVisible();
+  await expect(d.getByRole("region", { name: /^Week of / })).toHaveCount(0);
+});

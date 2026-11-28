@@ -94,6 +94,10 @@
 .oci .pv.vc i{border-radius:2px;background:var(--app);box-shadow:inset 0 0 0 1px var(--line)}
 .oci .pv.vc i.e{background:var(--blue-bg);box-shadow:inset 0 0 0 1px var(--blue-fg)}
 .oci .pv.vc i.g{background:var(--green-bg);box-shadow:inset 0 0 0 1px var(--green-fg)}
+.oci .pv.vtl{display:flex;flex-direction:column;justify-content:center;gap:.4375rem}
+.oci .pv.vtl u{height:.5rem;width:50%;border-radius:.1875rem;background:var(--blue-fg)}
+.oci .pv.vwl{grid-template-columns:repeat(6,1fr);gap:.1875rem}
+.oci .pv.vc i.r{background:var(--red-bg);box-shadow:inset 0 0 0 1px var(--red-fg)}
 .oci .pv.vg{display:grid;grid-template-columns:repeat(3,1fr);gap:.25rem}
 .oci .pv.vg i{border-radius:.1875rem;background:var(--app);box-shadow:inset 0 0 0 1px var(--line-2);display:flex;flex-direction:column;overflow:hidden}
 .oci .pv.vg s{display:block;height:1.375rem;background:var(--purple-bg)}
