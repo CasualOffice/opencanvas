@@ -13,23 +13,30 @@ import { applyTemplate, createFile, editor, expectSaved, openFile, person, type 
 test.describe.configure({ mode: "serial" });
 
 let target = "";
+/** Unique per worker: two workers (or a repeat) each make their own target, and the [[ picker must
+ * find exactly one. A shared name made the option ambiguous (strict mode) and failed CI. */
+const TAG = Math.random().toString(36).slice(2, 6);
+const NAME = `Pricing model 2027 ${TAG}`;
+const SRC = `Board deck draft ${TAG}`;
 let source = "";
 
 /** A target with a heading and a source that links to it, saved and indexed. */
 async function setup(browser: Browser): Promise<Person> {
   const priya = await person(browser, "u_priya");
   if (target) return priya;
-  target = await createFile(priya, "Pricing model 2027", HOST_LINKS);
+  target = await createFile(priya, NAME, HOST_LINKS);
   await applyTemplate(priya, "Meeting notes");
   await expectSaved(priya);
-  source = await createFile(priya, "Board deck draft", HOST_LINKS);
+  source = await createFile(priya, SRC, HOST_LINKS);
   await applyTemplate(priya, "Meeting notes");
   await editor(priya).locator("h1, h2, h3").filter({ hasText: "Notes" }).first().click();
   await priya.page.keyboard.press("End");
   await priya.page.keyboard.press("Enter");
   await priya.page.keyboard.type("Numbers follow [[Pricing");
-  await expect(priya.oc.getByRole("option", { name: /Pricing model 2027/ })).toBeVisible({ timeout: 15_000 });
-  await priya.page.keyboard.press("Enter");
+  // Another worker may have its own "Pricing model 2027 …"; pick ours, not the first option.
+  const mine = priya.oc.getByRole("option", { name: new RegExp(NAME) });
+  await expect(mine).toBeVisible({ timeout: 15_000 });
+  await mine.click();
   await priya.page.keyboard.type("for the year.");
   await expectSaved(priya);
   return priya;
@@ -43,7 +50,7 @@ test("keyboard only: Space previews a selected link, Escape closes, groups are d
   const priya = await setup(browser);
   await openFile(priya, source, HOST_LINKS);
   const link = editor(priya).locator("a.clink").first();
-  await expect(link).toHaveText("Pricing model 2027");
+  await expect(link).toHaveText(NAME);
   // Put the caret after the link and select it with the keyboard.
   // Click past the end of the line (a click on the link would follow it).
   const line = editor(priya).locator("p").filter({ hasText: "for the year." });
@@ -55,15 +62,15 @@ test("keyboard only: Space previews a selected link, Escape closes, groups are d
   await expect(editor(priya).locator("a.clink.ProseMirror-selectednode")).toHaveCount(1);
   await priya.page.keyboard.press(" ");
   const pv = priya.oc.getByRole("dialog", { name: "Link preview" });
-  await expect(pv).toContainText("Pricing model 2027");
+  await expect(pv).toContainText(NAME);
   await priya.page.keyboard.press("Escape");
   await expect(pv).toBeHidden();
   // Space did not type into the document.
-  await expect(editor(priya).locator("p").filter({ hasText: "for the year." })).toContainText("Numbers follow Pricing model 2027");
+  await expect(editor(priya).locator("p").filter({ hasText: "for the year." })).toContainText(`Numbers follow ${NAME}`);
 
   await openFile(priya, target, HOST_LINKS);
   const end = priya.oc.getByRole("region", { name: "Linked from" });
-  const group = end.getByRole("button", { name: /Board deck draft/ });
+  const group = end.getByRole("button", { name: new RegExp(SRC) });
   await expect(group).toBeVisible({ timeout: 15_000 });
   await expect(group).toHaveAttribute("aria-expanded", "true");
   await group.focus();
@@ -90,7 +97,7 @@ test("320 px and 200% zoom: no horizontal scroll, the section and the sheet fit"
     const p = await person(browser, "u_priya", { viewport: { width: w, height: h }, deviceScaleFactor: scale });
     await openFile(p, target, HOST_LINKS);
     const end = p.oc.getByRole("region", { name: "Linked from" });
-    await expect(end.getByRole("button", { name: /Board deck draft/ })).toBeVisible({ timeout: 15_000 });
+    await expect(end.getByRole("button", { name: new RegExp(SRC) })).toBeVisible({ timeout: 15_000 });
     await end.scrollIntoViewIfNeeded();
     expect(await overflow(p), `horizontal overflow at ${w} px`).toBeLessThanOrEqual(0);
     const box = await end.boundingBox();
