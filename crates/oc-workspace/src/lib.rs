@@ -21,6 +21,7 @@ pub mod db;
 pub mod engine;
 pub mod jobs;
 pub mod model;
+pub mod passkeys;
 pub mod search;
 pub mod secrets;
 pub mod settings;
@@ -202,6 +203,7 @@ pub fn router(ws: Ws) -> Router {
         .merge(api::router())
         .merge(api_files::router())
         .merge(api_admin::router())
+        .merge(passkeys::router())
         .layer(middleware::from_fn_with_state(ws.clone(), csrf));
     Router::new()
         .route("/", get(|| async { Redirect::temporary("/ws/") }))

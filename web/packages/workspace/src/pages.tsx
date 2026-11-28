@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AtSign, Bell, Folder, Info, Link2, Lock, Search, Share, Trash2, Undo2, UserPlus, Users } from "lucide-react";
 import { ago, api, TYPES } from "./api";
+import { addPasskey, deviceName, passkeysSupported } from "./passkey";
 import { go, onLink } from "./router";
 import { useApp } from "./shell";
 import { Avatar, Empty, Modal, TypeTile, useToast } from "./ui";
@@ -801,6 +802,20 @@ export function MePage() {
   const toast = useToast();
   const [name, setName] = useState(me.name);
   const [pw, setPw] = useState({ current: "", password: "" });
+  const [keys, setKeys] = useState<{ id: string; name: string; createdAt: number; lastUsedAt: number | null }[]>([]);
+  const loadKeys = useCallback(() => api.get<{ passkeys: typeof keys }>("/passkeys").then((r) => setKeys(r.passkeys), () => {}), []);
+  useEffect(() => {
+    loadKeys();
+  }, [loadKeys]);
+  const add = async () => {
+    try {
+      await addPasskey(deviceName());
+      await loadKeys();
+      toast("Passkey added");
+    } catch (e) {
+      if ((e as Error).name !== "NotAllowedError") toast((e as Error).message);
+    }
+  };
   const save = async () => {
     try {
       await api.patch("/me", { name });
@@ -845,6 +860,39 @@ export function MePage() {
               Save
             </button>
           </div>
+        </div>
+        <div className="sec">
+          <div className="sec-h">
+            Passkeys
+            <span className="sp" />
+            {passkeysSupported() && (
+              <button className="btn sec" onClick={add}>
+                Add a passkey
+              </button>
+            )}
+          </div>
+          {keys.length ? (
+            keys.map((k) => (
+              <div className="sec-r" key={k.id}>
+                <span className="m">
+                  <b>{k.name}</b>
+                  <small>
+                    Added {ago(k.createdAt)}
+                    {k.lastUsedAt ? ` · last used ${ago(k.lastUsedAt)}` : ""}
+                  </small>
+                </span>
+                <button className="btn" onClick={() => api.del(`/passkeys/${encodeURIComponent(k.id)}`).then(loadKeys, (e) => toast((e as Error).message))}>
+                  Remove
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="sec-r">
+              <span className="m">
+                <small>Sign in with Touch ID, Windows Hello, your phone or a security key instead of a password.</small>
+              </span>
+            </div>
+          )}
         </div>
         <div className="sec">
           <div className="sec-h">Password</div>

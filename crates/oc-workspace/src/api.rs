@@ -606,7 +606,10 @@ struct SignupBody {
     invite: Option<String>,
     name: String,
     email: Option<String>,
-    password: String,
+    /// Absent with `passkey: true`: the account signs in with a passkey only (2b).
+    password: Option<String>,
+    #[serde(default)]
+    passkey: bool,
 }
 
 async fn signup(State(ws): State<Ws>, req: axum::extract::Request) -> ApiResult<Response> {
@@ -648,8 +651,19 @@ async fn signup(State(ws): State<Ws>, req: axum::extract::Request) -> ApiResult<
             ));
         }
     }
-    if let Some(p) = auth::password_problem(&b.password, &email) {
-        return Err(ApiError::bad("PASSWORD", p));
+    match (&b.password, b.passkey) {
+        (Some(pw), _) => {
+            if let Some(p) = auth::password_problem(pw, &email) {
+                return Err(ApiError::bad("PASSWORD", p));
+            }
+        }
+        (None, true) => {}
+        (None, false) => {
+            return Err(ApiError::bad(
+                "PASSWORD",
+                "Choose a password, or create the account with a passkey.",
+            ));
+        }
     }
     let exists: Option<String> = sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
         .bind(&email)
@@ -669,7 +683,7 @@ async fn signup(State(ws): State<Ws>, req: axum::extract::Request) -> ApiResult<
     };
     let uid = id("u_");
     let now = now_ms();
-    let hash = auth::hash_password(&b.password)?;
+    let hash = b.password.as_deref().map(auth::hash_password).transpose()?;
     let mut tx = ws.db.pool.begin().await?;
     if let Some(i) = &inv {
         // Single use, even when two people race on one link.

@@ -9,6 +9,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- OpenCanvas Workspace passkeys (WS-06): sign in with a passkey (also from the e-mail field's autofill), create an account
+  from an invite with a passkey only, and add or remove passkeys on your page. ES256 keys; challenges are single use and
+  expire after 5 minutes.
 - App views for typed files (FTY-03..05): a spreadsheet file opens in the sheet's full-screen view, a whiteboard in the
   board's, a database fills the page; none offers a way back to a document view. A host that draws its own file header sets
   `[host.editor] chrome = "host"` (no editor top bar) and opens panels with `Action_OpenPanel`. The file records its type

@@ -43,6 +43,8 @@ ulid.workspace = true
 zip.workspace = true
 # Passwords (ADR-085 §5): Argon2id, RustCrypto, pure Rust.
 argon2 = { version = "0.5", default-features = false, features = ["alloc", "password-hash"] }
+# Passkeys (WS-06): ES256 signatures, already in the tree through the engine.
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
 tikv-jemallocator = { version = "0.6.1", optional = true }
 
 [features]

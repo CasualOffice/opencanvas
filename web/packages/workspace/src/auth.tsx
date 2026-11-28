@@ -5,7 +5,8 @@
 // page a public-link visitor opens.
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Archive, Check, ChevronRight, KeyRound, LogIn, UserPlus } from "lucide-react";
+import { Archive, Check, ChevronRight, Fingerprint, KeyRound, LogIn, UserPlus } from "lucide-react";
+import { addPasskey, deviceName, passkeysSupported, signInWithPasskey } from "./passkey";
 import { api, ApiError } from "./api";
 import { go } from "./router";
 import { Brand } from "./ui";
@@ -194,6 +195,24 @@ export function SignIn({ onDone }: { onDone: () => void }) {
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [forgot, setForgot] = useState(false);
+  // Conditional UI: the browser offers saved passkeys in the e-mail field's autofill.
+  useEffect(() => {
+    if (!passkeysSupported()) return;
+    const ac = new AbortController();
+    (PublicKeyCredential as unknown as { isConditionalMediationAvailable?: () => Promise<boolean> }).isConditionalMediationAvailable?.().then((ok) => {
+      if (ok) signInWithPasskey(true, ac.signal).then(onDone, () => {});
+    });
+    return () => ac.abort();
+  }, [onDone]);
+  const passkey = async () => {
+    setErr("");
+    try {
+      await signInWithPasskey();
+      onDone();
+    } catch (x) {
+      if ((x as Error).name !== "NotAllowedError" && (x as Error).name !== "AbortError") setErr(msg(x));
+    }
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setErr("");
@@ -209,8 +228,17 @@ export function SignIn({ onDone }: { onDone: () => void }) {
       <form className="auth-c" onSubmit={submit}>
         <Brand />
         <h3>Sign in</h3>
-        <p>Welcome back. Use your account to continue.</p>
-        <Field id="si-e" label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoFocus />
+        <p>Welcome back. Use the passkey on this device, or your e-mail and password.</p>
+        {passkeysSupported() && (
+          <>
+            <button type="button" className="btn pri lg full" onClick={passkey}>
+              <Fingerprint size={16} />
+              Sign in with a passkey
+            </button>
+            <div className="or">or with e-mail</div>
+          </>
+        )}
+        <Field id="si-e" label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username webauthn" autoFocus />
         <div className="fg">
           <label className="lbl" htmlFor="si-p" style={{ display: "flex" }}>
             Password
@@ -228,7 +256,7 @@ export function SignIn({ onDone }: { onDone: () => void }) {
           </p>
         )}
         <Err e={err} />
-        <button className="btn pri lg full">
+        <button className={`btn ${passkeysSupported() ? "sec" : "pri"} lg full`}>
           <LogIn size={16} />
           Sign in
         </button>
@@ -255,6 +283,22 @@ export function InviteSignup({ token, onDone }: { token: string; onDone: (next: 
       setErr(msg(x));
     }
   };
+  const withPasskey = async () => {
+    setErr("");
+    if (!f.name.trim()) return setErr("Enter your name.");
+    try {
+      const r = await api.post<{ next: string }>("/auth/signup", { invite: token, name: f.name, email: info?.email || f.email, passkey: true });
+      try {
+        await addPasskey(deviceName());
+      } catch {
+        // The account exists; without a passkey it needs a password (You page) or an admin reset.
+        setErr("The account was made, but the passkey wasn't. Add one, or a password, on your page.");
+      }
+      onDone(r.next);
+    } catch (x) {
+      setErr(msg(x));
+    }
+  };
   const what = info && (info.kind === "org" ? `${info.org} as a ${info.role}` : info.kind === "workspace" ? `the ${info.targetName} workspace as ${info.role === "admin" ? "an Admin" : `a ${info.role}`}` : `“${info.targetName}”`);
   return (
     <div className="auth">
@@ -272,6 +316,15 @@ export function InviteSignup({ token, onDone }: { token: string; onDone: (next: 
           <>
             <Field id="su-n" label="Your name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoComplete="name" autoFocus />
             <Field id="su-e" label="E-mail" type="email" value={info.email || f.email} readOnly={!!info.email} onChange={(e) => setF({ ...f, email: e.target.value })} autoComplete="email" />
+            {passkeysSupported() && (
+              <>
+                <button type="button" className="btn pri lg full" onClick={withPasskey}>
+                  <Fingerprint size={16} />
+                  Create account with a passkey
+                </button>
+                <div className="or">or</div>
+              </>
+            )}
             <Field id="su-p" label="Choose a password" type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="new-password" />
             <div className="meter" aria-hidden="true">
               <i style={{ width: `${strength(f.password) * 100}%` }} />
@@ -280,7 +333,7 @@ export function InviteSignup({ token, onDone }: { token: string; onDone: (next: 
           </>
         )}
         <Err e={err} />
-        {info && <button className="btn pri lg full">Create account</button>}
+        {info && <button className={`btn ${passkeysSupported() ? "sec" : "pri"} lg full`}>Create account</button>}
         <div className="auth-ft">
           Already have an account?{" "}
           <a href="/ws/signin" className="lnk">
