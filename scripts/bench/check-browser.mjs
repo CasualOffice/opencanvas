@@ -5,7 +5,9 @@
 // Nightly browser gate (ADR-079 MEM, PSYNC50): a browser result
 // (bench/results/<date>-browser-<machine>.json, e2e/perf/first-screen.bench.ts) against
 // bench/budgets.toml [heap_mb] and [first_screen_ms]. A budget of 0 is not set yet. Exits 1 on a
-// breach or a fixture that failed to open.
+// breach or a fixture that failed to open. A table [first_screen_ms.<machine>] (the result's
+// `machine`, e.g. ci-ubuntu-latest) overrides the reference machine's budgets for that machine
+// only, each set from a baseline measured on that machine (docs/36 §3.5).
 //
 //   node scripts/bench/check-browser.mjs bench/results/2026-11-26-browser-local.json
 import { readFileSync } from "node:fs";
@@ -22,12 +24,19 @@ if (!file) {
 const budgets = {};
 let table = "";
 for (const line of readFileSync(resolve(root, "bench/budgets.toml"), "utf8").split("\n")) {
-  const t = line.match(/^\[([\w.]+)\]/);
+  const t = line.match(/^\[([\w.-]+)\]/);
   if (t) table = t[1];
   const kv = line.match(/^\s*([\w-]+)\s*=\s*([\d_.]+)\s*(#.*)?$/);
-  if (kv && (table === "heap_mb" || table === "first_screen_ms")) (budgets[table] ??= {})[kv[1]] = Number(kv[2].replace(/_/g, ""));
+  if (kv && /^(heap_mb|first_screen_ms)(\.[\w-]+)?$/.test(table)) (budgets[table] ??= {})[kv[1]] = Number(kv[2].replace(/_/g, ""));
 }
 const result = JSON.parse(readFileSync(file, "utf8"));
+for (const t of ["heap_mb", "first_screen_ms"]) {
+  const own = budgets[`${t}.${result.machine}`];
+  if (own) {
+    budgets[t] = { ...budgets[t], ...own };
+    console.log(`${t}: ${result.machine} budgets ${JSON.stringify(own)}`);
+  }
+}
 const fails = [];
 for (const [fx, r] of Object.entries(result.fixtures ?? {})) {
   if (r.errors) fails.push(`${fx}: ${r.errors} run(s) failed to open`);

@@ -909,3 +909,43 @@ pub async fn wait_until(mut f: impl FnMut() -> bool) {
     }
     panic!("condition not met in time");
 }
+
+/// docs/15 §2 (PSYNC-BUG-2): whether the canvas of a session answer `s` is new, as the editor
+/// learns it: the session's `isNew` when the room opened within the session's wait, otherwise
+/// (`null`) the room's `{"t":"room","isNew":bool}` control message on joining the socket.
+pub async fn session_is_new(addr: &str, s: &Value) -> bool {
+    use futures::StreamExt;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
+    if let Some(b) = s["isNew"].as_bool() {
+        return b;
+    }
+    assert!(s["isNew"].is_null(), "isNew is a bool or null: {s}");
+    let url = format!(
+        "ws://{addr}/v1/collab/{}?ticket={}&caps=ext,subdoc,links,live",
+        s["room"].as_str().expect("room"),
+        s["ticket"].as_str().expect("ticket"),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(url).await.expect("socket");
+    let found = tokio::time::timeout(Duration::from_secs(20), async {
+        while let Some(Ok(msg)) = ws.next().await {
+            let WsMessage::Binary(data) = msg else {
+                continue;
+            };
+            let mut d = DecoderV1::new(Cursor::new(&data));
+            for m in MessageReader::new(&mut d).flatten() {
+                if let Message::Custom(protocol::MSG_CONTROL, body) = m {
+                    let c: Value = serde_json::from_slice(&body).expect("control json");
+                    if c["t"] == "room" {
+                        return c["isNew"].as_bool();
+                    }
+                }
+            }
+        }
+        None
+    })
+    .await;
+    found
+        .ok()
+        .flatten()
+        .expect("the room's join message says whether the canvas is new")
+}

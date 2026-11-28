@@ -6208,6 +6208,20 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## BROWSER — 2026-11-28-browser-ci-ubuntu-latest
+
+- **Run:** 2026-11-28, commit `556e97e`; AMD EPYC 7763 64-Core Processor, 4 vCPU, 15 GB RAM, Ubuntu 26.04.1 LTS, sda 1 Virtual Disk;; machine `ci-ubuntu-latest`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 1,191 | 1,299 | 7 |
+| m | 1,363 | 1,382 | 7.2 |
+
+Initial JavaScript: 289,919 bytes gzip (budget 300 KB).
+
+
 ## 2026-11-28-links-graph-local-m4 — 2026-11-28-links-graph-local-m4
 
 - **Run:** 2026-11-28, commit `?`; ?, ? vCPU, ? GB RAM, ?, ?; machine `Apple M4, local, other agents' builds running (background load)`; store `?`

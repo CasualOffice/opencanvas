@@ -60,7 +60,7 @@ fn outbox_row(room: &str) -> OutboxRow {
 #[tokio::test]
 async fn epoch_1_writes_are_refused_once_epoch_2_owns_the_room() {
     for (db, s) in stores().await {
-        let room = format!("r_{}", &ulid::Ulid::new().to_string()[..12]).to_lowercase();
+        let room = new_room();
         let e1 = s.claim_epoch(&room, 1_000).await.unwrap();
         s.append_update(&room, e1, 1, b"one", "u_a", 1_000)
             .await
@@ -234,8 +234,9 @@ fn rows(seqs: impl IntoIterator<Item = i64>, tag: &str) -> Vec<WalRow> {
         .collect()
 }
 
+/// The ULID's 80 random bits (its first 10 characters are the millisecond; RLB-04).
 fn new_room() -> String {
-    format!("r_{}", &ulid::Ulid::new().to_string()[..12]).to_lowercase()
+    format!("r_{}", &ulid::Ulid::new().to_string()[10..]).to_lowercase()
 }
 
 fn seqs(wal: &oc_server::store::Wal) -> Vec<i64> {
@@ -481,4 +482,15 @@ async fn an_older_dump_never_replaces_a_newer_one() {
             "{name}: a late dump went back in time"
         );
     }
+}
+
+/// RLB-04: rooms made back to back are different rooms. `new_room` kept the first 12 characters
+/// of a ULID: its 10-character millisecond time and only 10 random bits, so two rooms made in the
+/// same millisecond were the same room about once in 1,024 pairs. `wal_batch_is_all_or_nothing`
+/// then claimed epoch 2 for "good" over "bad"'s epoch 1 and its first append was fenced (the
+/// reliability nightly, 1 of 5 runs).
+#[test]
+fn rooms_made_in_one_millisecond_are_distinct() {
+    let ids: std::collections::HashSet<String> = (0..5_000).map(|_| new_room()).collect();
+    assert_eq!(ids.len(), 5_000);
 }

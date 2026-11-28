@@ -32,8 +32,9 @@ async fn store(url: &str) -> Store {
         .unwrap()
 }
 
+/// The ULID's 80 random bits (its first 10 characters are the millisecond; RLB-04).
 fn new_room() -> String {
-    format!("r_{}", &ulid::Ulid::new().to_string()[..12]).to_lowercase()
+    format!("r_{}", &ulid::Ulid::new().to_string()[10..]).to_lowercase()
 }
 
 fn row(seq: i64, data: Vec<u8>) -> WalRow {
