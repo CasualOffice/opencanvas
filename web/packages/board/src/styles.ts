@@ -25,6 +25,12 @@ ${ICON_REM}
 .ocbd-dock>*{pointer-events:auto}
 .ocbd-tool{display:flex;gap:.125rem;padding:.25rem;border-radius:.75rem;background:var(--pop);box-shadow:var(--sh-pop);flex:none}
 .ocbd-tool>*,.ocbd-tool .ocbd-ib{flex:none}
+/* BRD-32 (owner): the tool bar centred at the bottom, the zoom pill at the bottom right. Three columns,
+   1fr auto 1fr; fitTools (toolbar.ts) reserves the pill's width on both sides, so they never meet.
+   Too narrow for that (a phone): no data-centre, the bar from the left edge and the pill after it. */
+.ocbd-dock[data-centre]{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}
+.ocbd-dock[data-centre]>.ocbd-tool{grid-column:2}
+.ocbd-dock[data-centre]>.ocbd-zoom{grid-column:3;justify-self:end;margin-left:0}
 .ocbd-tool .ocbd-ib:focus-visible,.ocbd-zoom button:focus-visible{outline:.125rem solid var(--accent);outline-offset:.125rem}
 .ocbd-ib{width:2rem;height:2rem;border:0;background:none;border-radius:.5rem;display:inline-grid;place-items:center;color:var(--fg-2);flex:none;padding:0;transition:background .2s var(--ease),color .2s var(--ease),transform .15s var(--ease)}
 .ocbd-ib:hover{background:var(--hover);color:var(--fg)}

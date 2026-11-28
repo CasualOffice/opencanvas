@@ -102,6 +102,38 @@ test("320 px: three tools, More and the 100% button, 44 px targets", async ({ pa
   expect(small).toBe(0);
 });
 
+// BRD-32 (owner, 2026-11-28): the tool bar is centred at the bottom of the board, the zoom pill
+// stays at the bottom right and never overlaps it. Centred within 2 px at 1280, 853 and 640 px;
+// at 320 px (too narrow to centre) only clear of the pill. Checked with the mouse.
+for (const [w, h] of [[1280, 900], [853, 533], [640, 450], [320, 600]] as const) {
+  test(`BRD-32: tool bar centred at the bottom, ${w} × ${h}`, async ({ page }) => {
+    const board = await open(page, w, h, 16, false);
+    await board.locator(".ocbd-dock").scrollIntoViewIfNeeded();
+    const bb = (await board.boundingBox())!;
+    const bar = (await board.getByRole("toolbar", { name: "Board tools" }).boundingBox())!;
+    const zoom = (await board.getByRole("group", { name: "Zoom" }).boundingBox())!;
+    expect(overlap(bar, zoom), "tool bar and zoom pill overlap").toBe(false);
+    expect(bb.y + bb.height - (bar.y + bar.height), "at the bottom").toBeLessThan(24);
+    expect(bb.x + bb.width - (zoom.x + zoom.width), "zoom pill at the bottom right").toBeLessThan(24);
+    const mid = bar.x + bar.width / 2;
+    if (w >= 640) expect(Math.abs(mid - (bb.x + bb.width / 2)), "centred on the board").toBeLessThanOrEqual(2);
+    // A real click on the Rectangle (or the last shown tool) where it is drawn presses it.
+    const tool = board.locator(".ocbd-tool [data-tool]").last();
+    const tb = (await tool.boundingBox())!;
+    await page.mouse.click(tb.x + tb.width / 2, tb.y + tb.height / 2);
+    await expect(tool).toHaveAttribute("aria-pressed", "true");
+    // More opens next to its button, inside the board.
+    const more = (await board.getByRole("button", { name: /^More tools/ }).boundingBox())!;
+    await page.mouse.click(more.x + more.width / 2, more.y + more.height / 2);
+    await expect(board.getByRole("menu", { name: "More tools" })).toBeVisible();
+    const menu = (await board.getByRole("menu", { name: "More tools" }).boundingBox())!;
+    expect(menu.x).toBeGreaterThanOrEqual(bb.x - 0.5);
+    expect(menu.x + menu.width).toBeLessThanOrEqual(bb.x + bb.width + 0.5);
+    expect(menu.x).toBeLessThanOrEqual(more.x + more.width);
+    expect(menu.x + menu.width).toBeGreaterThanOrEqual(more.x);
+  });
+}
+
 test("Tools on the left: a rail that fits the board's height, every tool reachable", async ({ page }) => {
   const board = await open(page, 640, 450, 16, false);
   await board.locator(".ocbd-dock").scrollIntoViewIfNeeded();

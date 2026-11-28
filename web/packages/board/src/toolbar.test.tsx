@@ -53,23 +53,23 @@ const key = (el: Element, k: string) => act(() => void el.dispatchEvent(new Keyb
 const tools = (el: Element) => [...el.querySelectorAll<HTMLButtonElement>(".ocbd-tool [data-tool]")].map((b) => b.getAttribute("aria-label"));
 const more = (el: Element) => el.querySelector<HTMLButtonElement>('.ocbd-tool [aria-haspopup="menu"]')!;
 
-describe("fitTools: what stays at each board width (3a)", () => {
-  it("all nine tools, More and the full pill at 640 CSS px (1280 at 200%)", () => {
-    expect(fitTools(40, 9, false)).toEqual({ shown: 9, zoomFull: true });
-    expect(fitTools(34.5, 9, false)).toEqual({ shown: 9, zoomFull: true });
+describe("fitTools: what stays at each board width (3a), centred (BRD-32)", () => {
+  it("a wide board centres all ten tools and the lock, the pill reserved on both sides", () => {
+    expect(fitTools(68.75, 10, false, 1)).toEqual({ shown: 10, zoomFull: true, centred: true }); // 1100 px
+    expect(fitTools(68.75, 10, false, 1, 1)).toEqual({ shown: 10, zoomFull: true, centred: true }); // with Frames
   });
-  it("tools leave from the end before the pill shrinks", () => {
-    const r = fitTools(26, 9, false);
-    expect(r.zoomFull).toBe(true);
+  it("the pill's width is reserved on both sides: tools leave from the end before the pill shrinks", () => {
+    const r = fitTools(40, 10, false, 1);
+    expect(r).toMatchObject({ zoomFull: true, centred: true });
     expect(r.shown).toBeGreaterThanOrEqual(3);
-    expect(r.shown).toBeLessThan(9);
+    expect(r.shown).toBeLessThan(10);
   });
-  it("320 px compact: Select, Sticky note and Pen, More and the 100% button", () => {
-    expect(fitTools(20, 9, true)).toEqual({ shown: 3, zoomFull: false });
+  it("320 px compact: Select, Sticky note and Pen, More and the 100% button, from the left edge", () => {
+    expect(fitTools(20, 9, true, 1)).toEqual({ shown: 3, zoomFull: false, centred: false });
   });
   it("never fewer than three tools, and an unmeasured board shows everything", () => {
     expect(fitTools(10, 9, true).shown).toBe(3);
-    expect(fitTools(0, 9, false)).toEqual({ shown: 9, zoomFull: true });
+    expect(fitTools(0, 9, false)).toEqual({ shown: 9, zoomFull: true, centred: true });
   });
   it("the rail fits by the board's height", () => {
     expect(fitRail(27.5, 9, false)).toBe(9);
