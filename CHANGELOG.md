@@ -41,6 +41,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   it settles. The same canvases are a sortable list (L), with CSV; the graph is one Tab stop with
   arrow keys, Enter, Space and P, and announces each move. On a phone the list comes first. The
   graph loads only when opened.
+- Whiteboard: Wrap in frame (⇧F or the context menu) puts a frame around the selection; a frame's
+  menu has Zoom to frame and Delete frame and contents; the frame a dragged shape will join is
+  outlined; Copy link to shape copies `#block=<id>&shape=<id>` and opens the board at that shape
+  (`UI_BlockLink` and `Action_ScrollToBlock` take an optional `shapeId`, docs/05 §4); Enter renames
+  a selected frame; the board's ? list and the editor's keyboard shortcuts list the new keys. The
+  site, README and docs/29 §9 describe the whole whiteboard UX pass (BRD-21).
 - Whiteboard: one Export dialog for PNG and SVG with a background (none, light or dark; light by
   default and remembered per person), the colours to draw for when transparent, a 1×, 2× or 3× scale
   for PNG, and what to export (the whole board, the selection or one frame). Copy as PNG (⇧⌘C) and

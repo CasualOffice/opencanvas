@@ -904,3 +904,110 @@ Code: `diagram/Presence.tsx`. Presence is awareness only, never document data.
   Who deleted it is not shown: Yjs doesn't record the deleting client.
 - View only (10c): no Undo/Redo (S1), no ports (S3), properties read only (S4) and **Copy text**.
   The shapes panel and auto-layout are hidden by their owners' screens.
+
+## 9. Whiteboard UX pass (BRD-17..31, built 2026-11-28)
+
+Built to the approved prototype
+[board-ux-approved/board-ux.html](prototypes/board-ux-approved/board-ux.html) (all 14 decisions
+approved 2026-11-28). Everything here works on the plain whiteboard; diagram mode keeps its own
+panels (§8) and shares the context menu, style panel, frames and export. Code is in
+`web/packages/board/src`; each part is its own module and the larger ones load on first use.
+Tracker: BRD-17..31 in [docs/10](10-EXECUTION-TRACKER.md).
+
+### 9.1 Context menu (BRD-18, decisions 1, 3 and 14)
+
+`menu.tsx`. One menu for right-click, a long press on touch (500 ms; a bottom sheet with Copy,
+Duplicate, Lock and Delete as large buttons on top), Shift+F10 or the Menu key, and More in the
+floating toolbar. Every entry shows its shortcut.
+
+- **Shape menu:** Cut, Copy, Paste, Duplicate · Copy as PNG, Copy as SVG · Arrange ▸, Align ▸ ·
+  Group (or Ungroup), Wrap in frame, Lock · Add or Edit link, Open link, Copy link to shape · Delete.
+  Disabled entries say why ("Select two or more shapes").
+- **Frame menu** (one frame selected): Zoom to frame instead of Wrap in frame, and two deletes:
+  **Delete frame** keeps what it holds; **Delete frame and contents** also deletes its members
+  (through nested frames) and connectors bound to them, in one Undo step. Locked members stay and
+  leave the frame.
+- **Canvas menu:** Paste here, Select all, Zoom to fit, Snap to objects (a personal setting, kept
+  per device), Keyboard shortcuts.
+- **Copy link to shape** is offered when the editor gives the board `BlockEnv.linkToShape`. The
+  editor gives the board block a block id if it has none, copies `#block=<blockId>&shape=<shapeId>`
+  (the demo's full URL, or the host's `[host.live] link` with that suffix) and posts `UI_BlockLink`
+  with `shapeId` ([docs/05 §4](05-INTEGRATION-GUIDE.md)). Opening such a link, or
+  `Action_ScrollToBlock` with `shapeId`, scrolls to the board and selects and centres the shape
+  (the `oc-board-shape` event; a board that mounts later reads `shape=` from the URL once).
+- New additive shape keys: `locked` and `link` (http, https and mailto only, `safeLink`).
+
+### 9.2 Tools and tool lock (BRD-19, BRD-17)
+
+Q, the lock button after the tools, or a double-click on a tool keeps the tool active after each
+shape; a lock badge marks it, and Escape or V releases it. The lock button never moves into More.
+Rectangle, ellipse, diamond, sticky and frame size by dragging; a click places the default size.
+The diagram header folds controls into ⋯ by the diagram window's width (`diagram/headerFold.ts`).
+
+### 9.3 Style panel and rotation (BRD-22, decision 5)
+
+`style/StylePanel.tsx`, its own chunk: docked on the right, a sheet on narrow boards, and part of
+diagram Properties. Fill, stroke colour, stroke width, dash, opacity, font and arrowheads; Style in
+the floating toolbar or Alt+S. New shapes take the last style picked (per person). Rotation: the
+round handle above a shape turns it in 15° steps (Alt turns freely), Shift+R and Alt+Shift+R step
+it, and the panel has a degree field. New additive keys: `stroke`, `sw`, `dash`, `op`, `font`,
+`rot`. Both exporters draw them identically.
+
+### 9.4 Selection, smart guides and equal gaps (BRD-30, decisions 9 and 13)
+
+A marquee selects shapes fully inside it; with Alt, any it touches. Eight handles: Shift keeps
+proportions, Alt resizes from the centre, and a rotated shape resizes along its own sides. Several
+shapes resize and rotate together. With Snap to objects on, a moved selection snaps to other shapes'
+edges and centres (pink guides) and to equal gaps (marked), as in diagram mode; Alt moves freely.
+
+### 9.5 Quick-connect (BRD-31, decision 10)
+
+One selected box or sticky shows a + on each side. A click adds the same kind and style on that
+side (stepping past taken spots), connected at both ends, selected and ready for text; a drag
+connects to a shape or makes one where it is let go. Hovering a + previews the result. Not in
+diagram mode (ports do this there), on connectors, locked shapes or several shapes.
+
+### 9.6 Frames and Present (BRD-21, decision 6)
+
+`frames/`. The Frame tool (F) draws a named area, stored as `diagram:container` with explicit
+membership (`props.parent`), so auto-layout, export and the outline agree.
+
+- Drawing a frame adopts the free shapes whose centre is inside it.
+- **Wrap in frame** (⇧F, or the shape menu) puts a new frame 24 units around the selection; the
+  shapes join it, it nests in the frame they shared and is drawn just behind the lowest of them,
+  in one Undo step. Connectors and drawings stay free, as with a drop.
+- A shape joins the frame its centre is dropped in and the board says so ("Added to Sprint").
+  While a shape is dragged, the frame it would join is outlined in the accent colour.
+- Moving a frame moves its members. Clicks inside a frame reach the canvas; the name and the edge
+  pick it. Double-click, F2 or Enter renames it.
+- Frames are listed in the zoom menu (and a Frames button on wide boards). **Present** (⇧P)
+  steps through them full screen, from the selected frame.
+
+### 9.7 Export and copy as image (BRD-20, decision 7)
+
+`export/`: Export… in the board menu opens a dialog (lazy) for the board or the selection, as PNG
+(1×, 2×, 3×) or SVG, on a light, dark or transparent background; the choice is remembered. Copy as
+PNG (⇧⌘C / Shift+Ctrl+C) and Copy as SVG copy the selection, or the board, to the clipboard; where
+the browser cannot write images, they download instead.
+
+### 9.8 Empty board and templates (BRD-23, decision 11)
+
+An empty board shows "Start your board" with the main gestures (draw, double-click to type, N, F,
+?) and three starters: Retrospective (three frames), Flowchart (bound connectors) and Brainstorm,
+each inserted centred in one Undo step. Viewers see only "This board is empty".
+
+### 9.9 Cursors and Follow (BRD-24, decision 12)
+
+`presence/`. Named cursors whose label fades after 4 s still (the arrow stays), selection rings in
+each person's colour, and avatars in the board's top cluster. An avatar's menu offers **Follow**
+(our view tracks theirs, with a frame in their colour and "Following … · Stop"; any pan, zoom or
+Escape stops it) and **Go to cursor**. The viewport travels in awareness (`board.vp`), never in the
+document. Text on a person's colour is white or near-black by contrast (`inkOn`).
+
+### 9.10 Keyboard
+
+The board's ? opens the full list (`KEYMAP` in `menu.tsx`, new keys marked); the editor's keyboard
+shortcuts dialog has a Whiteboard group with the main ones. New in this pass: F (frame), Q (tool
+lock), ⇧F (wrap in frame), ⇧P (present), Alt+S (style), Shift+R / Alt+Shift+R (rotate), ⇧⌘C (copy
+as PNG), ⇧⌘K (link), ⇧⌘L (lock), Alt+Shift+arrows (align), Shift+F10 (context menu), Enter or F2
+on a frame (rename).

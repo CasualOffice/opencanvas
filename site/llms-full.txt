@@ -129,7 +129,9 @@ upgrades and every `WS_*` setting; the design is in [docs/40](docs/40-WORKSPACE.
 - Databases: typed fields with table, board, calendar, gallery, Timeline and Workload views;
   filter, sort, CSV import and export; formulas, relations and rollups.
 - Whiteboards and diagrams: shapes, sticky notes, pen, attached arrows, shape libraries,
-  connector routing, layout, and draw.io and Excalidraw import ([diagram guide](docs/29-DIAGRAMMING.md)).
+  connector routing, layout, and draw.io and Excalidraw import; context menu, tool lock, style
+  panel and rotation, smart guides, quick-connect, frames and Present, PNG and SVG export and copy,
+  templates, cursors and Follow ([diagram guide](docs/29-DIAGRAMMING.md#9-whiteboard-ux-pass-brd-1731-built-2026-11-28)).
 - 40 templates in 9 categories. Autosave only, on desktop and phone.
 
 **Collaboration**
