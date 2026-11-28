@@ -373,7 +373,9 @@ fn style_reach(s: &Shape) -> [f64; 4] {
 fn style_ends(s: &Shape, col: &str, col_key: &str, ids: &mut Ids) -> String {
     let pick = |v: &str, dflt: &'static str| -> String {
         match v {
-            "none" | "arrow" | "triangle" | "circle" | "diamond" | "diamond-filled" => v.to_string(),
+            "none" | "arrow" | "triangle" | "circle" | "diamond" | "diamond-filled" => {
+                v.to_string()
+            }
             _ => dflt.to_string(),
         }
     };
@@ -394,7 +396,11 @@ fn style_ends(s: &Shape, col: &str, col_key: &str, ids: &mut Ids) -> String {
                     "circle" => "M8 10A5 5 0 1 1 18 10A5 5 0 1 1 8 10Z",
                     _ => "M1 10 L10 4 L19 10 L10 16 Z",
                 };
-                let fill = if head == "diamond-filled" { col } else { p::APP };
+                let fill = if head == "diamond-filled" {
+                    col
+                } else {
+                    p::APP
+                };
                 format!(
                     "<marker id=\"{id}\" viewBox=\"0 0 20 20\" refX=\"19\" refY=\"10\" markerWidth=\"18\" markerHeight=\"18\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\"><path d=\"{d}\" fill=\"{fill}\" stroke=\"{col}\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/></marker>"
                 )
