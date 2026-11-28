@@ -88,6 +88,12 @@ export default function TopMenus({ kind, anchor, close, bar, shown }: { kind: "s
                 Linked from
               </button>
             ) : null}
+            {bar.onGraph ? (
+              <button className="mi" disabled={away} onClick={() => (close(), bar.onGraph!())}>
+                <Ic name="graph" />
+                Graph
+              </button>
+            ) : null}
             {bar.onAutomations ? (
               <button className="mi" onClick={() => (close(), bar.onAutomations!())}>
                 <Ic name="zap" />

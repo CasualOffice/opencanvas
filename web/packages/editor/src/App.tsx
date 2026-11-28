@@ -72,6 +72,8 @@ const AutomationPanel = lazy(() => import("./automation/AutomationPanel").then((
 const SearchAll = lazy(() => import("./search/SearchAll").then((m) => ({ default: m.SearchAll })));
 // LINK-04 (ADR-081): `[[`, Linked from, previews and chips; a chunk of its own.
 const LinksRoot = lazy(() => import("./links/root"));
+// GRAPH-02/03 (ADR-082): the local and full knowledge graph; a chunk of its own (GRAPH-A4).
+const GraphRoot = lazy(() => import("./graph/root"));
 // LIVE-06: `<open-canvas view="block">`, the compact embed of one live file.
 const BlockEmbed = lazy(() => import("./live/embed"));
 // WEB-08 budget: the workspace's modals and the database "Automate" menu (fetched after first
@@ -299,7 +301,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [screen, setScreen] = useState<"editor" | "gallery">("editor");
-  const [side, setSide] = useState<"comments" | "history" | "automations" | "links" | null>(null);
+  const [side, setSide] = useState<"comments" | "history" | "automations" | "links" | "graph" | null>(null);
+  // GRAPH-02: the full graph, over the editor (from the local panel or Action_OpenGraph).
+  const [graphFull, setGraphFull] = useState(false);
   // VH-01d: bumped on every save and restore so an open history panel refreshes its list;
   // `nameReq` opens the naming popover from the menu; `previewing` hides the live canvas.
   const [historyTick, setHistoryTick] = useState(0);
@@ -701,12 +705,16 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       onHost("Action_SetReadOnly", (v) => setForcedReadOnly(!!v.readOnly)),
       onHost("Action_Commit", (v) => collab.sendControl({ t: "save", message: v.message ?? null })),
       onHost("Action_Export", (v) => doExport(String(v.format ?? "md"))),
+      // GRAPH-02 (docs/38 §3.2): the host's navigation opens the full graph; with links off it
+      // says why (6b).
+      onHost("Action_OpenGraph", () => setGraphFull(true)),
       // FTY-03 (docs/05 §4): with `[host.editor] chrome = "host"` the host's header opens the panels.
       onHost("Action_OpenPanel", (v) => {
         const p = String(v.panel ?? "");
         if (p === "history" && canHistoryRef.current) setSide((s) => (s === "history" ? null : "history"));
         if (p === "comments" && featureOn("comments")) setSide((s) => (s === "comments" ? null : "comments"));
         if (p === "find") openFindRef.current?.(false);
+        if (p === "graph" && linksOnRef.current) setSide((s) => (s === "graph" ? null : "graph"));
         if (p === "shortcuts") setHelp(true);
       }),
       onHost("Action_Theme", (v) => {
@@ -807,6 +815,11 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   }, [editor, doc]);
 
   // ---------- deep links to a block: `#...&block=b_...` or the host's Action_ScrollToBlock ----------
+  // GRAPH-02: Enter or a double-click opens a canvas through the host (decision 9).
+  const openFromGraph = (fileId: string, blockId: string | null) => {
+    if (fileId !== session.file.id) postToHost("UI_OpenFile", { fileId, ...(blockId ? { blockId } : {}), newTab: false });
+    else if (blockId) scrollToBlock(blockId);
+  };
   const scrollToBlock = useCallback(
     (id: string) => {
       if (!editor || !flashBlock(editor, id)) toast("That block isn't in this canvas any more", { icon: "link" });
@@ -849,6 +862,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   openFindRef.current = openFind;
   const searchOn = !!session.search?.enabled && !session.demo;
   const linksOn = !!session.links?.enabled && !session.demo;
+  const linksOnRef = useRef(linksOn);
+  linksOnRef.current = linksOn;
   // AUTO-06: rules in this canvas (counted for the menu, also when the host runs none, frame 5d).
   const autoOn = !!session.automation?.enabled && !!session.automation.limits && !session.demo;
   const [ruleCount, setRuleCount] = useState(0);
@@ -1439,6 +1454,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onFind={editor ? () => openFind(false) : undefined}
               onSearchAll={searchOn ? () => setSearchAll(true) : undefined}
               onLinkedFrom={linksOn ? () => setSide((s) => (s === "links" ? null : "links")) : undefined}
+              onGraph={linksOn ? () => setSide((s) => (s === "graph" ? null : "graph")) : undefined}
+              graphOpen={side === "graph"}
               onAutomations={autoOn ? () => (side === "automations" ? closeSide() : setSide("automations")) : undefined}
               automationsHere={ruleCount}
               offline={
@@ -1545,6 +1562,41 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     }
                     scrollToBlock={scrollToBlock}
                     onComments={session.perms.comment !== false || threads.length ? () => setSide("comments") : undefined}
+                  />
+                </Suspense>
+              ) : null}
+              {side === "graph" && linksOn ? (
+                <Suspense fallback={<aside className="side" aria-label="Local graph" aria-busy="true" />}>
+                  <GraphRoot
+                    mode="local"
+                    ticket={session.ticket}
+                    fileId={session.file.id}
+                    title={meta.title || session.file.name}
+                    userId={session.user.id}
+                    hostName={hostName}
+                    compact={compact}
+                    open={openFromGraph}
+                    onClose={() => setSide(null)}
+                    onFull={() => setGraphFull(true)}
+                    onLinkedFrom={() => setSide("links")}
+                    toast={(m) => toast(m, {})}
+                  />
+                </Suspense>
+              ) : null}
+              {graphFull ? (
+                <Suspense fallback={null}>
+                  <GraphRoot
+                    mode="full"
+                    ticket={session.ticket}
+                    fileId={session.file.id}
+                    title={meta.title || session.file.name}
+                    userId={session.user.id}
+                    hostName={hostName}
+                    compact={compact}
+                    open={openFromGraph}
+                    onClose={() => setGraphFull(false)}
+                    onLinkedFrom={linksOn ? () => setSide("links") : undefined}
+                    toast={(m) => toast(m, {})}
                   />
                 </Suspense>
               ) : null}

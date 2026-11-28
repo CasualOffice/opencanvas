@@ -81,6 +81,9 @@ export interface TopBarProps {
   onSearchAll?: () => void;
   /** LINK-04 (2b, 4a): "Linked from" in the side panel (a sheet on phones); absent without links. */
   onLinkedFrom?: () => void;
+  /** GRAPH-02 (1b): the local graph in the side panel; absent without links. */
+  onGraph?: () => void;
+  graphOpen?: boolean;
   /** AUTO-06: "Automations" with the number of rules; absent without `[host.automation]`. */
   onAutomations?: () => void;
   /** AUTO-06 frame 5d: a host without automation shows a quiet line when the canvas has rules. */
@@ -220,6 +223,11 @@ export function TopBar(props: TopBarProps) {
           </span>
         ) : null}
       </button> : null}
+      {props.onGraph ? (
+        <button className="ib" onClick={props.onGraph} title="Graph" aria-label="Graph" aria-pressed={!!props.graphOpen} disabled={away}>
+          <Ic name="graph" />
+        </button>
+      ) : null}
       {props.temporary && (props.canExport || props.canDownload) ? (
         <button className={compact ? "ib" : "btn primary sm temp-dl"} onClick={open("download")} aria-haspopup="menu" aria-expanded={pop?.kind === "download"} title="Download a copy to keep" aria-label={compact ? "Download a copy" : undefined}>
           <Ic name="download" />
