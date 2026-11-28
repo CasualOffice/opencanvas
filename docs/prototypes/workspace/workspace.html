@@ -1,0 +1,1006 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenCanvas Workspace</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Review page of numbered frames; each frame is the real OpenCanvas editor at a fixed size. Tokens match the approved v0.4 and v0.5 prototypes (timeline.html, plugin-marketplace.html). rem for type and spacing (ADR-050); breakpoints in em. */
+:root{--page:#f1f1ef;--app:#ffffff;--panel:#fbfbfa;--sunk:#f4f4f2;--pop:#ffffff;--hover:rgba(24,24,32,.045);--press:rgba(24,24,32,.08);--line:rgba(24,24,32,.085);--line-2:rgba(24,24,32,.15);--fg:#18181b;--fg-2:#55555e;--fg-3:#8b8b95;--fg-4:#b3b3bb;--accent:#2a5ad7;--accent-soft:#ecf1fd;--accent-ring:rgba(42,90,215,.28);--accent-fg:#fff;--gray-bg:#efefed;--gray-fg:#55555c;--blue-bg:#e6eefd;--blue-fg:#2350c8;--amber-bg:#fcf0d9;--amber-fg:#8f5300;--green-bg:#e2f3e8;--green-fg:#17703f;--red-bg:#fde6e6;--red-fg:#b12424;--purple-bg:#efe8fd;--purple-fg:#6538c4;--pink-bg:#fce6f0;--pink-fg:#ad2c66;--teal-bg:#dff3f0;--teal-fg:#0f6b5f;--u0:#2a5ad7;--u1:#7a45f0;--u2:#e5602a;--u3:#0e9a78;--u4:#d63f78;--sh-card:0 1px 2px rgba(20,20,30,.04),0 8px 24px -12px rgba(20,20,30,.12);--sh-pop:0 0 0 1px rgba(24,24,32,.07),0 16px 40px -12px rgba(20,20,30,.22),0 4px 10px -4px rgba(20,20,30,.08);--rv-bg:#eeeeec;--rv-fg:#18181b;--rv-fg2:#55555e;--rv-fg3:#85858f;--rv-line:rgba(24,24,32,.1);--rv-chip:#fff;--rv-acc:#2a5ad7;--font:"Geist",ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--rv-bg);color:var(--rv-fg);font-family:var(--font);font-size:.875rem;-webkit-font-smoothing:antialiased}
+svg.i{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block;vertical-align:middle}
+svg.i.sm{width:.875rem;height:.875rem}svg.i.lg{width:1.25rem;height:1.25rem}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+code{font-family:var(--mono);font-size:.85em}
+
+/* ---------- review page ---------- */
+.rv-top{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--rv-bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--rv-line)}
+.rv-top-in{max-width:87.5rem;margin:0 auto;padding:.75rem max(1rem,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.rv-title{font-weight:600;font-size:.9375rem;letter-spacing:-.01em;display:flex;gap:.625rem;align-items:center;min-width:0;flex-wrap:wrap}
+.rv-title small{font-weight:400;color:var(--rv-fg3);font-size:.8125rem}
+.rv-seg{display:inline-flex;padding:.1875rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line)}
+.rv-seg button{font-size:.78rem;height:1.75rem;padding:0 .75rem;border-radius:999px;border:0;background:transparent;color:var(--rv-fg2);cursor:pointer;display:inline-flex;gap:.375rem;align-items:center}
+.rv-seg button[aria-pressed="true"]{background:var(--rv-fg);color:var(--rv-bg)}
+.rv-ctl{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.rv-toc{max-width:87.5rem;margin:0 auto;padding:0 1rem .625rem;display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none}
+.rv-toc a{flex:none;font-size:.75rem;color:var(--rv-fg2);text-decoration:none;padding:.25rem .5625rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);white-space:nowrap}
+.rv-toc a:hover{color:var(--rv-fg)}
+.rv-wrap{max-width:87.5rem;margin:0 auto;padding-block:1.5rem 5rem;padding-left:max(1rem,env(safe-area-inset-left,0px));padding-right:max(1rem,env(safe-area-inset-right,0px))}
+.rv-intro{max-width:47.5rem;line-height:1.65;color:var(--rv-fg2);margin:.5rem 0 1.75rem}
+.rv-intro h1{font-size:1.75rem;letter-spacing:-.02em;color:var(--rv-fg);margin:0 0 .5rem;font-weight:600;text-wrap:balance}
+.rv-intro p{margin:0 0 .5rem}
+.dec{background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);border-radius:.75rem;padding:.875rem 1rem;margin:0 0 1.25rem;font-size:.8125rem;line-height:1.6}
+.dec ol{margin:.375rem 0 0;padding-left:1.25rem}.dec li{margin:.25rem 0}
+.rv-sec{margin:3.5rem 0 0;scroll-margin-top:7rem}
+.rv-sec>h2{font-size:1.375rem;letter-spacing:-.015em;margin:0 0 .375rem;font-weight:600;display:flex;gap:.625rem;align-items:baseline;flex-wrap:wrap}
+.rv-sec>h2 code{font-size:.8125rem;color:var(--rv-acc);font-weight:500}
+.rv-sec>p{max-width:51rem;color:var(--rv-fg2);line-height:1.6;margin:0 0 1.25rem}
+.rv-row{display:flex;flex-wrap:wrap;gap:1.75rem;align-items:flex-start}
+.fr{margin:0 0 2rem;min-width:0;scroll-margin-top:7rem;max-width:100%}
+.fr figcaption{display:flex;gap:.625rem;align-items:center;margin:0 0 .625rem;font-weight:500;flex-wrap:wrap}
+.fr figcaption b{font-family:var(--mono);font-size:.75rem;font-weight:500;padding:.125rem .4375rem;border-radius:.375rem;background:var(--rv-fg);color:var(--rv-bg)}
+.fr figcaption .dim{color:var(--rv-fg3);font-weight:400;font-size:.75rem;font-family:var(--mono)}
+.fr-vp{max-width:100%;overflow:auto;border-radius:.875rem}
+.fr-in{position:relative;overflow:hidden;border-radius:.875rem;box-shadow:0 0 0 1px var(--rv-line),0 30px 70px -40px rgba(0,0,0,.45);background:var(--page)}
+.fr-in.phone{border-radius:2.75rem;box-shadow:0 0 0 1px var(--rv-line),0 0 0 9px #1c1c1f,0 0 0 10px #3a3a3e,0 30px 70px -30px rgba(0,0,0,.5);margin:.75rem}
+.note{max-width:47.5rem;font-size:.8125rem;line-height:1.6;color:var(--rv-fg2);margin:.75rem 0 0}
+.note em{font-style:normal;color:var(--rv-fg);font-weight:500}
+.fr.phf .note{max-width:25.6rem}
+.fr.phf .fr-vp{overflow:visible;max-width:100%;padding:.75rem}
+.fr.phf .fr-in.phone{margin:0}
+.fr.phf{width:27rem;max-width:100%}
+@media (max-width:40em){.rv-ctl{margin-left:0}.rv-intro h1{font-size:1.375rem}}
+
+/* ---------- OpenCanvas editor chrome ---------- */
+.oc{background:var(--app);color:var(--fg);width:100%;height:100%;display:flex;flex-direction:column;font-size:.875rem;line-height:1.5;position:relative}
+.oct{height:3rem;flex:none;display:flex;align-items:center;gap:.625rem;padding:0 .875rem;border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;gap:.375rem;min-width:0;white-space:nowrap;overflow:hidden}
+.crumbs .par{color:var(--fg-3)}.crumbs .sep{color:var(--fg-4)}
+.crumbs .cname{font-weight:500}
+.ctile{width:1.375rem;height:1.375rem;border-radius:.375rem;display:inline-grid;place-items:center;flex:none;background:var(--blue-bg);color:var(--blue-fg)}
+.ctile.t-purple{background:var(--purple-bg);color:var(--purple-fg)}.ctile.t-green{background:var(--green-bg);color:var(--green-fg)}.ctile.t-amber{background:var(--amber-bg);color:var(--amber-fg)}.ctile.t-pink{background:var(--pink-bg);color:var(--pink-fg)}.ctile.t-teal{background:var(--teal-bg);color:var(--teal-fg)}.ctile.t-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.ocst{display:inline-flex;gap:.3rem;align-items:center;color:var(--fg-3);font-size:.75rem}
+.stack{display:flex}.stack .av{box-shadow:0 0 0 2px var(--app);margin-left:-.375rem}.stack .av:first-child{margin-left:0}
+.av{display:inline-grid;place-items:center;border-radius:50%;color:#fff;font-weight:600;flex:none;width:1.625rem;height:1.625rem;font-size:.625rem;letter-spacing:.01em}
+.av.s{width:1.25rem;height:1.25rem;font-size:.5625rem}
+.ocb{flex:1;min-height:0;display:flex;position:relative}
+.doc{flex:1;min-width:0;overflow:auto;padding:2.5rem 3.5rem 3rem}
+.doc-in{max-width:44rem;margin:0 auto}
+.doc h1{font-size:2rem;letter-spacing:-.02em;margin:0 0 .25rem;font-weight:700}
+.doc .meta{color:var(--fg-3);font-size:.8125rem;margin:0 0 1.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.doc h2{font-size:1.25rem;margin:1.75rem 0 .5rem;font-weight:600;letter-spacing:-.01em}
+.doc p{margin:0 0 .75rem;line-height:1.65}
+.doc ul{margin:0 0 .75rem;padding-left:1.25rem;line-height:1.65}
+.side{width:21rem;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.side-h{display:flex;align-items:center;gap:.5rem;padding:.75rem .875rem;border-bottom:1px solid var(--line);font-weight:600}
+.side-b{flex:1;overflow:auto;padding:.5rem}
+.btn{display:inline-flex;align-items:center;gap:.375rem;height:1.875rem;padding:0 .625rem;border-radius:.5rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover);color:var(--fg)}
+.btn.on{background:var(--accent-soft);color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-fg)}
+.btn.sec{background:var(--sunk);color:var(--fg)}
+.btn.dan{background:var(--red-bg);color:var(--red-fg)}
+.btn.ic{width:1.875rem;padding:0;justify-content:center}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.seg{display:inline-flex;padding:.15rem;border-radius:.5rem;background:var(--sunk)}
+.seg button{border:0;background:none;height:1.5rem;padding:0 .55rem;border-radius:.375rem;font-size:.75rem;color:var(--fg-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--app);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:.25rem;height:1.25rem;padding:0 .4rem;border-radius:.3rem;font-size:.6875rem;font-weight:500;white-space:nowrap}
+.p-gray{background:var(--gray-bg);color:var(--gray-fg)}.p-blue{background:var(--blue-bg);color:var(--blue-fg)}.p-green{background:var(--green-bg);color:var(--green-fg)}.p-amber{background:var(--amber-bg);color:var(--amber-fg)}.p-red{background:var(--red-bg);color:var(--red-fg)}.p-purple{background:var(--purple-bg);color:var(--purple-fg)}.p-pink{background:var(--pink-bg);color:var(--pink-fg)}.p-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.pop{position:absolute;background:var(--pop);color:var(--fg);border-radius:.75rem;box-shadow:var(--sh-pop);padding:.5rem;z-index:10;font-size:.8125rem}
+.pop h4{margin:.25rem .4rem .5rem;font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.mi{display:flex;gap:.5rem;align-items:center;padding:.4rem .5rem;border-radius:.5rem;cursor:pointer;min-height:2rem}
+.mi:hover,.mi.on{background:var(--hover)}
+.mi kbd,.kbd{font-family:var(--mono);font-size:.6875rem;color:var(--fg-3)}
+.mi kbd{margin-left:auto}
+.mi small{color:var(--fg-2);font-size:.75rem}
+.sepl{height:1px;background:var(--line);margin:.25rem 0}
+.hint{color:var(--fg-2);font-size:.75rem;line-height:1.5}
+.sw{width:1.75rem;height:1rem;border-radius:999px;background:var(--accent);position:relative;flex:none;border:0;padding:0;cursor:pointer}
+.sw::after{content:"";position:absolute;right:.125rem;top:.125rem;width:.75rem;height:.75rem;border-radius:50%;background:#fff}
+.sw.off,.sw[aria-checked="false"]{background:var(--line-2)}.sw.off::after,.sw[aria-checked="false"]::after{left:.125rem;right:auto}
+.inp{display:flex;align-items:center;gap:.4rem;height:2rem;padding:0 .6rem;border-radius:.5rem;background:var(--sunk);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
+.inp input{border:0;background:none;font:inherit;color:inherit;outline:none;flex:1;min-width:0}
+.inp.f{box-shadow:inset 0 0 0 1.5px var(--accent),0 0 0 3px var(--accent-ring)}
+.mask{position:absolute;inset:0;background:rgba(10,10,14,.32);display:grid;place-items:center;z-index:20}
+.dlg{background:var(--pop);color:var(--fg);border-radius:1rem;box-shadow:var(--sh-pop);width:min(34rem,calc(100% - 2rem));max-height:calc(100% - 2rem);overflow:auto;display:flex;flex-direction:column}
+.dlg-h{display:flex;align-items:flex-start;gap:.75rem;padding:1rem 1.125rem .5rem}
+.dlg-h h3{margin:0;font-size:1.0625rem;font-weight:600}
+.dlg-h p{margin:.125rem 0 0;color:var(--fg-2);font-size:.8125rem}
+.dlg-b{padding:.5rem 1.125rem 1rem}
+.dlg-f{display:flex;gap:.5rem;justify-content:flex-end;padding:.75rem 1.125rem;border-top:1px solid var(--line);flex-wrap:wrap}
+.toast{position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);border-radius:.75rem;padding:.6rem .75rem;display:flex;gap:.6rem;align-items:center;z-index:30;font-size:.8125rem;max-width:calc(100% - 2rem);flex-wrap:wrap}
+.tip{position:absolute;z-index:40;background:var(--fg);color:var(--app);font-size:.6875rem;padding:.25rem .45rem;border-radius:.375rem;white-space:nowrap;pointer-events:none}
+
+/* phone */
+.ph{width:24.375rem;height:52.75rem;background:var(--app);color:var(--fg);display:flex;flex-direction:column;font-size:.875rem;position:relative;overflow:hidden}
+.ph-st{height:2.9rem;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 1.75rem 0 2rem;font-weight:600;font-size:.9rem}
+.ph-hd{display:flex;align-items:center;gap:.5rem;padding:.25rem .75rem .5rem;flex:none}
+.ph-hd h3{margin:0;font-size:1.0625rem;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-b{flex:1;min-height:0;overflow:auto}
+.ph-dock{margin-top:auto;flex:none;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:.5rem 0 1.75rem;color:var(--fg-2)}
+.ph-dock button{border:0;background:none;display:grid;gap:.15rem;place-items:center;font-size:.625rem;cursor:pointer;min-width:2.75rem;min-height:2.75rem}
+.ph-dock button.on{color:var(--accent)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--pop);border-radius:1.25rem 1.25rem 0 0;box-shadow:var(--sh-pop);padding:.5rem 1rem 2rem;z-index:5}
+.sheet .grab{width:2.25rem;height:.3rem;border-radius:999px;background:var(--line-2);margin:0 auto .75rem}
+.kbd-t{width:100%;border-collapse:collapse;font-size:.8125rem;background:var(--app);color:var(--fg)}
+.kbd-t td,.kbd-t th{padding:.5rem .75rem;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+.kbd-t td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.75rem;color:var(--fg-2);width:13rem}
+/* ---------- workspace ---------- */
+.t-blue{background:var(--blue-bg);color:var(--blue-fg)}.t-purple{background:var(--purple-bg);color:var(--purple-fg)}.t-green{background:var(--green-bg);color:var(--green-fg)}.t-amber{background:var(--amber-bg);color:var(--amber-fg)}.t-red{background:var(--red-bg);color:var(--red-fg)}.t-pink{background:var(--pink-bg);color:var(--pink-fg)}.t-teal{background:var(--teal-bg);color:var(--teal-fg)}.t-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.brand{display:flex;align-items:center;gap:.5rem;min-width:0}
+.logo{width:1.75rem;height:1.75rem;border-radius:.5rem;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;flex:none}
+.logo svg.i{width:1rem;height:1rem}
+.brand-t{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.brand-t b{font-size:.875rem;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.brand-t small{font-size:.6875rem;color:var(--fg-3);white-space:nowrap}
+.ws{display:flex;height:100%;background:var(--app);color:var(--fg);font-size:.875rem;line-height:1.5;position:relative}
+.sb{width:15.5rem;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.sb-top{padding:.75rem .75rem .5rem;display:flex;flex-direction:column;gap:.625rem}
+.org{display:flex;align-items:center;gap:.5rem;padding:.25rem .375rem;border-radius:.5rem;cursor:pointer;border:0;background:none;width:100%;text-align:left}
+.org:hover{background:var(--hover)}
+.org .ot{width:1.5rem;height:1.5rem;border-radius:.375rem;display:grid;place-items:center;font-size:.6875rem;font-weight:700;flex:none}
+.org b{font-size:.875rem;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbs{display:flex;align-items:center;gap:.4rem;height:2rem;padding:0 .6rem;border-radius:.5rem;background:var(--app);box-shadow:inset 0 0 0 1px var(--line);color:var(--fg-3);font-size:.8125rem;cursor:text;border:0;width:100%;text-align:left}
+.sbs kbd{margin-left:auto;font-family:var(--mono);font-size:.6875rem}
+.sb-b{flex:1;overflow:auto;padding:.25rem .5rem 1rem}
+.cap{font-size:.6875rem;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.04em;padding:.875rem .625rem .25rem;display:flex;align-items:center;gap:.25rem}
+.cap .btn{height:1.25rem;width:1.25rem;padding:0;justify-content:center;margin-left:auto}
+.nv{display:flex;align-items:center;gap:.5rem;min-height:1.875rem;padding:0 .5rem;border-radius:.5rem;border:0;background:none;color:var(--fg-2);cursor:pointer;text-align:left;width:100%;font-size:.8125rem;white-space:nowrap}
+.nv span.l{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.nv:hover{background:var(--hover);color:var(--fg)}
+.nv[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.nv .n{margin-left:auto;font-size:.6875rem;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.nv .tw{width:1rem;height:1rem;display:grid;place-items:center;color:var(--fg-3);flex:none;transition:transform .15s}
+.nv .tw[data-open="true"]{transform:rotate(90deg)}
+.nv .wt{width:1.125rem;height:1.125rem;border-radius:.3rem;display:grid;place-items:center;flex:none}
+.nv .wt svg.i{width:.75rem;height:.75rem}
+.tree{padding-left:1rem}
+.sb-f{border-top:1px solid var(--line);padding:.5rem;display:flex;align-items:center;gap:.5rem}
+.sb-f .who{flex:1;min-width:0;line-height:1.2}
+.sb-f .who b{display:block;font-size:.8125rem;font-weight:500}
+.sb-f .who small{color:var(--fg-3);font-size:.6875rem}
+.mn{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.mn-t{height:3rem;flex:none;display:flex;align-items:center;gap:.5rem;padding:0 1rem;border-bottom:1px solid var(--line)}
+.mn-b{flex:1;min-height:0;overflow:auto;padding:1.5rem 1.75rem 2rem}
+.mn-b h2{margin:0;font-size:1.375rem;font-weight:600;letter-spacing:-.015em}
+.mn-h{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 1rem}
+.mn-h .hint{flex-basis:100%;margin-top:-.5rem}
+.sub{display:flex;align-items:center;gap:.5rem;margin:1.5rem 0 .625rem}
+.sub h3{margin:0;font-size:.875rem;font-weight:600}
+.cont{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:.625rem}
+.cc{display:flex;gap:.625rem;align-items:center;padding:.625rem .75rem;border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);background:var(--app);cursor:pointer;min-width:0}
+.cc:hover{box-shadow:inset 0 0 0 1px var(--line-2),var(--sh-card)}
+.cc .ctile{width:2rem;height:2rem;border-radius:.5rem}
+.cc .m{min-width:0;flex:1}
+.cc .m b{display:block;font-size:.8125rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc .m small{color:var(--fg-3);font-size:.6875rem}
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(13.5rem,1fr));gap:.875rem}
+.card{border-radius:.875rem;background:var(--app);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex;flex-direction:column;cursor:pointer;position:relative;min-width:0}
+.card:hover{box-shadow:inset 0 0 0 1px var(--line-2),var(--sh-card)}
+.thumb{height:7.5rem;background:var(--sunk);position:relative;overflow:hidden;padding:.875rem 1rem;display:flex;flex-direction:column;gap:.35rem}
+.thumb i{display:block;height:.4rem;border-radius:.2rem;background:var(--line-2)}
+.thumb i.h{height:.65rem;width:55%;background:var(--fg-4)}
+.thumb .bx{position:absolute;border-radius:.3rem}
+.card .star{position:absolute;top:.5rem;right:.5rem;width:1.75rem;height:1.75rem;border-radius:.5rem;border:0;background:var(--app);color:var(--fg-3);display:grid;place-items:center;cursor:pointer;opacity:0;box-shadow:var(--sh-card)}
+.card:hover .star,.card .star[aria-pressed="true"],.card .star:focus-visible{opacity:1}
+.star[aria-pressed="true"] svg.i{fill:var(--amber-fg);stroke:var(--amber-fg)}
+.card-b{padding:.625rem .75rem .75rem;display:flex;flex-direction:column;gap:.25rem}
+.card-b b{font-size:.8125rem;font-weight:500;display:flex;gap:.4rem;align-items:center;min-width:0}
+.card-b b span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-b small{color:var(--fg-3);font-size:.6875rem;display:flex;gap:.375rem;align-items:center}
+.live{position:absolute;left:.625rem;bottom:.5rem;display:flex;align-items:center;gap:.3rem;font-size:.625rem;font-weight:600;color:var(--green-fg);background:var(--app);border-radius:999px;padding:.1rem .4rem .1rem .2rem;box-shadow:var(--sh-card)}
+.live .stack .av{width:1rem;height:1rem;font-size:.5rem;box-shadow:0 0 0 1.5px var(--app)}
+.tbl{width:100%;border-collapse:collapse;font-size:.8125rem}
+.tbl th{font-size:.6875rem;font-weight:500;color:var(--fg-3);text-align:left;padding:.4rem .625rem;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:.5rem .625rem;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+.tbl tr.rw:hover td{background:var(--hover)}
+.tbl .nm{display:flex;gap:.5rem;align-items:center;font-weight:500}
+.tbl .dimc{color:var(--fg-3)}
+.ppl{display:flex;gap:.5rem;align-items:center}
+.ppl .m{line-height:1.2;min-width:0}
+.ppl .m b{display:block;font-weight:500;font-size:.8125rem}
+.ppl .m small{color:var(--fg-3);font-size:.6875rem}
+.rsel{appearance:none;-webkit-appearance:none;border:0;background:var(--sunk) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b95' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right .4rem center/.875rem;color:var(--fg);font:inherit;font-size:.8125rem;height:1.875rem;padding:0 1.6rem 0 .6rem;border-radius:.5rem;cursor:pointer}
+.rsel.gh{background-color:transparent}
+.rsel.gh:hover{background-color:var(--hover)}
+.lbl{display:block;font-size:.75rem;font-weight:500;color:var(--fg-2);margin:0 0 .3rem}
+.fg{margin:0 0 .875rem}
+.inp.lg{height:2.5rem;font-size:.875rem;border-radius:.625rem}
+.btn.lg{height:2.5rem;padding:0 1rem;border-radius:.625rem;font-size:.875rem;justify-content:center}
+.btn.full{width:100%}
+.btn.out{box-shadow:inset 0 0 0 1px var(--line-2);color:var(--fg)}
+.btn.out:hover{background:var(--hover)}
+.or{display:flex;align-items:center;gap:.75rem;color:var(--fg-3);font-size:.75rem;margin:1rem 0}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.auth{height:100%;display:grid;place-items:center;background:var(--page);color:var(--fg);padding:1.5rem;position:relative}
+.auth-c{width:min(24rem,100%);background:var(--app);border-radius:1rem;box-shadow:var(--sh-card),inset 0 0 0 1px var(--line);padding:1.75rem}
+.auth-c h3{margin:1.25rem 0 .25rem;font-size:1.25rem;font-weight:600;letter-spacing:-.015em}
+.auth-c>p{margin:0 0 1.25rem;color:var(--fg-2);font-size:.8125rem;line-height:1.55}
+.auth-ft{margin-top:1rem;text-align:center;color:var(--fg-3);font-size:.75rem}
+.auth-ft a,.lnk{color:var(--accent);text-decoration:none;cursor:pointer}
+.inv{display:flex;gap:.625rem;align-items:center;padding:.75rem;border-radius:.75rem;background:var(--accent-soft);margin:0 0 1.25rem;font-size:.8125rem;line-height:1.45}
+.pk{position:absolute;inset:0;background:rgba(10,10,14,.32);display:grid;place-items:center;z-index:20}
+.pk-c{background:var(--pop);border-radius:1rem;box-shadow:var(--sh-pop);padding:1.5rem;width:min(20rem,calc(100% - 2rem));text-align:center;color:var(--fg)}
+.pk-c .ring{width:3.5rem;height:3.5rem;border-radius:50%;margin:0 auto .75rem;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.pk-c .ring svg.i{width:1.75rem;height:1.75rem}
+.pk-c p{margin:.25rem 0 1rem;color:var(--fg-2);font-size:.8125rem}
+.setup{height:100%;display:flex;background:var(--page);color:var(--fg)}
+.st-l{width:19rem;flex:none;padding:2rem 1.75rem;display:flex;flex-direction:column;gap:1.75rem;border-right:1px solid var(--line);background:var(--panel)}
+.st-l ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem}
+.st-l li{display:flex;gap:.625rem;align-items:center;padding:.45rem .5rem;border-radius:.5rem;color:var(--fg-3);font-size:.8125rem}
+.st-l li .nb{width:1.375rem;height:1.375rem;border-radius:50%;display:grid;place-items:center;font-size:.6875rem;font-weight:600;box-shadow:inset 0 0 0 1.5px var(--line-2);flex:none}
+.st-l li[data-s="now"]{color:var(--fg);font-weight:500;background:var(--app);box-shadow:var(--sh-card)}
+.st-l li[data-s="now"] .nb{background:var(--accent);color:var(--accent-fg);box-shadow:none}
+.st-l li[data-s="done"]{color:var(--fg-2)}
+.st-l li[data-s="done"] .nb{background:var(--green-bg);color:var(--green-fg);box-shadow:none}
+.st-l .foot{margin-top:auto;color:var(--fg-3);font-size:.75rem;line-height:1.55}
+.st-r{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem}
+.st-p{width:min(28rem,100%)}
+.st-p .k{font-size:.75rem;color:var(--accent);font-weight:600;letter-spacing:.02em}
+.st-p h3{margin:.25rem 0 .375rem;font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.st-p>p{margin:0 0 1.5rem;color:var(--fg-2);line-height:1.55}
+.st-a{display:flex;gap:.5rem;margin-top:1.5rem;align-items:center}
+.code6{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.code6 .inp{font-family:var(--mono);font-size:.8125rem}
+.meter{height:.25rem;border-radius:999px;background:var(--sunk);margin:.4rem 0 .25rem;overflow:hidden}
+.meter i{display:block;height:100%;width:70%;background:var(--green-fg);border-radius:inherit}
+.okrow{display:flex;gap:.625rem;align-items:flex-start;padding:.625rem 0;border-bottom:1px solid var(--line);font-size:.8125rem}
+.okrow:last-child{border-bottom:0}
+.okrow .ic{width:1.75rem;height:1.75rem;border-radius:.5rem;display:grid;place-items:center;flex:none}
+.okrow .m{flex:1;min-width:0}
+.okrow .m b{display:block;font-weight:500}
+.okrow .m small{color:var(--fg-2);font-size:.75rem}
+.term{background:#0e0e11;color:#d6d6dc;font-family:var(--mono);font-size:.75rem;line-height:1.7;padding:1rem 1.25rem;height:100%;overflow:auto;white-space:pre}
+.term .c{color:#7cd992}.term .d{color:#76767f}.term .y{color:#f3be66;font-weight:600}
+.chkl{background:var(--app);border-radius:.875rem;box-shadow:inset 0 0 0 1px var(--line);padding:.875rem 1rem;margin:0 0 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.chkl .pr{font-size:.75rem;color:var(--fg-2)}
+.chkl .its{display:flex;gap:.5rem;flex-wrap:wrap;flex:1}
+.chip{display:inline-flex;align-items:center;gap:.375rem;height:1.75rem;padding:0 .625rem;border-radius:999px;background:var(--sunk);font-size:.75rem;color:var(--fg);border:0;cursor:pointer;white-space:nowrap}
+.chip.dn{color:var(--fg-3);text-decoration:line-through}
+.chip.dn svg.i{color:var(--green-fg)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.tpl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.625rem}
+.tp{border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);padding:.75rem;cursor:pointer;display:flex;flex-direction:column;gap:.5rem;background:var(--app);text-align:left;border:0;color:var(--fg)}
+.tp:hover,.tp[aria-pressed="true"]{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.tp .pv{height:4.25rem;border-radius:.5rem;display:grid;place-items:center}
+.tp .pv svg.i{width:1.5rem;height:1.5rem}
+.tp b{font-size:.8125rem;font-weight:500}
+.tp small{color:var(--fg-3);font-size:.6875rem;line-height:1.4}
+.cv-t{height:3rem;flex:none;display:flex;align-items:center;gap:.5rem;padding:0 .875rem;border-bottom:1px solid var(--line)}
+.cv-b{flex:1;min-height:0;display:flex;position:relative}
+.cv-doc{flex:1;min-width:0;overflow:auto;padding:2.25rem 3rem 3rem}
+.cv-doc .doc-in{max-width:42rem;margin:0 auto}
+.cv-doc h1{font-size:1.875rem;letter-spacing:-.02em;margin:0 0 .25rem;font-weight:700}
+.cv-doc .meta{color:var(--fg-3);font-size:.8125rem;margin:0 0 1.25rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.cv-doc h2{font-size:1.125rem;margin:1.5rem 0 .5rem;font-weight:600}
+.cv-doc p{margin:0 0 .75rem;line-height:1.65}
+.cur{display:inline-block;width:2px;height:1.1em;vertical-align:text-bottom;position:relative;margin:0 1px}
+.cur b{position:absolute;bottom:100%;left:-1px;font-size:.5625rem;font-weight:600;color:#fff;padding:.05rem .3rem;border-radius:.25rem .25rem .25rem 0;white-space:nowrap}
+.mdb{border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;margin:.5rem 0 1rem}
+.mdb .h{display:flex;gap:.5rem;align-items:center;padding:.5rem .75rem;font-weight:600;font-size:.8125rem;border-bottom:1px solid var(--line)}
+.vh{width:19rem;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.vh-h{display:flex;align-items:center;gap:.5rem;padding:.75rem .875rem;border-bottom:1px solid var(--line);font-weight:600}
+.vh-b{flex:1;overflow:auto;padding:.5rem}
+.vday{font-size:.6875rem;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.04em;padding:.75rem .5rem .25rem}
+.ver{display:flex;gap:.625rem;padding:.5rem;border-radius:.5rem;cursor:pointer;border:0;background:none;width:100%;text-align:left;color:var(--fg);font-size:.8125rem}
+.ver:hover{background:var(--hover)}
+.ver[aria-current="true"]{background:var(--accent-soft)}
+.ver .dt{width:.5rem;height:.5rem;border-radius:50%;background:var(--fg-4);margin-top:.45rem;flex:none}
+.ver[aria-current="true"] .dt{background:var(--accent)}
+.ver .m{flex:1;min-width:0}
+.ver .m b{display:block;font-weight:500}
+.ver .m small{color:var(--fg-3);font-size:.6875rem}
+.vh-f{border-top:1px solid var(--line);padding:.625rem .875rem;display:flex;gap:.5rem}
+.shr{display:flex;align-items:center;gap:.625rem;padding:.4rem 0}
+.shr .ppl{flex:1;min-width:0}
+.shr .inh{font-size:.6875rem;color:var(--fg-3)}
+.ga{display:flex;gap:.75rem;align-items:center;padding:.5rem 0}
+.ga .ic{width:2rem;height:2rem;border-radius:50%;display:grid;place-items:center;flex:none}
+.ga .m{flex:1;min-width:0}
+.ga .m small{display:block;color:var(--fg-3);font-size:.75rem}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + .25rem);z-index:5}
+.sr{display:flex;gap:.625rem;padding:.625rem .75rem;border-radius:.625rem;cursor:pointer;align-items:flex-start}
+.sr:hover,.sr.on{background:var(--hover)}
+.sr .m{flex:1;min-width:0}
+.sr .m b{font-weight:500;font-size:.8125rem;display:block}
+.sr .m .pth{color:var(--fg-3);font-size:.6875rem}
+.sr .m p{margin:.15rem 0 0;color:var(--fg-2);font-size:.75rem;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+mark{background:color-mix(in srgb,var(--amber-fg) 22%,transparent);color:inherit;border-radius:.15rem;padding:0 .05rem}
+.cmdk{position:absolute;left:50%;top:3.5rem;transform:translateX(-50%);width:min(40rem,calc(100% - 2rem));background:var(--pop);border-radius:1rem;box-shadow:var(--sh-pop);z-index:20;display:flex;flex-direction:column;max-height:calc(100% - 5rem)}
+.cmdk-i{display:flex;align-items:center;gap:.625rem;padding:.875rem 1rem;border-bottom:1px solid var(--line)}
+.cmdk-i input{flex:1;border:0;background:none;font:inherit;font-size:1rem;color:var(--fg);outline:none;min-width:0}
+.cmdk-f{display:flex;gap:.375rem;padding:.5rem 1rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cmdk-b{overflow:auto;padding:.375rem;flex:1}
+.cmdk-ft{display:flex;gap:1rem;padding:.5rem 1rem;border-top:1px solid var(--line);color:var(--fg-3);font-size:.6875rem;flex-wrap:wrap}
+.cmdk-ft kbd{font-family:var(--mono);background:var(--sunk);border-radius:.25rem;padding:0 .3rem}
+.emp{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem 1.5rem;gap:.375rem;height:100%;color:var(--fg)}
+.emp .art{width:4rem;height:4rem;border-radius:1.25rem;display:grid;place-items:center;margin-bottom:.5rem;background:var(--sunk);color:var(--fg-3)}
+.emp .art svg.i{width:1.75rem;height:1.75rem;stroke-width:1.5}
+.emp b{font-size:1rem;font-weight:600}
+.emp p{margin:0 0 .75rem;color:var(--fg-2);font-size:.8125rem;max-width:22rem;line-height:1.55}
+.emp .acts{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
+.stg{display:flex;flex:1;min-height:0}
+.stg-n{width:13.5rem;flex:none;border-right:1px solid var(--line);padding:1rem .5rem;overflow:auto}
+.stg-b{flex:1;min-width:0;overflow:auto;padding:1.5rem 2rem 2rem}
+.stg-b h3{margin:0 0 .25rem;font-size:1.125rem;font-weight:600}
+.stg-b>p.hint{margin:0 0 1.25rem}
+.sec{border-radius:.875rem;box-shadow:inset 0 0 0 1px var(--line);margin:0 0 1rem;background:var(--app)}
+.sec-h{padding:.75rem 1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.5rem;font-weight:600;font-size:.875rem}
+.sec-r{display:flex;gap:1rem;align-items:center;padding:.75rem 1rem;border-bottom:1px solid var(--line)}
+.sec-r:last-child{border-bottom:0}
+.sec-r .m{flex:1;min-width:0}
+.sec-r .m b{display:block;font-weight:500;font-size:.8125rem}
+.sec-r .m small{color:var(--fg-2);font-size:.75rem;line-height:1.45;display:block}
+.sec-r .inp{width:16rem;max-width:100%}
+.lockd{display:inline-flex;gap:.3rem;align-items:center;color:var(--fg-3);font-size:.6875rem}
+.swatch{display:flex;gap:.375rem}
+.swatch button{width:1.5rem;height:1.5rem;border-radius:50%;border:0;cursor:pointer}
+.swatch button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--app),0 0 0 4px currentColor}
+.usage{height:.5rem;border-radius:999px;background:var(--sunk);display:flex;overflow:hidden;margin:.5rem 0}
+.usage i{display:block;height:100%}
+.ph-srch{margin:0 1rem .5rem}
+.ph-row{display:flex;gap:.75rem;align-items:center;padding:.625rem 1rem;border-bottom:1px solid var(--line)}
+.ph-row .ctile{width:2.25rem;height:2.25rem;border-radius:.625rem}
+.ph-row .m{flex:1;min-width:0}
+.ph-row .m b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-row .m small{color:var(--fg-3);font-size:.75rem}
+.ph-sec{padding:.875rem 1rem .25rem;font-size:.6875rem;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.05em}
+.ph-hs{display:flex;gap:.625rem;overflow-x:auto;padding:.25rem 1rem .5rem;scrollbar-width:none}
+.ph-hs .cc{flex:none;width:11rem}
+.fab{position:absolute;right:1rem;bottom:5.75rem;width:3.25rem;height:3.25rem;border-radius:1rem;background:var(--accent);color:var(--accent-fg);border:0;display:grid;place-items:center;box-shadow:var(--sh-pop);z-index:4}
+.fab svg.i{width:1.375rem;height:1.375rem}
+.ph-cv{flex:1;min-height:0;overflow:auto;padding:.5rem 1.25rem 2rem}
+.ph-cv h1{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;margin:.25rem 0}
+.ph-cv p{line-height:1.6;margin:0 0 .75rem}
+.ph-kb{flex:none;border-top:1px solid var(--line);display:flex;gap:.25rem;padding:.375rem .5rem 1.75rem;justify-content:space-around;color:var(--fg-2)}
+.ph-kb .btn{min-width:2.75rem;min-height:2.75rem;justify-content:center}
+.dlg.wide{width:min(40rem,calc(100% - 2rem))}
+.emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,24rem),1fr));gap:1.5rem}
+@media (max-width:40em){.tpl{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><path d="M8 2v3M2 8h3M16 22v-3M22 16h-3"/></symbol>
+<symbol id="i-arrow-ur" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+<symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
+<symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/></symbol>
+<symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4M12 16h.01"/></symbol>
+<symbol id="i-badge-check" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M11.53 2.3a.53.53 0 0 1 .95 0l2.31 4.68a2.12 2.12 0 0 0 1.6 1.16l5.16.76a.53.53 0 0 1 .3.9l-3.74 3.64a2.12 2.12 0 0 0-.61 1.88l.88 5.14a.53.53 0 0 1-.77.56l-4.62-2.43a2.12 2.12 0 0 0-1.97 0L6.4 21.01a.53.53 0 0 1-.77-.56l.88-5.14a2.12 2.12 0 0 0-.61-1.88L2.16 9.8a.53.53 0 0 1 .3-.9l5.16-.76a2.12 2.12 0 0 0 1.6-1.16z"/></symbol>
+<symbol id="i-command" viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9z"/></symbol>
+<symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-gantt" viewBox="0 0 24 24"><path d="M8 6h10M6 12h9M11 18h7"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+<symbol id="i-heading" viewBox="0 0 24 24"><path d="M6 12h12M6 20V4M18 20V4"/></symbol>
+<symbol id="i-text" viewBox="0 0 24 24"><path d="M17 6.1H3M21 12.1H3M15.1 18H3"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+<symbol id="i-file-up" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 12v6M15 15l-3-3-3 3"/></symbol>
+<symbol id="i-file-down" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 18v-6M9 15l3 3 3-3"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4M21 2l-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><path d="M14.11 5.11a1 1 0 0 0 .89 0l3.55-1.78A1 1 0 0 1 20 4.22v12.16a1 1 0 0 1-.55.9l-4 2a1 1 0 0 1-.9 0l-5.1-2.56a1 1 0 0 0-.9 0l-3.55 1.78A1 1 0 0 1 4 17.6V5.44a1 1 0 0 1 .55-.9l4-2a1 1 0 0 1 .9 0zM15 5.76v15M9 3.24v15"/></symbol>
+<symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></symbol>
+<symbol id="i-rows" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M21 9H3M21 15H3"/></symbol>
+</defs></svg>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-fp" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
+<symbol id="i-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></symbol>
+<symbol id="i-drive" viewBox="0 0 24 24"><path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M6 16h.01M10 16h.01"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4M12 2v13"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 12h16M4 6h16M4 18h16"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+<symbol id="i-updown" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+<symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+<symbol id="i-panel" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
+<symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+<symbol id="i-canvas" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="3"/><path d="M7 8h6M7 12h10M7 16h4"/></symbol>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></symbol>
+<symbol id="i-bold" viewBox="0 0 24 24"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></symbol>
+<symbol id="i-listc" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/></symbol>
+</defs></svg>
+
+<header class="rv-top"><div class="rv-top-in"><div class="rv-title"><span class="logo" aria-hidden="true"><svg class="i"><use href="#i-canvas"/></svg></span>OpenCanvas Workspace <small>by CasualOffice · ADR-085 · docs/40 · draft for approval</small></div><div class="rv-ctl"><div class="rv-seg" role="group" aria-label="Theme"><button data-theme-btn="light"><svg class="i sm" aria-hidden="true"><use href="#i-sun"/></svg>Light</button><button data-theme-btn="dark"><svg class="i sm" aria-hidden="true"><use href="#i-moon"/></svg>Dark</button></div><div class="rv-seg" role="group" aria-label="Frame size"><button data-fit="1">Fit to width</button><button data-fit="0">Actual size</button></div></div></div>
+<nav class="rv-toc" aria-label="Frames"><a href="#f1">1 First run</a><a href="#f2">2 Sign in</a><a href="#f3">3 Home</a><a href="#f4">4 Canvas</a><a href="#f5">5 Share</a><a href="#f6">6 Search</a><a href="#f7">7 Trash</a><a href="#f8">8 Members and teams</a><a href="#f9">9 Settings</a><a href="#f10">10 Phone</a><a href="#f11">11 Empty states</a><a href="#f12">12 Keyboard and access</a></nav></header>
+
+<main class="rv-wrap">
+ <div class="rv-intro">
+  <div class="dec"><b style="color:var(--rv-fg)">Decisions for the owner</b><ol>
+   <li>One organisation per deployment, with <em>workspaces</em> inside it (like teamspaces), teams as share groups and a private "My canvases" per person (3a). No multi-tenant mode.</li>
+   <li>First run asks for a one-time setup code printed in the container log, except when opened from the same machine (1a, 1b).</li>
+   <li>Sign-in offers a passkey first, then SSO when configured, then e-mail and password (2a). A passkey can be someone's only sign-in (2b).</li>
+   <li>Every invite is a copyable link; it is also e-mailed only when SMTP is set up. E-mail is optional everywhere (8c).</li>
+   <li>Public links ("Anyone with the link") are view only in the first release and off until an admin turns them on (5a, 9a).</li>
+   <li>Inherited access (from a workspace or folder) is shown in the share dialog but changed only where it comes from (5a).</li>
+   <li>Trash keeps items 30 days. History keeps every save for 24 hours, hourly for 7 days, daily for 90 days, named versions forever (4a, 7a).</li>
+   <li>Search shows only canvases the person can open, and says so in the empty state (6a, 11c).</li>
+   <li>Phone: a bottom bar with Home, Search, New, Inbox and You; the canvas uses the engine's own phone editor inside the Workspace header (10a, 10b).</li>
+   <li>PostgreSQL is left out of the first release (SQLite by default, MySQL or MariaDB optional), see docs/40 §9.</li>
+  </ol></div>
+  <h1>OpenCanvas Workspace</h1>
+  <p>A ready-to-use workspace from OpenCanvas by CasualOffice. Run one Docker image, create the admin account, invite people and start writing: no integration and no host app of your own. The Workspace is a separate host application that owns people, sign-in, files and access, and opens canvases in the OpenCanvas editor through the same host contract as any other app (ADR-085, ADR-001 unchanged).</p>
+  <p>Frames 1a, 3a, 4a, 5a, 6a, 7a, 8a and 9a are live: step through setup, switch the sidebar, grid and list, star canvases, make a canvas from a template, open version history, change roles and link access, type a search, restore from Trash, switch tabs and settings pages. Sample organisation and people are fictional (Acme).</p>
+ </div>
+
+ <section class="rv-sec" id="f1">
+  <h2>1 · First-run setup</h2>
+  <p>The first visit after <code>docker run -p 8080:8080 ghcr.io/casualoffice/opencanvas-workspace</code>. Four short steps, then Home. The setup code protects a server that is reachable from the internet before anyone has claimed it.</p>
+  <figure class="fr">
+   <figcaption><b>1a</b> Setup, step by step <span class="dim">1152 × 672 · live</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="72" style="width:72rem;height:42rem">
+    <div class="setup" id="setup">
+     <div class="st-l">
+      <div class="brand"><span class="logo"><svg class="i"><use href="#i-canvas"/></svg></span><span class="brand-t"><b>OpenCanvas Workspace</b><small>by CasualOffice</small></span></div>
+      <ol id="st-steps"><li data-s="now"><span class="nb">1</span>Setup code</li><li><span class="nb">2</span>Organisation</li><li><span class="nb">3</span>Your admin account</li><li><span class="nb">4</span>First workspace</li><li><span class="nb">5</span>Ready</li></ol>
+      <div class="foot">Everything is stored in the <code>/data</code> volume. You can change all of this later in Settings.<br><br>Apache-2.0 · v0.4.1</div>
+     </div>
+     <div class="st-r"><div class="st-p" id="st-pane"></div></div>
+    </div>
+   </div></div>
+   <p class="note">Step 1 is skipped when the browser is on the same machine as the container (loopback). The public URL in step 2 is filled from the address bar; it is needed for invite links, passkeys and SSO. In step 3 <em>Use a passkey instead</em> makes an admin with no password. Step 4 can add a "Welcome" workspace with three sample canvases.</p>
+  </figure>
+  <figure class="fr">
+   <figcaption><b>1b</b> The container log on first start <span class="dim">736 × 224</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="46" style="width:46rem;height:14rem"><div class="term"><span class="d">$</span> docker run -p 8080:8080 -v opencanvas:/data ghcr.io/casualoffice/opencanvas-workspace
+<span class="d">2026-11-28T09:12:03Z</span> OpenCanvas Workspace 0.4.1 by CasualOffice (engine 0.4.1)
+<span class="d">2026-11-28T09:12:03Z</span> data: /data (SQLite, local files)   secrets generated in /data/secrets
+<span class="d">2026-11-28T09:12:04Z</span> <span class="c">ready</span> on http://0.0.0.0:8080
+<span class="d">2026-11-28T09:12:04Z</span> first run: open http://localhost:8080 and enter the setup code
+                       <span class="y">maple · orbit · lantern · seven · quiet · harbor</span>
+<span class="d">2026-11-28T09:12:04Z</span> back up /data/secrets with your data: without it saved sessions cannot be read</div></div></div>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f2">
+  <h2>2 · Sign in, sign up from an invite, passkey, SSO</h2>
+  <p>The sign-in page shows only the methods the admin turned on. Branding (logo, name, accent and a short message) comes from Settings › Branding. SSO buttons carry the provider name the admin typed and a generic key icon, never a brand logo.</p>
+  <div class="rv-row">
+   <figure class="fr">
+    <figcaption><b>2a</b> Sign in <span class="dim">576 × 704 · press Sign in with a passkey</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="36" style="width:36rem;height:44rem">
+     <div class="auth" id="signin">
+      <div class="auth-c">
+       <div class="brand"><span class="org"><span class="ot t-blue" style="width:2rem;height:2rem;font-size:.8125rem">A</span></span><span class="brand-t"><b>Acme</b><small>OpenCanvas Workspace by CasualOffice</small></span></div>
+       <h3>Sign in to Acme</h3>
+       <p>Welcome back. Use the passkey on this device, or your Acme account.</p>
+       <button class="btn pri lg full" data-pk><svg class="i"><use href="#i-fp"/></svg>Sign in with a passkey</button>
+       <div style="height:.5rem"></div>
+       <button class="btn out lg full"><svg class="i"><use href="#i-key"/></svg>Continue with Acme SSO</button>
+       <div class="or">or with e-mail</div>
+       <div class="fg"><label class="lbl" for="si-e">E-mail</label><div class="inp lg"><input id="si-e" type="email" value="priya@acme.example" autocomplete="username webauthn"></div></div>
+       <div class="fg"><label class="lbl" for="si-p" style="display:flex">Password<a class="lnk" style="margin-left:auto;font-weight:400">Forgot password?</a></label><div class="inp lg"><input id="si-p" type="password" value="xxxxxxxxxxxx" autocomplete="current-password"></div></div>
+       <button class="btn sec lg full"><svg class="i"><use href="#i-login"/></svg>Sign in</button>
+       <div class="auth-ft">Need an account? Ask an Acme admin for an invite.</div>
+      </div>
+     </div>
+    </div></div>
+    <p class="note">Without SMTP, <em>Forgot password?</em> says "Ask an Acme admin for a reset link" instead of sending e-mail. After 10 wrong passwords the account waits 15 minutes. With "SSO only" on, the e-mail form is hidden (a break-glass Owner can still use <code>?local=1</code>).</p>
+   </figure>
+   <figure class="fr">
+    <figcaption><b>2b</b> Sign up from an invite link <span class="dim">576 × 704</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="36" style="width:36rem;height:44rem">
+     <div class="auth">
+      <div class="auth-c">
+       <div class="brand"><span class="org"><span class="ot t-blue" style="width:2rem;height:2rem;font-size:.8125rem">A</span></span><span class="brand-t"><b>Acme</b><small>OpenCanvas Workspace by CasualOffice</small></span></div>
+       <h3>Join Acme</h3>
+       <div class="inv"><span class="av" style="background:var(--u0)">PN</span><span><b>Priya Nair</b> invited you to the <b>Product</b> workspace as an <b>Editor</b>. The invite expires on 5 December.</span></div>
+       <div class="fg"><label class="lbl" for="su-n">Your name</label><div class="inp lg"><input id="su-n" value="Lena Park"></div></div>
+       <div class="fg"><label class="lbl" for="su-e">E-mail</label><div class="inp lg" style="color:var(--fg-2)"><input id="su-e" value="lena@acme.example" readonly><svg class="i sm"><use href="#i-lock"/></svg></div></div>
+       <button class="btn pri lg full"><svg class="i"><use href="#i-fp"/></svg>Create account with a passkey</button>
+       <div class="or">or</div>
+       <div class="fg"><label class="lbl" for="su-p">Choose a password</label><div class="inp lg"><input id="su-p" type="password" value="xxxxxxxxxxxxxx"></div><div class="meter"><i></i></div><span class="hint">Strong. At least 10 characters, not a known leaked password.</span></div>
+       <button class="btn sec lg full">Create account</button>
+       <div class="auth-ft">By joining you agree to Acme's workspace rules.</div>
+      </div>
+     </div>
+    </div></div>
+    <p class="note">The e-mail is fixed when the invite was made for an address; a general invite link lets the person type it. An e-mail domain the admin allows for open sign-up shows the same page without the invite banner.</p>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f3">
+  <h2>3 · Home</h2>
+  <p>The sidebar holds search, Home, Recent, Favourites and Shared with me, then the workspaces with their folder trees, then Templates and Trash. The main area continues where you left off, then lists canvases as a grid or a list. Live dots show who is in a canvas right now.</p>
+  <figure class="fr">
+   <figcaption><b>3a</b> Home, desktop <span class="dim">1280 × 800 · live: sidebar, tree, Grid and List, stars, New</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:50rem"><div class="ws" id="home"></div></div></div>
+   <p class="note">The setup checklist stays at the top for admins until each item is done or dismissed. <em>Shared with me</em> is empty for Priya, so it shows its empty state (11b). Folders can nest; a private workspace shows a lock. Grid thumbnails are rendered by the engine at save (WS-12).</p>
+  </figure>
+  <figure class="fr">
+   <figcaption><b>3b</b> New canvas from a template <span class="dim">832 × 576</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="52" style="width:52rem;height:36rem"><div class="ws" style="display:grid;place-items:center;background:var(--page)" id="tpl-static"></div></div></div>
+   <p class="note">Built-in templates come from the engine; <em>Acme templates</em> are canvases an admin saved as templates (the <code>templates</code> callback). The place defaults to the folder you were in.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f4">
+  <h2>4 · A canvas inside the Workspace</h2>
+  <p>The Workspace header around the OpenCanvas editor: breadcrumb, star, save state, who is here, version history and Share. Everything under the header is the engine's editor, launched with a token from the Workspace like any host.</p>
+  <figure class="fr">
+   <figcaption><b>4a</b> Canvas with version history open <span class="dim">1280 × 768 · live: pick a version, History, Share</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:48rem"><div class="ws" id="canvas"></div></div></div>
+   <p class="note">Picking a version previews it read-only with <em>Restore this version</em>; restoring makes a new version, nothing is lost. Named versions are kept forever, autosaves are thinned (decision 7). The sidebar collapses with the panel button or <kbd class="kbd">⌘\</kbd>.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f5">
+  <h2>5 · Share dialog</h2>
+  <p>People, teams and e-mail addresses, each with a role, then general access. Access from the workspace or a folder is listed with where it comes from.</p>
+  <figure class="fr">
+   <figcaption><b>5a</b> Share "Q1 launch plan" <span class="dim">832 × 640 · live: type in the field, change roles and general access, Copy link</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="52" style="width:52rem;height:40rem"><div class="ws" style="background:var(--page)"><div class="mask" id="share-host"></div></div></div></div>
+   <p class="note">Roles: <em>Full access</em> (edit, share, move, delete), <em>Can edit</em>, <em>Can comment</em>, <em>Can view</em>. The editor only sees edit, comment or view; Full access is enforced by the Workspace. Removing someone ends their open editor session at once (role API). An e-mail without an account becomes an invite to this canvas only (Guest).</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f6">
+  <h2>6 · Search across canvases</h2>
+  <p>One search box (<kbd class="kbd">⌘K</kbd>) for titles, text, database rows, board text and, when the admin allows it, comments. Results open at the matching block.</p>
+  <figure class="fr">
+   <figcaption><b>6a</b> Search <span class="dim">1280 × 704 · live: type, use the filters, arrow keys</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:44rem"><div class="ws" id="search"></div></div></div>
+   <p class="note">The index is built from the <code>search.json</code> in every save and filtered by the person's access when they search, so a canvas you cannot open never appears, not even as a count. The same search answers "Search all canvases" inside the editor.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f7">
+  <h2>7 · Trash</h2>
+  <p>Deleted canvases and folders wait here for 30 days. Anyone with Full access can restore them to where they were; admins see everyone's trash.</p>
+  <figure class="fr">
+   <figcaption><b>7a</b> Trash <span class="dim">1280 × 640 · live: Restore, Delete forever, Mine and Everyone's</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:40rem"><div class="ws" id="trash"></div></div></div>
+   <p class="note">A folder comes back with what was inside it. If the original folder is gone too, the item goes to the workspace's top level and the toast says so. History is kept while in Trash.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f8">
+  <h2>8 · Members and teams</h2>
+  <p>Admins manage people, their organisation role, teams and open invites. Teams are share targets and can come from SSO groups.</p>
+  <figure class="fr">
+   <figcaption><b>8a</b> Members, Teams and Invites <span class="dim">1280 × 736 · live: tabs, roles, Invite people</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:46rem"><div class="ws" id="members"></div></div></div>
+   <p class="note">Roles: <em>Owner</em> (cannot be locked out; at least one), <em>Admin</em>, <em>Member</em>, <em>Guest</em> (sees only what is shared with them, not the member list). Suspending someone signs them out everywhere and keeps their canvases; <em>Transfer canvases</em> moves a leaver's private canvases to someone else.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f9">
+  <h2>9 · Workspace settings</h2>
+  <p>Everything an admin sets after the first run. A value the operator fixed with an environment variable shows as "Set by the operator" and cannot be changed here.</p>
+  <figure class="fr">
+   <figcaption><b>9a</b> Settings <span class="dim">1280 × 832 · live: pick a page; Back up now; turn on e-mail</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:52rem"><div class="ws" id="settings"></div></div></div>
+   <p class="note">Pages: General, Branding, Sign-in and SSO, Sharing, Storage, E-mail, Backups, AI, About. AI only shows the engine's provider status: the model is configured by the operator on the server. Backups include the generated secrets only when a passphrase is set.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f10">
+  <h2>10 · Phone</h2>
+  <p>Home and a canvas at 390 × 844. Touch targets are at least 44 px; the canvas uses the engine's phone editor under a compact Workspace header.</p>
+  <div class="rv-row">
+   <figure class="fr phf"><figcaption><b>10a</b> Home <span class="dim">390 × 844</span></figcaption><div class="fr-vp"><div class="fr-in phone" data-w="24.375" style="width:24.375rem;height:52.75rem"><div class="ph" id="ph-home"></div></div></div><p class="note">The menu button opens the sidebar as a sheet (workspaces and folders). <em>New</em> in the bar opens the template sheet.</p></figure>
+   <figure class="fr phf"><figcaption><b>10b</b> Canvas <span class="dim">390 × 844</span></figcaption><div class="fr-vp"><div class="fr-in phone" data-w="24.375" style="width:24.375rem;height:52.75rem"><div class="ph" id="ph-canvas"></div></div></div><p class="note">The breadcrumb shortens to the folder name; presence collapses to a count. History and Move live in the more menu.</p></figure>
+   <figure class="fr phf"><figcaption><b>10c</b> Share sheet <span class="dim">390 × 844</span></figcaption><div class="fr-vp"><div class="fr-in phone" data-w="24.375" style="width:24.375rem;height:52.75rem"><div class="ph" id="ph-share"></div></div></div><p class="note">The same dialog as 5a as a bottom sheet; roles open as a list.</p></figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f11">
+  <h2>11 · Empty states</h2>
+  <p>Every list has an empty state that says what goes there and offers the next step.</p>
+  <div class="emgrid" id="empties"></div>
+ </section>
+
+ <section class="rv-sec" id="f12">
+  <h2>12 · Keyboard and access</h2>
+  <p>Every frame works without a mouse; focus is always visible; the review checks 200 % zoom, 24 px text and 320 px width (ADR-050).</p>
+  <figure class="fr"><div class="fr-vp"><div class="fr-in" data-w="52" style="width:52rem"><table class="kbd-t"><tbody>
+   <tr><td>⌘K / Ctrl K</td><td>Search from anywhere; arrows move, Enter opens, ⌘Enter opens in a new tab</td></tr>
+   <tr><td>C</td><td>New canvas (template dialog) in the current folder</td></tr>
+   <tr><td>⌘\ / Ctrl \</td><td>Show or hide the sidebar</td></tr>
+   <tr><td>G then H / R / F / T</td><td>Go to Home, Recent, Favourites, Trash</td></tr>
+   <tr><td>Arrows in the tree</td><td>Up and Down move, Right opens a folder, Left closes it (ARIA tree)</td></tr>
+   <tr><td>S on a card</td><td>Star or unstar</td></tr>
+   <tr><td>⌘⇧S / Ctrl ⇧S</td><td>Share the open canvas</td></tr>
+   <tr><td>⌘⌥H / Ctrl Alt H</td><td>Version history</td></tr>
+   <tr><td>Screen readers</td><td>Live regions announce saves, restores and copied links; presence is read as "Asha Rao and Tom Becker are here"</td></tr>
+  </tbody></table></div></div></figure>
+ </section>
+</main>
+<script>
+// Review page: theme and fit. Frames keep their real size (data-w, CSS px at a 16 px root) and are scaled to the column when "Fit to width" is on.
+(function(){
+  var root=document.documentElement, KEY='ws-proto-theme', FKEY='ws-proto-fit';
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function sysDark(){return window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches}
+  function applyTheme(t){root.setAttribute('data-theme',t);document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-theme-btn')===t))})}
+  applyTheme(get(KEY)||(sysDark()?'dark':'light'));
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.addEventListener('click',function(){var t=b.getAttribute('data-theme-btn');applyTheme(t);set(KEY,t)})});
+  var fit=get(FKEY)!=='0';
+  function layout(){
+    var wrap=document.querySelector('.rv-wrap');var cs=getComputedStyle(wrap);var avail=wrap.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+    var rem=parseFloat(getComputedStyle(root).fontSize)/16;
+    document.querySelectorAll('.fr-in[data-w]').forEach(function(el){
+      var w=+el.getAttribute('data-w')*rem;var need=w+(el.classList.contains('phone')?44*rem:0);
+      el.style.zoom=fit?Math.min(1,avail/need):1;
+    });
+    document.querySelectorAll('[data-fit]').forEach(function(b){b.setAttribute('aria-pressed',String((b.getAttribute('data-fit')==='1')===fit))});
+  }
+  document.querySelectorAll('[data-fit]').forEach(function(b){b.addEventListener('click',function(){fit=b.getAttribute('data-fit')==='1';set(FKEY,fit?'1':'0');layout()})});
+  window.addEventListener('resize',layout);layout();
+})();
+</script>
+<script>
+(()=>{
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const ic=(n,c="")=>`<svg class="i ${c}" aria-hidden="true"><use href="#${n}"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const P={
+ pn:{n:"Priya Nair",i:"PN",c:"var(--u0)",e:"priya@acme.example",r:"Owner",t:["Product"],s:"Passkey",a:"Now"},
+ ar:{n:"Asha Rao",i:"AR",c:"var(--u1)",e:"asha@acme.example",r:"Admin",t:["Product","Design"],s:"SSO",a:"Now"},
+ tb:{n:"Tom Becker",i:"TB",c:"var(--u2)",e:"tom@acme.example",r:"Member",t:["Engineering"],s:"Password",a:"12 min ago"},
+ lp:{n:"Lena Park",i:"LP",c:"var(--u3)",e:"lena@acme.example",r:"Member",t:["Design"],s:"Passkey",a:"Yesterday"},
+ dr:{n:"Diego Ramos",i:"DR",c:"var(--u4)",e:"diego@acme.example",r:"Member",t:["Engineering","Support"],s:"SSO",a:"3 days ago"},
+ mc:{n:"Mei Chen",i:"MC",c:"var(--u1)",e:"mei@partner.example",r:"Guest",t:[],s:"Password",a:"Last week"}
+};
+const av=(k,c="")=>`<span class="av ${c}" style="background:${P[k].c}" title="${P[k].n}">${P[k].i}</span>`;
+const stack=ks=>`<span class="stack">${ks.map(k=>av(k,"s")).join("")}</span>`;
+const WS=[
+ {id:"product",n:"Product",tone:"t-blue",ic:"i-layers",open:true,f:[{id:"roadmaps",n:"Roadmaps"},{id:"research",n:"Research"},{id:"specs",n:"Specs"}]},
+ {id:"eng",n:"Engineering",tone:"t-green",ic:"i-code",open:false,f:[{id:"rfcs",n:"RFCs"},{id:"runbooks",n:"Runbooks"}]},
+ {id:"design",n:"Design",tone:"t-pink",ic:"i-palette",open:false,priv:true,f:[]},
+ {id:"mine",n:"My canvases",tone:"t-gray",ic:"i-lock",open:false,f:[]}
+];
+const C=[
+ {id:"q1",n:"Q1 launch plan",w:"Product",f:"Roadmaps",tone:"t-blue",ic:"i-gantt",by:"ar",at:"2 min ago",star:true,live:["ar","tb"],k:"db"},
+ {id:"intv",n:"Customer interviews",w:"Product",f:"Research",tone:"t-purple",ic:"i-message",by:"pn",at:"1 h ago",star:true,live:[],k:"doc"},
+ {id:"sync",n:"Weekly product sync",w:"Product",f:"",tone:"t-amber",ic:"i-cal",by:"lp",at:"Today 09:30",star:false,live:["lp"],k:"doc"},
+ {id:"auth",n:"Passkey sign-in spec",w:"Product",f:"Specs",tone:"t-teal",ic:"i-file",by:"pn",at:"Yesterday",star:false,live:[],k:"doc"},
+ {id:"arch",n:"Storage architecture",w:"Engineering",f:"RFCs",tone:"t-green",ic:"i-board",by:"tb",at:"Yesterday",star:true,live:[],k:"board"},
+ {id:"oncall",n:"On-call runbook",w:"Engineering",f:"Runbooks",tone:"t-red",ic:"i-listc",by:"dr",at:"Mon",star:false,live:[],k:"doc"},
+ {id:"budget",n:"Design budget 2027",w:"Design",f:"",tone:"t-pink",ic:"i-table",by:"lp",at:"Mon",star:false,live:[],k:"sheet"},
+ {id:"okr",n:"Team goals",w:"Product",f:"",tone:"t-gray",ic:"i-star",by:"ar",at:"Nov 20",star:false,live:[],k:"db"}
+];
+function sidebar(cur){
+ const nv=(id,label,icon,extra="")=>`<button class="nv" data-nav="${id}" ${cur===id?'aria-current="true"':""}>${ic(icon)}<span class="l">${label}</span>${extra}</button>`;
+ let h=`<div class="sb-top"><button class="org"><span class="ot t-blue">A</span><b>Acme</b>${ic("i-updown","sm")}</button><button class="sbs" data-cmdk>${ic("i-search","sm")}Search<kbd>⌘K</kbd></button></div><nav class="sb-b" aria-label="Workspace">`;
+ h+=nv("home","Home","i-home")+nv("recent","Recent","i-clock")+nv("fav","Favourites","i-star",`<span class="n">${C.filter(c=>c.star).length}</span>`)+nv("shared","Shared with me","i-users");
+ h+=`<div class="cap">Workspaces<button class="btn" aria-label="New workspace">${ic("i-plus","sm")}</button></div><div role="tree" aria-label="Workspaces">`;
+ WS.forEach(w=>{
+  h+=`<button class="nv" role="treeitem" aria-expanded="${w.open}" data-ws="${w.id}" ${cur===w.id?'aria-current="true"':""}><span class="tw" data-open="${w.open}">${w.f.length?ic("i-right","sm"):""}</span><span class="wt ${w.tone}">${ic(w.ic)}</span><span class="l">${w.n}</span>${w.priv?ic("i-lock","sm"):""}</button>`;
+  if(w.open&&w.f.length)h+=`<div class="tree" role="group">${w.f.map(f=>`<button class="nv" role="treeitem" data-nav="${f.id}" ${cur===f.id?'aria-current="true"':""}><span class="tw"></span>${ic("i-folder")}<span class="l">${f.n}</span></button>`).join("")}</div>`;
+ });
+ h+=`</div><div class="cap">More</div>`+nv("templates","Templates","i-layout")+nv("trash","Trash","i-trash")+nv("members","Members and teams","i-users")+nv("settings","Settings","i-settings");
+ h+=`</nav><div class="sb-f">${av("pn")}<span class="who"><b>Priya Nair</b><small>Owner</small></span><button class="btn ic" aria-label="Notifications">${ic("i-bell")}</button></div>`;
+ return `<aside class="sb">${h}</aside>`;
+}
+function wireTree(root,cb){
+ root.addEventListener("click",e=>{
+  const w=e.target.closest("[data-ws]");
+  if(w){const x=WS.find(v=>v.id===w.dataset.ws);if(x.f.length)x.open=!x.open;cb&&cb(x.f.length?null:x.id,true);return}
+  const n=e.target.closest("[data-nav]");if(n&&cb)cb(n.dataset.nav);
+ });
+}
+function toast(host,html,ms=3200){
+ const old=$(".toast",host);if(old)old.remove();
+ const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.innerHTML=html;host.appendChild(t);
+ setTimeout(()=>t.remove(),ms);
+}
+const thumb=c=>{
+ if(c.k==="board")return `<div class="thumb"><span class="bx t-amber" style="left:1rem;top:1rem;width:4rem;height:2.5rem"></span><span class="bx t-blue" style="left:6.5rem;top:2.2rem;width:4.5rem;height:3rem"></span><span class="bx t-green" style="left:3rem;top:4.4rem;width:3.5rem;height:2rem"></span></div>`;
+ if(c.k==="db"||c.k==="sheet")return `<div class="thumb"><i class="h"></i>${[0,1,2,3].map(r=>`<span style="display:flex;gap:.35rem"><i style="flex:2"></i><i style="flex:1;${r%2?"background:var(--green-bg)":"background:var(--blue-bg)"}"></i><i style="flex:1"></i></span>`).join("")}</div>`;
+ return `<div class="thumb"><i class="h"></i><i style="width:92%"></i><i style="width:80%"></i><i style="width:86%"></i><i style="width:40%"></i></div>`;
+};
+const card=c=>`<div class="card" tabindex="0" data-c="${c.id}">${thumb(c)}${c.live.length?`<span class="live" style="top:5.9rem;bottom:auto">${stack(c.live)}Live</span>`:""}<button class="star" aria-label="Favourite" aria-pressed="${c.star}" data-star="${c.id}">${ic("i-star","sm")}</button><div class="card-b"><b><span class="ctile ${c.tone}" style="width:1.125rem;height:1.125rem">${ic(c.ic,"sm")}</span><span>${esc(c.n)}</span></b><small>${c.w}${c.f?" › "+c.f:""} · ${P[c.by].n.split(" ")[0]}, ${c.at}</small></div></div>`;
+const row=c=>`<tr class="rw" data-c="${c.id}"><td><span class="nm"><span class="ctile ${c.tone}">${ic(c.ic,"sm")}</span>${esc(c.n)}${c.live.length?` <span class="pill p-green">${stack(c.live)} Live</span>`:""}</span></td><td class="dimc">${c.w}${c.f?" › "+c.f:""}</td><td><span class="ppl">${av(c.by,"s")}${P[c.by].n}</span></td><td class="dimc">${c.at}</td><td><button class="btn ic star" style="opacity:1;position:static;box-shadow:none" aria-label="Favourite" aria-pressed="${c.star}" data-star="${c.id}">${ic("i-star","sm")}</button></td></tr>`;
+
+/* ---------- template dialog ---------- */
+const TPL=[["blank","Blank","Start from an empty page","i-file","t-gray"],["meet","Meeting notes","Agenda, notes, action items","i-cal","t-amber"],["plan","Project plan","Tasks database with Board and Timeline","i-gantt","t-blue"],["wb","Whiteboard","A board for sketching and stickies","i-board","t-green"],["sheet","Spreadsheet","Cells, formulas and charts","i-table","t-teal"],["adr","Decision record","Context, options, decision","i-listc","t-purple"]];
+const TPL2=[["sprint","Sprint review","Acme template · Asha Rao","i-zap","t-pink"],["intv","Customer interview","Acme template · Priya Nair","i-message","t-purple"]];
+function tplDlg(sel="plan",where="Product › Roadmaps"){
+ const t=a=>`<button class="tp" data-tpl="${a[0]}" aria-pressed="${a[0]===sel}"><span class="pv ${a[4]}">${ic(a[3])}</span><b>${a[1]}</b><small>${a[2]}</small></button>`;
+ return `<div class="dlg wide" role="dialog" aria-modal="true" aria-labelledby="tpl-h"><div class="dlg-h"><div style="flex:1"><h3 id="tpl-h">New canvas</h3><p>Pick a template. You can change everything after.</p></div><button class="btn ic" data-close aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><div class="tpl">${TPL.map(t).join("")}</div><div class="sub" style="margin-top:1rem"><h3>Acme templates</h3><span class="hint" style="margin-left:auto">Saved by admins</span></div><div class="tpl">${TPL2.map(t).join("")}</div></div><div class="dlg-f" style="justify-content:space-between;align-items:center"><span class="hint" style="display:flex;gap:.375rem;align-items:center">${ic("i-folder","sm")}Create in <select class="rsel gh" aria-label="Where"><option>${where}</option><option>Product</option><option>My canvases</option></select></span><span style="display:flex;gap:.5rem"><button class="btn sec" data-close>Cancel</button><button class="btn pri" data-create>Create canvas</button></span></div></div>`;
+}
+$("#tpl-static").innerHTML=tplDlg();
+
+/* ---------- 3a home ---------- */
+(function(){
+ const host=$("#home");let view="home",mode="grid",checklist=true,made=0;
+ function main(){
+  let title="Home",list=C,hint="",body="";
+  if(view==="recent"){title="Recent";}
+  else if(view==="fav"){title="Favourites";list=C.filter(c=>c.star)}
+  else if(view==="shared"){title="Shared with me";list=[]}
+  else{const w=WS.find(x=>x.f.some(f=>f.id===view));if(w){const f=w.f.find(f=>f.id===view);title=f.n;hint=`${w.n} › ${f.n}`;list=C.filter(c=>c.f===f.n)}
+   const w2=WS.find(x=>x.id===view);if(w2){title=w2.n;list=C.filter(c=>c.w===w2.n)}}
+  const top=`<div class="mn-t">${title!=="Home"&&hint?`<span class="crumbs"><span class="par">${hint.split(" › ")[0]}</span><span class="sep">›</span><span class="cname">${title}</span></span>`:`<span class="crumbs"><span class="cname">${title}</span></span>`}<span class="sp"></span><button class="btn ic" aria-label="Notifications">${ic("i-bell")}</button><button class="btn pri" data-new>${ic("i-plus")}New canvas</button></div>`;
+  if(view==="shared"){body=`<div class="emp"><span class="art">${ic("i-users")}</span><b>Nothing shared with you yet</b><p>When someone shares a canvas or folder with you, or adds you to a team, it shows up here.</p></div>`;return top+`<div class="mn-b" style="height:calc(100% - 3rem)">${body}</div>`}
+  if(view==="home"){
+   if(checklist){const it=[["Create your account",1],["Invite people",1],["Choose sign-in methods",0],["Set up e-mail (optional)",0],["Set up backups",0]];
+    body+=`<div class="chkl"><span style="display:flex;flex-direction:column;gap:.125rem"><b>Finish setting up Acme</b><span class="pr">2 of 5 done</span></span><span class="its">${it.map(x=>`<button class="chip ${x[1]?"dn":""}">${ic(x[1]?"i-circle-check":"i-right","sm")}${x[0]}</button>`).join("")}</span><button class="btn ic" data-dismiss aria-label="Dismiss checklist">${ic("i-x")}</button></div>`}
+   body+=`<div class="mn-h" style="margin-bottom:.625rem"><h2>Good morning, Priya</h2></div><div class="sub" style="margin-top:0"><h3>Continue where you left off</h3></div><div class="cont">${C.slice(0,4).map(c=>`<div class="cc" tabindex="0"><span class="ctile ${c.tone}">${ic(c.ic)}</span><span class="m"><b>${esc(c.n)}</b><small>${c.w} · ${c.at}</small></span>${c.live.length?stack(c.live):""}</div>`).join("")}</div>`;
+  }else body+=`<div class="mn-h"><h2>${title}</h2>${view==="fav"?`<span class="hint">Starred canvases, in the order you starred them.</span>`:""}</div>`;
+  body+=`<div class="sub"><h3>${view==="home"?"Recently edited":list.length+" canvases"}</h3><span class="sp"></span><select class="rsel gh" aria-label="Sort"><option>Last edited</option><option>Name</option><option>Created</option></select><span class="seg" role="group" aria-label="Layout"><button data-mode="grid" aria-pressed="${mode==="grid"}">${ic("i-grid","sm")} Grid</button><button data-mode="list" aria-pressed="${mode==="list"}">${ic("i-list","sm")} List</button></span></div>`;
+  if(!list.length)body+=`<div class="emp" style="height:auto;padding:3rem 1rem"><span class="art">${ic("i-star")}</span><b>${view==="fav"?"No favourites yet":"Nothing here yet"}</b><p>${view==="fav"?"Star a canvas to keep it here and at the top of the sidebar.":"Create the first canvas here, or move canvases in from another workspace."}</p></div>`;
+  else if(mode==="grid")body+=`<div class="cg">${list.map(card).join("")}</div>`;
+  else body+=`<table class="tbl"><thead><tr><th>Name</th><th>Location</th><th>Edited by</th><th>Edited</th><th><span class="sr-only" style="position:absolute;left:-9999px">Favourite</span></th></tr></thead><tbody>${list.map(row).join("")}</tbody></table>`;
+  return top+`<div class="mn-b">${body}</div>`;
+ }
+ function render(){host.innerHTML=sidebar(view)+`<div class="mn">${main()}</div>`}
+ render();
+ const JUMP={trash:"#f7",members:"#f8",settings:"#f9",templates:"#f3"};
+ wireTree(host,(id)=>{if(id&&JUMP[id]){location.hash=JUMP[id];return}if(id){view=id}render()});
+ host.addEventListener("click",e=>{
+  const s=e.target.closest("[data-star]");if(s){e.stopPropagation();const c=C.find(x=>x.id===s.dataset.star);c.star=!c.star;render();return}
+  const m=e.target.closest("[data-mode]");if(m){mode=m.dataset.mode;render();return}
+  if(e.target.closest("[data-dismiss]")){checklist=false;render();return}
+  if(e.target.closest("[data-new]")){const mk=document.createElement("div");mk.className="mask";mk.innerHTML=tplDlg();host.appendChild(mk);return}
+  const tp=e.target.closest("[data-tpl]");if(tp){$$("[data-tpl]",host).forEach(b=>b.setAttribute("aria-pressed",String(b===tp)));return}
+  if(e.target.closest("[data-close]")){$(".mask",host).remove();return}
+  if(e.target.closest("[data-create]")){const sel=$('[data-tpl][aria-pressed="true"]',host);const t=[...TPL,...TPL2].find(x=>x[0]===sel.dataset.tpl);made++;
+   C.unshift({id:"new"+made,n:t[0]==="blank"?"Untitled":t[1],w:"Product",f:"Roadmaps",tone:t[4],ic:t[3],by:"pn",at:"Just now",star:false,live:[],k:t[0]==="wb"?"board":t[0]==="plan"||t[0]==="sheet"?"db":"doc"});
+   view="home";render();toast(host,`${ic("i-circle-check")}Created in Product › Roadmaps <button class="btn sec">Open</button>`)}
+ });
+ host.addEventListener("keydown",e=>{if(e.key==="Escape"&&$(".mask",host))$(".mask",host).remove()});
+})();
+
+/* ---------- 1a setup ---------- */
+(function(){
+ const pane=$("#st-pane"),steps=$$("#st-steps li");let i=0;
+ const P_=[
+  ()=>`<div class="k">Step 1 of 4</div><h3>Enter the setup code</h3><p>To make sure you run this server, type the six words printed in the container log (<code>docker logs</code>). This is only asked once.</p><div class="code6">${["maple","orbit","lantern","seven","quiet","harbor"].map((w,k)=>`<div class="inp lg"><input aria-label="Word ${k+1}" value="${w}"></div>`).join("")}</div><p class="hint" style="margin-top:.75rem">Opened from the same machine as the server? This step is skipped.</p>`,
+  ()=>`<div class="k">Step 2 of 4</div><h3>Name your organisation</h3><p>People see this name when they sign in and in invites.</p><div class="fg"><label class="lbl" for="o-n">Organisation name</label><div class="inp lg"><input id="o-n" value="Acme"></div></div><div class="fg"><label class="lbl" for="o-u">Public address</label><div class="inp lg"><input id="o-u" value="https://canvas.acme.example"></div><span class="hint">Used for invite links, passkeys and single sign-on. Filled from the address you opened.</span></div>`,
+  ()=>`<div class="k">Step 3 of 4</div><h3>Create the admin account</h3><p>You will be the Owner of Acme. You can add more admins later.</p><div class="fg"><label class="lbl" for="a-n">Your name</label><div class="inp lg"><input id="a-n" value="Priya Nair"></div></div><div class="fg"><label class="lbl" for="a-e">E-mail</label><div class="inp lg"><input id="a-e" value="priya@acme.example"></div></div><div class="fg"><label class="lbl" for="a-p">Password</label><div class="inp lg"><input id="a-p" type="password" value="xxxxxxxxxxxxxx"></div><div class="meter"><i></i></div></div><button class="btn out full">${ic("i-fp")}Use a passkey instead</button>`,
+  ()=>`<div class="k">Step 4 of 4</div><h3>Create your first workspace</h3><p>Workspaces group canvases by team or project. Everyone at Acme can join an open workspace.</p><div class="fg"><label class="lbl" for="w-n">Workspace name</label><div class="inp lg"><input id="w-n" value="Product"></div></div><div class="sec"><div class="sec-r"><span class="m"><b>Add a Welcome workspace</b><small>Three sample canvases: a project plan, meeting notes and a whiteboard.</small></span><button class="sw" role="switch" aria-checked="true" aria-label="Add a Welcome workspace" data-sw></button></div><div class="sec-r"><span class="m"><b>Open workspace</b><small>Anyone at Acme can find and join it.</small></span><button class="sw" role="switch" aria-checked="true" aria-label="Open workspace" data-sw></button></div></div>`,
+  ()=>`<div class="k" style="color:var(--green-fg)">All set</div><h3>Acme is ready</h3><p>Your workspace is running. A few things worth doing next:</p><div class="sec">${[["i-user-plus","t-blue","Invite people","Copy an invite link, no e-mail needed"],["i-key","t-purple","Choose sign-in methods","Passkeys, passwords, single sign-on"],["i-archive","t-green","Set up backups","Nightly to the data volume or S3"]].map(r=>`<div class="sec-r okrow" style="padding:.625rem 1rem"><span class="ic ${r[1]}">${ic(r[0])}</span><span class="m"><b>${r[2]}</b><small>${r[3]}</small></span>${ic("i-right","sm")}</div>`).join("")}</div>`
+ ];
+ function render(){pane.innerHTML=P_[i]()+`<div class="st-a">${i>0&&i<4?`<button class="btn sec lg" data-b>Back</button>`:""}<span class="sp"></span><button class="btn pri lg" data-n>${i===3?"Finish setup":i===4?"Open Acme":"Continue"}${ic("i-right")}</button></div>`;
+  steps.forEach((s,k)=>s.dataset.s=k<i?"done":k===i?"now":"");steps.forEach((s,k)=>{s.querySelector(".nb").innerHTML=k<i?ic("i-check","sm"):String(k+1)})}
+ render();
+ pane.addEventListener("click",e=>{if(e.target.closest("[data-n]")){i=i===4?0:i+1;render()}else if(e.target.closest("[data-b]")){i--;render()}else{const s=e.target.closest("[data-sw]");if(s)s.setAttribute("aria-checked",String(s.getAttribute("aria-checked")!=="true"))}});
+})();
+
+/* ---------- 2a passkey ---------- */
+$("#signin [data-pk]").addEventListener("click",()=>{const h=$("#signin");const m=document.createElement("div");m.className="pk";m.innerHTML=`<div class="pk-c" role="dialog" aria-label="Passkey"><div class="ring">${ic("i-fp")}</div><b>Use your passkey</b><p>Follow your browser's prompt to sign in to canvas.acme.example with Touch ID, Windows Hello or a security key.</p><button class="btn sec" data-x>Cancel</button></div>`;h.appendChild(m);m.querySelector("[data-x]").onclick=()=>m.remove();setTimeout(()=>{if(m.isConnected){m.querySelector(".pk-c").innerHTML=`<div class="ring" style="background:var(--green-bg);color:var(--green-fg)">${ic("i-check")}</div><b>Signed in as Priya Nair</b><p>Opening Acme…</p>`;setTimeout(()=>m.remove(),1600)}},1800)});
+
+/* ---------- share dialog ---------- */
+const ROLES=["Full access","Can edit","Can comment","Can view"];
+const rsel=(v,lbl,extra="")=>`<select class="rsel gh" aria-label="${lbl}" ${extra}>${ROLES.map(r=>`<option ${r===v?"selected":""}>${r}</option>`).join("")}<option>Remove</option></select>`;
+function shareDlg(){
+ return `<div class="dlg wide" role="dialog" aria-modal="true" aria-labelledby="sh-h" style="position:relative"><div class="dlg-h"><div style="flex:1"><h3 id="sh-h">Share "Q1 launch plan"</h3><p>Product › Roadmaps</p></div><button class="btn ic" data-close aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b">
+ <div style="display:flex;gap:.5rem;position:relative"><div class="inp" style="flex:1;height:2.25rem">${ic("i-user-plus","sm")}<input data-add placeholder="Add people, teams or e-mails" aria-label="Add people, teams or e-mails"></div><select class="rsel" aria-label="Role for new people"><option>Can edit</option><option>Can comment</option><option>Can view</option><option>Full access</option></select><button class="btn pri" style="height:2.25rem" data-invite>Share</button><div class="sugg pop" data-sugg hidden></div></div>
+ <div class="cap" style="padding-left:0;margin-top:.5rem">People and teams</div><div data-people>
+ <div class="shr"><span class="ppl">${av("pn")}<span class="m"><b>Priya Nair (you)</b><small>priya@acme.example</small></span></span><span class="hint">Full access</span></div>
+ <div class="shr"><span class="ppl">${av("ar")}<span class="m"><b>Asha Rao</b><small>asha@acme.example</small></span></span>${rsel("Can edit","Role for Asha Rao")}</div>
+ <div class="shr"><span class="ppl"><span class="av t-pink" style="color:var(--pink-fg)">${ic("i-users","sm")}</span><span class="m"><b>Design</b><small>Team · 6 people</small></span></span>${rsel("Can comment","Role for Design")}</div>
+ <div class="shr"><span class="ppl"><span class="av t-blue" style="color:var(--blue-fg)">${ic("i-layers","sm")}</span><span class="m"><b>Everyone in Product</b><small class="inh">From the Product workspace · 14 people</small></span></span><span class="hint" style="display:flex;gap:.25rem;align-items:center">Can edit<button class="btn" style="height:1.5rem;font-size:.75rem">Change in workspace</button></span></div>
+ </div>
+ <div class="cap" style="padding-left:0;margin-top:.5rem">General access</div>
+ <div class="ga"><span class="ic t-gray" data-ga-ic>${ic("i-lock","sm")}</span><span class="m"><select class="rsel gh" style="padding-left:0;font-weight:500" aria-label="General access" data-ga><option value="only">Only people added</option><option value="org">Everyone at Acme</option><option value="link">Anyone with the link</option></select><small data-ga-t>Only the people and teams above can open it.</small></span><span data-ga-r></span></div>
+ </div><div class="dlg-f" style="justify-content:space-between"><button class="btn sec" data-copy>${ic("i-link","sm")}Copy link</button><button class="btn pri" data-close>Done</button></div></div>`;
+}
+function wireShare(host,onClose){
+ const add=$("[data-add]",host),sg=$("[data-sugg]",host);
+ const cand=[["lp","Lena Park","lena@acme.example"],["dr","Diego Ramos","diego@acme.example"],["team","Engineering","Team · 9 people"],["team","Support","Team · 4 people"]];
+ function showS(){const q=add.value.trim().toLowerCase();let it=cand.filter(c=>!q||c[1].toLowerCase().includes(q)||c[2].includes(q));let h=it.map((c,k)=>`<div class="mi" data-pick="${c[1]}">${c[0]==="team"?`<span class="av s t-green" style="color:var(--green-fg)">${ic("i-users","sm")}</span>`:av(c[0],"s")}<span style="flex:1"><b style="font-weight:500">${c[1]}</b> <small>${c[2]}</small></span></div>`).join("");
+  if(q.includes("@")&&!it.length)h=`<div class="mi" data-pick="${esc(q)}">${ic("i-mail")}<span style="flex:1">Invite <b style="font-weight:500">${esc(q)}</b> <small>No account yet: they get an invite to this canvas as a Guest</small></span></div>`;
+  if(!h)h=`<div class="hint" style="padding:.5rem">No one at Acme matches "${esc(q)}". Type a full e-mail to invite someone.</div>`;
+  sg.innerHTML=h;sg.hidden=false}
+ add.addEventListener("focus",showS);add.addEventListener("input",showS);
+ host.addEventListener("click",e=>{
+  const p=e.target.closest("[data-pick]");if(p){add.value=p.dataset.pick;sg.hidden=true;return}
+  if(!e.target.closest("[data-sugg]")&&e.target!==add)sg.hidden=true;
+  if(e.target.closest("[data-invite]")&&add.value.trim()){const v=add.value.trim();const k=Object.keys(P).find(k=>P[k].n===v);
+   $("[data-people]",host).insertAdjacentHTML("beforeend",`<div class="shr"><span class="ppl">${k?av(k):`<span class="av t-gray" style="color:var(--gray-fg)">${ic(v.includes("@")?"i-mail":"i-users","sm")}</span>`}<span class="m"><b>${esc(v)}</b><small>${v.includes("@")?"Invited · link sent or copied":k?P[k].e:"Team"}</small></span></span>${rsel("Can edit","Role for "+esc(v))}</div>`);add.value="";toast(host.closest(".mask")||host,`${ic("i-circle-check")}Shared with ${esc(v)}`);return}
+  if(e.target.closest("[data-copy]")){toast(host.closest(".mask")||host,`${ic("i-link")}Link copied. ${$("[data-ga]",host).value==="link"?"Anyone with it can view.":"Only people with access can open it."}`);return}
+  if(e.target.closest("[data-close]")&&onClose)onClose();
+ });
+ host.addEventListener("change",e=>{
+  const s=e.target;if(s.matches("[data-ga]")){const v=s.value;const t=$("[data-ga-t]",host),i=$("[data-ga-ic]",host),r=$("[data-ga-r]",host);
+   if(v==="only"){t.textContent="Only the people and teams above can open it.";i.className="ic t-gray";i.innerHTML=ic("i-lock","sm");r.innerHTML=""}
+   if(v==="org"){t.textContent="Anyone signed in to Acme can find and open it. Guests cannot.";i.className="ic t-blue";i.innerHTML=ic("i-building","sm");r.innerHTML=`<select class="rsel gh" aria-label="Role for everyone at Acme"><option>Can view</option><option>Can comment</option><option>Can edit</option></select>`}
+   if(v==="link"){t.innerHTML="Anyone on the internet with the link can view, without signing in. Expires in <b>30 days</b>.";i.className="ic t-amber";i.innerHTML=ic("i-globe","sm");r.innerHTML=`<select class="rsel gh" aria-label="Link expiry"><option>30 days</option><option>7 days</option><option>Never</option></select>`}}
+  if(s.value==="Remove"){s.closest(".shr").remove()}
+ });
+}
+(function(){const h=$("#share-host");h.innerHTML=shareDlg();wireShare(h,()=>{})})();
+
+/* ---------- 4a canvas ---------- */
+(function(){
+ const host=$("#canvas");let hist=true,ver=0,star=true;
+ const V=[["Today",[["Now","Current version","Priya Nair, Asha Rao","",["pn","ar"]],["11:40","Asha Rao","Moved API freeze to 9 Jan","",["ar"]],["10:02","Before the board review","Priya Nair","Named",["pn"]]]],["Yesterday",[["17:25","Tom Becker","12 edits","",["tb"]],["09:10","Restored from 24 Nov","Priya Nair","Restore",["pn"]]]],["Nov 24",[["16:48","Priya Nair","Created from Project plan","",["pn"]]]]];
+ function render(){
+  let n=0;
+  const vh=hist?`<aside class="vh" aria-label="Version history"><div class="vh-h">${ic("i-history")}Version history<span class="sp"></span><button class="btn ic" data-hist aria-label="Close history">${ic("i-x")}</button></div><div class="vh-b">${V.map(d=>`<div class="vday">${d[0]}</div>`+d[1].map(v=>{const k=n++;return `<button class="ver" data-ver="${k}" ${k===ver?'aria-current="true"':""}><span class="dt"></span><span class="m"><b>${v[0]==="Now"?"Current version":v[0]+" · "+v[1]}</b><small>${v[0]==="Now"?v[2]:v[2]}</small></span>${v[3]?`<span class="pill ${v[3]==="Named"?"p-purple":"p-gray"}">${v[3]}</span>`:""}</button>`}).join("")).join("")}<p class="hint" style="padding:.75rem .5rem">Autosaves older than a week are kept hourly, older than 90 days only when named.</p></div><div class="vh-f">${ver===0?`<button class="btn sec" style="flex:1;justify-content:center">${ic("i-pen","sm")}Name current version</button>`:`<button class="btn sec" data-back>Back to current</button><button class="btn pri" style="flex:1;justify-content:center" data-restore>${ic("i-undo","sm")}Restore this version</button>`}</div></aside>`:"";
+  const banner=ver?`<div style="background:var(--amber-bg);color:var(--amber-fg);padding:.5rem 1rem;font-size:.8125rem;display:flex;gap:.5rem;align-items:center">${ic("i-eye","sm")}Viewing an earlier version, read only.<span class="sp"></span><button class="btn" style="color:inherit" data-back>Back to current</button></div>`:"";
+  host.innerHTML=sidebar("roadmaps")+`<div class="mn"><div class="cv-t"><button class="btn ic" aria-label="Hide sidebar">${ic("i-panel")}</button><span class="crumbs"><span class="wt t-blue ctile" style="width:1.125rem;height:1.125rem">${ic("i-layers","sm")}</span><span class="par">Product</span><span class="sep">›</span><span class="par">Roadmaps</span><span class="sep">›</span><span class="cname">Q1 launch plan</span></span><button class="btn ic star" style="opacity:1;position:static;box-shadow:none" aria-label="Favourite" aria-pressed="${star}" data-cstar>${ic("i-star","sm")}</button><span class="ocst">${ic("i-check","sm")}Saved</span><span class="sp"></span><span class="stack" aria-label="Asha Rao and Tom Becker are here">${av("pn")}${av("ar")}${av("tb")}</span><button class="btn ${hist?"on":""}" data-hist aria-pressed="${hist}">${ic("i-history")}History</button><button class="btn pri" data-share>${ic("i-share","sm")}Share</button><button class="btn ic" aria-label="More">${ic("i-dots")}</button></div>${banner}<div class="cv-b"><div class="cv-doc" ${ver?'style="opacity:.82"':""}><div class="doc-in"><h1>Q1 launch plan</h1><div class="meta">${stack(["ar","pn"])} Edited by Asha Rao 2 min ago · Product › Roadmaps</div><p>We launch the Workspace beta to three design partners in January, then open sign-ups in March. This plan tracks the work, owners and dates; the timeline below is the source of truth.</p><h2>Milestones</h2><div class="mdb"><div class="h">${ic("i-gantt","sm")}Launch tasks<span class="pill p-gray">12 rows</span></div><table class="tbl"><thead><tr><th>Task</th><th>Owner</th><th>Status</th><th>Due</th></tr></thead><tbody><tr><td>API freeze</td><td><span class="ppl">${av("tb","s")}Tom</span></td><td><span class="pill p-blue">In progress</span></td><td class="dimc">${ver?"6 Jan":"9 Jan"}</td></tr><tr><td>Partner onboarding</td><td><span class="ppl">${av("ar","s")}Asha</span></td><td><span class="pill p-gray">Not started</span></td><td class="dimc">16 Jan</td></tr><tr><td>Security review</td><td><span class="ppl">${av("dr","s")}Diego</span></td><td><span class="pill p-green">Done</span></td><td class="dimc">19 Dec</td></tr></tbody></table></div><h2>Risks</h2><p>Passkey support on older Android browsers<span class="cur" style="background:var(--u1)"><b style="background:var(--u1)">Asha Rao</b></span> needs a fallback; SSO for partners is optional in the beta.</p></div></div>${vh}</div></div>`;
+ }
+ render();
+ wireTree(host,()=>{render()});
+ host.addEventListener("click",e=>{
+  if(e.target.closest("[data-hist]")){hist=!hist;if(!hist)ver=0;render();return}
+  const v=e.target.closest("[data-ver]");if(v){ver=+v.dataset.ver;render();return}
+  if(e.target.closest("[data-back]")){ver=0;render();return}
+  if(e.target.closest("[data-cstar]")){star=!star;render();return}
+  if(e.target.closest("[data-restore]")){ver=0;V[0][1].splice(1,0,["Now","Restored","Priya Nair","Restore",["pn"]]);V[0][1][0]=["Now","Current version","Priya Nair","",["pn"]];V[0][1][1]=["12:05","Restored from 11:40","Priya Nair","Restore",["pn"]];render();toast(host,`${ic("i-circle-check")}Restored. The version you replaced is still in the history.`);return}
+  if(e.target.closest("[data-share]")){const m=document.createElement("div");m.className="mask";m.innerHTML=shareDlg();host.appendChild(m);wireShare(m,()=>m.remove());return}
+ });
+})();
+
+/* ---------- 6a search ---------- */
+(function(){
+ const host=$("#search");
+ const IDX=[
+  {c:"q1",t:"Q1 launch plan",p:"Product › Roadmaps",ty:"Canvases",s:"We <m>launch</m> the Workspace beta to three design partners in January"},
+  {c:"q1",t:"Q1 launch plan › Launch tasks",p:"Database row · Partner onboarding",ty:"Databases",s:"Partner onboarding · Asha · due 16 Jan · <m>launch</m> checklist"},
+  {c:"sync",t:"Weekly product sync",p:"Product · Notes, 21 Nov",ty:"Canvases",s:"Decision: move the <m>launch</m> review to Thursday so Design can join"},
+  {c:"arch",t:"Storage architecture",p:"Engineering › RFCs · Board",ty:"Boards",s:"Sticky: \"S3 optional at <m>launch</m>, local disk first\""},
+  {c:"intv",t:"Customer interviews",p:"Product › Research",ty:"Canvases",s:"\"We would switch if setup takes less than a coffee\" — before <m>launch</m>"},
+  {c:"oncall",t:"On-call runbook",p:"Engineering › Runbooks",ty:"Canvases",s:"Restart the container; data stays in /data. Backups run nightly"},
+  {c:"budget",t:"Design budget 2027",p:"Design · Spreadsheet",ty:"Databases",s:"Brand refresh · 24,000 · Q2"}
+ ];
+ let q="launch",ty="All",sel=0;
+ function hl(s){return q?s.replace(/<m>(.*?)<\/m>/g,"$1").replace(new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"),"<mark>$1</mark>"):s.replace(/<\/?m>/g,"")}
+ function results(){const r=IDX.filter(x=>(ty==="All"||x.ty===ty)&&(!q||(x.t+" "+x.s.replace(/<\/?m>/g,"")).toLowerCase().includes(q.toLowerCase())));
+  if(!r.length)return `<div class="emp" style="height:auto;padding:2.5rem 1rem"><span class="art">${ic("i-search")}</span><b>No canvases match "${esc(q)}"</b><p>Check the spelling, or search every workspace. Canvases you cannot open never show up here.</p><div class="acts"><button class="btn sec">Search every workspace</button></div></div>`;
+  return `<div class="cap" style="padding-left:.5rem">${r.length} result${r.length>1?"s":""}</div>`+r.map((x,k)=>{const c=C.find(y=>y.id===x.c);return `<div class="sr ${k===sel?"on":""}" role="option" aria-selected="${k===sel}"><span class="ctile ${c.tone}" style="width:2rem;height:2rem;border-radius:.5rem">${ic(c.ic)}</span><span class="m"><b>${hl(x.t)}</b><span class="pth">${x.p}</span><p>${hl(x.s)}</p></span><span class="hint">${c.at}</span></div>`}).join("")}
+ function render(keep){
+  if(!keep){host.innerHTML=sidebar("home")+`<div class="mn" style="opacity:.45"><div class="mn-t"><span class="crumbs"><span class="cname">Home</span></span></div><div class="mn-b"><div class="cg">${C.slice(0,6).map(card).join("")}</div></div></div><div class="mask" style="place-items:start center;background:rgba(10,10,14,.22)"><div class="cmdk" role="dialog" aria-label="Search"><div class="cmdk-i">${ic("i-search","lg")}<input data-q value="${esc(q)}" aria-label="Search canvases" role="combobox" aria-expanded="true"><kbd class="kbd">Esc</kbd></div><div class="cmdk-f">${["All","Canvases","Databases","Boards","Comments"].map(t=>`<button class="chip" data-ty="${t}" aria-pressed="${t===ty}">${t}</button>`).join("")}<span class="sp"></span><select class="rsel gh" aria-label="Workspace"><option>Any workspace</option><option>Product</option><option>Engineering</option><option>Design</option></select><select class="rsel gh" aria-label="Edited"><option>Edited any time</option><option>Past week</option><option>Past month</option></select></div><div class="cmdk-b" role="listbox" data-res></div><div class="cmdk-ft"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open at the match</span><span><kbd>⌘Enter</kbd> new tab</span><span class="sp"></span><span>Comments are searched (Settings › Sharing)</span></div></div></div>`}
+  $("[data-res]",host).innerHTML=results();$$("[data-ty]",host).forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.ty===ty)));
+ }
+ render();
+ host.addEventListener("input",e=>{if(e.target.matches("[data-q]")){q=e.target.value;sel=0;render(true)}});
+ host.addEventListener("click",e=>{const b=e.target.closest("[data-ty]");if(b){ty=b.dataset.ty;sel=0;render(true)}});
+ host.addEventListener("keydown",e=>{if(!e.target.matches("[data-q]"))return;const n=$$(".sr",host).length;if(e.key==="ArrowDown"){sel=Math.min(n-1,sel+1);render(true);e.preventDefault()}if(e.key==="ArrowUp"){sel=Math.max(0,sel-1);render(true);e.preventDefault()}});
+})();
+
+/* ---------- 7a trash ---------- */
+(function(){
+ const host=$("#trash");let who="all";
+ const T=[{n:"Old pricing page",p:"Product › Specs",ic:"i-file",tone:"t-teal",by:"pn",at:"Today 10:14",left:30},{n:"Research 2025",p:"Product › Research",ic:"i-folder",tone:"t-purple",by:"ar",at:"Nov 21",left:23,folder:"8 canvases"},{n:"Hackathon board",p:"Engineering",ic:"i-board",tone:"t-green",by:"tb",at:"Nov 2",left:4},{n:"Retro notes",p:"My canvases",ic:"i-file",tone:"t-gray",by:"pn",at:"Oct 31",left:2}];
+ function render(){
+  const list=T.filter(t=>who==="all"||t.by==="pn");
+  const body=list.length?`<table class="tbl"><thead><tr><th>Name</th><th>Was in</th><th>Deleted by</th><th>Deleted</th><th>Deleted forever in</th><th></th></tr></thead><tbody>${list.map(t=>`<tr class="rw"><td><span class="nm"><span class="ctile ${t.tone}">${ic(t.ic,"sm")}</span>${t.n}${t.folder?` <span class="pill p-gray">${t.folder}</span>`:""}</span></td><td class="dimc">${t.p}</td><td><span class="ppl">${av(t.by,"s")}${P[t.by].n}</span></td><td class="dimc">${t.at}</td><td>${t.left<=5?`<span class="pill p-amber">${t.left} days</span>`:`<span class="dimc">${t.left} days</span>`}</td><td style="text-align:right"><button class="btn sec" data-restore="${t.n}">${ic("i-undo","sm")}Restore</button> <button class="btn ic" data-del="${t.n}" aria-label="Delete ${t.n} forever">${ic("i-trash","sm")}</button></td></tr>`).join("")}</tbody></table>`:`<div class="emp" style="height:auto;padding:4rem 1rem"><span class="art">${ic("i-trash")}</span><b>Trash is empty</b><p>Deleted canvases and folders stay here for 30 days, then they are deleted forever.</p></div>`;
+  host.innerHTML=sidebar("trash")+`<div class="mn"><div class="mn-t"><span class="crumbs"><span class="cname">Trash</span></span><span class="sp"></span><span class="seg" role="group" aria-label="Whose"><button data-who="mine" aria-pressed="${who==="mine"}">Mine</button><button data-who="all" aria-pressed="${who==="all"}">Everyone's</button></span><button class="btn dan" ${list.length?"":"disabled"} data-empty>${ic("i-trash","sm")}Empty trash</button></div><div class="mn-b"><div class="mn-h"><h2>Trash</h2><span class="hint">Items are deleted forever after 30 days. Admins can change this in Settings › Storage.</span></div>${body}</div></div>`;
+ }
+ render();wireTree(host,()=>render());
+ host.addEventListener("click",e=>{
+  const w=e.target.closest("[data-who]");if(w){who=w.dataset.who;render();return}
+  const r=e.target.closest("[data-restore]");if(r){const i=T.findIndex(t=>t.n===r.dataset.restore);const t=T.splice(i,1)[0];render();toast(host,`${ic("i-circle-check")}Restored "${t.n}" to ${t.p} <button class="btn sec">Open</button>`);return}
+  const d=e.target.closest("[data-del],[data-empty]");if(d){const all=d.hasAttribute("data-empty");const name=d.dataset.del;const m=document.createElement("div");m.className="mask";m.innerHTML=`<div class="dlg" role="alertdialog" aria-labelledby="dl-h"><div class="dlg-h"><div><h3 id="dl-h">${all?"Empty trash?":"Delete \""+name+"\" forever?"}</h3><p>${all?"Everything in Trash and its version history":"The canvas and its version history"} will be removed from storage. This cannot be undone.</p></div></div><div class="dlg-f"><button class="btn sec" data-no>Cancel</button><button class="btn dan" data-yes>Delete forever</button></div></div>`;host.appendChild(m);
+   m.querySelector("[data-no]").onclick=()=>m.remove();m.querySelector("[data-yes]").onclick=()=>{if(all)T.length=0;else T.splice(T.findIndex(t=>t.n===name),1);m.remove();render()}}
+ });
+})();
+
+/* ---------- 8a members ---------- */
+(function(){
+ const host=$("#members");let tab="members";
+ const TEAMS=[["Product",["pn","ar","lp"],14,"Manual","t-blue"],["Design",["lp","ar"],6,"Manual","t-pink"],["Engineering",["tb","dr"],9,"SSO group eng-all","t-green"],["Support",["dr"],4,"SSO group support","t-amber"]];
+ const INV=[["omar@acme.example","Member","Product","pn","Dec 4","e-mail not sent"],["Any address (general link)","Member","General","ar","Dec 2","link"],["sam@partner.example","Guest","1 canvas","pn","Dec 1","e-mail not sent"]];
+ function body(){
+  if(tab==="members")return `<table class="tbl"><thead><tr><th>Person</th><th>Role</th><th>Teams</th><th>Sign-in</th><th>Last active</th><th></th></tr></thead><tbody>${Object.keys(P).map(k=>{const p=P[k];return `<tr class="rw"><td><span class="ppl">${av(k)}<span class="m"><b>${p.n}${k==="pn"?" (you)":""}</b><small>${p.e}</small></span></span></td><td>${k==="pn"?`<span class="hint">Owner</span>`:`<select class="rsel gh" aria-label="Role for ${p.n}">${["Owner","Admin","Member","Guest"].map(r=>`<option ${r===p.r?"selected":""}>${r}</option>`).join("")}</select>`}</td><td>${p.t.map(t=>`<span class="pill p-gray">${t}</span>`).join(" ")||`<span class="dimc">—</span>`}</td><td><span class="pill ${p.s==="Passkey"?"p-green":p.s==="SSO"?"p-blue":"p-gray"}">${ic(p.s==="Passkey"?"i-fp":p.s==="SSO"?"i-key":"i-lock","sm")}${p.s}</span></td><td class="dimc">${p.a}</td><td><button class="btn ic" aria-label="More for ${p.n}">${ic("i-dots")}</button></td></tr>`}).join("")}</tbody></table>`;
+  if(tab==="teams")return `<table class="tbl"><thead><tr><th>Team</th><th>Members</th><th>Managed by</th><th></th></tr></thead><tbody>${TEAMS.map(t=>`<tr class="rw"><td><span class="nm"><span class="ctile ${t[4]}">${ic("i-users","sm")}</span>${t[0]}</span></td><td><span class="ppl">${stack(t[1])}<span class="dimc">${t[2]} people</span></span></td><td>${t[3].startsWith("SSO")?`<span class="pill p-blue">${ic("i-key","sm")}${t[3]}</span>`:`<span class="dimc">Admins</span>`}</td><td><button class="btn ic" aria-label="More">${ic("i-dots")}</button></td></tr>`).join("")}</tbody></table><p class="hint" style="margin-top:.75rem">Teams from SSO groups update at each sign-in and cannot be edited here.</p>`;
+  return `<table class="tbl"><thead><tr><th>Invited</th><th>Role</th><th>To</th><th>By</th><th>Expires</th><th></th></tr></thead><tbody>${INV.map(i=>`<tr class="rw"><td><span class="nm">${ic(i[5]==="link"?"i-link":"i-mail","sm")}${i[0]}</span>${i[5]==="e-mail not sent"?` <span class="hint">e-mail off: share the link yourself</span>`:""}</td><td>${i[1]}</td><td class="dimc">${i[2]}</td><td><span class="ppl">${av(i[3],"s")}${P[i[3]].n}</span></td><td class="dimc">${i[4]}</td><td style="text-align:right"><button class="btn sec" data-cp>${ic("i-copy","sm")}Copy link</button> <button class="btn">Revoke</button></td></tr>`).join("")}</tbody></table>`;
+ }
+ function render(){host.innerHTML=sidebar("members")+`<div class="mn"><div class="mn-t"><span class="crumbs"><span class="par">Admin</span><span class="sep">›</span><span class="cname">Members and teams</span></span><span class="sp"></span><button class="btn pri" data-inv>${ic("i-user-plus","sm")}Invite people</button></div><div class="tabs" role="tablist">${[["members","Members","6"],["teams","Teams","4"],["invites","Invites","3"]].map(t=>`<button class="tab" role="tab" data-tab="${t[0]}" aria-selected="${tab===t[0]}">${t[1]} <span class="pill p-gray">${t[2]}</span></button>`).join("")}</div><div class="mn-b" style="padding-top:1rem"><div style="display:flex;gap:.5rem;margin:0 0 .75rem;flex-wrap:wrap"><div class="inp" style="width:18rem">${ic("i-search","sm")}<input placeholder="Search ${tab}" aria-label="Search"></div>${tab==="members"?`<select class="rsel" aria-label="Filter by role"><option>All roles</option><option>Admins</option><option>Members</option><option>Guests</option><option>Suspended</option></select>`:""}${tab==="teams"?`<button class="btn sec">${ic("i-plus","sm")}New team</button>`:""}</div>${body()}</div></div>`}
+ render();wireTree(host,()=>render());
+ host.addEventListener("click",e=>{
+  const t=e.target.closest("[data-tab]");if(t){tab=t.dataset.tab;render();return}
+  if(e.target.closest("[data-cp]")){toast(host,`${ic("i-link")}Invite link copied`);return}
+  if(e.target.closest("[data-inv]")){const m=document.createElement("div");m.className="mask";m.innerHTML=`<div class="dlg" role="dialog" aria-labelledby="iv-h"><div class="dlg-h"><div style="flex:1"><h3 id="iv-h">Invite people to Acme</h3><p>They join with the role and workspaces you choose.</p></div><button class="btn ic" data-x aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><div class="fg"><label class="lbl" for="iv-e">E-mail addresses (optional)</label><textarea class="ta" id="iv-e" placeholder="omar@acme.example, ana@acme.example"></textarea></div><div style="display:flex;gap:.75rem;flex-wrap:wrap" class="fg"><span><label class="lbl">Role</label><select class="rsel"><option>Member</option><option>Admin</option><option>Guest</option></select></span><span style="flex:1"><label class="lbl">Workspaces</label><span style="display:flex;gap:.375rem;flex-wrap:wrap"><button class="chip" aria-pressed="true">General</button><button class="chip" aria-pressed="true">Product</button><button class="chip" aria-pressed="false">Engineering</button><button class="chip" aria-pressed="false">Design</button></span></span></div><div class="inv" style="background:var(--amber-bg);color:var(--amber-fg)">${ic("i-info")}<span>E-mail is not set up, so nothing is sent. Copy the link below and send it yourself. <a class="lnk">Set up e-mail</a></span></div><label class="lbl">Invite link · single use per person · expires in 7 days</label><div style="display:flex;gap:.5rem"><div class="inp" style="flex:1"><input readonly value="https://canvas.acme.example/join/7Hq2-mK9x-Pa4c" aria-label="Invite link"></div><button class="btn pri" data-cp2>${ic("i-copy","sm")}Copy</button></div></div><div class="dlg-f"><button class="btn sec" data-x>Done</button></div></div>`;host.appendChild(m);
+   m.addEventListener("click",ev=>{if(ev.target.closest("[data-x]"))m.remove();if(ev.target.closest("[data-cp2]"))toast(m,`${ic("i-link")}Invite link copied`);const c=ev.target.closest(".chip");if(c)c.setAttribute("aria-pressed",String(c.getAttribute("aria-pressed")!=="true"))})}
+ });
+})();
+
+/* ---------- 9a settings ---------- */
+(function(){
+ const host=$("#settings");let pg="backups",smtp=false,bk=0;
+ const PG=[["general","General","i-settings"],["brand","Branding","i-palette"],["signin","Sign-in and SSO","i-key"],["sharing","Sharing","i-share"],["storage","Storage","i-drive"],["email","E-mail","i-mail"],["backups","Backups","i-archive"],["ai","AI","i-sparkles"],["about","About","i-info"]];
+ const sw=(on,l)=>`<button class="sw" role="switch" aria-checked="${on}" aria-label="${l}" data-sw></button>`;
+ const r=(b,s,ctl)=>`<div class="sec-r"><span class="m"><b>${b}</b><small>${s}</small></span>${ctl}</div>`;
+ const op=v=>`<span class="lockd">${ic("i-lock","sm")}Set by the operator (${v})</span>`;
+ function pane(){
+  switch(pg){
+  case"general":return `<h3>General</h3><p class="hint">Your organisation's name and address.</p><div class="sec">${r("Organisation name","Shown on the sign-in page, in invites and e-mails.",`<div class="inp"><input value="Acme" aria-label="Organisation name"></div>`)}${r("Public address","Used for links, passkeys and SSO redirects.",op("WS_PUBLIC_URL"))}${r("Default workspace","New members join it.",`<select class="rsel"><option>General</option><option>Product</option></select>`)}${r("Who can create workspaces","",`<select class="rsel"><option>Members and admins</option><option>Admins only</option></select>`)}</div>`;
+  case"brand":return `<h3>Branding</h3><p class="hint">Make the sign-in page and the app look like yours. "OpenCanvas Workspace by CasualOffice" stays in the footer.</p><div class="sec">${r("Logo","PNG or SVG, square, at least 128 px.",`<button class="btn sec">${ic("i-upload","sm")}Upload</button>`)}${r("Accent colour","Buttons, links and focus rings. Checked for contrast in light and dark.",`<span class="swatch">${["#2a5ad7","#7a45f0","#0e9a78","#e5602a","#d63f78","#18181b"].map((c,k)=>`<button aria-label="Colour ${c}" aria-pressed="${k===0}" style="background:${c};color:${c}"></button>`).join("")}</span>`)}${r("Sign-in message","A line under the title, such as who to ask for access.",`<div class="inp"><input value="Ask #it-help for an invite." aria-label="Sign-in message"></div>`)}</div>`;
+  case"signin":return `<h3>Sign-in and SSO</h3><p class="hint">Choose how people sign in. At least one Owner can always sign in with a password or passkey.</p><div class="sec"><div class="sec-h">Methods</div>${r("Passkeys","Touch ID, Windows Hello, Android, security keys. Can be someone's only sign-in.",sw(true,"Passkeys"))}${r("E-mail and password","Minimum 10 characters; leaked passwords are refused.",sw(true,"Passwords"))}${r("SSO only","Hide the e-mail form for everyone except Owners.",sw(false,"SSO only"))}${r("Open sign-up","People with these e-mail domains can join without an invite.",`<div class="inp"><input value="acme.example" aria-label="Domains"></div>`)}</div><div class="sec"><div class="sec-h">Single sign-on (OpenID Connect)<span class="sp"></span><button class="btn sec">${ic("i-plus","sm")}Add provider</button></div><div class="sec-r"><span class="ctile t-purple" style="width:2rem;height:2rem;border-radius:.5rem">${ic("i-key")}</span><span class="m"><b>Acme SSO</b><small>Issuer https://id.acme.example · client opencanvas · groups claim mapped to 2 teams · 18 sign-ins this week</small></span><span class="pill p-green">${ic("i-check","sm")}Working</span><button class="btn sec">Test sign-in</button><button class="btn ic" aria-label="More">${ic("i-dots")}</button></div></div>`;
+  case"sharing":return `<h3>Sharing</h3><p class="hint">What people can share and with whom.</p><div class="sec">${r("Public links","Allow \"Anyone with the link\" (view only, no sign-in). Off by default.",sw(false,"Public links"))}${r("Default link expiry","For public links.",`<select class="rsel"><option>30 days</option><option>7 days</option><option>Never</option></select>`)}${r("Guests","Members can invite guests to single canvases.",sw(true,"Guests"))}${r("Search comments","Include comment text in search. A comment's audience can differ from the canvas's.",sw(false,"Search comments"))}</div>`;
+  case"storage":return `<h3>Storage</h3><p class="hint">Where canvases, versions and uploads are kept. The database holds names, people and access.</p><div class="sec"><div class="sec-h">Files</div>${r("Local disk","/data/files in the container volume.",`<span class="pill p-green">${ic("i-check","sm")}In use</span>`)}${r("S3-compatible bucket","AWS S3, MinIO, Cloudflare R2, Backblaze B2 and others. Moving copies everything, then switches.",`<button class="btn sec">Set up</button>`)}</div><div class="sec"><div class="sec-h">Usage · 2.4 GB</div><div style="padding:.75rem 1rem"><div class="usage"><i style="width:46%;background:var(--u0)"></i><i style="width:24%;background:var(--u3)"></i><i style="width:12%;background:var(--u4)"></i><i style="width:8%;background:var(--fg-4)"></i></div><span class="hint">Product 1.1 GB · Engineering 0.6 GB · Design 0.3 GB · Trash and history 0.2 GB</span></div>${r("Database","SQLite at /data/workspace.db. Set WS_DATABASE_URL for MySQL or MariaDB.",`<span class="pill p-gray">SQLite</span>`)}${r("Largest upload","Per file.",`<select class="rsel"><option>100 MB</option><option>25 MB</option><option>1 GB</option></select>`)}${r("Trash retention","Days before deleted items are removed.",`<select class="rsel"><option>30 days</option><option>7 days</option><option>90 days</option></select>`)}</div>`;
+  case"email":return `<h3>E-mail</h3><p class="hint">Optional. Without e-mail, invites and password resets are links that admins copy and send themselves.</p><div class="sec">${r("Send e-mail","Invites, mentions, password resets.",`<button class="sw" role="switch" aria-checked="${smtp}" aria-label="Send e-mail" data-smtp></button>`)}${smtp?r("SMTP server","",`<div class="inp"><input value="smtp.acme.example" aria-label="SMTP server"></div>`)+r("Port and security","",`<select class="rsel"><option>587 · STARTTLS</option><option>465 · TLS</option></select>`)+r("User name","",`<div class="inp"><input value="opencanvas" aria-label="SMTP user"></div>`)+r("Password","Stored encrypted.",`<div class="inp"><input type="password" value="xxxxxxxx" aria-label="SMTP password"></div>`)+r("From","",`<div class="inp"><input value="Acme Canvas &lt;canvas@acme.example&gt;" aria-label="From"></div>`)+r("Send a test","To priya@acme.example.",`<button class="btn sec">${ic("i-send","sm")}Send test</button>`):""}</div>`;
+  case"backups":return `<h3>Backups</h3><p class="hint">One file with the database, every canvas and version, uploads and, with a passphrase, the server's secrets. Restore with <code>opencanvas-workspace restore</code> into an empty volume.</p><div class="sec"><div class="sec-h">Last backup<span class="sp"></span><button class="btn pri" data-bk ${bk===1?"disabled":""}>${ic(bk===1?"i-refresh":"i-archive","sm")}${bk===1?"Backing up…":"Back up now"}</button></div>${r(bk===2?"Today 12:07 · 2.4 GB":"Today 02:00 · 2.4 GB",bk===2?"Finished in 41 s · /data/backups/acme-2026-11-28-1207.tar.zst":"Finished in 38 s · /data/backups/acme-2026-11-28-0200.tar.zst",`<span class="pill p-green">${ic("i-check","sm")}OK</span>`)}</div><div class="sec"><div class="sec-h">Schedule</div>${r("Automatic backups","",sw(true,"Automatic backups"))}${r("When","Server time (UTC).",`<select class="rsel"><option>Daily at 02:00</option><option>Every 6 hours</option><option>Weekly, Sunday</option></select>`)}${r("Where","",`<select class="rsel"><option>Data volume (/data/backups)</option><option>S3-compatible bucket</option></select>`)}${r("Keep","Older backups are removed.",`<select class="rsel"><option>14 backups</option><option>7</option><option>30</option></select>`)}${r("Secrets passphrase","Set. Without it, a restored server cannot read unsaved edits or SSO settings.",`<span class="pill p-green">${ic("i-lock","sm")}Set</span>`)}</div><div class="inv" style="background:var(--sunk)">${ic("i-info")}<span>Backups on the same disk do not survive losing the disk. Copy them elsewhere, or choose a bucket.</span></div><div class="sec"><div class="sec-h">Upgrades</div>${r("Before each upgrade","A backup is made automatically before migrations run. A downgrade onto newer data refuses to start.",`<span class="pill p-green">${ic("i-check","sm")}On</span>`)}</div>`;
+  case"ai":return `<h3>AI</h3><p class="hint">The assistant and AI editing run on the OpenCanvas server with the model the operator configured. Nothing here sends data anywhere else.</p><div class="sec">${r("Provider","Configured on the server ([ai] in the engine settings).",op("OC_AI_PROVIDER"))}${r("Assistant for members","Let members use the assistant in canvases.",sw(true,"Assistant"))}${r("Agent mode","Multi-step edits shown as a collaborator; every change can be undone.",sw(false,"Agent mode"))}</div>`;
+  default:return `<h3>About</h3><p class="hint">Versions and licence.</p><div class="sec">${r("OpenCanvas Workspace","Version 0.4.1 · by CasualOffice · Apache-2.0",`<span class="pill p-green">Up to date</span>`)}${r("OpenCanvas engine","Version 0.4.1 · same image",`<span class="dimc">—</span>`)}${r("Data","SQLite · local disk · 2.4 GB · schema 7",`<span class="dimc">—</span>`)}${r("Health","/healthz and /readyz; metrics need a token.",`<button class="btn sec">Copy diagnostics</button>`)}</div>`;
+  }
+ }
+ function render(){host.innerHTML=sidebar("settings")+`<div class="mn"><div class="mn-t"><span class="crumbs"><span class="par">Admin</span><span class="sep">›</span><span class="cname">Settings</span></span></div><div class="stg"><nav class="stg-n" aria-label="Settings pages">${PG.map(p=>`<button class="nv" data-pg="${p[0]}" ${pg===p[0]?'aria-current="true"':""}>${ic(p[2])}<span class="l">${p[1]}</span></button>`).join("")}</nav><div class="stg-b">${pane()}</div></div></div>`}
+ render();wireTree(host,()=>render());
+ host.addEventListener("click",e=>{
+  const p=e.target.closest("[data-pg]");if(p){pg=p.dataset.pg;render();return}
+  if(e.target.closest("[data-smtp]")){smtp=!smtp;render();return}
+  const s=e.target.closest("[data-sw]");if(s){s.setAttribute("aria-checked",String(s.getAttribute("aria-checked")!=="true"));return}
+  const sb=e.target.closest(".swatch button");if(sb){$$(".swatch button",host).forEach(b=>b.setAttribute("aria-pressed",String(b===sb)));return}
+  if(e.target.closest("[data-bk]")&&bk!==1){bk=1;render();setTimeout(()=>{bk=2;if(pg==="backups")render();toast(host,`${ic("i-circle-check")}Backup finished · 2.4 GB`)},1500)}
+ });
+})();
+
+/* ---------- 10 phone ---------- */
+const stat=`<div class="ph-st"><span>9:41</span><span style="display:flex;gap:.3rem">${ic("i-network","sm")}${ic("i-zap","sm")}</span></div>`;
+const dock=on=>`<nav class="ph-dock" aria-label="Main">${[["home","Home","i-home"],["search","Search","i-search"],["new","New","i-plus"],["inbox","Inbox","i-bell"],["me","You","i-user"]].map(d=>`<button class="${on===d[0]?"on":""}" aria-label="${d[1]}">${ic(d[2],"lg")}${d[1]}</button>`).join("")}</nav>`;
+$("#ph-home").innerHTML=stat+`<div class="ph-hd"><button class="btn ic" aria-label="Menu" style="width:2.75rem;height:2.75rem">${ic("i-menu","lg")}</button><span class="org" style="padding:0;flex:1"><span class="ot t-blue">A</span><b>Acme</b></span>${av("pn")}</div><div class="ph-b"><div class="ph-srch"><div class="inp lg">${ic("i-search","sm")}<input placeholder="Search canvases" aria-label="Search canvases"></div></div><div class="ph-sec">Continue</div><div class="ph-hs">${C.slice(0,3).map(c=>`<div class="cc"><span class="ctile ${c.tone}">${ic(c.ic)}</span><span class="m"><b>${esc(c.n)}</b><small>${c.at}</small></span></div>`).join("")}</div><div class="ph-sec">Favourites</div>${C.filter(c=>c.star).map(c=>`<div class="ph-row"><span class="ctile ${c.tone}">${ic(c.ic)}</span><span class="m"><b>${esc(c.n)}</b><small>${c.w}${c.f?" › "+c.f:""}</small></span>${c.live.length?stack(c.live):""}</div>`).join("")}<div class="ph-sec">Recent</div>${C.slice(2,6).map(c=>`<div class="ph-row"><span class="ctile ${c.tone}">${ic(c.ic)}</span><span class="m"><b>${esc(c.n)}</b><small>${P[c.by].n.split(" ")[0]} · ${c.at}</small></span></div>`).join("")}</div>${dock("home")}`;
+$("#ph-canvas").innerHTML=stat+`<div class="ph-hd"><button class="btn ic" aria-label="Back to Roadmaps" style="width:2.75rem;height:2.75rem">${ic("i-left","lg")}</button><span style="flex:1;min-width:0;line-height:1.2"><small style="color:var(--fg-3);font-size:.6875rem">Roadmaps</small><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Q1 launch plan</b></span><span class="stack">${av("ar","s")}${av("tb","s")}</span><button class="btn ic" aria-label="Share" style="width:2.75rem;height:2.75rem">${ic("i-share")}</button><button class="btn ic" aria-label="More" style="width:2.75rem;height:2.75rem">${ic("i-dots")}</button></div><div class="ph-cv"><h1>Q1 launch plan</h1><div class="meta" style="color:var(--fg-3);font-size:.75rem;margin:0 0 1rem">Edited by Asha Rao 2 min ago</div><p>We launch the Workspace beta to three design partners in January, then open sign-ups in March.</p><h2 style="font-size:1.0625rem;margin:1rem 0 .5rem">Milestones</h2>${[["API freeze","Tom","p-blue","In progress","9 Jan"],["Partner onboarding","Asha","p-gray","Not started","16 Jan"],["Security review","Diego","p-green","Done","19 Dec"]].map(t=>`<div class="ph-row" style="padding:.625rem 0"><span class="m"><b>${t[0]}</b><small>${t[1]} · due ${t[4]}</small></span><span class="pill ${t[2]}">${t[3]}</span></div>`).join("")}<p style="margin-top:1rem">Passkey support on older Android browsers<span class="cur" style="background:var(--u1)"><b style="background:var(--u1)">Asha</b></span> needs a fallback.</p></div><div class="ph-kb" aria-label="Formatting">${["i-plus","i-bold","i-listc","i-heading","i-image","i-at","i-message"].map(i=>`<button class="btn ic" aria-label="${i.slice(2)}">${ic(i,"lg")}</button>`).join("")}</div>`;
+$("#ph-share").innerHTML=stat+`<div class="ph-hd"><button class="btn ic" style="width:2.75rem;height:2.75rem" aria-label="Back">${ic("i-left","lg")}</button><h3>Q1 launch plan</h3></div><div class="ph-cv" style="opacity:.4"><h1>Q1 launch plan</h1><p>We launch the Workspace beta to three design partners in January.</p></div><div class="mask" style="place-items:end stretch"><div class="sheet" role="dialog" aria-label="Share" style="position:relative"><div class="grab"></div><b style="font-size:1.0625rem">Share</b><div class="inp lg" style="margin:.75rem 0">${ic("i-user-plus","sm")}<input placeholder="Add people, teams or e-mails" aria-label="Add people"></div>${[["ar","Asha Rao","Can edit"],["lp","Lena Park","Can comment"]].map(p=>`<div class="ph-row" style="padding:.625rem 0">${av(p[0])}<span class="m"><b>${p[1]}</b></span><button class="btn" style="min-height:2.75rem">${p[2]}${ic("i-down","sm")}</button></div>`).join("")}<div class="ph-row" style="padding:.625rem 0"><span class="av t-blue" style="color:var(--blue-fg)">${ic("i-layers","sm")}</span><span class="m"><b>Everyone in Product</b><small>From the workspace</small></span><span class="hint">Can edit</span></div><div class="ph-row" style="padding:.625rem 0;border-bottom:0"><span class="av t-gray" style="color:var(--gray-fg)">${ic("i-lock","sm")}</span><span class="m"><b>Only people added</b><small>General access</small></span>${ic("i-right","sm")}</div><div style="display:flex;gap:.5rem;margin-top:.75rem"><button class="btn sec lg" style="flex:1">${ic("i-link","sm")}Copy link</button><button class="btn pri lg" style="flex:1">Done</button></div></div></div>`;
+
+/* ---------- 11 empty states ---------- */
+const E=[
+ ["11a","A new workspace","i-folder","Nothing in Design yet","Create the first canvas, or move canvases here from another workspace.",`<button class="btn pri">${ic("i-plus","sm")}New canvas</button><button class="btn sec">Browse templates</button>`],
+ ["11b","Shared with me","i-users","Nothing shared with you yet","When someone shares a canvas or folder with you, or adds you to a team, it shows up here.",""],
+ ["11c","Search, no results","i-search","No canvases match \"quarterly okr\"","Check the spelling, or search every workspace. Canvases you cannot open never show up here.",`<button class="btn sec">Search every workspace</button>`],
+ ["11d","Trash","i-trash","Trash is empty","Deleted canvases and folders stay here for 30 days, then they are deleted forever.",""],
+ ["11e","A new member's Home","i-sparkles","Welcome to Acme, Lena","You are in the Product workspace. Start a canvas, or open one of these to see how things work.",`<button class="btn pri">${ic("i-plus","sm")}New canvas</button><button class="btn sec">${ic("i-gantt","sm")}Project plan</button><button class="btn sec">${ic("i-cal","sm")}Meeting notes</button>`],
+ ["11f","Members, only you","i-user-plus","Invite your team","Copy an invite link and send it any way you like. E-mail is optional.",`<button class="btn pri">${ic("i-user-plus","sm")}Invite people</button>`],
+ ["11g","Favourites","i-star","No favourites yet","Star a canvas to keep it here and at the top of the sidebar.",""],
+ ["11h","Version history, new canvas","i-history","Only the current version","Earlier versions appear here as people edit. Name a version to keep it forever.",`<button class="btn sec">${ic("i-pen","sm")}Name current version</button>`]
+];
+$("#empties").innerHTML=E.map(e=>`<figure class="fr" style="margin:0"><figcaption><b>${e[0]}</b> ${e[1]} <span class="dim">384 × 288</span></figcaption><div class="fr-vp"><div class="fr-in" data-w="24" style="width:24rem;height:18rem;background:var(--app)"><div class="emp"><span class="art">${ic(e[2])}</span><b>${e[3]}</b><p>${e[4]}</p>${e[5]?`<div class="acts">${e[5]}</div>`:""}</div></div></div></figure>`).join("");
+window.dispatchEvent(new Event("resize"));
+})();
+</script>
+</body></html>

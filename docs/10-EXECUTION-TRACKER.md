@@ -316,6 +316,38 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 
 Rough total: 13 L + 32 M + 8 S ≈ 65–70 engineer-weeks (≈ 7 stretch), plus PSDK-01..08 if not in 0.3.1.
 
+## Workspace track: OpenCanvas Workspace, a first-party host ([docs/40](40-WORKSPACE.md))
+
+Owner request 2026-11-28: a turnkey OpenCanvas Workspace (by CasualOffice) in one Docker image, a parallel track to v0.5.
+ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row waits for WS-01 (ADR-011).
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| WS-01 | Prototype, ADR-085 and this plan approved by the owner | Review | Draft: docs/40, ADR-085, docs/prototypes/workspace/workspace.html; awaiting the owner; S |
+| WS-02 | Contract gap spike: list every docs/05 call the Workspace needs, confirm thumbnails, presence counts, title on save, link visitors (guest identity in the JWT), role API on revoke; contract additions written into docs/05 | Todo | M; depends on WS-01 |
+| WS-03 | `crates/oc-workspace` skeleton, config (`WS_*`), migrations (SQLite, MySQL/MariaDB), single-binary launcher with the engine as a library, loopback host registration, generated secrets | Todo | L; depends on WS-02 |
+| WS-04 | Shared host conformance suite (from the sample host's checks), run against both hosts in CI | Todo | M; depends on WS-03 |
+| WS-05 | Accounts: passwords (Argon2id), sessions, CSRF, rate limits, lockout, reset links, CLI admin commands | Todo | M; depends on WS-03 |
+| WS-06 | Passkeys (WebAuthn registration, sign-in, conditional UI) | Todo | M; depends on WS-05 |
+| WS-07 | OIDC SSO (one provider, domains, JIT, SSO-only with break-glass Owner) | Todo | M; depends on WS-05 |
+| WS-08 | Invites (organisation, workspace, canvas), links without SMTP, optional SMTP sending | Todo | M; depends on WS-05 |
+| WS-09 | First-run setup with setup code, loopback exception, checklist | Todo | S; depends on WS-05 |
+| WS-10 | Model: organisation, workspaces, teams, folders, canvases, roles, effective-access resolver (property-tested) | Todo | L; depends on WS-03 |
+| WS-11 | Host callbacks: load, save (with `If-Match`), copies, assets, members, access, mentions, templates, create file; storage on disk and S3 | Todo | L; depends on WS-10 |
+| WS-12 | Thumbnails and presence on cards (per WS-02 result) | Todo | M; depends on WS-11 |
+| WS-13 | Sharing and links (people, teams, organisation link, public view link), revocation through the role API | Todo | M; depends on WS-10, WS-11 |
+| WS-14 | Search index from `search.json` (FTS5, FULLTEXT), access filter, `GET /search` callback | Todo | M; depends on WS-11 |
+| WS-15 | Trash with retention job; version history callbacks with thinning | Todo | M; depends on WS-11 |
+| WS-16 | Web app shell: sign-in, sign-up, setup, Home (grid, list, tree, favourites, recent), templates dialog | Todo | L; depends on WS-01, WS-05, WS-10 |
+| WS-17 | Canvas page chrome around the editor (breadcrumb, presence, share, history, more menu); phone layout | Todo | M; depends on WS-16 |
+| WS-18 | Share dialog, search page and ⌘K, trash page, notifications bell | Todo | M; depends on WS-13, WS-14, WS-15 |
+| WS-19 | Admin: members, teams, settings (branding, sign-in, SSO, storage, SMTP, backups, public links, about) | Todo | L; depends on WS-16 |
+| WS-20 | Backups and restore (CLI and schedule, encrypted secrets), pre-upgrade backup, downgrade refusal | Todo | M; depends on WS-11 |
+| WS-21 | Image (`deploy/workspace/Dockerfile`), compose file (MySQL, Redis, MinIO, nginx), docs/13 section, release pipeline to GHCR | Todo | M; depends on WS-03 |
+| WS-22 | Acceptance run (§6) in CI: 2-minute first run, restart, crash, backup/restore, upgrade, compose | Todo | M; depends on WS-21 |
+| WS-23 | Security audit of the Workspace surfaces and fixes | Todo | M; depends on WS-18, WS-19 |
+| WS-24 | Docs and site: quick start, operator guide, admin guide, release notes | Todo | S; depends on WS-22 |
+
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
 Owner approved Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) on 2026-11-24, with seven review

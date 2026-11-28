@@ -33,6 +33,7 @@ open to a broad developer ecosystem (ADR-038).
 | [v0.3](34-ROADMAP-v0.3.md) | Portable live blocks, offline-first editing, search and automation (plan proposed 2026-11-26) |
 | [v0.4](36-ROADMAP-v0.4.md) | Performance and partial synchronization, as a benchmark, performance and maturity release: partial sync, a benchmark program with published results and CI gates, 10k connections per node and 1,000 editors in a room, lower browser memory and lazy modules; reliability drills and a security audit; also formulas, relations, rollups, virtualized databases, integrations and UX fixes (plan proposed 2026-11-26) |
 | v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
+| [Workspace](40-WORKSPACE.md) (parallel to v0.5) | OpenCanvas Workspace by CasualOffice: a first-party host in one Docker image with accounts, passkeys, SSO, workspaces, teams, sharing, search, trash, version history, backups and admin (ADR-085, proposed 2026-11-28) |
 
 Alongside the releases, **structured diagramming** is its own workstream ([docs/29](29-DIAGRAMMING.md)):
 diagram mode on a board, shape libraries, ports, connectors that route around shapes, auto-layout,
