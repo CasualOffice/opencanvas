@@ -1,0 +1,77 @@
+{
+  "scenario": "crash-drill save (RLB-01c), full size: 200 rooms x 2, 45 s, kill -9 at 25 s, host 1.5-2.5 s per save",
+  "date": "2026-11-28",
+  "commit": "c8f0554",
+  "machine": "local",
+  "hardware": "Apple M4 laptop",
+  "store": "MySQL 8.4.13 (Docker, --max-connections=1000)",
+  "durability": "wal",
+  "result": "PASS",
+  "crash": {
+    "ackedBeforeKill": 35126,
+    "atSecs": 25.0,
+    "durability": "wal",
+    "killToReadyMs": 1392,
+    "lostAcked": 0,
+    "lostSample": [],
+    "lostWindowMs": 0,
+    "readAllMs": 5320,
+    "readyMs": 66,
+    "recoveredUnacked": 46,
+    "roomOpenMs": {
+      "max": 5319,
+      "p50": 27.0,
+      "p95": 3322.0
+    },
+    "roomsRead": 200,
+    "sentBeforeKill": 35238,
+    "viewerErrors": 0
+  },
+  "final": {
+    "acked": 56201,
+    "closes": {
+      "error: WebSocket protocol error: Connection reset without cl": 363,
+      "held offline": 37
+    },
+    "convergeMs": 224,
+    "converged": true,
+    "firstSaveAfterRestart": {
+      "missingPreKillAcked": 0,
+      "msAfterRestart": {
+        "max": 9181,
+        "p50": 4507.0
+      },
+      "note": "first host save per room after the restart",
+      "rooms": 200
+    },
+    "hostSaves": 969,
+    "lostAcked": 0,
+    "notConverged": 0,
+    "pass": true,
+    "resyncGapMs": {
+      "max": 6850,
+      "n": 400,
+      "p50": 6802.0,
+      "p95": 6838.0
+    },
+    "roomsWithoutSave": 0,
+    "sent": 56201,
+    "sentMissingFromSave": 0,
+    "serverMismatchRooms": 0,
+    "viewerErrors": 0
+  },
+  "http": {
+    "503Bare": 0,
+    "503RetryAfter": 26,
+    "maxBackMs": 6850,
+    "other5xx": 0
+  },
+  "label": "save",
+  "perRoom": 2,
+  "rooms": 200,
+  "secs": 45.0,
+  "servers": [
+    "http://127.0.0.1:9381"
+  ],
+  "spread": false
+}
