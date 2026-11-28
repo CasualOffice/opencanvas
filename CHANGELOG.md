@@ -7,6 +7,14 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Added
+
+- Whiteboard: one Export dialog for PNG and SVG with a background (none, light or dark; light by
+  default and remembered per person), the colours to draw for when transparent, a 1×, 2× or 3× scale
+  for PNG, and what to export (the whole board, the selection or one frame). Copy as PNG (⇧⌘C) and
+  Copy as SVG are in the board menu and the dialog; where the browser can't copy images, it says so
+  and offers Download (BRD-20).
+
 ### Fixed
 
 - Whiteboard: a sticky note or text placed with the mouse takes typing at once. Before, its editor

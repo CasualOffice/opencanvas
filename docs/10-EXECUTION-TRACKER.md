@@ -424,7 +424,7 @@ Owner request 2026-11-28: the whiteboard and diagram block has many issues; audi
 | BRD-17 | Diagram header at narrow widths (title cut to one letter at 500 px) (D11) | Todo | UX, needs a prototype; S |
 | BRD-18 | Right-click menu for board and diagram | Todo | UX, needs a prototype; M |
 | BRD-19 | Tool lock | Todo | UX, needs a prototype; S |
-| BRD-20 | Export background (light, dark, transparent) and copy as PNG/SVG (D15) | Todo | UX, needs a prototype; M |
+| BRD-20 | Export background (light, dark, transparent) and copy as PNG/SVG (D15) | Done | Done (2026-11-28), to the approved board UX prototype 6a (decision 7): `export/` (lazy dialog, `scope.ts`, `clipboard.ts`, `run.ts`), `shapesToSvg` takes a theme and background (light with background stays byte for byte the Rust fixture). Board menu: Export…, Copy as PNG (⇧⌘C), Copy as SVG. Seen failing first: `export/export.test.tsx`; Playwright `board-ux.spec.ts` BRD-20; M |
 | BRD-21 | Frames as a real tool (named container with membership) | Todo | UX, needs a prototype; M |
 | BRD-22 | Stroke width, stroke colour and rotation (docs/20 B21) | Todo | UX, needs a prototype; M |
 
@@ -492,6 +492,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-28 | BRD-20 export dialog and copy as image | Board vitest `export/export.test.tsx` 11 (seen failing first: modules missing), `connectors.test.tsx` menu updated; Playwright `-c e2e/diagram/playwright.config.ts` `board-ux.spec.ts` BRD-20 (real mouse, download + clipboard read) passes. Initial JS 288.5 KB of 300 (board is lazy; unchanged). |
 | 2026-11-28 | BRD-05..16 board audit bug fixes (docs/41 §5.1) | Board vitest 33 files / 380+ tests pass incl. new `audit.test.tsx` (10, 9 seen failing first) and `diagram-phone` 11e; Playwright `-c e2e/diagram/playwright.config.ts` (production build, `#demo`, 2 workers): new `board-audit.spec.ts` (6, all seen failing first on the old build) plus the existing board, icons and S1-S11 specs pass (one S6 dark run failed once in a full 2-worker run on a toBeVisible and passed on rerun and 3 × 2 repeats); `specs/w-two-user-board.spec.ts` passes against a fresh release `oc-server` (the 11-27 binary refused the current sample host config). BRD-17..22 wait for a prototype. |
 | 2026-11-28 | Board and diagram audit, opencanvas.studio (docs/41) | Live `#demo` (v0.4.1) and opencanvas.studio in Chrome; 15 defects (1 P0, 4 P1), rows BRD-05..22. P0: a sticky or text placed with the mouse loses focus on the `mousedown` default (focus trace in docs/41 D1). opencanvas.studio is an Excalidraw-based AI whiteboard, unrelated to this repository. Analysis only; no build or tests run. |
 | 2026-11-28 | SHEET-06: linked chart block (4h), database ⇄ spreadsheet (8a) | vitest chart 8 + link 5 + insert/profile, cargo chart_exports 4, Playwright chart-block.spec.ts, typecheck, initial JS 299.3 / 300 KB |

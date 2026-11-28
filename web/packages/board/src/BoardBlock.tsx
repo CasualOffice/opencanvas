@@ -8,7 +8,7 @@ import type { Awareness } from "y-protocols/awareness";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
-  Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
+  Download, Ellipsis, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
   Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
@@ -20,7 +20,7 @@ import { ensureStyles } from "./styles";
 import { Dock } from "./Dock";
 import { readToolsLeft, writeToolsLeft } from "./toolbar";
 import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
-import { exportBoardPng, exportBoardSvg } from "./export";
+import { ExportMenuItems, useBoardExport } from "./export/hooks";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
@@ -256,6 +256,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const fileRef = useRef<HTMLInputElement>(null);
   const peers = usePeers(awareness, boardId);
   const rootRef = useRef<HTMLDivElement>(null);
+  // BRD-20: the export dialog (lazy), Copy as PNG / SVG.
+  const xport = useBoardExport({ doc, shapes, sel, name: String(getBoardMap(doc, boardId)?.get("name") ?? "board"), toast: env.toast, onClose: () => rootRef.current?.focus({ preventScroll: true }) });
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const pointers = useRef(new Map<number, [number, number]>());
@@ -881,27 +883,6 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const viewCenterRef = useRef(viewCenter);
   viewCenterRef.current = viewCenter;
 
-  /* ---- export ---- */
-  const save = (blob: Blob, name: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  };
-  const exportAs = async (fmt: "svg" | "png") => {
-    setMenu(false);
-    try {
-      if (fmt === "svg") save(new Blob([exportBoardSvg(doc, boardId)], { type: "image/svg+xml" }), "board.svg");
-      else save(await exportBoardPng(doc, boardId, 2), "board.png");
-    } catch {
-      env.toast(`Couldn't export the board as ${fmt.toUpperCase()}`);
-    }
-  };
-
   /* ---- creating shapes ---- */
   /** `box`: the dragged box (BRD-07); `free`: keyboard placement moves to the nearest free spot (BRD-12). */
   const createAt = (t: Tool, x: number, y: number, o: { box?: Box; free?: boolean } = {}) => {
@@ -1430,6 +1411,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         announceSel([]);
       } else if (dgm) closeDiagram();
       else if (full) exitFull();
+      return;
+    }
+    // ⇧⌘C: copy the selection (or the board) as PNG (BRD-20).
+    if (mod && e.shiftKey && !e.altKey && k === "c") {
+      e.preventDefault();
+      void xport.copy("png");
       return;
     }
     // Shift+D: open this board as a diagram (1b).
@@ -2252,18 +2239,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
                 Export…
               </button>
             ) : null}
-            {dgm ? <span className="ocbd-msep" /> : null}
-            <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("png")}>
-              <FileImage size={16} strokeWidth={SW} />
-              Export as PNG
-            </button>
-            <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("svg")}>
-              <FileCode2 size={16} strokeWidth={SW} />
-              Export as SVG
-            </button>
+            <ExportMenuItems x={xport} dialog={!dgm} close={() => setMenu(false)} />
           </div>
         </>
       ) : null}
+      {xport.node}
       {edit ? (
         <input
           ref={fileRef}
