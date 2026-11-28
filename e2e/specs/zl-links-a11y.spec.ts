@@ -37,7 +37,9 @@ async function setup(browser: Browser): Promise<Person> {
   // Another worker may have its own "Pricing model 2027 …"; pick ours, not the first option.
   const mine = priya.oc.getByRole("option", { name: new RegExp(NAME) });
   await expect(mine).toBeVisible({ timeout: 15_000 });
-  await mine.click();
+  // The file runs in one worker (serial), so ours is the only match: Enter picks it, as a
+  // keyboard user would (a click left the caret elsewhere on CI).
+  await priya.page.keyboard.press("Enter");
   await priya.page.keyboard.type("for the year.");
   await expectSaved(priya);
   return priya;
