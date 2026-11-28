@@ -141,10 +141,13 @@ test("DB5-01: drag to move, resize and link; the bar menu removes dates", async 
   await drag({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, { x: b.x + b.width / 2 + b.width * 3, y: b.y + b.height / 2 });
   await expect.poll(() => label("API freeze")).not.toBe(before);
 
-  // Resize: drag the right edge two days; the bar gets longer.
+  // Resize: drag the right edge four days; the bar gets longer. With Mon-Fri on, an end dropped on
+  // a weekend snaps back to the Friday, so two days from a Thursday or Friday gained at most one
+  // working day (the test failed on weekends). Four calendar days from any weekday end gain at
+  // least two working days, so the bar is at least three days wide whatever today is.
   const w0 = (await bar(priya.oc, "API freeze").boundingBox())!.width;
   b = (await bar(priya.oc, "API freeze").boundingBox())!;
-  await drag({ x: b.x + b.width - 2, y: b.y + b.height / 2 }, { x: b.x + b.width - 2 + w0 * 2, y: b.y + b.height / 2 });
+  await drag({ x: b.x + b.width - 2, y: b.y + b.height / 2 }, { x: b.x + b.width - 2 + w0 * 4, y: b.y + b.height / 2 });
   await expect.poll(async () => (await bar(priya.oc, "API freeze").boundingBox())!.width).toBeGreaterThan(w0 * 2);
 
   // Link: drag the round handle at API freeze's end onto SDK docs.
