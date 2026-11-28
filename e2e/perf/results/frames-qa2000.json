@@ -1,0 +1,181 @@
+{
+  "label": "qa2000",
+  "dist": "web/packages/editor/dist",
+  "when": "2026-11-28T17:45:16.142Z",
+  "machine": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "Darwin 25.3.0",
+    "node": "v24.22.1",
+    "chromium": "159.0.8154.6",
+    "viewport": "1280x900, deviceScaleFactor 1, headless",
+    "loadBefore": [
+      17.66,
+      17.13,
+      18.43
+    ],
+    "loadAfter": [
+      19.29,
+      17.68,
+      18.58
+    ]
+  },
+  "results": [
+    {
+      "nodes": 2000,
+      "edges": 3000,
+      "fillMs": 154.6,
+      "openMs": 265,
+      "heapLoadedMB": 38.36,
+      "fitZoom": 0.11,
+      "domShapesFit": 0,
+      "domShapes100": 446,
+      "domNodes100": 1486,
+      "pan": {
+        "frames": 383,
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.8,
+        "max": 16.8,
+        "over25": 0,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [],
+        "inputs": 120,
+        "lat50": 41.1,
+        "lat95": 54.8,
+        "lat99": 57,
+        "ms": 6403
+      },
+      "zoom": {
+        "frames": 204,
+        "p50": 16.7,
+        "p95": 16.7,
+        "p99": 16.8,
+        "max": 33.4,
+        "over25": 2,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [],
+        "inputs": 61,
+        "lat50": 43.2,
+        "lat95": 57.1,
+        "lat99": 101.4,
+        "ms": 3453
+      },
+      "drag1": {
+        "frames": 256,
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.8,
+        "max": 16.8,
+        "over25": 0,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [
+          17.7
+        ],
+        "inputs": 121,
+        "lat50": 15.5,
+        "lat95": 21,
+        "lat99": 24,
+        "ms": 4284
+      },
+      "drag20": {
+        "frames": 270,
+        "p50": 16.7,
+        "p95": 16.7,
+        "p99": 16.8,
+        "max": 16.8,
+        "over25": 0,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [
+          24.3
+        ],
+        "inputs": 121,
+        "lat50": 15.4,
+        "lat95": 25.1,
+        "lat99": 27.1,
+        "ms": 4521
+      },
+      "remote": {
+        "frames": 123,
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.8,
+        "max": 16.8,
+        "over25": 0,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [],
+        "inputs": 125,
+        "lat50": 11.1,
+        "lat95": 20.8,
+        "lat99": 23.2,
+        "ms": 2064
+      },
+      "domNodesFit": 149,
+      "panFit": {
+        "frames": 277,
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.8,
+        "max": 16.8,
+        "over25": 0,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [],
+        "inputs": 120,
+        "lat50": 22.4,
+        "lat95": 36.4,
+        "lat99": 37,
+        "ms": 4636
+      },
+      "zoomFit": {
+        "frames": 121,
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.8,
+        "max": 16.8,
+        "over25": 0,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "longTaskMax": 0,
+        "release": [],
+        "inputs": 41,
+        "lat50": 37.3,
+        "lat95": 53.4,
+        "lat99": 56.9,
+        "ms": 2025
+      },
+      "drag1Fit": {
+        "frames": 285,
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.8,
+        "max": 50,
+        "over25": 1,
+        "longTasks": 1,
+        "longTaskMs": 53,
+        "longTaskMax": 53,
+        "release": [
+          56.4
+        ],
+        "inputs": 121,
+        "lat50": 19.5,
+        "lat95": 27.6,
+        "lat99": 28.6,
+        "ms": 4803
+      },
+      "heapAfterMB": 45.53
+    }
+  ]
+}
