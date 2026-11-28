@@ -1988,19 +1988,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         zoomAt(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
         return;
       }
+      // BRD-39: Shift+wheel pans sideways. macOS turns it into a horizontal delta already; on
+      // Windows and Linux a mouse wheel still sends it as vertical.
+      const [ddx, ddy] = e.shiftKey && !e.deltaX ? [e.deltaY, 0] : [e.deltaX, e.deltaY];
       if (big) {
         e.preventDefault();
-        setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
+        setView((v) => ({ ...v, tx: v.tx - ddx, ty: v.ty - ddy }));
         return;
       }
       const now = performance.now();
-      const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      const sideways = Math.abs(ddx) > Math.abs(ddy);
       if (now - last > 200) axis = sideways ? "x" : "y";
       last = now;
       if (axis === "x") {
         // A sideways swipe pans the board; left to the browser it becomes Back at the page edge.
         e.preventDefault();
-        setView((v) => ({ ...v, tx: v.tx - e.deltaX }));
+        setView((v) => ({ ...v, tx: v.tx - ddx }));
       } else if (sideways) e.preventDefault();
     };
     svg.addEventListener("wheel", onWheel, { passive: false });

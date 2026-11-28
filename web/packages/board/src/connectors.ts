@@ -102,7 +102,7 @@ export function snapTarget(shapes: Shape[], p: Pt, pad = 18, exclude?: string): 
 }
 
 const horiz = (a: Anchor) => a === "left" || a === "right";
-function facing(s: Shape, other: Pt): Anchor {
+export function facing(s: Shape, other: Pt): Anchor {
   const [x0, y0, x1, y1] = bbox(s);
   const dx = other[0] - (x0 + x1) / 2, dy = other[1] - (y0 + y1) / 2;
   return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : dy >= 0 ? "bottom" : "top";
