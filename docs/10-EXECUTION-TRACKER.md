@@ -368,6 +368,7 @@ ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row
 |---|---|---|---|
 | WS-01 | Prototype, ADR-085 and this plan approved by the owner | Done | Draft: docs/40, ADR-085, docs/prototypes/workspace/workspace.html; awaiting the owner; S |
 | WS-25 | Workspace benchmark on the user base: sign-in, home, search and launch latency and memory at rest with many users, workspaces and canvases; a large-room canvas (550, up to 1,000) through the Workspace; published with the hardware and load mix | Todo | M; owner decision 2026-11-28 |
+| WS-01b | Prototype frames 13a–13j for typed files (owner decision 8): New menu with types, typed icons in Home, search and trash, spreadsheet, whiteboard and database files full screen, phone versions, a sheet block in a document versus a spreadsheet file | Todo | Frames drafted in docs/prototypes/workspace/workspace.html §13; awaiting the owner (ADR-011); S |
 | WS-02 | Contract gap spike: list every docs/05 call the Workspace needs, confirm thumbnails, presence counts, title on save, link visitors (guest identity in the JWT), role API on revoke; contract additions written into docs/05 | Todo | M; depends on WS-01 |
 | WS-03 | `crates/oc-workspace` skeleton, config (`WS_*`), migrations (SQLite, MySQL/MariaDB), single-binary launcher with the engine as a library, loopback host registration, generated secrets | Todo | L; depends on WS-02 |
 | WS-04 | Shared host conformance suite (from the sample host's checks), run against both hosts in CI | Todo | M; depends on WS-03 |
@@ -391,6 +392,20 @@ ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row
 | WS-22 | Acceptance run (§6) in CI: 2-minute first run, restart, crash, backup/restore, upgrade, compose | Todo | M; depends on WS-21 |
 | WS-23 | Security audit of the Workspace surfaces and fixes | Todo | M; depends on WS-18, WS-19 |
 | WS-24 | Docs and site: quick start, operator guide, admin guide, release notes | Todo | S; depends on WS-22 |
+
+**File types and app mode** (owner decision 2026-11-28, docs/40 §0.8, docs/05 §2f, ADR-085 note). A contract feature for every
+host; the Workspace is its first user. UI rows wait for WS-01b.
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| FTY-01 | Design: `file.type` claim, app mode, manifest `type`, fallback to document, create-file `type`, capabilities; docs/05 §2f | Done | This change; S |
+| FTY-02 | Engine: validate `file.type`, manifest `type`, root block created on a new typed file (server edit, saved through `PUT`), session `app` and `appFallback`, `fileTypes` in capabilities; tests incl. the mixed-content fallback | Todo | M; depends on FTY-01 |
+| FTY-03 | Editor: spreadsheet app mode (toolbar, formula bar, full grid, sheet tabs, status sum), desktop and phone | Todo | M; depends on FTY-02, WS-01b |
+| FTY-04 | Editor: whiteboard app mode (tools, board bar with Sketch / Diagram, zoom, minimap), desktop and phone | Todo | M; depends on FTY-02, WS-01b |
+| FTY-05 | Editor: database app mode (view tabs, filter, sort, New row; row pages stay documents) | Todo | M; depends on FTY-02, WS-01b |
+| FTY-06 | Exports, search (`search.json` `type`), API v1 and `/extract` `type`, default export per type | Todo | S; depends on FTY-02 |
+| FTY-07 | Block *Expand* and *Make a … file* through the create-file callback with `type`, optional live block in place | Todo | M; depends on FTY-02, WS-01b |
+| FTY-08 | Workspace: typed New menu, type icons and column, search type filter, import picks the type, sample host passes `file.type` too | Todo | M; depends on WS-16, FTY-02, WS-01b |
 
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 

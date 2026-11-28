@@ -1263,6 +1263,46 @@ time_zone        = "Europe/Berlin"   # IANA name, UTC, or UTC+05:30; rules may n
   (§7b); MCP `canvas_automations`, `canvas_automation_save`, `canvas_automation_enable`,
   `canvas_automation_test`.
 
+### 2f. File types and app mode (FTY-01..08, docs/40 §0.8, ADR-085)
+
+A host may give each file a **type**. A *document* is today's canvas, where any blocks mix. A *spreadsheet*, *whiteboard*
+or *database* file holds exactly one root block of that kind and opens in **app mode**: the editor renders that block
+full-page with its own chrome, with no document title, page margins, gutter or insert menu.
+
+| `file.type` | Root block | App mode chrome | Exports offered first |
+|---|---|---|---|
+| `document` (default) | any blocks | the canvas editor | per `export_formats` |
+| `spreadsheet` | `core.spreadsheet` | toolbar, formula bar with the cell name, the grid edge to edge, sheet tabs, selection sum/average/count | `xlsx`, `csv`, `pdf` |
+| `whiteboard` | `core.whiteboard` (diagram mode is a switch on the board) | tools, board bar (Sketch / Diagram, shapes, frames), zoom, minimap | `png`, `svg`, `pdf`, `drawio` |
+| `database` | `core.database` | view tabs (Table, Board, Calendar, Timeline), filter, sort, New row; a row still opens as a page of blocks | `csv`, `md` |
+
+- **Telling us.** Put `file.type` in the launch token (§3). Any other value is refused at launch with `400 TYPE_INVALID`.
+  `GET /hosting/capabilities` lists `fileTypes`; a server without it ignores the claim and opens a document, so check it
+  before you show typed *New* entries.
+- **New files.** When your load callback answers `404` (a new file) for a typed launch, the server creates the root block
+  as the file's first edit (an empty sheet `Sheet1`, an empty board, a database with one Table view) and saves it through
+  your `PUT /files/{fileId}` like any edit. `start` (ADR-048) is ignored in app mode.
+- **The file remembers.** The `.ocanvas` manifest carries `type` (additive to format 1; older readers ignore it). A launch
+  without the claim uses the manifest's type, so a downloaded spreadsheet reopens as one in any host. The claim wins when both
+  are present.
+- **Never lose content.** If a typed launch meets content that is not exactly one root block of that kind (someone added a
+  paragraph through the API, or the host typed an old document), the editor opens it as a document with a notice ("This
+  spreadsheet has other content, so it opened as a document") and the session answers `app: "document"`,
+  `appFallback: "content"`. Nothing is removed or rewritten.
+- **Session answer** (docs/15 §2): `app` (`document` | `spreadsheet` | `whiteboard` | `database`). Profiles (§2b) apply to
+  documents and to database row pages; app mode has no insert surfaces to filter. `[host.editor.features]` apply as usual
+  (comments on cells and shapes, version history, AI, import).
+- **Everything else is the same file.** Version history (§5a), search (`search.json` gains `type`), exports, the headless API
+  (`GET /api/v1/files/{fileId}` and `/extract` answer `type`), MCP, webhooks, live blocks and offline copies treat a typed
+  file exactly like a document. `export` in app mode with no format picks the first of the table's formats that
+  `export_formats` allows.
+- **From a block to a file.** In a document, a spreadsheet, whiteboard or database block offers *Expand* (fills the editor
+  for a while; still the document) and *Make a spreadsheet file* (or whiteboard, database). The latter calls your **Create
+  file** callback (§5) with `type` set, writes the block's content into the new file through `PUT /files/{fileId}`, and can
+  leave a live block (§2c) in its place. Without the callback the entry is hidden.
+- **Phone.** App mode has phone layouts: the grid with frozen headers, formula bar above and a tool bar below; the board with
+  tools in a bottom bar.
+
 ## 3. JWT launch token
 
 Signed by your backend, short-lived (≤ 10 h; 5–15 min recommended — it is
@@ -1278,6 +1318,7 @@ exchanged for a session ticket on open).
     "id": "doc_8812",               // your stable id
     "name": "Sprint 42 notes",
     "version": "17",                // your current version/etag
+    "type": "spreadsheet",          // optional (§2f): document (default) | spreadsheet | whiteboard | database
     "context": { "type": "channel", "id": "c_55" }   // optional, for UI only
   },
   "user": {
@@ -1497,7 +1538,7 @@ OpenCanvas:
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
 | **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none", "name"?, "path"?, "callbackToken"?}`. **Required for live blocks** (§2c): each person who opens one is checked here; `name` titles the live file, `path` says where it lives in your app (at most 200 characters, shown as plain text in the live block's header: "from Leadership weekly › Q1"; without it the header names your app; ignored with `none`) and `callbackToken` is the bearer for that file's load and save (else the embedding session's). Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
-| **Create file** *(live blocks, §2c)* `POST /files` | JSON `{name, parentFileId, kind: "ocanvas"}`, signed, with the `callbackToken` of whoever makes the live block and an `Idempotency-Key` | `201 {"fileId":"doc_9001"}`: create it where you like with the ACL you like (by default the parent's) and give that person edit on it. OpenCanvas writes the content and saves it through `PUT /files/{fileId}`. `404`/`405`/`501` = not implemented ("Make live" is hidden) |
+| **Create file** *(live blocks, §2c)* `POST /files` | JSON `{name, parentFileId, kind: "ocanvas", type?}` (`type` per §2f when a block becomes its own file), signed, with the `callbackToken` of whoever makes the live block and an `Idempotency-Key` | `201 {"fileId":"doc_9001"}`: create it where you like with the ACL you like (by default the parent's) and give that person edit on it. OpenCanvas writes the content and saves it through `PUT /files/{fileId}`. `404`/`405`/`501` = not implemented ("Make live" is hidden) |
 | **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
 | **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
 | **List versions** *(optional, `history = true`, docs/30 §3.1)* `GET /files/{fileId}/versions?cursor=&limit=` | signed like every callback, with the `callbackToken` of whoever opened history; `limit` ≤ 100 | `{"versions":[{"version":"18","at":"2026-11-24T10:14:03Z","authors":["u_123"],"name":"Before the board review","kind":"named","size":182344}],"next":"<opaque>"}`, newest first; `kind` `auto`\|`named`\|`restore`, `name` only for named and restore versions. List only what this user may see. `404`/`405`/`501` = not implemented |

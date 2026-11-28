@@ -9,6 +9,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- OpenCanvas Workspace (docs/40, ADR-085): files are typed (owner decision 8). Design only for now: the host contract gains
+  `file.type` and app mode (docs/05 §2f: a spreadsheet, whiteboard or database file opens full screen as its one root
+  block), and the Workspace prototype adds frames 13a–13j (the New menu with types, typed icons, the spreadsheet, whiteboard
+  and database apps, phone versions, a sheet in a document versus a spreadsheet file) for the owner's approval.
+
 - Spreadsheet (SHEET-07, frame 6): comments on cells. A corner mark shows a thread; hover,
   Ctrl+Alt+M, the cell menu, the toolbar or the phone action bar opens it. Threads are anchored to
   row and column ids, so they follow their cell through inserts, moves and sorts.
@@ -24,6 +29,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- Workspace prototype: icons after the first sprite block (folder, home, share, bell and others) did not render, because the
+  sprite's `</svg>` was closed early.
 - Spreadsheet: a merge that crosses a frozen pane's edge is one grid cell (it was two, with the
   same id), and the frozen pane's edge line shows through it.
 ### Changed
