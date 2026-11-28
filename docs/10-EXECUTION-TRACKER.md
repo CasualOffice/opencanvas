@@ -316,6 +316,45 @@ Every UI row waits for V4UI-01 (ADR-011). No cap is raised before X10K, R1K, SOA
 
 Rough total: 13 L + 32 M + 8 S ≈ 65–70 engineer-weeks (≈ 7 stretch), plus PSDK-01..08 if not in 0.3.1.
 
+## P3 — Platform: v0.5 ([docs/38](38-ROADMAP-v0.5.md))
+
+Direction set by the owner 2026-11-28: v0.5 = plugins (with a marketplace), backlinks, a knowledge
+graph and SDK extensions; v0.6 = advanced automation and app building. ADR-081 to ADR-084 Proposed.
+Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks; order and dependencies in docs/38 §10.
+Every UI row waits for V5UI-01 (ADR-011). The link index stores ids only; every read goes through the host's ACL.
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| V5UI-01 | Prototypes (docs/38 §8): links and backlinks, knowledge graph, plugin marketplace, extension points; owner approval | Todo | M; Prototypes. Drafts in docs/prototypes/v05/ (2026-11-28), to be published for review |
+| LINK-01 | `canvasLink` node, block and row targets, `[[` picker, URL patterns, exports, 0.4 round trip (ADR-081) | Todo | M; Links |
+| LINK-02 | Link index: extraction at acknowledged saves, `link_edges` migration (SQLite, MySQL, MariaDB), backfill, deletes, Redis-only refusal | Todo | L; Links |
+| LINK-03 | Backlinks read path: `/access/batch` with fallback, read-time excerpts, API, MCP, clients | Todo | M; Links |
+| LINK-04 | Editor: Linked from, unlinked mentions, hover preview, block chips, link states, phone, to the prototype | Todo | L; Links; waits for V5UI-01 |
+| LINK-05 | Unlinked mention to link in the source room; aliases | Todo | S; Links; waits for V5UI-01 |
+| GRAPH-01 | Graph API (local, full), ACL before expansion, cache, limits, MCP, clients (ADR-082) | Todo | M; Graph |
+| GRAPH-02 | Graph view: worker layout, local panel, full view, filters, search, pins, to the prototype | Todo | L; Graph; waits for V5UI-01 |
+| GRAPH-03 | Graph list fallback, keyboard, screen reader, phone | Todo | M; Graph; waits for V5UI-01 |
+| PLUG-01 | `.ocplugin` and `plugin.json` schema; block packages as plugins (ADR-083) | Todo | M; Plugins |
+| PLUG-02 | Signatures, publisher keys, signed index with version and expiry, revocation, verification | Todo | L; Plugins |
+| PLUG-03 | Server plugin store: install, verify at start, per-host enablement and policy, updates, rollback, `/healthz` | Todo | L; Plugins |
+| PLUG-04 | Marketplace registry and review service, publisher portal (project infrastructure) | Todo | L; Plugins; owner question 6 (who runs it) |
+| PLUG-05 | Marketplace and manager UI to the prototype: browse, details, install, updates, requests, policy, blocked states, phone | Todo | L; Plugins; waits for V5UI-01 |
+| PLUG-06 | Host admin API `/api/v1/plugins`, `perms.plugins` in the launch token | Todo | M; Plugins |
+| EXT-01 | WebAssembly runtime: wasmtime, WIT world `opencanvas:plugin@0.5.0`, limits, host imports, module cache, pool (ADR-084) | Todo | L; Extensions; new dependency, ADR-084 |
+| EXT-02 | Custom database views from plugins, to the prototype | Todo | L; Extensions; waits for V5UI-01 |
+| EXT-03 | Plugin commands (palette, / menu, block menu, shortcuts), to the prototype | Todo | M; Extensions; waits for V5UI-01 |
+| EXT-04 | Plugin importers: import dialog, drop, API, MCP | Todo | M; Extensions; dialog waits for V5UI-01 |
+| EXT-05 | Plugin exporters: Export menu, API, compatibility report | Todo | M; Extensions |
+| EXT-06 | Plugin automation actions in the rule editor and engine (ADR-067/068 limits) | Todo | M; Extensions; editor waits for V5UI-01 |
+| EXT-07 | Integration providers: connections, link previews, pickers (stretch) | Todo | L; Extensions; moves to 0.5.x first |
+| EXT-08 | `@opencanvas/plugin-sdk`, `opencanvas-plugin` crate, `oc-plugin` CLI, docs/39 guide, one sample per extension point | Todo | L; Extensions |
+| SEC-V5 | Security audit of the v0.5 surfaces (docs/18 §8): link index ACL, graph, signing chain, runtime, bridge, connections | Todo | L; Maturity |
+| SEC-V5F | Fixes for the audit findings, each with a test | Todo | M; Maturity |
+| ACC-V5 | docs/23 rows LINK-A*, GRAPH-A*, PLUG-A*, EXT-A* | Todo | S; Maturity |
+| REL-07 | v0.5.0 scope lock, audit sign-off, release notes | Todo | M; Release |
+
+Rough total: 12 L + 13 M + 2 S ≈ 44 engineer-weeks (≈ 2.5 stretch).
+
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
 Owner approved Phase 0 (benchmarks, ADRs) and Phase 1 (graph core) on 2026-11-24, with seven review

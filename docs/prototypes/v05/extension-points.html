@@ -1,0 +1,755 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Extension points</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Review page of numbered frames; each frame is the real OpenCanvas editor at a fixed size. Tokens match the approved v0.4 prototypes (databases.html, timeline.html). rem for type and spacing (ADR-050); breakpoints in em. */
+:root{--page:#f1f1ef;--app:#ffffff;--panel:#fbfbfa;--sunk:#f4f4f2;--pop:#ffffff;--hover:rgba(24,24,32,.045);--press:rgba(24,24,32,.08);--line:rgba(24,24,32,.085);--line-2:rgba(24,24,32,.15);--fg:#18181b;--fg-2:#55555e;--fg-3:#8b8b95;--fg-4:#b3b3bb;--accent:#2a5ad7;--accent-soft:#ecf1fd;--accent-ring:rgba(42,90,215,.28);--accent-fg:#fff;--gray-bg:#efefed;--gray-fg:#55555c;--blue-bg:#e6eefd;--blue-fg:#2350c8;--amber-bg:#fcf0d9;--amber-fg:#8f5300;--green-bg:#e2f3e8;--green-fg:#17703f;--red-bg:#fde6e6;--red-fg:#b12424;--purple-bg:#efe8fd;--purple-fg:#6538c4;--pink-bg:#fce6f0;--pink-fg:#ad2c66;--teal-bg:#dff3f0;--teal-fg:#0f6b5f;--u0:#2a5ad7;--u1:#7a45f0;--u2:#e5602a;--u3:#0e9a78;--u4:#d63f78;--sh-card:0 1px 2px rgba(20,20,30,.04),0 8px 24px -12px rgba(20,20,30,.12);--sh-pop:0 0 0 1px rgba(24,24,32,.07),0 16px 40px -12px rgba(20,20,30,.22),0 4px 10px -4px rgba(20,20,30,.08);--rv-bg:#eeeeec;--rv-fg:#18181b;--rv-fg2:#55555e;--rv-fg3:#85858f;--rv-line:rgba(24,24,32,.1);--rv-chip:#fff;--rv-acc:#2a5ad7;--font:"Geist",ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--rv-bg);color:var(--rv-fg);font-family:var(--font);font-size:.875rem;-webkit-font-smoothing:antialiased}
+svg.i{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block;vertical-align:middle}
+svg.i.sm{width:.875rem;height:.875rem}svg.i.lg{width:1.25rem;height:1.25rem}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+code{font-family:var(--mono);font-size:.85em}
+
+/* ---------- review page ---------- */
+.rv-top{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--rv-bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--rv-line)}
+.rv-top-in{max-width:87.5rem;margin:0 auto;padding:.75rem max(1rem,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.rv-title{font-weight:600;font-size:.9375rem;letter-spacing:-.01em;display:flex;gap:.625rem;align-items:center;min-width:0;flex-wrap:wrap}
+.rv-title small{font-weight:400;color:var(--rv-fg3);font-size:.8125rem}
+.rv-seg{display:inline-flex;padding:.1875rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line)}
+.rv-seg button{font-size:.78rem;height:1.75rem;padding:0 .75rem;border-radius:999px;border:0;background:transparent;color:var(--rv-fg2);cursor:pointer;display:inline-flex;gap:.375rem;align-items:center}
+.rv-seg button[aria-pressed="true"]{background:var(--rv-fg);color:var(--rv-bg)}
+.rv-ctl{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.rv-toc{max-width:87.5rem;margin:0 auto;padding:0 1rem .625rem;display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none}
+.rv-toc a{flex:none;font-size:.75rem;color:var(--rv-fg2);text-decoration:none;padding:.25rem .5625rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);white-space:nowrap}
+.rv-toc a:hover{color:var(--rv-fg)}
+.rv-wrap{max-width:87.5rem;margin:0 auto;padding-block:1.5rem 5rem;padding-left:max(1rem,env(safe-area-inset-left,0px));padding-right:max(1rem,env(safe-area-inset-right,0px))}
+.rv-intro{max-width:47.5rem;line-height:1.65;color:var(--rv-fg2);margin:.5rem 0 1.75rem}
+.rv-intro h1{font-size:1.75rem;letter-spacing:-.02em;color:var(--rv-fg);margin:0 0 .5rem;font-weight:600;text-wrap:balance}
+.rv-intro p{margin:0 0 .5rem}
+.dec{background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);border-radius:.75rem;padding:.875rem 1rem;margin:0 0 1.25rem;font-size:.8125rem;line-height:1.6}
+.dec ol{margin:.375rem 0 0;padding-left:1.25rem}.dec li{margin:.25rem 0}
+.rv-sec{margin:3.5rem 0 0;scroll-margin-top:7rem}
+.rv-sec>h2{font-size:1.375rem;letter-spacing:-.015em;margin:0 0 .375rem;font-weight:600;display:flex;gap:.625rem;align-items:baseline;flex-wrap:wrap}
+.rv-sec>h2 code{font-size:.8125rem;color:var(--rv-acc);font-weight:500}
+.rv-sec>p{max-width:51rem;color:var(--rv-fg2);line-height:1.6;margin:0 0 1.25rem}
+.rv-row{display:flex;flex-wrap:wrap;gap:1.75rem;align-items:flex-start}
+.fr{margin:0 0 2rem;min-width:0;max-width:100%;scroll-margin-top:7rem}
+.fr figcaption{display:flex;gap:.625rem;align-items:center;margin:0 0 .625rem;font-weight:500;flex-wrap:wrap}
+.fr figcaption b{font-family:var(--mono);font-size:.75rem;font-weight:500;padding:.125rem .4375rem;border-radius:.375rem;background:var(--rv-fg);color:var(--rv-bg)}
+.fr figcaption .dim{color:var(--rv-fg3);font-weight:400;font-size:.75rem;font-family:var(--mono)}
+.fr-vp{max-width:100%;overflow:auto;border-radius:.875rem}
+.fr-in{position:relative;overflow:hidden;border-radius:.875rem;box-shadow:0 0 0 1px var(--rv-line),0 30px 70px -40px rgba(0,0,0,.45);background:var(--page)}
+.fr-in.phone{border-radius:2.75rem;box-shadow:0 0 0 1px var(--rv-line),0 0 0 9px #1c1c1f,0 0 0 10px #3a3a3e,0 30px 70px -30px rgba(0,0,0,.5);margin:.75rem}
+.note{max-width:47.5rem;font-size:.8125rem;line-height:1.6;color:var(--rv-fg2);margin:.75rem 0 0}
+.note em{font-style:normal;color:var(--rv-fg);font-weight:500}
+.fr.phf .note{max-width:25.6rem}
+.fr.phf .fr-vp{overflow:visible;max-width:100%;padding:.75rem}
+.fr.phf .fr-in.phone{margin:0}
+.fr.phf{width:27rem;max-width:100%}
+@media (max-width:40em){.rv-ctl{margin-left:0}.rv-intro h1{font-size:1.375rem}}
+
+/* ---------- OpenCanvas editor chrome ---------- */
+.oc{background:var(--app);color:var(--fg);width:100%;height:100%;display:flex;flex-direction:column;font-size:.875rem;line-height:1.5;position:relative}
+.oct{height:3rem;flex:none;display:flex;align-items:center;gap:.625rem;padding:0 .875rem;border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;gap:.375rem;min-width:0;white-space:nowrap;overflow:hidden}
+.crumbs .par{color:var(--fg-3)}.crumbs .sep{color:var(--fg-4)}
+.crumbs .cname{font-weight:500}
+.ctile{width:1.375rem;height:1.375rem;border-radius:.375rem;display:inline-grid;place-items:center;flex:none;background:var(--blue-bg);color:var(--blue-fg)}
+.ctile.t-purple{background:var(--purple-bg);color:var(--purple-fg)}.ctile.t-green{background:var(--green-bg);color:var(--green-fg)}.ctile.t-amber{background:var(--amber-bg);color:var(--amber-fg)}.ctile.t-pink{background:var(--pink-bg);color:var(--pink-fg)}.ctile.t-teal{background:var(--teal-bg);color:var(--teal-fg)}.ctile.t-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.ocst{display:inline-flex;gap:.3rem;align-items:center;color:var(--fg-3);font-size:.75rem}
+.stack{display:flex}.stack .av{box-shadow:0 0 0 2px var(--app);margin-left:-.375rem}.stack .av:first-child{margin-left:0}
+.av{display:inline-grid;place-items:center;border-radius:50%;color:#fff;font-weight:600;flex:none;width:1.625rem;height:1.625rem;font-size:.625rem;letter-spacing:.01em}
+.av.s{width:1.25rem;height:1.25rem;font-size:.5625rem}
+.ocb{flex:1;min-height:0;display:flex;position:relative}
+.doc{flex:1;min-width:0;overflow:auto;padding:2.5rem 3.5rem 3rem}
+.doc-in{max-width:44rem;margin:0 auto}
+.doc h1{font-size:2rem;letter-spacing:-.02em;margin:0 0 .25rem;font-weight:700}
+.doc .meta{color:var(--fg-3);font-size:.8125rem;margin:0 0 1.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.doc h2{font-size:1.25rem;margin:1.75rem 0 .5rem;font-weight:600;letter-spacing:-.01em}
+.doc p{margin:0 0 .75rem;line-height:1.65}
+.doc ul{margin:0 0 .75rem;padding-left:1.25rem;line-height:1.65}
+.side{width:21rem;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.side-h{display:flex;align-items:center;gap:.5rem;padding:.75rem .875rem;border-bottom:1px solid var(--line);font-weight:600}
+.side-b{flex:1;overflow:auto;padding:.5rem}
+.btn{display:inline-flex;align-items:center;gap:.375rem;height:1.875rem;padding:0 .625rem;border-radius:.5rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover);color:var(--fg)}
+.btn.on{background:var(--accent-soft);color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-fg)}
+.btn.sec{background:var(--sunk);color:var(--fg)}
+.btn.dan{background:var(--red-bg);color:var(--red-fg)}
+.btn.ic{width:1.875rem;padding:0;justify-content:center}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.seg{display:inline-flex;padding:.15rem;border-radius:.5rem;background:var(--sunk)}
+.seg button{border:0;background:none;height:1.5rem;padding:0 .55rem;border-radius:.375rem;font-size:.75rem;color:var(--fg-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--app);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:.25rem;height:1.25rem;padding:0 .4rem;border-radius:.3rem;font-size:.6875rem;font-weight:500;white-space:nowrap}
+.p-gray{background:var(--gray-bg);color:var(--gray-fg)}.p-blue{background:var(--blue-bg);color:var(--blue-fg)}.p-green{background:var(--green-bg);color:var(--green-fg)}.p-amber{background:var(--amber-bg);color:var(--amber-fg)}.p-red{background:var(--red-bg);color:var(--red-fg)}.p-purple{background:var(--purple-bg);color:var(--purple-fg)}.p-pink{background:var(--pink-bg);color:var(--pink-fg)}.p-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.pop{position:absolute;background:var(--pop);color:var(--fg);border-radius:.75rem;box-shadow:var(--sh-pop);padding:.5rem;z-index:10;font-size:.8125rem}
+.pop h4{margin:.25rem .4rem .5rem;font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.mi{display:flex;gap:.5rem;align-items:center;padding:.4rem .5rem;border-radius:.5rem;cursor:pointer;min-height:2rem}
+.mi:hover,.mi.on{background:var(--hover)}
+.mi kbd,.kbd{font-family:var(--mono);font-size:.6875rem;color:var(--fg-3)}
+.mi kbd{margin-left:auto}
+.mi small{color:var(--fg-2);font-size:.75rem}
+.sepl{height:1px;background:var(--line);margin:.25rem 0}
+.hint{color:var(--fg-2);font-size:.75rem;line-height:1.5}
+.sw{width:1.75rem;height:1rem;border-radius:999px;background:var(--accent);position:relative;flex:none;border:0;padding:0;cursor:pointer}
+.sw::after{content:"";position:absolute;right:.125rem;top:.125rem;width:.75rem;height:.75rem;border-radius:50%;background:#fff}
+.sw.off,.sw[aria-checked="false"]{background:var(--line-2)}.sw.off::after,.sw[aria-checked="false"]::after{left:.125rem;right:auto}
+.inp{display:flex;align-items:center;gap:.4rem;height:2rem;padding:0 .6rem;border-radius:.5rem;background:var(--sunk);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
+.inp input{border:0;background:none;font:inherit;color:inherit;outline:none;flex:1;min-width:0}
+.inp.f{box-shadow:inset 0 0 0 1.5px var(--accent),0 0 0 3px var(--accent-ring)}
+.mask{position:absolute;inset:0;background:rgba(10,10,14,.32);display:grid;place-items:center;z-index:20}
+.dlg{background:var(--pop);color:var(--fg);border-radius:1rem;box-shadow:var(--sh-pop);width:min(34rem,calc(100% - 2rem));max-height:calc(100% - 2rem);overflow:auto;display:flex;flex-direction:column}
+.dlg-h{display:flex;align-items:flex-start;gap:.75rem;padding:1rem 1.125rem .5rem}
+.dlg-h h3{margin:0;font-size:1.0625rem;font-weight:600}
+.dlg-h p{margin:.125rem 0 0;color:var(--fg-2);font-size:.8125rem}
+.dlg-b{padding:.5rem 1.125rem 1rem}
+.dlg-f{display:flex;gap:.5rem;justify-content:flex-end;padding:.75rem 1.125rem;border-top:1px solid var(--line);flex-wrap:wrap}
+.toast{position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);border-radius:.75rem;padding:.6rem .75rem;display:flex;gap:.6rem;align-items:center;z-index:30;font-size:.8125rem;max-width:calc(100% - 2rem);flex-wrap:wrap}
+.tip{position:absolute;z-index:40;background:var(--fg);color:var(--app);font-size:.6875rem;padding:.25rem .45rem;border-radius:.375rem;white-space:nowrap;pointer-events:none}
+
+/* phone */
+.ph{width:24.375rem;height:52.75rem;background:var(--app);color:var(--fg);display:flex;flex-direction:column;font-size:.875rem;position:relative;overflow:hidden}
+.ph-st{height:2.9rem;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 1.75rem 0 2rem;font-weight:600;font-size:.9rem}
+.ph-hd{display:flex;align-items:center;gap:.5rem;padding:.25rem .75rem .5rem;flex:none}
+.ph-hd h3{margin:0;font-size:1.0625rem;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-b{flex:1;min-height:0;overflow:auto}
+.ph-dock{margin-top:auto;flex:none;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:.5rem 0 1.75rem;color:var(--fg-2)}
+.ph-dock button{border:0;background:none;display:grid;gap:.15rem;place-items:center;font-size:.625rem;cursor:pointer;min-width:2.75rem;min-height:2.75rem}
+.ph-dock button.on{color:var(--accent)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--pop);border-radius:1.25rem 1.25rem 0 0;box-shadow:var(--sh-pop);padding:.5rem 1rem 2rem;z-index:5}
+.sheet .grab{width:2.25rem;height:.3rem;border-radius:999px;background:var(--line-2);margin:0 auto .75rem}
+.kbd-t{width:100%;border-collapse:collapse;font-size:.8125rem;background:var(--app);color:var(--fg)}
+.kbd-t td,.kbd-t th{padding:.5rem .75rem;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+.kbd-t td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.75rem;color:var(--fg-2);width:13rem}
+/* ---------- extension points ---------- */
+.db{background:var(--app);color:var(--fg);border-radius:.75rem;box-shadow:var(--sh-card);overflow:hidden;border:1px solid var(--line)}
+.db-h{display:flex;align-items:center;gap:.5rem;padding:.75rem 1rem .25rem;flex-wrap:wrap}
+.db-h h3{margin:0;font-size:1.0625rem;font-weight:600;letter-spacing:-.01em}
+.tabs{display:flex;gap:.125rem;padding:0 .75rem;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{display:inline-flex;gap:.375rem;align-items:center;height:2.25rem;padding:0 .6rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg);font-weight:500}
+.tb{display:flex;align-items:center;gap:.375rem;padding:.5rem .75rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pub{display:inline-flex;align-items:center;gap:.3rem;font-size:.6875rem;color:var(--fg-2);white-space:nowrap}
+.pub .i{width:.8125rem;height:.8125rem}
+.pub.ver{color:var(--blue-fg)}
+.ptile{width:1.75rem;height:1.75rem;border-radius:.5rem;display:inline-grid;place-items:center;flex:none}
+.ptile.sm{width:1.375rem;height:1.375rem;border-radius:.375rem}
+.badge-srv{display:inline-flex;align-items:center;gap:.25rem;font-size:.6875rem;color:var(--purple-fg);background:var(--purple-bg);border-radius:.3rem;padding:0 .35rem;height:1.125rem;white-space:nowrap}
+.frameline{position:relative;outline:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:-1px}
+.frametag{position:absolute;right:.5rem;bottom:.5rem;display:inline-flex;gap:.3rem;align-items:center;font-size:.6875rem;color:var(--fg-2);background:var(--pop);box-shadow:var(--sh-pop);border-radius:999px;padding:.15rem .5rem;z-index:3}
+
+/* swimlanes (the plugin's own UI, inside its sandbox) */
+.sl{display:grid;grid-template-columns:9.5rem repeat(4,minmax(10rem,1fr));font-size:.8125rem;min-width:52rem}
+.sl-hd{padding:.5rem .625rem;font-size:.6875rem;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line);display:flex;gap:.375rem;align-items:center;background:var(--panel)}
+.sl-ln{padding:.625rem;border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;gap:.5rem;align-items:flex-start;font-weight:500;background:var(--panel)}
+.sl-ln small{display:block;color:var(--fg-3);font-weight:400;font-size:.6875rem}
+.sl-cell{padding:.375rem;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:.375rem;min-height:5.5rem;transition:background .1s}
+.sl-cell.over{background:var(--accent-soft)}
+.card{background:var(--app);border-radius:.5rem;box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(0,0,0,.05);padding:.45rem .55rem;cursor:grab;display:grid;gap:.25rem}
+.card:focus-visible{outline:2px solid var(--accent)}
+.card.drag{opacity:.4}
+.card .t{font-weight:500;line-height:1.35}
+.card .m{display:flex;gap:.35rem;align-items:center;color:var(--fg-3);font-size:.6875rem;flex-wrap:wrap}
+.wip{margin-left:auto;font-weight:500;font-variant-numeric:tabular-nums}
+.wip.over{color:var(--red-fg)}
+
+/* tables */
+.tt{width:100%;border-collapse:collapse;font-size:.8125rem}
+.tt th{font-size:.6875rem;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:.45rem .75rem;border-bottom:1px solid var(--line);background:var(--panel)}
+.tt td{padding:.45rem .75rem;border-bottom:1px solid var(--line)}
+.banner{display:flex;gap:.6rem;align-items:center;padding:.6rem .875rem;font-size:.8125rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.banner.info{background:var(--blue-bg);color:var(--blue-fg)}
+.banner.warn{background:var(--amber-bg);color:var(--amber-fg)}
+.banner.err{background:var(--red-bg);color:var(--red-fg)}
+.banner .btn{color:inherit}
+
+/* import dialog */
+.fmt{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.fmt button{display:flex;gap:.625rem;align-items:flex-start;text-align:left;border:0;background:var(--sunk);border-radius:.625rem;padding:.625rem .75rem;cursor:pointer;box-shadow:inset 0 0 0 1px transparent}
+.fmt button:hover{box-shadow:inset 0 0 0 1px var(--line-2)}
+.fmt button[aria-pressed="true"]{box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft)}
+.fmt b{font-weight:500;display:block}
+.fmt small{color:var(--fg-2);font-size:.75rem;display:block;line-height:1.4}
+.grp-t{font-size:.6875rem;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.04em;margin:.875rem 0 .5rem;display:flex;gap:.5rem;align-items:center}
+.drop{border:1.5px dashed var(--line-2);border-radius:.75rem;padding:1rem;display:flex;gap:.75rem;align-items:center;color:var(--fg-2);margin-top:.875rem;font-size:.8125rem}
+.bar{height:.375rem;border-radius:999px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:inherit;transition:width .3s}
+.steps{list-style:none;margin:.75rem 0 0;padding:0;display:grid;gap:.4rem;font-size:.8125rem}
+.steps li{display:flex;gap:.5rem;align-items:center}
+.steps li.done{color:var(--fg-2)}
+.steps li.done .i{color:var(--green-fg)}
+.rep{background:var(--sunk);border-radius:.625rem;padding:.625rem .75rem;font-size:.8125rem;line-height:1.55;margin-top:.75rem}
+.rep li{margin:.15rem 0}
+
+/* rule editor */
+.rule{display:grid;gap:.5rem}
+.rstep{display:grid;grid-template-columns:4.5rem 1fr;gap:.75rem;align-items:start}
+.rstep>.k{color:var(--fg-2);font-size:.75rem;font-weight:600;padding-top:.5rem;text-transform:uppercase;letter-spacing:.04em}
+.rbox{background:var(--panel);border-radius:.625rem;box-shadow:inset 0 0 0 1px var(--line);padding:.5rem .625rem;display:grid;gap:.375rem}
+.rline{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;min-height:1.75rem}
+.tok{display:inline-flex;align-items:center;gap:.25rem;height:1.5rem;padding:0 .45rem;border-radius:.375rem;background:var(--app);box-shadow:inset 0 0 0 1px var(--line-2);font-size:.8125rem;font-weight:500}
+.tok.f{background:var(--purple-bg);color:var(--purple-fg);box-shadow:none}
+.frm{display:grid;grid-template-columns:7.5rem 1fr;gap:.5rem .75rem;align-items:center;font-size:.8125rem;padding:.25rem 0}
+.frm label{color:var(--fg-2)}
+.frm .inp{height:1.875rem}
+.conn{display:flex;gap:.5rem;align-items:center;padding:.4rem .5rem;border-radius:.5rem;background:var(--green-bg);color:var(--green-fg);font-size:.75rem}
+.log{font-size:.8125rem}
+.log .lr{display:grid;grid-template-columns:5.5rem 1fr auto;gap:.75rem;padding:.55rem .875rem;border-bottom:1px solid var(--line);align-items:center}
+.log .lr:last-child{border-bottom:0}
+.log .lr small{color:var(--fg-2)}
+
+/* palette */
+.pal{width:36rem}
+.pal .mi{min-height:2.375rem}
+.pal .mi .tx{flex:1;min-width:0}
+.pal .mi[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+
+/* unfurl */
+.unf{border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);background:var(--panel);padding:.75rem .875rem;display:grid;gap:.375rem;max-width:34rem;margin:.25rem 0 1rem}
+.unf .h{display:flex;gap:.5rem;align-items:center;font-size:.75rem;color:var(--fg-2)}
+.unf b{font-size:.9375rem}
+.unf .m{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;font-size:.75rem;color:var(--fg-2)}
+.set{display:grid;grid-template-columns:13rem 1fr;height:100%}
+.set nav{border-right:1px solid var(--line);background:var(--panel);padding:.75rem .5rem;display:grid;align-content:start;gap:.125rem}
+.set nav a{display:flex;gap:.5rem;align-items:center;padding:.4rem .6rem;border-radius:.5rem;color:var(--fg-2);text-decoration:none;font-size:.8125rem}
+.set nav a.on{background:var(--hover);color:var(--fg);font-weight:500}
+.set main{padding:1.25rem 1.5rem;overflow:auto}
+.set h3{margin:0 0 .25rem;font-size:1.0625rem}
+.crow{display:flex;gap:.75rem;align-items:center;padding:.75rem 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.crow .tx{flex:1;min-width:12rem}
+.crow .tx b{font-weight:500;display:block}
+.crow .tx small{color:var(--fg-2);font-size:.75rem}
+
+/* phone */
+.ph .sl-m{padding:.5rem .75rem;display:grid;gap:.5rem}
+.ph .lane-h{display:flex;gap:.5rem;align-items:center;font-weight:600;padding:.75rem .25rem .25rem}
+.ph .card{min-height:2.75rem}
+.chips{display:flex;gap:.375rem;overflow-x:auto;padding:.25rem .75rem .5rem}
+.chips button{flex:none;height:2rem;padding:0 .75rem;border-radius:999px;border:0;background:var(--sunk);font-size:.8125rem;color:var(--fg-2)}
+.chips button[aria-pressed="true"]{background:var(--fg);color:var(--app)}
+
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><path d="M8 2v3M2 8h3M16 22v-3M22 16h-3"/></symbol>
+<symbol id="i-arrow-ur" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+<symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
+<symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></symbol>
+<symbol id="i-graph" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/></symbol>
+<symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M15.39 4.39a1 1 0 0 0 1.68-.47 2.5 2.5 0 1 1 3.01 3.01 1 1 0 0 0-.47 1.68l1.68 1.68a2.41 2.41 0 0 1 0 3.42l-1.68 1.68a1 1 0 0 1-1.68-.47 2.5 2.5 0 1 0-3.01 3.01 1 1 0 0 1 .47 1.68l-1.68 1.68a2.41 2.41 0 0 1-3.42 0l-1.68-1.68a1 1 0 0 0-1.68.47 2.5 2.5 0 1 1-3.01-3.01 1 1 0 0 0 .47-1.68l-1.68-1.68a2.41 2.41 0 0 1 0-3.42l1.68-1.68a1 1 0 0 1 1.68.47 2.5 2.5 0 1 0 3.01-3.01 1 1 0 0 1-.47-1.68l1.68-1.68a2.41 2.41 0 0 1 3.42 0z"/></symbol>
+<symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4M12 16h.01"/></symbol>
+<symbol id="i-badge-check" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M11.53 2.3a.53.53 0 0 1 .95 0l2.31 4.68a2.12 2.12 0 0 0 1.6 1.16l5.16.76a.53.53 0 0 1 .3.9l-3.74 3.64a2.12 2.12 0 0 0-.61 1.88l.88 5.14a.53.53 0 0 1-.77.56l-4.62-2.43a2.12 2.12 0 0 0-1.97 0L6.4 21.01a.53.53 0 0 1-.77-.56l.88-5.14a2.12 2.12 0 0 0-.61-1.88L2.16 9.8a.53.53 0 0 1 .3-.9l5.16-.76a2.12 2.12 0 0 0 1.6-1.16z"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12M3.29 7 12 12l8.71-5M7.5 4.27l9 5.15"/></symbol>
+<symbol id="i-command" viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9z"/></symbol>
+<symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-gantt" viewBox="0 0 24 24"><path d="M8 6h10M6 12h9M11 18h7"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/></symbol>
+<symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+<symbol id="i-heading" viewBox="0 0 24 24"><path d="M6 12h12M6 20V4M18 20V4"/></symbol>
+<symbol id="i-text" viewBox="0 0 24 24"><path d="M17 6.1H3M21 12.1H3M15.1 18H3"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+<symbol id="i-file-up" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 12v6M15 15l-3-3-3 3"/></symbol>
+<symbol id="i-file-down" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 18v-6M9 15l3 3 3-3"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4M21 2l-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+<symbol id="i-git" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><path d="M14.11 5.11a1 1 0 0 0 .89 0l3.55-1.78A1 1 0 0 1 20 4.22v12.16a1 1 0 0 1-.55.9l-4 2a1 1 0 0 1-.9 0l-5.1-2.56a1 1 0 0 0-.9 0l-3.55 1.78A1 1 0 0 1 4 17.6V5.44a1 1 0 0 1 .55-.9l4-2a1 1 0 0 1 .9 0zM15 5.76v15M9 3.24v15"/></symbol>
+<symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></symbol>
+</defs></svg>
+
+<header class="rv-top"><div class="rv-top-in"><div class="rv-title"><svg class="i" aria-hidden="true"><use href="#i-puzzle"/></svg>Extension points <small>v0.5 · docs/38 §5 · draft for approval</small></div><div class="rv-ctl"><div class="rv-seg" role="group" aria-label="Theme"><button data-theme-btn="light"><svg class="i sm" aria-hidden="true"><use href="#i-sun"/></svg>Light</button><button data-theme-btn="dark"><svg class="i sm" aria-hidden="true"><use href="#i-moon"/></svg>Dark</button></div><div class="rv-seg" role="group" aria-label="Frame size"><button data-fit="1">Fit to width</button><button data-fit="0">Actual size</button></div></div></div>
+<nav class="rv-toc" aria-label="Frames"><a href="#f1">1 Database view</a><a href="#f2">2 Importer</a><a href="#f3">3 Automation action</a><a href="#f4">4 Commands and connections</a><a href="#f5">5 Phone</a><a href="#f6">6 Fallbacks</a></nav></header>
+
+<main class="rv-wrap">
+ <div class="rv-intro">
+  <div class="dec"><b style="color:var(--rv-fg)">Decisions for the owner</b><ol><li>Plugin views sit in <em>Add view</em> under “From plugins” with the publisher's name; OpenCanvas keeps the database title, tabs, filters and toolbar, and the plugin draws only the area below.</li><li>A view receives only the fields its settings name, only for rows the person can see, and writes as the person. The settings panel says this in plain words.</li><li>Without the plugin a view shows as a table with a note and a <em>Request it</em> button; its settings are kept.</li><li>Plugin importers and exporters are listed after the built-in ones and always carry “Runs on the server”. They get the file only, no network, 50 MB and 60 seconds by default.</li><li>A plugin import shows the same compatibility report as built-in imports, and a limit stops it with nothing created.</li><li>Plugin actions are grouped under the plugin's name in <em>Then</em>; the form comes from the action's schema and a generated sentence says what is sent where.</li><li>A turned-off or revoked plugin pauses only the rules that use it, with the reason in the run history.</li><li>Plugin shortcuts never replace built-in ones; commands blocked by policy stay visible, disabled, with the reason.</li><li>Connections are per person by default; an admin can share an organisation connection whose token nobody can see. Tokens never reach browser code.</li><li>Pasted links that a provider recognises become a saved link card (title and state), refreshed by whoever has a connection.</li></ol></div>
+  <h1>Extension points</h1>
+  <p>Prototype for review (v0.5, docs/38 §5, ADR-084). What people see of plugins inside a canvas: a database view drawn by a plugin, a plugin importer in the import dialog, a plugin automation action in the rule editor, plugin commands, and connections to outside services. Sample plugins: Swimlanes (Northbeam Labs), Confluence and Obsidian importers (Fieldnote Software), GitHub issues (Kestrel Dev); publishers are fictional and no brand logos are used. Frames 1b and 2a are live.</p>
+ </div>
+
+ <section class="rv-sec" id="f1">
+  <h2>1 · A database view from a plugin <code>EXT-02 · ADR-084</code></h2>
+  <p>A plugin view is one more choice in <em>Add view</em>, next to Table, Board, Calendar, Timeline and Workload. It shows the same rows with the same filters; it only receives the fields its settings name, and its edits go through the same checks as any other edit. The example is <em>Swimlanes</em> by Northbeam Labs: a board split into lanes.</p>
+  <div class="rv-row">
+   <figure class="fr" id="1a" style="flex:0 1 auto"><figcaption><b>1a</b>Add view, with plugin views<span class="dim">420 × 470</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="420" style="width:26.25rem;height:29.375rem;background:var(--app)">
+     <div class="pop" style="left:1rem;top:1rem;width:24.25rem">
+      <h4>Add a view</h4>
+      <div class="mi"><svg class="i"><use href="#i-table"/></svg>Table</div>
+      <div class="mi"><svg class="i"><use href="#i-board"/></svg>Board</div>
+      <div class="mi"><svg class="i"><use href="#i-cal"/></svg>Calendar</div>
+      <div class="mi"><svg class="i"><use href="#i-gantt"/></svg>Timeline</div>
+      <div class="mi"><svg class="i"><use href="#i-users"/></svg>Workload</div>
+      <div class="sepl"></div>
+      <h4 style="display:flex;gap:.375rem;align-items:center"><svg class="i sm"><use href="#i-puzzle"/></svg>From plugins</h4>
+      <div class="mi on"><span class="ptile sm p-teal"><svg class="i sm"><use href="#i-layout"/></svg></span><span style="display:grid;flex:1"><span>Swimlanes</span><span class="pub ver"><svg class="i"><use href="#i-badge-check"/></svg>Northbeam Labs</span></span></div>
+      <div class="mi"><span class="ptile sm p-blue"><svg class="i sm"><use href="#i-map"/></svg></span><span style="display:grid;flex:1"><span>Roadmap</span><span class="pub ver"><svg class="i"><use href="#i-badge-check"/></svg>OpenCanvas</span></span></div>
+      <div class="sepl"></div>
+      <div class="mi" style="color:var(--fg-2)"><svg class="i"><use href="#i-plus"/></svg>Browse view plugins…</div>
+     </div>
+    </div></div>
+    <p class="note">Only plugins the organisation has turned on appear. <em>Browse view plugins</em> opens the marketplace filtered to views (request or install, depending on the admin's policy).</p>
+   </figure>
+   <figure class="fr" id="1c" style="flex:1 1 26rem"><figcaption><b>1c</b>View settings, drawn from the plugin's settings schema<span class="dim">520 × 470</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="520" style="width:32.5rem;height:29.375rem;background:var(--app)">
+     <div class="pop" style="left:1rem;top:1rem;width:30.5rem">
+      <h4 style="display:flex;align-items:center;gap:.375rem">Swimlanes<span class="sp"></span><span class="pub ver" style="text-transform:none;letter-spacing:0;font-weight:400"><svg class="i"><use href="#i-badge-check"/></svg>Northbeam Labs · 2.3.1</span></h4>
+      <div class="frm"><label>Lanes by</label><div class="inp"><svg class="i sm"><use href="#i-users"/></svg>Owner<span class="sp"></span><svg class="i sm"><use href="#i-down"/></svg></div>
+       <label>Columns by</label><div class="inp">Status<span class="sp"></span><svg class="i sm"><use href="#i-down"/></svg></div>
+       <label>Card shows</label><div class="inp">Task, Due, Estimate<span class="sp"></span><svg class="i sm"><use href="#i-down"/></svg></div>
+       <label>WIP limit</label><div class="inp">In progress: 3 per lane</div>
+       <label>Collapse empty</label><span><button class="sw" role="switch" aria-checked="true" aria-label="Collapse empty lanes"></button></span></div>
+      <div class="sepl"></div>
+      <div class="hint" style="padding:.375rem .4rem;display:grid;gap:.375rem">
+       <span style="display:flex;gap:.4rem"><svg class="i sm"><use href="#i-eye"/></svg>This view can read <b style="color:var(--fg)">Task, Owner, Status, Due, Estimate</b>, only for rows you can see.</span>
+       <span style="display:flex;gap:.4rem"><svg class="i sm"><use href="#i-check"/></svg>It can change <b style="color:var(--fg)">Owner</b> and <b style="color:var(--fg)">Status</b> when you drag a card, as you.</span>
+       <span style="display:flex;gap:.4rem"><svg class="i sm"><use href="#i-globe"/></svg>No network access.</span>
+      </div>
+     </div>
+    </div></div>
+    <p class="note">The form is built by OpenCanvas from the plugin's JSON Schema, so it looks like every other settings panel and is checked the same way. The plain-words summary below it is generated from the fields chosen: changing “Card shows” changes what the view can read.</p>
+   </figure>
+  </div>
+
+  <figure class="fr" id="1b"><figcaption><b>1b</b>The Swimlanes view on Sprint 42 backlog<span class="dim">1280 × 720 · live</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:45rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile "><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">Sprint 42 planning</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn ic" aria-label="Commands"><svg class="i"><use href="#i-command"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ocb"><div class="doc" style="padding:1.5rem 2rem"><div style="max-width:72rem;margin:0 auto">
+      <div class="db" id="slapp">
+       <div class="db-h"><h3>Sprint 42 backlog</h3><span class="pill p-gray" data-count>12 rows</span><span class="sp"></span><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+       <div class="tabs" role="tablist" aria-label="Views">
+        <button class="tab" role="tab" aria-selected="false"><svg class="i"><use href="#i-table"/></svg>All tasks</button>
+        <button class="tab" role="tab" aria-selected="false"><svg class="i"><use href="#i-board"/></svg>By status</button>
+        <button class="tab" role="tab" aria-selected="true"><svg class="i"><use href="#i-layout"/></svg>Team lanes</button>
+        <button class="tab" aria-label="Add view"><svg class="i"><use href="#i-plus"/></svg></button>
+       </div>
+       <div class="tb"><button class="btn"><svg class="i"><use href="#i-filter"/></svg>Sprint is 42</button><button class="btn"><svg class="i"><use href="#i-search"/></svg>Search</button><span class="sp"></span><span class="pub ver"><svg class="i"><use href="#i-puzzle"/></svg>Swimlanes by Northbeam Labs</span><button class="btn"><svg class="i"><use href="#i-settings"/></svg>View settings</button><button class="btn pri"><svg class="i"><use href="#i-plus"/></svg>New</button></div>
+       <div class="frameline" style="overflow:auto;max-height:28rem"><div class="sl" data-grid role="grid" aria-label="Sprint 42 backlog in lanes by owner and columns by status"></div></div>
+      </div>
+      <div class="hint" data-live aria-live="polite" style="margin-top:.5rem;min-height:1.2em"></div>
+     </div></div></div>
+     <div class="toast" data-toast hidden role="status"></div>
+    </div>
+   </div></div>
+   <p class="note">Live: drag a card to another lane or column, or focus a card and use <em>Shift + arrow keys</em>. The dashed outline marks the plugin's sandboxed frame (shown here for review; not drawn in the product). The toolbar, filters, title and tabs above it are OpenCanvas's own. A move into “In progress” beyond the lane's WIP limit is allowed and shown in red, because the limit is the plugin's advice, not a rule. Dragging writes Owner and Status as you; a viewer can look but not drag (“View only”).</p>
+  </figure>
+
+  <figure class="fr" id="1d"><figcaption><b>1d</b>Where the plugin is not available<span class="dim">880 × 330</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="880" style="width:55rem;height:20.625rem;background:var(--app)">
+    <div class="db" style="margin:1rem">
+     <div class="tabs"><button class="tab" aria-selected="false"><svg class="i"><use href="#i-table"/></svg>All tasks</button><button class="tab" aria-selected="true"><svg class="i"><use href="#i-layout"/></svg>Team lanes</button></div>
+     <div class="banner info"><svg class="i"><use href="#i-info"/></svg>Shown as a table: Swimlanes is not turned on for this organisation.<span class="sp"></span><button class="btn">Request it</button></div>
+     <table class="tt"><thead><tr><th>Task</th><th>Owner</th><th>Status</th><th>Due</th></tr></thead><tbody>
+      <tr><td>Ship SSO login for the admin console</td><td>Jonas Weber</td><td><span class="pill p-blue">In progress</span></td><td>Nov 28</td></tr>
+      <tr><td>SSO settings page: test-connection step</td><td>Lea Fischer</td><td><span class="pill p-amber">In review</span></td><td>Nov 27</td></tr>
+      <tr><td>Fix CSV export timeout</td><td>Marco Bianchi</td><td><span class="pill p-amber">In review</span></td><td>Nov 26</td></tr>
+     </tbody></table>
+    </div>
+   </div></div>
+   <p class="note">The same fallback appears in a canvas opened by another organisation, in an older editor, after the plugin is revoked, and in exports (which write the view as a table). The view's settings are kept, so it comes back as it was when the plugin is turned on.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f2">
+  <h2>2 · An importer from a plugin <code>EXT-04</code></h2>
+  <p>The import dialog lists the built-in formats and, below them, the importers the organisation has turned on. Plugin importers run on the OpenCanvas server in a sandbox with no network; the result is checked like any other import before the canvas opens. Frame 2a is live: choose a format, then <em>Import</em>.</p>
+  <figure class="fr" id="2a"><figcaption><b>2a</b>Import dialog with plugin importers<span class="dim">1280 × 760 · live</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:47.5rem">
+    <div class="oc" id="impapp">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile t-gray"><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">New canvas</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn ic" aria-label="Commands"><svg class="i"><use href="#i-command"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ocb" style="background:var(--panel)"></div>
+     <div class="mask">
+      <div class="dlg" role="dialog" aria-labelledby="imp-h" style="width:min(40rem,calc(100% - 2rem))">
+       <div class="dlg-h"><div style="flex:1"><h3 id="imp-h">Import into a new canvas</h3><p>Choose what you are importing. Markdown and HTML become blocks; spreadsheets and CSV become databases.</p></div><button class="btn ic" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+       <div class="dlg-b" data-step="pick">
+        <div class="grp-t">Built in</div>
+        <div class="fmt" data-fmts>
+         <button aria-pressed="false" data-f="md"><svg class="i"><use href="#i-file"/></svg><span><b>Markdown or HTML</b><small>.md, .html, .txt</small></span></button>
+         <button aria-pressed="false" data-f="csv"><svg class="i"><use href="#i-table"/></svg><span><b>Spreadsheet or CSV</b><small>.xlsx, .ods, .csv</small></span></button>
+         <button aria-pressed="false" data-f="dgm"><svg class="i"><use href="#i-network"/></svg><span><b>Diagram</b><small>draw.io, Excalidraw, Mermaid</small></span></button>
+        </div>
+        <div class="grp-t"><svg class="i sm"><use href="#i-puzzle"/></svg>From plugins</div>
+        <div class="fmt">
+         <button aria-pressed="true" data-f="conf" data-plugin="Confluence space importer"><span class="ptile sm p-blue"><svg class="i sm"><use href="#i-layers"/></svg></span><span><b>Confluence space export</b><small>.zip (HTML export) · Fieldnote Software</small><span class="badge-srv" style="margin-top:.25rem"><svg class="i sm"><use href="#i-cpu"/></svg>Runs on the server</span></span></button>
+         <button aria-pressed="false" data-f="obs" data-plugin="Obsidian vault importer"><span class="ptile sm p-purple"><svg class="i sm"><use href="#i-git"/></svg></span><span><b>Obsidian vault</b><small>.zip with [[links]] kept · Fieldnote Software</small><span class="badge-srv" style="margin-top:.25rem"><svg class="i sm"><use href="#i-cpu"/></svg>Runs on the server</span></span></button>
+        </div>
+        <div class="drop"><svg class="i lg"><use href="#i-file-up"/></svg><span style="flex:1"><b style="color:var(--fg);font-weight:500">Engineering-space-export.zip</b><br><small>38.4 MB · Confluence space export</small></span><button class="btn">Change</button></div>
+        <p class="hint" style="margin:.75rem 0 0;display:flex;gap:.375rem"><svg class="i sm"><use href="#i-shield-check"/></svg><span>Fieldnote's importer reads only this file. It cannot reach the network or your other canvases. Up to 50 MB and 60 seconds.</span></p>
+       </div>
+       <div class="dlg-b" data-step="run" hidden>
+        <div style="display:flex;gap:.625rem;align-items:center;margin-bottom:.5rem"><span class="ptile sm p-blue"><svg class="i sm"><use href="#i-layers"/></svg></span><b style="font-weight:500" data-runname>Confluence space export</b><span class="sp"></span><span class="hint" data-pct>0%</span></div>
+        <div class="bar"><i data-bar style="width:0%"></i></div>
+        <ul class="steps" data-steps></ul>
+        <div data-report hidden>
+         <div class="rep"><b>Imported 48 pages into “Engineering space (imported)”</b>
+          <ul style="margin:.375rem 0 0;padding-left:1.1rem"><li>48 pages became sections with their headings; page links became canvas links.</li><li>12 tables became databases; 3 attachments were added to the canvas.</li><li style="color:var(--amber-fg)">Not imported: 2 Jira issue macros (kept as links), 1 page-tree macro.</li></ul></div>
+        </div>
+       </div>
+       <div class="dlg-f"><button class="btn" data-cancel>Cancel</button><button class="btn pri" data-go><svg class="i sm"><use href="#i-upload"/></svg>Import</button></div>
+      </div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note"><em>Runs on the server</em> is shown on every plugin importer so people know their file is processed there (not by a third party: nothing leaves the OpenCanvas server). The report is the same compatibility report built-in imports show (rule 7); <em>Open canvas</em> opens the result, which the host then stores like any new file.</p>
+  </figure>
+
+  <div class="rv-row">
+   <figure class="fr" id="2b" style="flex:1 1 24rem"><figcaption><b>2b</b>The importer hit a limit</figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="560" style="width:35rem;height:17rem;background:var(--panel)">
+     <div class="dlg" style="margin:1rem;width:calc(100% - 2rem)">
+      <div class="dlg-h"><svg class="i lg" style="color:var(--red-fg)"><use href="#i-alert"/></svg><div><h3>The import stopped</h3><p>Obsidian vault importer ran longer than the 60 seconds it is allowed. Nothing was created.</p></div></div>
+      <div class="dlg-b"><p class="hint" style="margin:0">Try a smaller export (one folder at a time), or tell Fieldnote Software: <span style="font-family:var(--mono)">PLUGIN_LIMIT · time · run 7f3c2a</span></p></div>
+      <div class="dlg-f"><button class="btn">Copy details</button><button class="btn pri">Choose another file</button></div>
+     </div>
+    </div></div>
+   </figure>
+   <figure class="fr" id="2c" style="flex:1 1 24rem"><figcaption><b>2c</b>Server plugins switched off by the operator</figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="560" style="width:35rem;height:17rem;background:var(--panel)">
+     <div class="dlg" style="margin:1rem;width:calc(100% - 2rem)">
+      <div class="dlg-b" style="padding-top:1rem">
+       <div class="grp-t" style="margin-top:0"><svg class="i sm"><use href="#i-puzzle"/></svg>From plugins</div>
+       <div class="fmt"><button aria-pressed="false" disabled style="opacity:.6;cursor:not-allowed"><span class="ptile sm p-blue"><svg class="i sm"><use href="#i-layers"/></svg></span><span><b>Confluence space export</b><small>Unavailable: this server does not run plugins on the server.</small></span></button></div>
+       <p class="hint" style="margin:.75rem 0 0">Shown to admins only; other people simply do not see the format. Operators turn this on with <code>[plugins] server_code = true</code>.</p>
+      </div>
+     </div>
+    </div></div>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f3">
+  <h2>3 · An automation action from a plugin <code>EXT-06 · ADR-067</code></h2>
+  <p>Plugin actions appear in the rule editor's <em>Then</em> list under the plugin's name. Their settings form is built from the action's schema and can use row values as tokens. They run on the server as the rule's owner, under the same limits as built-in actions.</p>
+  <figure class="fr" id="3a"><figcaption><b>3a</b>Choosing and setting up “Create GitHub issue”<span class="dim">1280 × 760</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:47.5rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile "><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">Sprint 42 planning</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn ic" aria-label="Commands"><svg class="i"><use href="#i-command"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ocb"><div class="doc" style="padding:1.5rem 2rem;opacity:.5"><div class="doc-in"><h1 style="font-size:1.75rem">Sprint 42 planning</h1><p>Sprint goal: admins can sign in with SSO, and exports no longer time out for accounts with more than 50,000 rows.</p></div></div>
+      <aside class="side" style="width:34rem" aria-label="Edit rule">
+       <div class="side-h"><svg class="i"><use href="#i-zap"/></svg>Edit rule<span class="sp"></span><button class="btn ic" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+       <div class="side-b" style="padding:.875rem">
+        <div class="frm" style="grid-template-columns:4.5rem 1fr;margin-bottom:.5rem"><label>Name</label><div class="inp">File a bug for blocked tasks</div></div>
+        <div class="rule">
+         <div class="rstep"><span class="k">When</span><div class="rbox"><div class="rline"><span class="tok">Status</span>changes to<span class="tok"><span class="pill p-red">Blocked</span></span>in<span class="tok"><svg class="i sm"><use href="#i-table"/></svg>Sprint 42 backlog</span></div></div></div>
+         <div class="rstep"><span class="k">Only if</span><div class="rbox"><div class="rline"><span class="tok">Tags</span>contains<span class="tok">bug</span></div></div></div>
+         <div class="rstep"><span class="k">Then</span><div class="rbox">
+          <div class="rline"><span class="ptile sm p-gray"><svg class="i sm"><use href="#i-git"/></svg></span><b style="font-weight:500">Create GitHub issue</b><span class="pub ver"><svg class="i"><use href="#i-badge-check"/></svg>GitHub issues · Kestrel Dev</span><span class="sp"></span><button class="btn ic" aria-label="Remove action"><svg class="i sm"><use href="#i-trash"/></svg></button></div>
+          <div class="frm">
+           <label>Connection</label><div class="conn"><svg class="i sm"><use href="#i-circle-check"/></svg>Acme Docs organisation · connected by Noor Haddad</div>
+           <label>Repository</label><div class="inp">acme-docs/platform<span class="sp"></span><svg class="i sm"><use href="#i-down"/></svg></div>
+           <label>Title</label><div class="inp f"><span class="tok f">Task</span><span>(blocked)</span></div>
+           <label>Body</label><div class="inp" style="height:auto;min-height:3.75rem;align-items:flex-start;padding-top:.4rem;flex-wrap:wrap;gap:.25rem">Owner: <span class="tok f">Owner</span> Due: <span class="tok f">Due</span> From <span class="tok f">Link to row</span></div>
+           <label>Labels</label><div class="inp">bug, from-opencanvas</div>
+          </div>
+          <div class="hint">Sends only the fields named above to api.github.com. Runs as you (the rule's owner).</div>
+         </div></div>
+         <div class="rstep"><span></span><div><button class="btn" aria-haspopup="true"><svg class="i"><use href="#i-plus"/></svg>Add an action</button></div></div>
+        </div>
+       </div>
+       <div class="dlg-f"><button class="btn"><svg class="i sm"><use href="#i-play"/></svg>Test run</button><span class="sp"></span><button class="btn">Cancel</button><button class="btn pri">Save rule</button></div>
+      </aside>
+      <div class="pop" style="left:20rem;top:24rem;width:21rem">
+       <h4>Then…</h4>
+       <div class="mi"><svg class="i"><use href="#i-settings"/></svg>Set a field</div>
+       <div class="mi"><svg class="i"><use href="#i-arrow-ur"/></svg>Move the row</div>
+       <div class="mi"><svg class="i"><use href="#i-at"/></svg>Notify</div>
+       <div class="mi"><svg class="i"><use href="#i-globe"/></svg>Call a URL</div>
+       <div class="sepl"></div>
+       <h4 style="display:flex;gap:.375rem;align-items:center"><svg class="i sm"><use href="#i-puzzle"/></svg>GitHub issues</h4>
+       <div class="mi on"><svg class="i"><use href="#i-plus"/></svg>Create issue</div>
+       <div class="mi"><svg class="i"><use href="#i-message"/></svg>Comment on issue</div>
+       <h4 style="display:flex;gap:.375rem;align-items:center"><svg class="i sm"><use href="#i-puzzle"/></svg>Post to chat channel</h4>
+       <div class="mi"><svg class="i"><use href="#i-message"/></svg>Post a message</div>
+      </div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note">The <em>Then</em> menu is shown open over the page to show where plugin actions sit. Tokens are the canvas's own field names (as in the approved v0.3 automation page). The sentence under the form is generated from the action's declared origins and the fields used, so people see exactly what leaves the canvas.</p>
+  </figure>
+  <figure class="fr" id="3b"><figcaption><b>3b</b>Run history with a plugin action<span class="dim">880 × 300</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="880" style="width:55rem;height:18.75rem;background:var(--app)">
+    <div class="banner warn"><svg class="i"><use href="#i-alert"/></svg>Paused: “Post to chat channel” was turned off by your admin on Nov 27. Other rules are not affected.<span class="sp"></span><button class="btn">Change action</button></div>
+    <div class="log">
+     <div class="lr"><small>Today 10:42</small><span><b style="font-weight:500">File a bug for blocked tasks</b> · Fix CSV export timeout → <a class="cl" href="#3b" style="color:var(--accent)">acme-docs/platform#2184</a></span><span class="pill p-green">Ran</span></div>
+     <div class="lr"><small>Today 09:15</small><span><b style="font-weight:500">File a bug for blocked tasks</b> · Rate limit the public API</span><span class="pill p-gray">Skipped: no “bug” tag</span></div>
+     <div class="lr"><small>Yesterday</small><span><b style="font-weight:500">File a bug for blocked tasks</b> · GitHub answered 403: the connection lost access to acme-docs/platform</span><span class="pill p-red">Failed</span></div>
+     <div class="lr"><small>Nov 27</small><span><b style="font-weight:500">Tell #platform when done</b> · Post to chat channel was turned off</span><span class="pill p-amber">Paused</span></div>
+    </div>
+   </div></div>
+   <p class="note">Plugin results (the issue link) are what the action returned, shown as text; the plugin cannot write into the run log. A turned-off or revoked plugin pauses only the rules that use it, with the reason.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f4">
+  <h2>4 · Commands and connections <code>EXT-03 · EXT-07</code></h2>
+  <p>Commands from plugins appear in the command palette and, when the plugin says so, in the <code>/</code> menu and the block menu. Integration providers add connections people manage themselves, and can turn pasted links into previews.</p>
+  <div class="rv-row">
+   <figure class="fr" id="4a" style="flex:1 1 30rem"><figcaption><b>4a</b>Command palette with plugin commands<span class="dim">680 × 420</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="680" style="width:42.5rem;height:26.25rem;background:var(--panel)">
+     <div class="pop pal" style="left:2.5rem;top:1.5rem" role="dialog" aria-label="Commands">
+      <div class="inp f" style="margin:.125rem .125rem .5rem"><svg class="i sm"><use href="#i-command"/></svg><input aria-label="Search commands" value="read"></div>
+      <div class="mi on"><svg class="i"><use href="#i-clock"/></svg><span class="tx">Reading time for this canvas<br><small>Reading time · community publisher</small></span><kbd>⌥ R</kbd></div>
+      <div class="mi"><svg class="i"><use href="#i-eye"/></svg><span class="tx">Read aloud<br><small>Built in</small></span></div>
+      <div class="mi" aria-disabled="true"><svg class="i"><use href="#i-globe"/></svg><span class="tx">Translate selection<br><small>Lingo Bridge · blocked by your organisation's network policy</small></span><svg class="i sm" style="margin-left:auto"><use href="#i-ban"/></svg></div>
+      <div class="sepl"></div>
+      <div class="hint" style="padding:.25rem .5rem">Plugin shortcuts never replace built-in ones. Change them in Settings › Shortcuts.</div>
+     </div>
+    </div></div>
+   </figure>
+   <figure class="fr" id="4b" style="flex:1 1 30rem"><figcaption><b>4b</b>A pasted issue link becomes a preview<span class="dim">680 × 420</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="680" style="width:42.5rem;height:26.25rem;background:var(--app)">
+     <div class="doc" style="padding:1.5rem 2rem"><div class="doc-in">
+      <p>Root cause and fix are tracked here:</p>
+      <div class="unf">
+       <div class="h"><span class="ptile sm p-gray"><svg class="i sm"><use href="#i-git"/></svg></span>acme-docs/platform · issue #2184<span class="sp"></span><span class="pub ver"><svg class="i"><use href="#i-puzzle"/></svg>GitHub issues</span></div>
+       <b>CSV export times out above 50,000 rows</b>
+       <div class="m"><span class="pill p-green">Open</span><span>Assigned to Marco Bianchi</span><span>· 6 comments</span><span>· updated 2 h ago</span></div>
+      </div>
+      <p class="hint">Previews are fetched with the connection of the person who pasted the link and saved in the canvas as a link card (title and state), refreshed when someone with a connection opens it. Readers without the plugin see the plain link.</p>
+     </div></div>
+    </div></div>
+   </figure>
+  </div>
+  <figure class="fr" id="4c"><figcaption><b>4c</b>Settings › Connections<span class="dim">1040 × 460</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1040" style="width:65rem;height:28.75rem;background:var(--app)">
+    <div class="set">
+     <nav aria-label="Settings"><a href="#4c"><svg class="i sm"><use href="#i-settings"/></svg>General</a><a href="#4c"><svg class="i sm"><use href="#i-command"/></svg>Shortcuts</a><a href="#4c" class="on"><svg class="i sm"><use href="#i-key"/></svg>Connections</a><a href="#4c"><svg class="i sm"><use href="#i-puzzle"/></svg>Plugins</a></nav>
+     <main>
+      <h3>Connections</h3>
+      <p class="hint" style="margin:0 0 .5rem">Accounts plugins use on your behalf. Tokens are stored encrypted on the OpenCanvas server and are only given to the plugin's server part, never to the page.</p>
+      <div class="crow"><span class="ptile p-gray"><svg class="i"><use href="#i-git"/></svg></span><span class="tx"><b>GitHub · jweber</b><small>Yours · used by GitHub issues (Kestrel Dev) · last used today 10:42 · scopes: issues (read, write)</small></span><button class="btn">Reconnect</button><button class="btn dan">Disconnect</button></div>
+      <div class="crow"><span class="ptile p-gray"><svg class="i"><use href="#i-git"/></svg></span><span class="tx"><b>GitHub · Acme Docs organisation</b><small>Shared by your admin, Noor Haddad · used by automation rules · you cannot see its token</small></span><span class="pill p-blue">Organisation</span></div>
+      <div class="crow"><span class="ptile p-teal"><svg class="i"><use href="#i-message"/></svg></span><span class="tx"><b>Chat webhook · #platform</b><small>Organisation · Post to chat channel (Relay Works) · turned off by your admin Nov 27</small></span><span class="pill p-amber">Plugin off</span></div>
+      <div style="margin-top:.75rem"><button class="btn sec"><svg class="i"><use href="#i-plus"/></svg>Connect an account</button></div>
+     </main>
+    </div>
+   </div></div>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f5">
+  <h2>5 · Phone <code>below 45em</code></h2>
+  <p>Plugin views get the phone width and a <code>compact</code> flag; Swimlanes shows one lane at a time with chips to switch. Plugin importers appear in the phone import sheet with the same notes.</p>
+  <div class="rv-row">
+   <figure class="fr phf" style="flex:0 1 auto"><figcaption><b>5a</b>Swimlanes on a phone</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span><svg class="i sm"><use href="#i-globe"/></svg></span></div>
+     <div class="ph-hd"><button class="btn ic" aria-label="Back"><svg class="i"><use href="#i-left"/></svg></button><h3>Sprint 42 backlog</h3><button class="btn ic" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button></div>
+     <div class="chips" role="group" aria-label="Lane"><button aria-pressed="true">Jonas · 3</button><button aria-pressed="false">Lea · 3</button><button aria-pressed="false">Marco · 4</button><button aria-pressed="false">Noor · 2</button></div>
+     <div class="ph-b"><div class="sl-m">
+      <div class="lane-h"><span class="pill p-gray">Backlog</span><span class="hint">1</span></div>
+      <div class="card"><span class="t">Audit log export for admins</span><span class="m">Dec 4 · 8 h</span></div>
+      <div class="lane-h"><span class="pill p-blue">In progress</span><span class="hint">1 of 3</span></div>
+      <div class="card"><span class="t">Ship SSO login for the admin console</span><span class="m">Nov 28 · 16 h</span></div>
+      <div class="lane-h"><span class="pill p-amber">In review</span><span class="hint">0</span></div>
+      <div class="lane-h"><span class="pill p-green">Done</span><span class="hint">1</span></div>
+      <div class="card"><span class="t">SAML metadata upload</span><span class="m">Nov 21 · 6 h</span></div>
+     </div></div>
+     <div class="ph-dock"><button><svg class="i"><use href="#i-table"/></svg>Table</button><button class="on"><svg class="i"><use href="#i-layout"/></svg>Lanes</button><button><svg class="i"><use href="#i-plus"/></svg>New</button></div>
+    </div></div></div>
+    <p class="note">Long-press a card for “Move to…” (status and owner); no drag needed.</p>
+   </figure>
+   <figure class="fr phf" style="flex:0 1 auto"><figcaption><b>5b</b>Import sheet</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span><svg class="i sm"><use href="#i-globe"/></svg></span></div>
+     <div style="flex:1;background:var(--sunk);opacity:.6"></div>
+     <div class="sheet">
+      <div class="grab"></div>
+      <div style="font-weight:600;margin:0 .25rem .5rem">Import into a new canvas</div>
+      <div class="mi" style="min-height:2.75rem"><svg class="i"><use href="#i-file"/></svg>Markdown or HTML</div>
+      <div class="mi" style="min-height:2.75rem"><svg class="i"><use href="#i-table"/></svg>Spreadsheet or CSV</div>
+      <div class="mi" style="min-height:2.75rem"><svg class="i"><use href="#i-network"/></svg>Diagram</div>
+      <div class="grp-t" style="margin:.5rem .5rem .25rem"><svg class="i sm"><use href="#i-puzzle"/></svg>From plugins</div>
+      <div class="mi" style="min-height:3.25rem"><span class="ptile sm p-blue"><svg class="i sm"><use href="#i-layers"/></svg></span><span style="display:grid"><span>Confluence space export</span><small>Fieldnote · runs on the server</small></span></div>
+      <div class="mi" style="min-height:3.25rem"><span class="ptile sm p-purple"><svg class="i sm"><use href="#i-git"/></svg></span><span style="display:grid"><span>Obsidian vault</span><small>Fieldnote · runs on the server</small></span></div>
+     </div>
+    </div></div></div>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f6">
+  <h2>6 · When a plugin is missing, off or revoked</h2>
+  <p>Every extension point has a defined fallback, so a canvas never breaks because of a plugin.</p>
+  <figure class="fr"><div class="fr-vp" style="border-radius:.75rem;box-shadow:0 0 0 1px var(--rv-line)"><table class="kbd-t">
+   <tr><th>Extension point</th><th>Without the plugin (not installed, turned off, revoked, older editor)</th></tr>
+   <tr><td>Database view</td><td>Shown as a table with a note; settings kept; exports write a table</td></tr>
+   <tr><td>Command</td><td>Not in the palette or menus; its shortcut does nothing</td></tr>
+   <tr><td>Importer / exporter</td><td>The format is not offered (admins see why); API answers 404 <code>FORMAT_UNAVAILABLE</code></td></tr>
+   <tr><td>Automation action</td><td>Rules that use it pause with the reason; other rules run</td></tr>
+   <tr><td>Integration provider</td><td>Link cards show their saved title and state, read only; plain links stay links; connections are kept until the person removes them or the plugin is uninstalled</td></tr>
+   <tr><td>Block</td><td>The saved copy (fallback) read only, data kept (ADR-059)</td></tr>
+  </table></div></figure>
+ </section>
+
+
+</main>
+<script>
+// Review page: theme and fit. Frames keep their real size (data-w, CSS px at a 16 px root) and are scaled to the column when "Fit to width" is on.
+(function(){
+  var root=document.documentElement, KEY='v05-ext-theme', FKEY='v05-ext-fit';
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function sysDark(){return window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches}
+  function applyTheme(t){root.setAttribute('data-theme',t);document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-theme-btn')===t))})}
+  applyTheme(get(KEY)||(sysDark()?'dark':'light'));
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.addEventListener('click',function(){var t=b.getAttribute('data-theme-btn');applyTheme(t);set(KEY,t)})});
+  var fit=get(FKEY)!=='0';
+  function layout(){
+    var wrap=document.querySelector('.rv-wrap');var cs=getComputedStyle(wrap);var avail=wrap.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+    var rem=parseFloat(getComputedStyle(root).fontSize)/16;
+    document.querySelectorAll('.fr-in[data-w]').forEach(function(el){
+      var w=+el.getAttribute('data-w')*rem;var need=w+(el.classList.contains('phone')?44*rem:0);
+      el.style.zoom=fit?Math.min(1,avail/need):1;
+    });
+    document.querySelectorAll('[data-fit]').forEach(function(b){b.setAttribute('aria-pressed',String((b.getAttribute('data-fit')==='1')===fit))});
+  }
+  document.querySelectorAll('[data-fit]').forEach(function(b){b.addEventListener('click',function(){fit=b.getAttribute('data-fit')==='1';set(FKEY,fit?'1':'0');layout()})});
+  window.addEventListener('resize',layout);layout();
+})();
+</script>
+<script>
+(function(){
+// 1b: Swimlanes, live (the plugin's own UI in the prototype)
+var app=document.getElementById('slapp'); if(!app) return;
+var grid=app.querySelector('[data-grid]'), live=app.parentElement.querySelector('[data-live]');
+var COLS=['Backlog','In progress','In review','Done'], PILL={'Backlog':'p-gray','In progress':'p-blue','In review':'p-amber','Done':'p-green'};
+var LANES=[{k:'jw',n:'Jonas Weber',c:'--u0',cap:3},{k:'lf',n:'Lea Fischer',c:'--u3',cap:3},{k:'mb',n:'Marco Bianchi',c:'--u2',cap:3},{k:'nh',n:'Noor Haddad',c:'--u4',cap:3}];
+var R=[
+ {id:1,t:'Ship SSO login for the admin console',o:'jw',s:'In progress',d:'Nov 28',e:16},
+ {id:2,t:'Audit log export for admins',o:'jw',s:'Backlog',d:'Dec 4',e:8},
+ {id:3,t:'SAML metadata upload',o:'jw',s:'Done',d:'Nov 21',e:6},
+ {id:4,t:'SSO settings page: test-connection step',o:'lf',s:'In review',d:'Nov 27',e:10},
+ {id:5,t:'Guest policy for SSO workspaces',o:'lf',s:'Backlog',d:'Dec 6',e:4},
+ {id:6,t:'Threat model: IdP-initiated login',o:'lf',s:'In progress',d:'Dec 1',e:6},
+ {id:7,t:'Fix CSV export timeout',o:'mb',s:'In review',d:'Nov 26',e:12},
+ {id:8,t:'Stream exports above 50,000 rows',o:'mb',s:'In progress',d:'Dec 2',e:14},
+ {id:9,t:'Export progress in the UI',o:'mb',s:'In progress',d:'Dec 3',e:6},
+ {id:10,t:'Retry exports after a timeout',o:'mb',s:'Backlog',d:'Dec 8',e:5},
+ {id:11,t:'Rate limit the public API',o:'nh',s:'Done',d:'Nov 21',e:8},
+ {id:12,t:'Status page for exports',o:'nh',s:'Backlog',d:'Dec 9',e:3}
+];
+var dragId=null, focusId=null;
+function render(){
+ var h='<div class="sl-hd" role="columnheader">Owner</div>'+COLS.map(function(c){return '<div class="sl-hd" role="columnheader"><span class="pill '+PILL[c]+'">'+c+'</span></div>'}).join('');
+ LANES.forEach(function(l){
+  var mine=R.filter(function(r){return r.o===l.k});
+  var hrs=mine.filter(function(r){return r.s!=='Done'}).reduce(function(a,r){return a+r.e},0);
+  h+='<div class="sl-ln" role="rowheader"><span class="av s" style="background:var('+l.c+')">'+l.n.split(' ').map(function(x){return x[0]}).join('')+'</span><span>'+l.n+'<small>'+mine.length+' tasks · '+hrs+' h open</small></span></div>';
+  COLS.forEach(function(c){
+   var cards=mine.filter(function(r){return r.s===c});
+   var wip=c==='In progress'?'<span class="wip'+(cards.length>l.cap?' over':'')+'">'+cards.length+' / '+l.cap+'</span>':'';
+   h+='<div class="sl-cell" role="gridcell" data-o="'+l.k+'" data-s="'+c+'">'+(wip?'<div class="m" style="display:flex;font-size:.6875rem;color:var(--fg-3)">'+wip+'</div>':'')+cards.map(function(r){
+    return '<div class="card" draggable="true" tabindex="0" data-id="'+r.id+'" aria-label="'+r.t+', '+l.n+', '+c+', due '+r.d+'"><span class="t">'+r.t+'</span><span class="m"><svg class="i sm"><use href="#i-cal"/></svg>'+r.d+' · '+r.e+' h</span></div>'}).join('')+'</div>';
+  });
+ });
+ grid.innerHTML=h;
+ if(focusId){var f=grid.querySelector('[data-id="'+focusId+'"]');if(f)f.focus()}
+}
+function move(r,o,s){
+ if(r.o===o&&r.s===s)return;
+ var from=[r.o,r.s];r.o=o;r.s=s;render();
+ var l=LANES.find(function(x){return x.k===o});
+ var msg=r.t+' moved to '+l.n+', '+s+'.';
+ live.textContent=msg;
+ var n=R.filter(function(x){return x.o===o&&x.s==='In progress'}).length;
+ if(s==='In progress'&&n>l.cap) live.textContent=msg+' '+l.n.split(' ')[0]+' now has '+n+' tasks in progress (limit '+l.cap+').';
+ var t=document.querySelector('[id="1b"] [data-toast]'); if(t){t.hidden=false;t.innerHTML='<svg class="i" style="color:var(--green-fg)"><use href="#i-circle-check"/></svg>Owner and Status changed by you <button class="btn" data-u>Undo</button>';t.querySelector('[data-u]').onclick=function(){r.o=from[0];r.s=from[1];render();t.hidden=true;live.textContent='Undone.'};clearTimeout(move.t);move.t=setTimeout(function(){t.hidden=true},4000)}
+}
+grid.addEventListener('dragstart',function(e){var c=e.target.closest('.card');if(!c)return;dragId=+c.dataset.id;c.classList.add('drag');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(dragId))}catch(x){}});
+grid.addEventListener('dragend',function(){dragId=null;grid.querySelectorAll('.drag,.over').forEach(function(x){x.classList.remove('drag','over')})});
+grid.addEventListener('dragover',function(e){var cell=e.target.closest('.sl-cell');if(!cell||dragId==null)return;e.preventDefault();grid.querySelectorAll('.over').forEach(function(x){if(x!==cell)x.classList.remove('over')});cell.classList.add('over')});
+grid.addEventListener('drop',function(e){var cell=e.target.closest('.sl-cell');if(!cell||dragId==null)return;e.preventDefault();var r=R.find(function(x){return x.id===dragId});move(r,cell.dataset.o,cell.dataset.s)});
+grid.addEventListener('keydown',function(e){
+ var c=e.target.closest('.card');if(!c||!e.shiftKey)return;var r=R.find(function(x){return x.id===+c.dataset.id});
+ var ci=COLS.indexOf(r.s), li=LANES.findIndex(function(x){return x.k===r.o});
+ if(e.key==='ArrowRight'&&ci<COLS.length-1)ci++;else if(e.key==='ArrowLeft'&&ci>0)ci--;else if(e.key==='ArrowDown'&&li<LANES.length-1)li++;else if(e.key==='ArrowUp'&&li>0)li--;else return;
+ e.preventDefault();focusId=r.id;move(r,LANES[li].k,COLS[ci]);
+});
+render();
+})();
+(function(){
+// 2a: import dialog, live
+var app=document.getElementById('impapp'); if(!app) return;
+var pick=app.querySelector('[data-step="pick"]'), run=app.querySelector('[data-step="run"]'), go=app.querySelector('[data-go]'), cancel=app.querySelector('[data-cancel]');
+var NAMES={md:'Markdown or HTML',csv:'Spreadsheet or CSV',dgm:'Diagram',conf:'Confluence space export',obs:'Obsidian vault'};
+var chosen='conf', timer=null;
+app.querySelectorAll('.fmt button[data-f]').forEach(function(b){b.addEventListener('click',function(){chosen=b.dataset.f;app.querySelectorAll('.fmt button[data-f]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});
+ var d=app.querySelector('.drop small');d.textContent='38.4 MB · '+NAMES[chosen];
+ app.querySelector('.drop b').textContent=chosen==='conf'?'Engineering-space-export.zip':chosen==='obs'?'team-notes-vault.zip':chosen==='csv'?'q4-budget.xlsx':chosen==='dgm'?'architecture.drawio':'meeting-notes.md';
+ var p=pick.querySelector('p.hint');p.style.visibility=b.dataset.plugin?'visible':'hidden'})});
+function reset(){clearInterval(timer);go.dataset.done='';pick.hidden=false;run.hidden=true;go.hidden=false;go.innerHTML='<svg class="i sm"><use href="#i-upload"/></svg>Import';cancel.textContent='Cancel'}
+go.addEventListener('click',function(){
+ if(go.dataset.done){go.dataset.done='';reset();return}
+ pick.hidden=true;run.hidden=false;go.hidden=true;cancel.textContent='Stop';
+ run.querySelector('[data-runname]').textContent=NAMES[chosen];
+ var plugin=chosen==='conf'||chosen==='obs';
+ var steps=plugin?['Checking the file','Running Fieldnote\'s importer in the sandbox','Checking the result (blocks, links, databases)','Creating the canvas']:['Reading the file','Checking the result','Creating the canvas'];
+ var ul=run.querySelector('[data-steps]'), bar=run.querySelector('[data-bar]'), pct=run.querySelector('[data-pct]'), rep=run.querySelector('[data-report]');
+ rep.hidden=true;var p=0;
+ function draw(){var k=Math.min(steps.length,Math.floor(p/100*steps.length));ul.innerHTML=steps.map(function(s,i){return '<li class="'+(i<k?'done':'')+'"><svg class="i sm"><use href="#'+(i<k?'i-check':i===k?'i-refresh':'i-clock')+'"/></svg>'+s+'</li>'}).join('');bar.style.width=p+'%';pct.textContent=Math.round(p)+'%'}
+ draw();
+ timer=setInterval(function(){p=Math.min(100,p+7+Math.random()*9);draw();if(p>=100){clearInterval(timer);
+  rep.hidden=false;if(!plugin)rep.querySelector('.rep').innerHTML='<b>Imported into a new canvas.</b> Nothing was dropped.';
+  go.hidden=false;go.dataset.done='1';go.innerHTML='<svg class="i sm"><use href="#i-arrow-ur"/></svg>Open canvas';cancel.textContent='Import another'}},350);
+});
+cancel.addEventListener('click',reset);
+})();
+</script>
+</body></html>
