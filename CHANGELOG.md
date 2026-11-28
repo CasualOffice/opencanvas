@@ -9,6 +9,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- OpenCanvas Workspace back end (`crates/oc-workspace`, binary `opencanvas-workspace`, ADR-085): the Workspace host and the
+  engine in one process on one port, talking only through the host contract. First-run setup with a six-word setup code
+  (skipped from the same machine), accounts with Argon2id passwords, sessions, CSRF checks and lockout, invite links,
+  admin reset links, workspaces, folders, teams, typed files, sharing with inheritance, organisation and public links
+  (admin-configurable: allowed, highest role, expiry, password), search from `search.json`, Trash with retention and
+  version history with thinning. Every access change is sent to the engine's role API, so open sessions follow at once.
 - OpenCanvas Workspace (docs/40, ADR-085): files are typed (owner decision 8). Design only for now: the host contract gains
   `file.type` and app mode (docs/05 §2f: a spreadsheet, whiteboard or database file opens full screen as its one root
   block), and the Workspace prototype adds frames 13a–13j (the New menu with types, typed icons, the spreadsheet, whiteboard

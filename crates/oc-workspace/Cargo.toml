@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 CasualOffice
+
+# OpenCanvas Workspace by CasualOffice (ADR-085, docs/40): a first-party host. It owns people,
+# sign-in, workspaces, files, access, search, trash and history, and talks to the engine only
+# through the docs/05 host contract. The engine library is used by the launcher alone
+# (src/main.rs), never by the host code in src/lib.rs and its modules.
+
+[package]
+name = "oc-workspace"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "opencanvas-workspace"
+path = "src/main.rs"
+
+[dependencies]
+# Launcher only: the engine in the same process (one image, one port).
+oc-server = { path = "../oc-server" }
+anyhow.workspace = true
+axum.workspace = true
+base64.workspace = true
+futures.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hmac.workspace = true
+jsonwebtoken.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+ulid.workspace = true
+zip.workspace = true
+# Passwords (ADR-085 §5): Argon2id, RustCrypto, pure Rust.
+argon2 = { version = "0.5", default-features = false, features = ["alloc", "password-hash"] }
+tikv-jemallocator = { version = "0.6.1", optional = true }
+
+[features]
+default = ["jemalloc"]
+jemalloc = ["dep:tikv-jemallocator", "oc-server/jemalloc"]
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

@@ -368,21 +368,21 @@ ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row
 |---|---|---|---|
 | WS-01 | Prototype, ADR-085 and this plan approved by the owner | Done | Draft: docs/40, ADR-085, docs/prototypes/workspace/workspace.html; awaiting the owner; S |
 | WS-25 | Workspace benchmark on the user base: sign-in, home, search and launch latency and memory at rest with many users, workspaces and canvases; a large-room canvas (550, up to 1,000) through the Workspace; published with the hardware and load mix | Todo | M; owner decision 2026-11-28 |
-| WS-01b | Prototype frames 13a–13j for typed files (owner decision 8): New menu with types, typed icons in Home, search and trash, spreadsheet, whiteboard and database files full screen, phone versions, a sheet block in a document versus a spreadsheet file | Todo | Frames drafted in docs/prototypes/workspace/workspace.html §13; awaiting the owner (ADR-011); S |
-| WS-02 | Contract gap spike: list every docs/05 call the Workspace needs, confirm thumbnails, presence counts, title on save, link visitors (guest identity in the JWT), role API on revoke; contract additions written into docs/05 | Todo | M; depends on WS-01 |
-| WS-03 | `crates/oc-workspace` skeleton, config (`WS_*`), migrations (SQLite, MySQL/MariaDB), single-binary launcher with the engine as a library, loopback host registration, generated secrets | Todo | L; depends on WS-02 |
+| WS-01b | Prototype frames 13a–13j for typed files (owner decision 8): New menu with types, typed icons in Home, search and trash, spreadsheet, whiteboard and database files full screen, phone versions, a sheet block in a document versus a spreadsheet file | Done | Approved by the owner 2026-11-28 (frames 13a–13j in docs/prototypes/workspace/workspace.html §13); UI follow-ups pending from the owner; S |
+| WS-02 | Contract gap spike: list every docs/05 call the Workspace needs, confirm thumbnails, presence counts, title on save, link visitors (guest identity in the JWT), role API on revoke; contract additions written into docs/05 | Done | docs/40 §11: every call checked and run end to end; gaps: hosts reload, presence call (both for WS-12); M |
+| WS-03 | `crates/oc-workspace` skeleton, config (`WS_*`), migrations (SQLite, MySQL/MariaDB), single-binary launcher with the engine as a library, loopback host registration, generated secrets | Done | crates/oc-workspace, `opencanvas-workspace` (one port, engine as a library, loopback host entry, generated 0600 secrets), SQLite and MySQL migrations, downgrade refused; MySQL path not yet run in CI; L |
 | WS-04 | Shared host conformance suite (from the sample host's checks), run against both hosts in CI | Todo | M; depends on WS-03 |
-| WS-05 | Accounts: passwords (Argon2id), sessions, CSRF, rate limits, lockout, reset links, CLI admin commands | Todo | M; depends on WS-03 |
+| WS-05 | Accounts: passwords (Argon2id), sessions, CSRF, rate limits, lockout, reset links, CLI admin commands | Done | Argon2id, server sessions, CSRF header + Origin, per-account and per-address lockout, admin reset links, `admin reset-password`; M |
 | WS-06 | Passkeys (WebAuthn registration, sign-in, conditional UI) | Todo | M; depends on WS-05 |
 | WS-07 | OIDC SSO (one provider, domains, JIT, SSO-only with break-glass Owner) | Backlog | M; depends on WS-05 |
-| WS-08 | Invites (organisation, workspace, canvas), links without SMTP, optional SMTP sending | Todo | M; depends on WS-05 |
-| WS-09 | First-run setup with setup code, loopback exception, checklist | Todo | S; depends on WS-05 |
-| WS-10 | Model: organisation, workspaces, teams, folders, canvases, roles, effective-access resolver (property-tested) | Todo | L; depends on WS-03 |
-| WS-11 | Host callbacks: load, save (with `If-Match`), copies, assets, members, access, mentions, templates, create file; storage on disk and S3 | Todo | L; depends on WS-10 |
+| WS-08 | Invites (organisation, workspace, canvas), links without SMTP, optional SMTP sending | In progress | Links (org, workspace, canvas; single use; 7 days) done; SMTP sending later; M |
+| WS-09 | First-run setup with setup code, loopback exception, checklist | Done | Setup code (6 words, in the log), loopback exception, Welcome workspace; the checklist is UI (WS-16); S |
+| WS-10 | Model: organisation, workspaces, teams, folders, canvases, roles, effective-access resolver (property-tested) | Done | Model and resolver on an in-memory snapshot; property tests (monotonic grants, instance rules, no access without a grant); L |
+| WS-11 | Host callbacks: load, save (with `If-Match`), copies, assets, members, access, mentions, templates, create file; storage on disk and S3 | In progress | All callbacks done on local disk (tests/flows.rs, tests/engine.rs); S3 storage to do; L |
 | WS-12 | Thumbnails and presence on cards (per WS-02 result) | Todo | M; depends on WS-11 |
-| WS-13 | Sharing and links (people, teams, organisation link, public view link), revocation through the role API | Todo | M; depends on WS-10, WS-11 |
-| WS-14 | Search index from `search.json` (FTS5, FULLTEXT), access filter, `GET /search` callback | Todo | M; depends on WS-11 |
-| WS-15 | Trash with retention job; version history callbacks with thinning | Todo | M; depends on WS-11 |
+| WS-13 | Sharing and links (people, teams, organisation link, public view link), revocation through the role API | Done | People, teams, folder inheritance, org link, public links (admin on/off, max role, expiry, password); role API on every change; M |
+| WS-14 | Search index from `search.json` (FTS5, FULLTEXT), access filter, `GET /search` callback | Done | FTS5 index from search.json, access filter at query time, `GET /search` callback; MySQL FULLTEXT path not yet run in CI; M |
+| WS-15 | Trash with retention job; version history callbacks with thinning | Done | Trash (folders with content, restore to the original place or the top), hourly retention job, version thinning; M |
 | WS-16 | Web app shell: sign-in, sign-up, setup, Home (grid, list, tree, favourites, recent), templates dialog | Todo | L; depends on WS-01, WS-05, WS-10 |
 | WS-17 | Canvas page chrome around the editor (breadcrumb, presence, share, history, more menu); phone layout | Todo | M; depends on WS-16 |
 | WS-18 | Share dialog, search page and ⌘K, trash page, notifications bell | Todo | M; depends on WS-13, WS-14, WS-15 |
