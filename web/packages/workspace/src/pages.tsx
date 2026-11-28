@@ -801,7 +801,7 @@ export function SettingsPage() {
           {pg === "signin" && (
             <>
               <h3>Sign-in</h3>
-              <p className="hint">E-mail and password with invite links. Passkeys are next; single sign-on is on the roadmap.</p>
+              <p className="hint">E-mail and password or a passkey, with invite links. Single sign-on is on the roadmap.</p>
               <div className="sec">
                 <R b="Open sign-up domains" sub="People with these e-mail domains may sign up without an invite. Comma separated; empty = invite only.">
                   <div className="inp">

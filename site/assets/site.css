@@ -372,6 +372,9 @@ figcaption { margin-top: 0.875rem; color: var(--os-muted); font-size: 0.8125rem;
 .facts span:not(.cell-icon) { color: var(--os-muted); font-size: 0.875rem; line-height: 1.55; }
 .facts--light { margin-top: 1.5rem; }
 .facts--light li { background: var(--os-bg); }
+.facts--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ws-run { justify-self: stretch; margin-top: 0.5rem; }
+.ws-run pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 60em) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 40em) {
   .facts { grid-template-columns: minmax(0, 1fr); }

@@ -1,0 +1,126 @@
+<!--meta {"title": "OpenCanvas Workspace", "seo_title": "OpenCanvas Workspace: self-hosted docs, sheets and whiteboards", "description": "A self-hosted workspace for documents, spreadsheets, whiteboards and databases in one Docker command, with sharing, search, passkeys and an admin area.", "nav": "workspace"} -->
+<!-- WS-24: the Workspace's page. Commands and limits match docs/42-WORKSPACE-GUIDE.md and
+     README.md; keep them in step. -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas Workspace · by CasualOffice</span>
+  <h1>Your team's workspace, in one Docker command.</h1>
+  <p class="lede">OpenCanvas Workspace is the complete, self-hosted app around the OpenCanvas engine: documents, spreadsheets, whiteboards and databases, with accounts, sharing, search, trash, version history and an admin area. No app of your own to build, no integration: run one container and invite your team.</p>
+  <div class="terminal ws-run">
+    <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Run it</div>
+<pre><code>docker run -p 8080:8080 -v opencanvas:/data ghcr.io/casualoffice/opencanvas-workspace</code></pre>
+  </div>
+  <p class="hero-note">Then open <code>http://localhost:8080</code> and create the first admin. From another machine, enter the one-time setup code printed in the container log. Free and open source under Apache-2.0; linux/amd64 and linux/arm64.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}docs/workspace.html">Read the guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="#compose">Production with compose</a>
+    <a class="btn btn-secondary" href="#limits">Current limits</a>
+  </div>
+</div></section>
+
+<section class="section-tight" aria-labelledby="files-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Typed files</span>
+      <h2 id="files-h">Four kinds of file, each in its own editor.</h2>
+      <p data-answer>New offers a Document, a Spreadsheet, a Whiteboard / Diagram or a Database. Each opens straight into its full-screen editor and has its own icon in Home, search and trash. Everything saves on its own, and everyone in a file sees each other's cursors.</p>
+    </div>
+    <ul class="facts facts--light facts--two" aria-label="File types">
+      <li class="reveal"><span class="cell-icon">{{icon:file-text}}</span><strong>Documents</strong><span>The canvas editor: text, checklists, tables, images and embeds, with any block inside, from a sheet to a board.</span>{{claim:source|The canvas editor: text, tables, images, and any block (a sheet, a board, a database) inside|docs/42-WORKSPACE-GUIDE.md}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:layers}}</span><strong>Spreadsheets</strong><span>A full-screen grid with a formula bar, sheet tabs, about 120 functions, and .xlsx import and export.</span>{{claim:source|about 120 functions|README.md}}</li>
+      <li class="reveal reveal-d2"><span class="cell-icon">{{icon:pen-line}}</span><strong>Whiteboards and diagrams</strong><span>Pen, sticky notes, shapes, attached arrows and shape libraries, with draw.io and Excalidraw import.</span>{{claim:source|Pen, sticky notes, shapes, attached arrows, shape libraries, connector routing and layout, with draw.io and Excalidraw import|README.md}}</li>
+      <li class="reveal reveal-d1"><span class="cell-icon">{{icon:database}}</span><strong>Databases</strong><span>Typed fields with table, board, calendar, gallery and Timeline views, formulas, relations and rollups.</span>{{claim:source|The database on its views: table, board, calendar, gallery, Timeline|docs/42-WORKSPACE-GUIDE.md}}</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight section-alt" aria-labelledby="team-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">For the whole team</span>
+      <h2 id="team-h">Everything around the files.</h2>
+    </div>
+    <ul class="services reveal">
+      <li>{{icon:users:18}}<span><b>Sharing</b>People, teams or a whole workspace, as Full access, Can edit, Can comment or Can view; revoking closes open sessions at once</span></li>
+      <li>{{icon:link:18}}<span><b>Public links</b>Anyone with the link, if the admin allows it, with a maximum role, an expiry and an optional password</span></li>
+      <li>{{icon:search:18}}<span><b>Search</b>Titles and text of every file, from ⌘K, filtered to what each person may open</span></li>
+      <li>{{icon:undo-2:18}}<span><b>Trash and history</b>Deleted files kept 30 days; every save for a day, then thinned, named versions kept</span></li>
+      <li>{{icon:fingerprint:18}}<span><b>Passkeys</b>Sign in with Touch ID, Windows Hello or a security key, or a password; invites are links</span></li>
+      <li>{{icon:shield-check:18}}<span><b>Admin</b>Members, teams, invites, branding, sign-in rules, link policy, retention and backups</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section-tight" id="compose" aria-labelledby="compose-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Self-host</span>
+      <h2 id="compose-h">One container to try it, compose for production.</h2>
+      <p>The single container keeps everything in the <code>/data</code> volume, on SQLite, with its secrets generated on first start. For production, the same image runs as one Workspace and two engine nodes behind nginx, with MariaDB and Redis.</p>
+    </div>
+    <div class="duo">
+      <div class="duo-cell reveal">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Behind your HTTPS proxy</div>
+<pre><code>docker run -d --name opencanvas \
+  --restart unless-stopped \
+  -p 8080:8080 -v opencanvas:/data \
+  -e WS_PUBLIC_URL=https://canvas.example.com \
+  -e WS_TRUST_PROXY=1 \
+  ghcr.io/casualoffice/opencanvas-workspace</code></pre>
+        </div>
+      </div>
+      <div class="duo-cell reveal reveal-d1">
+        <div class="terminal">
+          <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Compose: Workspace, two engines, MariaDB, Redis</div>
+<pre><code><span class="c-cmt"># from a clone of the repository</span>
+cp deploy/workspace/.env.example deploy/workspace/.env
+<span class="c-cmt"># fill in the secrets, then</span>
+docker compose -f deploy/workspace/compose.yml \
+  --env-file deploy/workspace/.env up -d</code></pre>
+        </div>
+      </div>
+    </div>
+    <p class="cta-row cta-row--after reveal"><a class="btn btn-secondary" href="{{root}}docs/workspace.html#10-configuration">Every WS_* setting<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="{{root}}docs/workspace.html#8-backups">Backups and upgrades<span class="btn-icon">{{icon:arrow-right:16}}</span></a></p>
+  </div>
+</section>
+
+<section class="section-tight" id="limits" aria-labelledby="limits-h">
+  <div class="wrap">
+    <div class="limits reveal">
+      <h2 id="limits-h">{{icon:triangle-alert:18}}What it does not do yet</h2>
+      <ul>
+        <li><strong>No single sign-on yet.</strong> OIDC SSO is on the backlog. Sign-in is passwords, passkeys and invite links.</li>
+        <li><strong>E-mail is not sent yet.</strong> Invites, mentions and password resets are links you copy and send yourself.</li>
+        <li><strong>Backups are manual.</strong> <em>Back up now</em> in Settings, or copy the volume; no schedule or restore command yet.</li>
+        <li><strong>Files are stored on the volume.</strong> S3-compatible storage is not there yet.</li>
+        <li><strong>Early release.</strong> One organisation per deployment; best-effort support and no production SLA.</li>
+      </ul>
+      <p>Every item is a row in the project's tracker, and the <a href="{{root}}roadmap.html">roadmap</a> is generated from it.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/workspace.html">Workspace guide</a>.</p></div>
+  <div class="faq">
+    <details><summary>How is the Workspace different from the OpenCanvas engine?{{icon:chevron-down}}</summary><div data-answer><p>The engine is what you embed in your own application, which keeps the users, the permissions and the files. The Workspace is a complete application built on the engine through the same public contract, for teams that have no application to embed it in. Both are in the same repository and share version numbers.</p></div></details>
+    <details><summary>Where is my data stored?{{icon:chevron-down}}</summary><div data-answer><p>In the <code>/data</code> volume on your own machine: a SQLite database, the files, backups and the generated secrets. With the compose file, the databases are in MariaDB. Nothing is sent anywhere else, and the optional AI assistant is off unless the operator configures a model server.</p></div></details>
+    <details><summary>How do I back it up?{{icon:chevron-down}}</summary><div data-answer><p>Use Back up now in the admin settings, or stop the container and copy the volume. Keep the <code>secrets</code> folder with the backup: without it, saved sessions cannot be read. Scheduled backups and a restore command are planned.</p></div></details>
+    <details><summary>Can people outside the organisation open a file?{{icon:chevron-down}}</summary><div data-answer><p>Yes, if an admin allows public links. A public link has the highest role the admin permits, and can have an expiry and a password. Guests are another option: they see only what is shared with them.</p></div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas Workspace is open source under the Apache-2.0 licence. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+<section class="section" aria-labelledby="closing-h">
+  <div class="wrap">
+    <div class="closing">
+      <h2 id="closing-h">Run it on your own machine.</h2>
+      <p class="lede">One command, one port, one volume. The guide covers setup, invites, passkeys, sharing, public links, backups, upgrades and configuration.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="{{root}}docs/workspace.html">Workspace guide<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+        <a class="btn btn-secondary" href="{{root}}app/#demo">Try the editor demo</a>
+        <a class="btn btn-secondary" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      </div>
+    </div>
+  </div>
+</section>

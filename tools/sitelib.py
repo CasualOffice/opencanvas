@@ -181,6 +181,7 @@ def shot(name: str, alt: str, root: str, eager: bool = False) -> str:
 
 NAV = [
     ("features", "Product", "index.html#product"),
+    ("workspace", "Workspace", "workspace.html"),
     ("integrate", "Integrate", "docs/integration.html"),
     ("api", "API", "api/index.html"),
     ("docs", "Docs", "docs/index.html"),
@@ -194,6 +195,7 @@ NAV = [
 DOCS = [
     ("index", "Documentation", "Start", None),
     ("getting-started", "Getting started", "Start", "README.md"),
+    ("workspace", "OpenCanvas Workspace guide", "Start", "docs/42-WORKSPACE-GUIDE.md"),
     ("release-040", "Release notes 0.4.0", "Start", "docs/37-RELEASE-v0.4.0.md"),
     ("release-030", "Release notes 0.3.0", "Start", "docs/35-RELEASE-v0.3.0.md"),
     ("release-020", "Release notes 0.2.0", "Start", "docs/32-RELEASE-v0.2.0.md"),
@@ -224,6 +226,7 @@ DOCS = [
 # the page, everything else to GitHub.
 DOC_PAGES = {
     "README.md": "getting-started",
+    "docs/42-WORKSPACE-GUIDE.md": "workspace",
     "docs/37-RELEASE-v0.4.0.md": "release-040",
     "docs/35-RELEASE-v0.3.0.md": "release-030",
     "docs/32-RELEASE-v0.2.0.md": "release-020",
@@ -293,9 +296,9 @@ def footer(root: str) -> str:
       <p><strong>{BRAND}.</strong> The open-source collaborative workspace engine you embed, under <span class="nowrap">{LICENCE}</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
       <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
     </div>
-    {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Collaborative editor", "solutions/collaborative-editor.html"), ("Meeting notes", "solutions/meeting-notes.html"), ("Project management", "solutions/project-management.html"), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
+    {col("Product", [("Overview", "index.html#product"), ("OpenCanvas Workspace", "workspace.html"), ("Try the demo", DEMO), ("Collaborative editor", "solutions/collaborative-editor.html"), ("Meeting notes", "solutions/meeting-notes.html"), ("Project management", "solutions/project-management.html"), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
     {col("Compare", [(f"{n} alternative", f"alternatives/{n.lower()}.html") for n in COMPARED])}
-    {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("API reference", "api/index.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
+    {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Workspace guide", "docs/workspace.html"), ("Integration guide", "docs/integration.html"), ("API reference", "api/index.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
     {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html"), ("Facts", "docs/facts.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
   </div>
@@ -581,6 +584,7 @@ def available_docs() -> list[tuple[str, str, str, str | None]]:
 # is ("Jitsi Meet" is the Jitsi Meet integration). Used as is when they name OpenCanvas.
 DOC_SEO_TITLES = {
     "getting-started": "Getting started with OpenCanvas",
+    "workspace": "OpenCanvas Workspace guide: install, share, back up",
     "faq": "OpenCanvas FAQ: status, licence, data, sign-in and AI",
     "facts": "OpenCanvas facts: version, licence, stack and capacity",
     "integration": "Integration guide: embed OpenCanvas in your app",

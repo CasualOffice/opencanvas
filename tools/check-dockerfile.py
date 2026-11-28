@@ -8,8 +8,9 @@ builds locally but fails in the release image (v0.4.0 and v0.4.1: lucide-react i
 """
 import pathlib, sys
 root = pathlib.Path(__file__).resolve().parent.parent
-docker = (root / "deploy/Dockerfile").read_text()
-missing = [d.name for d in sorted((root / "web/packages").iterdir())
-           if (d / "package.json").exists() and f"COPY web/packages/{d.name}/package.json" not in docker]
-if missing:
-    sys.exit(f"check-dockerfile: deploy/Dockerfile does not copy the manifest of: {', '.join(missing)}")
+for rel in ("deploy/Dockerfile", "deploy/workspace/Dockerfile"):
+    docker = (root / rel).read_text()
+    missing = [d.name for d in sorted((root / "web/packages").iterdir())
+               if (d / "package.json").exists() and f"COPY web/packages/{d.name}/package.json" not in docker]
+    if missing:
+        sys.exit(f"check-dockerfile: {rel} does not copy the manifest of: {', '.join(missing)}")
