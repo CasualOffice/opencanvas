@@ -128,3 +128,36 @@ test("Q9: the demo loads every module (the test server sends .mjs and .wasm with
   await page.waitForTimeout(500);
   expect(errors.filter((e) => /module script|MIME/i.test(e))).toEqual([]);
 });
+
+test("BRD-38: auto-layout Down on the demo board puts the frame, Room and Autosave in layers", async ({ page }) => {
+  test.setTimeout(120_000);
+  const board = await openDemo(page, srv.url);
+  await click(page, board.getByRole("button", { name: "Diagram", exact: true }));
+  const dg = page.getByRole("dialog", { name: /^Diagram: / });
+  await expect(dg).toBeVisible();
+  await page.keyboard.press("Shift+L");
+  const pop = dg.getByRole("dialog", { name: "Auto-layout" });
+  await click(page, pop.getByRole("button", { name: "Preview" }));
+  const bar = dg.getByRole("region", { name: "Layout preview" });
+  await click(page, bar.getByRole("button", { name: "Apply" }));
+  await expect(bar).toBeHidden();
+  const box = async (text: string) => (await dg.locator("g[data-s]").filter({ hasText: text }).first().boundingBox())!;
+  const frame = await box("HOST APP"), room = await box("Room on owner"), auto = await box("Autosave");
+  expect(room.y).toBeGreaterThanOrEqual(frame.y + frame.height - 1);
+  expect(auto.y).toBeGreaterThanOrEqual(room.y + room.height - 1);
+});
+
+test("BRD-39: Shift+wheel pans the full-screen board sideways", async ({ page }) => {
+  const board = await openDemo(page, srv.url);
+  await click(page, board.getByRole("button", { name: "Full screen" }));
+  const full = page.locator(".ocbd-full");
+  await expect(full).toBeVisible();
+  const t = async () => (await full.locator("svg.ocbd-svg > g").first().getAttribute("transform"))!.match(/translate\(([-\d.]+) ([-\d.]+)\)/)!.slice(1).map(Number);
+  await page.mouse.move(640, 400);
+  const [x0, y0] = await t();
+  await page.keyboard.down("Shift");
+  await page.mouse.wheel(0, 120);
+  await page.keyboard.up("Shift");
+  await expect.poll(async () => (await t())[0]).toBeCloseTo(x0 - 120, 0);
+  expect((await t())[1]).toBeCloseTo(y0, 0);
+});

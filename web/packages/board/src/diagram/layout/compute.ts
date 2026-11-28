@@ -162,7 +162,11 @@ export function computeLayout(dagre: DagreLike, shapes: Shape[], opts: LayoutOpt
   const parent = (s: Shape) => parentOf(s) ?? framed.get(s.id) ?? null;
   const containers = containerIds(shapes);
   for (const p of framed.values()) containers.add(p);
-  const nodes = scoped(shapes, opts.scope, parent).sort(byId);
+  // BRD-38: in reading order (top to bottom, then left to right; for "right", left to right first),
+  // so where connectors make a loop the layers start at the shape drawn first in that order, not
+  // at whichever id sorts first (ids are random: the same board laid out differently each time).
+  const pos = (n: Shape) => { const b = boxOf(n); return opts.direction === "right" ? [b[0], b[1]] : [b[1], b[0]]; };
+  const nodes = scoped(shapes, opts.scope, parent).sort((a, b) => { const p = pos(a), q = pos(b); return p[0] - q[0] || p[1] - q[1] || byId(a, b); });
   const inScope = new Set(nodes.map((s) => s.id));
   const gaps = GAPS[opts.spacing];
   const g = new dagre.graphlib.Graph({ compound: opts.keepContainers, multigraph: true });
@@ -204,12 +208,25 @@ export function computeLayout(dagre: DagreLike, shapes: Shape[], opts: LayoutOpt
     .map((a) => ({ id: a.id, v: a.start?.shapeId ?? ends.get(a.id)?.start?.shapeId, w: a.end?.shapeId ?? ends.get(a.id)?.end?.shapeId }))
     .filter((e): e is { id: string; v: string; w: string } => !!e.v && !!e.w)
     .sort(byId);
+  // Dagre can't rank edges that touch a compound node. BRD-38: such an edge is ranked through the
+  // container's first plain shape inside it instead, so a connector to or from a frame still
+  // orders the layers (before, the frame and what it holds were left out of the ranking and
+  // "Down" laid the demo board out sideways). An empty container's edges stay unranked.
+  const byNode = new Map(nodes.map((n) => [n.id, n]));
+  const leafOf = (cid: string): string | undefined => {
+    for (const n of nodes) {
+      if (compound(n)) continue;
+      for (let p = parent(n), hops = 0; p && hops < 16; p = byNode.has(p) ? parent(byNode.get(p)!) : null, hops++) if (p === cid) return n.id;
+    }
+    return undefined;
+  };
+  const rankAs = (id: string) => (compound(byNode.get(id)!) ? leafOf(id) : id);
   for (const { id, v, w } of edges) {
     if (!inScope.has(v) || !inScope.has(w)) continue;
     connectors.push(id);
-    // Dagre can't rank edges that touch a compound node; such connectors are kept but not ranked.
-    if (v === w || compound(nodes.find((n) => n.id === v)!) || compound(nodes.find((n) => n.id === w)!)) continue;
-    g.setEdge(v, w, {}, id);
+    const a = rankAs(v), b = rankAs(w);
+    if (!a || !b || a === b) continue;
+    g.setEdge(a, b, {}, id);
   }
   dagre.layout(g);
 
