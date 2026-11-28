@@ -11,7 +11,6 @@ import type { Role } from "@opencanvas/ui";
 import { Ic } from "../icons";
 import { bridge } from "../lib/bridge";
 import { createThread, newThreadId } from "../lib/comments";
-import { postToHost } from "../lib/host";
 import { keyLabel } from "../lib/keys";
 import { toast } from "../lib/store";
 import { Popover, type Anchor } from "../components/overlay";
@@ -23,7 +22,8 @@ import { newBlockId } from "./blockId";
 import { addColumn, MAX_COLUMNS, MIN_COLUMNS, setColumnTitles } from "./columns";
 import { FILE_EVENT, fileDisplay, fileKind, hasBytes } from "./files/kind";
 import { EXT_ACTION, blockTitle, type ExtAttrs } from "../ext/model";
-import { canOfferMake, copyBlockLink, makeStore } from "../live/state";
+import { canOfferMake, makeStore } from "../live/state";
+import { copyLinkTo } from "./blockLink";
 
 // ---------- comments from the editor ----------
 
@@ -212,20 +212,9 @@ export function BlockMenu({ editor, anchor, node, pos, onClose, onComment }: { e
           run(() => {
             const id = ensureBlockId(editor, pos, node);
             if (!id) return toast("This block can't be linked", { icon: "link" });
-            // The host owns URLs (docs/05 §4): it gets the block id and builds its own link;
-            // `Action_ScrollToBlock` brings a reader back here.
-            // `UI_BlockLink` (docs/05 §4); `UI_Block_Link` is the name hosts built against first.
-            const values = { fileId: bridge.session?.file?.id ?? null, blockId: id };
-            postToHost("UI_BlockLink", values);
-            postToHost("UI_Block_Link", values);
-            const url = new URL(window.location.href);
-            url.hash = "";
-            const link = bridge.session?.demo ? `${url.toString()}#demo&block=${id}` : `#block=${id}`;
-            // With the editor's marker, so pasting it in another canvas offers a reference (1d).
-            const fileId = bridge.session?.file?.id;
-            if (fileId && !bridge.session?.demo) void copyBlockLink({ fileId, blockId: id }, link);
-            else void navigator.clipboard?.writeText(link).catch(() => undefined);
-            toast(bridge.session?.demo ? "Link to block copied" : "Block link copied. Paste it in a comment or a message.", { icon: "link" });
+            // The host owns URLs (docs/05 §4): it gets the block id (`UI_BlockLink`) and builds
+            // its own link; `Action_ScrollToBlock` brings a reader back here.
+            copyLinkTo(id);
           })
         }
       >

@@ -176,3 +176,186 @@ describe("frames on the board", { timeout: 60_000 }, () => {
     expect(el.ownerDocument.querySelector('[aria-label="Presenting frames"]')).toBeNull();
   });
 });
+
+// The BRD-21 leftovers (prototype 3a, 5a; decisions 1 and 6): Wrap in frame (⇧F and the context
+// menu), Delete frame and contents, the drop-target highlight, Copy link to shape.
+describe("frame leftovers", { timeout: 60_000 }, () => {
+  const menu = (el: Element) => el.querySelector<HTMLElement>('[role="menu"].ocbd-ctx');
+  const items = (m: Element) => [...m.querySelectorAll<HTMLElement>('[role^="menuitem"]')].map((b) => b.querySelector(".ocbd-mil")?.textContent ?? "");
+  const item = (m: Element, name: string) => [...m.querySelectorAll<HTMLElement>('[role^="menuitem"]')].find((b) => b.querySelector(".ocbd-mil")?.textContent === name)!;
+  const rightClick = (t: Element, x = 150, y = 120) => act(() => void t.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2 })));
+  function board(seed: (doc: Y.Doc, id: string) => void, o: Partial<BlockEnv> = {}) {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    seed(doc, id);
+    const el = mount(<BoardBlock doc={doc} boardId={id} env={env(o)} />);
+    return { doc, id, el, root: el.querySelector<HTMLElement>(".ocbd")!, svg: el.querySelector("svg.ocbd-svg")! };
+  }
+  const say = (el: Element) => el.querySelector(".ocbd-sr[role=status]")?.textContent;
+  const order = (doc: Y.Doc, id: string) => (getBoardMap(doc, id)!.get("order") as Y.Array<string>).toArray();
+
+  it("⇧F wraps the selection in a new frame 24 units around it, behind it, selected, one Undo step", () => {
+    const b = board((d, id) => {
+      addShape(d, id, R("a", 100, 100));
+      addShape(d, id, R("b", 300, 200));
+      addShape(d, id, R("c", 900, 900));
+    });
+    ptr(b.el.querySelector('[data-s="a"] rect')!, "pointerdown", 150, 130);
+    ptr(b.svg, "pointerup", 150, 130);
+    ptr(b.el.querySelector('[data-s="b"] rect')!, "pointerdown", 350, 230, { shiftKey: true });
+    ptr(b.svg, "pointerup", 350, 230, { shiftKey: true });
+    key(b.root, "F", { shiftKey: true });
+    const f = shapes(b.doc, b.id).find((s) => s.kind === CONTAINER)!;
+    expect(f).toMatchObject({ label: "Frame 1", x: 76, y: 76, w: 348, h: 208 });
+    expect(one(b.doc, b.id, "a")?.props?.parent).toBe(f.id);
+    expect(one(b.doc, b.id, "b")?.props?.parent).toBe(f.id);
+    expect(one(b.doc, b.id, "c")?.props?.parent).toBeUndefined();
+    expect(order(b.doc, b.id).indexOf(f.id)).toBeLessThan(order(b.doc, b.id).indexOf("a"));
+    expect(say(b.el)).toBe("Wrapped in Frame 1");
+    expect(b.el.querySelector(`[data-frame-name="${f.id}"] text`)?.getAttribute("font-weight")).toBe("600");
+    // One Undo step takes the frame and the membership away.
+    key(b.root, "z", { ctrlKey: true });
+    expect(shapes(b.doc, b.id).some((s) => s.kind === CONTAINER)).toBe(false);
+    expect(one(b.doc, b.id, "a")?.props?.parent).toBeUndefined();
+  });
+
+  it("a wrapped frame nests in the frame its shapes were in, drawn above it", () => {
+    const b = board((d, id) => {
+      addShape(d, id, F("outer", 0, 0, 1000, 800));
+      addShape(d, id, R("a", 100, 100, { props: { parent: "outer" } }));
+    });
+    ptr(b.el.querySelector('[data-s="a"] rect')!, "pointerdown", 150, 130);
+    ptr(b.svg, "pointerup", 150, 130);
+    key(b.root, "F", { shiftKey: true });
+    const f = shapes(b.doc, b.id).find((s) => s.kind === CONTAINER && s.id !== "outer")!;
+    expect(f.props?.parent).toBe("outer");
+    expect(one(b.doc, b.id, "a")?.props?.parent).toBe(f.id);
+    expect(order(b.doc, b.id).indexOf("outer")).toBeLessThan(order(b.doc, b.id).indexOf(f.id));
+  });
+
+  it("the shape menu offers Wrap in frame (⇧F); a frame's menu offers Zoom to frame and Delete frame and contents", () => {
+    const b = board((d, id) => {
+      addShape(d, id, F("f", 0, 0, 400, 300, { label: "Sprint" }));
+      addShape(d, id, R("a", 20, 20, { props: { parent: "f" } }));
+      addShape(d, id, F("g", 150, 150, 200, 120, { props: { parent: "f" } }));
+      addShape(d, id, R("b", 170, 170, { props: { parent: "g" } }));
+      addShape(d, id, R("out", 600, 0));
+      addShape(d, id, { id: "c1", type: "arrow", pts: [[0, 0], [1, 1]], start: { shapeId: "a", anchor: "right" }, end: { shapeId: "out", anchor: "left" } } as Shape);
+      addShape(d, id, R("lk", 30, 200, { props: { parent: "f" }, locked: true }));
+    });
+    rightClick(b.el.querySelector('[data-s="out"] rect')!, 650, 30);
+    let m = menu(b.el)!;
+    expect(items(m)).toContain("Wrap in frame");
+    expect(item(m, "Wrap in frame").getAttribute("aria-keyshortcuts")).toBe("Shift+F");
+    key(m, "Escape");
+    rightClick(b.el.querySelector('[data-frame-name="f"] text')!, 10, -10);
+    m = menu(b.el)!;
+    const names = items(m);
+    expect(names).toContain("Zoom to frame");
+    expect(names).not.toContain("Wrap in frame");
+    expect(names).toContain("Delete frame");
+    expect(names).toContain("Delete frame and contents");
+    act(() => item(m, "Delete frame and contents").click());
+    // The frame, its members through the nested frame, and the connector bound to one of them go;
+    // a locked member stays and leaves the frame.
+    expect(shapes(b.doc, b.id).map((s) => s.id).sort()).toEqual(["lk", "out"]);
+    expect(one(b.doc, b.id, "lk")?.props?.parent).toBeUndefined();
+    expect(say(b.el)).toBe("Deleted Sprint and 4 shapes in it");
+  });
+
+  it("while a shape is dragged over a frame, that frame is highlighted until it is dropped", () => {
+    const b = board((d, id) => {
+      addShape(d, id, F("f", 0, 0, 400, 300, { label: "Sprint" }));
+      addShape(d, id, R("a", 600, 100));
+    });
+    const drop = () => b.el.querySelector("[data-drop-frame]");
+    ptr(b.el.querySelector('[data-s="a"] rect')!, "pointerdown", 650, 130);
+    ptr(b.svg, "pointermove", 600, 130);
+    expect(drop()).toBeNull();
+    ptr(b.svg, "pointermove", 250, 130);
+    expect(drop()?.getAttribute("data-drop-frame")).toBe("f");
+    ptr(b.svg, "pointerup", 250, 130);
+    expect(drop()).toBeNull();
+    expect(one(b.doc, b.id, "a")?.props?.parent).toBe("f");
+    // A frame being moved highlights nothing.
+    ptr(b.el.querySelector('[data-frame-name="f"] rect')!, "pointerdown", 10, -10);
+    ptr(b.svg, "pointermove", 300, 50);
+    expect(drop()).toBeNull();
+    ptr(b.svg, "pointerup", 300, 50);
+  });
+
+  it("Copy link to shape asks the host hook for this shape; without the hook it is not offered", () => {
+    const asked: string[] = [];
+    const b = board((d, id) => addShape(d, id, R("a", 100, 100)), { linkToShape: (sid) => void asked.push(sid) });
+    rightClick(b.el.querySelector('[data-s="a"] rect')!);
+    act(() => item(menu(b.el)!, "Copy link to shape").click());
+    expect(asked).toEqual(["a"]);
+    cleanup?.();
+    const c = board((d, id) => addShape(d, id, R("a", 100, 100)));
+    rightClick(c.el.querySelector('[data-s="a"] rect')!);
+    expect(items(menu(c.el)!)).not.toContain("Copy link to shape");
+  });
+
+  it("a link to a shape opens the board at it: selected and in view", () => {
+    const b = board((d, id) => {
+      addShape(d, id, R("a", 100, 100));
+      addShape(d, id, R("far", 5000, 4000, { text: "Far away" }));
+    });
+    act(() => void window.dispatchEvent(new CustomEvent("oc-board-shape", { detail: { shapeId: "far" } })));
+    expect(say(b.el)).toContain("Far away");
+    const t = b.el.querySelector("svg.ocbd-svg > g[transform]")!.getAttribute("transform")!;
+    const [, tx, , z] = t.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/)!.map(Number);
+    // Its centre is in the middle of the view (jsdom's view is 0 wide).
+    expect(Math.abs(5050 * z + tx)).toBeLessThan(2);
+    expect(b.el.querySelector('[data-s="far"]')).toBeTruthy();
+  });
+
+  it("a board that mounts with #…&shape=<id> in the URL opens at that shape, once", () => {
+    const W = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!, H = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight")!;
+    Object.defineProperty(Element.prototype, "clientWidth", { configurable: true, get: () => 800 });
+    Object.defineProperty(Element.prototype, "clientHeight", { configurable: true, get: () => 600 });
+    window.location.hash = "#demo&block=b_1&shape=far2";
+    try {
+      const b = board((d, id) => {
+        addShape(d, id, R("a", 100, 100));
+        addShape(d, id, R("far2", 5000, 4000, { text: "Far away" }));
+      });
+      expect(say(b.el)).toContain("Far away");
+      const t = b.el.querySelector("svg.ocbd-svg > g[transform]")!.getAttribute("transform")!;
+      const [, tx, , z] = t.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/)!.map(Number);
+      expect(Math.abs(5050 * z + tx - 400)).toBeLessThan(2);
+      // A second board on the page (or a remount) does not jump there again.
+      cleanup?.();
+      const c = board((d, id) => addShape(d, id, R("far2", 5000, 4000, { text: "Far away" })));
+      expect(say(c.el) ?? "").not.toContain("Showing");
+    } finally {
+      Object.defineProperty(Element.prototype, "clientWidth", W);
+      Object.defineProperty(Element.prototype, "clientHeight", H);
+      window.location.hash = "";
+    }
+  });
+});
+
+describe("the shortcut list (?) has the whiteboard UX keys", () => {
+  it("lists frames, wrap, present, rotate, style and copy as PNG", async () => {
+    const { KEYMAP } = await import("../menu");
+    const rows = new Map(KEYMAP.flatMap(([, r]) => r.map(([k, d]) => [k, d] as const)));
+    expect(rows.get("F")).toBe("Frame");
+    expect(rows.get("Shift+F")).toBe("Wrap in frame");
+    expect(rows.get("Shift+P")).toBe("Present frames");
+    expect(rows.get("Shift+R / Alt+Shift+R")).toMatch(/Rotate/);
+    expect(rows.get("Alt+S")).toBe("Style panel");
+    expect(rows.get("Shift+Mod+C")).toBe("Copy as PNG");
+    expect(rows.get("Enter")).toMatch(/rename a frame/);
+  });
+  it("Enter on a selected frame renames it", () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "blank");
+    addShape(doc, id, F("f", 0, 0, 400, 300, { label: "Sprint" }));
+    const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
+    ptr(el.querySelector('[data-frame-name="f"] rect')!, "pointerdown", 10, -10);
+    ptr(el.querySelector("svg.ocbd-svg")!, "pointerup", 10, -10);
+    key(el.querySelector(".ocbd")!, "Enter");
+    expect(el.querySelector<HTMLInputElement>('input[aria-label="Frame name"]')?.value).toBe("Sprint");
+  });
+});

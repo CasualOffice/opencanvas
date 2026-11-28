@@ -84,6 +84,72 @@ test("decision 12: Ravi's named cursor and avatar; Follow tracks his view until 
   await expect(board.locator(".ocbd-follow")).toHaveCount(0);
 });
 
+test("BRD-21 leftovers: ⇧F wraps, the drop target is outlined, Copy link to shape, Delete frame and contents", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const board = await openDemo(page, srv.url);
+  const bb = (await board.boundingBox())!;
+  // Two rectangles in the empty area right of the demo flow.
+  const x0 = bb.x + bb.width - 300, y0 = bb.y + bb.height - 230;
+  const made: string[] = [];
+  for (const [x, y] of [[x0, y0], [x0 + 160, y0 + 30]]) {
+    const had = await ids(board);
+    await tool(board, "Rectangle");
+    await page.mouse.click(x, y);
+    await expect.poll(async () => (await ids(board)).length).toBe(had.length + 1);
+    made.push((await ids(board)).find((v) => !had.includes(v))!);
+    await page.keyboard.press("Escape");
+  }
+  const [a, b] = made;
+  // Select both with the mouse and wrap them: ⇧F.
+  const ra = await boxOf(board, a), rb = await boxOf(board, b);
+  await page.mouse.click(ra.x + ra.width / 2, ra.y + ra.height / 2);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("Shift+F");
+  await expect(board.locator(".ocbd-sr[role=status]")).toHaveText("Wrapped in Frame 1");
+  const name = board.locator("[data-frame-name]").last();
+  await expect(name).toHaveText("Frame 1");
+  const fid = (await name.getAttribute("data-frame-name"))!;
+  // Drag b out of the frame, then back in: while it is over the frame the frame is outlined.
+  await page.keyboard.press("Escape");
+  const drop = board.locator(`[data-drop-frame="${fid}"]`);
+  const fb = (await board.locator(`g[data-frame="${fid}"] rect`).first().boundingBox())!;
+  let r = await boxOf(board, b);
+  const [cx, cy] = [r.x + r.width / 2, r.y + r.height / 2];
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - 60, cy, { steps: 6 });
+  await page.mouse.move(fb.x - 160, cy, { steps: 8 });
+  await expect(drop).toHaveCount(0);
+  await page.mouse.up();
+  await expect(board.locator(".ocbd-sr[role=status]")).toHaveText("Removed from Frame 1");
+  r = await boxOf(board, b);
+  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(r.x + r.width / 2 + 60, cy, { steps: 6 });
+  await page.mouse.move(cx, cy, { steps: 8 });
+  await expect(drop).toHaveCount(1);
+  await page.mouse.up();
+  await expect(drop).toHaveCount(0);
+  await expect(board.locator(".ocbd-sr[role=status]")).toHaveText("Added to Frame 1");
+  // Copy link to shape (right-click): the demo's own link names the board block and the shape.
+  r = await boxOf(board, a);
+  await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2, { button: "right" });
+  await board.getByRole("menuitem", { name: "Copy link to shape" }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(new RegExp(`#demo&block=[A-Za-z0-9_-]+&shape=${a}$`));
+  await expect(page.getByText("Link to shape copied")).toBeVisible();
+  // Right-click the frame's name: Delete frame and contents takes it and both rectangles.
+  await page.keyboard.press("Escape");
+  // (Clicking a menu item can scroll the page to it: measure again.)
+  await name.scrollIntoViewIfNeeded();
+  const n = (await name.boundingBox())!;
+  await page.mouse.click(n.x + 10, n.y + n.height / 2, { button: "right" });
+  await board.getByRole("menuitem", { name: "Delete frame and contents" }).click();
+  await expect(board.locator(`[data-frame-name="${fid}"]`)).toHaveCount(0);
+  expect((await ids(board)).filter((v) => made.includes(v) || v === fid)).toEqual([]);
+});
+
 async function tool(board: Locator, name: string) {
   await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name, exact: true }).click();
 }

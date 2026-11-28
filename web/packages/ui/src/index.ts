@@ -120,6 +120,12 @@ export interface BlockEnv {
     chart(dbId: string): void;
     openAsSheet(dbId: string, mode: "view" | "convert"): void;
   };
+  /**
+   * Optional (BRD-21, board UX decision 1): "Copy link to shape". The editor gives each board its
+   * own: it copies the link to this block with `&shape=<shapeId>` and tells the host
+   * (`UI_BlockLink` with `shapeId`, docs/05 §4). Absent: the menu does not offer it.
+   */
+  linkToShape?: (shapeId: string) => void;
   /** Optional: what this reader may see of such a database; `"noAccess"` without access. */
   liveDb?: (fileId: string, dbId: string) => { fields: { id: string; name: string; type: string }[]; rows: { id: string; v: Record<string, unknown> }[] } | "noAccess" | null;
 }

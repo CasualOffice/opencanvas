@@ -10,7 +10,7 @@ import {
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
   Redo2, RouteOff, SendToBack, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
-  ClipboardPaste, CopyPlus, ExternalLink, Keyboard, Layers, Link2, Lock, LockOpen, RotateCw, Scissors, SlidersHorizontal, SquareDashed,
+  ClipboardPaste, CopyPlus, ExternalLink, Focus, Keyboard, Layers, Link2, Lock, LockOpen, RotateCw, Scissors, SlidersHorizontal, SquareDashed,
 } from "lucide-react";
 import { ContextMenu, KeysDialog, kbdLabel, LinkPop, type MenuEntry, type QuickAction } from "./menu";
 import { applyStyle, dashOf, fontOf, inkOf, lastFor, normDeg, opOf, rememberLast, rotates, rotOf, styled, swOf, type StyleKey } from "./style/style";
@@ -36,8 +36,8 @@ import { useFollow, usePeers } from "./presence/hooks";
 import { Avatars, Cursors, FollowBanner, ensurePresenceStyles } from "./presence/view";
 import { inkOn, viewport } from "./presence/awareness";
 import { FrameNames, FrameView } from "./frames/view";
-import { FRAME_SIZE, isFrame, membersOf } from "./frames/model";
-import { applyMembership, createFrame, releaseMembers } from "./frames/ops";
+import { FRAME_SIZE, frameAt, frameName, isFrame, membersOf } from "./frames/model";
+import { applyMembership, createFrame, deleteWithContents, releaseMembers, wrapInFrame } from "./frames/ops";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
@@ -134,6 +134,24 @@ function writeSnap(on: boolean) {
 /** Last shapes copied from any board on the page (the system clipboard carries them too). */
 let CLIP: { shapes: Shape[]; text: string; pastes: number } | null = null;
 const CLIP_ATTR = "data-oc-board";
+
+/* ------------------------------------------------------ links to shapes */
+
+/**
+ * A link to a shape (decision 1, "Copy link to shape"): `#…&block=<id>&shape=<shapeId>` opens the
+ * board that holds it at that shape, once per page; the editor also sends `oc-board-shape` (the
+ * host's `Action_ScrollToBlock` with `shapeId`).
+ */
+export const SHAPE_EVENT = "oc-board-shape";
+const SHOWN = new Set<string>();
+function linkedShape(): string | null {
+  try {
+    const v = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("shape");
+    return v && /^[A-Za-z0-9_-]{1,64}$/.test(v) && !SHOWN.has(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 /* ------------------------------------------------------------- store */
 
@@ -248,6 +266,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const presetRef = useRef<ConnectorPreset | null>(null);
   const [, setPresetState] = useState<string | null>(null);
   const hoverRef = useRef<string | null>(null);
+  /** BRD-21 (prototype 5a): the frame a moving shape would join, outlined while it is dragged. */
+  const [dropFrame, setDropFrameState] = useState<string | null>(null);
+  const dropRef = useRef<string | null>(null);
+  const setDropFrame = (id: string | null) => {
+    if (dropRef.current === id) return;
+    dropRef.current = id;
+    setDropFrameState(id);
+  };
   /** Equal-gap marks while moving (3a). */
   const [gaps, setGaps] = useState<GapMark[] | null>(null);
   const mode = dgm ? "dgm" : full ? "full" : "inline";
@@ -495,6 +521,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const W = svg.clientWidth, H = svg.clientHeight;
     if (!W || !H) return;
     fitted.current = true;
+    const want = linkedShape();
+    if (want && byId.has(want)) {
+      SHOWN.add(want);
+      return showShape(want);
+    }
     const b = contentBounds(shapes);
     if (!b) return;
     const pad = 24, bottom = 64;
@@ -538,6 +569,24 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const [x0, y0, x1, y1] = bbox(s);
     setView((v) => ({ ...v, tx: svg.clientWidth / 2 - ((x0 + x1) / 2) * v.z, ty: svg.clientHeight / 2 - ((y0 + y1) / 2) * v.z }));
   };
+
+  /** Opens the board at a shape (a link to it): selected, in view, said. */
+  const showShape = (id: string) => {
+    const s = S.current.byId.get(id);
+    if (!s) return;
+    setSel([id]);
+    fitBox(bbox(s), 1);
+    setLive(`Showing ${describeShape(s)}`);
+  };
+  useEffect(() => {
+    const on = (e: Event) => {
+      const id = (e as CustomEvent<{ shapeId?: unknown }>).detail?.shapeId;
+      if (typeof id === "string" && S.current.byId.has(id)) showShape(id);
+    };
+    window.addEventListener(SHAPE_EVENT, on);
+    return () => window.removeEventListener(SHAPE_EVENT, on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---- writes (batched per frame, one transaction) ---- */
   const flush = () => {
@@ -626,6 +675,31 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }, origin);
     setLive(ids.length === 1 ? "Deleted" : `Deleted ${ids.length} shapes`);
     setSel([]);
+  };
+  /** Wrap in frame (⇧F, prototype 3a): a new frame around the selection, which joins it. */
+  const wrapSel = () => {
+    const ids = S.current.sel.filter((id) => !S.current.byId.get(id)?.locked);
+    if (!ids.length || !S.current.edit) return;
+    um?.stopCapturing();
+    const f = wrapInFrame(doc, boardId, S.current.raw, ids, origin);
+    if (!f) return;
+    setSel([f.id]);
+    setLive(`Wrapped in ${f.name}`);
+  };
+  /** Delete frame and contents (the frame menu): its members and their connectors go too. */
+  const removeFrameAll = () => {
+    const frames = selShapes().filter(isFrame);
+    if (!frames.length || !S.current.edit) return;
+    um?.stopCapturing();
+    const n = deleteWithContents(doc, boardId, S.current.raw, frames.map((f) => f.id), origin);
+    const what = frames.length === 1 ? frameName(frames[0]) : `${frames.length} frames`;
+    setLive(n ? `Deleted ${what} and ${n === 1 ? "1 shape" : `${n} shapes`} in it` : `Deleted ${what}`);
+    setSel([]);
+  };
+  /** Copy link to shape (decision 1): the editor builds the link and tells the host. */
+  const linkShape = () => {
+    const s = selShapes()[0];
+    if (s && env.linkToShape) env.linkToShape(s.id);
   };
   /** Copies of the selection, offset, on top; the copies become the selection. */
   const paste = (src: Shape[], dx: number, dy: number) => {
@@ -804,12 +878,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const shapeMenu = (): MenuEntry[] => {
     const list = selShapes();
     const n = list.length;
-    if (!S.current.edit) return [{ label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, ...(list[0]?.link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : [])];
+    // Copy link to shape (decision 1): one shape, when the editor gives the board the hook.
+    const shapeLink: MenuEntry[] = n === 1 && env.linkToShape ? [{ label: "Copy link to shape", icon: Link2, run: linkShape }] : [];
+    if (!S.current.edit) return [{ label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, ...(list[0]?.link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : []), ...shapeLink];
     if (list.every((s) => s.locked)) {
-      return [{ label: "Unlock", icon: LockOpen, kbd: "Shift+Mod+L", run: lockSel }, { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, "-", { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink }];
+      return [{ label: "Unlock", icon: LockOpen, kbd: "Shift+Mod+L", run: lockSel }, { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, "-", { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink }, ...shapeLink];
     }
     const grouped = n > 1 && list.every((s) => s.group && s.group === list[0].group);
     const few = "Select two or more shapes", three = "Select three or more shapes";
+    const frameOnly = n === 1 && isFrame(list[0]);
     return [
       { label: "Cut", icon: Scissors, kbd: "Mod+X", run: () => (copySel(), removeSel()) },
       { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel },
@@ -844,12 +921,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       },
       "-",
       grouped ? { label: "Ungroup", icon: Ungroup, kbd: "Shift+Mod+G", run: () => groupSel(false) } : { label: "Group", icon: Group, kbd: "Mod+G", run: () => groupSel(true), disabled: n < 2, why: few },
+      // BRD-21: a frame zooms to itself; anything else can be wrapped in a new frame.
+      frameOnly ? { label: "Zoom to frame", icon: Focus, kbd: "Shift+2", run: () => fitBox(unionBox(list), 2) } : { label: "Wrap in frame", icon: Frame, kbd: "Shift+F", run: wrapSel },
       { label: "Lock", icon: Lock, kbd: "Shift+Mod+L", run: lockSel },
       "-",
       { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink },
       ...(list[0].link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : []),
+      ...shapeLink,
       "-",
-      { label: "Delete", icon: Trash2, kbd: "Delete", run: removeSel, danger: true },
+      ...(frameOnly
+        ? ([{ label: "Delete frame", icon: Trash2, kbd: "Delete", run: removeSel, danger: true }, { label: "Delete frame and contents", icon: Trash2, run: removeFrameAll, danger: true }] as MenuEntry[])
+        : [{ label: "Delete", icon: Trash2, kbd: "Delete", run: removeSel, danger: true } as MenuEntry]),
     ];
   };
   const canvasMenu = (at: Pt | null): MenuEntry[] => [
@@ -1692,6 +1774,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setGaps(null);
     }
     const set = new Set(d.ids);
+    // The frame the selection's centre is over (moving frames join by their own drop, unmarked).
+    const joins = [...d.orig.values()].filter((o) => o.type !== "arrow" && o.type !== "pen");
+    if (d.box && joins.length && !joins.some(isFrame)) setDropFrame(frameAt(S.current.shapes, (d.box[0] + d.box[2]) / 2 + dx, (d.box[1] + d.box[3]) / 2 + dy, set)?.id ?? null);
+    else setDropFrame(null);
     d.orig.forEach((o) => {
       if (o.pts) {
         const bound = [o.start, o.end].filter(Boolean) as Binding[];
@@ -1712,6 +1798,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       lp.current = null;
     }
     pointers.current.delete(e.pointerId);
+    setDropFrame(null);
     const d = drag.current;
     if (d?.kind === "pinch") {
       if (pointers.current.size < 2) drag.current = null;
@@ -2096,6 +2183,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       openStyle(!styleOpen);
       return;
     }
+    // BRD-21: ⇧F wraps the selection in a frame.
+    if (e.shiftKey && !mod && !e.altKey && (e.code === "KeyF" || k === "f") && list0().length) {
+      e.preventDefault();
+      wrapSel();
+      return;
+    }
     if (e.shiftKey && !mod && e.code === "KeyR" && list0().length) {
       e.preventDefault();
       rotBy(e.altKey ? -15 : 15);
@@ -2136,6 +2229,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         e.preventDefault();
         const c = viewCenter();
         createAt(T, c[0], c[1], { free: true });
+        return;
+      }
+      if (list.length === 1 && isFrame(list[0]) && frm.rename) {
+        // BRD-21: Enter on a frame renames it (as F2 and double-click do).
+        e.preventDefault();
+        frm.rename(list[0].id);
         return;
       }
       if (list.length === 1) {
@@ -2850,6 +2949,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ))}
           <KindMarks shapes={visible} />
           {lod ? null : <FrameNames frames={frm.frames} z={z} selected={new Set(sel)} />}
+          {dropFrame && byId.get(dropFrame) ? (() => {
+            const f = byId.get(dropFrame)!;
+            return <rect data-drop-frame={f.id} x={f.x} y={f.y} width={f.w} height={f.h} rx={6} fill="none" stroke="var(--accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" />;
+          })() : null}
           {visible.map((s) =>
             s.link ? (
               (() => {
