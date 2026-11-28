@@ -31,6 +31,20 @@ fn svg_matches_web_export() {
     assert_eq!(normalise(&svg, "ocbd-b1-"), expected);
 }
 
+#[test]
+fn style_svg_matches_web_export() {
+    // BRD-22: `fixtures/board-style.web.svg` is the web `exportBoardSvg` of `board-style.json`
+    // (stroke colour, width, dash, opacity, font, rotation, arrowheads, out-of-range values).
+    let board: Value =
+        serde_json::from_str(include_str!("fixtures/board-style.json")).expect("fixture json");
+    let doc = json!({"boards": {"b1": board}, "content": []});
+    let svg = oc_model::board::to_svg(&doc, "b1");
+    assert_eq!(
+        normalise(&svg, "ocbd-b1-"),
+        include_str!("fixtures/board-style.web.svg")
+    );
+}
+
 /// SVG of a board with these shapes, in this order (ids `s0`, `s1`, …).
 fn svg_of(shapes: &[Value]) -> String {
     let mut map = serde_json::Map::new();

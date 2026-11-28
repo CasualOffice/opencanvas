@@ -1,0 +1,16 @@
+{
+  "order": ["r1", "e1", "d1", "t1", "n1", "a1", "a2", "a3", "p1", "w1", "r2"],
+  "shapes": {
+    "r1": { "type": "rect", "x": 40, "y": 40, "w": 160, "h": 80, "text": "Rotated", "fill": "blue", "stroke": "red", "sw": 4, "dash": "dotted", "rot": 15, "op": 60, "font": "serif" },
+    "e1": { "type": "ellipse", "x": 260, "y": 40, "w": 140, "h": 80, "text": "Ink", "stroke": "ink", "sw": 1, "dash": "dashed" },
+    "d1": { "type": "diamond", "x": 440, "y": 30, "w": 140, "h": 100, "text": "Purple", "stroke": "purple" },
+    "t1": { "type": "text", "x": 40, "y": 200, "text": "Mono text", "size": 18, "stroke": "blue", "font": "mono" },
+    "n1": { "type": "sticky", "x": 260, "y": 170, "w": 150, "h": 110, "fill": "g", "text": "Tilted note", "rot": -5, "font": "serif" },
+    "a1": { "type": "arrow", "pts": [[440, 200], [600, 200]], "stroke": "green", "sw": 2, "dash": "dashed", "props": { "startArrow": "arrow", "endArrow": "triangle" } },
+    "a2": { "type": "arrow", "pts": [[440, 250], [600, 250]], "props": { "endArrow": "none" } },
+    "a3": { "type": "arrow", "pts": [[440, 290], [600, 290]], "props": { "endArrow": "circle" } },
+    "p1": { "type": "pen", "pts": [[40, 300], [80, 280], [120, 310], [160, 290]], "stroke": "pink", "sw": 2 },
+    "w1": { "type": "swatch", "x": 200, "y": 300, "w": 60, "h": 40, "fill": "amber", "rot": 20, "op": 40 },
+    "r2": { "type": "rect", "x": 300, "y": 320, "w": 100, "h": 40, "sw": 99, "op": 100, "rot": 0, "font": "comic", "dash": "wavy", "stroke": "javascript" }
+  }
+}

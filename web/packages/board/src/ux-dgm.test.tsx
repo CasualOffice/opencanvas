@@ -111,7 +111,8 @@ describe("selection toolbar", { timeout: 30_000 }, () => {
 
   it("a shape with room above keeps its toolbar above it", () => {
     const bar = selectAllOn(200);
-    expect(parseFloat(bar.style.top)).toBe(186);
+    // 14 px above the shape, plus 30 px to clear the rotation handle (BRD-22).
+    expect(parseFloat(bar.style.top)).toBe(156);
     expect(bar.dataset.place).toBeUndefined();
   });
 

@@ -234,3 +234,24 @@ describe("icon export (shared fixture with oc-model)", () => {
     expect(svg).not.toMatch(/<image|<use|href=/);
   });
 });
+
+describe("board export: style (BRD-22)", () => {
+  // `board-style.json` uses every style key, plus one shape whose values are all out of range
+  // (drawn plain). Both exporters must give `board-style.web.svg` byte for byte
+  // (`crates/oc-model/tests/board.rs`).
+  it("draws stroke colour, width, dash, opacity, font, rotation and arrowheads; Rust gives the same SVG", () => {
+    const svg = exportBoardSvg(fixtureDoc("board-style.json"), "b1");
+    if (UPDATE) writeFileSync(FIX + "board-style.web.svg", svg);
+    expect(svg).toContain(`<g transform="rotate(15 120 80)" opacity="0.6" font-family="'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif">`);
+    expect(svg).toContain(`stroke="#b12424" stroke-width="4" stroke-dasharray="0.01 9.6" stroke-linecap="round"`);
+    expect(svg).toContain(`stroke="#18181b" stroke-width="1" stroke-dasharray="3 2.5"`);
+    expect(svg).toMatch(/<g font-family="'Geist Mono', ui-monospace, Menlo, monospace"><text [^>]*fill="#2350c8">Mono text/);
+    // The green dashed connector: its own colour, both ends; the plain one without a head.
+    expect(svg).toMatch(/stroke="#17703f" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 5" marker-start="url\(#ocbd-x-ah-green-arrow\)" marker-end="url\(#ocbd-x-ah-green-triangle\)"/);
+    expect(svg).toContain('<marker id="ocbd-x-ah-green-triangle"');
+    expect(svg).toMatch(/M440 250 L600 250" stroke="#55555e" stroke-width="1.6" fill="none" stroke-linejoin="round" stroke-linecap="round"\/>/);
+    // Out-of-range values are ignored: the last rect draws as a plain one.
+    expect(svg).toContain(`<g><rect x="300" y="320" width="100" height="40" rx="12" fill="#ffffff" stroke="#55555e" stroke-width="1.5"/></g>`);
+    expect(svg).toBe(readFileSync(FIX + "board-style.web.svg", "utf8"));
+  });
+});

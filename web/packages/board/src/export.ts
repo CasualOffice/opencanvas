@@ -7,7 +7,9 @@
 // `crates/oc-model/tests/fixtures/board.web.svg` byte for byte (see export.test.ts).
 import * as Y from "yjs";
 import { exportResolvedArrows } from "./connectors";
-import { contentBounds, getBoardMap, readShapes, smooth, type Pt, type Shape } from "./model";
+import { bbox, contentBounds, getBoardMap, readShapes, smooth, type Pt, type Shape } from "./model";
+import { arrowEnds, dashAttr, inkHex, reach, swAttr, wrapStyled } from "./style/exportStyle";
+import { swOf } from "./style/style";
 import { STICKY_TEXT, stickyHeight, wrapText } from "./ops";
 import { DOC_PREFIX, ICON_KIND, ICON_LABEL, docIconUrls, iconGlyphBox, iconLabelLayout, iconPathsOf, iconProps } from "./icons";
 
@@ -135,6 +137,8 @@ function labelBox(s: Shape): { ls: string[]; mx: number; box: [number, number, n
 }
 
 let clipSeq = 0;
+/** Connector end markers the shapes being exported need beyond the shared one (BRD-22), by id. */
+let heads = new Map<string, string>();
 /** `data:` URLs of the icons added to the document being exported (DGM-17), by id. */
 let docIcons: ReadonlyMap<string, string> = new Map();
 /** An icon shape that draws a document icon: its `data:` URL. */
@@ -149,7 +153,11 @@ function shapeSvg(s: Shape): string {
   const text = s.text ?? "";
   const stroke = s.stroke === "accent" ? P.accent : P.fg2;
   const tone = pick(P.tone, s.fill);
-  const bg = tone?.[0] ?? P.app, line = tone?.[1] ?? stroke;
+  // BRD-22: `stroke` names the outline colour; `sw` and `dash` its width and pattern.
+  const ink = inkHex(s, P);
+  const bg = tone?.[0] ?? P.app, line = ink ?? tone?.[1] ?? stroke;
+  const width = (d: number) => swAttr(s, d, n);
+  const dash = (d: number) => dashAttr(s, swOf(s) ?? d, n);
   switch (s.type) {
     case "sticky":
       return `<g><rect x="${n(x + 1)}" y="${n(y + 4)}" width="${n(w)}" height="${n(h)}" rx="6" fill="#000" opacity="0.07"/><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="6" fill="${pick(P.sticky, s.fill ?? "y") ?? P.sticky.y}"/>${lines(
@@ -180,20 +188,20 @@ function shapeSvg(s: Shape): string {
           .join("")}</g>${lb ? lines(lb.lines, lb.x, lb.y, ICON_LABEL.lh, { anchor: lb.middle, size: ICON_LABEL.size, weight: 600, fill: P.fg }) : ""}</g>`;
       }
       const size = s.size ?? 14;
-      return `<g><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="12" fill="${s.dashed ? "none" : bg}" stroke="${s.dashed ? P.fg3 : line}" stroke-width="1.5"${s.dashed ? ` stroke-dasharray="6 5"` : ""}/>${
+      return `<g><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="12" fill="${s.dashed ? "none" : bg}" stroke="${s.dashed ? P.fg3 : line}" stroke-width="${width(1.5)}"${s.dashed ? ` stroke-dasharray="6 5"` : dash(1.5)}/>${
         s.label ? `<text x="${n(x + 14)}" y="${n(y + 24)}" font-size="11.5" font-weight="600" fill="${P.fg3}" letter-spacing=".6">${esc(String(s.label).toUpperCase())}</text>` : ""
       }${text ? boxText(s, x + w / 2, size, Math.round(size * 1.3), Math.max(20, w - 16)) : ""}</g>`;
     }
     case "ellipse": {
       const size = s.size ?? 15;
-      return `<g><ellipse cx="${n(x + w / 2)}" cy="${n(y + h / 2)}" rx="${n(w / 2)}" ry="${n(h / 2)}" fill="${bg}" stroke="${line}" stroke-width="1.5"/>${
+      return `<g><ellipse cx="${n(x + w / 2)}" cy="${n(y + h / 2)}" rx="${n(w / 2)}" ry="${n(h / 2)}" fill="${bg}" stroke="${line}" stroke-width="${width(1.5)}"${dash(1.5)}/>${
         text ? boxText(s, x + w / 2, size, Math.round(size * 1.27), Math.max(20, w * 0.72), 600) : ""
       }</g>`;
     }
     case "diamond": {
       const cx = x + w / 2, cy = y + h / 2;
       const size = s.size ?? 14;
-      return `<g><path d="M${n(cx)} ${n(y)} L${n(x + w)} ${n(cy)} L${n(cx)} ${n(y + h)} L${n(x)} ${n(cy)} Z" fill="${bg}" stroke="${line}" stroke-width="1.5" stroke-linejoin="round"/>${
+      return `<g><path d="M${n(cx)} ${n(y)} L${n(x + w)} ${n(cy)} L${n(cx)} ${n(y + h)} L${n(x)} ${n(cy)} Z" fill="${bg}" stroke="${line}" stroke-width="${width(1.5)}" stroke-linejoin="round"${dash(1.5)}/>${
         text ? boxText(s, cx, size, Math.round(size * 1.3), Math.max(20, w * 0.6)) : ""
       }</g>`;
     }
@@ -201,7 +209,7 @@ function shapeSvg(s: Shape): string {
       return `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="12" fill="${pick(P.swatch, s.fill ?? "accent") ?? P.swatch.accent}" opacity="0.85"/>`;
     case "text": {
       const size = s.size || 18;
-      return lines(String(text || "").split("\n"), x, y, size * 1.3, { size, weight: 600, fill: P.fg });
+      return lines(String(text || "").split("\n"), x, y, size * 1.3, { size, weight: 600, fill: ink ?? P.fg });
     }
     case "image": {
       if (!s.src) return "";
@@ -210,7 +218,8 @@ function shapeSvg(s: Shape): string {
     }
     case "arrow": {
       if (!s.pts || s.pts.length < 2) return "";
-      const path = `<path d="M${s.pts.map((q) => n(q[0]) + " " + n(q[1])).join(" L")}" stroke="${P.fg2}" stroke-width="1.6" fill="none" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ocbd-x-ah)"/>`;
+      const col = ink ?? P.fg2;
+      const path = `<path d="M${s.pts.map((q) => n(q[0]) + " " + n(q[1])).join(" L")}" stroke="${col}" stroke-width="${width(1.6)}" fill="none" stroke-linejoin="round" stroke-linecap="round"${dash(1.6)}${arrowEnds(s, col, ink ? String(s.stroke) : "d", "ocbd-x-", heads, P)}/>`;
       const lb = labelBox(s);
       if (!lb) return path;
       const [bx0, by0, bx1, by1] = lb.box;
@@ -220,7 +229,7 @@ function shapeSvg(s: Shape): string {
     }
     case "pen":
       if (!s.pts?.length) return "";
-      return `<path d="${smooth(s.pts)}" stroke="${stroke}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+      return `<path d="${smooth(s.pts)}" stroke="${ink ?? stroke}" stroke-width="${width(3)}" fill="none" stroke-linecap="round" stroke-linejoin="round"${dash(3)}/>`;
   }
   // A type this client doesn't know (a newer client, a missing plugin; ADR-045): a shape with a
   // box and no points draws as a rect with its text and label, as the Rust exporter does, so its
@@ -244,6 +253,14 @@ const prepared = (shapes: Shape[]) => exportResolvedArrows(grown(shapes));
 function boundsOf(list: Shape[]): [number, number, number, number] {
   const b = contentBounds(list);
   if (!b) return [0, 0, 320, 200];
+  for (const s of list) {
+    // A rotated shape (BRD-22) can reach past its box.
+    const r = reach(s, bbox(s));
+    b[0] = Math.min(b[0], r[0]);
+    b[1] = Math.min(b[1], r[1]);
+    b[2] = Math.max(b[2], r[2]);
+    b[3] = Math.max(b[3], r[3]);
+  }
   for (const s of list) {
     const box = labelBox(s)?.box ?? (iconPathsOf(s) || docIconOf(s) ? iconLabelLayout(s)?.box : undefined);
     if (!box) continue;
@@ -272,14 +289,16 @@ export function shapesToSvg(shapes: Shape[], icons: ReadonlyMap<string, string> 
 
 function drawSvg(shapes: Shape[], icons: ReadonlyMap<string, string>, background: boolean): string {
   docIcons = icons;
+  heads = new Map();
   const list = prepared(shapes);
   const [x0, y0, x1, y1] = boundsOf(list);
   const W = Math.max(1, Math.ceil(x1 - x0)), H = Math.max(1, Math.ceil(y1 - y0));
+  const body = list.map((s) => wrapStyled(s, shapeSvg(s), bbox(s), n)).join("");
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="${n(x0)} ${n(y0)} ${W} ${H}" font-family="${FONT}">` +
-    `<defs><marker id="ocbd-x-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="${P.fg2}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>` +
+    `<defs><marker id="ocbd-x-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="${P.fg2}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>${[...heads.values()].join("")}</defs>` +
     (background ? `<rect x="${n(x0)}" y="${n(y0)}" width="${W}" height="${H}" fill="${P.bg}"/>` : "") +
-    list.map(shapeSvg).join("") +
+    body +
     `</svg>`
   );
 }

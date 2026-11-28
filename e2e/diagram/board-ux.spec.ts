@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-// Whiteboard UX pass (board UX prototype, decisions 6, 7, 11, 12) in the production build, with a
-// real mouse: export and copy as image, frames and Present, the empty board, working together.
+// Whiteboard UX pass (BRD-17..22, docs/prototypes/board-ux-approved/board-ux.html) with a real
+// mouse and real layout, in the production build, `#demo`. Unit tests: web/packages/board/src/ux-*.test.tsx.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { openDemo, serve } from "./serve";
 
@@ -10,113 +10,205 @@ let srv: Awaited<ReturnType<typeof serve>>;
 test.beforeAll(async () => (srv = await serve()));
 test.afterAll(() => srv.close());
 
-async function menu(page: Page, board: Locator, name: string | RegExp) {
-  await board.getByRole("button", { name: "Board options" }).click();
-  await board.getByRole("menuitem", { name }).click();
+/** An empty spot on the demo board: right of the flow, above the bottom row. */
+async function emptySpot(board: Locator, dx = 0, dy = 0) {
+  const bb = (await board.boundingBox())!;
+  return { x: bb.x + bb.width - 260 + dx, y: bb.y + bb.height - 150 + dy };
+}
+const order = (board: Locator) => board.locator("g[data-s]").evaluateAll((els) => els.map((e) => e.getAttribute("data-s")));
+async function centre(l: Locator) {
+  const b = (await l.boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+async function drawRect(page: Page, x: number, y: number) {
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 60, y + 30, { steps: 3 });
+  await page.mouse.move(x + 90, y + 50, { steps: 3 });
+  await page.mouse.up();
 }
 
-test("BRD-20: export dialog downloads a dark SVG and copies a PNG", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const board = await openDemo(page, srv.url);
-  await menu(page, board, /^Export…/);
-  const dlg = board.getByRole("dialog", { name: "Export board" });
-  await expect(dlg).toBeVisible();
-  await expect(dlg.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "true");
-  await dlg.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Dark" }).click();
-  await dlg.getByRole("radiogroup", { name: "Format" }).getByRole("radio", { name: "SVG" }).click();
-  await expect(dlg.getByRole("radiogroup", { name: "Scale" })).toHaveCount(0);
-  const [dl] = await Promise.all([page.waitForEvent("download"), dlg.getByRole("button", { name: "Download" }).click()]);
-  expect(dl.suggestedFilename()).toMatch(/\.svg$/);
-  const text = await (await dl.createReadStream()).toArray().then((c) => Buffer.concat(c).toString("utf8"));
-  expect(text).toContain('fill="#141417"');
+test.describe("BRD-18: context menu", () => {
+  test("right-click a shape: the menu opens at the pointer, hover opens Arrange, Bring to front reorders", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    // A sticky on its own (the first shape is a frame with a note on top of its middle).
+    const first = board.locator("g[data-s]").filter({ hasText: "Autosave" });
+    const id = await first.getAttribute("data-s");
+    const at = await centre(first);
+    await page.mouse.click(at.x, at.y, { button: "right" });
+    const menu = board.locator('[role="menu"].ocbd-ctx').first();
+    await expect(menu).toBeVisible();
+    const mb = (await menu.boundingBox())!;
+    const bb = (await board.boundingBox())!;
+    expect(mb.x).toBeGreaterThanOrEqual(bb.x);
+    expect(mb.x + mb.width).toBeLessThanOrEqual(bb.x + bb.width + 0.5);
+    expect(mb.y + mb.height).toBeLessThanOrEqual(bb.y + bb.height + 0.5);
+    await menu.getByRole("menuitem", { name: /^Arrange/ }).hover();
+    const sub = board.getByRole("menu", { name: "Arrange" });
+    await expect(sub).toBeVisible();
+    await sub.getByRole("menuitem", { name: /Bring to front/ }).click();
+    await expect(menu).toBeHidden();
+    await expect.poll(async () => (await order(board)).at(-1)).toBe(id);
+  });
 
-  await dlg.getByRole("radiogroup", { name: "Format" }).getByRole("radio", { name: "PNG" }).click();
-  await dlg.getByRole("radiogroup", { name: "Scale" }).getByRole("radio", { name: "3×" }).click();
-  await dlg.getByRole("button", { name: "Copy PNG" }).click();
-  await expect(dlg).toHaveCount(0);
-  const types = await page.evaluate(async () => (await navigator.clipboard.read()).flatMap((i) => [...i.types]));
-  expect(types).toContain("image/png");
-  // The background choice is remembered.
-  await menu(page, board, /^Export…/);
-  await expect(board.getByRole("dialog").getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
+  test("right-click empty canvas: the canvas menu; Escape closes it, focus back on the board", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const p = await emptySpot(board);
+    await page.mouse.click(p.x, p.y, { button: "right" });
+    const menu = board.getByRole("menu", { name: "Board menu" });
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitemcheckbox", { name: /Snap to objects/ })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+    await expect(board).toBeFocused();
+  });
+
+  test("Lock from the menu: a dragged locked shape stays put", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const first = board.locator("g[data-s]").filter({ hasText: "Autosave" });
+    const at = await centre(first);
+    await page.mouse.click(at.x, at.y, { button: "right" });
+    await board.getByRole("menuitem", { name: /^Lock/ }).click();
+    const before = (await first.boundingBox())!;
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 80, at.y + 60, { steps: 6 });
+    await page.mouse.up();
+    const after = (await first.boundingBox())!;
+    expect(Math.abs(after.x - before.x)).toBeLessThan(1);
+    await expect(board.locator(".ocbd-swatch").getByRole("button", { name: "Unlock" })).toBeVisible();
+  });
 });
 
-test("decision 11: an emptied board shows hints and starters; a starter is one Undo step", async ({ page }) => {
-  const board = await openDemo(page, srv.url);
-  const bb = (await board.boundingBox())!;
-  // Empty the demo board: click empty canvas, select all, delete.
-  await page.mouse.click(bb.x + bb.width - 40, bb.y + bb.height - 120);
-  await page.keyboard.press("ControlOrMeta+a");
-  await page.keyboard.press("Delete");
-  const empty = board.locator(".ocbd-empty");
-  await expect(empty.getByRole("heading", { name: "Start your board" })).toBeVisible();
-  await expect(empty).toContainText("double-click anywhere to type");
-  await empty.getByRole("group", { name: "Start from a template" }).getByRole("button", { name: "Retrospective" }).click();
-  await expect(empty).toHaveCount(0);
-  await expect(board.locator("[data-frame-name]")).toHaveText(["Went well", "To improve", "Actions"]);
-  await board.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(board.locator("[data-frame-name]")).toHaveCount(0);
-  await expect(empty.getByRole("heading", { name: "Start your board" })).toBeVisible();
+test.describe("BRD-19: tool lock", () => {
+  test("Q keeps the Rectangle tool for several shapes; Escape releases it", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const before = await board.locator("g[data-s]").count();
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).click();
+    await page.keyboard.press("q");
+    await expect(board.getByRole("button", { name: "Keep tool active" })).toHaveAttribute("aria-pressed", "true");
+    const p = await emptySpot(board, -60, -60);
+    await drawRect(page, p.x, p.y);
+    await drawRect(page, p.x + 120, p.y);
+    await expect(board.locator("g[data-s]")).toHaveCount(before + 2);
+    await expect(board.getByRole("button", { name: "Rectangle", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
+    await expect(board.getByRole("button", { name: "Select", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(board.getByRole("button", { name: "Keep tool active" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("double-clicking a tool locks it", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).dblclick();
+    await expect(board.getByRole("button", { name: "Keep tool active" })).toHaveAttribute("aria-pressed", "true");
+  });
 });
 
-async function tool(board: Locator, name: string) {
-  await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name, exact: true }).click();
-}
-/** A shape's screen box by its id. */
-const boxOf = async (board: Locator, id: string) => (await board.locator(`g[data-s="${id}"] rect`).first().boundingBox())!;
-const ids = (board: Locator) => board.locator("g[data-s]").evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute("data-s")!))]);
+test.describe("BRD-22: style panel and rotation", () => {
+  test("Style docks inside the board, clear of the toolbar; stroke and width change the drawn rectangle", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).click();
+    const p = await emptySpot(board, -60, -60);
+    await drawRect(page, p.x, p.y);
+    await board.locator(".ocbd-swatch").getByRole("button", { name: "Style" }).click();
+    const panel = board.getByRole("dialog", { name: "Style" });
+    await expect(panel).toBeVisible();
+    const pb = (await panel.boundingBox())!, bb = (await board.boundingBox())!, tb = (await board.locator(".ocbd-swatch").boundingBox())!;
+    expect(pb.x + pb.width).toBeLessThanOrEqual(bb.x + bb.width + 0.5);
+    expect(pb.y + pb.height).toBeLessThanOrEqual(bb.y + bb.height + 0.5);
+    expect(pb.x >= tb.x + tb.width || pb.x + pb.width <= tb.x || pb.y >= tb.y + tb.height || pb.y + pb.height <= tb.y).toBe(true);
+    await panel.getByRole("radiogroup", { name: "Stroke colour" }).getByRole("radio", { name: "Red" }).click();
+    await panel.getByRole("radiogroup", { name: "Stroke width" }).getByRole("radio", { name: "Bold" }).click();
+    const r = board.locator("g[data-s]").last().locator("rect").first();
+    await expect(r).toHaveAttribute("stroke", "var(--red-fg)");
+    await expect(r).toHaveAttribute("stroke-width", "4");
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+  });
 
-test("BRD-21: draw a frame with F, drop a shape in it, move the frame, present", async ({ page }) => {
-  const board = await openDemo(page, srv.url);
-  const bb = (await board.boundingBox())!;
-  // An empty area right of the demo flow, above the bottom row.
-  const x0 = bb.x + bb.width - 330, y0 = bb.y + bb.height - 260;
-  await tool(board, "Frame");
-  await page.mouse.move(x0, y0);
-  await page.mouse.down();
-  await page.mouse.move(x0 + 120, y0 + 80, { steps: 4 });
-  await page.mouse.move(x0 + 260, y0 + 160, { steps: 4 });
-  await page.mouse.up();
-  const name = board.locator("[data-frame-name]").last();
-  await expect(name).toHaveText("Frame 1");
-  const fid = (await name.getAttribute("data-frame-name"))!;
-  // Clicking inside the frame reaches the canvas: the rectangle tool places a shape there.
-  const had = await ids(board);
-  await tool(board, "Rectangle");
-  await page.mouse.click(x0 + 90, y0 + 70);
-  await expect.poll(async () => (await ids(board)).length).toBe(had.length + 1);
-  const rid = (await ids(board)).find((v) => !had.includes(v))!;
-  await page.keyboard.press("Escape");
-  // Drop it again inside the frame (centre-drop): it joins and says so.
-  const r = await boxOf(board, rid);
-  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(r.x + r.width / 2 + 10, r.y + r.height / 2 + 5, { steps: 5 });
-  await page.mouse.move(r.x + r.width / 2 + 20, r.y + r.height / 2 + 10, { steps: 5 });
-  await page.mouse.up();
-  await expect(board.locator(".ocbd-sr[role=status]")).toHaveText("Added to Frame 1");
-  // Dragging the frame by its name moves the shape with it. (Esc first: the shape's toolbar sits above it.)
-  await page.keyboard.press("Escape");
-  await expect(board.locator(".ocbd-swatch")).toHaveCount(0);
-  const before = await boxOf(board, rid);
-  const n = (await name.boundingBox())!;
-  await page.mouse.move(n.x + 10, n.y + n.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(n.x - 20, n.y + n.height / 2 - 10, { steps: 5 });
-  await page.mouse.move(n.x - 50, n.y + n.height / 2 - 20, { steps: 5 });
-  await page.mouse.up();
-  const after = await boxOf(board, rid);
-  expect(Math.abs(after.x - before.x + 60)).toBeLessThan(3);
-  expect(Math.abs(after.y - before.y + 20)).toBeLessThan(3);
-  // The zoom area lists frames; Present steps through them and Esc ends.
-  await board.getByRole("button", { name: "Frames" }).click();
-  await expect(board.getByRole("menu", { name: "Zoom" }).getByRole("menuitem", { name: "Frame 1" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await board.locator(`[data-frame-name="${fid}"]`).click();
-  await page.keyboard.press("Shift+P");
-  const pres = page.getByRole("dialog", { name: "Presenting frames" });
-  await expect(pres).toBeVisible();
-  await expect(pres).toContainText("Frame 1");
-  await page.keyboard.press("Escape");
-  await expect(pres).toHaveCount(0);
+  test("the rotation handle turns a note in 15° steps; Alt turns it freely", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const note = board.locator("g[data-s]").filter({ hasText: "Autosave" });
+    const id = await note.getAttribute("data-s");
+    const c = await centre(note);
+    await page.mouse.click(c.x, c.y);
+    const h = board.locator(`[data-rot][data-s="${id}"]`);
+    await expect(h).toBeVisible();
+    const hc = await centre(h);
+    const rad = c.y - hc.y;
+    // Drag the handle from straight above to about 50° clockwise: 45°.
+    await page.mouse.move(hc.x, hc.y);
+    await page.mouse.down();
+    await page.mouse.move(c.x + Math.sin(0.5) * rad, c.y - Math.cos(0.5) * rad, { steps: 4 });
+    await page.mouse.move(c.x + Math.sin((50 * Math.PI) / 180) * rad, c.y - Math.cos((50 * Math.PI) / 180) * rad, { steps: 4 });
+    await page.mouse.up();
+    const wrap = board.locator(`g[transform^="rotate("]:has(> g[data-s="${id}"])`);
+    await expect(wrap).toHaveAttribute("transform", /^rotate\(45 /);
+    // Shift+R adds 15°.
+    await page.keyboard.press("Shift+R");
+    await expect(wrap).toHaveAttribute("transform", /^rotate\(60 /);
+  });
+});
+
+test.describe("Selection (decision 13)", () => {
+  /** Two new rectangles side by side in the empty corner; returns their locators. */
+  async function twoRects(page: Page, board: Locator) {
+    const before = await board.locator("g[data-s]").count();
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).dblclick();
+    const p = await emptySpot(board, -120, -80);
+    await drawRect(page, p.x, p.y);
+    await drawRect(page, p.x + 130, p.y);
+    await page.keyboard.press("Escape");
+    await expect(board.locator("g[data-s]")).toHaveCount(before + 2);
+    return { p, a: board.locator("g[data-s]").nth(before), b: board.locator("g[data-s]").nth(before + 1) };
+  }
+  const rings = (board: Locator) => board.locator(".ocbd-selring").count();
+
+  test("the marquee takes shapes fully inside; with Alt, those it touches", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const { p } = await twoRects(page, board);
+    // Around the first and half of the second.
+    for (const alt of [false, true]) {
+      await page.mouse.click(p.x - 30, p.y + 120);
+      if (alt) await page.keyboard.down("Alt");
+      await page.mouse.move(p.x - 15, p.y - 15);
+      await page.mouse.down();
+      await page.mouse.move(p.x + 80, p.y + 40, { steps: 4 });
+      await page.mouse.move(p.x + 175, p.y + 65, { steps: 4 });
+      await page.mouse.up();
+      if (alt) await page.keyboard.up("Alt");
+      expect(await rings(board)).toBe(alt ? 2 : 1);
+    }
+  });
+
+  test("a side handle resizes one shape; a corner of two scales both", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const { a, b } = await twoRects(page, board);
+    const ra = a.locator("rect").first();
+    await page.mouse.click((await centre(ra)).x, (await centre(ra)).y);
+    const e = board.locator('[data-rz="e"]');
+    await expect(board.locator("[data-rz]")).toHaveCount(8);
+    const w0 = (await ra.boundingBox())!.width;
+    const ec = await centre(e);
+    await page.mouse.move(ec.x, ec.y);
+    await page.mouse.down();
+    await page.mouse.move(ec.x + 15, ec.y, { steps: 3 });
+    await page.mouse.move(ec.x + 30, ec.y, { steps: 3 });
+    await page.mouse.up();
+    expect(Math.abs((await ra.boundingBox())!.width - (w0 + 30))).toBeLessThan(3);
+    // Both: Shift-click the second; four corners; drag the bottom right one.
+    const rb = b.locator("rect").first();
+    const bw0 = (await rb.boundingBox())!.width;
+    await page.keyboard.down("Shift");
+    await page.mouse.click((await centre(rb)).x, (await centre(rb)).y);
+    await page.keyboard.up("Shift");
+    await expect(board.locator("[data-rz]")).toHaveCount(4);
+    const se = await centre(board.locator('[data-rz="se"]'));
+    await page.mouse.move(se.x, se.y);
+    await page.mouse.down();
+    await page.mouse.move(se.x + 20, se.y, { steps: 3 });
+    await page.mouse.move(se.x + 40, se.y, { steps: 3 });
+    await page.mouse.up();
+    expect((await rb.boundingBox())!.width).toBeGreaterThan(bw0 + 5);
+  });
 });

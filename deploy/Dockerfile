@@ -28,9 +28,12 @@ WORKDIR /src/web
 RUN corepack enable
 # Manifests first so the dependency layer is cached across source changes.
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/tsconfig.base.json ./
+COPY web/packages/block-sdk/package.json packages/block-sdk/
 COPY web/packages/board/package.json packages/board/
+COPY web/packages/client/package.json packages/client/
 COPY web/packages/database/package.json packages/database/
 COPY web/packages/editor/package.json packages/editor/
+COPY web/packages/sheet/package.json packages/sheet/
 COPY web/packages/ui/package.json packages/ui/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile

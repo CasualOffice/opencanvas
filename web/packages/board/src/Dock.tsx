@@ -7,7 +7,7 @@
 // group with arrow keys inside. "Tools on the left" (a personal setting in More) turns the tools
 // into a rail that fits by the board's height.
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Check, Ellipsis, Frame as FrameIcon, Map as MapIcon, Maximize, Minus, PanelLeft, Plus, type LucideIcon } from "lucide-react";
+import { Check, Ellipsis, Frame as FrameIcon, Lock, LockOpen, Map as MapIcon, Maximize, Minus, PanelLeft, Plus, type LucideIcon } from "lucide-react";
 import { fitRail, fitTools } from "./toolbar";
 import { FrameItems } from "./frames/menu";
 
@@ -28,6 +28,11 @@ export interface DockProps {
   onFit: () => void;
   mini: boolean;
   onMini: () => void;
+  /** BRD-19 tool lock (editors only): the tool stays active after each shape. */
+  lock?: boolean;
+  onLock?: () => void;
+  /** Double-click on a tool: pick it and lock it. */
+  onToolLock?: (t: string) => void;
   /** BRD-21: the board's frames, listed in the zoom menu (Zoom to frame), and Present. */
   frames?: { id: string; name: string }[];
   onFrame?: (id: string) => void;
@@ -81,7 +86,8 @@ export function Dock(p: DockProps) {
   }, []);
 
   const n = p.tools.length;
-  const fit = p.rail ? { shown: fitRail(box[1], n, p.compact), zoomFull: true } : fitTools(box[0], n, p.compact);
+  const extra = p.onLock ? 1 : 0;
+  const fit = p.rail ? { shown: fitRail(box[1], n, p.compact, extra), zoomFull: true } : fitTools(box[0], n, p.compact, extra);
   const shown = p.tools.slice(0, fit.shown);
   const hidden = p.tools.slice(fit.shown);
   const hiddenActive = hidden.find(([t]) => t === p.tool);
@@ -167,8 +173,14 @@ export function Dock(p: DockProps) {
               aria-pressed={p.tool === t}
               onFocus={() => setFi(i)}
               onClick={() => p.onTool(t)}
+              onDoubleClick={() => p.onToolLock?.(t)}
             >
               <I size={16} strokeWidth={SW} />
+              {p.lock && p.tool === t && t !== "select" && t !== "hand" ? (
+                <span className="ocbd-lk" aria-hidden="true">
+                  <Lock size={8} strokeWidth={3} />
+                </span>
+              ) : null}
             </button>,
           ])}
           <button
@@ -185,6 +197,22 @@ export function Dock(p: DockProps) {
           >
             <MoreIcon size={16} strokeWidth={SW} />
           </button>
+          {p.onLock ? (
+            <>
+              <span className="ocbd-vs" />
+              <button
+                className="ocbd-ib ocbd-lockbtn"
+                tabIndex={-1}
+                title="Keep tool active (Q)"
+                aria-label="Keep tool active"
+                aria-keyshortcuts="Q"
+                aria-pressed={!!p.lock}
+                onClick={p.onLock}
+              >
+                {p.lock ? <Lock size={16} strokeWidth={SW} /> : <LockOpen size={16} strokeWidth={SW} />}
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div className="ocbd-zoom" role="group" aria-label="Zoom" data-short={fit.zoomFull ? undefined : ""} onKeyDown={zoomKeys}>
