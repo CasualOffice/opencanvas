@@ -421,12 +421,12 @@ Owner request 2026-11-28: the whiteboard and diagram block has many issues; audi
 | BRD-14 | P2: demo says "Saved" for edits that are not kept (ADR-043) (D10) | Done | Done (2026-11-28): new save state `demo`, "Demo · not saved", popover "Demo canvas". Seen failing first: `board-audit.spec.ts` BRD-14; Bug; S |
 | BRD-15 | P3: library shape headings show raw ids ("cylinder") (D13) | Done | Done (2026-11-28): `nameOf` uses the library label. Seen failing first: `audit.test.tsx` BRD-15; Bug; S |
 | BRD-16 | P3: Import missing from the demo menu without a reason; phone sheet lists Mermaid import that is not built (D14) | Done | Done (2026-11-28): phone sheet says "Import draw.io or Excalidraw". The demo's missing Import entry is by design (the host allows no import format there), so it is left as is. Seen failing first: `diagram-phone.test.tsx` 11e; Bug; S |
-| BRD-17 | Diagram header at narrow widths (title cut to one letter at 500 px) (D11) | Todo | UX, needs a prototype; S |
-| BRD-18 | Right-click menu for board and diagram | Todo | UX, needs a prototype; M |
-| BRD-19 | Tool lock | Todo | UX, needs a prototype; S |
-| BRD-20 | Export background (light, dark, transparent) and copy as PNG/SVG (D15) | Todo | UX, needs a prototype; M |
-| BRD-21 | Frames as a real tool (named container with membership) | Todo | UX, needs a prototype; M |
-| BRD-22 | Stroke width, stroke colour and rotation (docs/20 B21) | Todo | UX, needs a prototype; M |
+| BRD-17 | Diagram header at narrow widths (title cut to one letter at 500 px) (D11) | Todo | UX; prototype drafted 2026-11-28, awaiting owner approval: [docs/prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html); S |
+| BRD-18 | Right-click menu for board and diagram | Todo | UX; prototype drafted 2026-11-28, awaiting owner approval: [docs/prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html); M |
+| BRD-19 | Tool lock | Todo | UX; prototype drafted 2026-11-28, awaiting owner approval: [docs/prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html); S |
+| BRD-20 | Export background (light, dark, transparent) and copy as PNG/SVG (D15) | Todo | UX; prototype drafted 2026-11-28, awaiting owner approval: [docs/prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html); M |
+| BRD-21 | Frames as a real tool (named container with membership) | Todo | UX; prototype drafted 2026-11-28, awaiting owner approval: [docs/prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html); M |
+| BRD-22 | Stroke width, stroke colour and rotation (docs/20 B21) | Todo | UX; prototype drafted 2026-11-28, awaiting owner approval: [docs/prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html); M |
 
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
