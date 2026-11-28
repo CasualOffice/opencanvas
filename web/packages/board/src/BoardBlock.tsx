@@ -19,6 +19,7 @@ type StyleModule = typeof import("./style/StylePanel");
 let styleModule: Promise<StyleModule> | null = null;
 const loadStyle = () => (styleModule ??= import("./style/StylePanel"));
 import { CORNERS, CURSOR, HANDLES, handleAt, resizeOne, rotateMany, scaleMany, type Handle } from "./select/geom";
+import { cloneFields, OPPOSITE, qcHandles, qcSpot, quickConnects, SIDE_ANCHOR, SIDE_NAME, SIDES, type Side } from "./select/qc";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
   addShape, bbox, contentBounds, deleteShape, getBoardMap, safeLink, simplify, smooth, updateShape,
@@ -194,7 +195,9 @@ type Drag =
   /** Decision 13: a handle of one shape (its own frame) or a corner of several (scaled together). */
   | { kind: "rz"; h: Handle; ids: string[]; orig: Shape[]; u: Box; ox: number; oy: number; moved: boolean }
   /** Several shapes turned together about the centre `c` of their box. */
-  | { kind: "rotm"; ids: string[]; orig: Shape[]; c: Pt; a0: number; moved: boolean };
+  | { kind: "rotm"; ids: string[]; orig: Shape[]; c: Pt; a0: number; moved: boolean }
+  /** Decision 10: a quick-connect + of one shape; a click adds a shape, a drag draws a connector. */
+  | { kind: "qc"; side: Side; sid: string; cx: number; cy: number; moved: boolean };
 
 const describeShape = (s: Shape) => {
   const t = (s.text ?? s.label ?? s.alt ?? "").replace(/\s+/g, " ").trim();
@@ -322,6 +325,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [styleOpen, setStyleOpen] = useState(false);
   const [StyleMod, setStyleMod] = useState<StyleModule | null>(null);
   const lastOp = useRef(0);
+  /** The quick-connect + under the pointer: its new shape and connector are previewed. */
+  const [qcHover, setQcHover] = useState<Side | null>(null);
   // The floating toolbar keeps clear of the docked panel, which it can only measure once the panel
   // is in the page: one more layout pass after it opens.
   const [, relayout] = useState(0);
@@ -700,6 +705,27 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }), origin);
     const r = normDeg(rotOf(list[0]) + d);
     setLive(`${list.length === 1 ? TYPE_NAME[list[0].type] : `${list.length} shapes`} rotated to ${r} degrees`);
+  };
+
+  /* ---- quick-connect (decision 10) ---- */
+  /** A new shape like `src` on `side` (or centred on `at`), connected to it; selected, typing. */
+  const qcCreate = (src: Shape, side: Side, at: Pt | null) => {
+    const f = cloneFields(src);
+    const others = S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
+    const [x, y] = at ? [Math.round(at[0] - (src.w ?? 0) / 2), Math.round(at[1] - (src.h ?? 0) / 2)] : qcSpot(src, side, others);
+    Object.assign(f, { x, y });
+    const a1 = SIDE_ANCHOR[side], a2 = SIDE_ANCHOR[OPPOSITE[side]];
+    um?.stopCapturing();
+    let nidv = "";
+    doc.transact(() => {
+      nidv = addShape(doc, boardId, f, origin);
+      const made = { ...f, id: nidv } as Shape;
+      addShape(doc, boardId, { type: "arrow", pts: [anchorPoint(src, a1), anchorPoint(made, a2)], start: { shapeId: src.id, anchor: a1 }, end: { shapeId: nidv, anchor: a2 }, ...connectorStyle(), ...lastFor("arrow") }, origin);
+      syncAfter([nidv]);
+    }, origin);
+    setSel([nidv]);
+    setEditing({ id: nidv, text: "" });
+    setLive(`Added a ${TYPE_NAME[src.type].toLowerCase()} ${at ? "where you let go" : SIDE_NAME[side]}, connected to ${describeShape(src)}. Type its text.`);
   };
 
   /* ---- context menu (BRD-18) ---- */
@@ -1257,6 +1283,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
     }
     if (t === "select") {
+      const qcEl = (e.target as Element).closest?.("[data-qc]");
+      // Not `data-s`: `g[data-s]` is a shape's own view (counted and hit-tested as one).
+      const qcSrc = qcEl ? S.current.byId.get(qcEl.getAttribute("data-qc-of") ?? "") : undefined;
+      if (qcEl && qcSrc && S.current.edit) {
+        e.preventDefault(); // the new shape's editor keeps the focus (as BRD-05)
+        drag.current = { kind: "qc", side: qcEl.getAttribute("data-qc") as Side, sid: qcSrc.id, cx: e.clientX, cy: e.clientY, moved: false };
+        cap();
+        return;
+      }
       const rzEl = (e.target as Element).closest?.("[data-rz]");
       const rotEl = (e.target as Element).closest?.("[data-rot]");
       if ((rzEl || rotEl?.getAttribute("data-rot") === "multi") && S.current.edit) {
@@ -1397,6 +1432,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
     const d = drag.current;
     if (!d) {
+      const qcEl = (e.target as Element).closest?.("[data-qc]");
+      const side = (qcEl?.getAttribute("data-qc") as Side | null) ?? null;
+      if (side !== qcHover) setQcHover(side);
       // Diagram mode: pointing at a shape shows its ports (3b); editors only (10c).
       if (S.current.dgm && S.current.edit && S.current.tool === "select" && e.pointerType !== "touch") {
         const el = e.target as Element;
@@ -1529,6 +1567,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
+    if (d.kind === "qc") {
+      if (!d.moved && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 4) return;
+      d.moved = true;
+      setQcHover(null);
+      const src = S.current.byId.get(d.sid);
+      if (!src) return;
+      const b = scene.snap([x, y], 18 / S.current.view.z, src.id);
+      const t2 = b ? S.current.byId.get(b.shapeId) : undefined;
+      setDraft({ id: "draft", type: "arrow", pts: [anchorPoint(src, SIDE_ANCHOR[d.side]), t2 ? anchorPoint(t2, b!.anchor) : [x, y]], start: { shapeId: src.id, anchor: SIDE_ANCHOR[d.side] }, ...(b ? { end: b } : {}), ...connectorStyle() });
+      setHint(b);
+      return;
+    }
     if (d.kind === "rz") {
       if (!d.moved) setDragging(true);
       d.moved = true;
@@ -1639,6 +1689,28 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setGaps(null);
     if (!d) return;
     setHint(null);
+    if (d.kind === "qc") {
+      setDraft(null);
+      setQcHover(null);
+      const src = S.current.byId.get(d.sid);
+      if (e.type === "pointercancel" || !src) return;
+      if (!d.moved) return qcCreate(src, d.side, null);
+      const [x, y] = toWorld(e.clientX, e.clientY);
+      const b = scene.snap([x, y], 18 / S.current.view.z, src.id);
+      if (b && b.shapeId !== src.id) {
+        const t2 = S.current.byId.get(b.shapeId)!;
+        um?.stopCapturing();
+        let cid = "";
+        doc.transact(() => {
+          cid = addShape(doc, boardId, { type: "arrow", pts: [anchorPoint(src, SIDE_ANCHOR[d.side]), anchorPoint(t2, b.anchor)], start: { shapeId: src.id, anchor: SIDE_ANCHOR[d.side] }, end: b, ...connectorStyle(), ...lastFor("arrow") }, origin);
+          syncAfter([cid]);
+        }, origin);
+        setSel([cid]);
+        setLive(`Connected ${describeShape(src)} to ${describeShape(t2)}`);
+        return;
+      }
+      return qcCreate(src, d.side, [x, y]);
+    }
     if (d.kind === "create") {
       setDraft(null);
       if (e.type === "pointercancel") return;
@@ -2318,6 +2390,44 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
                   </rect>
                 );
               });
+            })()
+          : null}
+        {edit && selShape && quickConnects(selShape) && !dgm && !draft
+          ? (() => {
+              // Decision 10: + on each side; hovering one previews the new shape and connector.
+              const pos = qcHandles(selShape, 22 / z);
+              const r = (compact ? 12 : 8) / z;
+              let ghost: ReactNode = null;
+              if (qcHover) {
+                const others = shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
+                const [gx, gy] = qcSpot(selShape, qcHover, others);
+                const g = { ...cloneFields(selShape), id: "qc-ghost", x: gx, y: gy } as Shape;
+                const a = anchorPoint(selShape, SIDE_ANCHOR[qcHover]), b2 = anchorPoint(g, SIDE_ANCHOR[OPPOSITE[qcHover]]);
+                ghost = (
+                  <g pointerEvents="none" className="ocbd-qcghost">
+                    <g opacity={0.45}>
+                      <ShapeView s={g} ah={ah} />
+                    </g>
+                    <line x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke="var(--accent)" strokeWidth={1.5 / z} strokeDasharray={`${4 / z} ${3 / z}`} />
+                  </g>
+                );
+              }
+              return (
+                <g className="ocbd-qc">
+                  {ghost}
+                  {SIDES.map((side) => {
+                    const [hx, hy] = pos[side];
+                    const on = qcHover === side;
+                    return (
+                      <g key={side} data-qc={side} data-qc-of={selShape.id} style={{ cursor: "pointer" }}>
+                        <title>{`Add a connected shape ${SIDE_NAME[side]}; drag to connect`}</title>
+                        <circle cx={hx} cy={hy} r={on ? r * 1.25 : r} fill={on ? "var(--accent)" : "var(--accent-soft)"} stroke="var(--accent)" strokeWidth={1.25 / z} />
+                        <path d={`M${hx - r * 0.45} ${hy}H${hx + r * 0.45}M${hx} ${hy - r * 0.45}V${hy + r * 0.45}`} stroke={on ? "var(--accent-fg)" : "var(--accent)"} strokeWidth={1.6 / z} strokeLinecap="round" pointerEvents="none" />
+                      </g>
+                    );
+                  })}
+                </g>
+              );
             })()
           : null}
         {edit && selList.length > 1 && selList.some((q) => !q.locked)

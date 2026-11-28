@@ -212,3 +212,28 @@ test.describe("Selection (decision 13)", () => {
     expect((await rb.boundingBox())!.width).toBeGreaterThan(bw0 + 5);
   });
 });
+
+test.describe("Quick-connect (decision 10)", () => {
+  test("hover previews; a click adds a connected rectangle on that side and takes typing", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const before = await board.locator("g[data-s]").count();
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).click();
+    const p = await emptySpot(board, -200, -60);
+    await drawRect(page, p.x, p.y);
+    const plus = board.locator('[data-qc="e"]');
+    await expect(board.locator("[data-qc]")).toHaveCount(4);
+    await plus.hover();
+    await expect(board.locator(".ocbd-qcghost")).toBeVisible();
+    await plus.click();
+    // The new rectangle and its connector.
+    await expect(board.locator("g[data-s]")).toHaveCount(before + 3);
+    await page.keyboard.type("Next step");
+    await expect(board.locator("textarea.ocbd-edit")).toHaveValue("Next step");
+    await page.keyboard.press("Control+Enter");
+    await expect(board.locator("g[data-s]").filter({ hasText: "Next step" })).toHaveCount(1);
+    const first = (await board.locator("g[data-s]").nth(before).boundingBox())!;
+    const made = (await board.locator("g[data-s]").filter({ hasText: "Next step" }).boundingBox())!;
+    expect(made.x).toBeGreaterThan(first.x + first.width);
+    expect(Math.abs(made.y - first.y)).toBeLessThan(2);
+  });
+});
