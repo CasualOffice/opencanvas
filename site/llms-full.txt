@@ -79,6 +79,43 @@ The terms these pages use. Last changed 2026-11-26 .
 URL: https://canvas.casualoffice.org/docs/getting-started.html
 Source file: README.md
 
+## OpenCanvas Workspace: ready to use in one command
+
+Don't have an app to embed it in? **OpenCanvas Workspace** is the complete self-hosted workspace
+around the engine: accounts, files, sharing and search, in one container on one port.
+
+```sh
+docker run -p 8080:8080 -v opencanvas:/data ghcr.io/casualoffice/opencanvas-workspace
+```
+
+Open <http://localhost:8080>, create the first admin account (from the same machine no code is
+needed; from elsewhere, enter the one-time setup code printed in the container log), and invite
+your team.
+
+What you get:
+
+- **Typed files.** *New* offers a Document, a Spreadsheet, a Whiteboard / Diagram or a Database.
+  Each opens straight into its own full-screen editor and has its own icon in Home, search and
+  trash.
+- **Sharing.** Share with people, teams or a whole workspace as Full access, Can edit, Can comment
+  or Can view; links for everyone in the organisation; public links (admin-controlled, with an
+  optional expiry and password). Revoking access closes open sessions at once.
+- **Search** across titles and content (⌘K), filtered to what each person may open.
+- **Trash and version history.** Deleted files are kept 30 days; history keeps every save for a
+  day, then thins out, and named versions forever.
+- **Passkeys** as well as passwords, invite links, and admin reset links.
+- **Admin.** Members, teams, invites, branding, sign-in rules, public-link policy, retention and
+  backups, in the app.
+
+For production, [`deploy/workspace/compose.yml`](deploy/workspace/compose.yml) runs the same image
+as a Workspace and two engine nodes, with MariaDB, Redis and nginx in front.
+
+Current limits, honestly: **no single sign-on (SSO) yet** (it is on the backlog), **e-mail is not
+sent yet** (invites and password resets are links you copy), and **backups are manual** (*Back up
+now* in Settings, or copy the `/data` volume; there is no schedule or one-command restore yet).
+The [Workspace guide](docs/42-WORKSPACE-GUIDE.md) covers install, setup, invites, sharing, backups,
+upgrades and every `WS_*` setting; the design is in [docs/40](docs/40-WORKSPACE.md).
+
 ## Features
 
 **Editing**
