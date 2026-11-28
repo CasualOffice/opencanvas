@@ -368,11 +368,11 @@ describe("export", { timeout: 60_000 }, () => {
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     act(() => el.querySelector<HTMLButtonElement>('[aria-label="Board options"]')!.click());
     const items = [...el.querySelectorAll(".ocbd-menu [role=menuitem]")].map((b) => b.textContent);
-    expect(items).toEqual(["Open as diagram⇧D", "Insert image", "Export as PNG", "Export as SVG"]);
+    expect(items).toEqual(["Open as diagram⇧D", "Insert image", "Export…", "Copy as PNG⇧⌘C", "Copy as SVG"]);
     cleanup?.();
     document.body.innerHTML = "";
     const v = mount(<BoardBlock doc={doc} boardId={id} env={env("view")} />);
     act(() => v.querySelector<HTMLButtonElement>('[aria-label="Board options"]')!.click());
-    expect([...v.querySelectorAll(".ocbd-menu [role=menuitem]")].map((b) => b.textContent)).toEqual(["Open as diagram⇧D", "Export as PNG", "Export as SVG"]);
+    expect([...v.querySelectorAll(".ocbd-menu [role=menuitem]")].map((b) => b.textContent)).toEqual(["Open as diagram⇧D", "Export…", "Copy as PNG⇧⌘C", "Copy as SVG"]);
   });
 });

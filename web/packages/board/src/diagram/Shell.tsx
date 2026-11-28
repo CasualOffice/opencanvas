@@ -23,6 +23,7 @@ import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
 import { useBudget } from "./Budget";
 import ExportDialog from "./export/ExportDialog";
 import { PeerNotice } from "./Presence";
+import { foldedNames, headerFold, type Fold, type FoldItem } from "./headerFold";
 
 const SW = 1.75;
 
@@ -73,6 +74,8 @@ export interface DiagramShellProps {
   /** The export dialog (7f/7g), opened from the board options menu. */
   exporting?: boolean;
   onExportClose?: () => void;
+  /** BRD-17: the header controls folded into ⋯ at this width (the board options menu lists them). */
+  onFold?: (items: FoldItem[]) => void;
   children: ReactNode;
 }
 
@@ -102,6 +105,21 @@ export default function DiagramShell(p: DiagramShellProps) {
   ensureA11yStyles();
   const { doc, boardId, env, anchor, closing, place: ctx } = p;
   const ref = useRef<HTMLDivElement>(null);
+  // BRD-17 (decision 8): the header folds by the diagram window's own width, in em.
+  const [fold, setFold] = useState<Fold>("wide");
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      // In the reader's em (the root font size), as media queries count it.
+      const em = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      setFold(headerFold(el.clientWidth / em));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, []);
   const name = useBoardName(doc, boardId);
   const shown = name || ctx.heading || "Board";
   const edit = env.role === "edit";
@@ -155,18 +173,43 @@ export default function DiagramShell(p: DiagramShellProps) {
   const keys = useDiagramKeys({ doc, boardId, canvas: cv, edit, origin: p.origin, connectorStyle, onSay: say, onOutline: () => setOutline((v) => !v) });
 
   const budget = useBudget(doc, boardId, p.maxDocBytes, cv?.select);
+  const folded = phone ? [] : foldedNames(fold);
+  const hides = (n: (typeof folded)[number]) => folded.includes(n);
+  // The folded controls, for the board options menu (fresh handlers through a ref).
+  const foldRun = useRef({ cmd: () => {}, outline: () => {}, layout: () => {}, redo: () => {}, canRedo: false });
+  foldRun.current = {
+    cmd: () => keys.setPalette(true),
+    outline: () => setOutline((v) => !v),
+    layout: () => ref.current?.querySelector<HTMLButtonElement>(".ocdg-lb")?.click(),
+    redo: p.redo.run,
+    canRedo: p.redo.can,
+  };
+  const onFold = p.onFold;
+  useEffect(() => {
+    if (!onFold) return;
+    const f = foldRun.current;
+    const all: Record<string, FoldItem> = {
+      Commands: { label: "Commands", kbd: "Mod+K", run: () => foldRun.current.cmd() },
+      Outline: { label: "Outline", kbd: "Alt+O", run: () => foldRun.current.outline() },
+      "Auto-layout": { label: "Auto-layout…", kbd: "Shift+L", run: () => foldRun.current.layout() },
+      Redo: { label: "Redo", kbd: "Shift+Mod+Z", disabled: !f.canRedo, run: () => foldRun.current.redo() },
+    };
+    onFold(folded.filter((n) => n !== "Auto-layout" || edit).filter((n) => n !== "Redo" || edit).map((n) => all[n]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fold, phone, onFold, edit, p.redo.can]);
+  useEffect(() => () => onFold?.([]), [onFold]);
   const people = [{ id: -1, name: env.me.name, color: env.me.color }, ...p.peers];
 
   return (
     <div ref={ref} className={"ocdg" + (phone ? " ocdg-phone" : "")} role="dialog" aria-modal="true" aria-label={`Diagram: ${shown}`} data-board={boardId} onKeyDownCapture={keys.onKeyDownCapture}>
-      <header className="ocdg-top">
-        <button type="button" className="ocdg-back" onClick={p.onBack} aria-keyshortcuts="Escape">
+      <header className="ocdg-top" data-fold={fold}>
+        <button type="button" className="ocdg-back" onClick={p.onBack} aria-keyshortcuts="Escape" aria-label={fold === "narrow" || fold === "tiny" ? "Back to document" : undefined} title="Back to document (Esc)">
           <ArrowLeft size={16} strokeWidth={SW} />
-          Back to document
+          {fold === "narrow" || fold === "tiny" ? null : "Back to document"}
         </button>
         <span className="ocdg-vs" />
-        <nav className="ocdg-crumb" aria-label="Location">
-          {ctx.title ? (
+        <nav className="ocdg-crumb" aria-label="Location" title={ctx.title ? `${ctx.title} / ${shown}` : shown}>
+          {ctx.title && fold !== "narrow" && fold !== "tiny" ? (
             <>
               <span className="ocdg-doc">{ctx.title}</span>
               <span className="ocdg-sl" aria-hidden="true">/</span>
@@ -177,35 +220,51 @@ export default function DiagramShell(p: DiagramShellProps) {
         <span className="ocdg-sp" />
         {cv ? (
           <>
-            <button type="button" className="ocdg-cmdk" aria-keyshortcuts="Meta+K Control+K" onClick={() => keys.setPalette(true)}>
-              <CmdIcon size={14} strokeWidth={SW} aria-hidden="true" />
-              <span>Commands</span>
-              <span className="ocdg-kbd" aria-hidden="true">⌘K</span>
-            </button>
-            <button type="button" className="ocdg-ib" aria-label="Outline" title="Outline (Alt+O)" aria-keyshortcuts="Alt+O" aria-pressed={outline} onClick={() => setOutline((v) => !v)}>
-              <ListTree size={16} strokeWidth={SW} />
-            </button>
+            {hides("Commands") ? null : fold === "wide" ? (
+              <button type="button" className="ocdg-cmdk" aria-keyshortcuts="Meta+K Control+K" onClick={() => keys.setPalette(true)}>
+                <CmdIcon size={14} strokeWidth={SW} aria-hidden="true" />
+                <span>Commands</span>
+                <span className="ocdg-kbd" aria-hidden="true">⌘K</span>
+              </button>
+            ) : (
+              <button type="button" className="ocdg-ib" aria-label="Commands" title="Commands (⌘K)" aria-keyshortcuts="Meta+K Control+K" onClick={() => keys.setPalette(true)}>
+                <CmdIcon size={16} strokeWidth={SW} />
+              </button>
+            )}
+            {hides("Outline") ? null : (
+              <button type="button" className="ocdg-ib" aria-label="Outline" title="Outline (Alt+O)" aria-keyshortcuts="Alt+O" aria-pressed={outline} onClick={() => setOutline((v) => !v)}>
+                <ListTree size={16} strokeWidth={SW} />
+              </button>
+            )}
           </>
         ) : null}
         {budget.chip}
         <ul className="ocdg-people" aria-label={`${people.length} ${people.length === 1 ? "person" : "people"} here`}>
-          {people.slice(0, 5).map((u) => (
+          {people.slice(0, fold === "wide" ? 5 : fold === "mid" ? 2 : 1).map((u) => (
             <li key={u.id} className="ocdg-av" style={{ background: u.color }} title={u.id === -1 ? `${u.name} (you)` : u.name}>
               <span aria-hidden="true">{initials(u.name)}</span>
               <span className="ocdg-sr">{u.id === -1 ? `${u.name} (you)` : u.name}</span>
             </li>
           ))}
+          {people.length > (fold === "wide" ? 5 : fold === "mid" ? 2 : 1) ? (
+            <li className="ocdg-av more" title={people.slice(fold === "wide" ? 5 : fold === "mid" ? 2 : 1).map((u) => u.name).join(", ")}>
+              <span aria-hidden="true">+{people.length - (fold === "wide" ? 5 : fold === "mid" ? 2 : 1)}</span>
+              <span className="ocdg-sr">{`and ${people.length - (fold === "wide" ? 5 : fold === "mid" ? 2 : 1)} more`}</span>
+            </li>
+          ) : null}
         </ul>
         {edit ? (
           <>
             {/* On a phone auto-layout waits for a larger screen (11e); the options sheet says so. */}
-            {phone ? null : <AutoLayout doc={doc} boardId={boardId} env={env} origin={p.origin} view={p.view} selection={p.selection} undo={p.undo.run} />}
+            {phone ? null : <AutoLayout doc={doc} boardId={boardId} env={env} origin={p.origin} view={p.view} selection={p.selection} undo={p.undo.run} fold={hides("Auto-layout") ? "menu" : fold === "wide" ? undefined : "icon"} />}
             <button type="button" className="ocdg-ib" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!p.undo.can} onClick={p.undo.run}>
               <Undo2 size={16} strokeWidth={SW} />
             </button>
-            <button type="button" className="ocdg-ib" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled={!p.redo.can} onClick={p.redo.run}>
-              <Redo2 size={16} strokeWidth={SW} />
-            </button>
+            {hides("Redo") ? null : (
+              <button type="button" className="ocdg-ib" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled={!p.redo.can} onClick={p.redo.run}>
+                <Redo2 size={16} strokeWidth={SW} />
+              </button>
+            )}
           </>
         ) : null}
         <button type="button" className="ocdg-ib" aria-label="Board options" title="Board options" aria-haspopup="menu" aria-expanded={phone ? psheet === "options" : p.menuOpen} onClick={phone ? () => setPsheet("options") : p.onMenu}>

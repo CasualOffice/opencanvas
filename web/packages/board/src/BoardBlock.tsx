@@ -9,18 +9,32 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
-  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
+  Redo2, RouteOff, SendToBack, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
+  ClipboardPaste, CopyPlus, ExternalLink, Keyboard, Layers, Link2, Lock, LockOpen, RotateCw, Scissors, SlidersHorizontal, SquareDashed,
 } from "lucide-react";
+import { ContextMenu, KeysDialog, kbdLabel, LinkPop, type MenuEntry, type QuickAction } from "./menu";
+import { applyStyle, dashOf, fontOf, inkOf, lastFor, normDeg, opOf, rememberLast, rotates, rotOf, styled, swOf, type StyleKey } from "./style/style";
+// The style panel (BRD-22): its own lazy chunk, loaded the first time someone opens Style.
+type StyleModule = typeof import("./style/StylePanel");
+let styleModule: Promise<StyleModule> | null = null;
+const loadStyle = () => (styleModule ??= import("./style/StylePanel"));
+import { CORNERS, CURSOR, HANDLES, handleAt, resizeOne, rotateMany, scaleMany, type Handle } from "./select/geom";
+import { cloneFields, OPPOSITE, qcHandles, qcSpot, quickConnects, SIDE_ANCHOR, SIDE_NAME, SIDES, type Side } from "./select/qc";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
-  addShape, bbox, contentBounds, deleteShape, getBoardMap, simplify, smooth, updateShape,
+  addShape, bbox, contentBounds, deleteShape, getBoardMap, readShapes, safeLink, simplify, smooth, updateShape,
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
 import { Dock } from "./Dock";
 import { readToolsLeft, writeToolsLeft } from "./toolbar";
 import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
-import { exportBoardPng, exportBoardSvg } from "./export";
+import { ExportMenuItems, useBoardExport } from "./export/hooks";
+import { useFrames } from "./frames/hooks";
+import { EmptyBoard, insertTemplate } from "./empty/EmptyBoard";
+import { FrameNames, FrameView } from "./frames/view";
+import { FRAME_SIZE, isFrame, membersOf } from "./frames/model";
+import { applyMembership, createFrame, releaseMembers } from "./frames/ops";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
@@ -60,7 +74,7 @@ import {
   stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
 } from "./ops";
 
-type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text";
+type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text" | "frame";
 // SCALE-02 / UX4-01: the priority order is the visual order; overflow takes from the end (Pan first).
 const TOOLS: [Tool, LucideIcon, string, string][] = [
   ["select", MousePointer2, "Select", "V"],
@@ -71,9 +85,10 @@ const TOOLS: [Tool, LucideIcon, string, string][] = [
   ["arrow", ArrowUpRight, "Arrow", "A"],
   ["ellipse", Circle, "Ellipse", "O"],
   ["diamond", Diamond, "Diamond", "D"],
+  ["frame", Frame, "Frame", "F"],
   ["hand", Hand, "Pan", "H"],
 ];
-const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "sticky", r: "rect", o: "ellipse", d: "diamond", a: "arrow", t: "text" };
+const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "sticky", r: "rect", o: "ellipse", d: "diamond", a: "arrow", t: "text", f: "frame" };
 const STICKY: Record<string, string> = { y: "var(--sticky-y)", p: "var(--sticky-p)", b: "var(--sticky-b)", g: "var(--sticky-g)" };
 const SWATCH: Record<string, string> = { accent: "var(--accent)", amber: "var(--amber-fg)", green: "var(--green-fg)", pink: "var(--pink-fg)", purple: "var(--purple-fg)", red: "var(--red-fg)", blue: "var(--blue-fg)" };
 /** Shape fills for rect / ellipse / diamond: a tone's background with its foreground as the outline. */
@@ -93,6 +108,24 @@ const CULL_AT = 300;
 
 interface View { tx: number; ty: number; z: number }
 interface Peer { id: number; name: string; color: string; x: number | null; y: number | null; sel: string[] }
+
+/** "Snap to objects" (decision 9): a personal setting, on by default, kept per device. */
+const SNAP_KEY = "oc.board.snap";
+function readSnap(): boolean {
+  try {
+    return localStorage.getItem(SNAP_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+function writeSnap(on: boolean) {
+  try {
+    if (on) localStorage.removeItem(SNAP_KEY);
+    else localStorage.setItem(SNAP_KEY, "0");
+  } catch {
+    /* private window: the setting lasts for this page */
+  }
+}
 
 /* --------------------------------------------------- clipboard (shared) */
 
@@ -162,7 +195,15 @@ type Drag =
   | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
   /** Dragging waypoint `i` of a connector; `insert` when it was a segment's midpoint handle. */
   | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean; seg?: { pts: Pt[]; horiz: boolean } }
-  | { kind: "pinch"; d0: number; c0: [number, number]; v: View };
+  | { kind: "pinch"; d0: number; c0: [number, number]; v: View }
+  /** BRD-22: the rotation handle; `c` the centre, `a0` the pointer's angle at the start. */
+  | { kind: "rotate"; sid: string; c: Pt; a0: number; r0: number; moved: boolean }
+  /** Decision 13: a handle of one shape (its own frame) or a corner of several (scaled together). */
+  | { kind: "rz"; h: Handle; ids: string[]; orig: Shape[]; u: Box; ox: number; oy: number; moved: boolean }
+  /** Several shapes turned together about the centre `c` of their box. */
+  | { kind: "rotm"; ids: string[]; orig: Shape[]; c: Pt; a0: number; moved: boolean }
+  /** Decision 10: a quick-connect + of one shape; a click adds a shape, a drag draws a connector. */
+  | { kind: "qc"; side: Side; sid: string; cx: number; cy: number; moved: boolean };
 
 const describeShape = (s: Shape) => {
   const t = (s.text ?? s.label ?? s.alt ?? "").replace(/\s+/g, " ").trim();
@@ -258,6 +299,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const fileRef = useRef<HTMLInputElement>(null);
   const peers = usePeers(awareness, boardId);
   const rootRef = useRef<HTMLDivElement>(null);
+  // BRD-20: the export dialog (lazy), Copy as PNG / SVG.
+  const xport = useBoardExport({ doc, shapes, sel, name: String(getBoardMap(doc, boardId)?.get("name") ?? "board"), toast: env.toast, onClose: () => rootRef.current?.focus({ preventScroll: true }) });
+  // BRD-21: frames (names, rename, Present).
+  const frm = useFrames({ doc, boardId, shapes, view, origin, edit, onSay: (m) => setLive(m), onDone: () => rootRef.current?.focus({ preventScroll: true }) });
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const pointers = useRef(new Map<number, [number, number]>());
@@ -281,20 +326,63 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (w && Math.abs(w - barW) > 0.5) setBarW(w);
   });
   const [mini, setMini] = useState(false);
+  // BRD-19: the tool stays active after each shape while locked (Q, the lock button, double-click a tool).
+  const [lock, setLockState] = useState(false);
+  // BRD-18: the context menu, at a point in the board; a sheet on phones and after a long press.
+  const [ctx, setCtx] = useState<{ at: [number, number]; world: Pt | null; sheet: boolean } | null>(null);
+  const [keysOpen, setKeysOpen] = useState(false);
+  const [linkEdit, setLinkEdit] = useState<{ id: string; at: [number, number] } | null>(null);
+  const [snap, setSnapState] = useState(readSnap);
+  // BRD-22: the style panel (lazy) and when the last opacity write was (one Undo step per drag).
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [StyleMod, setStyleMod] = useState<StyleModule | null>(null);
+  const lastOp = useRef(0);
+  /** The quick-connect + under the pointer: its new shape and connector are previewed. */
+  const [qcHover, setQcHover] = useState<Side | null>(null);
+  /** BRD-17: diagram header controls folded into ⋯ (the Shell reports them by its width). */
+  const [foldItems, setFoldItems] = useState<import("./diagram/headerFold").FoldItem[]>([]);
+  // The floating toolbar keeps clear of the docked panel, which it can only measure once the panel
+  // is in the page: one more layout pass after it opens.
+  const [, relayout] = useState(0);
+  useLayoutEffect(() => {
+    if (styleOpen && StyleMod) relayout((n) => n + 1);
+  }, [styleOpen, StyleMod]);
+  const lp = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const lpAt = useRef(0);
 
   // Always-fresh values for event handlers.
-  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp });
-  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp };
+  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp, lock, snap });
+  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp, lock, snap };
   const setWp = (i: number | null) => {
     S.current.wp = i;
     setWpState(i);
   };
 
   const tool_ = edit ? tool : tool === "hand" ? "hand" : "select";
-  const setTool = (t: Tool) => {
+  const setLock = (on: boolean) => {
+    S.current.lock = on;
+    setLockState(on);
+  };
+  const setTool = (t: Tool, keep?: boolean) => {
     presetRef.current = null;
     setPresetState(null);
-    setToolState(edit || t === "select" || t === "hand" ? t : "select");
+    const next = edit || t === "select" || t === "hand" ? t : "select";
+    S.current.tool = next;
+    setToolState(next);
+    if (keep !== undefined) setLock(keep && edit);
+    else if (next === "select" || next === "hand") setLock(false);
+  };
+  /** After a shape is placed: back to Select unless the tool is locked. */
+  const afterPlace = () => {
+    if (!S.current.lock) setTool("select");
+  };
+  const toolName = (t: Tool) => TOOLS.find((x) => x[0] === t)![2];
+  const toggleLock = () => {
+    const on = !S.current.lock;
+    setLock(on);
+    const t = S.current.tool;
+    if (t === "select" || t === "hand") setLive(on ? "Tool lock on. The next tool you pick stays active." : "Tool lock off");
+    else setLive(on ? `${toolName(t)} tool kept active. Press Q or Escape to release.` : `${toolName(t)} tool returns to Select after each shape`);
   };
 
   /* ---- presence: pointer + selection ---- */
@@ -511,10 +599,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const removeSel = () => {
-    const ids = S.current.sel;
+    const ids = S.current.sel.filter((id) => !S.current.byId.get(id)?.locked);
     if (!ids.length) return;
     um?.stopCapturing();
-    doc.transact(() => ids.forEach((sid) => deleteShape(doc, boardId, sid, origin)), origin);
+    doc.transact(() => {
+      // BRD-21: deleting a frame keeps its contents (they leave it).
+      releaseMembers(doc, boardId, S.current.raw, ids, origin);
+      ids.forEach((sid) => deleteShape(doc, boardId, sid, origin));
+    }, origin);
     setLive(ids.length === 1 ? "Deleted" : `Deleted ${ids.length} shapes`);
     setSel([]);
   };
@@ -543,6 +635,226 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setGroup(doc, boardId, ids, on ? "" : null, origin);
     setLive(on ? `Grouped ${ids.length} shapes` : "Ungrouped");
   };
+  /** Lock or unlock the selection (all locked: unlock). */
+  const lockSel = () => {
+    const list = selShapes();
+    if (!list.length) return;
+    const to = !list.every((s) => s.locked);
+    um?.stopCapturing();
+    doc.transact(() => list.forEach((s) => updateShape(doc, boardId, s.id, { locked: to ? true : undefined }, origin)), origin);
+    const what = list.length === 1 ? TYPE_NAME[list[0].type] : `${list.length} shapes`;
+    setLive(to ? `${what} locked. Press Shift Control L or use the menu to unlock` : `${what} unlocked`);
+  };
+  /** Copy the selection to the board clipboard (and its text to the system one, where allowed). */
+  const copySel = () => {
+    const list = selShapes();
+    if (!list.length) return;
+    const text = list.map((s) => s.text ?? "").filter(Boolean).join("\n");
+    CLIP = { shapes: JSON.parse(JSON.stringify(list)), text, pastes: 0 };
+    try {
+      void navigator.clipboard?.writeText(text).catch(() => {});
+    } catch {
+      /* no clipboard access: the board clipboard still has the shapes */
+    }
+    setLive(list.length === 1 ? "Copied" : `Copied ${list.length} shapes`);
+  };
+  /** Paste the board clipboard: at `at` (the menu's point) or offset from the originals. */
+  const pasteClip = (at?: Pt | null) => {
+    if (!CLIP || !S.current.edit) return;
+    const u = unionBox(CLIP.shapes);
+    if (at && u) paste(CLIP.shapes, at[0] - u[0], at[1] - u[1]);
+    else {
+      const n = ++CLIP.pastes;
+      paste(CLIP.shapes, 24 * n, 24 * n);
+    }
+  };
+  const openLink = () => {
+    const list = selShapes();
+    const root = rootRef.current, svg = svgRef.current;
+    if (!list.length || !root || !svg || !S.current.edit) return;
+    const u = unionBox(list)!;
+    const v = S.current.view, rr = root.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+    const x = Math.max(8, Math.min(u[2] * v.z + v.tx + sr.left - rr.left - 120, root.clientWidth - 280));
+    const y = Math.max(8, Math.min(u[1] * v.z + v.ty + sr.top - rr.top - 8, root.clientHeight - 150));
+    setLinkEdit({ id: list[0].id, at: [x, y] });
+  };
+  const saveLink = (v: string | null) => {
+    const ids = S.current.sel;
+    setLinkEdit(null);
+    um?.stopCapturing();
+    doc.transact(() => ids.forEach((id) => updateShape(doc, boardId, id, { link: v ?? undefined }, origin)), origin);
+    setLive(v ? "Link added" : "Link removed");
+    rootRef.current?.focus({ preventScroll: true });
+  };
+  const toggleSnap = () => {
+    const on = !S.current.snap;
+    writeSnap(on);
+    S.current.snap = on;
+    setSnapState(on);
+    setLive(on ? "Snapping to objects on" : "Snapping to objects off");
+  };
+
+  /* ---- style and rotation (BRD-22) ---- */
+  const openStyle = (on = true) => {
+    if (!on) return setStyleOpen(false);
+    void loadStyle().then((m) => {
+      setStyleMod(() => m);
+      setStyleOpen(true);
+    });
+  };
+  const onStyleSet = (k: StyleKey | "ah0" | "ah1", v: string | number | null) => {
+    const list = selShapes();
+    if (!list.length || !S.current.edit) return;
+    // Opacity while dragging the slider: one Undo step.
+    if (k !== "op" || Date.now() - lastOp.current > 600) um?.stopCapturing();
+    if (k === "op") lastOp.current = Date.now();
+    applyStyle(doc, boardId, list, k, v, origin);
+    if (k !== "ah0" && k !== "ah1") rememberLast(k, v);
+    if (k === "rot") setLive(`Rotated to ${normDeg(Number(v) || 0)} degrees`);
+  };
+  /** Rotate the selection by `d` degrees (Shift+R, Alt+Shift+R). */
+  const rotBy = (d: number) => {
+    const list = selShapes().filter((q) => rotates(q) && !q.locked);
+    if (!list.length) return;
+    um?.stopCapturing();
+    doc.transact(() => list.forEach((q) => {
+      const r = normDeg(rotOf(q) + d);
+      updateShape(doc, boardId, q.id, { rot: r ? r : undefined }, origin);
+    }), origin);
+    const r = normDeg(rotOf(list[0]) + d);
+    setLive(`${list.length === 1 ? TYPE_NAME[list[0].type] : `${list.length} shapes`} rotated to ${r} degrees`);
+  };
+
+  /* ---- quick-connect (decision 10) ---- */
+  /** A new shape like `src` on `side` (or centred on `at`), connected to it; selected, typing. */
+  const qcCreate = (src: Shape, side: Side, at: Pt | null) => {
+    const f = cloneFields(src);
+    const others = S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
+    const [x, y] = at ? [Math.round(at[0] - (src.w ?? 0) / 2), Math.round(at[1] - (src.h ?? 0) / 2)] : qcSpot(src, side, others);
+    Object.assign(f, { x, y });
+    const a1 = SIDE_ANCHOR[side], a2 = SIDE_ANCHOR[OPPOSITE[side]];
+    um?.stopCapturing();
+    let nidv = "";
+    doc.transact(() => {
+      nidv = addShape(doc, boardId, f, origin);
+      const made = { ...f, id: nidv } as Shape;
+      addShape(doc, boardId, { type: "arrow", pts: [anchorPoint(src, a1), anchorPoint(made, a2)], start: { shapeId: src.id, anchor: a1 }, end: { shapeId: nidv, anchor: a2 }, ...connectorStyle(), ...lastFor("arrow") }, origin);
+      syncAfter([nidv]);
+    }, origin);
+    setSel([nidv]);
+    setEditing({ id: nidv, text: "" });
+    setLive(`Added a ${TYPE_NAME[src.type].toLowerCase()} ${at ? "where you let go" : SIDE_NAME[side]}, connected to ${describeShape(src)}. Type its text.`);
+  };
+
+  /* ---- context menu (BRD-18) ---- */
+  const narrow = () => {
+    const el = rootRef.current;
+    if (!el) return compact;
+    const em = parseFloat(getComputedStyle(el).fontSize) || 14;
+    return compact || (el.clientWidth > 0 && el.clientWidth / em < 36);
+  };
+  /**
+   * Open the menu at a client point. `sid`: the shape under it (selected first when it is not);
+   * `null` on empty canvas (clears the selection); `undefined` from the keyboard (keeps it).
+   */
+  const openCtx = (cx: number, cy: number, sid: string | null | undefined, sheet = false) => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (editRef.current) commitEdit();
+    if (sid) {
+      if (!S.current.sel.includes(sid)) {
+        const ids = withGroups(S.current.shapes, [sid]);
+        setSel(ids);
+        announceSel(ids);
+      }
+    } else if (sid === null && S.current.sel.length) setSel([]);
+    const r = root.getBoundingClientRect();
+    setCtx({ at: [cx - r.left, cy - r.top], world: svgRef.current ? toWorld(cx, cy) : null, sheet: sheet || narrow() });
+  };
+  const closeCtx = (refocus: boolean) => {
+    setCtx(null);
+    if (refocus) rootRef.current?.focus({ preventScroll: true });
+  };
+  /** Shift+F10 / the Menu key: at the selection's top right, else the middle of the board. */
+  const ctxFromKeys = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const sr = svg.getBoundingClientRect(), v = S.current.view;
+    const u = unionBox(selShapes());
+    if (u) openCtx(sr.left + Math.min(u[2] * v.z + v.tx, svg.clientWidth - 40), sr.top + Math.max(8, u[1] * v.z + v.ty), undefined);
+    else openCtx(sr.left + svg.clientWidth / 2 - 110, sr.top + svg.clientHeight / 3, undefined);
+  };
+  const shapeMenu = (): MenuEntry[] => {
+    const list = selShapes();
+    const n = list.length;
+    if (!S.current.edit) return [{ label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, ...(list[0]?.link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : [])];
+    if (list.every((s) => s.locked)) {
+      return [{ label: "Unlock", icon: LockOpen, kbd: "Shift+Mod+L", run: lockSel }, { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, "-", { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink }];
+    }
+    const grouped = n > 1 && list.every((s) => s.group && s.group === list[0].group);
+    const few = "Select two or more shapes", three = "Select three or more shapes";
+    return [
+      { label: "Cut", icon: Scissors, kbd: "Mod+X", run: () => (copySel(), removeSel()) },
+      { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel },
+      { label: "Paste", icon: ClipboardPaste, kbd: "Mod+V", run: () => pasteClip(), disabled: !CLIP, why: "Nothing copied yet" },
+      { label: "Duplicate", icon: CopyPlus, kbd: "Mod+D", run: dupSel },
+      "-",
+      // BRD-20: copy the selection as an image (Download where the browser can't).
+      { label: "Copy as PNG", icon: FileImage, kbd: "Shift+Mod+C", run: () => void xport.copy("png") },
+      { label: "Copy as SVG", icon: FileCode2, run: () => void xport.copy("svg") },
+      "-",
+      {
+        label: "Arrange", icon: Layers, sub: [
+          { label: "Bring to front", icon: BringToFront, kbd: "Shift+Mod+]", run: () => zSel("front") },
+          { label: "Bring forward", icon: BringToFront, kbd: "Mod+]", run: () => zSel("forward") },
+          { label: "Send backward", icon: SendToBack, kbd: "Mod+[", run: () => zSel("backward") },
+          { label: "Send to back", icon: SendToBack, kbd: "Shift+Mod+[", run: () => zSel("back") },
+        ],
+      },
+      {
+        label: "Align", icon: AlignStartVertical, disabled: n < 2, why: few, sub: [
+          { label: "Align left", icon: AlignStartVertical, kbd: "Alt+Shift+←", run: () => align("left") },
+          { label: "Align centres", icon: AlignCenterVertical, run: () => align("hcenter") },
+          { label: "Align right", icon: AlignEndVertical, kbd: "Alt+Shift+→", run: () => align("right") },
+          "-",
+          { label: "Align top", icon: AlignStartHorizontal, kbd: "Alt+Shift+↑", run: () => align("top") },
+          { label: "Align middles", icon: AlignCenterHorizontal, run: () => align("vcenter") },
+          { label: "Align bottom", icon: AlignEndHorizontal, kbd: "Alt+Shift+↓", run: () => align("bottom") },
+          "-",
+          { label: "Distribute horizontally", icon: AlignHorizontalDistributeCenter, run: () => distribute("h"), disabled: n < 3, why: three },
+          { label: "Distribute vertically", icon: AlignVerticalDistributeCenter, run: () => distribute("v"), disabled: n < 3, why: three },
+        ],
+      },
+      "-",
+      grouped ? { label: "Ungroup", icon: Ungroup, kbd: "Shift+Mod+G", run: () => groupSel(false) } : { label: "Group", icon: Group, kbd: "Mod+G", run: () => groupSel(true), disabled: n < 2, why: few },
+      { label: "Lock", icon: Lock, kbd: "Shift+Mod+L", run: lockSel },
+      "-",
+      { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink },
+      ...(list[0].link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : []),
+      "-",
+      { label: "Delete", icon: Trash2, kbd: "Delete", run: removeSel, danger: true },
+    ];
+  };
+  const canvasMenu = (at: Pt | null): MenuEntry[] => [
+    ...(S.current.edit ? [{ label: "Paste here", icon: ClipboardPaste, kbd: "Mod+V", run: () => pasteClip(at), disabled: !CLIP, why: "Nothing copied yet" } as MenuEntry] : []),
+    { label: "Select all", icon: SquareDashed, kbd: "Mod+A", run: selectAll },
+    "-",
+    { label: "Zoom to fit", icon: Maximize2, kbd: "Shift+1", run: fit },
+    "-",
+    { label: "Snap to objects", check: S.current.snap, run: toggleSnap },
+    { label: "Keyboard shortcuts", icon: Keyboard, kbd: "?", run: () => setKeysOpen(true) },
+  ];
+  /** Opens a shape's link in a new tab (only links `safeLink` accepts). */
+  const openUrl = (v?: string) => {
+    const u = v ? safeLink(v) : null;
+    if (u) window.open(u, "_blank", "noopener,noreferrer");
+  };
+  const selectAll = () => {
+    const all = S.current.shapes.filter((s) => !s.locked).map((s) => s.id);
+    setSel(all);
+    announceSel(all);
+  };
+
   /** Diagram mode: put the selection in a new container, drawn behind it (3f, 3g). */
   const containSel = () => {
     const list = selShapes();
@@ -883,34 +1195,29 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const viewCenterRef = useRef(viewCenter);
   viewCenterRef.current = viewCenter;
 
-  /* ---- export ---- */
-  const save = (blob: Blob, name: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  };
-  const exportAs = async (fmt: "svg" | "png") => {
-    setMenu(false);
-    try {
-      if (fmt === "svg") save(new Blob([exportBoardSvg(doc, boardId)], { type: "image/svg+xml" }), "board.svg");
-      else save(await exportBoardPng(doc, boardId, 2), "board.png");
-    } catch {
-      env.toast(`Couldn't export the board as ${fmt.toUpperCase()}`);
-    }
-  };
-
   /* ---- creating shapes ---- */
   /** `box`: the dragged box (BRD-07); `free`: keyboard placement moves to the nearest free spot (BRD-12). */
   const createAt = (t: Tool, x: number, y: number, o: { box?: Box; free?: boolean } = {}) => {
+    if (t === "frame") {
+      // BRD-21: a frame adopts the free shapes whose centre is inside it and goes behind them.
+      let b: Box = o.box ?? [x - FRAME_SIZE.w / 2, y - FRAME_SIZE.h / 2, x + FRAME_SIZE.w / 2, y + FRAME_SIZE.h / 2];
+      if (!o.box && o.free) {
+        const [dx, dy] = freeSpot(b, S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box));
+        b = [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
+      }
+      um?.stopCapturing();
+      const fid = createFrame(doc, boardId, S.current.shapes, b, origin);
+      setSel([fid]);
+      setTool("select");
+      setLive("Added frame. Press F2 to rename it");
+      return;
+    }
     let s: Omit<Shape, "id">;
     if (t === "sticky") s = { type: "sticky", x: x - 75, y: y - 55, w: 150, h: 110, fill: ["y", "b", "p", "g"][S.current.shapes.filter((q) => q.type === "sticky").length % 4], text: "" };
     else if (t === "text") s = { type: "text", x, y: y + 9, text: "", size: 18 };
     else s = { type: t as ShapeType, x: x - 70, y: y - (t === "diamond" ? 50 : 40), w: 140, h: t === "diamond" ? 100 : 80, text: "" };
+    // Decision 4: new shapes take the last style this person picked.
+    Object.assign(s, lastFor(s.type));
     if (o.box && t !== "text") Object.assign(s, { x: Math.round(o.box[0]), y: Math.round(o.box[1]), w: Math.round(o.box[2] - o.box[0]), h: Math.round(o.box[3] - o.box[1]) });
     else if (o.free) {
       const others = S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
@@ -921,9 +1228,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     um?.stopCapturing();
     const nidv = addShape(doc, boardId, s, origin);
     setSel([nidv]);
-    setTool("select");
+    afterPlace();
     if (t === "sticky" || t === "text") setEditing({ id: nidv, text: "" });
-    else setLive(`Added ${TYPE_NAME[s.type].toLowerCase()}`);
+    else setLive(`Added ${TYPE_NAME[s.type].toLowerCase()}${S.current.lock ? ". Tool stays active" : ""}`);
   };
 
   /* ---- pointer ---- */
@@ -954,6 +1261,23 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const cap = () => {
       try { svg.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
     };
+    // BRD-18: a long press (500 ms without moving) opens the menu as a sheet.
+    if (e.pointerType === "touch" && pointers.current.size === 1 && (t === "select" || t === "hand")) {
+      const cx = e.clientX, cy = e.clientY, pid = e.pointerId;
+      if (lp.current) clearTimeout(lp.current.timer);
+      lp.current = {
+        x: cx, y: cy, timer: setTimeout(() => {
+          lp.current = null;
+          lpAt.current = Date.now();
+          drag.current = null;
+          pointers.current.delete(pid);
+          setDragging(false);
+          setMarquee(null);
+          setGuides(null);
+          openCtx(cx, cy, sid ?? null, true);
+        }, 500),
+      };
+    }
     if (t === "hand" || e.button === 1 || space.current || (!S.current.edit && t !== "select")) {
       drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, v: S.current.view };
       cap();
@@ -974,6 +1298,43 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
     }
     if (t === "select") {
+      const qcEl = (e.target as Element).closest?.("[data-qc]");
+      // Not `data-s`: `g[data-s]` is a shape's own view (counted and hit-tested as one).
+      const qcSrc = qcEl ? S.current.byId.get(qcEl.getAttribute("data-qc-of") ?? "") : undefined;
+      if (qcEl && qcSrc && S.current.edit) {
+        e.preventDefault(); // the new shape's editor keeps the focus (as BRD-05)
+        drag.current = { kind: "qc", side: qcEl.getAttribute("data-qc") as Side, sid: qcSrc.id, cx: e.clientX, cy: e.clientY, moved: false };
+        cap();
+        return;
+      }
+      const rzEl = (e.target as Element).closest?.("[data-rz]");
+      const rotEl = (e.target as Element).closest?.("[data-rot]");
+      if ((rzEl || rotEl?.getAttribute("data-rot") === "multi") && S.current.edit) {
+        const list = selShapes().filter((q) => !q.locked);
+        const u = unionBox(list);
+        if (list.length && u) {
+          um?.stopCapturing();
+          const orig = list.map((q) => JSON.parse(JSON.stringify(q)) as Shape);
+          if (rzEl) drag.current = { kind: "rz", h: rzEl.getAttribute("data-rz") as Handle, ids: list.map((q) => q.id), orig, u, ox: x, oy: y, moved: false };
+          else {
+            const c: Pt = [(u[0] + u[2]) / 2, (u[1] + u[3]) / 2];
+            drag.current = { kind: "rotm", ids: list.map((q) => q.id), orig, c, a0: Math.atan2(y - c[1], x - c[0]), moved: false };
+          }
+          cap();
+          return;
+        }
+      }
+      if (rotEl && sid && S.current.edit) {
+        const s0 = S.current.byId.get(sid);
+        if (s0 && !s0.locked) {
+          const b = bbox(s0);
+          const c: Pt = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+          um?.stopCapturing();
+          drag.current = { kind: "rotate", sid, c, a0: Math.atan2(y - c[1], x - c[0]), r0: rotOf(s0), moved: false };
+          cap();
+          return;
+        }
+      }
       if (sid) {
         const s = S.current.shapes.find((q) => q.id === sid);
         const tEl = e.target as Element;
@@ -994,6 +1355,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         if (next !== cur) {
           setSel(next);
           announceSel(next);
+        }
+        if (s?.locked && S.current.edit) {
+          setLive(`${describeShape(s)} is locked. Press Shift Control L or use the menu to unlock`);
+          return;
         }
         if (s && S.current.edit) {
           um?.stopCapturing();
@@ -1019,6 +1384,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             // Diagram mode: moving a container moves what it holds (3g).
             const boxes = S.current.dgm ? S.current.shapes.filter((q) => next.includes(q.id) && isContainer(q)) : [];
             if (boxes.length) next = [...next, ...containedIn(S.current.shapes, boxes).filter((x) => !next.includes(x))];
+            next = next.filter((x) => !S.current.byId.get(x)?.locked);
+            // BRD-21: a frame's members (`props.parent`) move with it, in both modes.
+            for (const f of S.current.shapes.filter((q) => next.includes(q.id) && isFrame(q))) next = [...next, ...membersOf(S.current.shapes, f.id).filter((x) => !next.includes(x))];
             const moving = S.current.shapes.filter((q) => next.includes(q.id));
             const set = new Set(next);
             const others = S.current.shapes.length > 1500 ? [] : S.current.shapes.filter((q) => !set.has(q.id) && q.type !== "arrow" && q.type !== "pen").map((q) => bbox(q));
@@ -1070,6 +1438,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (lp.current && Math.hypot(e.clientX - lp.current.x, e.clientY - lp.current.y) > 8) {
+      clearTimeout(lp.current.timer);
+      lp.current = null;
+    }
     if (e.pointerType === "mouse" || pointers.current.has(e.pointerId)) {
       const [wx, wy] = toWorld(e.clientX, e.clientY);
       publish(wx, wy);
@@ -1077,6 +1449,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
     const d = drag.current;
     if (!d) {
+      const qcEl = (e.target as Element).closest?.("[data-qc]");
+      const side = (qcEl?.getAttribute("data-qc") as Side | null) ?? null;
+      if (side !== qcHover) setQcHover(side);
       // Diagram mode: pointing at a shape shows its ports (3b); editors only (10c).
       if (S.current.dgm && S.current.edit && S.current.tool === "select" && e.pointerType !== "touch") {
         const el = e.target as Element;
@@ -1118,14 +1493,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
       d.box = [Math.min(d.x0, d.x0 + w), Math.min(d.y0, d.y0 + h), Math.max(d.x0, d.x0 + w), Math.max(d.y0, d.y0 + h)];
       const [bx0, by0, bx1, by1] = d.box;
-      setDraft({ id: "draft", type: d.t as ShapeType, x: bx0, y: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), text: "", ...(d.t === "sticky" ? { fill: "y" } : {}) });
+      setDraft({ id: "draft", type: d.t as ShapeType, x: bx0, y: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), text: "", ...(d.t === "sticky" ? { fill: "y" } : {}), ...(d.t === "frame" ? { type: "rect", kind: CONTAINER } : {}) });
       return;
     }
     if (d.kind === "box") {
       const b: Box = [Math.min(d.x0, x), Math.min(d.y0, y), Math.max(d.x0, x), Math.max(d.y0, y)];
       if ((b[2] - b[0]) * S.current.view.z < 3 && (b[3] - b[1]) * S.current.view.z < 3) return;
       setMarquee(b);
-      const hits = withGroups(S.current.shapes, scene.inBox(b));
+      // Decision 13: shapes fully inside; with Alt, any the box touches.
+      const met = scene.inBox(b).filter((id) => {
+        const q = S.current.byId.get(id);
+        if (!q || q.locked) return false;
+        if (e.altKey) return true;
+        const bb = bbox(q);
+        return bb[0] >= b[0] && bb[1] >= b[1] && bb[2] <= b[2] && bb[3] <= b[3];
+      });
+      const hits = withGroups(S.current.shapes, met).filter((id) => !S.current.byId.get(id)?.locked);
       const next = d.add ? [...d.base, ...hits.filter((h) => !d.base.includes(h))] : hits;
       const cur = S.current.sel;
       if (next.length !== cur.length || next.some((id, i) => id !== cur[i])) setSel(next);
@@ -1201,6 +1584,47 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
+    if (d.kind === "qc") {
+      if (!d.moved && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 4) return;
+      d.moved = true;
+      setQcHover(null);
+      const src = S.current.byId.get(d.sid);
+      if (!src) return;
+      const b = scene.snap([x, y], 18 / S.current.view.z, src.id);
+      const t2 = b ? S.current.byId.get(b.shapeId) : undefined;
+      setDraft({ id: "draft", type: "arrow", pts: [anchorPoint(src, SIDE_ANCHOR[d.side]), t2 ? anchorPoint(t2, b!.anchor) : [x, y]], start: { shapeId: src.id, anchor: SIDE_ANCHOR[d.side] }, ...(b ? { end: b } : {}), ...connectorStyle() });
+      setHint(b);
+      return;
+    }
+    if (d.kind === "rz") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      const dd: Pt = [x - d.ox, y - d.oy];
+      if (d.orig.length === 1) {
+        const o = d.orig[0];
+        // Images keep their proportions unless Shift; other shapes keep them with Shift.
+        schedule(o.id, resizeOne(o, d.h, dd, { ratio: o.type === "image" ? !e.shiftKey : e.shiftKey, centre: e.altKey, min: [10, 10] }));
+      } else for (const m of scaleMany(d.orig, d.u, d.h, dd, e.shiftKey)) schedule(m.id, m.patch);
+      return;
+    }
+    if (d.kind === "rotm") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      let deg = ((Math.atan2(y - d.c[1], x - d.c[0]) - d.a0) * 180) / Math.PI;
+      if (!e.altKey) deg = Math.round(deg / 15) * 15;
+      for (const m of rotateMany(d.orig, d.c, normDeg(deg))) schedule(m.id, m.patch);
+      return;
+    }
+    if (d.kind === "rotate") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      let r = d.r0 + ((Math.atan2(y - d.c[1], x - d.c[0]) - d.a0) * 180) / Math.PI;
+      // Decision 5: 15° steps; Alt rotates freely (as Alt moves freely).
+      if (!e.altKey) r = Math.round(r / 15) * 15;
+      r = normDeg(r);
+      schedule(d.sid, { rot: r ? r : undefined });
+      return;
+    }
     let dx = x - d.ox, dy = y - d.oy;
     if (!d.moved && Math.hypot(dx, dy) * S.current.view.z < 2) return;
     if (!d.moved) setDragging(true);
@@ -1234,10 +1658,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
       setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
       setGaps(eq.marks.length ? eq.marks : null);
-    } else if (d.box && !e.altKey) {
-      const sn = snapOffset(d.box, d.others, dx, dy, 6 / S.current.view.z);
+    } else if (d.box && !e.altKey && S.current.snap) {
+      // Decision 9: edges and centres, then equal gaps (as diagram mode), on the whiteboard too.
+      const tol = 6 / S.current.view.z;
+      const sn = snapOffset(d.box, d.others, dx, dy, tol);
       dx = sn.dx;
       dy = sn.dy;
+      const mv: Box = [d.box[0] + dx, d.box[1] + dy, d.box[2] + dx, d.box[3] + dy];
+      const eq = equalGapOffset(mv, d.others, tol, { x: sn.gx.length > 0, y: sn.gy.length > 0 });
+      dx += eq.dx;
+      dy += eq.dy;
+      setGaps(eq.marks.length ? eq.marks : null);
       setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
     } else {
       setGuides(null);
@@ -1259,6 +1690,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (lp.current) {
+      clearTimeout(lp.current.timer);
+      lp.current = null;
+    }
     pointers.current.delete(e.pointerId);
     const d = drag.current;
     if (d?.kind === "pinch") {
@@ -1271,6 +1706,28 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setGaps(null);
     if (!d) return;
     setHint(null);
+    if (d.kind === "qc") {
+      setDraft(null);
+      setQcHover(null);
+      const src = S.current.byId.get(d.sid);
+      if (e.type === "pointercancel" || !src) return;
+      if (!d.moved) return qcCreate(src, d.side, null);
+      const [x, y] = toWorld(e.clientX, e.clientY);
+      const b = scene.snap([x, y], 18 / S.current.view.z, src.id);
+      if (b && b.shapeId !== src.id) {
+        const t2 = S.current.byId.get(b.shapeId)!;
+        um?.stopCapturing();
+        let cid = "";
+        doc.transact(() => {
+          cid = addShape(doc, boardId, { type: "arrow", pts: [anchorPoint(src, SIDE_ANCHOR[d.side]), anchorPoint(t2, b.anchor)], start: { shapeId: src.id, anchor: SIDE_ANCHOR[d.side] }, end: b, ...connectorStyle(), ...lastFor("arrow") }, origin);
+          syncAfter([cid]);
+        }, origin);
+        setSel([cid]);
+        setLive(`Connected ${describeShape(src)} to ${describeShape(t2)}`);
+        return;
+      }
+      return qcCreate(src, d.side, [x, y]);
+    }
     if (d.kind === "create") {
       setDraft(null);
       if (e.type === "pointercancel") return;
@@ -1290,18 +1747,36 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const n = d.orig.length + (d.insert ? 1 : 0);
       announceWp(d.i, n);
     }
-    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp") {
+    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp" || d.kind === "rotate" || d.kind === "rz" || d.kind === "rotm") {
+      let said: string | null = null;
+      const movedIds = d.kind === "move" && d.moved ? d.ids : null;
       doc.transact(() => {
         flush();
-        if (d.moved) syncAfter(d.kind === "move" ? d.ids : [d.sid]);
+        if (d.moved) syncAfter(d.kind === "move" || d.kind === "rz" || d.kind === "rotm" ? d.ids : [d.sid]);
+        // BRD-21: a moved shape joins the frame its centre was dropped in (or leaves its frame).
+        const m = movedIds ? getBoardMap(doc, boardId) : null;
+        if (m && movedIds) said = applyMembership(doc, boardId, readShapes(m), movedIds, origin);
       }, origin);
+      if (said) setLive(said);
+    }
+    if (d.kind === "rz" && d.moved) {
+      const s1 = S.current.raw.find((q) => q.id === d.ids[0]);
+      setLive(d.ids.length > 1 ? `Resized ${d.ids.length} shapes` : s1 ? `Resized to ${Math.round(s1.w ?? 0)} by ${Math.round(s1.h ?? 0)}` : "Resized");
+    }
+    if (d.kind === "rotm" && d.moved) {
+      const s1 = S.current.raw.find((q) => q.id === d.ids[0]);
+      setLive(`${d.ids.length} shapes rotated by ${normDeg(rotOf(s1 ?? ({ id: "", type: "rect" } as Shape)) - rotOf(d.orig[0]))} degrees`);
+    }
+    if (d.kind === "rotate" && d.moved) {
+      const r = rotOf(S.current.raw.find((q) => q.id === d.sid) ?? ({ id: "", type: "rect" } as Shape));
+      setLive(`Rotated to ${r} degrees`);
     }
     const p = draftRef.current;
     if (d.kind === "pen") {
       setDraft(null);
       if (p?.pts) {
         const pts: Pt[] = p.pts.length === 1 ? [p.pts[0], [p.pts[0][0] + 0.1, p.pts[0][1] + 0.1]] : simplify(p.pts);
-        addShape(doc, boardId, { type: "pen", pts, stroke: "accent" }, origin);
+        addShape(doc, boardId, { type: "pen", pts, stroke: "accent", ...lastFor("pen") }, origin);
       }
     }
     if (d.kind === "arrow") {
@@ -1311,7 +1786,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         const pts = resolveArrow(p, byId);
         const a = pts[0], b = pts[pts.length - 1];
         if (bound || (a && b && Math.hypot(b[0] - a[0], b[1] - a[1]) > 6)) {
-          const s: Omit<Shape, "id"> = { type: "arrow", pts: pts.map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt) };
+          const s: Omit<Shape, "id"> = { type: "arrow", pts: pts.map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt), ...(p.props ? {} : lastFor("arrow")) };
           if (p.start) s.start = p.start;
           if (p.end && p.end.shapeId !== p.start?.shapeId) s.end = p.end;
           if (p.route) s.route = p.route;
@@ -1321,7 +1796,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           setSel([addShape(doc, boardId, s, origin)]);
         }
       }
-      setTool("select");
+      afterPlace();
     }
   };
 
@@ -1332,6 +1807,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const target = (hit ?? (e.target as Element)).closest?.("[data-s]");
     const sid = target?.getAttribute("data-s") ?? (lodOn(S.current.view.z, S.current.shapes.length) ? scene.hitAt(toWorld(e.clientX, e.clientY), 6 / S.current.view.z) : null);
     const s = sid ? S.current.shapes.find((q) => q.id === sid) : null;
+    if (s && isFrame(s)) {
+      // BRD-21: double-clicking a frame's name or edge renames it.
+      frm.rename?.(s.id);
+      return;
+    }
     if (s) {
       // On a connector: double-click a waypoint to remove it, the line to add one there.
       // Its label (or Enter, or the toolbar) edits the text.
@@ -1389,7 +1869,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /* ---- keyboard ---- */
   const nudge = (dx: number, dy: number) => {
-    const list = selShapes();
+    const list = selShapes().filter((s) => !s.locked);
     const set = new Set(list.map((s) => s.id));
     const moves: { id: string; patch: Partial<Shape> }[] = [];
     for (const s of list) {
@@ -1411,6 +1891,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const onKeyUp = (e: React.KeyboardEvent) => {
     if (e.key === " ") space.current = false;
   };
+  const list0 = () => selShapes().filter((q) => !q.locked);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
     // Typing in a field of this board keeps its keys. (The board itself sits inside the editor's
@@ -1426,12 +1907,34 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         setWp(null);
         setLive("Connector selected");
       } else if (menu) setMenu(false);
-      else if (S.current.tool !== "select") setTool("select");
+      else if (styleOpen) setStyleOpen(false);
+      else if (S.current.tool !== "select" || S.current.lock) {
+        setTool("select");
+        setLive("Select tool");
+      }
       else if (S.current.sel.length) {
         setSel([]);
         announceSel([]);
       } else if (dgm) closeDiagram();
       else if (full) exitFull();
+      return;
+    }
+    // ⇧⌘C: copy the selection (or the board) as PNG (BRD-20).
+    if (mod && e.shiftKey && !e.altKey && k === "c") {
+      e.preventDefault();
+      void xport.copy("png");
+      return;
+    }
+    // BRD-21: ⇧P presents the frames (from the selected one); F2 renames the selected frame.
+    if (e.shiftKey && !mod && !e.altKey && k === "p") {
+      e.preventDefault();
+      const f = S.current.sel.length === 1 ? S.current.sel[0] : undefined;
+      if (!frm.present(f && frm.frames.some((q) => q.id === f) ? f : undefined)) setLive("No frames to present. Draw one with F");
+      return;
+    }
+    if (e.key === "F2" && frm.rename && S.current.sel.length === 1 && frm.frames.some((q) => q.id === S.current.sel[0])) {
+      e.preventDefault();
+      frm.rename(S.current.sel[0]);
       return;
     }
     // Shift+D: open this board as a diagram (1b).
@@ -1491,9 +1994,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
     if (mod && k === "a") {
       e.preventDefault();
-      const all = S.current.shapes.map((s) => s.id);
-      setSel(all);
-      announceSel(all);
+      selectAll();
+      return;
+    }
+    // BRD-18: Shift+F10 or the Menu key open the context menu; ? lists the shortcuts.
+    if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
+      e.preventDefault();
+      ctxFromKeys();
+      return;
+    }
+    if (e.key === "?" && !mod) {
+      e.preventDefault();
+      setKeysOpen(true);
       return;
     }
     if (k === "m" && !mod && !e.altKey) {
@@ -1559,6 +2071,26 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       groupSel(!e.shiftKey);
       return;
     }
+    if (e.altKey && !mod && e.code === "KeyS" && list0().some(styled)) {
+      e.preventDefault();
+      openStyle(!styleOpen);
+      return;
+    }
+    if (e.shiftKey && !mod && e.code === "KeyR" && list0().length) {
+      e.preventDefault();
+      rotBy(e.altKey ? -15 : 15);
+      return;
+    }
+    if (mod && e.shiftKey && k === "l") {
+      e.preventDefault();
+      lockSel();
+      return;
+    }
+    if (mod && e.shiftKey && k === "k") {
+      e.preventDefault();
+      openLink();
+      return;
+    }
     if (mod && (e.key === "]" || e.key === "[" || e.code === "BracketRight" || e.code === "BracketLeft")) {
       e.preventDefault();
       const up = e.key === "]" || e.code === "BracketRight";
@@ -1592,6 +2124,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
       return;
     }
+    if (list.length >= 2 && e.altKey && e.shiftKey && e.key.startsWith("Arrow")) {
+      e.preventDefault();
+      align(({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "top", ArrowDown: "bottom" } as Record<string, AlignMode>)[e.key]);
+      setLive(`Aligned ${({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "top", ArrowDown: "bottom" } as Record<string, string>)[e.key]}`);
+      return;
+    }
     if (list.length && e.key.startsWith("Arrow")) {
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;
@@ -1600,7 +2138,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       if (e.altKey) {
         // Alt+arrows resize (the keyboard alternative to dragging the handle).
         const s = list[0];
-        if (list.length !== 1 || !SIZED.includes(s.type)) return;
+        if (list.length !== 1 || !SIZED.includes(s.type) || s.locked) return;
         doc.transact(() => {
           updateShape(doc, boardId, s.id, { w: Math.max(40, (s.w ?? 0) + dx), h: Math.max(30, (s.h ?? 0) + dy) }, origin);
           syncAfter([s.id]);
@@ -1611,9 +2149,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       nudge(dx, dy);
       return;
     }
+    if (!mod && !e.altKey && !e.shiftKey && k === "q") {
+      e.preventDefault();
+      toggleLock();
+      return;
+    }
     if (!mod && !e.altKey && KEY_TOOL[k]) {
-      setTool(KEY_TOOL[k]);
-      if (KEY_TOOL[k] !== "select" && KEY_TOOL[k] !== "hand" && KEY_TOOL[k] !== "pen") setLive(`${TOOLS.find((x) => x[0] === KEY_TOOL[k])![2]} tool. Press Enter to place one in the middle of the view`);
+      const nt = KEY_TOOL[k];
+      // A locked tool switched by its letter stays locked (the lock belongs to the tool bar).
+      setTool(nt, nt === "select" || nt === "hand" ? false : S.current.lock);
+      if (nt !== "select" && nt !== "hand" && nt !== "pen") setLive(`${toolName(nt)} tool${S.current.lock ? ", kept active" : ""}. Press Enter to place one in the middle of the view`);
     }
   };
 
@@ -1709,6 +2254,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   useEffect(() => {
     if (sel.length && sel.some((id) => !byId.has(id))) setSel(sel.filter((id) => byId.has(id)));
     if (editing && !byId.has(editing.id)) setEditing(null);
+    if (styleOpen && !sel.some((id) => byId.has(id))) setStyleOpen(false);
   }, [shapes, sel, editing]);
 
   /* ---- render ---- */
@@ -1766,7 +2312,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ) : (
             (() => {
               const b = bbox(s);
-              return <rect key={s.id} x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={sw} pointerEvents="none" />;
+              const rr = rotOf(s);
+              return (
+                <g key={s.id} pointerEvents="none" transform={rr ? `rotate(${rr} ${(b[0] + b[2]) / 2} ${(b[1] + b[3]) / 2})` : undefined}>
+                  <rect className="ocbd-selring" x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeDasharray={s.locked ? `${4 / z} ${3 / z}` : undefined} />
+                  {s.locked ? (
+                    <g className="ocbd-lockbadge" transform={`translate(${b[2] + 6} ${b[1] - 6}) scale(${1 / z})`}>
+                      <circle r={9} fill="var(--pop)" stroke="var(--line-2)" />
+                      <Lock x={-5.5} y={-5.5} width={11} height={11} strokeWidth={2.2} color="var(--fg-2)" />
+                    </g>
+                  ) : null}
+                </g>
+              );
             })()
           ),
         )}
@@ -1776,7 +2333,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               return <rect x={u[0] - 12} y={u[1] - 12} width={u[2] - u[0] + 24} height={u[3] - u[1] + 24} rx={8} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeDasharray={`${4 / z} ${4 / z}`} pointerEvents="none" />;
             })()
           : null}
-        {selShape?.type === "arrow" && selShape.pts && selShape.pts.length >= 2 && edit
+        {selShape?.type === "arrow" && selShape.pts && selShape.pts.length >= 2 && edit && !selShape.locked
           ? (["start", "end"] as const).map((which) => {
               const q = which === "start" ? selShape.pts![0] : selShape.pts![selShape.pts!.length - 1];
               const bound = !!selShape[which];
@@ -1854,25 +2411,98 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               return out;
             })()
           : null}
-        {edit && selShape && SIZED.includes(selShape.type)
+        {edit && selShape && rotates(selShape) && !selShape.locked
           ? (() => {
               const b = bbox(selShape);
+              const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, top = b[1] - 6, hy = top - 24 / z;
+              const rr = rotOf(selShape);
               return (
-                <rect
-                  className="ocbd-rz"
-                  data-s={selShape.id}
-                  x={b[2] + 6 - 5 / z}
-                  y={b[3] + 6 - 5 / z}
-                  width={(compact ? 16 : 10) / z}
-                  height={(compact ? 16 : 10) / z}
-                  rx={2 / z}
-                  fill="var(--app)"
-                  stroke="var(--accent)"
-                  strokeWidth={sw}
-                  style={{ cursor: "nwse-resize" }}
-                >
-                  <title>Drag to resize (Alt+arrow keys too)</title>
-                </rect>
+                <g transform={rr ? `rotate(${rr} ${cx} ${cy})` : undefined}>
+                  <line x1={cx} y1={top} x2={cx} y2={hy + 6 / z} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" />
+                  <circle className="ocbd-rot" data-rot="" data-s={selShape.id} cx={cx} cy={hy} r={(compact ? 10 : 6) / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "grab" }}>
+                    <title>Drag to rotate: 15° steps, Alt for free (Shift+R)</title>
+                  </circle>
+                  <RotateCw x={cx - 4 / z} y={hy - 4 / z} width={8 / z} height={8 / z} strokeWidth={3} color="var(--accent)" pointerEvents="none" />
+                </g>
+              );
+            })()
+          : null}
+        {edit && selShape && SIZED.includes(selShape.type) && !selShape.locked
+          ? (() => {
+              // Decision 13: eight handles, placed in the shape's own (rotated) frame.
+              const b0 = bbox(selShape);
+              const b: Box = [b0[0] - 6, b0[1] - 6, b0[2] + 6, b0[3] + 6];
+              const hs = (compact ? 14 : 8) / z;
+              return HANDLES.map((h) => {
+                const [hx, hy] = handleAt(b, h, rotOf(selShape));
+                return (
+                  <rect key={h} className="ocbd-rz" data-rz={h} data-s={selShape.id} x={hx - hs / 2} y={hy - hs / 2} width={hs} height={hs} rx={1.5 / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: CURSOR[h] }}>
+                    <title>Drag to resize. Shift keeps proportions, Alt from the centre (Alt+arrow keys too)</title>
+                  </rect>
+                );
+              });
+            })()
+          : null}
+        {edit && selShape && quickConnects(selShape) && !dgm && !draft
+          ? (() => {
+              // Decision 10: + on each side; hovering one previews the new shape and connector.
+              const pos = qcHandles(selShape, 22 / z);
+              const r = (compact ? 12 : 8) / z;
+              let ghost: ReactNode = null;
+              if (qcHover) {
+                const others = shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
+                const [gx, gy] = qcSpot(selShape, qcHover, others);
+                const g = { ...cloneFields(selShape), id: "qc-ghost", x: gx, y: gy } as Shape;
+                const a = anchorPoint(selShape, SIDE_ANCHOR[qcHover]), b2 = anchorPoint(g, SIDE_ANCHOR[OPPOSITE[qcHover]]);
+                ghost = (
+                  <g pointerEvents="none" className="ocbd-qcghost">
+                    <g opacity={0.45}>
+                      <ShapeView s={g} ah={ah} />
+                    </g>
+                    <line x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke="var(--accent)" strokeWidth={1.5 / z} strokeDasharray={`${4 / z} ${3 / z}`} />
+                  </g>
+                );
+              }
+              return (
+                <g className="ocbd-qc">
+                  {ghost}
+                  {SIDES.map((side) => {
+                    const [hx, hy] = pos[side];
+                    const on = qcHover === side;
+                    return (
+                      <g key={side} data-qc={side} data-qc-of={selShape.id} style={{ cursor: "pointer" }}>
+                        <title>{`Add a connected shape ${SIDE_NAME[side]}; drag to connect`}</title>
+                        <circle cx={hx} cy={hy} r={on ? r * 1.25 : r} fill={on ? "var(--accent)" : "var(--accent-soft)"} stroke="var(--accent)" strokeWidth={1.25 / z} />
+                        <path d={`M${hx - r * 0.45} ${hy}H${hx + r * 0.45}M${hx} ${hy - r * 0.45}V${hy + r * 0.45}`} stroke={on ? "var(--accent-fg)" : "var(--accent)"} strokeWidth={1.6 / z} strokeLinecap="round" pointerEvents="none" />
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })()
+          : null}
+        {edit && selList.length > 1 && selList.some((q) => !q.locked)
+          ? (() => {
+              // Several shapes: corners scale them together, the handle above turns them together.
+              const u0 = unionBox(selList.filter((q) => !q.locked))!;
+              const u: Box = [u0[0] - 12, u0[1] - 12, u0[2] + 12, u0[3] + 12];
+              const hs = (compact ? 14 : 8) / z, cx = (u[0] + u[2]) / 2, hy = u[1] - 24 / z;
+              return (
+                <g>
+                  {CORNERS.map((h) => {
+                    const [hx, hy2] = handleAt(u, h);
+                    return (
+                      <rect key={h} className="ocbd-rz" data-rz={h} x={hx - hs / 2} y={hy2 - hs / 2} width={hs} height={hs} rx={1.5 / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: CURSOR[h] }}>
+                        <title>Drag to resize them together. Shift keeps proportions</title>
+                      </rect>
+                    );
+                  })}
+                  <line x1={cx} y1={u[1]} x2={cx} y2={hy + 6 / z} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" />
+                  <circle className="ocbd-rot" data-rot="multi" cx={cx} cy={hy} r={(compact ? 10 : 6) / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "grab" }}>
+                    <title>Drag to rotate them together: 15° steps, Alt for free</title>
+                  </circle>
+                  <RotateCw x={cx - 4 / z} y={hy - 4 / z} width={8 / z} height={8 / z} strokeWidth={3} color="var(--accent)" pointerEvents="none" />
+                </g>
               );
             })()
           : null}
@@ -1939,7 +2569,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /* ---- contextual toolbar ---- */
   let swatch: ReactNode = null;
-  if (selList.length && edit && !editing && !dragging && !marquee) {
+  if (selList.length && edit && !editing && !dragging && !marquee && !ctx) {
     const u = unionBox(selList)!;
     const Wd = svgRef.current?.clientWidth || 600;
     // Kept inside the canvas (8 px gutter; past the ruler in diagram mode) by its measured width;
@@ -1951,7 +2581,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // Above the selection. Without room there it would sit on the board's own buttons and over the
     // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
     const minTop = compact ? 64 : 56;
-    const above = u[1] * z + ty - 14, below = u[3] * z + ty + 14;
+    // Above the rotation handle (BRD-22) when one shows, so the handle stays reachable.
+    const handle = (selShape && rotates(selShape) && !selShape.locked) || (selList.length > 1 && selList.some((q) => !q.locked)) ? 30 : 0;
+    const above = u[1] * z + ty - 14 - handle, below = u[3] * z + ty + 14;
     const Hd = svgRef.current?.clientHeight ?? 0;
     let flip = above < minTop && below + (compact ? 56 : 44) <= Hd;
     let sy = flip ? below : Math.max(minTop, above);
@@ -1960,7 +2592,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // place covers one, try above, then below, each also moved sideways clear of the control.
     const svgR = svgRef.current?.getBoundingClientRect();
     const blocks: Box[] = svgR
-      ? [...(rootRef.current?.querySelectorAll<HTMLElement>(".ocbd-top, .ocbd-tool, .ocbd-zoom") ?? [])]
+      ? [...(rootRef.current?.querySelectorAll<HTMLElement>(".ocbd-top, .ocbd-tool, .ocbd-zoom, .ocst:not(.sheet)") ?? [])]
           .map((el) => el.getBoundingClientRect())
           .filter((r) => r.width > 0 && r.height > 0)
           .map((r) => [r.left - svgR.left - 6, r.top - svgR.top - 6, r.right - svgR.left + 6, r.bottom - svgR.top + 6] as Box)
@@ -1989,7 +2621,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     );
     const sep = (k: string) => <span key={k} className="sep" />;
     const items: ReactNode[] = [];
-    if (s1?.type === "sticky") {
+    const moreBtn = () =>
+      btn("More", Ellipsis, () => {
+        const b = barRef.current?.querySelector<HTMLElement>('[aria-label="More"]')?.getBoundingClientRect();
+        if (b) openCtx(b.left, b.bottom + 6, undefined);
+        else ctxFromKeys();
+      }, { keys: "Shift+F10" });
+    const allLocked = selList.every((q) => q.locked);
+    if (allLocked) {
+      items.push(<span key="lk" className="lbl">{selList.length > 1 ? `${selList.length} locked` : "Locked"}</span>);
+      items.push(btn("Unlock", LockOpen, lockSel, { keys: "Ctrl+Shift+L" }));
+      items.push(moreBtn());
+    }
+    if (!allLocked && selList.some(styled)) items.push(btn("Style", SlidersHorizontal, () => openStyle(!styleOpen), { pressed: styleOpen, keys: "Alt+S" }));
+    if (allLocked) {
+      /* only Unlock and More */
+    } else if (s1?.type === "sticky") {
       (["y", "p", "b", "g"] as const).forEach((c) =>
         items.push(
           <button key={c} data-c={c} style={{ background: STICKY[c] }} aria-label={{ y: "Yellow", p: "Pink", b: "Blue", g: "Green" }[c]} aria-pressed={(s1.fill ?? "y") === c} onClick={() => updateShape(doc, boardId, s1.id, { fill: c }, origin)} />,
@@ -2055,8 +2702,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (dgm && selList.some((q) => q.type !== "arrow" && q.type !== "pen")) items.push(btn("Container", Frame, containSel));
     items.push(btn("Bring to front", BringToFront, () => zSel("front"), { keys: "Ctrl+Shift+]" }));
     items.push(btn("Send to back", SendToBack, () => zSel("back"), { keys: "Ctrl+Shift+[" }));
-    items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
-    items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
+    if (!allLocked) {
+      items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
+      items.push(btn("Lock", Lock, lockSel, { keys: "Ctrl+Shift+L" }));
+      items.push(moreBtn());
+      items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
+    }
+    // A locked selection offers only Unlock and the menu (built first, above).
+    if (allLocked) items.splice(3);
     swatch = (
       <div ref={barRef} className="ocbd-swatch" style={{ left: sx, top: sy }} data-place={flip ? "below" : undefined} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
         {items}
@@ -2112,7 +2765,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onDoubleClick={onDoubleClick}
-        onContextMenu={(e) => drag.current && e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // A long press already opened it (some browsers send contextmenu for the same press).
+          if (drag.current || ctx || Date.now() - lpAt.current < 800) return;
+          const target = (e.target as Element).closest?.("[data-s]");
+          const sid = target?.getAttribute("data-s") ?? (lodOn(S.current.view.z, S.current.shapes.length) ? scene.hitAt(toWorld(e.clientX, e.clientY), 6 / S.current.view.z) : null);
+          openCtx(e.clientX, e.clientY, sid);
+        }}
       >
         <defs>
           {!dgm ? (
@@ -2134,6 +2794,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             <path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="var(--fg-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </marker>
           {/* Connector ends from `props` (UML arrows, ERD cardinality): S2 presets, S4 panel. */}
+          {/* BRD-22: connectors drawn in a colour get their ends in the same colour. */}
+          {[...new Set(visible.filter((q) => q.type === "arrow" && inkOf(q)).map((q) => q.stroke!))].map((c) => {
+            const col = inkOf({ id: "", type: "arrow", stroke: c })!;
+            return (
+              <g key={c}>
+                <marker id={`${ah}-k-${c}`} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke={col} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </marker>
+                {Object.entries(HEADS).map(([name, h]) => (
+                  <marker key={name} id={`${ah}-k-${c}-${name}`} viewBox="0 0 20 20" refX={19} refY={10} markerWidth={18} markerHeight={18} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+                    <path d={h.d} fill={h.fill === "var(--fg-2)" ? col : (h.fill ?? "none")} stroke={col} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+                  </marker>
+                ))}
+              </g>
+            );
+          })}
           {Object.entries(HEADS).map(([name, h]) => (
             <marker key={name} id={`${ah}-${name}`} viewBox="0 0 20 20" refX={19} refY={10} markerWidth={18} markerHeight={18} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
               <path d={h.d} fill={h.fill ?? "none"} stroke="var(--fg-2)" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
@@ -2153,6 +2829,30 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             />
           ))}
           <KindMarks shapes={visible} />
+          {lod ? null : <FrameNames frames={frm.frames} z={z} selected={new Set(sel)} />}
+          {visible.map((s) =>
+            s.link ? (
+              (() => {
+                const b = bbox(s);
+                return (
+                  <g
+                    key={"lk" + s.id}
+                    data-link={s.id}
+                    className="ocbd-linkbadge"
+                    transform={`translate(${b[2]} ${b[1]}) scale(${1 / z})`}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      openUrl(s.link);
+                    }}
+                  >
+                    <title>{`Open ${s.link}`}</title>
+                    <circle r={9} fill="var(--pop)" stroke="var(--line-2)" />
+                    <Link2 x={-5.5} y={-5.5} width={11} height={11} strokeWidth={2.2} color="var(--accent)" />
+                  </g>
+                );
+              })()
+            ) : null,
+          )}
           {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
           {dgm ? <OrphanLayer boardId={boardId} shapes={shapes} z={z} /> : null}
           {peerSel}
@@ -2196,11 +2896,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       <div className="ocbd-sr" role="status" aria-live="polite">{live}</div>
 
       {!shapes.length && !draft ? (
-        <div className="ocbd-empty">
-          <Shapes size={22} strokeWidth={1.5} />
-          <span>{edit ? "Pick a tool below, or double-click to add text." : "This board is empty."}</span>
-          {edit ? <span className="ocbd-empty-k">Press N then Enter for a sticky note</span> : null}
-        </div>
+        <EmptyBoard
+          edit={edit}
+          onTemplate={(t) => {
+            // A starter template (decision 11): ordinary shapes and frames, one Undo step.
+            const [cx, cy] = viewCenter();
+            um?.stopCapturing();
+            insertTemplate(doc, boardId, t, cx, cy, origin);
+            um?.stopCapturing();
+            setLive(`${t.name} template added. Undo removes it`);
+            requestAnimationFrame(() => fitBox(contentBounds(S.current.shapes)));
+            rootRef.current?.focus({ preventScroll: true });
+          }}
+        />
       ) : null}
 
       <div className="ocbd-top">
@@ -2234,6 +2942,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <>
           <div className="ocbd-scrim" onPointerDown={() => setMenu(false)} />
           <div className="ocbd-menu" role="menu" aria-label="Board options">
+            {dgm && foldItems.length ? (
+              <>
+                {foldItems.map((f) => (
+                  <button key={f.label} role="menuitem" className="ocbd-mi" disabled={f.disabled} aria-keyshortcuts={f.kbd?.replace(/Mod\+/g, "Control+")} onClick={() => (setMenu(false), f.run())}>
+                    <span className="ocbd-mil">{f.label}</span>
+                    {f.kbd ? <kbd className="ocbd-kbd" aria-hidden="true">{kbdLabel(f.kbd)}</kbd> : null}
+                  </button>
+                ))}
+                <span className="ocbd-msep" />
+              </>
+            ) : null}
             {!dgm && env.diagramming !== false ? (
               <button role="menuitem" className="ocbd-mi" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
                 <Workflow size={16} strokeWidth={SW} />
@@ -2261,18 +2980,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
                 Export…
               </button>
             ) : null}
-            {dgm ? <span className="ocbd-msep" /> : null}
-            <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("png")}>
-              <FileImage size={16} strokeWidth={SW} />
-              Export as PNG
-            </button>
-            <button role="menuitem" className="ocbd-mi" onClick={() => void exportAs("svg")}>
-              <FileCode2 size={16} strokeWidth={SW} />
-              Export as SVG
-            </button>
+            <ExportMenuItems x={xport} dialog={!dgm} close={() => setMenu(false)} />
           </div>
         </>
       ) : null}
+      {xport.node}
+      {frm.node}
       {edit ? (
         <input
           ref={fileRef}
@@ -2302,11 +3015,50 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         onFit={fit}
         mini={mini}
         onMini={() => setMini((v) => !v)}
+        frames={frm.frames.map((f) => ({ id: f.id, name: String(f.label || f.text || "Frame") }))}
+        onFrame={(id) => {
+          const f = S.current.byId.get(id);
+          if (!f) return;
+          const b = bbox(f);
+          fitBox([b[0], b[1] - 24, b[2], b[3]], 2);
+          setSel([id]);
+        }}
+        onPresent={() => void frm.present()}
+        lock={lock}
+        onLock={edit ? toggleLock : undefined}
+        onToolLock={(t) => {
+          if (t === "select" || t === "hand") return;
+          setTool(t as Tool, true);
+          setLive(`${toolName(t as Tool)} tool kept active. Press Q or Escape to release.`);
+        }}
       />
       {mini && W ? <Minimap shapes={shapes} view={view} size={size} onView={setView} /> : null}
 
       {swatch}
       {editor}
+      {ctx ? (
+        <ContextMenu
+          items={selList.length ? shapeMenu() : canvasMenu(ctx.world)}
+          at={ctx.at}
+          sheet={ctx.sheet}
+          label={selList.length ? `${selList.length === 1 ? TYPE_NAME[selList[0].type] : `${selList.length} shapes`} menu` : "Board menu"}
+          title={selList.length === 1 ? describeShape(selList[0]) : selList.length ? `${selList.length} shapes` : "Board"}
+          quick={selList.length && edit ? ([
+            { label: "Copy", icon: Copy, run: copySel },
+            { label: "Duplicate", icon: CopyPlus, run: dupSel },
+            selList.every((q) => q.locked) ? { label: "Unlock", icon: LockOpen, run: lockSel } : { label: "Lock", icon: Lock, run: lockSel },
+            { label: "Delete", icon: Trash2, run: removeSel, danger: true },
+          ] as QuickAction[]) : undefined}
+          onClose={closeCtx}
+        />
+      ) : null}
+      {styleOpen && StyleMod && edit && selList.some(styled) && !dragging ? (
+        <StyleMod.default list={selList.filter(styled)} onSet={onStyleSet} sheet={narrow()} onClose={() => (setStyleOpen(false), rootRef.current?.focus({ preventScroll: true }))} />
+      ) : null}
+      {keysOpen ? <KeysDialog onClose={() => (setKeysOpen(false), rootRef.current?.focus({ preventScroll: true }))} /> : null}
+      {linkEdit ? (
+        <LinkPop at={linkEdit.at} value={byId.get(linkEdit.id)?.link ?? ""} check={safeLink} onSave={saveLink} onClose={() => (setLinkEdit(null), rootRef.current?.focus({ preventScroll: true }))} />
+      ) : null}
 
       {compact && !active && !full ? (
         <button
@@ -2373,6 +3125,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             selection={sel}
             exporting={exporting}
             onExportClose={() => setExporting(false)}
+            onFold={setFoldItems}
           >
             {content}
           </Shell>,
@@ -2629,8 +3382,25 @@ function IconNodeView({ s, stroke, hideText }: { s: Shape; stroke: string; hideT
   );
 }
 
-const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string; growH?: number }) {
-  const stroke = s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)";
+type ShapeProps = { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string; growH?: number };
+/** A shape, turned, faded and in its font when its style says so (BRD-22). */
+const ShapeView = memo(function ShapeView(p: ShapeProps) {
+  const { s } = p;
+  const r = rotOf(s), o = opOf(s), f = fontOf(s);
+  if (!r && o === undefined && !f) return <ShapeBody {...p} />;
+  const b = bbox(s);
+  return (
+    <g transform={r ? `rotate(${r} ${(b[0] + b[2]) / 2} ${(b[1] + b[3]) / 2})` : undefined} opacity={o} data-font={f}>
+      <ShapeBody {...p} />
+    </g>
+  );
+});
+
+function ShapeBody({ s, ah, hideText, resolve, growH }: ShapeProps) {
+  const ink = inkOf(s);
+  const stroke = ink ?? (s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)");
+  // Outline width and dash (BRD-22); without them the shapes draw as they always did.
+  const wOf = (d: number) => swOf(s) ?? d;
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = growH ?? s.h ?? 0;
   const text = hideText ? "" : (s.text ?? "");
   const tone = toneFill(s);
@@ -2646,7 +3416,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
     const ty = y + (h * (by + bh / 2)) / 100 + size * 0.36 - ((n - 1) * lh) / 2;
     return (
       <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
-        <path d={look.path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray={s.dashed ? "6 5" : undefined} />
+        <path d={look.path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={ink ?? tone?.stroke ?? stroke} strokeWidth={wOf(1.5)} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={s.dashed ? "6 5" : dashOf(s, wOf(1.5))} />
         {text ? <Lines text={text} x={x + (w * (bx + bw / 2)) / 100} y={ty} lh={lh} anchor size={size} wrap={wrap} /> : null}
       </g>
     );
@@ -2664,6 +3434,8 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
       // An icon shape (DGM-17): tinted tile, the glyph, the label below or to the right.
       if (s.kind === ICON_KIND) return <IconNodeView s={s} stroke={stroke} hideText={hideText} />;
+      // A frame (BRD-21): its name is drawn above it by `FrameNames`.
+      if (s.kind === CONTAINER) return <FrameView s={s} />;
       const glyph = look?.icon ? iconById(look.icon) : undefined;
       if (glyph) {
         // Network kinds drawn with a generic icon (DGM-17 decision 6): glyph on the left, text beside it.
@@ -2678,7 +3450,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       }
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (tone?.stroke ?? stroke)} strokeWidth={1.5} strokeDasharray={s.dashed ? "6 5" : undefined} />
+          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (ink ?? tone?.stroke ?? stroke)} strokeWidth={wOf(1.5)} strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={s.dashed ? "6 5" : dashOf(s, wOf(1.5))} />
           {s.label ? (
             <text x={x + 14} y={y + 24} fontSize={11.5} fontWeight={600} fill="var(--fg-3)" letterSpacing=".6">{s.label.toUpperCase()}</text>
           ) : null}
@@ -2690,7 +3462,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       const size = s.size ?? 15, lh = Math.round(size * 1.27);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} />
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={tone?.fill ?? "var(--app)"} stroke={ink ?? tone?.stroke ?? stroke} strokeWidth={wOf(1.5)} strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={dashOf(s, wOf(1.5))} />
           {text ? <Lines text={text} x={x + w / 2} y={centered(s, lh, size, Math.max(20, w * 0.72))} lh={lh} anchor size={size} weight={600} wrap={Math.max(20, w * 0.72)} /> : null}
         </g>
       );
@@ -2700,7 +3472,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} strokeLinejoin="round" />
+          <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill={tone?.fill ?? "var(--app)"} stroke={ink ?? tone?.stroke ?? stroke} strokeWidth={wOf(1.5)} strokeLinejoin="round" strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={dashOf(s, wOf(1.5))} />
           {text ? <Lines text={text} x={cx} y={centered(s, lh, size, Math.max(20, w * 0.6))} lh={lh} anchor size={size} wrap={Math.max(20, w * 0.6)} /> : null}
         </g>
       );
@@ -2731,7 +3503,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
     case "text": {
       const size = s.size || 18;
       return (
-        <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
+        <g data-s={s.id} style={{ cursor: "move", color: ink ?? "var(--fg)" }}>
           <rect x={x - 4} y={y - size} width={Math.max(24, bbox(s)[2] - x + 8)} height={bbox(s)[3] - y + size} fill="transparent" />
           <Lines text={text} x={x} y={y} lh={size * 1.3} size={size} weight={600} />
         </g>
@@ -2759,7 +3531,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       return (
         <g data-s={s.id} style={{ cursor: "move" }}>
           <path d={d} stroke="transparent" strokeWidth={14} fill="none" />
-          <path d={d} stroke="var(--fg-2)" strokeWidth={1.6} fill="none" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dashed ? "6 5" : undefined} {...ends(s, ah)} />
+          <path d={d} stroke={ink ?? "var(--fg-2)"} strokeWidth={wOf(1.6)} fill="none" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={dashOf(s, wOf(1.6)) ?? (s.dashed ? "6 5" : undefined)} {...ends(s, ink ? `${ah}-k-${s.stroke}` : ah)} />
           {tag}
         </g>
       );
@@ -2770,13 +3542,13 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       return (
         <g data-s={s.id} style={{ cursor: "move" }}>
           <path d={d} stroke="transparent" strokeWidth={14} fill="none" strokeLinecap="round" />
-          <path d={d} stroke={stroke} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={d} stroke={stroke} strokeWidth={wOf(3)} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={dashOf(s, wOf(3))} />
         </g>
       );
     }
   }
   return <UnknownShape s={s} />;
-});
+}
 
 /* ------------------------------------------------------- text editor */
 

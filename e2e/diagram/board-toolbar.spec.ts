@@ -13,7 +13,7 @@ let srv: Awaited<ReturnType<typeof serve>>;
 test.beforeAll(async () => (srv = await serve()));
 test.afterAll(() => srv.close());
 
-const ALL = ["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Pan"];
+const ALL = ["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Frame", "Pan"];
 type Box = { x: number; y: number; width: number; height: number };
 const overlap = (a: Box, b: Box) => a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5 && a.y < b.y + b.height - 0.5 && b.y < a.y + a.height - 0.5;
 
@@ -80,8 +80,9 @@ async function check(page: Page, board: Locator) {
 // panel, so the side-panel case is checked at 1280 × 150% (853 CSS px, frame 2b) and a 24 px root.
 test("1280 at 200% (640 × 450)", async ({ page }) => {
   const board = await open(page, 640, 450, 16, false);
-  // Compact 44 px targets: Pan, the end of the priority order, is the one in More.
-  expect(await check(page, board)).toBeGreaterThanOrEqual(8);
+  // Compact 44 px targets: the end of the priority order goes into More. The tool lock (BRD-19,
+  // board-ux-approved decision 2) keeps its own slot after the tools, so Pan and Diamond are in More.
+  expect(await check(page, board)).toBeGreaterThanOrEqual(7);
 });
 for (const side of [false, true]) {
   const s = side ? ", side panel open" : "";

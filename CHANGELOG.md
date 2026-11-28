@@ -16,6 +16,20 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   names its block per run.
 - Bench nightly: first-screen budgets are per machine. The nightly runner's fixture S budget is
   1,600 ms, from its measured baseline (1,191 ms); the reference machine keeps 1,000 ms.
+### Added
+
+- Whiteboard: one Export dialog for PNG and SVG with a background (none, light or dark; light by
+  default and remembered per person), the colours to draw for when transparent, a 1×, 2× or 3× scale
+  for PNG, and what to export (the whole board, the selection or one frame). Copy as PNG (⇧⌘C) and
+  Copy as SVG are in the board menu and the dialog; where the browser can't copy images, it says so
+  and offers Download (BRD-20).
+- Whiteboard: frames (F). A frame is a named area drawn under everything; a shape joins the frame
+  its centre is dropped in, moving a frame moves what is in it, and deleting a frame keeps its
+  contents. Double-click the name (or F2) to rename. Frames are listed by the zoom controls, and
+  Present (⇧P) shows them one at a time, full screen (BRD-21).
+- Whiteboard: an empty board shows how to start (draw, double-click to type, N for a sticky note,
+  F for a frame, ? for all shortcuts) and three starters: Retrospective, Flowchart and Brainstorm,
+  each one Undo step. People who can only view see "This board is empty" (BRD-23).
 
 ## [0.4.3] - 2026-11-28
 

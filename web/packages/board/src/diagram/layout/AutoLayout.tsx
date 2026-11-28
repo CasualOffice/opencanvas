@@ -32,6 +32,11 @@ export interface AutoLayoutProps {
   selection?: string[];
   /** Undo of this view (the toast's Undo). */
   undo: () => void;
+  /**
+   * BRD-17: "icon" drops the label; "menu" hides the button (the header's ⋯ opens it through
+   * `.ocdg-lb`); ⇧L and the dialog work the same either way.
+   */
+  fold?: "icon" | "menu";
 }
 
 type Scope = "all" | "selection" | "container";
@@ -172,6 +177,8 @@ export default function AutoLayout(p: AutoLayoutProps) {
         ref={btn}
         type="button"
         className="ocdg-lb"
+        hidden={p.fold === "menu"}
+        aria-label={p.fold === "icon" ? "Auto-layout" : undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-keyshortcuts="Shift+L"
@@ -180,8 +187,12 @@ export default function AutoLayout(p: AutoLayoutProps) {
         onClick={() => setOpen((o) => !o)}
       >
         <LayoutDashboard size={16} strokeWidth={SW} />
-        <span className="ocdg-lbt">Auto-layout</span>
-        <ChevronDown size={14} strokeWidth={SW} />
+        {p.fold === "icon" ? null : (
+          <>
+            <span className="ocdg-lbt">Auto-layout</span>
+            <ChevronDown size={14} strokeWidth={SW} />
+          </>
+        )}
       </button>
       {open ? (
         <div ref={pop} className="ocdg-pop" role="dialog" aria-label="Auto-layout" aria-describedby="ocdg-al-d">

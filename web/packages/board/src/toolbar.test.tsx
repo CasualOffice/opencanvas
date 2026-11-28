@@ -81,7 +81,7 @@ describe("board tool bar, option A", () => {
   it("is in the priority order, Pan last", () => {
     boardSize(1100);
     const el = board();
-    expect(tools(el)).toEqual(["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Pan"]);
+    expect(tools(el)).toEqual(["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Frame", "Pan"]);
     expect(more(el)).toBeTruthy();
     // Tools and zoom sit in one row.
     expect(el.querySelector(".ocbd-dock .ocbd-tool")).toBeTruthy();
@@ -101,7 +101,7 @@ describe("board tool bar, option A", () => {
     act(() => more(el).click());
     const m = el.querySelector('[role="menu"][aria-label="More tools"]')!;
     const items = [...m.querySelectorAll('[role="menuitemradio"]')].map((b) => b.getAttribute("aria-label"));
-    expect(items).toEqual(["Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Pan"]);
+    expect(items).toEqual(["Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Frame", "Pan"]);
     expect(m.querySelector('[role="menuitemcheckbox"]')!.textContent).toContain("Tools on the left");
   });
 
@@ -126,11 +126,15 @@ describe("board tool bar, option A", () => {
     key(document.activeElement!, "ArrowRight");
     expect(document.activeElement!.getAttribute("aria-label")).toBe("Sticky note");
     expect(stops()).toEqual([document.activeElement]);
+    // End reaches the tool lock (BRD-19), the last button in the bar; More is just before it.
     key(document.activeElement!, "End");
+    expect(document.activeElement!.getAttribute("aria-label")).toBe("Keep tool active");
+    key(document.activeElement!, "ArrowLeft");
     expect(document.activeElement).toBe(more(el));
     key(document.activeElement!, "Home");
     expect(document.activeElement!.getAttribute("aria-label")).toBe("Select");
     key(document.activeElement!, "End");
+    key(document.activeElement!, "ArrowLeft");
     key(document.activeElement!, "Enter");
     const m = el.querySelector('[role="menu"][aria-label="More tools"]')!;
     expect(document.activeElement).toBe(m.querySelector('[role^="menuitem"]'));

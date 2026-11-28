@@ -111,7 +111,7 @@ describe("BoardBlock render", { timeout: 60_000 }, () => {
     const id = createBoard(doc, p);
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     expect(el.querySelectorAll("[data-s]").length).toBe(shapes(doc, id).length);
-    expect(el.querySelectorAll(".ocbd-tool [data-tool]")).toHaveLength(9);
+    expect(el.querySelectorAll(".ocbd-tool [data-tool]")).toHaveLength(10);
     expect(document.head.querySelector("style[data-ocbd]")).toBeTruthy();
   });
 
