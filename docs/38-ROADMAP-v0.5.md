@@ -94,8 +94,13 @@ offer the target block, and the link breaks silently on a move or a deletion.
    matches `url_patterns` (kind `link`).
 4. **Exports** write a canvas link as a link to the host URL (from `[host.links] url_template`)
    with the label; Markdown export can also write `[[Title]]` (option).
-5. **0.4 readers** see `canvasLink` as an unknown inline node and keep it (rule 7); its fallback
-   is a `link` mark with the label, so nothing is lost on a round trip.
+5. **Older editors.** A 0.4 editor has no `canvasLink` in its schema, and its Yjs binding
+   deletes every node it cannot show (measured, `links/compat.test.ts`; rule 7 does not hold for
+   it). So the server guards the node as it does SDK and live blocks: a connection keeps links
+   only if it says `caps=links` (0.5 editors and the bench clients do); an update from any other
+   connection that removes a `canvasLink` is refused and that session is closed with 4426
+   ("editor out of date: reopen the canvas"). Exports and readers outside OpenCanvas get the
+   label with a link to the host URL (item 4).
 
 ### 2.3 The index (server)
 
@@ -175,7 +180,7 @@ the server; one undo step there). Hosts without `GET /search` do not show the se
 | LINK-A2 | A backlink from a canvas the reader cannot open is absent from the API, the editor, MCP and the counts; tested with `/access` answering `none`, 410 and a timeout (seen failing first with the filter off) |
 | LINK-A3 | `link_edges` holds no text: a test scans the table after indexing a fixture whose every string is a marker and finds none |
 | LINK-A4 | Backlinks for a canvas with 500 sources answer in < 300 ms p95 with `/access/batch` (host stub at 20 ms) and < 1.5 s with per-file `/access` |
-| LINK-A5 | A 0.4 editor opening a canvas with `canvasLink` nodes keeps them on save (round-trip test), and exports write host URLs |
+| LINK-A5 | A pre-0.5 editor (no `caps=links`) cannot delete a `canvasLink`: its update is refused and the session closed with 4426, while a 0.5 editor edits links freely (seen failing first with the guard off); exports write host URLs |
 | LINK-A6 | Unlinked mention → Link needs edit in the source (refused for view, seen failing first) and is one undo step there |
 | LINK-A7 | The panel, preview and `[[` picker pass the accessibility checks (axe, keyboard-only script, 200% zoom, 320 px) |
 

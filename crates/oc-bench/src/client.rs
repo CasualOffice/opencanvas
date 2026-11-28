@@ -576,7 +576,7 @@ pub async fn run_user(sh: Arc<Shared>, spec: Spec) {
             return;
         }
     };
-    let url = format!("{ws_base}/v1/collab/{room}?ticket={ticket}&caps=ext,live,subdoc");
+    let url = format!("{ws_base}/v1/collab/{room}?ticket={ticket}&caps=ext,live,subdoc,links");
     // With `reconnect`, a dropped client comes back with the same ticket after an exponential
     // full-jitter backoff (0–5 s, doubling to 60 s), as the editor does; `dropped_at` times it.
     let mut dropped_at: Option<Instant> = None;

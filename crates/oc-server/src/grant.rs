@@ -160,6 +160,11 @@ pub struct Grant {
     /// with 4426.
     #[serde(default)]
     pub ext_blocks: bool,
+    /// LINK-01 (ADR-081): the connection keeps `canvasLink` nodes (`caps=links`). An editor
+    /// older than 0.5 deletes every one it receives, so such an update is refused and the
+    /// session closed with 4426, as for SDK blocks.
+    #[serde(default)]
+    pub links_caps: bool,
     /// PSYNC-02 (ADR-076, docs/15 §3): the connection speaks partial sync (`caps=subdoc`):
     /// heavy blocks arrive as subdocuments (message type 101). A room with
     /// `[host.flags] partial_sync` closes connections without it with 4426.
@@ -275,6 +280,7 @@ mod tests {
     fn debug_output_redacts_the_callback_token() {
         let g = super::Grant {
             ext_blocks: false,
+            links_caps: false,
             subdoc: false,
             live: Default::default(),
             wopi_history: None,

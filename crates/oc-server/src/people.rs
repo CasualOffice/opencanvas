@@ -435,6 +435,7 @@ mod tests {
     fn people_entries_have_no_email() {
         let g = Grant {
             ext_blocks: false,
+            links_caps: false,
             subdoc: false,
             live: Default::default(),
             wopi_history: None,

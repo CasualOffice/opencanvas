@@ -940,3 +940,70 @@ async fn linking_a_mention_needs_edit_in_the_source_and_undoes() {
     .await;
     assert_eq!(s, 404);
 }
+
+/// LINK-A5: an editor older than 0.5 has no `canvasLink` in its schema and deletes each one it
+/// is sent (y-prosemirror drops nodes it cannot show; `links/compat.test.ts` shows it). The
+/// room refuses that update and closes the session with 4426; a current editor (`caps=links`)
+/// may delete a link as any edit.
+#[tokio::test]
+async fn an_editor_older_than_0_5_cannot_delete_canvas_links() {
+    let (_addr, st, host, _db) = serve(on).await;
+    host.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (ocanvas(&source("A", "Plan in ", "h2")), 1));
+    let mut new = Peer::join(&st, {
+        let mut g = grant("u_new", Role::Edit);
+        g.links_caps = true;
+        g
+    })
+    .await;
+    let mut old = Peer::join(&st, grant("u_old", Role::Edit)).await;
+    new.settle().await;
+    old.settle().await;
+    // What a 0.4 editor does: remove the link element from its paragraph.
+    let remove_link = |d: &yrs::Doc| {
+        use yrs::{Transact, XmlFragment, XmlOut};
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        for i in 0..c.len(&t) {
+            if let Some(XmlOut::Element(p)) = c.get(&t, i) {
+                let at = (0..p.len(&t))
+                    .find(|j| matches!(p.get(&t, *j), Some(XmlOut::Element(e)) if e.tag().as_ref() == "canvasLink"));
+                if let Some(at) = at {
+                    p.remove_range(&mut t, at, 1);
+                    return;
+                }
+            }
+        }
+        panic!("no canvasLink in the room");
+    };
+    old.edit(remove_link);
+    old.settle().await;
+    assert_eq!(old.closed, Some(4426), "the old editor's session ends");
+    assert!(old.denied > 0);
+    let json = |st: oc_server::SharedState| async move {
+        let host = st.hosts.iter().next().unwrap().clone();
+        let bytes = st
+            .rooms
+            .state(&host, &grant("u_x", Role::View))
+            .await
+            .unwrap();
+        let d = oc_model::new_doc();
+        oc_model::ocanvas::apply_update_bytes(&d, &bytes).unwrap();
+        oc_model::doc_to_json(&d).to_string()
+    };
+    assert!(
+        json(st.clone()).await.contains("canvasLink"),
+        "the link stays"
+    );
+    // A current editor deletes it as any edit.
+    new.edit(remove_link);
+    new.settle().await;
+    assert_eq!(new.closed, None);
+    poll(|| {
+        let st = st.clone();
+        async move { !json(st).await.contains("canvasLink") }
+    })
+    .await;
+}

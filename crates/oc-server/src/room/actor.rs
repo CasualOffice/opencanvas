@@ -1791,6 +1791,18 @@ impl Room {
             }
             return;
         }
+        // LINK-01 (LINK-A5): the same for `canvasLink` (editors before 0.5; `caps=links`).
+        if !grant.links_caps && filter::removes_canvas_link(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: removes a canvas link from a client without caps=links");
+            self.deny(conn, "this editor is out of date; reopen the canvas");
+            if let Some(p) = self.peers.get(&conn) {
+                let _ = p.tx.send(Outbound::Close(
+                    4426,
+                    "editor out of date: reopen the canvas".into(),
+                ));
+            }
+            return;
+        }
         // LIVE-02: the same for `liveBlock` and `blockRef` (editors before 0.3 lack them, and
         // `caps=live` says a connection keeps them), plus the depth rule, the reference limit,
         // the snapshot policy, the feature flag and `perms.live` for adding one.

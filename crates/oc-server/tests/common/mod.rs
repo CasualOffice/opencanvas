@@ -714,6 +714,7 @@ pub async fn app_ai(
 pub fn grant(user: &str, role: Role) -> Grant {
     Grant {
         ext_blocks: false,
+        links_caps: false,
         subdoc: false,
         live: Default::default(),
         wopi_history: None,

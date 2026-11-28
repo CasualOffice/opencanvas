@@ -274,6 +274,7 @@ async fn per_file(
 fn view_grant(host: &HostConfig, user_id: &str, file_id: &str, token: &str) -> Grant {
     Grant {
         ext_blocks: false,
+        links_caps: false,
         subdoc: false,
         live: Default::default(),
         wopi_history: None,

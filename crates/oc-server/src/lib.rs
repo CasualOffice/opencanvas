@@ -352,6 +352,7 @@ impl AppState {
             };
             let grant = grant::Grant {
                 ext_blocks: false,
+                links_caps: false,
                 subdoc: false,
                 live: Default::default(),
                 wopi_history: None,
