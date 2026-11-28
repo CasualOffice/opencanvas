@@ -1,12 +1,12 @@
-# OpenCanvas
+# OpenCanvas by CasualOffice
 
-> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). Status: 0.4.0 released 2026-11-28; best-effort support and no production SLA.
+> The open-source collaborative workspace engine that applications embed: documents, spreadsheets, databases (formulas, relations, rollups, Timeline/Gantt and Workload views), whiteboards and diagrams in one real-time canvas with live cursors, embedded the way apps embed Collabora Online. The host application owns users, permissions (ACL) and files; OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, edits in place as a visible collaborator, suggestions for existing text, run undo, limits, audit) and an MCP endpoint for external agents with host-issued tokens; models from the Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp). Canvas content is sent to the configured model server. Open source under the Apache License 2.0 (keep the NOTICE file when redistributing; bundled fonts under the SIL OFL). Status: 0.4.1 released 2026-11-28; best-effort support and no production SLA.
 
 Made by CasualOffice (https://github.com/CasualOffice). This file was last updated 2026-11-28. The facts below are from https://canvas.casualoffice.org/docs/facts.html, where each one links to the repository file, test or tracker entry it comes from.
 
 ## Facts
 - Name: OpenCanvas, made by CasualOffice (source: https://github.com/CasualOffice/opencanvas/blob/main/NOTICE)
-- Current release: 0.4.0, released 2026-11-28 (source: https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md)
+- Current release: 0.4.1, released 2026-11-28 (source: https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md)
 - First release: 0.1.0-alpha.1, released 2026-11-23 (source: https://github.com/CasualOffice/opencanvas/blob/main/CHANGELOG.md)
 - Licence: Apache License 2.0; keep the NOTICE file when you redistribute it (source: https://github.com/CasualOffice/opencanvas/blob/main/NOTICE)
 - Support: Best-effort, with no production SLA (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
@@ -17,7 +17,7 @@ Made by CasualOffice (https://github.com/CasualOffice). This file was last updat
 - Storage: SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 - Cluster: Several nodes on MySQL or MariaDB with Redis (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 - Launch: JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
-- Integrations: Jitsi Meet, Nextcloud, Mattermost and Element / Matrix (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Integrations: Jitsi Meet, Nextcloud with Talk, Mattermost and Element / Matrix (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 - API: REST under /api/v1, described by an OpenAPI 3.1 document (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/32-RELEASE-v0.2.0.md)
 - Exports: Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/13-OPERATIONS-AND-DEPLOYMENT.md)
 - Templates: 40 templates in 9 categories (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
@@ -27,14 +27,23 @@ Made by CasualOffice (https://github.com/CasualOffice). This file was last updat
 - AI: Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 
 ## Site
-- [OpenCanvas: an open-source collaborative canvas you embed](https://canvas.casualoffice.org/): OpenCanvas is an open-source, real-time collaborative canvas (docs, databases, whiteboards) that your app embeds. Your app keeps users, permissions and files.
-- [Roadmap](https://canvas.casualoffice.org/roadmap.html): What OpenCanvas has built, what is in review and in progress, and the phases that follow, from the project's tracker.
+- [OpenCanvas – Open Source Notion & Miro Alternative | CasualOffice](https://canvas.casualoffice.org/): Self-hosted collaborative documents, spreadsheets, databases, whiteboards and Gantt charts. Embed OpenCanvas into your application. Rust, Yjs and Apache-2.0.
+- [Roadmap](https://canvas.casualoffice.org/roadmap.html): What OpenCanvas has released, what is in review and in progress, and the releases and tracks that follow, from the project's tracker.
 - [Changelog](https://canvas.casualoffice.org/changelog.html): What changed in OpenCanvas and how each change was verified, from the project's integration log.
 - [Brand](https://canvas.casualoffice.org/brand.html): OpenCanvas logos to download, how to name OpenCanvas in a product that embeds it, and what the Apache 2.0 licence asks when you redistribute it.
 - [Interactive demo](https://canvas.casualoffice.org/app/#demo): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server
 
+## Comparisons and use cases
+- [Open-source Coda alternative](https://canvas.casualoffice.org/alternatives/coda.html): OpenCanvas compared with Coda: documents with databases, formulas, relations and a real spreadsheet, self-hosted under Apache-2.0 and embedded in your own app.
+- [Etherpad alternative with databases](https://canvas.casualoffice.org/alternatives/etherpad.html): OpenCanvas compared with Etherpad: live meeting notes with databases, spreadsheets and whiteboards, in the same Jitsi Meet slot, under Apache-2.0.
+- [Open-source Miro alternative](https://canvas.casualoffice.org/alternatives/miro.html): OpenCanvas compared with Miro: whiteboards and diagrams inside a collaborative document, self-hosted under Apache-2.0 and embedded in your own application.
+- [Open-source Notion alternative](https://canvas.casualoffice.org/alternatives/notion.html): OpenCanvas compared with Notion: an Apache-2.0 workspace engine you self-host and embed in your own app, with docs, databases, spreadsheets and whiteboards.
+- [Embeddable collaborative editor](https://canvas.casualoffice.org/solutions/collaborative-editor.html): Add real-time collaborative documents, spreadsheets, databases and whiteboards to your app: your backend signs a token, OpenCanvas edits and saves back to you.
+- [Collaborative meeting notes](https://canvas.casualoffice.org/solutions/meeting-notes.html): Shared meeting notes, tasks and whiteboards in Jitsi Meet, Nextcloud Talk, Mattermost channels and Element: open source, self-hosted, kept with your files.
+- [Open-source project management with Gantt](https://canvas.casualoffice.org/solutions/project-management.html): Self-hosted project planning in one canvas: task databases, boards, a Timeline (Gantt) with dependencies and critical path, and Workload by person.
+
 ## Documentation
-- [OpenCanvas documentation](https://canvas.casualoffice.org/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
+- [OpenCanvas by CasualOffice documentation](https://canvas.casualoffice.org/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
 - [Getting started with OpenCanvas](https://canvas.casualoffice.org/docs/getting-started.html): Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.
 - [Release notes 0.4.0](https://canvas.casualoffice.org/docs/release-040.html): OpenCanvas 0.4.0 release notes: spreadsheets, advanced databases, Timeline, charts, partial sync, performance, upgrade notes and limitations.
 - [Release notes 0.3.0](https://canvas.casualoffice.org/docs/release-030.html): OpenCanvas 0.3.0 release notes: live blocks, search, automation and offline editing, the upgrade notes and known limitations.

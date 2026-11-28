@@ -1,8 +1,9 @@
 # 38 — v0.5 design plan: plugins and a marketplace, backlinks, a knowledge graph, SDK extensions
 
-**Status:** Proposed 2026-11-28. The owner set the direction on 2026-11-28: **v0.5 = plugins (with a
+**Status:** In progress. Plan, prototypes ([docs/prototypes/v05-approved/](prototypes/v05-approved/)) and ADRs 081–084
+approved by the owner 2026-11-28. The owner set the direction on 2026-11-28: **v0.5 = plugins (with a
 marketplace), backlinks, a knowledge graph and SDK extensions; v0.6 = advanced automation and app
-building**. ADRs 081–084 (Proposed) in [docs/08](08-ADR-REGISTER.md); tracker rows in
+building**. ADRs 081–084 (Accepted 2026-11-28) in [docs/08](08-ADR-REGISTER.md); tracker rows in
 [docs/10](10-EXECUTION-TRACKER.md) §P3 v0.5. Prototypes (V5UI-01, §8) gate every UI row (ADR-011).
 **Scope:** the v0.5 line of [docs/09](09-ROADMAP.md#release-roadmap).
 **Not in scope:** multi-step workflows, forms, buttons and app pages (v0.6, §13); paid plugins;

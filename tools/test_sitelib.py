@@ -88,5 +88,100 @@ class StructuredData(unittest.TestCase):
         self.assertEqual(out, f"{sitelib.version()} on {sitelib.released()}")
 
 
+class SharedPartsAndTitles(unittest.TestCase):
+    """The alternatives/ and solutions/ pages share one table of what ships, and every title
+    names "OpenCanvas by CasualOffice"."""
+
+    def test_a_partial_is_included_and_expanded_at_the_page_depth(self):
+        out = sitelib.expand("<main>{{include:compare-footer}}</main>", "../")
+        self.assertIn('href="../app/#demo"', out)
+        self.assertNotIn("{{", out)
+        self.assertNotIn("<!--", out)  # the partial's own comment stays in the source
+
+    def test_a_missing_partial_stops_the_build(self):
+        with self.assertRaises(SystemExit):
+            sitelib.expand("{{include:no-such-part}}", "")
+
+    def test_titles_carry_the_brand_and_search_results_drop_it(self):
+        page = sitelib.page(title="Changelog", description="d", body="", root="", path="404.html", noindex=True)
+        self.assertIn("<title>Changelog | OpenCanvas by CasualOffice</title>", page)
+        self.assertEqual(sitelib.page_title(page, "404.html"), "Changelog")
+
+
+class BenchOrderIsStable(unittest.TestCase):
+    """The site lists perf results by commit time, not file mtime: a fresh checkout gives every
+    file the same mtime, so ordering by it rebuilt a different page and failed the prepush gate."""
+
+    def test_db_perf_order_ignores_mtime(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("build_site", os.path.join(os.path.dirname(__file__), "build-site.py"))
+        bs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bs)
+        files = sorted(bs.PERF.glob("db100k-*.json"))
+        if len(files) < 2:
+            self.skipTest("needs two db100k results")
+        saved = [(f, f.stat().st_atime, f.stat().st_mtime) for f in files]
+        try:
+            orders = []
+            for newest in files:
+                for f in files:
+                    os.utime(f, (1, 2 if f == newest else 1))
+                md = "\n".join(bs._db_perf_markdown())
+                orders.append([f.stem for f in sorted(files, key=lambda f: md.index("— " + f.stem + "\n"))])
+            self.assertTrue(all(o == orders[0] for o in orders), orders)
+        finally:
+            for f, at, mt in saved:
+                os.utime(f, (at, mt))
+def _roadmap():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("build_roadmap", os.path.join(os.path.dirname(__file__), "build-roadmap.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class Roadmap(unittest.TestCase):
+    """The roadmap page shows each phase's state from its rows, the Workspace track, the
+    Backlog status and the release table's statuses (tools/build-roadmap.py)."""
+
+    br = _roadmap()
+
+    def test_backlog_is_ranked_like_todo_and_labelled_backlog(self):
+        self.assertEqual(self.br.status_of("Backlog"), "Backlog")
+        self.assertEqual(self.br.RANK["Backlog"], self.br.RANK["Todo"])
+        self.assertEqual(self.br.LABEL["Backlog"][1], "Backlog")
+
+    def test_a_phase_state_follows_its_rows(self):
+        rows = lambda *s: [{"status": x} for x in s]  # noqa: E731
+        st = self.br.phase_state
+        self.assertEqual(st(rows("Done", "Done")), ("done", "Done"))
+        self.assertEqual(st(rows("Done", "Review")), ("done", "Built, in review"))
+        self.assertEqual(st(rows("Done", "Todo")), ("progress", "In progress"))
+        self.assertEqual(st(rows("Todo", "Backlog")), ("later", "Planned"))
+
+    def test_release_statuses(self):
+        rs = self.br.release_state
+        self.assertEqual(rs("Released 2026-11-24 (notes)"), ("done", "Released 2026-11-24"))
+        self.assertEqual(rs("In progress (parallel track)"), ("progress", "In progress (parallel track)"))
+        self.assertEqual(rs("Planned"), ("later", "Planned"))
+        with self.assertRaises(SystemExit):
+            rs("Soon")
+
+    def test_the_tracker_has_the_workspace_track_and_p3_releases(self):
+        rows = self.br.tracker()
+        ws = {r["id"]: r for r in rows["WS"]}
+        self.assertEqual(ws["WS-07"]["status"], "Backlog")
+        self.assertEqual(ws["WS-01"]["status"], "Done")
+        groups = [r["group"] for r in rows["P3"]]
+        self.assertIn("v0.2", groups)
+        self.assertIn("v0.5", groups)
+
+    def test_the_page_shows_release_statuses_and_the_workspace_track(self):
+        page = self.br.render()
+        self.assertIn("Workspace track", page)
+        self.assertIn("pill-done", page.split('id="rel-h"')[1].split("</table>")[0])
+        self.assertNotIn("Plugin ecosystem, developer tooling", page)
+
+
 if __name__ == "__main__":
     unittest.main()

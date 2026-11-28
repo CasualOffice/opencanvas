@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Etherpad alternative with databases | OpenCanvas by CasualOffice</title>
+<meta name="description" content="OpenCanvas compared with Etherpad: live meeting notes with databases, spreadsheets and whiteboards, in the same Jitsi Meet slot, under Apache-2.0.">
+<link rel="canonical" href="https://canvas.casualoffice.org/alternatives/etherpad.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenCanvas by CasualOffice">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Etherpad alternative with databases | OpenCanvas by CasualOffice">
+<meta property="og:description" content="OpenCanvas compared with Etherpad: live meeting notes with databases, spreadsheets and whiteboards, in the same Jitsi Meet slot, under Apache-2.0.">
+<meta property="og:url" content="https://canvas.casualoffice.org/alternatives/etherpad.html">
+<meta property="og:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Etherpad alternative with databases | OpenCanvas by CasualOffice">
+<meta name="twitter:description" content="OpenCanvas compared with Etherpad: live meeting notes with databases, spreadsheets and whiteboards, in the same Jitsi Meet slot, under Apache-2.0.">
+<meta name="twitter:image" content="https://canvas.casualoffice.org/assets/screens/canvas-light.png">
+<meta name="twitter:image:alt" content="The OpenCanvas editor: a sprint planning canvas with a callout, a comment, two collaborators&#x27; live cursors and a backlog database.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://canvas.casualoffice.org/#organization","name":"CasualOffice","url":"https://github.com/CasualOffice"},{"@type":"WebSite","@id":"https://canvas.casualoffice.org/#website","name":"OpenCanvas","alternateName":"OpenCanvas by CasualOffice","url":"https://canvas.casualoffice.org/","inLanguage":"en","description":"The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.","publisher":{"@id":"https://canvas.casualoffice.org/#organization"}},{"@type":"WebPage","@id":"https://canvas.casualoffice.org/alternatives/etherpad.html#webpage","name":"Etherpad alternative with databases","description":"OpenCanvas compared with Etherpad: live meeting notes with databases, spreadsheets and whiteboards, in the same Jitsi Meet slot, under Apache-2.0.","url":"https://canvas.casualoffice.org/alternatives/etherpad.html","dateModified":"2026-11-28","inLanguage":"en","isPartOf":{"@id":"https://canvas.casualoffice.org/#website"},"about":{"@id":"https://canvas.casualoffice.org/#software"}},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Can OpenCanvas replace Etherpad in Jitsi Meet?","acceptedAnswer":{"@type":"Answer","text":"Yes. The OpenCanvas Prosody plugin uses the shared-document slot Etherpad uses, so the Shared document button opens a canvas instead of a pad. You add the plugin and a few lines of configuration; the Jitsi images stay as they are. See the Jitsi Meet guide."}},{"@type":"Question","name":"What happens to the notes when the meeting ends?","acceptedAnswer":{"@type":"Answer","text":"In Jitsi Meet the canvas is temporary: it is deleted when the meeting ends, so people export it first (PDF, Word, Markdown or the native file). In Nextcloud Talk and Mattermost channels, meeting canvases can be saved as files in the host instead."}},{"@type":"Question","name":"Can I import my existing pads?","acceptedAnswer":{"@type":"Answer","text":"Export a pad from Etherpad as HTML or plain text, and import the HTML when the host turns import on. Formatting carries over as far as HTML allows; author colours and pad history do not."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. Like Etherpad, OpenCanvas is open source under the Apache-2.0 licence. Support is best effort, with no production SLA."}}]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OpenCanvas","item":"https://canvas.casualoffice.org/"},{"@type":"ListItem","position":2,"name":"Etherpad alternative","item":"https://canvas.casualoffice.org/alternatives/etherpad.html"}]}]}</script>
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f11" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ui/geist-1.3.1-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/theme-init.js"></script>
+<script type="module" src="../assets/site.js"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="../index.html" aria-label="OpenCanvas home">
+      <img class="logo-light" src="../assets/logo.svg" alt="" width="136" height="24">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="" width="136" height="24">
+    </a>
+    <nav class="nav-links" aria-label="Main"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a></nav>
+    <div class="header-actions">
+      <button type="button" class="search-open" aria-label="Search the site" aria-keyshortcuts="/"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><span class="search-open__label">Search</span><span class="kbd" aria-hidden="true">/</span></button>
+      <button type="button" class="icon-btn theme-toggle" aria-label="Use the dark theme"><svg class="i when-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg><svg class="i when-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+      <a class="header-gh" href="https://github.com/CasualOffice/opencanvas">GitHub</a>
+      <a class="btn btn-strong btn-sm header-cta" href="../app/#demo">Try the demo</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i when-closed" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg><svg class="i when-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
+        <nav class="menu-panel" aria-label="Main (mobile)"><a href="../index.html#product">Product</a><a href="../docs/integration.html">Integrate</a><a href="../api/index.html">API</a><a href="../docs/index.html">Docs</a><a href="../roadmap.html">Roadmap</a><a href="../changelog.html">Changelog</a><a href="https://github.com/CasualOffice/opencanvas" class="nav-gh">GitHub<svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a><a class="menu-cta" href="../app/#demo">Try the demo<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></nav>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Compare</span>
+  <h1>An Etherpad alternative with databases and whiteboards</h1>
+  <p class="lede">Etherpad is the long-standing open-source pad for writing together in real time, and the shared document many Jitsi Meet deployments use. OpenCanvas can take the same place in a Jitsi meeting and adds structured blocks, task databases, spreadsheets and a whiteboard to the notes.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="../app/#demo">Try the live demo<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+    <a class="btn btn-secondary" href="../docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="../docs/jitsi.html">Jitsi Meet guide</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2 id="the-short-answer">The short answer</h2>
+  <p>Both are open source under Apache-2.0 and both are self-hosted. Etherpad is a light, proven plain-text pad with a deep plugin ecosystem. OpenCanvas is a heavier, newer block editor for notes that also need tables, tasks, diagrams or a spreadsheet, and that should be saved into the application your people already use.</p>
+
+  <h2 id="where-opencanvas-fits-better">Where OpenCanvas fits better</h2>
+  <ul>
+    <li><strong>More than text.</strong> Headings, checklists, callouts, tables, databases with board and calendar views, a spreadsheet block, charts and a whiteboard, all in the same live document.</li>
+    <li><strong>Drop-in for Jitsi Meet.</strong> One Prosody plugin and a few <code>.env</code> lines, with no Docker image or compose changes. Everyone opens the same canvas from Shared document, as they would a pad. It starts blank or from a template, and is deleted when the meeting ends.</li>
+    <li><strong>Saved where your files are.</strong> In Nextcloud, Mattermost channels or your own application, the canvas is a file in the host's storage, with the host's permissions and versions. OpenCanvas keeps no documents.</li>
+    <li><strong>Roles enforced by the server.</strong> View, comment or edit, checked on every change; in Jitsi, moderators edit and guests get the role you configure.</li>
+  </ul>
+
+  <h2 id="where-etherpad-is-stronger">Where Etherpad is stronger</h2>
+  <ul>
+    <li><strong>Maturity and footprint.</strong> Etherpad has been in production for well over a decade and runs comfortably on very small servers. OpenCanvas is an early release with best-effort support and no production SLA.</li>
+    <li><strong>Authorship and history.</strong> Etherpad colours text by author and has a time slider that replays a pad. OpenCanvas shows who is editing live, but its version history depends on the host, and temporary Jitsi canvases keep none.</li>
+    <li><strong>Plugins.</strong> Etherpad has a large catalogue of community plugins. OpenCanvas has a Block SDK, but few third-party blocks exist yet.</li>
+    <li><strong>Standalone pads.</strong> Etherpad stores pads itself and is useful with no other system. OpenCanvas always needs a host to keep the file, or uses temporary canvases.</li>
+  </ul>
+
+  <h2 id="how-they-differ">How they differ</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="How OpenCanvas and Etherpad differ">
+    <table>
+      <thead><tr><th scope="col">Question</th><th scope="col">OpenCanvas</th><th scope="col">Etherpad</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Licence</th><td>Apache-2.0</td><td>Apache-2.0</td></tr>
+        <tr><th scope="row">Server</th><td>Rust</td><td>Node.js</td></tr>
+        <tr><th scope="row">Content</th><td>Blocks: text, databases, spreadsheets, charts, whiteboards</td><td>Rich text</td></tr>
+        <tr><th scope="row">Who stores documents</th><td>The host application, or nobody (temporary canvases)</td><td>Etherpad's own database</td></tr>
+        <tr><th scope="row">Jitsi Meet</th><td>Shared document slot, through a Prosody plugin</td><td>Shared document slot, built in</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="What OpenCanvas 0.4.1 ships">
+  <table class="compare compare--ships">
+    <thead><tr><th scope="col">Area</th><th scope="col">What OpenCanvas 0.4.1 ships</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Documents</th><td>Text, headings, lists, checklists, toggles, callouts, code, tables, images, files, link cards, sandboxed embeds and columns, from one insert menu</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Spreadsheets</th><td data-claim>An Excel-style grid on opencalc's engine: formula bar, about 120 functions, sheets, filters, freeze, merge, formats; <code>.xlsx</code> and <code>.ods</code> import, <code>.xlsx</code> export <a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="about 120 functions per cell" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/37-RELEASE-v0.4.0.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/37, “about 120 functions per cell”</span></a></td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Charts</th><td>Column, line, area, pie, donut and scatter charts linked to a sheet range or a database field, updating live</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Databases</th><td>Typed fields with table, board, calendar and gallery views; filter, sort, search; CSV import and export</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Formulas, relations, rollups</th><td data-claim>Formula fields in spreadsheet syntax, relations and rollups; virtualized tables at 100,000 rows <a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="virtualized tables at 100,000 rows" href="https://github.com/CasualOffice/opencanvas/blob/main/docs/37-RELEASE-v0.4.0.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: docs/37, “virtualized tables at 100,000 rows”</span></a></td><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Ships; the host turns on adding these fields</span></td></tr>
+      <tr><th scope="row">Timeline and Workload</th><td>A Gantt view with dependencies, milestones and the critical path; a Workload view of people against weeks</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Whiteboards and diagrams</th><td>Pen, sticky notes, shapes, arrows attached to shapes, shape libraries, connector routing and layout; draw.io and Excalidraw import; SVG and PNG export</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Real-time collaboration</th><td>Edits merge with a CRDT (Yjs); live cursors, presence, follow mode and comment threads</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Roles</th><td>View, comment and edit, set by your application and enforced by the server on every change</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Templates</th><td data-claim>40 templates in 9 categories <a class="claim-mark claim-mark--tested" data-claim-mark="source" data-quote="40 templates in 9 categories" href="https://github.com/CasualOffice/opencanvas/blob/main/README.md"><svg class="i" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Source: README.md, “40 templates in 9 categories”</span></a></td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Export</th><td>Markdown, HTML, JSON, the native <code>.ocanvas</code> file and Word; PDF with the optional Gotenberg sidecar</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Import</th><td>Markdown, HTML, CSV, draw.io, Excalidraw, <code>.xlsx</code> and <code>.ods</code></td><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>The host turns it on, per format</span></td></tr>
+      <tr><th scope="row">Version history</th><td>Named versions, comparison and restore, from the versions your application keeps</td><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Depends on the host</span></td></tr>
+      <tr><th scope="row">Live blocks, search, automation, offline</th><td>One block shown in several canvases; find and replace, and search across canvases through the host's search; automation rules; offline editing</td><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>The host turns each on</span></td></tr>
+      <tr><th scope="row">API and extensions</th><td>REST API under <code>/api/v1</code> with TypeScript and Rust clients, signed webhooks, and a Block SDK for your own sandboxed blocks</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">Integrations</th><td>Jitsi Meet, Nextcloud with Talk, Mattermost channels, Element / Matrix, any WOPI host, and the <code>&lt;open-canvas&gt;</code> web component</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships (alpha)</span></td></tr>
+      <tr><th scope="row">Self-hosting</th><td>One container with SQLite; MySQL or MariaDB and Redis for a cluster; Docker image and Helm chart</td><td><span class="mark yes"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Ships</span></td></tr>
+      <tr><th scope="row">AI assistant and MCP</th><td>An in-editor assistant and an MCP endpoint, run only in the server with a model the operator configures</td><td><span class="mark part"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Experimental, off by default</span></td></tr>
+      <tr><th scope="row">Desktop and mobile apps</th><td>The editor runs in the browser, with a phone layout; there are no native apps</td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>Not built</span></td></tr>
+      <tr><th scope="row">Accounts and hosted service</th><td>OpenCanvas has no sign-up, user directory or cloud offering: your application provides the users, the permissions and the storage</td><td><span class="mark no"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>Not offered, by design</span></td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="note">From the <a href="https://github.com/CasualOffice/opencanvas/blob/main/README.md">README</a> and the <a href="../docs/release-040.html">0.4.0 release notes</a>, which also list the known limitations. Support is best effort, with no production SLA.</p>
+
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="../docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Can OpenCanvas replace Etherpad in Jitsi Meet?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div data-answer><p>Yes. The OpenCanvas Prosody plugin uses the shared-document slot Etherpad uses, so the Shared document button opens a canvas instead of a pad. You add the plugin and a few lines of configuration; the Jitsi images stay as they are. See the Jitsi Meet guide.</p></div></details>
+    <details><summary>What happens to the notes when the meeting ends?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div data-answer><p>In Jitsi Meet the canvas is temporary: it is deleted when the meeting ends, so people export it first (PDF, Word, Markdown or the native file). In Nextcloud Talk and Mattermost channels, meeting canvases can be saved as files in the host instead.</p></div></details>
+    <details><summary>Can I import my existing pads?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div data-answer><p>Export a pad from Etherpad as HTML or plain text, and import the HTML when the host turns import on. Formatting carries over as far as HTML allows; author colours and pad history do not.</p></div></details>
+    <details><summary>Is it free?<svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary><div data-answer><p>Yes. Like Etherpad, OpenCanvas is open source under the Apache-2.0 licence. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+<section class="section" aria-labelledby="next-h">
+  <div class="wrap">
+    <div class="closing">
+      <h2 id="next-h">See it for yourself.</h2>
+      <p class="lede">The demo is the real editor running in your browser on a sample canvas, with no server and no account. The quick start runs the server and a sample host on your machine.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="../app/#demo">Try the live demo<span class="btn-icon"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+        <a class="btn btn-secondary" href="../docs/getting-started.html#run-it">Quick start</a>
+        <a class="btn btn-secondary" href="../docs/index.html">Documentation</a>
+      </div>
+    </div>
+    <p class="note">What we say about other products summarises their public information as we understand it on 2026-11-28; products change, so check before you decide, and <a href="https://github.com/CasualOffice/opencanvas/issues">open an issue</a> if we got something wrong. Notion, Miro, Coda, Etherpad, Jitsi and the other product names on this page are trademarks of their respective owners and are used only to identify those products. Nextcloud is a registered trademark of Nextcloud GmbH. Mattermost is a trademark of Mattermost, Inc. OpenCanvas is an independent open-source project, not affiliated with or endorsed by any of them.</p>
+  </div>
+</section>
+
+
+</main>
+<footer class="site-footer">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <img class="logo-light" src="../assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <img class="logo-dark" src="../assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
+      <p><strong>OpenCanvas by CasualOffice.</strong> The open-source collaborative workspace engine you embed, under <span class="nowrap">Apache-2.0</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
+    </div>
+    <div class="foot-col"><h2>Product</h2><ul><li><a href="../index.html#product">Overview</a></li><li><a href="../app/#demo">Try the demo</a></li><li><a href="../solutions/collaborative-editor.html">Collaborative editor</a></li><li><a href="../solutions/meeting-notes.html">Meeting notes</a></li><li><a href="../solutions/project-management.html">Project management</a></li><li><a href="../roadmap.html">Roadmap</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+    <div class="foot-col"><h2>Compare</h2><ul><li><a href="../alternatives/notion.html">Notion alternative</a></li><li><a href="../alternatives/miro.html">Miro alternative</a></li><li><a href="../alternatives/etherpad.html">Etherpad alternative</a></li><li><a href="../alternatives/coda.html">Coda alternative</a></li></ul></div>
+    <div class="foot-col"><h2>Documentation</h2><ul><li><a href="../docs/getting-started.html">Getting started</a></li><li><a href="../docs/integration.html">Integration guide</a></li><li><a href="../api/index.html">API reference</a></li><li><a href="../docs/wopi.html">WOPI mode</a></li><li><a href="../docs/jitsi.html">Jitsi Meet</a></li><li><a href="../docs/matrix.html">Element / Matrix</a></li><li><a href="../docs/mattermost.html">Mattermost</a></li><li><a href="../docs/nextcloud.html">Nextcloud</a></li><li><a href="../docs/operations.html">Operations</a></li></ul></div>
+    <div class="foot-col"><h2>Trust</h2><ul><li><a href="../docs/security.html">Security and limits</a></li><li><a href="../docs/architecture.html">Architecture</a></li><li><a href="../docs/protocol.html">Protocol</a></li><li><a href="../docs/faq.html">FAQ</a></li><li><a href="../docs/facts.html">Facts</a></li></ul></div>
+    <div class="foot-col"><h2>Project</h2><ul><li><a href="https://github.com/CasualOffice/opencanvas">GitHub</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">Licence (Apache-2.0)</a></li><li><a href="https://github.com/CasualOffice/opencanvas/blob/main/AGENTS.md">Contributing</a></li><li><a href="../brand.html">Brand</a></li></ul></div>
+  </div>
+  <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
+</footer>
+<dialog class="search-dialog" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <svg class="i search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+    <input id="search-q" class="search-input" type="search" placeholder="Search docs and pages" autocomplete="off" spellcheck="false">
+    <button type="submit" class="icon-btn search-close" aria-label="Close search"><svg class="i" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </form>
+  <p class="search-status" role="status" aria-live="polite"></p>
+  <ul class="search-results"></ul>
+</dialog>
+</body>
+</html>

@@ -1,13 +1,14 @@
-<!--meta {"title": "OpenCanvas", "seo_title": "OpenCanvas: an open-source collaborative canvas you embed", "description": "OpenCanvas is an open-source, real-time collaborative canvas (docs, databases, whiteboards) that your app embeds. Your app keeps users, permissions and files.", "nav": "home"} -->
+<!--meta {"title": "OpenCanvas", "seo_title": "OpenCanvas – Open Source Notion & Miro Alternative | CasualOffice", "description": "Self-hosted collaborative documents, spreadsheets, databases, whiteboards and Gantt charts. Embed OpenCanvas into your application. Rust, Yjs and Apache-2.0.", "nav": "home"} -->
 <!-- Product screenshots come from tools/capture-site-screens.mjs: the real editor in its
      #demo mode, captured by Playwright. No mock-ups. Numbers in claim blocks are quoted
      from the repository by a source marking; tools/check-site-claims.py checks them. -->
 <section class="hero" aria-labelledby="hero-h">
   <div class="wrap">
     <div class="hero-copy">
-      <a class="release-pill" href="changelog.html"><b>0.4.0</b><span>Spreadsheets, charts, Timeline, partial sync</span>{{icon:arrow-right:14}}</a>
+      <a class="release-pill" href="changelog.html"><b>0.4.1</b><span>Cell comments, floating charts, faster sheets</span>{{icon:arrow-right:14}}</a>
+      <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice</span>
       <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
-      <p class="lede">OpenCanvas is a collaborative canvas you embed, the way apps embed Collabora: rich text, databases and whiteboards, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
+      <p class="lede">OpenCanvas is the open-source collaborative workspace engine you embed, the way apps embed Collabora: documents, spreadsheets, databases, whiteboards, diagrams and Gantt charts in one canvas, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
       <div class="cta-row">
         <a class="btn btn-primary" href="app/#demo" data-testid="cta-demo">Try the demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
         <a class="btn btn-secondary" href="docs/getting-started.html#run-it">Run it with Docker</a>
@@ -51,7 +52,7 @@
     <div class="sec-head reveal">
       <span class="eyebrow eyebrow--dot">In short</span>
       <h2 id="what-h">What is OpenCanvas?</h2>
-      <p data-answer>OpenCanvas is an open-source, real-time collaborative canvas that other applications embed, the way they embed Collabora Online for office files. One document holds rich text, databases and whiteboards, with live cursors and comments. Your application keeps the users, the permissions and the file; OpenCanvas does the editing and saves the file back to it.</p>
+      <p data-answer>OpenCanvas, by CasualOffice, is an open-source, real-time collaborative canvas that other applications embed, the way they embed Collabora Online for office files. One document holds rich text, spreadsheets, databases with Timeline (Gantt) and Workload views, whiteboards and diagrams, with live cursors and comments. Your application keeps the users, the permissions and the file; OpenCanvas does the editing and saves the file back to it.</p>
       <p>The <a href="docs/facts.html">facts page</a> has the release, the licence, the stack and the measured capacity, each with its source; the <a href="docs/faq.html">FAQ</a> has short answers.</p>
     </div>
   </div>
@@ -93,7 +94,7 @@
     <div class="limits reveal" data-testid="limits">
       <h2 id="limits-h">{{icon:triangle-alert:18}}Alpha: what it is not yet</h2>
       <ul>
-        <li><strong>Early release, with no SLA.</strong> Release 0.2.0 has best-effort support, no production SLA, and fixes only on the 0.2.x line. The <a href="docs/release-020.html">release notes</a> list every limit and the upgrade steps.</li>
+        <li><strong>Early release, with no SLA.</strong> The current release has best-effort support and no production SLA. The <a href="docs/release-040.html">release notes</a> list every limit and the upgrade steps.</li>
         <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
         <li><strong>Memory grows with the documents you keep open.</strong> While people type, a room's document takes many times its saved size in memory; memory is given back after rooms close. Size from the <a href="docs/capacity.html">sizing guide</a>.</li>
         <li><strong>Durability depends on the mode.</strong> Without Redis the default keeps rooms in memory and dumps them every two seconds: after a crash, the latest edits come back only from clients that reconnect. Use <code>wal</code> mode, or a Redis WAL with append-only persistence, when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>
@@ -369,7 +370,7 @@ members = "none"   <span class="c-cmt"># narrow what it may read</span></code></
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
   -e OC_HOSTS_FILE=/data/opencanvas.hosts.toml \
-  opencanvas/server:0.1</code></pre>
+  ghcr.io/casualoffice/opencanvas:{{version}}</code></pre>
         </div>
       </div>
       <div class="duo-cell reveal reveal-d1">
@@ -465,6 +466,25 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
   </div>
 </section>
 
+<section class="section-tight" id="compare" aria-labelledby="alt-h">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow eyebrow--dot">Compare and use cases</span>
+      <h2 id="alt-h">Compare it with a tool you know.</h2>
+      <p>Honest comparisons, including where the other product is stronger, and guides for the jobs people use OpenCanvas for.</p>
+    </div>
+    <ul class="services reveal">
+      <li>{{icon:file-text:18}}<span><b><a href="alternatives/notion.html">Notion alternative</a></b>Pages and databases you self-host and embed</span></li>
+      <li>{{icon:pen-line:18}}<span><b><a href="alternatives/miro.html">Miro alternative</a></b>Whiteboards inside the document</span></li>
+      <li>{{icon:users:18}}<span><b><a href="alternatives/etherpad.html">Etherpad alternative</a></b>Live notes with structure, in Jitsi Meet</span></li>
+      <li>{{icon:database:18}}<span><b><a href="alternatives/coda.html">Coda alternative</a></b>Docs with databases and a real spreadsheet</span></li>
+      <li>{{icon:code:18}}<span><b><a href="solutions/collaborative-editor.html">Collaborative editor</a></b>Live co-editing for your own app</span></li>
+      <li>{{icon:video:18}}<span><b><a href="solutions/meeting-notes.html">Meeting notes</a></b>Jitsi, Nextcloud Talk, Mattermost channels</span></li>
+      <li>{{icon:milestone:18}}<span><b><a href="solutions/project-management.html">Project management</a></b>Tasks, boards, Timeline and Workload</span></li>
+    </ul>
+  </div>
+</section>
+
 <section class="section section-alt" aria-labelledby="faq-h">
   <div class="wrap faq-grid">
     <div class="sec-head reveal">
@@ -472,7 +492,7 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
       <p>More in the <a href="docs/faq.html">documentation FAQ</a>.</p>
     </div>
     <div class="faq reveal reveal-d1">
-      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div data-answer><p>The current release has best-effort support and no production SLA. Review the <a href="docs/release-020.html#4-known-limitations">deployment limits</a> before committing it to a production workflow.</p></div></details>
+      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div data-answer><p>The current release has best-effort support and no production SLA. Review the <a href="docs/release-040.html#3-known-limitations">known limitations</a> before committing it to a production workflow.</p></div></details>
       <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div data-answer><p>OpenCanvas is open source under the Apache-2.0 licence. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products. When you redistribute it, keep the NOTICE file. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
       <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div data-answer><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
       <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div data-answer><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>

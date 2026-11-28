@@ -1,6 +1,6 @@
 # 34 — v0.3 design plan: live blocks, offline-first editing, search, automation
 
-**Status:** Proposed 2026-11-26 (owner asked to start v0.3 the same day). ADRs 063–069 (Proposed) in
+**Status:** Released in v0.3.0, 2026-11-26 ([docs/35](35-RELEASE-v0.3.0.md)). Planned 2026-11-26 (owner asked to start v0.3 the same day). ADRs 063–069 (Accepted 2026-11-26) in
 [docs/08](08-ADR-REGISTER.md); tracker rows in [docs/10](10-EXECUTION-TRACKER.md) §P3 v0.3.
 Prototypes for every screen are in V3UI-01 and gate all UI rows (ADR-011).
 **Scope:** the v0.3 line of [docs/09](09-ROADMAP.md#release-roadmap): portable live blocks, offline-first

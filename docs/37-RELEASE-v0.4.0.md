@@ -34,17 +34,15 @@ documents (ADR-001). Support is best effort, with no SLA.
 5. **New block types** `core.spreadsheet` and `core.chart`; `xlsx` and `ods` in `import_formats` and `export_formats` when the host allows them.
 6. **Container:** `ghcr.io/casualoffice/opencanvas:0.4.0`. Helm chart `0.4.0`.
 
-## 3. Known limitations (v0.4.1)
+## 3. Known limitations
 
-- Partial sync does not split spreadsheets yet; open partial-sync items are PSYNC-BUG-1..4. The 50 MB first screen is above the 2 s target.
-- Spreadsheet: closed on main for v0.4.1: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
-- Charts: closed on main for v0.4.1: a browser test for database charts and the live database ⇄ spreadsheet view; the chart floats over the sheet.
-- Timeline: closed on main for v0.4.1: Workload reassigns by dragging; Months grouping on phones; Timeline and Workload are in the insert menu. On a phone, reassigning still uses the select.
-- The slow-host save drill ran on SQLite; the MySQL run is pending. DEP-01 still needs the SBOM and update policy.
-- Spreadsheet: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
-- Charts: no browser test yet for database charts and the live database ⇄ spreadsheet view; the chart is placed after the sheet, not floating over it.
-- Timeline: Workload reassigns through a select, not by dragging; no Months grouping on phones; Timeline is not in the insert menu.
-- The slow-host save drill now passes on SQLite and MySQL 8.4; SBOMs and the update policy (DEP-01) are in place since 2026-11-28 (for v0.4.1).
+In 0.4.0, and whether 0.4.1 (2026-11-28, [CHANGELOG](../CHANGELOG.md)) closed them:
+
+- Partial sync does not split spreadsheets yet, and the 50 MB first screen is above the 2 s target. Still open after 0.4.1: the partial-sync items PSYNC-BUG-2..4 are v0.4.2.
+- Spreadsheet: no cell comments, no "changed since" undo message, no merge and wrap in the phone layout, and merges across frozen panes were two cells. Fixed in 0.4.1.
+- Charts: no browser test for database charts and the live database ⇄ spreadsheet view; the chart was placed after the sheet, not floating over it. Fixed in 0.4.1.
+- Timeline: Workload reassigned through a select, not by dragging; no Months grouping on phones; Timeline was not in the insert menu. Fixed in 0.4.1, except that on a phone reassigning still uses the select.
+- The slow-host save drill ran on SQLite only, and DEP-01 lacked the SBOM and update policy. Since 0.4.1 the drill passes on SQLite and MySQL 8.4, and SBOMs and the update policy are in place.
 - Benchmarks marked `local` ran on a developer laptop, not the reference machine.
 
 ## 4. Release checklist

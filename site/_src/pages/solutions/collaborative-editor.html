@@ -1,0 +1,54 @@
+<!--meta {"title": "Embeddable collaborative editor", "seo_title": "Embeddable collaborative editor", "description": "Add real-time collaborative documents, spreadsheets, databases and whiteboards to your app: your backend signs a token, OpenCanvas edits and saves back to you.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Use case</span>
+  <h1>A real-time collaborative editor for your application</h1>
+  <p class="lede">Building live co-editing yourself means a CRDT, a sync server, presence, permissions, autosave and an editor people enjoy. OpenCanvas is all of that as one open-source server and one embed, the way apps embed Collabora Online for office files.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/integration.html">Integration guide</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>How it fits into your app</h2>
+  <ol>
+    <li><strong>Register your app</strong> with the OpenCanvas server: its id, the key it signs with, and the base URL of your callbacks.</li>
+    <li><strong>Embed the editor</strong> with a short-lived launch token your backend signs after its own access check: which file, which user, and the role (view, comment or edit). Use an iframe or the <code>&lt;open-canvas&gt;</code> web component.</li>
+    <li><strong>Answer a few callbacks.</strong> OpenCanvas loads the file from your app, saves it back on its own, stores uploads through you, and asks you who may be @mentioned. Every call is signed.</li>
+  </ol>
+  <p>Already a WOPI host, as for Collabora? OpenCanvas speaks WOPI too. See <a href="{{root}}docs/wopi.html">WOPI mode</a>.</p>
+
+  <h2>What you get</h2>
+  <ul>
+    <li><strong>Live co-editing that cannot collide.</strong> Edits merge with Yjs, a CRDT, with live cursors, presence, follow mode and comment threads.</li>
+    <li><strong>One editor for many kinds of content.</strong> Rich text blocks, databases, an Excel-style spreadsheet, linked charts, whiteboards and diagrams, from one insert menu.</li>
+    <li><strong>Profiles for your product.</strong> Each host picks a notebook, meeting, project, diagramming, document or full profile, and can switch whole features off.</li>
+    <li><strong>Autosave, no Save button.</strong> Saves go through a durable outbox, so a restart resends them. If the file changed elsewhere, your policy runs: save a copy, or reload.</li>
+    <li><strong>An API around it.</strong> A REST API under <code>/api/v1</code> with TypeScript and Rust clients, signed webhooks, and a Block SDK for your own sandboxed blocks.</li>
+    <li><strong>Small to operate.</strong> One Rust server with the editor built in, on SQLite; MySQL or MariaDB and Redis when you run several nodes. Docker image and Helm chart.</li>
+  </ul>
+
+  <h2>What stays yours</h2>
+  <p>Sign-in, users, permissions, the file, its versions and its retention. OpenCanvas keeps only a transient room log and a save outbox while a session is live, and never becomes the system of record.</p>
+
+  <h2>Measured, with the load stated</h2>
+  <p>The <a href="{{root}}docs/benchmarks.html">benchmarks page</a> publishes every run with its hardware and load mix, and the <a href="{{root}}docs/capacity.html">sizing guide</a> turns them into server sizes. The runs so far are on a developer laptop, not the reference machine, so rerun them on your own hardware before you size production.</p>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Why not build on Yjs and an editor library directly?{{icon:chevron-down}}</summary><div data-answer><p>You can, and OpenCanvas is built that way. What it adds is the rest: a server that enforces roles on every change, presence, autosave through a durable outbox, host callbacks, exports, a database and spreadsheet model, cluster mode, and the tests and benchmarks around them.</p></div></details>
+    <details><summary>Which frameworks does the embed work with?{{icon:chevron-down}}</summary><div data-answer><p>Any. The editor runs in an iframe from the OpenCanvas server, opened by a form POST or by the open-canvas web component, and talks to your page through postMessage events. Your backend can be written in any language that signs a JWT.</p></div></details>
+    <details><summary>Can I limit what the editor offers?{{icon:chevron-down}}</summary><div data-answer><p>Yes. Editor profiles choose which blocks people can insert, and features such as comments, version history, templates, import, diagramming and the assistant can be switched off per host.</p></div></details>
+    <details><summary>Is it ready for production?{{icon:chevron-down}}</summary><div data-answer><p>It is an early release with best-effort support and no production SLA. Read the known limitations in the release notes before you rely on it.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}

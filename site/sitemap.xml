@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://canvas.casualoffice.org/alternatives/coda.html</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/alternatives/etherpad.html</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/alternatives/miro.html</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/alternatives/notion.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/api/authentication.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/api/changelog.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/api/errors.html</loc><lastmod>2026-11-28</lastmod></url>
@@ -33,7 +37,7 @@
   <url><loc>https://canvas.casualoffice.org/docs/capacity.html</loc><lastmod>2026-11-26</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/collaboration.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/facts.html</loc><lastmod>2026-11-28</lastmod></url>
-  <url><loc>https://canvas.casualoffice.org/docs/faq.html</loc><lastmod>2026-11-26</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/docs/faq.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/getting-started.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/glossary.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/index.html</loc><lastmod>2026-11-26</lastmod></url>
@@ -49,9 +53,12 @@
   <url><loc>https://canvas.casualoffice.org/docs/release-020.html</loc><lastmod>2026-11-26</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/release-030.html</loc><lastmod>2026-11-26</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/release-040.html</loc><lastmod>2026-11-28</lastmod></url>
-  <url><loc>https://canvas.casualoffice.org/docs/release.html</loc><lastmod>2026-11-23</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/docs/release.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/security.html</loc><lastmod>2026-11-27</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/docs/wopi.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://canvas.casualoffice.org/roadmap.html</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/solutions/collaborative-editor.html</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/solutions/meeting-notes.html</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://canvas.casualoffice.org/solutions/project-management.html</loc><lastmod>2026-11-28</lastmod></url>
 </urlset>

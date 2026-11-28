@@ -7,7 +7,19 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-28
+
+Spreadsheet cell comments and collaborative undo, floating linked charts, Timeline and Workload
+finishing touches, faster large-sheet edits, a smaller first load, SBOMs on every release, and the
+slow-host crash drill passing on MySQL. Upgrade from 0.4.0 by replacing the binary or image; no
+migrations or configuration changes.
+
 ### Added
+
+- OpenCanvas Workspace (docs/40, ADR-085): files are typed (owner decision 8). Design only for now: the host contract gains
+  `file.type` and app mode (docs/05 §2f: a spreadsheet, whiteboard or database file opens full screen as its one root
+  block), and the Workspace prototype adds frames 13a–13j (the New menu with types, typed icons, the spreadsheet, whiteboard
+  and database apps, phone versions, a sheet in a document versus a spreadsheet file) for the owner's approval.
 
 - Spreadsheet (SHEET-07, frame 6): comments on cells. A corner mark shows a thread; hover,
   Ctrl+Alt+M, the cell menu, the toolbar or the phone action bar opens it. Threads are anchored to
@@ -48,6 +60,8 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Fixed
 
+- Workspace prototype: icons after the first sprite block (folder, home, share, bell and others) did not render, because the
+  sprite's `</svg>` was closed early.
 - Spreadsheet: a merge that crosses a frozen pane's edge is one grid cell (it was two, with the
   same id), and the frozen pane's edge line shows through it.
 ### Changed
@@ -709,9 +723,13 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/CasualOffice/opencanvas/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/CasualOffice/opencanvas/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/CasualOffice/opencanvas/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/CasualOffice/opencanvas/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.2...v0.2.0
+[0.1.2]: https://github.com/CasualOffice/opencanvas/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CasualOffice/opencanvas/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/CasualOffice/opencanvas/releases/tag/v0.1.0-alpha.1
