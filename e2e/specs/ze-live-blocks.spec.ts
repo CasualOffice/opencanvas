@@ -30,6 +30,9 @@ async function newParagraph(p: Person, text: string) {
 
 test("make live, insert from the host picker, edit together from two canvases", async ({ browser }) => {
   test.setTimeout(150_000);
+  // The host picker lists every live block Priya can open: a name of its own per run, so a
+  // repeat (--repeat-each, the nightly) does not find the blocks earlier runs made (RLB-04).
+  const NAME = `Release 4.2 checklist ${Date.now().toString(36)}`;
   const priya = await person(browser, "u_priya");
   const a = await createFile(priya, "E2E ze · Sprint planning");
   await applyTemplate(priya, "Meeting notes");
@@ -43,10 +46,10 @@ test("make live, insert from the host picker, edit together from two canvases", 
   await priya.oc.getByRole("menuitem", { name: "Make live…" }).click();
   const dlg = priya.oc.getByRole("dialog", { name: "Make this a live block" });
   await expect(dlg).toContainText("Starts with the same people as");
-  await dlg.getByLabel("Name").fill("Release 4.2 checklist");
+  await dlg.getByLabel("Name").fill(NAME);
   await dlg.getByRole("button", { name: "Make live" }).click();
   await expect(dlg).toBeHidden({ timeout: 15_000 });
-  await expect(priya.oc.getByText("Release 4.2 checklist is live")).toBeVisible();
+  await expect(priya.oc.getByText(`${NAME} is live`)).toBeVisible();
   await expect(live(priya).locator(".lb-live")).toHaveText("Live");
   await expect(liveBody(priya)).toContainText("Release notes drafted", { timeout: 15_000 });
   await expect(live(priya)).toHaveAttribute("data-state", "connected");
@@ -61,9 +64,9 @@ test("make live, insert from the host picker, edit together from two canvases", 
   await priya.page.keyboard.press("Enter");
   const picker = priya.page.getByRole("dialog", { name: "Insert a live block" });
   await expect(picker).toBeVisible();
-  await picker.getByRole("button", { name: "Release 4.2 checklist" }).click();
+  await picker.getByRole("button", { name: NAME }).click();
   await expect(liveBody(priya)).toContainText("Release notes drafted", { timeout: 15_000 });
-  await expect(live(priya).locator(".lb-t")).toHaveText("Release 4.2 checklist");
+  await expect(live(priya).locator(".lb-t")).toHaveText(NAME);
   await axe(priya);
 
   // 2a/2b: Asha edits it in Sprint planning; Priya sees it in Leadership weekly, and back.
