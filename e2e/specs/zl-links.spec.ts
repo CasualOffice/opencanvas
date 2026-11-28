@@ -28,6 +28,7 @@ test("[[ and # link a canvas and a heading; Linked from, chips, preview and acce
   const source = await createFile(priya, "Q1 Platform roadmap", HOST_LINKS);
   await applyTemplate(priya, "Meeting notes");
   await typeAfterHeading(priya, "Notes", "Scope and dates live in ");
+  await expect(editor(priya)).toHaveAttribute("data-links", "ready", { timeout: 15_000 });
   await priya.page.keyboard.type("[[SSO roll");
   const pick = priya.oc.getByRole("dialog", { name: "Link a canvas" });
   await expect(pick.getByRole("option", { name: /SSO rollout plan/ })).toBeVisible({ timeout: 15_000 });
@@ -35,6 +36,8 @@ test("[[ and # link a canvas and a heading; Linked from, chips, preview and acce
   const link = editor(priya).locator("a.clink").first();
   await expect(link).toHaveText("SSO rollout plan");
   await expect(link).toHaveAttribute("data-state", "ok");
+
+  await expect(editor(priya)).toHaveAttribute("data-links", "ready", { timeout: 15_000 });
 
   await priya.page.keyboard.type("and [[SSO roll");
   await expect(pick.getByRole("option", { name: /SSO rollout plan/ })).toBeVisible({ timeout: 15_000 });

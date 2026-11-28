@@ -32,6 +32,7 @@ async function setup(browser: Browser): Promise<Person> {
   await editor(priya).locator("h1, h2, h3").filter({ hasText: "Notes" }).first().click();
   await priya.page.keyboard.press("End");
   await priya.page.keyboard.press("Enter");
+  await expect(editor(priya)).toHaveAttribute("data-links", "ready", { timeout: 15_000 });
   await priya.page.keyboard.type("Numbers follow [[Pricing");
   // Another worker may have its own "Pricing model 2027 …"; pick ours, not the first option.
   const mine = priya.oc.getByRole("option", { name: new RegExp(NAME) });

@@ -654,7 +654,7 @@ Find and replace (SRCH-01, ADR-066) runs in the editor only (`web/packages/edito
 `GET /v1/search?ticket=&q=&scope=&cursor=` → the host's search as the session's person (SRCH-04,
 ADR-065): `{items:[{fileId,title,path?,blockId?,snippet,updatedAt?}],scopes,partial,next}`, `no-store`;
 404 `SEARCH_UNAVAILABLE` when the host has no callback (the session's `search.enabled` is then false),
-429 past 10 a minute, 504 `HOST_TIMEOUT`.
+429 past 60 a minute (burst 20), 504 `HOST_TIMEOUT`.
 `GET /v1/members?ticket=&q=` → `{"members":[{id,name,color,detail?,avatar?}]}` (docs/21 revision 2:
 the same list for every viewer; merged by id, members callback > token `members` > the saved `people`
 map, which counts only when the host gave neither; the viewer is always in; people revoked by the

@@ -365,11 +365,11 @@ async fn api_search_proxies_the_host_and_matches_mcp() {
 }
 
 #[tokio::test]
-async fn ten_searches_a_minute_per_user() {
+async fn twenty_searches_at_once_per_user_then_429() {
     let (addr, _st, host, _db) = serve(on).await;
     host.lock().unwrap().search = Some(json!({"items": []}));
     let mut codes = vec![];
-    for _ in 0..11 {
+    for _ in 0..21 {
         let res = http()
             .get(format!("http://{addr}/api/v1/search?q=x"))
             .bearer_auth(api_token("u_rl"))
@@ -381,8 +381,8 @@ async fn ten_searches_a_minute_per_user() {
             assert!(res.headers().get("retry-after").is_some());
         }
     }
-    assert_eq!(&codes[..10], &[200; 10]);
-    assert_eq!(codes[10], 429);
+    assert_eq!(&codes[..20], &[200; 20]);
+    assert_eq!(codes[20], 429);
     // Another person has their own budget.
     let res = http()
         .get(format!("http://{addr}/api/v1/search?q=x"))

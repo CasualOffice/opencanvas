@@ -21,6 +21,7 @@ let target = "",
 
 /** Types `[[name` and picks the canvas from the host's search. */
 async function linkTo(p: Person, name: string) {
+  await expect(editor(p)).toHaveAttribute("data-links", "ready", { timeout: 15_000 });
   await p.page.keyboard.type(`[[${name}`);
   const pick = p.oc.getByRole("dialog", { name: "Link a canvas" });
   await expect(pick.getByRole("option", { name: new RegExp(name) })).toBeVisible({ timeout: 15_000 });

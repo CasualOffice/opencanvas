@@ -799,10 +799,13 @@ export default function LinksRoot(p: LinksRootProps) {
     editor.registerPlugin(plugins[0], (_, list) => [plugins[0], ...list.filter((x) => x !== plugins[0])]);
     editor.registerPlugin(plugins[1]);
     editor.registerPlugin(plugins[2]);
+    // `[[` works from here on (the links code loads after first paint); tests wait for this.
+    (editor.view.dom as HTMLElement).dataset.links = "ready";
     const redraw = chipCounts.subscribe(() => !editor.isDestroyed && editor.view.dispatch(editor.state.tr.setMeta(chipKey, true)));
     return () => {
       redraw();
       if (editor.isDestroyed) return;
+      delete (editor.view.dom as HTMLElement).dataset.links;
       editor.unregisterPlugin("canvasLinkPicker");
       editor.unregisterPlugin(keysKey);
       editor.unregisterPlugin(chipKey);

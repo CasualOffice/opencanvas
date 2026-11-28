@@ -25,8 +25,12 @@ pub const MAX_SCOPES: usize = 4;
 pub const MAX_Q: usize = 200;
 /// How long a host that answered 404/405/501 is treated as having no callback.
 pub const PROBE_TTL: Duration = Duration::from_secs(600);
-/// Searches per user and minute (API, MCP and the editor share it).
-pub const PER_MINUTE: f64 = 10.0;
+/// Searches per user and minute (API, MCP and the editor share it). The `[[` link picker
+/// searches as people type, so ten a minute (the first limit) refused people mid-word; 60 a
+/// minute with a burst of 20 keeps typing smooth and still bounds a script.
+pub const PER_MINUTE: f64 = 60.0;
+/// Searches a person may make at once before the per-minute rate applies.
+pub const BURST: f64 = 20.0;
 
 /// `[host.search]`, checked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,7 +223,7 @@ pub async fn run(
     let policy = crate::ratelimit::Policy {
         name: "search",
         rate: PER_MINUTE / 60.0,
-        burst: PER_MINUTE,
+        burst: BURST,
     };
     let d = state
         .limiter

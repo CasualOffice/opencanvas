@@ -18,6 +18,7 @@ test("phone: Linked from at the end and as a sheet; long-press preview", async (
   await editor(priya).locator("h1, h2, h3").filter({ hasText: "Notes" }).first().click();
   await priya.page.keyboard.press("End");
   await priya.page.keyboard.press("Enter");
+  await expect(editor(priya)).toHaveAttribute("data-links", "ready", { timeout: 15_000 });
   await priya.page.keyboard.type("Replies use [[Support");
   await expect(priya.oc.getByRole("option", { name: /Support macros/ })).toBeVisible({ timeout: 15_000 });
   await priya.page.keyboard.press("Enter");
