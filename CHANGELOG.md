@@ -9,6 +9,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- OpenCanvas Workspace web app (`web/packages/workspace`, served at `/ws/`): first-run setup, sign-in, sign-up from an
+  invite, Home with the typed New menu (Document, Spreadsheet, Whiteboard, Database), grid and list views, the workspace and
+  folder tree, favourites, recent and shared, a file page with the Workspace header around the editor, the share dialog with
+  public-link options, ⌘K search, Trash, an inbox, members and teams, settings, and the phone layout. An image definition and
+  a production compose file are in `deploy/workspace/`.
 - OpenCanvas Workspace back end (`crates/oc-workspace`, binary `opencanvas-workspace`, ADR-085): the Workspace host and the
   engine in one process on one port, talking only through the host contract. First-run setup with a six-word setup code
   (skipped from the same machine), accounts with Argon2id passwords, sessions, CSRF checks and lockout, invite links,

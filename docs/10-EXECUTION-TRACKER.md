@@ -383,12 +383,12 @@ ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row
 | WS-13 | Sharing and links (people, teams, organisation link, public view link), revocation through the role API | Done | People, teams, folder inheritance, org link, public links (admin on/off, max role, expiry, password); role API on every change; M |
 | WS-14 | Search index from `search.json` (FTS5, FULLTEXT), access filter, `GET /search` callback | Done | FTS5 index from search.json, access filter at query time, `GET /search` callback; MySQL FULLTEXT path not yet run in CI; M |
 | WS-15 | Trash with retention job; version history callbacks with thinning | Done | Trash (folders with content, restore to the original place or the top), hourly retention job, version thinning; M |
-| WS-16 | Web app shell: sign-in, sign-up, setup, Home (grid, list, tree, favourites, recent), templates dialog | Todo | L; depends on WS-01, WS-05, WS-10 |
-| WS-17 | Canvas page chrome around the editor (breadcrumb, presence, share, history, more menu); phone layout | Todo | M; depends on WS-16 |
-| WS-18 | Share dialog, search page and ⌘K, trash page, notifications bell | Todo | M; depends on WS-13, WS-14, WS-15 |
-| WS-19 | Admin: members, teams, settings (branding, sign-in, SSO, storage, SMTP, backups, public links, about) | Todo | L; depends on WS-16 |
+| WS-16 | Web app shell: sign-in, sign-up, setup, Home (grid, list, tree, favourites, recent), templates dialog | In progress | web/packages/workspace: setup, sign-in, invite sign-up, reset, Home (continue, grid, list, type filter, tree, favourites, recent, shared), templates dialog, phone layout; setup checklist on Home to do; L |
+| WS-17 | Canvas page chrome around the editor (breadcrumb, presence, share, history, more menu); phone layout | In progress | Header around the engine editor (breadcrumb, type tile, star, save state, presence from Presence_Changed, History, Share, more menu), phone header; the editor's own top bar still shows inside (needs an embed option); M |
+| WS-18 | Share dialog, search page and ⌘K, trash page, notifications bell | In progress | Share dialog (people, teams, e-mail invite, inherited, general access with public-link expiry and password), ⌘K search with type and workspace filters, Trash, Inbox; M |
+| WS-19 | Admin: members, teams, settings (branding, sign-in, SSO, storage, SMTP, backups, public links, about) | In progress | Members (roles, suspend, reset link), teams, invites, settings (general, sharing and links, sign-up domains, retention, about); branding, SMTP, backups pages to do; L |
 | WS-20 | Backups and restore (CLI and schedule, encrypted secrets), pre-upgrade backup, downgrade refusal | Todo | M; depends on WS-11 |
-| WS-21 | Image (`deploy/workspace/Dockerfile`), compose file (MySQL, Redis, MinIO, nginx), docs/13 section, release pipeline to GHCR | Todo | M; depends on WS-03 |
+| WS-21 | Image (`deploy/workspace/Dockerfile`), compose file (MySQL, Redis, MinIO, nginx), docs/13 section, release pipeline to GHCR | In progress | deploy/workspace/Dockerfile, compose.yml (workspace + two engine nodes + MariaDB + Redis + nginx), nginx.conf; image not built or measured yet; GHCR pipeline and docs/13 section to do; M |
 | WS-22 | Acceptance run (§6) in CI: 2-minute first run, restart, crash, backup/restore, upgrade, compose | Todo | M; depends on WS-21 |
 | WS-23 | Security audit of the Workspace surfaces and fixes | Todo | M; depends on WS-18, WS-19 |
 | WS-24 | Docs and site: quick start, operator guide, admin guide, release notes | Todo | S; depends on WS-22 |
@@ -405,7 +405,7 @@ host; the Workspace is its first user. UI rows wait for WS-01b.
 | FTY-05 | Editor: database app mode (view tabs, filter, sort, New row; row pages stay documents) | Todo | M; depends on FTY-02, WS-01b |
 | FTY-06 | Exports, search (`search.json` `type`), API v1 and `/extract` `type`, default export per type | Todo | S; depends on FTY-02 |
 | FTY-07 | Block *Expand* and *Make a … file* through the create-file callback with `type`, optional live block in place | Todo | M; depends on FTY-02, WS-01b |
-| FTY-08 | Workspace: typed New menu, type icons and column, search type filter, import picks the type, sample host passes `file.type` too | Todo | M; depends on WS-16, FTY-02, WS-01b |
+| FTY-08 | Workspace: typed New menu, type icons and column, search type filter, import picks the type, sample host passes `file.type` too | In progress | Typed New menu, type tiles in Home, list, search, trash and phone, type column and filters done; import picking the type to do; the editor's app mode is FTY-02..05; M |
 
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 
