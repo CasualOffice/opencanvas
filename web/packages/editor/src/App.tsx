@@ -1386,6 +1386,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               onAssistant={ai.on ? openAssistant : undefined}
               onFind={editor ? () => openFind(false) : undefined}
               onSearchAll={searchOn ? () => setSearchAll(true) : undefined}
+              onLinkedFrom={linksOn ? () => setSide((s) => (s === "links" ? null : "links")) : undefined}
               onAutomations={autoOn ? () => (side === "automations" ? closeSide() : setSide("automations")) : undefined}
               automationsHere={ruleCount}
               offline={
@@ -1479,6 +1480,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     ticket={session.ticket}
                     fileId={session.file.id}
                     title={meta.title || session.file.name}
+                    aliases={meta.aliases ?? []}
                     canEdit={effectiveRole === "edit"}
                     compact={compact}
                     mentions={!!session.links?.mentions}
@@ -1490,6 +1492,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                       fileId === session.file.id && blockId ? scrollToBlock(blockId) : postToHost("UI_OpenFile", { fileId, ...(blockId ? { blockId } : {}), newTab })
                     }
                     scrollToBlock={scrollToBlock}
+                    onComments={session.perms.comment !== false || threads.length ? () => setSide("comments") : undefined}
                   />
                 </Suspense>
               ) : null}
@@ -1532,7 +1535,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               ) : null}
               {side === "comments" ? (
                 <Suspense fallback={<aside className="side" aria-label="Comments" aria-busy="true" />}>
-                  <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} users={allUsers} onActivate={setActive} onJump={jump} onClose={closeSide} />
+                  <CommentsPanel doc={doc} threads={threads} active={active} role={effectiveRole} me={me} users={allUsers} onActivate={setActive} onJump={jump} onClose={closeSide} onLinkedFrom={linksOn ? () => setSide("links") : undefined} />
                 </Suspense>
               ) : null}
               {side === "history" && canHistory ? (

@@ -298,6 +298,11 @@ pub fn search_json(doc: &Value, opts: Options) -> Value {
     if let Some(lang) = doc["meta"]["lang"].as_str() {
         out["lang"] = json!(lang);
     }
+    // LINK-05: other names of the canvas, so the host's search finds it by them too.
+    let aliases = crate::links::aliases(doc);
+    if !aliases.is_empty() {
+        out["aliases"] = json!(aliases);
+    }
     if opts.comments {
         let mut list = vec![];
         if let Some(m) = doc["comments"].as_object() {

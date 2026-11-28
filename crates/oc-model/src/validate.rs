@@ -131,6 +131,12 @@ pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
                 cx.r.err(&format!("/meta/{k}"), format!("meta.{k} must be a string"));
             }
         }
+        // LINK-05: `aliases`, a list of names; extra or long ones are ignored, not refused.
+        if meta.get("aliases").is_some_and(|a| {
+            !a.is_null() && !a.as_array().is_some_and(|l| l.iter().all(Value::is_string))
+        }) {
+            cx.r.warn("/meta/aliases", "meta.aliases must be a list of strings");
+        }
     }
     let dbs = obj.get("databases").and_then(Value::as_object);
     let boards = obj.get("boards").and_then(Value::as_object);

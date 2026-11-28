@@ -26,6 +26,8 @@ export interface LinksRootProps {
   ticket: string;
   fileId: string;
   title: string;
+  /** LINK-05: other names of this canvas (`meta.aliases`). */
+  aliases?: string[];
   canEdit: boolean;
   compact: boolean;
   mentions: boolean;
@@ -37,6 +39,8 @@ export interface LinksRootProps {
   /** Another canvas (the host navigates), or this one at a block. */
   open(fileId: string, blockId: string | null, newTab: boolean): void;
   scrollToBlock(blockId: string): void;
+  /** The side panel's Comments tab (2b); absent when comments are off. */
+  onComments?: () => void;
 }
 
 // ---------- stores shared by the plugins and the views ----------
@@ -673,11 +677,11 @@ function Mentions({ a, p }: { a: Api; p: LinksRootProps }) {
   const live = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     let off = false;
-    a.mentions([p.title])
+    a.mentions([p.title, ...(p.aliases ?? [])])
       .then((r) => !off && setItems(r.available ? r.items : []))
       .catch(() => !off && setItems([]));
     return () => void (off = true);
-  }, [a, p.title]);
+  }, [a, p.title, (p.aliases ?? []).join("|")]);
   useEffect(() => setOpen((o) => o || (items !== null && items.length > 0 && items.length <= 5)), [items]);
   if (!items || !items.length) return null;
   const say = (t: string) => live.current && (live.current.textContent = t);
@@ -891,6 +895,16 @@ export default function LinksRoot(p: LinksRootProps) {
               <X size={16} aria-hidden="true" />
             </button>
           </div>
+          {p.onComments ? (
+            <div className="stabs" role="tablist" aria-label="Side panel">
+              <button type="button" role="tab" aria-selected="false" className="stab" onClick={p.onComments}>
+                Comments
+              </button>
+              <button type="button" role="tab" aria-selected="true" className="stab on">
+                Linked from
+              </button>
+            </div>
+          ) : null}
           <div className="sbd">
             {sideName ? (
               <div className="lk-fchip">

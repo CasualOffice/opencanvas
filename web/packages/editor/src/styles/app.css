@@ -420,6 +420,10 @@ button.cic:hover{transform:scale(1.06)}
 .side .shd{height:3rem;display:flex;align-items:center;gap:.375rem;padding:0 .5rem 0 1rem;border-bottom:1px solid var(--line);flex:none;font-size:.8125rem;color:var(--fg-3);white-space:nowrap}
 .side .shd b{color:var(--fg);font-weight:600;font-size:.875rem}
 .side .shd .grow{flex:1}
+.side .stabs{display:flex;gap:.25rem;padding:.375rem .75rem 0;border-bottom:1px solid var(--line);flex:none}
+.side .stab{height:2.25rem;padding:0 .625rem;border:0;background:transparent;color:var(--fg-2);font:inherit;font-size:.8125rem;cursor:pointer;box-shadow:inset 0 -.125rem 0 transparent}
+.side .stab.on{color:var(--fg);font-weight:600;box-shadow:inset 0 -.125rem 0 var(--fg)}
+.side .stab:focus-visible{outline:.125rem solid var(--accent);outline-offset:-.125rem}
 .side .sbd{flex:1;overflow:auto;padding:1.125rem 1.125rem 2.5rem}
 .thread{border-radius:.75rem;padding:.75rem;box-shadow:inset 0 0 0 1px var(--line);margin-bottom:.625rem;background:var(--app);transition:box-shadow .2s}
 .thread.active{box-shadow:inset 0 0 0 1.5px var(--amber-fg)}

@@ -418,6 +418,26 @@ pub fn lower(doc: &mut Value, template: Option<&str>) {
     go(doc, template, 0);
 }
 
+/// Most aliases a canvas may have, and their longest.
+pub const MAX_ALIASES: usize = 8;
+pub const ALIAS_MAX: usize = 100;
+
+/// LINK-05: a canvas's other names (`meta.aliases`, docs/38 §2.6), for unlinked mentions and the
+/// `[[` picker: trimmed, non-empty, at most [`MAX_ALIASES`] of at most [`ALIAS_MAX`] characters.
+pub fn aliases(doc: &Value) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    for a in doc["meta"]["aliases"].as_array().into_iter().flatten() {
+        let Some(t) = a.as_str().map(str::trim).filter(|t| !t.is_empty()) else {
+            continue;
+        };
+        let t: String = t.chars().take(ALIAS_MAX).collect();
+        if !out.contains(&t) && out.len() < MAX_ALIASES {
+            out.push(t);
+        }
+    }
+    out
+}
+
 /// A heading anchor for a heading without a block id: `h:` and its words, lower case, joined
 /// by `-` (docs/38 §2.2 item 2).
 pub fn heading_anchor(text: &str) -> String {
@@ -896,5 +916,20 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn aliases_are_trimmed_deduplicated_and_capped() {
+        let doc = json!({"meta": {"aliases": [" SSO plan ", "", "SSO plan", 4, "x".repeat(150)]}});
+        let a = aliases(&doc);
+        assert_eq!(a[0], "SSO plan");
+        assert_eq!(a.len(), 2);
+        assert_eq!(a[1].chars().count(), ALIAS_MAX);
+        assert!(aliases(&json!({})).is_empty());
+        let s = crate::search::search_json(
+            &json!({"meta": {"title": "T", "aliases": ["Other name"]}, "content": []}),
+            Default::default(),
+        );
+        assert_eq!(s["aliases"], json!(["Other name"]));
     }
 }

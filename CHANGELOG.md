@@ -57,6 +57,10 @@ migrations or configuration changes.
   chip that opens the side panel on that heading. "Unlinked mentions" lists canvases that name
   this one without a link, with Link (as you, in that canvas) and Undo. All of it loads on its
   own after the canvas (initial JS +0.6 KB for the node).
+- "Linked from" in the top bar's More options menu, and a Comments / Linked from tab row in the
+  side panel. A canvas's `meta.aliases` (other names) is included in `search.json` and in the
+  search for unlinked mentions. Editors older than 0.5 can no longer delete canvas links: their
+  update is refused and they are asked to reopen the canvas.
 
 ### Fixed
 

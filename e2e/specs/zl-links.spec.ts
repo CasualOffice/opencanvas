@@ -69,6 +69,17 @@ test("[[ and # link a canvas and a heading; Linked from, chips, preview and acce
   const side = priya.oc.getByRole("complementary", { name: "Linked from" });
   await expect(side).toContainText("Phase 2 enforce SSO");
   await expect(side).toContainText("Q1 Platform roadmap");
+  // 2b: the side panel shares a tab row with Comments; the top bar's menu opens it too.
+  await side.getByRole("tab", { name: "Comments" }).click();
+  const comments = priya.oc.getByRole("complementary", { name: "Comments" });
+  await expect(comments.getByRole("tab", { name: "Linked from" })).toHaveAttribute("aria-selected", "false");
+  await comments.getByRole("tab", { name: "Linked from" }).click();
+  await expect(side.getByRole("tab", { name: "Linked from" })).toHaveAttribute("aria-selected", "true");
+  await side.getByRole("button", { name: "Close" }).click();
+  await expect(side).toBeHidden();
+  await priya.oc.getByRole("button", { name: "More options" }).click();
+  await priya.oc.getByRole("menuitem", { name: "Linked from" }).click();
+  await expect(side).toBeVisible();
   const axe = await new AxeBuilder({ page: priya.page }).include("iframe").analyze();
   expect(axe.violations.filter((v) => /lk-|clink/.test(JSON.stringify(v.nodes)))).toEqual([]);
 
