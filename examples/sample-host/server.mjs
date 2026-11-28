@@ -217,6 +217,25 @@ async function accessCallback(req, res) {
   return send(res, 200, { role, name: f.name, ...(where ? { path: where.slice(0, 200) } : {}), callbackToken: callbackToken(f.id, q.userId) });
 }
 
+// Links (docs/05 §2d-bis, LINK-03): many `/access` answers in one call, for "Linked from" and
+// the graph. A deleted file is `{fileId, gone: true}`; a file someone cannot open is `none`.
+function accessAnswer(fileId, userId) {
+  if (meta.deleted?.[fileId]) return { fileId, gone: true };
+  const f = meta.files[fileId];
+  const role = f?.acl[userId] || "none";
+  if (role === "none") return { fileId, role: "none" };
+  const where = f.path || (f.parent && meta.files[f.parent] ? `Acme Docs › ${meta.files[f.parent].name}` : "");
+  return { fileId, role, name: f.name, ...(where ? { path: where.slice(0, 200) } : {}), ...(f.updatedAt ? { updatedAt: f.updatedAt } : {}), callbackToken: callbackToken(f.id, userId) };
+}
+
+async function accessBatchCallback(req, res) {
+  const body = await readBody(req);
+  if (!checkSigned(req, body)) return send(res, 401, { error: "bad signature" });
+  let q; try { q = JSON.parse(body.toString("utf8")); } catch { return send(res, 400, { error: "expected JSON" }); }
+  const ids = Array.isArray(q.fileIds) ? q.fileIds.slice(0, 200).map(String) : [];
+  return send(res, 200, { items: ids.map((id) => accessAnswer(id, String(q.userId || ""))) });
+}
+
 async function createFileCallback(req, res) {
   const body = await readBody(req);
   let q; try { q = JSON.parse(body.toString("utf8")); } catch { return send(res, 400, { error: "expected JSON" }); }
@@ -321,6 +340,7 @@ async function callbacks(req, res, url) {
     return send(res, 200, { items, scopes: [{ id: "all", label: "All canvases" }], partial: false, next: null });
   }
   if (url.pathname === "/api/opencanvas/access" && req.method === "POST") return accessCallback(req, res);
+  if (url.pathname === "/api/opencanvas/access/batch" && req.method === "POST") return accessBatchCallback(req, res);
   if (url.pathname === "/api/opencanvas/files" && req.method === "POST") return createFileCallback(req, res);
   // The member list (docs/21 revision 2): everyone with access to this file, filtered by `q`.
   const mem = url.pathname.match(/^\/api\/opencanvas\/files\/([\w-]+)\/members$/);

@@ -740,3 +740,203 @@ async fn full_graphs_are_rate_limited() {
     }
     assert_eq!(codes, vec![200, 200, 429]);
 }
+
+async fn session_on(st: &oc_server::SharedState, user: &str, file: &str, title: &str) -> String {
+    let t = ulid::Ulid::new().to_string();
+    let mut g = grant(user, Role::Edit);
+    g.file.id = file.into();
+    g.file.name = title.into();
+    g.room = oc_server::grant::room_id("sample", file);
+    st.store
+        .insert_session(&t, &g, now() + 600, 0)
+        .await
+        .unwrap();
+    t
+}
+
+async fn post_json(url: String, body: Value) -> (u16, Value) {
+    let res = http().post(url).json(&body).send().await.unwrap();
+    let s = res.status().as_u16();
+    (s, res.json().await.unwrap_or(Value::Null))
+}
+
+/// LINK-04 editor routes: each link's state and current title (no title without access),
+/// the `#` targets of a canvas, and the hover preview.
+#[tokio::test]
+async fn editor_resolve_targets_and_preview() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        for (k, v) in [
+            ("t_ok", "view"),
+            ("t_none", "none"),
+            ("t_gone", "gone"),
+            ("t_here", "edit"),
+        ] {
+            h.access_files.insert((k.into(), "u_1".into()), v.into());
+        }
+        h.access_paths
+            .insert("t_ok".into(), "Engineering / Identity".into());
+        h.access_paths.insert("t_none".into(), "SECRET-PATH".into());
+        let doc = json!({"content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Goal: every workspace requires SSO."}]},
+            {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Phase 2: enforce SSO"}]},
+            {"type": "paragraph", "attrs": {"blockId": "p2"}, "content": [{"type": "text", "text": "Owners keep a fallback."}]},
+        ]});
+        h.files.insert("t_ok".into(), (ocanvas(&doc), 1));
+    }
+    let t = session_on(&st, "u_1", "t_here", "Here").await;
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/links/resolve"),
+        json!({"ticket": t, "targets": [
+            {"fileId": "t_ok"}, {"fileId": "t_ok", "blockId": "h:phase-2-enforce-sso"},
+            {"fileId": "t_ok", "blockId": "gone_block"}, {"fileId": "t_none"}, {"fileId": "t_gone"}]}),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let states: Vec<&str> = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["state"].as_str().unwrap())
+        .collect();
+    assert_eq!(states, vec!["ok", "ok", "missing", "none", "gone"], "{v}");
+    assert_eq!(v["items"][0]["title"], "Name of t_ok");
+    assert_eq!(v["items"][1]["block"], "Phase 2: enforce SSO");
+    assert!(
+        v["items"][3].get("title").is_none(),
+        "no title without access: {v}"
+    );
+    assert!(!v.to_string().contains("SECRET-PATH"));
+
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/targets?ticket={t}&fileId=t_ok"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let v: Value = res.json().await.unwrap();
+    let ids: Vec<&str> = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, vec!["h:phase-2-enforce-sso", "p2"], "{v}");
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/targets?ticket={t}&fileId=t_none"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 403);
+
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/preview?ticket={t}&fileId=t_ok"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["state"], "ok");
+    assert_eq!(v["path"], "Engineering / Identity");
+    assert_eq!(v["lines"][0], "Goal: every workspace requires SSO.");
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/preview?ticket={t}&fileId=t_ok&block=p2"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["block"], "Owners keep a fallback.", "{v}");
+    for (f, want) in [("t_none", "none"), ("t_gone", "gone")] {
+        let res = http()
+            .get(format!(
+                "http://{addr}/v1/links/preview?ticket={t}&fileId={f}"
+            ))
+            .send()
+            .await
+            .unwrap();
+        let v: Value = res.json().await.unwrap();
+        assert_eq!(v["state"], want);
+        assert!(v.get("title").is_none() && v.get("lines").is_none(), "{v}");
+    }
+    // The session says what the editor may offer.
+}
+
+/// LINK-A6: Link on an unlinked mention edits the other canvas as this person, needs edit
+/// there (refused for view), replaces one block (one step) and Undo puts it back.
+#[tokio::test]
+async fn linking_a_mention_needs_edit_in_the_source_and_undoes() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        h.access_files
+            .insert(("m_src".into(), "u_1".into()), "edit".into());
+        h.access_files
+            .insert(("m_src".into(), "u_v".into()), "view".into());
+        h.access_files
+            .insert(("m_here".into(), "u_1".into()), "edit".into());
+        h.access_files
+            .insert(("m_here".into(), "u_v".into()), "view".into());
+        let doc = json!({"content": [
+            {"type": "paragraph", "attrs": {"blockId": "pm"}, "content": [{"type": "text", "text": "We follow the SSO rollout plan here."}]},
+        ]});
+        h.files.insert("m_src".into(), (ocanvas(&doc), 1));
+    }
+    let tv = session_on(&st, "u_v", "m_here", "SSO rollout plan").await;
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/backlinks/link"),
+        json!({"ticket": tv, "fileId": "m_src", "blockId": "pm", "name": "SSO rollout plan"}),
+    )
+    .await;
+    assert_eq!(s, 403, "view in the source cannot link: {v}");
+
+    let t = session_on(&st, "u_1", "m_here", "SSO rollout plan").await;
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/backlinks/link"),
+        json!({"ticket": t, "fileId": "m_src", "name": "SSO rollout plan"}),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(v["blockId"], "pm");
+    let read = |st: oc_server::SharedState| async move {
+        let mut g = grant("u_1", Role::Edit);
+        g.file.id = "m_src".into();
+        g.room = oc_server::grant::room_id("sample", "m_src");
+        let host = st.hosts.iter().next().unwrap().clone();
+        let bytes = st.rooms.state(&host, &g).await.unwrap();
+        let d = oc_model::new_doc();
+        oc_model::ocanvas::apply_update_bytes(&d, &bytes).unwrap();
+        oc_model::doc_to_json(&d)
+    };
+    let doc = read(st.clone()).await;
+    let c = &doc["content"][0]["content"];
+    assert_eq!(c[1]["type"], "canvasLink", "{doc}");
+    assert_eq!(c[1]["attrs"]["fileId"], "m_here");
+    assert_eq!(c[1]["attrs"]["label"], "SSO rollout plan");
+    // Undo puts the text back.
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/backlinks/unlink"),
+        json!({"ticket": t, "fileId": "m_src", "blockId": "pm"}),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let doc = read(st.clone()).await;
+    assert_eq!(
+        oc_model::links::plain_text(&doc["content"][0]),
+        "We follow the SSO rollout plan here."
+    );
+    assert!(!doc.to_string().contains("canvasLink"), "{doc}");
+    // Twice: nothing left to undo.
+    let (s, _) = post_json(
+        format!("http://{addr}/v1/backlinks/unlink"),
+        json!({"ticket": t, "fileId": "m_src", "blockId": "pm"}),
+    )
+    .await;
+    assert_eq!(s, 404);
+}

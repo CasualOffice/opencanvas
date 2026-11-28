@@ -97,6 +97,8 @@ pub struct AppState {
     pub links: links::Caches,
     /// GRAPH-01: graph answers per reader and parameters, 30 s (memory only).
     pub graph_cache: graph::Cache,
+    /// LINK-05: what "Link" on an unlinked mention changed, for its Undo (memory only, 10 min).
+    pub mention_undo: routes::v1::links::MentionUndo,
 }
 
 #[derive(Clone, Copy)]
@@ -277,6 +279,7 @@ impl AppState {
             offline_key,
             links: Default::default(),
             graph_cache: Default::default(),
+            mention_undo: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

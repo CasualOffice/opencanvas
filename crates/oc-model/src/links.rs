@@ -418,6 +418,292 @@ pub fn lower(doc: &mut Value, template: Option<&str>) {
     go(doc, template, 0);
 }
 
+/// A heading anchor for a heading without a block id: `h:` and its words, lower case, joined
+/// by `-` (docs/38 §2.2 item 2).
+pub fn heading_anchor(text: &str) -> String {
+    let mut out = String::from("h:");
+    let mut dash = false;
+    for c in text.trim().chars().flat_map(char::to_lowercase) {
+        if c.is_alphanumeric() {
+            if dash && out.len() > 2 {
+                out.push('-');
+            }
+            dash = false;
+            out.push(c);
+        } else {
+            dash = true;
+        }
+        if out.len() >= MAX_BLOCK_ID - 4 {
+            break;
+        }
+    }
+    out
+}
+
+/// Plain text of a node's inline content (labels for links and mentions).
+pub fn plain_text(n: &Value) -> String {
+    let mut out = String::new();
+    fn go(n: &Value, out: &mut String, depth: usize) {
+        if depth > 64 {
+            return;
+        }
+        match s(n, "type") {
+            "text" => out.push_str(s(n, "text")),
+            CANVAS_LINK => out.push_str(s(&n["attrs"], "label")),
+            "mention" => {
+                out.push('@');
+                out.push_str(s(&n["attrs"], "label"));
+            }
+            "hardBreak" => out.push(' '),
+            _ => {
+                for c in n["content"].as_array().into_iter().flatten() {
+                    go(c, out, depth + 1);
+                }
+            }
+        }
+    }
+    go(n, &mut out, 0);
+    out
+}
+
+/// A link target inside a canvas, for the `[[Canvas#` picker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Target {
+    /// The block id, or a heading anchor ([`heading_anchor`]).
+    pub id: String,
+    /// `heading`, `database`, `row` or the block's type.
+    pub kind: String,
+    pub text: String,
+    /// Headings: 1-6.
+    pub level: u8,
+    /// Rows: their database id.
+    pub db: Option<String>,
+}
+
+/// The targets of a document, in order: headings (with or without ids), blocks with ids and
+/// their first words, databases and their first rows (at most `max_rows` each).
+pub fn targets(doc: &Value, max_rows: usize) -> Vec<Target> {
+    let mut out = vec![];
+    fn walk(nodes: &[Value], out: &mut Vec<Target>, depth: usize) {
+        if depth > 64 {
+            return;
+        }
+        for n in nodes {
+            let ty = s(n, "type");
+            let id = s(&n["attrs"], crate::patch::BLOCK_ID);
+            match ty {
+                "heading" => {
+                    let text = plain_text(n);
+                    if !text.trim().is_empty() {
+                        out.push(Target {
+                            id: if id.is_empty() {
+                                heading_anchor(&text)
+                            } else {
+                                id.to_string()
+                            },
+                            kind: "heading".into(),
+                            text: text.trim().chars().take(200).collect(),
+                            level: n["attrs"]["level"].as_u64().unwrap_or(1).clamp(1, 6) as u8,
+                            db: None,
+                        });
+                    }
+                    continue;
+                }
+                CANVAS_LINK | "text" => continue,
+                _ => {}
+            }
+            if !id.is_empty() && ty != "database" {
+                let text = plain_text(n);
+                if !text.trim().is_empty() {
+                    out.push(Target {
+                        id: id.to_string(),
+                        kind: ty.to_string(),
+                        text: text.trim().chars().take(120).collect(),
+                        level: 0,
+                        db: None,
+                    });
+                }
+            }
+            if let Some(c) = n["content"].as_array() {
+                walk(c, out, depth + 1);
+            }
+        }
+    }
+    if let Some(c) = doc["content"].as_array() {
+        walk(c, &mut out, 0);
+    }
+    if let Some(dbs) = doc["databases"].as_object() {
+        let mut ids: Vec<&String> = dbs.keys().collect();
+        ids.sort();
+        for id in ids {
+            let (title, _, rows) = crate::export::database_table(doc, id);
+            out.push(Target {
+                id: id.clone(),
+                kind: "database".into(),
+                text: if title.trim().is_empty() {
+                    "Database".into()
+                } else {
+                    title.trim().chars().take(200).collect()
+                },
+                level: 0,
+                db: None,
+            });
+            let db = &dbs[id];
+            let order: Vec<String> = match db["order"].as_array() {
+                Some(o) => o
+                    .iter()
+                    .filter_map(|r| r.as_str().map(String::from))
+                    .collect(),
+                None => db["rows"]
+                    .as_object()
+                    .map(|r| r.keys().cloned().collect())
+                    .unwrap_or_default(),
+            };
+            for (rid, cells) in order.iter().zip(rows).take(max_rows) {
+                let text = cells.iter().map(|c| c.trim()).find(|c| !c.is_empty());
+                if let Some(t) = text {
+                    out.push(Target {
+                        id: rid.clone(),
+                        kind: "row".into(),
+                        text: t.chars().take(200).collect(),
+                        level: 0,
+                        db: Some(id.clone()),
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The target named by a link's `targetBlockId` (or `rowId`), when the document has it.
+pub fn find_target<'a>(all: &'a [Target], block: &str) -> Option<&'a Target> {
+    all.iter().find(|t| t.id == block)
+}
+
+/// A block of `doc` by id, at any depth.
+pub fn block_by_id<'a>(doc: &'a Value, id: &str) -> Option<&'a Value> {
+    fn go<'a>(nodes: &'a [Value], id: &str, depth: usize) -> Option<&'a Value> {
+        if depth > 64 {
+            return None;
+        }
+        for n in nodes {
+            if s(&n["attrs"], crate::patch::BLOCK_ID) == id {
+                return Some(n);
+            }
+            if let Some(c) = n["content"].as_array()
+                && let Some(hit) = go(c, id, depth + 1)
+            {
+                return Some(hit);
+            }
+        }
+        None
+    }
+    go(doc["content"].as_array()?, id, 0)
+}
+
+/// The first lines of a document as plain text (previews): at most `n` non-empty blocks.
+pub fn first_lines(doc: &Value, n: usize) -> Vec<String> {
+    let mut out = vec![];
+    fn go(nodes: &[Value], out: &mut Vec<String>, n: usize, depth: usize) {
+        for node in nodes {
+            if out.len() >= n || depth > 64 {
+                return;
+            }
+            match s(node, "type") {
+                "paragraph" | "heading" => {
+                    let t = plain_text(node);
+                    let t = t.trim();
+                    if !t.is_empty() {
+                        out.push(t.chars().take(300).collect());
+                    }
+                }
+                _ => {
+                    if let Some(c) = node["content"].as_array() {
+                        go(c, out, n, depth + 1);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(c) = doc["content"].as_array() {
+        go(c, &mut out, n, 0);
+    }
+    out
+}
+
+/// LINK-05: `block` with the first whole-word, case-insensitive mention of `name` (outside code
+/// and existing links) turned into a `canvasLink` to `file_id`. `None` when there is none.
+pub fn link_mention(block: &Value, name: &str, file_id: &str) -> Option<Value> {
+    let needle: Vec<char> = name.trim().chars().flat_map(char::to_lowercase).collect();
+    if needle.is_empty() {
+        return None;
+    }
+    let mut out = block.clone();
+    fn word(c: Option<char>) -> bool {
+        c.is_some_and(char::is_alphanumeric)
+    }
+    fn go(n: &mut Value, needle: &[char], file_id: &str, depth: usize) -> bool {
+        if depth > 64 || s(n, "type") == "codeBlock" {
+            return false;
+        }
+        let Some(c) = n.get_mut("content").and_then(Value::as_array_mut) else {
+            return false;
+        };
+        for i in 0..c.len() {
+            let t = &c[i];
+            if s(t, "type") == "text" {
+                let marks = t["marks"].as_array().cloned().unwrap_or_default();
+                if marks
+                    .iter()
+                    .any(|m| matches!(s(m, "type"), "code" | "link"))
+                {
+                    continue;
+                }
+                let text: Vec<char> = s(t, "text").chars().collect();
+                let lower: Vec<char> = text
+                    .iter()
+                    .map(|ch| ch.to_lowercase().next().unwrap_or(*ch))
+                    .collect();
+                if lower.len() < needle.len() {
+                    continue;
+                }
+                for at in 0..=lower.len() - needle.len() {
+                    if lower[at..at + needle.len()] == *needle
+                        && !word(at.checked_sub(1).map(|j| text[j]))
+                        && !word(text.get(at + needle.len()).copied())
+                    {
+                        let before: String = text[..at].iter().collect();
+                        let hit: String = text[at..at + needle.len()].iter().collect();
+                        let after: String = text[at + needle.len()..].iter().collect();
+                        let mut parts = vec![];
+                        let piece = |s: String| {
+                            let mut v = json!({"type": "text", "text": s});
+                            if !marks.is_empty() {
+                                v["marks"] = Value::Array(marks.clone());
+                            }
+                            v
+                        };
+                        if !before.is_empty() {
+                            parts.push(piece(before));
+                        }
+                        parts.push(json!({"type": CANVAS_LINK, "attrs": {"fileId": file_id, "label": hit}}));
+                        if !after.is_empty() {
+                            parts.push(piece(after));
+                        }
+                        c.splice(i..=i, parts);
+                        return true;
+                    }
+                }
+            } else if go(&mut c[i], needle, file_id, depth + 1) {
+                return true;
+            }
+        }
+        false
+    }
+    go(&mut out, &needle, file_id, 0).then_some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -544,6 +830,71 @@ mod tests {
         assert_eq!(
             doc["content"][0]["content"][0],
             json!({"type": "text", "text": "MARKER-LABEL", "marks": [{"type": "link", "attrs": {"href": "https://docs.acme.test/f/f2#b9"}}]})
+        );
+    }
+
+    #[test]
+    fn targets_list_headings_blocks_databases_and_rows() {
+        let doc = json!({"content": [
+            {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Phase 2: enforce SSO"}]},
+            {"type": "heading", "attrs": {"level": 3, "blockId": "h9"}, "content": [{"type": "text", "text": "Open questions"}]},
+            {"type": "paragraph", "attrs": {"blockId": "p1"}, "content": [{"type": "text", "text": "Workspace owners"}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": "no id"}]},
+        ]});
+        let t = targets(&doc, 5);
+        let got: Vec<(&str, &str, u8)> = t
+            .iter()
+            .map(|t| (t.id.as_str(), t.kind.as_str(), t.level))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("h:phase-2-enforce-sso", "heading", 2),
+                ("h9", "heading", 3),
+                ("p1", "paragraph", 0)
+            ]
+        );
+        assert_eq!(
+            heading_anchor("  Phase 2: enforce   SSO! "),
+            "h:phase-2-enforce-sso"
+        );
+        assert_eq!(
+            first_lines(&doc, 2),
+            vec!["Phase 2: enforce SSO", "Open questions"]
+        );
+        assert_eq!(
+            plain_text(block_by_id(&doc, "p1").unwrap()),
+            "Workspace owners"
+        );
+    }
+
+    #[test]
+    fn a_mention_becomes_a_link_once_whole_words_only() {
+        let block = json!({"type": "paragraph", "attrs": {"blockId": "p"}, "content": [
+            {"type": "text", "text": "the SSO rollout plans and "},
+            {"type": "text", "text": "SSO rollout plan", "marks": [{"type": "code"}]},
+            {"type": "text", "text": " then the sso Rollout Plan.", "marks": [{"type": "bold"}]},
+        ]});
+        let out = link_mention(&block, "SSO rollout plan", "doc_t").unwrap();
+        let c = out["content"].as_array().unwrap();
+        assert_eq!(c[2]["text"], " then the ");
+        assert_eq!(c[2]["marks"], json!([{"type": "bold"}]));
+        assert_eq!(
+            c[3],
+            json!({"type": "canvasLink", "attrs": {"fileId": "doc_t", "label": "sso Rollout Plan"}})
+        );
+        assert_eq!(c[4]["text"], ".");
+        assert_eq!(
+            c[0]["text"], "the SSO rollout plans and ",
+            "\"plans\" is not a whole-word match"
+        );
+        assert!(
+            link_mention(
+                &json!({"type": "paragraph", "content": [{"type": "text", "text": "nothing"}]}),
+                "SSO",
+                "x"
+            )
+            .is_none()
         );
     }
 }

@@ -46,6 +46,8 @@ pub struct LinksCfg {
     pub patterns: UrlPatterns,
     /// `url_template`: the host URL of a canvas, `{fileId}` and optional `{blockId}`.
     pub template: Option<String>,
+    /// `url_patterns` as written (the editor matches pasted URLs with them).
+    pub templates: Vec<String>,
 }
 
 impl LinksCfg {
@@ -81,6 +83,7 @@ impl LinksCfg {
                     }
                     c.patterns = UrlPatterns::parse(&pats)
                         .map_err(|e| anyhow::anyhow!("[host.links] {e}"))?;
+                    c.templates = pats;
                 }
                 "url_template" => {
                     let s = v.as_str().ok_or_else(|| {
@@ -103,6 +106,18 @@ impl LinksCfg {
 
 /// Start-up check (hosts file): `[host.links]` parses, and a host that turns links on is a
 /// JWT host with callbacks (the read path needs `POST /access`), not WOPI-only or ephemeral.
+/// The session's `links` (LINK-04): whether the editor offers `[[`, the panel and previews,
+/// whether unlinked mentions can be asked, and the URL patterns for pasted links.
+pub fn session_json(state: &SharedState, host: &HostConfig) -> Value {
+    let c = LinksCfg::of(host);
+    let on = c.on && state.store.links_supported();
+    json!({
+        "enabled": on,
+        "mentions": on && state.search_probe.available(host),
+        "urlPatterns": if on { c.templates } else { vec![] },
+    })
+}
+
 pub fn check_host(h: &HostConfig) -> anyhow::Result<()> {
     let c =
         LinksCfg::parse(&h.flags, &h.links).map_err(|e| anyhow::anyhow!("host {}: {e}", h.id))?;

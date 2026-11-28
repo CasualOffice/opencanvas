@@ -543,6 +543,8 @@ pub async fn session_info(
         "templates": {"team": host.team_templates()},
         // SRCH-04 (ADR-065): "Search all canvases" only when the host has the callback.
         "search": {"enabled": state.search_probe.available(&host)},
+        // LINK-04 (ADR-081): `[[`, Linked from, previews and the URL patterns of pasted links.
+        "links": crate::links::session_json(&state, &host),
         // AUTO-06 (ADR-067): the automation panel; `canEdit` = edit access and perms.automate.
         "automation": {
             "enabled": crate::automation::AutomationCfg::of(&host).enabled,

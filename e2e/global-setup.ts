@@ -20,7 +20,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { HOST, HOST_MEETING, HOST_OFFLINE, HOST_PSYNC, HOST_RELOAD, OC, port, ROOT, SDK_HOST } from "./env";
+import { HOST, HOST_LINKS, HOST_MEETING, HOST_OFFLINE, HOST_PSYNC, HOST_RELOAD, OC, port, ROOT, SDK_HOST } from "./env";
 import { startMockModel, type MockModel } from "./mock-model";
 
 const children: ChildProcess[] = [];
@@ -107,7 +107,7 @@ function stopAll() {
 }
 
 export default async function globalSetup() {
-  for (const p of [8280, 4200, 4201, 4202, 4203, 4204, 4205].map(port)) {
+  for (const p of [8280, 4200, 4201, 4202, 4203, 4204, 4205, 4206].map(port)) {
     if (!(await portFree(p))) throw new Error(`[e2e] port ${p} is busy. Stop whatever runs there first (the suite never kills processes it didn't start).`);
   }
   if (process.env.E2E_SKIP_BUILD !== "1") {
@@ -152,6 +152,12 @@ ${ai}`;
       entry("sample-offline", "Offline host", HOST_OFFLINE, "copy", [], '\n[host.offline]\nenabled = true\ngrant_days = 7\nmax_canvases = 3\n') +
       // PSYNC-02/03 (spec zh): databases and boards as subdocuments (a line of [host.flags]).
       entry("sample-psync", "Partial sync host", HOST_PSYNC, "copy"),
+      // LINK-01..05 (spec zl): links, its search and the host URL patterns.
+      entry("sample-links", "Links host", HOST_LINKS, "copy", [], `
+[host.search]
+callback = true
+`).replace("[host.flags]\n", "[host.flags]\nlinks          = true\n") +
+      `\n[host.links]\nurl_patterns = ["${HOST_LINKS}/files/{fileId}#{blockId}", "${HOST_LINKS}/files/{fileId}"]\nurl_template = "${HOST_LINKS}/files/{fileId}#{blockId}"\n`,
   );
   const blocksDir = path.join(tmp, "blocks");
   fs.mkdirSync(blocksDir);
@@ -201,10 +207,11 @@ ${ai}`;
   host("host-meeting", port(4203), "sample-meeting");
   host("host-offline", port(4204), "sample-offline", { OC_HOST_OFFLINE: "1" });
   host("host-psync", port(4205), "sample-psync");
+  host("host-links", port(4206), "sample-links");
   process.once("exit", stopAll);
 
   try {
-    await Promise.all([waitFor(`${OC}/readyz`), waitFor(`${HOST}/healthz`), waitFor(`${HOST_RELOAD}/healthz`), waitFor(`${HOST_MEETING}/healthz`), waitFor(`${HOST_OFFLINE}/healthz`), waitFor(`${HOST_PSYNC}/healthz`)]);
+    await Promise.all([waitFor(`${OC}/readyz`), waitFor(`${HOST}/healthz`), waitFor(`${HOST_RELOAD}/healthz`), waitFor(`${HOST_MEETING}/healthz`), waitFor(`${HOST_OFFLINE}/healthz`), waitFor(`${HOST_PSYNC}/healthz`), waitFor(`${HOST_LINKS}/healthz`)]);
   } catch (e) {
     stopAll();
     throw e;
