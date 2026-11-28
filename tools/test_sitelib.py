@@ -88,5 +88,25 @@ class StructuredData(unittest.TestCase):
         self.assertEqual(out, f"{sitelib.version()} on {sitelib.released()}")
 
 
+class SharedPartsAndTitles(unittest.TestCase):
+    """The alternatives/ and solutions/ pages share one table of what ships, and every title
+    names "OpenCanvas by CasualOffice"."""
+
+    def test_a_partial_is_included_and_expanded_at_the_page_depth(self):
+        out = sitelib.expand("<main>{{include:compare-footer}}</main>", "../")
+        self.assertIn('href="../app/#demo"', out)
+        self.assertNotIn("{{", out)
+        self.assertNotIn("<!--", out)  # the partial's own comment stays in the source
+
+    def test_a_missing_partial_stops_the_build(self):
+        with self.assertRaises(SystemExit):
+            sitelib.expand("{{include:no-such-part}}", "")
+
+    def test_titles_carry_the_brand_and_search_results_drop_it(self):
+        page = sitelib.page(title="Changelog", description="d", body="", root="", path="404.html", noindex=True)
+        self.assertIn("<title>Changelog | OpenCanvas by CasualOffice</title>", page)
+        self.assertEqual(sitelib.page_title(page, "404.html"), "Changelog")
+
+
 if __name__ == "__main__":
     unittest.main()

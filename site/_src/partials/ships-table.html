@@ -1,0 +1,31 @@
+<!-- What OpenCanvas ships, from README.md and docs/37 (release 0.4.0). Shared by the
+     alternatives/ and solutions/ pages; change it here when a release changes what ships.
+     "Host turns it on" means the feature ships but is off until the host's settings enable it. -->
+<div class="table-scroll" tabindex="0" role="region" aria-label="What OpenCanvas {{version}} ships">
+  <table class="compare compare--ships">
+    <thead><tr><th scope="col">Area</th><th scope="col">What OpenCanvas {{version}} ships</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Documents</th><td>Text, headings, lists, checklists, toggles, callouts, code, tables, images, files, link cards, sandboxed embeds and columns, from one insert menu</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Spreadsheets</th><td data-claim>An Excel-style grid on opencalc's engine: formula bar, about 120 functions, sheets, filters, freeze, merge, formats; <code>.xlsx</code> and <code>.ods</code> import, <code>.xlsx</code> export {{claim:source|about 120 functions per cell|docs/37-RELEASE-v0.4.0.md}}</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Charts</th><td>Column, line, area, pie, donut and scatter charts linked to a sheet range or a database field, updating live</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Databases</th><td>Typed fields with table, board, calendar and gallery views; filter, sort, search; CSV import and export</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Formulas, relations, rollups</th><td data-claim>Formula fields in spreadsheet syntax, relations and rollups; virtualized tables at 100,000 rows {{claim:source|virtualized tables at 100,000 rows|docs/37-RELEASE-v0.4.0.md}}</td><td><span class="mark part">{{icon:circle-alert:16}}Ships; the host turns on adding these fields</span></td></tr>
+      <tr><th scope="row">Timeline and Workload</th><td>A Gantt view with dependencies, milestones and the critical path; a Workload view of people against weeks</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Whiteboards and diagrams</th><td>Pen, sticky notes, shapes, arrows attached to shapes, shape libraries, connector routing and layout; draw.io and Excalidraw import; SVG and PNG export</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Real-time collaboration</th><td>Edits merge with a CRDT (Yjs); live cursors, presence, follow mode and comment threads</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Roles</th><td>View, comment and edit, set by your application and enforced by the server on every change</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Templates</th><td data-claim>40 templates in 9 categories {{claim:source|40 templates in 9 categories|README.md}}</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Export</th><td>Markdown, HTML, JSON, the native <code>.ocanvas</code> file and Word; PDF with the optional Gotenberg sidecar</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Import</th><td>Markdown, HTML, CSV, draw.io, Excalidraw, <code>.xlsx</code> and <code>.ods</code></td><td><span class="mark part">{{icon:circle-alert:16}}The host turns it on, per format</span></td></tr>
+      <tr><th scope="row">Version history</th><td>Named versions, comparison and restore, from the versions your application keeps</td><td><span class="mark part">{{icon:circle-alert:16}}Depends on the host</span></td></tr>
+      <tr><th scope="row">Live blocks, search, automation, offline</th><td>One block shown in several canvases; find and replace, and search across canvases through the host's search; automation rules; offline editing</td><td><span class="mark part">{{icon:circle-alert:16}}The host turns each on</span></td></tr>
+      <tr><th scope="row">API and extensions</th><td>REST API under <code>/api/v1</code> with TypeScript and Rust clients, signed webhooks, and a Block SDK for your own sandboxed blocks</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">Integrations</th><td>Jitsi Meet, Nextcloud with Talk, Mattermost channels, Element / Matrix, any WOPI host, and the <code>&lt;open-canvas&gt;</code> web component</td><td><span class="mark yes">{{icon:circle-check:16}}Ships (alpha)</span></td></tr>
+      <tr><th scope="row">Self-hosting</th><td>One container with SQLite; MySQL or MariaDB and Redis for a cluster; Docker image and Helm chart</td><td><span class="mark yes">{{icon:circle-check:16}}Ships</span></td></tr>
+      <tr><th scope="row">AI assistant and MCP</th><td>An in-editor assistant and an MCP endpoint, run only in the server with a model the operator configures</td><td><span class="mark part">{{icon:circle-alert:16}}Experimental, off by default</span></td></tr>
+      <tr><th scope="row">Desktop and mobile apps</th><td>The editor runs in the browser, with a phone layout; there are no native apps</td><td><span class="mark no">{{icon:circle-x:16}}Not built</span></td></tr>
+      <tr><th scope="row">Accounts and hosted service</th><td>OpenCanvas has no sign-up, user directory or cloud offering: your application provides the users, the permissions and the storage</td><td><span class="mark no">{{icon:circle-x:16}}Not offered, by design</span></td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="note">From the <a href="https://github.com/CasualOffice/opencanvas/blob/main/README.md">README</a> and the <a href="{{root}}docs/release-040.html">0.4.0 release notes</a>, which also list the known limitations. Support is best effort, with no production SLA.</p>

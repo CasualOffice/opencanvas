@@ -847,7 +847,7 @@ No. The demo is the real editor running against a document in your browser, with
 
 ## Where does the assistant send my content?
 
-Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer. See AI and MCP . Last changed 2026-11-26 .
+Only to the model server the operator configures: the Claude Platform, or a self-hosted model through vLLM, Ollama or llama.cpp. The OpenCanvas server makes that call, never the browser. AI is off unless the operator turns it on for your app. A self-hosted model needs tool calling for the assistant to edit; without it, it can only answer. See AI and MCP . Last changed 2026-11-28 .
 
 
 # Facts

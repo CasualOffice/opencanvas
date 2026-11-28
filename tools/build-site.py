@@ -15,7 +15,8 @@ is committed; GitHub Pages publishes site/ without _src/, plus the editor's demo
 Ported from OpenSeal's tools/build-site.py (same structure, same commands). What it
 generates:
 
-- site/index.html and the other pages in site/_src/pages/ (hand-written bodies);
+- site/index.html and the other pages in site/_src/pages/ (hand-written bodies), including
+  the comparison pages in alternatives/ and the use-case pages in solutions/;
 - site/docs/*.html: README.md and docs/*.md rendered (tools/sitelib.py DOCS), so the
   documentation pages cannot drift from the repository, plus hand-written pages;
 - site/roadmap.html from docs/09 and the tracker, docs/10 (tools/build-roadmap.py);
@@ -357,9 +358,10 @@ def software_node() -> dict:
         "@type": "SoftwareApplication",
         "@id": sitelib.SOFTWARE_ID,
         "name": "OpenCanvas",
-        "description": ("A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that "
-                        "applications embed. The host application keeps users, permissions and files; OpenCanvas "
-                        "does the editing and autosaves back to the host."),
+        "alternateName": sitelib.BRAND,
+        "description": ("The open-source collaborative workspace engine applications embed: documents, spreadsheets, "
+                        "databases, whiteboards and diagrams in one real-time canvas. The host application keeps "
+                        "users, permissions and files; OpenCanvas does the editing and autosaves back to the host."),
         "url": sitelib.BASE_URL,
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Collaborative editor",
@@ -378,8 +380,10 @@ def software_node() -> dict:
         "screenshot": sitelib.BASE_URL + sitelib.OG_IMAGE,
         "featureList": [
             "Rich text blocks, checklists, tables, images, files, link cards and sandboxed embeds",
-            "Databases with table, board, calendar and gallery views and CSV import and export",
-            "Whiteboard with pen, sticky notes, shapes and attached arrows",
+            "Databases with table, board, calendar, gallery, Timeline (Gantt) and Workload views, formulas, relations and rollups",
+            "A spreadsheet block with Excel-style editing, .xlsx and .ods import and .xlsx export",
+            "Charts linked to a sheet range or a database field",
+            "Whiteboard and diagrams with pen, sticky notes, shapes, attached arrows and draw.io and Excalidraw import",
             "Live co-editing with cursors, presence and comments",
             "Autosave to the host application through a durable outbox",
             "JWT and WOPI launch, an embed web component and a postMessage API",
@@ -396,11 +400,11 @@ def build() -> dict[str, bytes]:
     """Every generated file, relative to site/."""
     files: dict[str, bytes] = {}
     pages: dict[str, str] = {}
-    for path in sorted((SRC / "pages").glob("*.html")):
+    for path in sorted((SRC / "pages").rglob("*.html")):
         meta, body = sitelib.read_fragment(path)
-        root = meta.get("root", "")
+        rel = path.relative_to(SRC / "pages").as_posix()
+        root = meta.get("root", "../" * rel.count("/"))
         body = sitelib.add_heading_ids(sitelib.expand(body, root))
-        rel = path.name
         graph, trail, modified = [], None, ""
         if rel != "404.html":
             kind, crumb = PAGE_TYPES.get(rel, ("WebPage", meta["title"]))
@@ -411,6 +415,10 @@ def build() -> dict[str, bytes]:
                 graph += [software_node(), sitelib.faq_node(sitelib.faq_pairs(body))]
             else:
                 trail = [(sitelib.NAME, "index.html"), (crumb, rel)]
+                # Comparison and use-case pages answer questions: their FAQ as an FAQPage.
+                faq = sitelib.faq_pairs(body)
+                if faq:
+                    graph.append(sitelib.faq_node(faq))
         pages[rel] = sitelib.page(title=meta["title"], description=meta["description"], body=body, root=root,
                                   path=rel, current=meta.get("nav", ""), main_class=meta.get("main", ""),
                                   graph=graph, trail=trail, modified=modified, seo_title=meta.get("seo_title", ""),
@@ -543,10 +551,11 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
     docs = [f"docs/{d[0]}.html" for d in sitelib.available_docs()]
     api = _load("build-api")
     llms = "\n".join([
-        "# OpenCanvas",
+        f"# {sitelib.BRAND}",
         "",
-        "> A real-time collaborative canvas (rich text, databases, whiteboards, live cursors) that applications "
-        "embed the way they embed Collabora Online. The host application owns users, permissions (ACL) and files; "
+        "> The open-source collaborative workspace engine that applications embed: documents, spreadsheets, databases "
+        "(formulas, relations, rollups, Timeline/Gantt and Workload views), whiteboards and diagrams in one real-time "
+        "canvas with live cursors, embedded the way apps embed Collabora Online. The host application owns users, permissions (ACL) and files; "
         "OpenCanvas does the editing, real-time merge (Yjs CRDT), presence, export and autosave back to the host. "
         "Rust server, React/Tiptap editor, SQLite by default, MySQL/MariaDB and Redis for clusters. "
         "Optional AI, run only in the OpenCanvas server and off by default: an in-editor assistant (plan, approval, "
@@ -568,6 +577,9 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         line("changelog.html"),
         line("brand.html"),
         f"- [Interactive demo]({base}{sitelib.DEMO}): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server",
+        "",
+        "## Comparisons and use cases",
+        *[line(rel) for rel in listed if rel.startswith(("alternatives/", "solutions/"))],
         "",
         "## Documentation",
         *[line(d) for d in docs],
