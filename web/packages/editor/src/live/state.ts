@@ -157,6 +157,8 @@ export interface BlockLink {
   blockId?: string;
   /** Known to be a live file (copied from a live block's menu). */
   live?: boolean;
+  /** A shape on the board block `blockId` ("Copy link to shape"): `#block=<id>&shape=<shapeId>`. */
+  shapeId?: string;
 }
 
 /** What "Copy link" puts on the clipboard besides the host's URL text (read back by paste). */
@@ -196,7 +198,7 @@ export function parseBlockLink(text: string, html: string | null, pattern: strin
 export function linkFor(l: BlockLink): string | null {
   const t = liveCfg.get().link;
   if (!t) return null;
-  return t.replace("{fileId}", encodeURIComponent(l.fileId)) + (l.blockId ? `#block=${l.blockId}` : l.live ? "#live" : "");
+  return t.replace("{fileId}", encodeURIComponent(l.fileId)) + (l.blockId ? `#block=${l.blockId}${l.shapeId ? `&shape=${l.shapeId}` : ""}` : l.live ? "#live" : "");
 }
 
 /** Writes a block link to the clipboard: the URL as text and the marker as HTML. */

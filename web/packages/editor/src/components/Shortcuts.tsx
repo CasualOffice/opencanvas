@@ -5,7 +5,7 @@
 import { keyParts } from "../lib/keys";
 import { Modal, ModalHead } from "./overlay";
 
-const GROUPS: [string, [string, string][]][] = [
+export const GROUPS: [string, [string, string][]][] = [
   [
     "Blocks",
     [
@@ -54,6 +54,22 @@ const GROUPS: [string, [string, string][]][] = [
       ["Mod-Shift-z", "Redo"],
       ["Escape", "Close a menu or dialog"],
       ["Mod-Shift-/", "Keyboard shortcuts"],
+    ],
+  ],
+  [
+    // On a board (BRD-17..31): the board's own ? lists every key.
+    "Whiteboard",
+    [
+      ["V N P T R A O D", "Select, sticky note, pen, text, rectangle, arrow, ellipse, diamond"],
+      ["F", "Frame tool"],
+      ["Q", "Keep the tool active (or double-click a tool)"],
+      ["Shift-f", "Wrap the selection in a frame"],
+      ["Shift-p", "Present frames"],
+      ["Alt-s", "Style panel"],
+      ["Shift-r", "Rotate 15° (Alt-Shift-R the other way)"],
+      ["Mod-Shift-c", "Copy as PNG"],
+      ["Shift-F10", "Context menu (or right-click)"],
+      ["?", "All whiteboard shortcuts, on a board"],
     ],
   ],
 ];

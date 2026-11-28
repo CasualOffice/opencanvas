@@ -3,10 +3,10 @@
 
 // Frame edits (BRD-21): draw, join by centre-drop, release on delete, rename.
 import * as Y from "yjs";
-import { addShape, getBoardMap, updateShape, type Shape } from "../model";
+import { addShape, bbox, deleteShape, getBoardMap, updateShape, type Shape } from "../model";
 import { CONTAINER } from "../kinds";
 import { makeNode } from "../registry";
-import { adopted, frameName, isFrame, membershipChanges, nextFrameName, parentOf } from "./model";
+import { adopted, frameName, isFrame, membersOf, membershipChanges, nextFrameName, parentOf } from "./model";
 
 type Box = [number, number, number, number];
 
@@ -60,4 +60,70 @@ export function releaseMembers(doc: Y.Doc, boardId: string, shapes: Shape[], del
 export function renameFrame(doc: Y.Doc, boardId: string, id: string, name: string, origin: unknown) {
   const v = name.trim().slice(0, 80);
   if (v) updateShape(doc, boardId, id, { label: v }, origin);
+}
+
+/** Space between a wrapped selection and its new frame's edge (prototype 3a). */
+export const WRAP_PAD = 24;
+
+/**
+ * Wrap in frame (⇧F): a new frame 24 units around `ids` (frames among them are left out). The
+ * shapes join it (connectors and drawings stay free, as with centre-drop); it nests in the frame
+ * they all shared and is drawn just behind the lowest of them. Returns the frame's id and name.
+ */
+export function wrapInFrame(doc: Y.Doc, boardId: string, shapes: Shape[], ids: string[], origin: unknown): { id: string; name: string } | null {
+  const want = new Set(ids);
+  const list = shapes.filter((s) => want.has(s.id) && !isFrame(s));
+  if (!list.length) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of list) {
+    const b = bbox(s);
+    x0 = Math.min(x0, b[0]);
+    y0 = Math.min(y0, b[1]);
+    x1 = Math.max(x1, b[2]);
+    y1 = Math.max(y1, b[3]);
+  }
+  const joins = list.filter((s) => s.type !== "arrow" && s.type !== "pen");
+  const parents = new Set(joins.map(parentOf));
+  const shared = parents.size === 1 ? [...parents][0] : null;
+  const name = nextFrameName(shapes);
+  let id = "";
+  doc.transact(() => {
+    const f = makeNode(CONTAINER, { x: Math.round(x0 - WRAP_PAD), y: Math.round(y0 - WRAP_PAD), w: Math.round(x1 - x0 + WRAP_PAD * 2), h: Math.round(y1 - y0 + WRAP_PAD * 2), label: name });
+    id = addShape(doc, boardId, f, origin);
+    if (shared) updateShape(doc, boardId, id, { props: { parent: shared } }, origin);
+    for (const s of joins) updateShape(doc, boardId, s.id, { props: { parent: id } }, origin);
+    const order = getBoardMap(doc, boardId)?.get("order");
+    if (order instanceof Y.Array) {
+      const arr = order.toArray() as string[];
+      const at = arr.lastIndexOf(id);
+      const first = arr.findIndex((x) => want.has(x));
+      if (at > 0 && first >= 0 && first < at) {
+        order.delete(at, 1);
+        order.insert(first, [id]);
+      }
+    }
+  }, origin);
+  return { id, name };
+}
+
+/**
+ * Delete frame and contents: the frames, every member through nested frames, and connectors bound
+ * to any of them. Locked members stay and leave the frame. Returns how many members went.
+ */
+export function deleteWithContents(doc: Y.Doc, boardId: string, shapes: Shape[], frameIds: string[], origin: unknown): number {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const gone = new Set<string>();
+  for (const f of frameIds) {
+    if (!byId.get(f) || byId.get(f)!.locked) continue;
+    gone.add(f);
+    for (const m of membersOf(shapes, f)) if (!byId.get(m)?.locked) gone.add(m);
+  }
+  if (!gone.size) return 0;
+  for (const s of shapes) if (s.type === "arrow" && !s.locked && ((s.start && gone.has(s.start.shapeId)) || (s.end && gone.has(s.end.shapeId)))) gone.add(s.id);
+  const members = [...gone].filter((g) => !frameIds.includes(g)).length;
+  doc.transact(() => {
+    releaseMembers(doc, boardId, shapes, [...gone], origin);
+    for (const g of gone) deleteShape(doc, boardId, g, origin);
+  }, origin);
+  return members;
 }

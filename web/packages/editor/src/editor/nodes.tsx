@@ -22,6 +22,8 @@ import { keyLabel } from "../lib/keys";
 import { clampWidth } from "./imagelayout";
 import { gridTemplate } from "./columns";
 import { FILE_EVENT } from "./files/kind";
+import { newBlockId } from "./blockId";
+import { copyLinkTo } from "./blockLink";
 export type { ImageAlign } from "./atomviews";
 
 type AtomViews = typeof import("./atomviews");
@@ -649,11 +651,32 @@ export const Database = Node.create({
   },
 });
 
-function BoardView({ node }: ReactNodeViewProps) {
+function BoardView({ node, editor, getPos }: ReactNodeViewProps) {
   const b = useBridge();
   const ref = useContentOwnsDrag<HTMLDivElement>();
   const boardId = String(node.attrs.boardId);
-  const part = usePartDoc(b, boardId, ref);
+  const base = usePartDoc(b, boardId, ref);
+  // BRD-21 (board UX decision 1): "Copy link to shape" links to this block with the shape named.
+  const pos = useRef(getPos);
+  pos.current = getPos;
+  const env = useMemo(
+    () => ({
+      ...base.env,
+      linkToShape: (shapeId: string) => {
+        const at = pos.current();
+        const n = typeof at === "number" ? editor.state.doc.nodeAt(at) : null;
+        if (!n || n.type.name !== "board") return;
+        let id = n.attrs.blockId as string | null;
+        if (!id) {
+          id = newBlockId();
+          editor.view.dispatch(editor.state.tr.setNodeMarkup(at!, undefined, { ...n.attrs, blockId: id }));
+        }
+        copyLinkTo(id, shapeId);
+      },
+    }),
+    [base.env, editor],
+  );
+  const part = { ...base, env };
   const { Comp: BoardBlock, failed, wrap } = useRetryingLazy(loadBoardBlock);
   const appBoard = useIsAppRoot(boardId);
   const ph = <BlockPlaceholder info={{ kind: "board", name: part.header?.name, count: part.header?.count }} failed={failed} />;

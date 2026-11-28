@@ -604,7 +604,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | canvas → host | `Presence_Changed` | `{ users: [{id,name,color,role,detail?}] }` (real names, the same for every viewer; never e-mail) |
 | canvas → host | `Token_Expiring` | `{ inSeconds }` |
 | canvas → host | `UI_Mention_Click` / `UI_Link_Click` | `{ id \| url }` (host decides navigation) |
-| canvas → host | `UI_BlockLink` | `{ fileId, blockId }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
+| canvas → host | `UI_BlockLink` | `{ fileId, blockId, shapeId? }` ("Copy link to block": the host builds its own URL, e.g. `https://app/files/<fileId>#block=<blockId>`; ADR-023/027). `shapeId` (optional, additive, BRD-21): "Copy link to shape" on a whiteboard; `blockId` is the board block and `shapeId` the shape on it, so your URL can carry `&shape=<shapeId>`. Hosts that ignore it link to the board. The same values are also posted as `UI_Block_Link`, the earlier name; new hosts listen to `UI_BlockLink` only. |
 | canvas → host | `UI_OpenFile` | `{ fileId, blockId?, newTab? }`: a "Search all canvases" result in another canvas (SRCH-04). Open that file in your viewer, at `#block=<blockId>` when given, in a new tab when `newTab` is true. A result in the same canvas just scrolls there |
 | canvas → host | `Error` | `{ code, message }`. `code: "SESSION_CLOSED"` (message `revoked`, `host` or `other`) when the editor shows its closed screen, so your chrome can offer to reopen (ADR-048) |
 | canvas → host | `UI_PickLiveBlock` | `{}` (LIVE-03, 1e): "Live block" in the insert menu. Show your own picker of live blocks this person can open, answer `Action_LiveBlockPicker {state: "open"}` at once (or `"cancel"`), then `Action_InsertLiveBlock`. No answer within 2 s hides the entry for the session |
@@ -624,7 +624,7 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_InsertLiveBlock` | `{ fileId, title? }`: insert this live block where the person was (after `UI_PickLiveBlock`). The editor checks the 50-reference limit and depth first |
 | host → canvas | `Action_LiveBlockPicker` | `{ state: "open" \| "cancel" }`: your picker opened or was dismissed |
 | host → canvas | `Action_LiveBlockUsage` | `{ fileId, places: [string] }`: the canvases and places a live block is shown in (your index from `live.embedded`) |
-| host → canvas | `Action_ScrollToBlock` | `{ blockId, follow? }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". `follow: true` (a "Follow me" leader moved): scroll the block to the top, no flash and no message |
+| host → canvas | `Action_ScrollToBlock` | `{ blockId, follow?, shapeId? }`: scroll to the block and flash it (1.8 s; a steady outline with reduced motion). Unknown ids show "That block isn't in this canvas any more". `follow: true` (a "Follow me" leader moved): scroll the block to the top, no flash and no message. `shapeId` (optional, BRD-21): the whiteboard in that block also selects that shape and brings it into view |
 | host → canvas | `Action_FollowView` | `{ on }` (TALK-01 "Follow me"): while on, the editor sends `UI_ViewBlock { blockId }` with the top block in view whenever it changes (at most every 300 ms) |
 | canvas → host | `UI_ViewBlock` | `{ blockId }`: the top block in view, after `Action_FollowView {on: true}` |
 
@@ -636,6 +636,13 @@ next to `token`, or `?block=` on `/v1/launch`; anything but `[A-Za-z0-9_-]{1,64}
 the editor opens with `#t=…&block=<id>`, or send `Action_ScrollToBlock` once the frame has loaded.
 `examples/sample-host` does both: its file page reads `#block=` from its own URL into the launch
 form, and its Mentions list sends `Action_ScrollToBlock`.
+
+**Links to a shape on a whiteboard** (BRD-21, additive). "Copy link to shape" in a board's context
+menu sends `UI_BlockLink` with `shapeId` and copies the editor's own link,
+`#block=<blockId>&shape=<shapeId>` (or your `[host.live] link` with that suffix). The editor opens a
+board at a shape when its URL has `&shape=<shapeId>` next to `block=` or when `Action_ScrollToBlock`
+carries `shapeId`. The launch passes only `block=` today, so to open at a shape, send
+`Action_ScrollToBlock` with both ids after the frame has loaded.
 
 ### 4c. Offline copies and signing out (OFF-03, OFF-07, ADR-064)
 

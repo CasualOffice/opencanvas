@@ -22,6 +22,7 @@ import type { Demo } from "./lib/demo";
 import { demoIcons, serverIcons } from "./lib/icons";
 import type { ExportFormat } from "./lib/exports";
 import { onHost, postToHost } from "./lib/host";
+import { linkTarget } from "./editor/blockLink";
 import { installLiveHost } from "./live/state";
 import { META_ORIGIN, setMeta, useLastEdit, useMeta } from "./lib/meta";
 import { isMac } from "./lib/keys";
@@ -815,10 +816,13 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   );
   useEffect(() => {
     if (!editor) return;
-    const id = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("block");
-    const t = id ? window.setTimeout(() => scrollToBlock(id), 600) : undefined;
+    // BRD-21: `&shape=<id>` (Copy link to shape) also opens the board at that shape. A board that
+    // mounts later reads it from the hash itself (`@opencanvas/board`, SHAPE_EVENT).
+    const showShape = (shapeId: unknown) => typeof shapeId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(shapeId) && window.dispatchEvent(new CustomEvent("oc-board-shape", { detail: { shapeId } }));
+    const { blockId: id, shapeId } = linkTarget(window.location.hash);
+    const t = id ? window.setTimeout(() => (scrollToBlock(id), showShape(shapeId)), 600) : undefined;
     // TALK-01 Follow me: `follow: true` scrolls quietly (no flash, no toast for a missing block).
-    const off = onHost("Action_ScrollToBlock", (v) => typeof v.blockId === "string" && (v.follow === true ? followScroll(editor, v.blockId) : scrollToBlock(v.blockId)));
+    const off = onHost("Action_ScrollToBlock", (v) => typeof v.blockId === "string" && (v.follow === true ? followScroll(editor, v.blockId) : (scrollToBlock(v.blockId), showShape(v.shapeId))));
     let stopReport: (() => void) | null = null;
     const offView = onHost("Action_FollowView", (v) => {
       stopReport?.();
