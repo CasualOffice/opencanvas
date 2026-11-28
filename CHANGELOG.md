@@ -7,6 +7,13 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-28
+
+Spreadsheet cell comments and collaborative undo, floating linked charts, Timeline and Workload
+finishing touches, faster large-sheet edits, a smaller first load, SBOMs on every release, and the
+slow-host crash drill passing on MySQL. Upgrade from 0.4.0 by replacing the binary or image; no
+migrations or configuration changes.
+
 ### Added
 
 - Spreadsheet (SHEET-07, frame 6): comments on cells. A corner mark shows a thread; hover,

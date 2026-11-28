@@ -1,7 +1,7 @@
 # OpenCanvas
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.4.0-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.4.0)
+[![Release](https://img.shields.io/badge/release-v0.4.1-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.4.1)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-canvas.casualoffice.org-2a5ad7)](https://canvas.casualoffice.org/docs/)
 
@@ -125,7 +125,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.4.0
+  ghcr.io/casualoffice/opencanvas:0.4.1
 ```
 
 From source, with the sample host (Rust stable, Node 24 and pnpm 9):

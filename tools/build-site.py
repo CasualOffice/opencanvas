@@ -483,6 +483,8 @@ def changelog() -> str:
   <p class="lede">What was merged and verified, newest first, from the integration log in <a href="{sitelib.BLOB}docs/10-EXECUTION-TRACKER.md">the project's tracker</a>. Each entry says what changed and how it was checked.</p>
 </div></section>
 <section class="section-tight"><div class="wrap narrow prose changelog">
+<h2>Release 0.4.1</h2>
+<p>Released 2026-11-28. Spreadsheet cell comments and collaborative undo, floating linked charts, Timeline and Workload finishing touches, faster large-sheet edits, a smaller first load and SBOMs on every release. See <a href="{sitelib.BLOB}CHANGELOG.md">CHANGELOG.md</a>.</p>
 <h2>Release 0.4.0</h2>
 <p>Released 2026-11-28. A Spreadsheet block on opencalc's engine with Excel import and export, linked charts, database formulas, relations and rollups, Timeline and Workload views, partial sync on by default, and performance and reliability work. See the <a href="docs/release-040.html">release and upgrade notes</a>.</p>
 <h2>Release 0.3.0</h2>
