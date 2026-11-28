@@ -108,6 +108,7 @@ def screens(raw: pathlib.Path) -> None:
 # search engines show it whole (tools/check-site-seo.py).
 DOC_DESCRIPTIONS = {
     "getting-started": "Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.",
+    "workspace": "Run OpenCanvas Workspace with Docker: first-run setup, invites, passkeys, sharing, public links, backups, upgrades and WS_* settings.",
     "release-040": "OpenCanvas 0.4.0 release notes: spreadsheets, advanced databases, Timeline, charts, partial sync, performance, upgrade notes and limitations.",
     "release-030": "OpenCanvas 0.3.0 release notes: live blocks, search, automation and offline editing, the upgrade notes and known limitations.",
     "release-020": "OpenCanvas 0.2.0 release notes: the headless API, webhooks, the block SDK and editor profiles, upgrade notes, known limitations and the checklist.",
@@ -577,6 +578,7 @@ def seo(pages: dict[str, str]) -> dict[str, bytes]:
         "",
         "## Site",
         line("index.html"),
+        line("workspace.html"),
         line("roadmap.html"),
         line("changelog.html"),
         line("brand.html"),

@@ -58,6 +58,33 @@
   </div>
 </section>
 
+<section class="section-tight section-alt" id="workspace" aria-labelledby="workspace-h">
+  <div class="wrap feature">
+    <div class="feature__copy reveal">
+      <span class="eyebrow eyebrow--dot">New · OpenCanvas Workspace</span>
+      <h2 id="workspace-h">No app to embed it in? Run the whole workspace.</h2>
+      <p>OpenCanvas Workspace is the ready-to-use, self-hosted app around the engine, in one Docker command: documents, spreadsheets, whiteboards and databases, with accounts, sharing, search, trash, history and an admin area.</p>
+      <ul class="points">
+        <li><span class="pt-ic">{{icon:file-text}}</span><strong>Typed files</strong><span>New Document, Spreadsheet, Whiteboard or Database, each opening in its own full-screen editor.</span></li>
+        <li><span class="pt-ic">{{icon:users}}</span><strong>Sharing and public links</strong><span>People, teams and workspaces with view, comment or edit; public links with an expiry and a password, if the admin allows them.</span></li>
+        <li><span class="pt-ic">{{icon:fingerprint}}</span><strong>Passkeys and admin</strong><span>Passwords or passkeys, invite links, members, teams, branding and backups in the app.</span></li>
+      </ul>
+      <p class="cta-row"><a class="btn btn-primary" href="workspace.html">OpenCanvas Workspace<span class="btn-icon">{{icon:arrow-right:16}}</span></a><a class="btn btn-secondary" href="docs/workspace.html">Guide</a></p>
+    </div>
+    <figure class="feature__media reveal reveal-d1">
+      <div class="terminal">
+        <div class="terminal__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>Run it</div>
+<pre><code>docker run -p 8080:8080 \
+  -v opencanvas:/data \
+  ghcr.io/casualoffice/opencanvas-workspace
+
+<span class="c-cmt"># then open http://localhost:8080</span>
+<span class="c-cmt"># and create the first admin</span></code></pre>
+      </div>
+    </figure>
+  </div>
+</section>
+
 <section class="section-tight" id="fit" aria-labelledby="fit-h">
   <div class="wrap">
     <div class="sec-head reveal">

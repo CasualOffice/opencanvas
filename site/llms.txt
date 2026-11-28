@@ -28,6 +28,7 @@ Made by CasualOffice (https://github.com/CasualOffice). This file was last updat
 
 ## Site
 - [OpenCanvas – Open Source Notion & Miro Alternative | CasualOffice](https://canvas.casualoffice.org/): Self-hosted collaborative documents, spreadsheets, databases, whiteboards and Gantt charts. Embed OpenCanvas into your application. Rust, Yjs and Apache-2.0.
+- [OpenCanvas Workspace: self-hosted docs, sheets and whiteboards](https://canvas.casualoffice.org/workspace.html): A self-hosted workspace for documents, spreadsheets, whiteboards and databases in one Docker command, with sharing, search, passkeys and an admin area.
 - [Roadmap](https://canvas.casualoffice.org/roadmap.html): What OpenCanvas has released, what is in review and in progress, and the releases and tracks that follow, from the project's tracker.
 - [Changelog](https://canvas.casualoffice.org/changelog.html): What changed in OpenCanvas and how each change was verified, from the project's integration log.
 - [Brand](https://canvas.casualoffice.org/brand.html): OpenCanvas logos to download, how to name OpenCanvas in a product that embeds it, and what the Apache 2.0 licence asks when you redistribute it.
@@ -45,6 +46,7 @@ Made by CasualOffice (https://github.com/CasualOffice). This file was last updat
 ## Documentation
 - [OpenCanvas by CasualOffice documentation](https://canvas.casualoffice.org/docs/index.html): OpenCanvas documentation: run it, integrate it with your app over JWT or WOPI, the protocol, operations, security and the architecture.
 - [Getting started with OpenCanvas](https://canvas.casualoffice.org/docs/getting-started.html): Run the OpenCanvas server, the editor and the sample host on your machine, try the demo without a backend, embed it, and run the tests.
+- [OpenCanvas Workspace guide: install, share, back up](https://canvas.casualoffice.org/docs/workspace.html): Run OpenCanvas Workspace with Docker: first-run setup, invites, passkeys, sharing, public links, backups, upgrades and WS_* settings.
 - [Release notes 0.4.0](https://canvas.casualoffice.org/docs/release-040.html): OpenCanvas 0.4.0 release notes: spreadsheets, advanced databases, Timeline, charts, partial sync, performance, upgrade notes and limitations.
 - [Release notes 0.3.0](https://canvas.casualoffice.org/docs/release-030.html): OpenCanvas 0.3.0 release notes: live blocks, search, automation and offline editing, the upgrade notes and known limitations.
 - [Release notes 0.2.0](https://canvas.casualoffice.org/docs/release-020.html): OpenCanvas 0.2.0 release notes: the headless API, webhooks, the block SDK and editor profiles, upgrade notes, known limitations and the checklist.
