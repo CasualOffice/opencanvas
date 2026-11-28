@@ -250,7 +250,7 @@ test("MOB-06: a PDF on a phone: inline preview, full-screen viewer that fits, ba
   const viewer = oc.getByRole("dialog", { name: /^Preview of three-pages\.pdf/ });
   await expect(viewer).toBeVisible();
   await expect(oc.locator('.ocviewer .pdfpage[data-page="1"] canvas')).toBeVisible({ timeout: 15_000 });
-  await oc.locator(".ocviewer").evaluate((v) => Promise.all(v.getAnimations({ subtree: true }).map((x) => x.finished)));
+  await oc.locator(".ocviewer").evaluate((v) => Promise.all(v.getAnimations({ subtree: true }).map((x) => x.finished.catch(() => undefined))));
   const frame = (await priya.page.locator('iframe[name="oc"]').boundingBox())!;
   const vb = (await oc.locator(".ocviewer").boundingBox())!;
   expect(vb.x).toBeGreaterThanOrEqual(frame.x - 1);

@@ -68,7 +68,7 @@ test("PDF: inline pages, thumbnail, viewer, full screen, resize, rename and dele
   await expect(viewer.getByText("Page 3 of 3")).toBeVisible();
   await expect.poll(() => drawn(oc, '.ocviewer .pdfpage[data-page="3"] canvas'), { timeout: 15_000 }).toBe(true);
   // Measure only once the viewer's open animation (a slight scale-in) has finished.
-  await oc.locator(".ocviewer").evaluate((v) => Promise.all(v.getAnimations({ subtree: true }).map((x) => x.finished)));
+  await oc.locator(".ocviewer").evaluate((v) => Promise.all(v.getAnimations({ subtree: true }).map((x) => x.finished.catch(() => undefined))));
   const w1 = (await pageCanvas(oc, ".ocviewer", 3).boundingBox())!.width;
   await viewer.getByRole("button", { name: "Zoom in" }).click();
   await expect.poll(async () => (await pageCanvas(oc, ".ocviewer", 3).boundingBox())!.width).toBeGreaterThan(w1 * 1.2);

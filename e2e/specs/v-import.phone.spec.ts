@@ -15,7 +15,7 @@ async function axe(page: Page) {
   for (const theme of ["light", "dark"]) {
     await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
     // Let the dialog's entrance animation finish: axe reads colours mid-fade otherwise.
-    await page.evaluate(() => Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((x) => x.finished)));
+    await page.evaluate(() => Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((x) => x.finished.catch(() => undefined))));
     const r = await new AxeBuilder({ page }).include(".imp").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
     expect(r.violations.map((v) => `${theme}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
   }

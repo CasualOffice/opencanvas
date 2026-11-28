@@ -20,7 +20,7 @@ async function axe(page: Page, frame?: string) {
   for (const theme of ["light", "dark"]) {
     await f.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
     // Let the dialog's entrance animation finish: axe reads colours mid-fade otherwise.
-    await f.evaluate(() => Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((x) => x.finished)));
+    await f.evaluate(() => Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((x) => x.finished.catch(() => undefined))));
     const r = await new AxeBuilder({ page }).include(frame ? `iframe[name=${frame}]` : ".imp").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
     const bad = r.violations.flatMap((v) => v.nodes.filter((n) => !frame || JSON.stringify(n.target).includes("imp")).map((n) => `${theme}: ${v.id} ${JSON.stringify(n.target)}`));
     expect(bad).toEqual([]);
