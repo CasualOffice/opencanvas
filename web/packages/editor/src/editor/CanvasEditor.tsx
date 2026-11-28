@@ -33,6 +33,7 @@ import { useShell } from "../components/overlay";
 import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
+import { CanvasLink } from "./canvaslink";
 import { ExtBlock } from "../ext/node";
 import { BlockRef, LiveBlock } from "../live/node";
 import { liveCfg, makeStore, parseBlockLink, type BlockLink } from "../live/state";
@@ -321,6 +322,7 @@ export function CanvasEditor(p: EditorProps) {
         }),
         MentionNode,
         DateMention,
+        CanvasLink,
         TextColorMark,
         Callout,
         Toggle,

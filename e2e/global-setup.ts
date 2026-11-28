@@ -151,7 +151,7 @@ ${ai}`;
       // OFF-01..07 (spec zf): offline copies, a short grant for the expiry case.
       entry("sample-offline", "Offline host", HOST_OFFLINE, "copy", [], '\n[host.offline]\nenabled = true\ngrant_days = 7\nmax_canvases = 3\n') +
       // PSYNC-02/03 (spec zh): databases and boards as subdocuments (a line of [host.flags]).
-      entry("sample-psync", "Partial sync host", HOST_PSYNC, "copy"),
+      entry("sample-psync", "Partial sync host", HOST_PSYNC, "copy") +
       // LINK-01..05 (spec zl): links, its search and the host URL patterns.
       entry("sample-links", "Links host", HOST_LINKS, "copy", [], `
 [host.search]

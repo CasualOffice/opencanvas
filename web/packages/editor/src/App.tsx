@@ -65,6 +65,8 @@ const FindBar = lazy(() => import("./find/FindBar").then((m) => ({ default: m.Fi
 // AUTO-06: the automations panel loads when first opened.
 const AutomationPanel = lazy(() => import("./automation/AutomationPanel").then((m) => ({ default: m.AutomationPanel })));
 const SearchAll = lazy(() => import("./search/SearchAll").then((m) => ({ default: m.SearchAll })));
+// LINK-04 (ADR-081): `[[`, Linked from, previews and chips; a chunk of its own.
+const LinksRoot = lazy(() => import("./links/root"));
 // LIVE-06: `<open-canvas view="block">`, the compact embed of one live file.
 const BlockEmbed = lazy(() => import("./live/embed"));
 // WEB-08 budget: the workspace's modals and the database "Automate" menu (fetched after first
@@ -292,7 +294,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const reloading = useRef(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [screen, setScreen] = useState<"editor" | "gallery">("editor");
-  const [side, setSide] = useState<"comments" | "history" | "automations" | null>(null);
+  const [side, setSide] = useState<"comments" | "history" | "automations" | "links" | null>(null);
   // VH-01d: bumped on every save and restore so an open history panel refreshes its list;
   // `nameReq` opens the naming popover from the menu; `previewing` hides the live canvas.
   const [historyTick, setHistoryTick] = useState(0);
@@ -796,6 +798,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const openFindRef = useRef(openFind);
   openFindRef.current = openFind;
   const searchOn = !!session.search?.enabled && !session.demo;
+  const linksOn = !!session.links?.enabled && !session.demo;
   // AUTO-06: rules in this canvas (counted for the menu, also when the host runs none, frame 5d).
   const autoOn = !!session.automation?.enabled && !!session.automation.limits && !session.demo;
   const [ruleCount, setRuleCount] = useState(0);
@@ -1466,6 +1469,27 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                       setFind((f) => ({ initial: q, replace: false, tick: (f?.tick ?? 0) + 1 }));
                     }}
                     onOpenFile={(h, newTab) => postToHost("UI_OpenFile", { fileId: h.fileId, ...(h.blockId ? { blockId: h.blockId } : {}), newTab })}
+                  />
+                </Suspense>
+              ) : null}
+              {linksOn && editor ? (
+                <Suspense fallback={null}>
+                  <LinksRoot
+                    editor={editor}
+                    ticket={session.ticket}
+                    fileId={session.file.id}
+                    title={meta.title || session.file.name}
+                    canEdit={effectiveRole === "edit"}
+                    compact={compact}
+                    mentions={!!session.links?.mentions}
+                    patterns={session.links?.urlPatterns ?? []}
+                    side={side === "links"}
+                    setSide={(open) => setSide(open ? "links" : (s) => (s === "links" ? null : s))}
+                    toast={(m, o) => toast(m, o ?? {})}
+                    open={(fileId, blockId, newTab) =>
+                      fileId === session.file.id && blockId ? scrollToBlock(blockId) : postToHost("UI_OpenFile", { fileId, ...(blockId ? { blockId } : {}), newTab })
+                    }
+                    scrollToBlock={scrollToBlock}
                   />
                 </Suspense>
               ) : null}

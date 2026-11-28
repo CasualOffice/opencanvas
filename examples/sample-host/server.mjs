@@ -302,7 +302,9 @@ function checkSigned(req, body) {
   return want.length === v2.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(v2));
 }
 function search(userId, q, limit = 20) {
-  const words = fold(q).split(/\s+/).filter(Boolean);
+  // `"exact phrase"` (OpenCanvas asks this way for unlinked mentions, LINK-05): the phrase as is.
+  const phrase = /^"(.+)"$/.exec(q.trim())?.[1];
+  const words = phrase ? [fold(phrase)] : fold(q).split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const items = [];
   for (const f of Object.values(meta.files)) {

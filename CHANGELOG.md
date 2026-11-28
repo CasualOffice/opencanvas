@@ -35,6 +35,16 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   the canvases around one canvas (depth 1-3) or the most-connected canvases, with every canvas
   checked with the host before it is shown or expanded, so a canvas the reader cannot open never
   connects two others. 30 s cache per person, 10 a minute (2 full).
+- Links in the editor (LINK-01/04/05, to the approved prototype; with `[host.flags] links`): type
+  `[[` to link a canvas from the host's search and your recent canvases, `#` to link one of its
+  headings, databases or rows, or paste one of the host's URLs. Links show the canvas's current
+  title, and "No access", a struck-through deleted canvas or a missing block when that is so.
+  Resting on a link (or Space on a selected one) previews it. Every canvas ends with "Linked
+  from": the canvases that link here, grouped, with the sentence around each link, filters by
+  kind and block, and only canvases you can open; headings with backlinks get a "Linked from"
+  chip that opens the side panel on that heading. "Unlinked mentions" lists canvases that name
+  this one without a link, with Link (as you, in that canvas) and Undo. All of it loads on its
+  own after the canvas (initial JS +0.6 KB for the node).
 
 ### Fixed
 

@@ -765,6 +765,12 @@ button.cic:hover{transform:scale(1.06)}
 .tcsw:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .ftb .tcbtn.on{background:var(--hover)}
 .ProseMirror .datewrap{white-space:nowrap}
+/* LINK-01: canvas links (titles and states from the links chunk). */
+.clink{color:var(--accent);text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent);text-underline-offset:.15em;cursor:pointer;border-radius:.1875rem}
+.clink[data-state="none"]{color:var(--fg-2);text-decoration:none;background:var(--gray-bg);padding:0 .3125rem;font-size:.92em}
+.clink[data-state="gone"]{color:var(--fg-2);text-decoration:line-through}
+.clink[data-state="missing"]{text-decoration-style:dashed}
+.ProseMirror-selectednode.clink,.clink.ProseMirror-selectednode{box-shadow:0 0 0 2px var(--accent-ring)}
 .datechip{display:inline-flex;align-items:center;gap:.25rem;padding:0 .4375rem 0 .3125rem;border-radius:62.4375rem;background:var(--blue-bg);color:var(--blue-fg);font-size:.92em;font-weight:500;line-height:1.55;vertical-align:baseline;white-space:nowrap}
 .datechip.past{background:var(--gray-bg);color:var(--gray-fg)}
 .ProseMirror[contenteditable="true"] .datechip{cursor:pointer}
