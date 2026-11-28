@@ -6077,6 +6077,45 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## BROWSER — 2026-11-28-browser-local-before
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 867 | 1,023 | 7.3 |
+
+Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-before-whole
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 1,018 | 1,097 | 10.2 |
+
+Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-base6e5e-whole
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-base6e5e`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 997 | 1,319 | 10.3 |
+
+Initial JavaScript: 294,137 bytes gzip (budget 300 KB).
+
+
 ## BROWSER — 2026-11-26-browser-local-partial
 
 - **Run:** 2026-11-26, commit `b4ba7db`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`

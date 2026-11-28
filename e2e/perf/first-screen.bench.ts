@@ -21,6 +21,8 @@
 //   BENCH_FIXTURES=s,m   BENCH_RUNS=3   BENCH_MACHINE=local   E2E_SKIP_BUILD=1   E2E_PORT_SHIFT=500
 //   BENCH_PROFILE=1   CPU profile of the first run up to the first screen: the 40 functions with
 //                     the most self time, printed (an unminified build makes them readable)
+//   BENCH_PARTIAL=0   the host turns `[host.flags] partial_sync` off (whole rooms; on by default
+//                     since 0.4, so unset measures what a host gets)
 //   BENCH_PARTIAL=1   the host has `[host.flags] partial_sync` (PSYNC-02/03): databases and
 //                     boards load as subdocuments when scrolled near; `parts` counts the
 //                     database and board views showing content (not the placeholder) after
@@ -42,7 +44,8 @@ const OC = `http://127.0.0.1:${PORT}`;
 const FIXTURES = (process.env.BENCH_FIXTURES ?? "s,m,l,50mb").split(",").filter(Boolean);
 const RUNS = Number(process.env.BENCH_RUNS ?? 3);
 const MACHINE = process.env.BENCH_MACHINE ?? "local";
-const PARTIAL = !!process.env.BENCH_PARTIAL;
+const PARTIAL = !!process.env.BENCH_PARTIAL && process.env.BENCH_PARTIAL !== "0";
+const WHOLE = process.env.BENCH_PARTIAL === "0";
 const SECRET = "bench-secret-0123456789abcdef0123456789";
 const TGT = path.resolve(ROOT, process.env.CARGO_TARGET_DIR ?? "target");
 const DIST = path.join(ROOT, "web/packages/editor/dist");
@@ -96,7 +99,7 @@ test.beforeAll(async () => {
   work = fs.mkdtempSync(path.join(os.tmpdir(), "oc-browser-bench-"));
   fs.writeFileSync(
     path.join(work, "hosts.toml"),
-    `[[host]]\nid = "bench"\nname = "Bench host"\nmode = "jwt"\njwt_alg = "HS256"\njwt_secret = "${SECRET}"\napi_key = "bench-api-key"\ncallback_base = "http://127.0.0.1:${HOST_PORT}/api"\n${PARTIAL ? "\n[host.flags]\npartial_sync = true\n" : ""}`,
+    `[[host]]\nid = "bench"\nname = "Bench host"\nmode = "jwt"\njwt_alg = "HS256"\njwt_secret = "${SECRET}"\napi_key = "bench-api-key"\ncallback_base = "http://127.0.0.1:${HOST_PORT}/api"\n${PARTIAL || WHOLE ? `\n[host.flags]\npartial_sync = ${PARTIAL}\n` : ""}`,
   );
   const log = fs.openSync(path.join(work, "logs.txt"), "a");
   children.push(
@@ -281,7 +284,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
   const commit = execSync("git rev-parse --short HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
   const date = new Date().toISOString().slice(0, 10);
   const browserVersion = browser.version();
-  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : ""}.json`);
+  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : WHOLE ? "-whole" : ""}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(
     out,
