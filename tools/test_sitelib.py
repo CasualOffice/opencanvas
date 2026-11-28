@@ -108,5 +108,31 @@ class SharedPartsAndTitles(unittest.TestCase):
         self.assertEqual(sitelib.page_title(page, "404.html"), "Changelog")
 
 
+class BenchOrderIsStable(unittest.TestCase):
+    """The site lists perf results by commit time, not file mtime: a fresh checkout gives every
+    file the same mtime, so ordering by it rebuilt a different page and failed the prepush gate."""
+
+    def test_db_perf_order_ignores_mtime(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("build_site", os.path.join(os.path.dirname(__file__), "build-site.py"))
+        bs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bs)
+        files = sorted(bs.PERF.glob("db100k-*.json"))
+        if len(files) < 2:
+            self.skipTest("needs two db100k results")
+        saved = [(f, f.stat().st_atime, f.stat().st_mtime) for f in files]
+        try:
+            orders = []
+            for newest in files:
+                for f in files:
+                    os.utime(f, (1, 2 if f == newest else 1))
+                md = "\n".join(bs._db_perf_markdown())
+                orders.append([f.stem for f in sorted(files, key=lambda f: md.index("— " + f.stem + "\n"))])
+            self.assertTrue(all(o == orders[0] for o in orders), orders)
+        finally:
+            for f, at, mt in saved:
+                os.utime(f, (at, mt))
+
+
 if __name__ == "__main__":
     unittest.main()

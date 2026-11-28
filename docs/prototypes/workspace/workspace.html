@@ -364,6 +364,70 @@ mark{background:color-mix(in srgb,var(--amber-fg) 22%,transparent);color:inherit
 .dlg.wide{width:min(40rem,calc(100% - 2rem))}
 .emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,24rem),1fr));gap:1.5rem}
 @media (max-width:40em){.tpl{grid-template-columns:1fr 1fr}}
+/* ---------- typed files (13, owner decision 8) ---------- */
+.newm{position:absolute;top:2.75rem;right:1rem;width:20rem;z-index:15}
+.newm .mi{min-height:2.75rem}
+.newm .mi .ctile{width:1.875rem;height:1.875rem;border-radius:.5rem}
+.newm .mi .m{flex:1;min-width:0;line-height:1.3}
+.newm .mi .m b{display:block;font-weight:500}
+.newm .mi .m small{display:block}
+.tyk{display:inline-flex;align-items:center;gap:.25rem;font-size:.6875rem;color:var(--fg-3)}
+.tyl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.875rem;padding:1.25rem;background:var(--app);color:var(--fg);height:100%}
+.tyc{border-radius:.875rem;box-shadow:inset 0 0 0 1px var(--line);padding:1rem;display:flex;flex-direction:column;gap:.625rem;min-width:0}
+.tyc .ctile{width:2.5rem;height:2.5rem;border-radius:.75rem}
+.tyc .ctile svg.i{width:1.25rem;height:1.25rem}
+.tyc b{font-size:.9375rem;font-weight:600}
+.tyc dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.375rem .625rem;font-size:.75rem;line-height:1.45}
+.tyc dt{color:var(--fg-3)}.tyc dd{margin:0;color:var(--fg-2)}
+.sa{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--app)}
+.sa-tb{display:flex;align-items:center;gap:.125rem;padding:.3125rem .625rem;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;flex:none}
+.sa-tb .vs{width:1px;height:1.25rem;background:var(--line);margin:0 .375rem;flex:none}
+.sa-tb .rsel{height:1.75rem}
+.sa-fx{display:flex;align-items:center;gap:.5rem;height:2.25rem;padding:0 .625rem;border-bottom:1px solid var(--line);flex:none;min-width:0}
+.sa-fx .nb{width:4.5rem;height:1.625rem;border-radius:.375rem;background:var(--sunk);display:flex;align-items:center;padding:0 .5rem;color:var(--fg-2);font-family:var(--mono);font-size:.75rem;flex:none}
+.sa-fx .fx{color:var(--fg-3);font-style:italic;font-weight:600;font-family:Georgia,serif;flex:none}
+.sa-fx .fv{flex:1;min-width:0;font-family:var(--mono);font-size:.8125rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sa-g{flex:1;min-height:0;overflow:auto;position:relative}
+.sa-g table{border-collapse:separate;border-spacing:0;font-size:.8125rem;font-variant-numeric:tabular-nums}
+.sa-g th{position:sticky;top:0;background:var(--panel);color:var(--fg-3);font-weight:500;font-size:.6875rem;height:1.5rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);z-index:1}
+.sa-g .rh{position:sticky;left:0;background:var(--panel);color:var(--fg-3);font-size:.6875rem;width:2.5rem;min-width:2.5rem;text-align:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);z-index:2;padding:0;font-weight:500}
+.sa-g th.rh{z-index:3}
+.sa-g td{height:1.75rem;min-width:7rem;padding:0 .5rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;cursor:cell;position:relative}
+.sa-g td.w{min-width:11rem}
+.sa-g td.n{text-align:right}
+.sa-g td.hd{font-weight:600;background:var(--sunk)}
+.sa-g td.tot{font-weight:600;border-top:1.5px solid var(--line-2)}
+.sa-g td.sel{box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-soft)}
+.sa-g td.peer{box-shadow:inset 0 0 0 2px var(--u1)}
+.sa-g td.peer::after{content:attr(data-peer);position:absolute;right:-1px;top:-1rem;background:var(--u1);color:#fff;font-size:.5625rem;font-weight:600;padding:.05rem .3rem;border-radius:.25rem .25rem 0 0;font-family:var(--font);z-index:1}
+.sa-g th.on,.sa-g .rh.on{background:var(--accent-soft);color:var(--accent)}
+.sa-tabs{display:flex;align-items:center;gap:.125rem;height:2.25rem;padding:0 .5rem;border-top:1px solid var(--line);background:var(--panel);flex:none;min-width:0}
+.sa-tabs .tab{border:0;background:none;height:1.75rem;padding:0 .75rem;border-radius:.375rem;font-size:.75rem;color:var(--fg-2);cursor:pointer;white-space:nowrap}
+.sa-tabs .tab[aria-selected="true"]{background:var(--app);color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.sa-tabs .agg{margin-left:auto;font-size:.75rem;color:var(--fg-3);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:.5rem}
+.ba{flex:1;min-height:0;position:relative;overflow:hidden;background-color:var(--sunk);background-image:radial-gradient(circle,var(--line-2) 1px,transparent 1.2px);background-size:1.25rem 1.25rem}
+.ba svg.scene{position:absolute;inset:0;width:100%;height:100%}
+.ba-tools{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:.125rem;padding:.25rem;background:var(--pop);border-radius:.75rem;box-shadow:var(--sh-pop);z-index:2}
+.ba-tools .btn{width:2.25rem;height:2.25rem;padding:0;justify-content:center}
+.ba-tools .sepl{margin:.125rem .25rem}
+.ba-top{position:absolute;top:.75rem;left:50%;transform:translateX(-50%);display:flex;gap:.25rem;align-items:center;padding:.25rem;background:var(--pop);border-radius:.75rem;box-shadow:var(--sh-pop);z-index:2;white-space:nowrap}
+.ba-zoom{position:absolute;left:.75rem;bottom:.75rem;display:flex;gap:.125rem;align-items:center;padding:.25rem;background:var(--pop);border-radius:.625rem;box-shadow:var(--sh-pop);font-size:.75rem;font-variant-numeric:tabular-nums;z-index:2}
+.ba-mini{position:absolute;right:.75rem;bottom:.75rem;width:10rem;height:6.25rem;background:var(--pop);border-radius:.625rem;box-shadow:var(--sh-pop);overflow:hidden;z-index:2}
+.ba-mini i{position:absolute;border-radius:.125rem;display:block}
+.ba-mini .vp{position:absolute;box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:.25rem}
+.dbv{display:flex;align-items:center;gap:.25rem;padding:.5rem 1rem;border-bottom:1px solid var(--line);flex:none;flex-wrap:wrap}
+.dbv .tab{border:0;background:none;height:1.875rem;padding:0 .625rem;border-radius:.5rem;font-size:.8125rem;color:var(--fg-2);cursor:pointer;display:inline-flex;gap:.375rem;align-items:center}
+.dbv .tab[aria-selected="true"]{background:var(--sunk);color:var(--fg);font-weight:500}
+.sblk{border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;margin:.5rem 0 1rem;position:relative}
+.sblk .h{display:flex;gap:.5rem;align-items:center;padding:.375rem .5rem .375rem .75rem;font-weight:600;font-size:.8125rem;border-bottom:1px solid var(--line)}
+.sblk .sa-g td{min-width:5.25rem;height:1.625rem;font-size:.75rem}
+.sblk .sa-g td.w{min-width:8rem}
+.ph-sa{flex:1;min-height:0;display:flex;flex-direction:column}
+.ph-sa .sa-g td{min-width:5.75rem}
+.ph-sa .sa-g td.w{min-width:8.5rem}
+.ph-tools{flex:none;display:flex;justify-content:space-around;padding:.375rem .5rem 1.75rem;border-top:1px solid var(--line);background:var(--app)}
+.ph-tools .btn{min-width:2.75rem;min-height:2.75rem;justify-content:center}
+@media (max-width:60em){.tyl{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></symbol>
@@ -430,7 +494,6 @@ mark{background:color-mix(in srgb,var(--amber-fg) 22%,transparent);color:inherit
 <symbol id="i-map" viewBox="0 0 24 24"><path d="M14.11 5.11a1 1 0 0 0 .89 0l3.55-1.78A1 1 0 0 1 20 4.22v12.16a1 1 0 0 1-.55.9l-4 2a1 1 0 0 1-.9 0l-5.1-2.56a1 1 0 0 0-.9 0l-3.55 1.78A1 1 0 0 1 4 17.6V5.44a1 1 0 0 1 .55-.9l4-2a1 1 0 0 1 .9 0zM15 5.76v15M9 3.24v15"/></symbol>
 <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></symbol>
 <symbol id="i-rows" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M21 9H3M21 15H3"/></symbol>
-</defs></svg>
 <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
 <symbol id="i-fp" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
@@ -456,10 +519,28 @@ mark{background:color-mix(in srgb,var(--amber-fg) 22%,transparent);color:inherit
 <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></symbol>
 <symbol id="i-bold" viewBox="0 0 24 24"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></symbol>
 <symbol id="i-listc" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/></symbol>
+<symbol id="i-sheet" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 9v12M15 9v12"/></symbol>
+<symbol id="i-shapes" viewBox="0 0 24 24"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></symbol>
+<symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+<symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
+<symbol id="i-sticky" viewBox="0 0 24 24"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/></symbol>
+<symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+<symbol id="i-spline" viewBox="0 0 24 24"><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><path d="M5 17A12 12 0 0 1 17 5"/></symbol>
+<symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></symbol>
+<symbol id="i-sigma" viewBox="0 0 24 24"><path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9M13 17V5M8 17v-3"/></symbol>
+<symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M12 10v6M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+<symbol id="i-frame" viewBox="0 0 24 24"><path d="M22 6H2M22 18H2M6 2v20M18 2v20"/></symbol>
+<symbol id="i-minimize" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></symbol>
+<symbol id="i-percent" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+<symbol id="i-italic" viewBox="0 0 24 24"><path d="M19 4h-9M14 20H5M15 4 9 20"/></symbol>
+<symbol id="i-align" viewBox="0 0 24 24"><path d="M15 12H3M17 18H3M21 6H3"/></symbol>
+<symbol id="i-redo" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+<symbol id="i-snow" viewBox="0 0 24 24"><path d="M2 12h20M12 2v20m8-10-3-3m3 3-3 3M4 12l3-3m-3 3 3 3m5-11 3 3m-3-3-3 3m3 13 3-3m-3 3-3-3"/></symbol>
 </defs></svg>
 
 <header class="rv-top"><div class="rv-top-in"><div class="rv-title"><span class="logo" aria-hidden="true"><svg class="i"><use href="#i-canvas"/></svg></span>OpenCanvas Workspace <small>by CasualOffice · ADR-085 · docs/40 · draft for approval</small></div><div class="rv-ctl"><div class="rv-seg" role="group" aria-label="Theme"><button data-theme-btn="light"><svg class="i sm" aria-hidden="true"><use href="#i-sun"/></svg>Light</button><button data-theme-btn="dark"><svg class="i sm" aria-hidden="true"><use href="#i-moon"/></svg>Dark</button></div><div class="rv-seg" role="group" aria-label="Frame size"><button data-fit="1">Fit to width</button><button data-fit="0">Actual size</button></div></div></div>
-<nav class="rv-toc" aria-label="Frames"><a href="#f1">1 First run</a><a href="#f2">2 Sign in</a><a href="#f3">3 Home</a><a href="#f4">4 Canvas</a><a href="#f5">5 Share</a><a href="#f6">6 Search</a><a href="#f7">7 Trash</a><a href="#f8">8 Members and teams</a><a href="#f9">9 Settings</a><a href="#f10">10 Phone</a><a href="#f11">11 Empty states</a><a href="#f12">12 Keyboard and access</a></nav></header>
+<nav class="rv-toc" aria-label="Frames"><a href="#f1">1 First run</a><a href="#f2">2 Sign in</a><a href="#f3">3 Home</a><a href="#f4">4 Canvas</a><a href="#f5">5 Share</a><a href="#f6">6 Search</a><a href="#f7">7 Trash</a><a href="#f8">8 Members and teams</a><a href="#f9">9 Settings</a><a href="#f10">10 Phone</a><a href="#f11">11 Empty states</a><a href="#f12">12 Keyboard and access</a><a href="#f13">13 File types</a></nav></header>
 
 <main class="rv-wrap">
  <div class="rv-intro">
@@ -474,6 +555,7 @@ mark{background:color-mix(in srgb,var(--amber-fg) 22%,transparent);color:inherit
    <li>Search shows only canvases the person can open, and says so in the empty state (6a, 11c).</li>
    <li>Phone: a bottom bar with Home, Search, New, Inbox and You; the canvas uses the engine's own phone editor inside the Workspace header (10a, 10b).</li>
    <li>PostgreSQL is left out of the first release (SQLite by default, MySQL or MariaDB optional), see docs/40 §9.</li>
+   <li><em>New in this revision (owner decision 8, docs/40 §0), for approval:</em> files are typed. <em>New</em> offers Document, Spreadsheet, Whiteboard and Database, each with its own icon. A spreadsheet opens straight into the full-screen grid, a whiteboard into the full board, a database into its views; a document opens the canvas editor. Mixing blocks stays inside documents (13a to 13j).</li>
   </ol></div>
   <h1>OpenCanvas Workspace</h1>
   <p>A ready-to-use workspace from OpenCanvas by CasualOffice. Run one Docker image, create the admin account, invite people and start writing: no integration and no host app of your own. The Workspace is a separate host application that owns people, sign-in, files and access, and opens canvases in the OpenCanvas editor through the same host contract as any other app (ADR-085, ADR-001 unchanged).</p>
@@ -648,6 +730,56 @@ mark{background:color-mix(in srgb,var(--amber-fg) 22%,transparent);color:inherit
   <div class="emgrid" id="empties"></div>
  </section>
 
+ <section class="rv-sec" id="f13">
+  <h2>13 · File types <code>owner decision 8 · for approval</code></h2>
+  <p>Every file in the Workspace has a type. <em>New</em> offers a Document, a Spreadsheet, a Whiteboard or a Database, each with its own icon and colour in Home, search, trash and on the phone. A spreadsheet opens straight into the full-screen grid with a formula bar and sheet tabs; a whiteboard opens into the full board; a database opens into its views. A document opens the canvas editor as today, and that is where blocks mix. The Workspace never shows a spreadsheet file as a canvas with a sheet block in it.</p>
+  <figure class="fr">
+   <figcaption><b>13a</b> The New menu <span class="dim">1280 × 560 · live: open New, pick a type (also in 3a)</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:35rem"><div class="ws" id="newtype"></div></div></div>
+   <p class="note">The four types come first, each with one line that says what it is for; then <em>From a template…</em> (templates carry their type, 3b), <em>Folder</em> and <em>Import a file</em>, which picks the type from the file (<code>.xlsx</code> and <code>.csv</code> become a spreadsheet, <code>.drawio</code> and <code>.excalidraw</code> a whiteboard, <code>.md</code> and <code>.docx</code> a document). Arrow keys move, Enter creates, Escape closes. <kbd class="kbd">C</kbd> still opens the template dialog.</p>
+  </figure>
+  <figure class="fr">
+   <figcaption><b>13b</b> The four types <span class="dim">1280 × 352</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:22rem"><div id="typelegend" style="height:100%"></div></div></div>
+   <p class="note">Every type is the same <code>.ocanvas</code> file underneath, so history, search, sharing, trash, exports and the API work the same for all four. The type is the Workspace's (and any host's) fact about the file, passed to the engine at launch; the file also remembers it, so a downloaded spreadsheet reopens as a spreadsheet anywhere. Home's list view gains a <em>Type</em> column; search filters by type (6a); Trash shows the type icon (7a).</p>
+  </figure>
+  <figure class="fr">
+   <figcaption><b>13c</b> A spreadsheet file, full screen <span class="dim">1280 × 768 · live: pick cells, switch sheets</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:48rem"><div class="ws" id="sheetapp"></div></div></div>
+   <p class="note">Under the Workspace header (the same breadcrumb, star, save state, presence, History and Share as 4a) the whole page is the grid: a toolbar, the formula bar with the cell name, the sheet and its tabs, and the selection's sum, average and count. No document title, no page margins and no / menu. Asha Rao's cursor is the purple cell. <em>More</em> exports as <code>.xlsx</code> first, then CSV and PDF. The sidebar starts collapsed for spreadsheets to give the grid the width; <kbd class="kbd">⌘\</kbd> shows it.</p>
+  </figure>
+  <figure class="fr">
+   <figcaption><b>13d</b> A whiteboard file, full screen <span class="dim">1280 × 768 · live: pick a tool, Diagram mode</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:48rem"><div class="ws" id="boardapp"></div></div></div>
+   <p class="note">The board fills the page: tools on the left, the board's own bar on top (Sketch or Diagram mode, frames, the shape library), zoom and the minimap at the bottom. Tom Becker's cursor moves on the board. <em>More</em> exports PNG and SVG first, then PDF and <code>.drawio</code>. Whiteboard and Diagram are one type: diagram mode is a switch on the board, as in the editor today.</p>
+  </figure>
+  <figure class="fr">
+   <figcaption><b>13e</b> A database file, full screen <span class="dim">1280 × 640 · live: switch views</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="80" style="width:80rem;height:40rem"><div class="ws" id="dbapp"></div></div></div>
+   <p class="note">A database file opens on its views (Table, Board, Calendar, Timeline) at full width, with filter, sort and <em>New row</em>. A row still opens as a page with its own text, which is where a database row holds blocks. <em>More</em> exports CSV first.</p>
+  </figure>
+  <h3 style="margin:2rem 0 .375rem;font-size:1.0625rem">A sheet inside a document, and a spreadsheet file</h3>
+  <p style="max-width:51rem;color:var(--rv-fg2);line-height:1.6;margin:0 0 1.25rem">Two different things that share one engine. Inserting a spreadsheet block into a document keeps the file a document: the sheet sits between paragraphs and can expand to fill the editor for a while. A spreadsheet file is a spreadsheet from the start and never shows document chrome.</p>
+  <div class="rv-row">
+   <figure class="fr">
+    <figcaption><b>13f</b> A sheet block in a document <span class="dim">720 × 576 · live: Expand</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="45" style="width:45rem;height:36rem"><div class="oc" id="sheetblock"></div></div></div>
+    <p class="note" style="max-width:45rem">The block shows a few rows with its own small formula bar while a cell is selected. <em>Expand</em> fills the editor with this one sheet (Escape or <em>Back to document</em> returns); it is still the document, with the document's title in the header. <em>Make a spreadsheet file</em> copies the sheet into a new spreadsheet file next to the document and, if wanted, leaves a live block in its place (ADR-069).</p>
+   </figure>
+   <figure class="fr">
+    <figcaption><b>13g</b> The same data as a spreadsheet file <span class="dim">720 × 576</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="45" style="width:45rem;height:36rem"><div class="ws" id="sheetfile"></div></div></div>
+    <p class="note" style="max-width:45rem">Opened from Home, the file is the grid edge to edge under the Workspace header. There is nothing to insert: the toolbar has cell formatting, functions, charts, filters and freeze. Typing text into a cell is cell text. To write around the numbers, make a document and insert the sheet, or embed this file as a live block.</p>
+   </figure>
+  </div>
+  <h3 style="margin:2rem 0 .375rem;font-size:1.0625rem">Phone</h3>
+  <div class="rv-row">
+   <figure class="fr phf"><figcaption><b>13h</b> Spreadsheet <span class="dim">390 × 844</span></figcaption><div class="fr-vp"><div class="fr-in phone" data-w="24.375" style="width:24.375rem;height:52.75rem"><div class="ph" id="ph-sheet"></div></div></div><p class="note">The grid scrolls in both directions with frozen headers; the formula bar sits above it, sheet tabs below, and the bottom bar holds functions, formatting, undo and the keyboard. Cells are at least 44 px tall to tap.</p></figure>
+   <figure class="fr phf"><figcaption><b>13i</b> Whiteboard <span class="dim">390 × 844</span></figcaption><div class="fr-vp"><div class="fr-in phone" data-w="24.375" style="width:24.375rem;height:52.75rem"><div class="ph" id="ph-board"></div></div></div><p class="note">The board fills the screen; pinch to zoom, two fingers to pan. The tools move to a bottom bar; the shape library opens as a sheet.</p></figure>
+   <figure class="fr phf"><figcaption><b>13j</b> New, on the phone <span class="dim">390 × 844</span></figcaption><div class="fr-vp"><div class="fr-in phone" data-w="24.375" style="width:24.375rem;height:52.75rem"><div class="ph" id="ph-new"></div></div></div><p class="note"><em>New</em> in the bottom bar opens the same four types as a sheet, each a large target, then templates, a folder and import.</p></figure>
+  </div>
+ </section>
+
  <section class="rv-sec" id="f12">
   <h2>12 · Keyboard and access</h2>
   <p>Every frame works without a mouse; focus is always visible; the review checks 200 % zoom, 24 px text and 320 px width (ADR-050).</p>
@@ -710,7 +842,7 @@ const WS=[
  {id:"mine",n:"My canvases",tone:"t-gray",ic:"i-lock",open:false,f:[]}
 ];
 const C=[
- {id:"q1",n:"Q1 launch plan",w:"Product",f:"Roadmaps",tone:"t-blue",ic:"i-gantt",by:"ar",at:"2 min ago",star:true,live:["ar","tb"],k:"db"},
+ {id:"q1",n:"Q1 launch plan",w:"Product",f:"Roadmaps",tone:"t-blue",ic:"i-gantt",by:"ar",at:"2 min ago",star:true,live:["ar","tb"],k:"doc"},
  {id:"intv",n:"Customer interviews",w:"Product",f:"Research",tone:"t-purple",ic:"i-message",by:"pn",at:"1 h ago",star:true,live:[],k:"doc"},
  {id:"sync",n:"Weekly product sync",w:"Product",f:"",tone:"t-amber",ic:"i-cal",by:"lp",at:"Today 09:30",star:false,live:["lp"],k:"doc"},
  {id:"auth",n:"Passkey sign-in spec",w:"Product",f:"Specs",tone:"t-teal",ic:"i-file",by:"pn",at:"Yesterday",star:false,live:[],k:"doc"},
@@ -719,6 +851,10 @@ const C=[
  {id:"budget",n:"Design budget 2027",w:"Design",f:"",tone:"t-pink",ic:"i-table",by:"lp",at:"Mon",star:false,live:[],k:"sheet"},
  {id:"okr",n:"Team goals",w:"Product",f:"",tone:"t-gray",ic:"i-star",by:"ar",at:"Nov 20",star:false,live:[],k:"db"}
 ];
+/* Owner decision 8: every file has a type; its tile is the type's icon and colour everywhere (Home, search, trash, phone). */
+const TY={doc:{l:"Document",ic:"i-file",tone:"t-blue",s:"Text, tasks and any block"},sheet:{l:"Spreadsheet",ic:"i-sheet",tone:"t-green",s:"Grid, formulas and sheets"},board:{l:"Whiteboard",ic:"i-shapes",tone:"t-amber",s:"Board, diagrams and stickies"},db:{l:"Database",ic:"i-db",tone:"t-purple",s:"Rows with table, board and calendar views"}};
+const typed=c=>{c.tone=TY[c.k].tone;c.ic=TY[c.k].ic;return c};
+C.forEach(typed);
 function sidebar(cur){
  const nv=(id,label,icon,extra="")=>`<button class="nv" data-nav="${id}" ${cur===id?'aria-current="true"':""}>${ic(icon)}<span class="l">${label}</span>${extra}</button>`;
  let h=`<div class="sb-top"><button class="org"><span class="ot t-blue">A</span><b>Acme</b>${ic("i-updown","sm")}</button><button class="sbs" data-cmdk>${ic("i-search","sm")}Search<kbd>⌘K</kbd></button></div><nav class="sb-b" aria-label="Workspace">`;
@@ -746,20 +882,27 @@ function toast(host,html,ms=3200){
 }
 const thumb=c=>{
  if(c.k==="board")return `<div class="thumb"><span class="bx t-amber" style="left:1rem;top:1rem;width:4rem;height:2.5rem"></span><span class="bx t-blue" style="left:6.5rem;top:2.2rem;width:4.5rem;height:3rem"></span><span class="bx t-green" style="left:3rem;top:4.4rem;width:3.5rem;height:2rem"></span></div>`;
- if(c.k==="db"||c.k==="sheet")return `<div class="thumb"><i class="h"></i>${[0,1,2,3].map(r=>`<span style="display:flex;gap:.35rem"><i style="flex:2"></i><i style="flex:1;${r%2?"background:var(--green-bg)":"background:var(--blue-bg)"}"></i><i style="flex:1"></i></span>`).join("")}</div>`;
+ if(c.k==="sheet")return `<div class="thumb" style="padding:0;gap:0;display:grid;grid-template-columns:1.25rem repeat(4,1fr);grid-auto-rows:1.25rem">${Array.from({length:30},(_,k)=>`<span style="border-right:1px solid var(--line);border-bottom:1px solid var(--line);${k<5||k%5===0?"background:var(--panel);":""}${k===18?"box-shadow:inset 0 0 0 1.5px var(--green-fg)":""}"></span>`).join("")}</div>`;
+ if(c.k==="db")return `<div class="thumb"><i class="h"></i>${[0,1,2,3].map(r=>`<span style="display:flex;gap:.35rem"><i style="flex:2"></i><i style="flex:1;${r%2?"background:var(--green-bg)":"background:var(--blue-bg)"}"></i><i style="flex:1"></i></span>`).join("")}</div>`;
  return `<div class="thumb"><i class="h"></i><i style="width:92%"></i><i style="width:80%"></i><i style="width:86%"></i><i style="width:40%"></i></div>`;
 };
-const card=c=>`<div class="card" tabindex="0" data-c="${c.id}">${thumb(c)}${c.live.length?`<span class="live" style="top:5.9rem;bottom:auto">${stack(c.live)}Live</span>`:""}<button class="star" aria-label="Favourite" aria-pressed="${c.star}" data-star="${c.id}">${ic("i-star","sm")}</button><div class="card-b"><b><span class="ctile ${c.tone}" style="width:1.125rem;height:1.125rem">${ic(c.ic,"sm")}</span><span>${esc(c.n)}</span></b><small>${c.w}${c.f?" › "+c.f:""} · ${P[c.by].n.split(" ")[0]}, ${c.at}</small></div></div>`;
-const row=c=>`<tr class="rw" data-c="${c.id}"><td><span class="nm"><span class="ctile ${c.tone}">${ic(c.ic,"sm")}</span>${esc(c.n)}${c.live.length?` <span class="pill p-green">${stack(c.live)} Live</span>`:""}</span></td><td class="dimc">${c.w}${c.f?" › "+c.f:""}</td><td><span class="ppl">${av(c.by,"s")}${P[c.by].n}</span></td><td class="dimc">${c.at}</td><td><button class="btn ic star" style="opacity:1;position:static;box-shadow:none" aria-label="Favourite" aria-pressed="${c.star}" data-star="${c.id}">${ic("i-star","sm")}</button></td></tr>`;
+const card=c=>`<div class="card" tabindex="0" data-c="${c.id}">${thumb(c)}${c.live.length?`<span class="live" style="top:5.9rem;bottom:auto">${stack(c.live)}Live</span>`:""}<button class="star" aria-label="Favourite" aria-pressed="${c.star}" data-star="${c.id}">${ic("i-star","sm")}</button><div class="card-b"><b><span class="ctile ${c.tone}" style="width:1.125rem;height:1.125rem" role="img" aria-label="${TY[c.k].l}">${ic(c.ic,"sm")}</span><span>${esc(c.n)}</span></b><small>${c.w}${c.f?" › "+c.f:""} · ${P[c.by].n.split(" ")[0]}, ${c.at}</small></div></div>`;
+const row=c=>`<tr class="rw" data-c="${c.id}"><td><span class="nm"><span class="ctile ${c.tone}">${ic(c.ic,"sm")}</span>${esc(c.n)}${c.live.length?` <span class="pill p-green">${stack(c.live)} Live</span>`:""}</span></td><td class="dimc">${TY[c.k].l}</td><td class="dimc">${c.w}${c.f?" › "+c.f:""}</td><td><span class="ppl">${av(c.by,"s")}${P[c.by].n}</span></td><td class="dimc">${c.at}</td><td><button class="btn ic star" style="opacity:1;position:static;box-shadow:none" aria-label="Favourite" aria-pressed="${c.star}" data-star="${c.id}">${ic("i-star","sm")}</button></td></tr>`;
 
 /* ---------- template dialog ---------- */
 const TPL=[["blank","Blank","Start from an empty page","i-file","t-gray"],["meet","Meeting notes","Agenda, notes, action items","i-cal","t-amber"],["plan","Project plan","Tasks database with Board and Timeline","i-gantt","t-blue"],["wb","Whiteboard","A board for sketching and stickies","i-board","t-green"],["sheet","Spreadsheet","Cells, formulas and charts","i-table","t-teal"],["adr","Decision record","Context, options, decision","i-listc","t-purple"]];
+const TK={wb:"board",sheet:"sheet",plan:"doc",meet:"doc",blank:"doc",adr:"doc",sprint:"doc",intv:"doc"};
 const TPL2=[["sprint","Sprint review","Acme template · Asha Rao","i-zap","t-pink"],["intv","Customer interview","Acme template · Priya Nair","i-message","t-purple"]];
 function tplDlg(sel="plan",where="Product › Roadmaps"){
- const t=a=>`<button class="tp" data-tpl="${a[0]}" aria-pressed="${a[0]===sel}"><span class="pv ${a[4]}">${ic(a[3])}</span><b>${a[1]}</b><small>${a[2]}</small></button>`;
- return `<div class="dlg wide" role="dialog" aria-modal="true" aria-labelledby="tpl-h"><div class="dlg-h"><div style="flex:1"><h3 id="tpl-h">New canvas</h3><p>Pick a template. You can change everything after.</p></div><button class="btn ic" data-close aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><div class="tpl">${TPL.map(t).join("")}</div><div class="sub" style="margin-top:1rem"><h3>Acme templates</h3><span class="hint" style="margin-left:auto">Saved by admins</span></div><div class="tpl">${TPL2.map(t).join("")}</div></div><div class="dlg-f" style="justify-content:space-between;align-items:center"><span class="hint" style="display:flex;gap:.375rem;align-items:center">${ic("i-folder","sm")}Create in <select class="rsel gh" aria-label="Where"><option>${where}</option><option>Product</option><option>My canvases</option></select></span><span style="display:flex;gap:.5rem"><button class="btn sec" data-close>Cancel</button><button class="btn pri" data-create>Create canvas</button></span></div></div>`;
+ const t=a=>`<button class="tp" data-tpl="${a[0]}" aria-pressed="${a[0]===sel}"><span class="pv ${a[4]}">${ic(a[3])}</span><b>${a[1]}</b><small>${a[2]}</small><span class="tyk">${ic(TY[TK[a[0]]||"doc"].ic,"sm")}${TY[TK[a[0]]||"doc"].l}</span></button>`;
+ return `<div class="dlg wide" role="dialog" aria-modal="true" aria-labelledby="tpl-h"><div class="dlg-h"><div style="flex:1"><h3 id="tpl-h">New from a template</h3><p>Pick a template. You can change everything after.</p></div><button class="btn ic" data-close aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><div class="tpl">${TPL.map(t).join("")}</div><div class="sub" style="margin-top:1rem"><h3>Acme templates</h3><span class="hint" style="margin-left:auto">Saved by admins</span></div><div class="tpl">${TPL2.map(t).join("")}</div></div><div class="dlg-f" style="justify-content:space-between;align-items:center"><span class="hint" style="display:flex;gap:.375rem;align-items:center">${ic("i-folder","sm")}Create in <select class="rsel gh" aria-label="Where"><option>${where}</option><option>Product</option><option>My canvases</option></select></span><span style="display:flex;gap:.5rem"><button class="btn sec" data-close>Cancel</button><button class="btn pri" data-create>Create</button></span></div></div>`;
 }
 $("#tpl-static").innerHTML=tplDlg();
+/* New menu (3a, 13a): the four file types first, then templates, a folder and import. */
+function newMenu(where="Product › Roadmaps",style=""){
+ const t=k=>`<div class="mi" role="menuitem" tabindex="-1" data-newtype="${k}"><span class="ctile ${TY[k].tone}">${ic(TY[k].ic)}</span><span class="m"><b>${TY[k].l}</b><small>${TY[k].s}</small></span></div>`;
+ return `<div class="pop newm" role="menu" aria-label="New" style="${style}">${["doc","sheet","board","db"].map(t).join("")}<div class="sepl"></div><div class="mi" role="menuitem" tabindex="-1" data-newtpl>${ic("i-layout")}<span style="flex:1">From a template…</span><kbd>C</kbd></div><div class="mi" role="menuitem" tabindex="-1">${ic("i-folder-plus")}<span style="flex:1">Folder</span></div><div class="mi" role="menuitem" tabindex="-1">${ic("i-upload")}<span class="m"><span>Import a file</span><small>.xlsx, .csv, .md, .docx, .drawio and more</small></span></div><div class="sepl"></div><div class="hint" style="padding:.25rem .5rem .375rem">Creates in ${where}</div></div>`;
+}
 
 /* ---------- 3a home ---------- */
 (function(){
@@ -771,7 +914,7 @@ $("#tpl-static").innerHTML=tplDlg();
   else if(view==="shared"){title="Shared with me";list=[]}
   else{const w=WS.find(x=>x.f.some(f=>f.id===view));if(w){const f=w.f.find(f=>f.id===view);title=f.n;hint=`${w.n} › ${f.n}`;list=C.filter(c=>c.f===f.n)}
    const w2=WS.find(x=>x.id===view);if(w2){title=w2.n;list=C.filter(c=>c.w===w2.n)}}
-  const top=`<div class="mn-t">${title!=="Home"&&hint?`<span class="crumbs"><span class="par">${hint.split(" › ")[0]}</span><span class="sep">›</span><span class="cname">${title}</span></span>`:`<span class="crumbs"><span class="cname">${title}</span></span>`}<span class="sp"></span><button class="btn ic" aria-label="Notifications">${ic("i-bell")}</button><button class="btn pri" data-new>${ic("i-plus")}New canvas</button></div>`;
+  const top=`<div class="mn-t">${title!=="Home"&&hint?`<span class="crumbs"><span class="par">${hint.split(" › ")[0]}</span><span class="sep">›</span><span class="cname">${title}</span></span>`:`<span class="crumbs"><span class="cname">${title}</span></span>`}<span class="sp"></span><button class="btn ic" aria-label="Notifications">${ic("i-bell")}</button><button class="btn pri" data-new aria-haspopup="menu" aria-expanded="false">${ic("i-plus")}New${ic("i-down","sm")}</button></div>`;
   if(view==="shared"){body=`<div class="emp"><span class="art">${ic("i-users")}</span><b>Nothing shared with you yet</b><p>When someone shares a canvas or folder with you, or adds you to a team, it shows up here.</p></div>`;return top+`<div class="mn-b" style="height:calc(100% - 3rem)">${body}</div>`}
   if(view==="home"){
    if(checklist){const it=[["Create your account",1],["Invite people",1],["Choose sign-in methods",0],["Set up e-mail (optional)",0],["Set up backups",0]];
@@ -781,7 +924,7 @@ $("#tpl-static").innerHTML=tplDlg();
   body+=`<div class="sub"><h3>${view==="home"?"Recently edited":list.length+" canvases"}</h3><span class="sp"></span><select class="rsel gh" aria-label="Sort"><option>Last edited</option><option>Name</option><option>Created</option></select><span class="seg" role="group" aria-label="Layout"><button data-mode="grid" aria-pressed="${mode==="grid"}">${ic("i-grid","sm")} Grid</button><button data-mode="list" aria-pressed="${mode==="list"}">${ic("i-list","sm")} List</button></span></div>`;
   if(!list.length)body+=`<div class="emp" style="height:auto;padding:3rem 1rem"><span class="art">${ic("i-star")}</span><b>${view==="fav"?"No favourites yet":"Nothing here yet"}</b><p>${view==="fav"?"Star a canvas to keep it here and at the top of the sidebar.":"Create the first canvas here, or move canvases in from another workspace."}</p></div>`;
   else if(mode==="grid")body+=`<div class="cg">${list.map(card).join("")}</div>`;
-  else body+=`<table class="tbl"><thead><tr><th>Name</th><th>Location</th><th>Edited by</th><th>Edited</th><th><span class="sr-only" style="position:absolute;left:-9999px">Favourite</span></th></tr></thead><tbody>${list.map(row).join("")}</tbody></table>`;
+  else body+=`<table class="tbl"><thead><tr><th>Name</th><th>Type</th><th>Location</th><th>Edited by</th><th>Edited</th><th><span class="sr-only" style="position:absolute;left:-9999px">Favourite</span></th></tr></thead><tbody>${list.map(row).join("")}</tbody></table>`;
   return top+`<div class="mn-b">${body}</div>`;
  }
  function render(){host.innerHTML=sidebar(view)+`<div class="mn">${main()}</div>`}
@@ -792,14 +935,19 @@ $("#tpl-static").innerHTML=tplDlg();
   const s=e.target.closest("[data-star]");if(s){e.stopPropagation();const c=C.find(x=>x.id===s.dataset.star);c.star=!c.star;render();return}
   const m=e.target.closest("[data-mode]");if(m){mode=m.dataset.mode;render();return}
   if(e.target.closest("[data-dismiss]")){checklist=false;render();return}
-  if(e.target.closest("[data-new]")){const mk=document.createElement("div");mk.className="mask";mk.innerHTML=tplDlg();host.appendChild(mk);return}
+  const nb=e.target.closest("[data-new]");if(nb){const open=$(".newm",host);if(open){open.remove();nb.setAttribute("aria-expanded","false");return}nb.setAttribute("aria-expanded","true");host.insertAdjacentHTML("beforeend",newMenu());$(".newm [role=menuitem]",host).focus();return}
+  const nt=e.target.closest("[data-newtype]");if(nt){$(".newm",host).remove();const k=nt.dataset.newtype;made++;C.unshift(typed({id:"new"+made,n:"Untitled "+TY[k].l.toLowerCase(),w:"Product",f:"Roadmaps",by:"pn",at:"Just now",star:false,live:[],k}));view="home";render();toast(host,`${ic("i-circle-check")}New ${TY[k].l.toLowerCase()} in Product › Roadmaps <button class="btn sec">Open</button>`);return}
+  if(e.target.closest("[data-newtpl]")){$(".newm",host).remove();const mk=document.createElement("div");mk.className="mask";mk.innerHTML=tplDlg();host.appendChild(mk);return}
+  if($(".newm",host)&&!e.target.closest(".newm")){$(".newm",host).remove()}
   const tp=e.target.closest("[data-tpl]");if(tp){$$("[data-tpl]",host).forEach(b=>b.setAttribute("aria-pressed",String(b===tp)));return}
   if(e.target.closest("[data-close]")){$(".mask",host).remove();return}
   if(e.target.closest("[data-create]")){const sel=$('[data-tpl][aria-pressed="true"]',host);const t=[...TPL,...TPL2].find(x=>x[0]===sel.dataset.tpl);made++;
-   C.unshift({id:"new"+made,n:t[0]==="blank"?"Untitled":t[1],w:"Product",f:"Roadmaps",tone:t[4],ic:t[3],by:"pn",at:"Just now",star:false,live:[],k:t[0]==="wb"?"board":t[0]==="plan"||t[0]==="sheet"?"db":"doc"});
+   C.unshift(typed({id:"new"+made,n:t[0]==="blank"?"Untitled":t[1],w:"Product",f:"Roadmaps",by:"pn",at:"Just now",star:false,live:[],k:TK[t[0]]||"doc"}));
    view="home";render();toast(host,`${ic("i-circle-check")}Created in Product › Roadmaps <button class="btn sec">Open</button>`)}
  });
- host.addEventListener("keydown",e=>{if(e.key==="Escape"&&$(".mask",host))$(".mask",host).remove()});
+ host.addEventListener("keydown",e=>{if(e.key==="Escape"){if($(".newm",host)){$(".newm",host).remove();$("[data-new]",host).focus()}else if($(".mask",host))$(".mask",host).remove()}
+  const m=e.target.closest(".newm");if(m&&(e.key==="ArrowDown"||e.key==="ArrowUp")){const it=$$("[role=menuitem]",m);const i=it.indexOf(e.target);it[(i+(e.key==="ArrowDown"?1:-1)+it.length)%it.length].focus();e.preventDefault()}
+  if(m&&e.key==="Enter"){e.target.click();e.preventDefault()}});
 })();
 
 /* ---------- 1a setup ---------- */
@@ -889,21 +1037,22 @@ function wireShare(host,onClose){
 (function(){
  const host=$("#search");
  const IDX=[
-  {c:"q1",t:"Q1 launch plan",p:"Product › Roadmaps",ty:"Canvases",s:"We <m>launch</m> the Workspace beta to three design partners in January"},
-  {c:"q1",t:"Q1 launch plan › Launch tasks",p:"Database row · Partner onboarding",ty:"Databases",s:"Partner onboarding · Asha · due 16 Jan · <m>launch</m> checklist"},
-  {c:"sync",t:"Weekly product sync",p:"Product · Notes, 21 Nov",ty:"Canvases",s:"Decision: move the <m>launch</m> review to Thursday so Design can join"},
-  {c:"arch",t:"Storage architecture",p:"Engineering › RFCs · Board",ty:"Boards",s:"Sticky: \"S3 optional at <m>launch</m>, local disk first\""},
-  {c:"intv",t:"Customer interviews",p:"Product › Research",ty:"Canvases",s:"\"We would switch if setup takes less than a coffee\" — before <m>launch</m>"},
-  {c:"oncall",t:"On-call runbook",p:"Engineering › Runbooks",ty:"Canvases",s:"Restart the container; data stays in /data. Backups run nightly"},
-  {c:"budget",t:"Design budget 2027",p:"Design · Spreadsheet",ty:"Databases",s:"Brand refresh · 24,000 · Q2"}
+  {c:"q1",t:"Q1 launch plan",p:"Product › Roadmaps",ty:"Documents",s:"We <m>launch</m> the Workspace beta to three design partners in January"},
+  {c:"q1",t:"Q1 launch plan › Launch tasks",p:"Row in a database block · Partner onboarding",ty:"Documents",s:"Partner onboarding · Asha · due 16 Jan · <m>launch</m> checklist"},
+  {c:"sync",t:"Weekly product sync",p:"Product · Notes, 21 Nov",ty:"Documents",s:"Decision: move the <m>launch</m> review to Thursday so Design can join"},
+  {c:"arch",t:"Storage architecture",p:"Engineering › RFCs · Sticky",ty:"Whiteboards",s:"Sticky: \"S3 optional at <m>launch</m>, local disk first\""},
+  {c:"intv",t:"Customer interviews",p:"Product › Research",ty:"Documents",s:"\"We would switch if setup takes less than a coffee\" — before <m>launch</m>"},
+  {c:"oncall",t:"On-call runbook",p:"Engineering › Runbooks",ty:"Documents",s:"Restart the container; data stays in /data. Backups run nightly"},
+  {c:"budget",t:"Design budget 2027",p:"Design · Budget sheet · D2",ty:"Spreadsheets",s:"Brand refresh · 24,000 · Q2 <m>launch</m> campaign"},
+  {c:"okr",t:"Team goals",p:"Product · Row",ty:"Databases",s:"Ship passkeys before the <m>launch</m> · Q1 · On track"}
  ];
  let q="launch",ty="All",sel=0;
  function hl(s){return q?s.replace(/<m>(.*?)<\/m>/g,"$1").replace(new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"),"<mark>$1</mark>"):s.replace(/<\/?m>/g,"")}
  function results(){const r=IDX.filter(x=>(ty==="All"||x.ty===ty)&&(!q||(x.t+" "+x.s.replace(/<\/?m>/g,"")).toLowerCase().includes(q.toLowerCase())));
   if(!r.length)return `<div class="emp" style="height:auto;padding:2.5rem 1rem"><span class="art">${ic("i-search")}</span><b>No canvases match "${esc(q)}"</b><p>Check the spelling, or search every workspace. Canvases you cannot open never show up here.</p><div class="acts"><button class="btn sec">Search every workspace</button></div></div>`;
-  return `<div class="cap" style="padding-left:.5rem">${r.length} result${r.length>1?"s":""}</div>`+r.map((x,k)=>{const c=C.find(y=>y.id===x.c);return `<div class="sr ${k===sel?"on":""}" role="option" aria-selected="${k===sel}"><span class="ctile ${c.tone}" style="width:2rem;height:2rem;border-radius:.5rem">${ic(c.ic)}</span><span class="m"><b>${hl(x.t)}</b><span class="pth">${x.p}</span><p>${hl(x.s)}</p></span><span class="hint">${c.at}</span></div>`}).join("")}
+  return `<div class="cap" style="padding-left:.5rem">${r.length} result${r.length>1?"s":""}</div>`+r.map((x,k)=>{const c=C.find(y=>y.id===x.c);return `<div class="sr ${k===sel?"on":""}" role="option" aria-selected="${k===sel}"><span class="ctile ${c.tone}" style="width:2rem;height:2rem;border-radius:.5rem" role="img" aria-label="${TY[c.k].l}">${ic(c.ic)}</span><span class="m"><b>${hl(x.t)}</b><span class="pth">${x.p}</span><p>${hl(x.s)}</p></span><span class="hint">${c.at}</span></div>`}).join("")}
  function render(keep){
-  if(!keep){host.innerHTML=sidebar("home")+`<div class="mn" style="opacity:.45"><div class="mn-t"><span class="crumbs"><span class="cname">Home</span></span></div><div class="mn-b"><div class="cg">${C.slice(0,6).map(card).join("")}</div></div></div><div class="mask" style="place-items:start center;background:rgba(10,10,14,.22)"><div class="cmdk" role="dialog" aria-label="Search"><div class="cmdk-i">${ic("i-search","lg")}<input data-q value="${esc(q)}" aria-label="Search canvases" role="combobox" aria-expanded="true"><kbd class="kbd">Esc</kbd></div><div class="cmdk-f">${["All","Canvases","Databases","Boards","Comments"].map(t=>`<button class="chip" data-ty="${t}" aria-pressed="${t===ty}">${t}</button>`).join("")}<span class="sp"></span><select class="rsel gh" aria-label="Workspace"><option>Any workspace</option><option>Product</option><option>Engineering</option><option>Design</option></select><select class="rsel gh" aria-label="Edited"><option>Edited any time</option><option>Past week</option><option>Past month</option></select></div><div class="cmdk-b" role="listbox" data-res></div><div class="cmdk-ft"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open at the match</span><span><kbd>⌘Enter</kbd> new tab</span><span class="sp"></span><span>Comments are searched (Settings › Sharing)</span></div></div></div>`}
+  if(!keep){host.innerHTML=sidebar("home")+`<div class="mn" style="opacity:.45"><div class="mn-t"><span class="crumbs"><span class="cname">Home</span></span></div><div class="mn-b"><div class="cg">${C.slice(0,6).map(card).join("")}</div></div></div><div class="mask" style="place-items:start center;background:rgba(10,10,14,.22)"><div class="cmdk" role="dialog" aria-label="Search"><div class="cmdk-i">${ic("i-search","lg")}<input data-q value="${esc(q)}" aria-label="Search canvases" role="combobox" aria-expanded="true"><kbd class="kbd">Esc</kbd></div><div class="cmdk-f">${["All","Documents","Spreadsheets","Whiteboards","Databases","Comments"].map(t=>`<button class="chip" data-ty="${t}" aria-pressed="${t===ty}">${t}</button>`).join("")}<span class="sp"></span><select class="rsel gh" aria-label="Workspace"><option>Any workspace</option><option>Product</option><option>Engineering</option><option>Design</option></select><select class="rsel gh" aria-label="Edited"><option>Edited any time</option><option>Past week</option><option>Past month</option></select></div><div class="cmdk-b" role="listbox" data-res></div><div class="cmdk-ft"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open at the match</span><span><kbd>⌘Enter</kbd> new tab</span><span class="sp"></span><span>Comments are searched (Settings › Sharing)</span></div></div></div>`}
   $("[data-res]",host).innerHTML=results();$$("[data-ty]",host).forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.ty===ty)));
  }
  render();
@@ -915,7 +1064,7 @@ function wireShare(host,onClose){
 /* ---------- 7a trash ---------- */
 (function(){
  const host=$("#trash");let who="all";
- const T=[{n:"Old pricing page",p:"Product › Specs",ic:"i-file",tone:"t-teal",by:"pn",at:"Today 10:14",left:30},{n:"Research 2025",p:"Product › Research",ic:"i-folder",tone:"t-purple",by:"ar",at:"Nov 21",left:23,folder:"8 canvases"},{n:"Hackathon board",p:"Engineering",ic:"i-board",tone:"t-green",by:"tb",at:"Nov 2",left:4},{n:"Retro notes",p:"My canvases",ic:"i-file",tone:"t-gray",by:"pn",at:"Oct 31",left:2}];
+ const T=[typed({n:"Old pricing page",p:"Product › Specs",k:"doc",by:"pn",at:"Today 10:14",left:30}),{n:"Research 2025",p:"Product › Research",ic:"i-folder",tone:"t-gray",by:"ar",at:"Nov 21",left:23,folder:"8 files"},typed({n:"Hackathon board",p:"Engineering",k:"board",by:"tb",at:"Nov 2",left:4}),typed({n:"Travel costs 2026",p:"Design",k:"sheet",by:"lp",at:"Oct 31",left:2}),typed({n:"Retro notes",p:"My canvases",k:"doc",by:"pn",at:"Oct 31",left:2})];
  function render(){
   const list=T.filter(t=>who==="all"||t.by==="pn");
   const body=list.length?`<table class="tbl"><thead><tr><th>Name</th><th>Was in</th><th>Deleted by</th><th>Deleted</th><th>Deleted forever in</th><th></th></tr></thead><tbody>${list.map(t=>`<tr class="rw"><td><span class="nm"><span class="ctile ${t.tone}">${ic(t.ic,"sm")}</span>${t.n}${t.folder?` <span class="pill p-gray">${t.folder}</span>`:""}</span></td><td class="dimc">${t.p}</td><td><span class="ppl">${av(t.by,"s")}${P[t.by].n}</span></td><td class="dimc">${t.at}</td><td>${t.left<=5?`<span class="pill p-amber">${t.left} days</span>`:`<span class="dimc">${t.left} days</span>`}</td><td style="text-align:right"><button class="btn sec" data-restore="${t.n}">${ic("i-undo","sm")}Restore</button> <button class="btn ic" data-del="${t.n}" aria-label="Delete ${t.n} forever">${ic("i-trash","sm")}</button></td></tr>`).join("")}</tbody></table>`:`<div class="emp" style="height:auto;padding:4rem 1rem"><span class="art">${ic("i-trash")}</span><b>Trash is empty</b><p>Deleted canvases and folders stay here for 30 days, then they are deleted forever.</p></div>`;
@@ -1000,6 +1149,142 @@ const E=[
  ["11h","Version history, new canvas","i-history","Only the current version","Earlier versions appear here as people edit. Name a version to keep it forever.",`<button class="btn sec">${ic("i-pen","sm")}Name current version</button>`]
 ];
 $("#empties").innerHTML=E.map(e=>`<figure class="fr" style="margin:0"><figcaption><b>${e[0]}</b> ${e[1]} <span class="dim">384 × 288</span></figcaption><div class="fr-vp"><div class="fr-in" data-w="24" style="width:24rem;height:18rem;background:var(--app)"><div class="emp"><span class="art">${ic(e[2])}</span><b>${e[3]}</b><p>${e[4]}</p>${e[5]?`<div class="acts">${e[5]}</div>`:""}</div></div></div></figure>`).join("");
+
+/* ---------- 13 typed files ---------- */
+/* The Workspace header for a typed file: the same as 4a, with the type's tile in the breadcrumb. */
+function fileBar(k,path,name,people,opts={}){
+ const t=TY[k];
+ return `<div class="cv-t"><button class="btn ic" aria-label="${opts.sbOpen?"Hide":"Show"} sidebar">${ic("i-panel")}</button><span class="crumbs">${path.map(p=>`<span class="par">${p}</span><span class="sep">›</span>`).join("")}<span class="ctile ${t.tone}" style="width:1.25rem;height:1.25rem" role="img" aria-label="${t.l}">${ic(t.ic,"sm")}</span><span class="cname">${esc(name)}</span></span><button class="btn ic star" style="opacity:1;position:static;box-shadow:none" aria-label="Favourite" aria-pressed="${!!opts.star}">${ic("i-star","sm")}</button><span class="ocst">${ic("i-check","sm")}Saved</span><span class="sp"></span>${people.length?`<span class="stack" aria-label="${people.map(p=>P[p].n).join(" and ")} are here">${people.map(p=>av(p)).join("")}</span>`:""}<button class="btn">${ic("i-history")}History</button><button class="btn pri">${ic("i-share","sm")}Share</button><button class="btn ic" aria-label="More">${ic("i-dots")}</button></div>`;
+}
+const COLS="ABCDEFGHIJ".split("");
+const fmt=n=>typeof n==="number"?n.toLocaleString("en-GB"):n;
+/* Design budget 2027: the numbers add up (Q1 31,900 · Q2 47,400 · Q3 23,900 · Q4 17,900 · 121,100). */
+const BUDGET=[["Item","Owner","Q1","Q2","Q3","Q4","Total","Notes"],["Brand refresh","Lena",6000,24000,4000,0,34000,"Q2 launch campaign"],["Illustration library","Asha",3500,3500,3500,3500,14000,""],["User research","Priya",8000,2000,8000,2000,20000,"Two rounds"],["Conference travel","Lena",0,6500,0,4000,10500,"Config, Figma"],["Tools and licences","Asha",2400,2400,2400,2400,9600,""],["Contractors","Priya",12000,9000,6000,6000,33000,"Motion, copy"],["","","","","","","",""],["Total","",31900,47400,23900,17900,121100,""]];
+const FORM=(r,c)=>{if(r===8&&c>=2&&c<=6)return `=SUM(${COLS[c]}2:${COLS[c]}7)`;if(c===6&&r>=1&&r<=6)return `=SUM(C${r+1}:F${r+1})`;return null};
+function gridHtml(data,sel,opts={}){
+ const cols=opts.cols||data[0].length,rows=opts.rows||data.length+6;
+ let h=`<table role="grid" aria-label="${opts.label||"Sheet"}"><thead><tr><th class="rh" scope="col"><span style="position:absolute;left:-9999px">Row</span></th>${COLS.slice(0,cols).map((c,k)=>`<th scope="col" class="${sel&&sel[1]===k?"on":""}">${c}</th>`).join("")}</tr></thead><tbody>`;
+ for(let r=0;r<rows;r++){
+  const row=data[r]||[];
+  h+=`<tr><th class="rh ${sel&&sel[0]===r?"on":""}" scope="row">${r+1}</th>`;
+  for(let c=0;c<cols;c++){
+   const v=row[c]??"",num=typeof v==="number";
+   const cls=[c===0||c===cols-1&&!opts.cols?"w":"",num?"n":"",r===0&&opts.head!==false?"hd":"",r===8&&opts.total!==false?"tot":"",sel&&sel[0]===r&&sel[1]===c?"sel":"",opts.peer&&opts.peer[0]===r&&opts.peer[1]===c?"peer":""].filter(Boolean).join(" ");
+   h+=`<td class="${cls}" data-rc="${r},${c}" ${opts.peer&&opts.peer[0]===r&&opts.peer[1]===c?`data-peer="${opts.peerName}"`:""} aria-selected="${!!(sel&&sel[0]===r&&sel[1]===c)}">${esc(fmt(v))}</td>`;
+  }
+  h+=`</tr>`;
+ }
+ return h+`</tbody></table>`;
+}
+const sheetTools=()=>`<div class="sa-tb" role="toolbar" aria-label="Format">${[["i-undo","Undo"],["i-redo","Redo"]].map(b=>`<button class="btn ic" aria-label="${b[1]}">${ic(b[0])}</button>`).join("")}<span class="vs"></span><select class="rsel gh" aria-label="Number format"><option>Number</option><option>Currency</option><option>Percent</option><option>Date</option></select>${[["i-percent","Percent"],["i-bold","Bold"],["i-italic","Italic"],["i-align","Align"]].map(b=>`<button class="btn ic" aria-label="${b[1]}">${ic(b[0])}</button>`).join("")}<span class="vs"></span>${[["i-sigma","Functions"],["i-chart","Insert chart"],["i-filter","Filter"],["i-snow","Freeze"]].map(b=>`<button class="btn" aria-label="${b[1]}">${ic(b[0])}<span>${b[1]==="Insert chart"?"Chart":b[1]}</span></button>`).join("")}</div>`;
+function aggOf(data,sel){const v=(data[sel[0]]||[])[sel[1]];return typeof v==="number"?`Sum ${fmt(v)} · Count 1`:v?"Count 1":""}
+
+/* 13a New menu */
+(function(){
+ const host=$("#newtype");let open=true;
+ function render(){
+  host.innerHTML=sidebar("roadmaps")+`<div class="mn"><div class="mn-t"><span class="crumbs"><span class="par">Product</span><span class="sep">›</span><span class="cname">Roadmaps</span></span><span class="sp"></span><button class="btn ic" aria-label="Notifications">${ic("i-bell")}</button><button class="btn pri" data-new2 aria-haspopup="menu" aria-expanded="${open}">${ic("i-plus")}New${ic("i-down","sm")}</button></div><div class="mn-b"><div class="mn-h"><h2>Roadmaps</h2></div><div class="cg">${C.filter(c=>c.f==="Roadmaps"||c.k!=="doc").slice(0,5).map(card).join("")}</div></div></div>${open?newMenu("Product › Roadmaps","top:2.75rem;right:1rem"):""}`;
+ }
+ render();
+ host.addEventListener("click",e=>{
+  if(e.target.closest("[data-new2]")){open=!open;render();return}
+  const nt=e.target.closest("[data-newtype]");if(nt){const k=nt.dataset.newtype;open=false;render();toast(host,`${ic(TY[k].ic)}A new ${TY[k].l.toLowerCase()} opens ${k==="doc"?"in the canvas editor":k==="sheet"?"straight into the grid (13c)":k==="board"?"straight into the board (13d)":"on its table view (13e)"}`);return}
+  if(e.target.closest(".newm [role=menuitem]")){open=false;render();return}
+ });
+ host.addEventListener("keydown",e=>{const m=e.target.closest(".newm");if(e.key==="Escape"&&open){open=false;render();$("[data-new2]",host).focus()}if(m&&(e.key==="ArrowDown"||e.key==="ArrowUp")){const it=$$("[role=menuitem]",m);const i=it.indexOf(e.target);it[(i+(e.key==="ArrowDown"?1:-1)+it.length)%it.length].focus();e.preventDefault()}if(m&&e.key==="Enter"){e.target.click();e.preventDefault()}});
+})();
+
+/* 13b the four types */
+$("#typelegend").innerHTML=`<div class="tyl">${[
+ ["doc","Pages of text with any block: tables, databases, sheets, boards, embeds.","The canvas editor (4a)","PDF, Word, Markdown, HTML","Document"],
+ ["sheet","A workbook: cells, formulas, several sheets, charts.","The full-screen grid (13c)",".xlsx, CSV, PDF","Spreadsheet"],
+ ["board","A board for sketches, stickies and diagrams; diagram mode included.","The full board (13d)","PNG, SVG, PDF, .drawio","Whiteboard"],
+ ["db","Rows with properties and views; each row can be a page.","The database views (13e)","CSV, Markdown","Database"]
+].map(x=>`<div class="tyc"><span class="ctile ${TY[x[0]].tone}">${ic(TY[x[0]].ic)}</span><b>${TY[x[0]].l}</b><span class="hint" style="font-size:.8125rem">${x[1]}</span><dl><dt>Opens in</dt><dd>${x[2]}</dd><dt>Exports</dt><dd>${x[3]}</dd><dt>New from</dt><dd>New › ${x[4]}, a template, or an import</dd></dl></div>`).join("")}</div>`;
+
+/* 13c spreadsheet app */
+(function(){
+ const host=$("#sheetapp");let sel=[8,6],tab=0;
+ const TABS=["Budget","By quarter","Vendors"];
+ const OTHER=[[["Quarter","Spend","Change"],["Q1",31900,""],["Q2",47400,"+49%"],["Q3",23900,"−50%"],["Q4",17900,"−25%"]],[["Vendor","Contact","Contract ends"],["Studio North","studio@north.example","Mar 2027"],["Copyhouse","hello@copyhouse.example","Jun 2027"]]];
+ function render(){
+  const data=tab===0?BUDGET:OTHER[tab-1];
+  const f=tab===0?FORM(sel[0],sel[1]):null;const v=(data[sel[0]]||[])[sel[1]]??"";
+  host.innerHTML=`<div class="mn">${fileBar("sheet",["Design"],"Design budget 2027",["lp","ar"],{star:false})}<div class="sa">${sheetTools()}<div class="sa-fx"><span class="nb" aria-label="Cell">${COLS[sel[1]]}${sel[0]+1}</span><span class="fx" aria-hidden="true">fx</span><span class="fv" aria-label="Formula">${esc(f||fmt(v))}</span></div><div class="sa-g">${gridHtml(data,sel,{cols:tab===0?9:5,rows:22,peer:tab===0?[1,3]:null,peerName:"Asha Rao",total:tab===0,label:TABS[tab]})}</div><div class="sa-tabs" role="tablist" aria-label="Sheets">${TABS.map((t,k)=>`<button class="tab" role="tab" aria-selected="${k===tab}" data-tab13="${k}">${t}</button>`).join("")}<button class="btn ic" aria-label="Add sheet">${ic("i-plus","sm")}</button><span class="agg" aria-live="polite">${aggOf(data,sel)}</span></div></div></div>`;
+ }
+ render();
+ host.addEventListener("click",e=>{const td=e.target.closest("td[data-rc]");if(td){sel=td.dataset.rc.split(",").map(Number);render();return}const t=e.target.closest("[data-tab13]");if(t){tab=+t.dataset.tab13;sel=[1,1];render()}});
+})();
+
+/* 13d whiteboard app */
+const boardScene=(w,h,s=1)=>{
+ const R=(x,y,ww,hh,txt,tone,rx=12)=>`<g><rect x="${x}" y="${y}" width="${ww}" height="${hh}" rx="${rx}" style="fill:var(--app);stroke:var(--${tone}-fg);stroke-width:1.5"/><text x="${x+ww/2}" y="${y+hh/2+4}" text-anchor="middle" style="fill:var(--fg);font:500 ${13*s}px var(--font)">${txt}</text></g>`;
+ const ST=(x,y,txt,tone)=>`<g><rect x="${x}" y="${y}" width="${150*s}" height="${92*s}" rx="4" style="fill:var(--${tone}-bg);filter:drop-shadow(0 2px 3px rgba(0,0,0,.08))"/>${txt.map((t,k)=>`<text x="${x+12*s}" y="${y+(24+k*17)*s}" style="fill:var(--${tone}-fg);font:500 ${12*s}px var(--font)">${t}</text>`).join("")}</g>`;
+ const L=(d)=>`<path d="${d}" style="fill:none;stroke:var(--fg-3);stroke-width:1.5" marker-end="url(#ah${s})"/>`;
+ return `<svg class="scene" viewBox="0 0 ${w} ${h}" role="img" aria-label="Storage architecture board: browser, engine, workspace, database and files, with three stickies"><defs><marker id="ah${s}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" style="fill:var(--fg-3)"/></marker></defs>
+ <rect x="${300*s}" y="${90*s}" width="${640*s}" height="${380*s}" rx="16" style="fill:none;stroke:var(--line-2);stroke-dasharray:6 5"/><text x="${316*s}" y="${114*s}" style="fill:var(--fg-3);font:600 ${11*s}px var(--font);letter-spacing:.04em">ONE CONTAINER</text>
+ ${R(80*s,240*s,150*s,56*s,"Browser","blue")}${R(380*s,150*s,190*s,64*s,"Workspace host","purple")}${R(380*s,330*s,190*s,64*s,"Engine","green")}${R(700*s,150*s,190*s,64*s,"workspace.db","gray",30)}${R(700*s,330*s,190*s,64*s,"files/ or S3","amber",30)}
+ ${L(`M${230*s} ${258*s} C ${300*s} ${258*s}, ${310*s} ${182*s}, ${376*s} ${182*s}`)}${L(`M${230*s} ${278*s} C ${300*s} ${278*s}, ${310*s} ${362*s}, ${376*s} ${362*s}`)}${L(`M${570*s} ${182*s} H ${696*s}`)}${L(`M${570*s} ${362*s} H ${696*s}`)}${L(`M${475*s} ${214*s} V ${326*s}`)}
+ <text x="${485*s}" y="${275*s}" style="fill:var(--fg-3);font:${11*s}px var(--font)">signed callbacks</text>
+ ${ST(990*s,130*s,["S3 optional at","launch, local","disk first"],"amber")}${ST(1010*s,300*s,["Backups: one","tar.zst with","the secrets"],"green")}${ST(90*s,420*s,["Redis only","in compose"],"pink")}
+ <g transform="translate(${640*s} ${250*s})"><path d="M0 0 0 16 4.5 12 7.5 19 10 18 7 11 13 11z" style="fill:var(--u2);stroke:#fff;stroke-width:1"/><rect x="12" y="16" width="${78*s}" height="18" rx="5" style="fill:var(--u2)"/><text x="${18}" y="29" style="fill:#fff;font:600 10px var(--font)">Tom Becker</text></g></svg>`;
+};
+(function(){
+ const host=$("#boardapp");let tool="pointer",diag=false;
+ const TOOLS=[["pointer","i-pointer","Select (V)"],["hand","i-hand","Pan (H)"],["-"],["sticky","i-sticky","Sticky note (S)"],["shape","i-square","Shape (R)"],["line","i-spline","Connector (L)"],["text","i-type","Text (T)"],["pen","i-pen","Pen (P)"],["image","i-image","Image"],["frame","i-frame","Frame (F)"]];
+ function render(){
+  host.innerHTML=`<div class="mn">${fileBar("board",["Engineering","RFCs"],"Storage architecture",["tb","pn"],{star:true})}<div class="ba">${boardScene(1280,672)}<div class="ba-top" role="toolbar" aria-label="Board"><span class="seg" role="group" aria-label="Mode"><button aria-pressed="${!diag}" data-mode13="0">Sketch</button><button aria-pressed="${diag}" data-mode13="1">Diagram</button></span><span class="vs" style="width:1px;height:1.25rem;background:var(--line);margin:0 .25rem"></span><button class="btn">${ic("i-shapes","sm")}Shapes</button><button class="btn">${ic("i-frame","sm")}Frames</button><button class="btn">${ic("i-message","sm")}Comments</button></div><div class="ba-tools" role="toolbar" aria-label="Tools" aria-orientation="vertical">${TOOLS.map(t=>t[0]==="-"?`<div class="sepl"></div>`:`<button class="btn ic ${tool===t[0]?"on":""}" aria-pressed="${tool===t[0]}" aria-label="${t[2]}" data-tool="${t[0]}" title="${t[2]}">${ic(t[1])}</button>`).join("")}</div><div class="ba-zoom"><button class="btn ic" aria-label="Zoom out">${ic("i-minus","sm")}</button><span style="min-width:2.75rem;text-align:center">100%</span><button class="btn ic" aria-label="Zoom in">${ic("i-plus","sm")}</button><button class="btn ic" aria-label="Fit to screen">${ic("i-maximize","sm")}</button></div><div class="ba-mini" aria-hidden="true"><i class="t-blue" style="left:.7rem;top:2.3rem;width:1.2rem;height:.5rem"></i><i class="t-purple" style="left:3.1rem;top:1.4rem;width:1.5rem;height:.6rem"></i><i class="t-green" style="left:3.1rem;top:3.1rem;width:1.5rem;height:.6rem"></i><i class="t-gray" style="left:5.6rem;top:1.4rem;width:1.5rem;height:.6rem"></i><i class="t-amber" style="left:5.6rem;top:3.1rem;width:1.5rem;height:.6rem"></i><i class="t-amber" style="left:7.9rem;top:1.2rem;width:1.2rem;height:.8rem"></i><i class="t-green" style="left:8.1rem;top:2.8rem;width:1.2rem;height:.8rem"></i><span class="vp" style="left:.3rem;top:.5rem;width:9.4rem;height:5.2rem"></span></div></div></div>`;
+ }
+ render();
+ host.addEventListener("click",e=>{const t=e.target.closest("[data-tool]");if(t){tool=t.dataset.tool;render();return}const m=e.target.closest("[data-mode13]");if(m){diag=m.dataset.mode13==="1";render();toast(host,diag?`${ic("i-network")}Diagram mode: shapes snap and connectors route around them`:`${ic("i-pen")}Sketch mode`)}});
+})();
+
+/* 13e database app */
+(function(){
+ const host=$("#dbapp");let v="table";
+ const ROWS=[["Ship passkeys","ar","p-green","On track","Q1","80%"],["Search under 200 ms","tb","p-blue","In progress","Q1","45%"],["Five design partners","pn","p-amber","At risk","Q1","40%"],["Public links","dr","p-gray","Not started","Q2","0%"],["Backups to S3","tb","p-blue","In progress","Q2","20%"]];
+ const VIEWS=[["table","Table","i-table"],["board","Board","i-board"],["cal","Calendar","i-cal"],["time","Timeline","i-gantt"]];
+ function body(){
+  if(v==="board"){const groups=[["On track","p-green"],["In progress","p-blue"],["At risk","p-amber"],["Not started","p-gray"]];return `<div style="display:flex;gap:.875rem;padding:1rem;overflow:auto">${groups.map(g=>`<div style="width:15rem;flex:none"><div style="display:flex;gap:.375rem;align-items:center;margin-bottom:.5rem"><span class="pill ${g[1]}">${g[0]}</span><span class="hint">${ROWS.filter(r=>r[3]===g[0]).length}</span></div>${ROWS.filter(r=>r[3]===g[0]).map(r=>`<div class="cc" style="margin-bottom:.5rem;flex-direction:column;align-items:flex-start;gap:.375rem"><b style="font-weight:500;font-size:.8125rem">${r[0]}</b><span class="ppl">${av(r[1],"s")}<span class="hint">${r[4]} · ${r[5]}</span></span></div>`).join("")}</div>`).join("")}</div>`}
+  if(v!=="table")return `<div class="emp" style="height:auto;padding:3rem 1rem"><span class="art">${ic(v==="cal"?"i-cal":"i-gantt")}</span><b>${v==="cal"?"Calendar":"Timeline"} view</b><p>The same rows on ${v==="cal"?"a month calendar by due date":"a timeline by start and end"}, as in the editor's database block.</p></div>`;
+  return `<table class="tbl"><thead><tr><th>Goal</th><th>Owner</th><th>Status</th><th>Quarter</th><th>Progress</th></tr></thead><tbody>${ROWS.map(r=>`<tr class="rw"><td class="nm" style="font-weight:500">${r[0]}</td><td><span class="ppl">${av(r[1],"s")}${P[r[1]].n}</span></td><td><span class="pill ${r[2]}">${r[3]}</span></td><td class="dimc">${r[4]}</td><td><span style="display:inline-flex;gap:.5rem;align-items:center"><span class="meter" style="width:6rem;margin:0"><i style="width:${r[5]}"></i></span><span class="dimc">${r[5]}</span></span></td></tr>`).join("")}</tbody></table><button class="btn" style="margin:.375rem .25rem">${ic("i-plus","sm")}New row</button>`;
+ }
+ function render(){host.innerHTML=sidebar("product")+`<div class="mn">${fileBar("db",["Product"],"Team goals",["ar"],{sbOpen:true})}<div class="dbv" role="tablist" aria-label="Views">${VIEWS.map(x=>`<button class="tab" role="tab" aria-selected="${v===x[0]}" data-v13="${x[0]}">${ic(x[2],"sm")}${x[1]}</button>`).join("")}<button class="btn ic" aria-label="Add view">${ic("i-plus","sm")}</button><span class="sp"></span><button class="btn">${ic("i-filter","sm")}Filter</button><button class="btn">${ic("i-updown","sm")}Sort</button><button class="btn pri">${ic("i-plus","sm")}New row</button></div><div style="flex:1;min-height:0;overflow:auto;padding:0 .75rem">${body()}</div></div>`}
+ render();wireTree(host,()=>render());
+ host.addEventListener("click",e=>{const t=e.target.closest("[data-v13]");if(t){v=t.dataset.v13;render()}});
+})();
+
+/* 13f a sheet block inside a document; 13g the same data as a file */
+(function(){
+ const host=$("#sheetblock");let big=false,sel=[2,3];
+ const small=BUDGET.slice(0,5).map(r=>[r[0],r[2],r[3],typeof r[2]==="number"?r[2]+r[3]:""]);
+ small[0]=["Item","Q1","Q2","First half"];
+ function render(){
+  const v=(small[sel[0]]||[])[sel[1]]??"";
+  const fb=`<div class="sa-fx" style="height:2rem"><span class="nb" style="width:3.5rem">${COLS[sel[1]]}${sel[0]+1}</span><span class="fx" aria-hidden="true">fx</span><span class="fv">${sel[1]===3&&sel[0]>0?`=SUM(B${sel[0]+1}:C${sel[0]+1})`:esc(fmt(v))}</span></div>`;
+  const blk=`<div class="sblk" ${big?'style="margin:0;height:100%;display:flex;flex-direction:column;border-radius:0;box-shadow:none"':""}><div class="h">${ic("i-sheet","sm")}Budget<span class="hint" style="font-weight:400">· spreadsheet block</span><span class="sp"></span>${big?`<button class="btn" data-big>${ic("i-minimize","sm")}Back to document</button>`:`<button class="btn" data-big>${ic("i-maximize","sm")}Expand</button>`}<button class="btn ic" aria-label="Block menu" data-bm>${ic("i-dots")}</button></div>${fb}<div class="sa-g" ${big?'style="flex:1"':""}>${gridHtml(small,sel,{cols:4,rows:big?18:5,total:false,label:"Budget"})}</div>${big?`<div class="sa-tabs"><button class="tab" role="tab" aria-selected="true">Budget</button><span class="agg">Expanded inside "Design offsite plan" · Esc to return</span></div>`:""}</div>`;
+  host.innerHTML=`<div class="oct"><span class="crumbs"><span class="ctile t-blue" style="width:1.25rem;height:1.25rem" role="img" aria-label="Document">${ic("i-file","sm")}</span><span class="cname">Design offsite plan</span></span><span class="sp"></span><span class="ocst">${ic("i-check","sm")}Saved</span></div><div class="ocb">${big?blk:`<div class="doc" style="padding:1.75rem 2rem"><div class="doc-in"><h1 style="font-size:1.625rem">Design offsite plan</h1><div class="meta">${stack(["lp","pn"])} Document · Design</div><p>Two days in Lisbon in March. The budget below is the part we still need to agree on; the full year is in <span class="lnk">Design budget 2027</span>.</p>${blk}<p>Travel is booked once the Q2 numbers are approved.</p></div></div>`}</div>`;
+ }
+ render();
+ host.addEventListener("click",e=>{
+  if(e.target.closest("[data-big]")){big=!big;render();return}
+  const td=e.target.closest("td[data-rc]");if(td){sel=td.dataset.rc.split(",").map(Number);render();return}
+  if(e.target.closest("[data-bm]")){const b=e.target.closest("[data-bm]");const r=b.getBoundingClientRect(),hr=host.getBoundingClientRect(),z=parseFloat(host.closest(".fr-in").style.zoom)||1;const m=document.createElement("div");m.className="pop";m.setAttribute("role","menu");m.style.cssText=`right:1rem;top:${(r.bottom-hr.top)/z+4}px;width:17rem`;m.innerHTML=`<div class="mi" role="menuitem">${ic("i-maximize","sm")}Expand<kbd>⌘⇧↵</kbd></div><div class="mi" role="menuitem" data-mkfile>${ic("i-sheet","sm")}<span class="m" style="flex:1;line-height:1.3"><b style="font-weight:500;display:block">Make a spreadsheet file</b><small>A copy next to this document; optionally a live block here</small></span></div><div class="mi" role="menuitem">${ic("i-download","sm")}Export as .xlsx</div><div class="sepl"></div><div class="mi" role="menuitem">${ic("i-trash","sm")}Delete block</div>`;host.appendChild(m);setTimeout(()=>document.addEventListener("click",function f(ev){if(!m.contains(ev.target)||ev.target.closest("[data-mkfile]")){if(ev.target.closest("[data-mkfile]"))toast(host,`${ic("i-sheet")}"Budget" is now a spreadsheet file in Design <button class="btn sec">Open</button>`);m.remove();document.removeEventListener("click",f)}}),0)}
+ });
+ host.addEventListener("keydown",e=>{if(e.key==="Escape"&&big){big=false;render()}});
+ const h2=$("#sheetfile");
+ h2.innerHTML=`<div class="mn">${fileBar("sheet",["Design"],"Design budget 2027",["lp"])}<div class="sa">${sheetTools()}<div class="sa-fx"><span class="nb">D2</span><span class="fx" aria-hidden="true">fx</span><span class="fv">24000</span></div><div class="sa-g">${gridHtml(BUDGET,[1,3],{cols:7,rows:16,label:"Budget"})}</div><div class="sa-tabs" role="tablist" aria-label="Sheets">${["Budget","By quarter","Vendors"].map((t,k)=>`<button class="tab" role="tab" aria-selected="${k===0}">${t}</button>`).join("")}<span class="agg">Sum 24,000</span></div></div></div>`;
+})();
+
+/* 13h-13j phone */
+(function(){
+ const s=BUDGET.map(r=>[r[0],r[2],r[3],r[6]]);s[0]=["Item","Q1","Q2","Year"];
+ const hd=(k,par,name,ppl)=>`<div class="ph-hd"><button class="btn ic" aria-label="Back to ${par}" style="width:2.75rem;height:2.75rem">${ic("i-left","lg")}</button><span class="ctile ${TY[k].tone}" style="width:1.75rem;height:1.75rem;border-radius:.5rem" role="img" aria-label="${TY[k].l}">${ic(TY[k].ic,"sm")}</span><span style="flex:1;min-width:0;line-height:1.2"><small style="color:var(--fg-3);font-size:.6875rem">${par}</small><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</b></span><span class="stack">${ppl.map(p=>av(p,"s")).join("")}</span><button class="btn ic" aria-label="Share" style="width:2.75rem;height:2.75rem">${ic("i-share")}</button><button class="btn ic" aria-label="More" style="width:2.75rem;height:2.75rem">${ic("i-dots")}</button></div>`;
+ $("#ph-sheet").innerHTML=stat+hd("sheet","Design","Design budget 2027",["lp","ar"])+`<div class="ph-sa"><div class="sa-fx" style="height:2.75rem"><span class="nb" style="height:2rem">C9</span><span class="fx" aria-hidden="true">fx</span><span class="fv">=SUM(C2:C7)</span></div><div class="sa-g"><style>#ph-sheet .sa-g td{height:2.75rem}</style>${gridHtml(s,[8,2],{cols:4,rows:14,peer:[1,2],peerName:"Asha",label:"Budget"})}</div><div class="sa-tabs" role="tablist" aria-label="Sheets"><button class="tab" role="tab" aria-selected="true">Budget</button><button class="tab" role="tab" aria-selected="false">By quarter</button><button class="tab" role="tab" aria-selected="false">Vendors</button><span class="agg">Sum 47,400</span></div></div><div class="ph-tools" role="toolbar" aria-label="Sheet tools">${[["i-sigma","Functions"],["i-bold","Format"],["i-filter","Filter"],["i-chart","Chart"],["i-undo","Undo"],["i-type","Keyboard"]].map(b=>`<button class="btn ic" aria-label="${b[1]}">${ic(b[0],"lg")}</button>`).join("")}</div>`;
+ $("#ph-board").innerHTML=stat+hd("board","RFCs","Storage architecture",["tb"])+`<div class="ba" style="flex:1">${boardScene(1280,1100,1).replace('viewBox="0 0 1280 1100"','viewBox="40 60 700 1000"')}<div class="ba-zoom" style="bottom:.75rem;left:auto;right:.75rem"><span style="padding:0 .5rem">62%</span><button class="btn ic" aria-label="Fit to screen" style="width:2.75rem;height:2.75rem">${ic("i-maximize","sm")}</button></div></div><div class="ph-tools" role="toolbar" aria-label="Board tools">${[["i-pointer","Select"],["i-sticky","Sticky"],["i-square","Shape"],["i-spline","Connector"],["i-pen","Pen"],["i-plus","More tools"]].map((b,k)=>`<button class="btn ic ${k===0?"on":""}" aria-pressed="${k===0}" aria-label="${b[1]}">${ic(b[0],"lg")}</button>`).join("")}</div>`;
+ $("#ph-new").innerHTML=stat+`<div class="ph-hd"><button class="btn ic" aria-label="Menu" style="width:2.75rem;height:2.75rem">${ic("i-menu","lg")}</button><span class="org" style="padding:0;flex:1"><span class="ot t-blue">A</span><b>Acme</b></span>${av("pn")}</div><div class="ph-b" style="opacity:.4"><div class="ph-sec">Recent</div>${C.slice(0,5).map(c=>`<div class="ph-row"><span class="ctile ${c.tone}">${ic(c.ic)}</span><span class="m"><b>${esc(c.n)}</b><small>${c.at}</small></span></div>`).join("")}</div><div class="mask" style="place-items:end stretch"><div class="sheet" role="dialog" aria-label="New"><div class="grab"></div><b style="display:block;margin:0 .25rem .5rem;font-size:1rem">New in Product</b>${["doc","sheet","board","db"].map(k=>`<div class="mi" role="button" tabindex="0" style="min-height:3.5rem"><span class="ctile ${TY[k].tone}" style="width:2.5rem;height:2.5rem;border-radius:.625rem">${ic(TY[k].ic,"lg")}</span><span style="flex:1;line-height:1.3"><b style="display:block;font-weight:500;font-size:.9375rem">${TY[k].l}</b><small>${TY[k].s}</small></span>${ic("i-right","sm")}</div>`).join("")}<div class="sepl"></div><div class="mi" style="min-height:2.75rem">${ic("i-layout")}From a template</div><div class="mi" style="min-height:2.75rem">${ic("i-folder-plus")}Folder</div><div class="mi" style="min-height:2.75rem">${ic("i-upload")}Import a file</div></div></div>`;
+})();
+
 window.dispatchEvent(new Event("resize"));
 })();
 </script>

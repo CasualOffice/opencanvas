@@ -16,6 +16,13 @@ The owner approved the prototype and ADR-085 with these changes:
 4. **Benchmarked on the user base.** A WS benchmark for many users and workspaces (sign-in, home and search latency, memory at rest) is published with the engine benchmarks, with the hardware and load mix stated.
 5. **Large participation.** A canvas in the Workspace supports the engine's large rooms (cap 550 by default, configurable up to 1,000) without the Workspace becoming the bottleneck: launches, access checks and presence lookups must scale with it.
 6. **Public links are supported and admin-configurable.** Admins choose whether public links are allowed, and which roles they may grant (view, comment, edit), with an expiry and an optional password.
+8. **Files are typed** (owner, 2026-11-28, later the same day). *New* offers **Document**, **Spreadsheet**, **Whiteboard / Diagram**
+   and **Database**, each with its own icon and file type in Home, search, trash and on the phone. A spreadsheet opens straight
+   into the full-screen spreadsheet (grid, formula bar, sheet tabs) with no canvas around a block; a whiteboard or diagram opens
+   straight into the full board; a database opens on its views; a document opens the canvas editor as today. Mixing blocks stays
+   available inside documents, but the Workspace never shows a spreadsheet file as a canvas with a sheet block in it. The engine
+   side is a contract feature for every host (docs/05 §2f, "file types and app mode", tracker FTY-01..08); the UI is prototype
+   frames 13a–13j and waits for their approval (ADR-011).
 7. The other recommendations in §9 are accepted as recommended: no PostgreSQL in the MVP; the setup code is skipped from the same machine; one organisation per deployment; the retention defaults; the image and binary names; the engine's version numbers; a Welcome workspace on by default; a parallel track to v0.5.
 
 ## 1. Why

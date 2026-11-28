@@ -236,14 +236,7 @@ def benchmark_markdown() -> str:
         "The capacity page has the sizing guidance.",
         "",
     ]
-    def added(p: pathlib.Path) -> int:
-        # When the result was committed (newest first); not yet committed counts as newest.
-        import subprocess
-        out = subprocess.run(["git", "log", "-1", "--format=%ct", "--", p.relative_to(ROOT).as_posix()],
-                             cwd=ROOT, capture_output=True, text=True).stdout.strip()
-        return int(out) if out else 1 << 62
-
-    files = sorted(BENCH.glob("*.json"), key=lambda p: (added(p), p.name), reverse=True)
+    files = sorted(BENCH.glob("*.json"), key=lambda p: (_added(p), p.name), reverse=True)
     for f in files:
         d = json.loads(f.read_text(encoding="utf8"))
         name = d.get("scenario", f.stem)
@@ -299,9 +292,18 @@ def benchmark_markdown() -> str:
 PERF = ROOT / "e2e" / "perf" / "results"
 
 
+def _added(p: pathlib.Path) -> int:
+    """When a result was committed (newest first); not yet committed counts as newest. Never the
+    file's mtime: a fresh checkout gives every file the same one."""
+    import subprocess
+    out = subprocess.run(["git", "log", "-1", "--format=%ct", "--", p.relative_to(ROOT).as_posix()],
+                         cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    return int(out) if out else 1 << 62
+
+
 def _db_perf_markdown() -> list[str]:
     """DB4-07: the large-database runs in e2e/perf/results/db100k-*.json (browser frame times)."""
-    files = sorted(PERF.glob("db100k-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted(PERF.glob("db100k-*.json"), key=lambda p: (_added(p), p.name), reverse=True)
     if not files:
         return []
     out = ["## Large databases (DB100K)", "",
