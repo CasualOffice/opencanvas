@@ -1,0 +1,166 @@
+{
+ "scenario": "browser A/B, PSYNC-BUG-3",
+ "date": "2026-11-28",
+ "machine": "local (Apple M4, load average 10-20 from other work: interleaved rounds)",
+ "profile": {
+  "cpuThrottle": 4,
+  "downMbit": 40,
+  "upMbit": 40,
+  "rttMs": 40,
+  "viewport": {
+   "width": 1280,
+   "height": 900
+  }
+ },
+ "base": "editor at c951139",
+ "cur": "editor with the one first render, idle id pass, ICU-free counts, PeerBars guard",
+ "note": "firstScreenMs and mainSynced from navigation; after = firstScreenMs - mainSynced (the editor mount). 50mb runs: BENCH_REOPEN=1, the first run of each round is a cold open",
+ "s": {
+  "base": [
+   {
+    "first": [
+     1504,
+     810,
+     1206
+    ],
+    "synced": [
+     714,
+     441,
+     533
+    ]
+   },
+   {
+    "first": [
+     1192,
+     1093,
+     1144
+    ],
+    "synced": [
+     608,
+     523,
+     522
+    ]
+   },
+   {
+    "first": [
+     1451,
+     1386,
+     1393
+    ],
+    "synced": [
+     662,
+     625,
+     661
+    ]
+   }
+  ],
+  "cur": [
+   {
+    "first": [
+     783,
+     842,
+     1062
+    ],
+    "synced": [
+     500,
+     516,
+     643
+    ]
+   },
+   {
+    "first": [
+     1036,
+     1032,
+     969
+    ],
+    "synced": [
+     624,
+     610,
+     569
+    ]
+   },
+   {
+    "first": [
+     956,
+     833,
+     765
+    ],
+    "synced": [
+     572,
+     517,
+     485
+    ]
+   }
+  ],
+  "afterMedian": {
+   "base": 673,
+   "cur": 384
+  }
+ },
+ "50mb": {
+  "base": [
+   {
+    "first": [
+     6198,
+     1430,
+     1867,
+     1510
+    ],
+    "synced": [
+     3739,
+     736,
+     805,
+     749
+    ]
+   },
+   {
+    "first": [
+     3140,
+     1866,
+     2073,
+     1819
+    ],
+    "synced": [
+     1509,
+     919,
+     956,
+     883
+    ]
+   }
+  ],
+  "cur": [
+   {
+    "first": [
+     4176,
+     1179,
+     1148,
+     1163
+    ],
+    "synced": [
+     3234,
+     723,
+     695,
+     708
+    ]
+   },
+   {
+    "first": [
+     2929,
+     1650,
+     2067,
+     1982
+    ],
+    "synced": [
+     1979,
+     892,
+     1073,
+     1004
+    ]
+   }
+  ],
+  "reopenAfterMedian": {
+   "base": 941,
+   "cur": 606
+  }
+ }
+}

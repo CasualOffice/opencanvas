@@ -529,7 +529,7 @@ fn routing_leaves_new_databases_in_main_until_the_next_split() {
 }
 
 #[test]
-fn a_spreadsheet_block_stays_in_the_main_document() {
+fn a_spreadsheet_block_is_a_part() {
     let doc = doc_with(1);
     {
         let sheets = doc.get_or_insert_map("sheets");
@@ -541,10 +541,58 @@ fn a_spreadsheet_block_stays_in_the_main_document() {
     let cut = split(&update).unwrap();
     assert_eq!(
         cut.parts.keys().map(String::as_str).collect::<Vec<_>>(),
-        [MAIN]
+        [MAIN, "sheets/k"]
     );
-    assert_eq!(part_root("sheets/k"), None);
+    assert_eq!(part_root("sheets/k"), Some(("sheets", "k")));
+    // The main document has nothing of the block: its root is empty there.
+    assert!(json(&load(&cut.parts[MAIN], 8))["sheets"]["k"].is_null());
     let whole = flatten(&cut.parts.values().collect::<Vec<_>>()).unwrap();
     assert_eq!(json(&load(&whole, 9)), json(&doc));
     assert!(json(&doc)["sheets"]["k"]["styles"].is_object());
+}
+
+/// PSYNC-BUG-4: one client id per document. A part may claim fresh clocks, echo its own items
+/// and carry fillers; an item at a clock another document was given is refused.
+#[test]
+fn a_write_is_refused_only_at_clocks_another_document_was_given() {
+    let part = "databases/a";
+    let mut owners = OwnerIndex::default();
+    owners.record(1, 0, 3, MAIN);
+    owners.record(1, 3, 5, part);
+    // Client 1's items [0, 7): three in main, two in the part, then two new ones.
+    let doc = doc_with(1);
+    let t = doc.get_or_insert_text("t");
+    for _ in 0..7 {
+        t.push(&mut doc.transact_mut(), "x");
+    }
+    let all = encode(&doc);
+    let check = |update: &[u8], have: u32, elsewhere: u32| {
+        foreign_item(update, part, &owners, &|_| have, &|_| elsewhere).unwrap()
+    };
+    // Main knows [0, 3), the part [0, 5): only [5, 7) is new to the part, and fresh.
+    assert_eq!(check(&all, 5, 3), None);
+    // Main knows [0, 6): clock 5 is known elsewhere and not the part's.
+    assert_eq!(
+        check(&all, 5, 6),
+        Some(Id {
+            client: 1,
+            clock: 5
+        })
+    );
+    // The part's own clocks [3, 5) again: an echo.
+    assert_eq!(check(&all, 3, 5), None);
+    // Main's clocks written into the part: clock 0.
+    assert_eq!(
+        check(&all, 0, 5),
+        Some(Id {
+            client: 1,
+            clock: 0
+        })
+    );
+    // The same range as fillers is never refused.
+    let mut gc = Vec::new();
+    put_var(&mut gc, 1);
+    write_client(&mut gc, 1, 0, &[Piece::Gc(7)]);
+    write_ds(&mut gc, &BTreeMap::new());
+    assert_eq!(check(&gc, 0, 7), None);
 }

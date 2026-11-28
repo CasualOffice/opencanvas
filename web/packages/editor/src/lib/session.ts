@@ -47,7 +47,10 @@ export interface Session {
   /** `link` mode: the host's version page, or post `UI_FileVersions` to the host when `historyPostMessage`. */
   historyUrl?: string | null;
   historyPostMessage?: boolean;
-  isNew: boolean;
+  /** Whether the canvas is new (the template gallery). `null` when the session was answered
+   *  before the room had opened the file (PSYNC-BUG-2): the room's `room` control message on
+   *  the socket sets it before the first sync. */
+  isNew: boolean | null;
   /** docs/05 §8a: "ephemeral" = a temporary canvas (no host storage, deleted when the room closes). */
   storage?: "host" | "ephemeral";
   /** ADR-049: wording of a temporary canvas, from `[host.flags] temporary_wording`. */
@@ -71,6 +74,8 @@ export interface Session {
   templates?: { team?: boolean } | null;
   /** SRCH-04 (ADR-065): "Search all canvases" only when the host answers `GET /search`. */
   search?: { enabled?: boolean } | null;
+  /** LINK-04 (ADR-081): `[[`, Linked from and previews; unlinked mentions when the host has search. */
+  links?: { enabled?: boolean; mentions?: boolean; urlPatterns?: string[] } | null;
   /** AUTO-06 (ADR-067): the automation panel; `canEdit` = edit access and perms.automate. */
   automation?: { enabled?: boolean; canEdit?: boolean; history?: boolean; limits?: import("../automation/model").Limits } | null;
   /** BSDK-01: the SDK block packages this host enables (docs/15 §2). */
@@ -130,6 +135,8 @@ export type Control =
   /** docs/21 revision 2: the canvas's member list changed (someone's access was revoked). */
   | { t: "members" }
   | { t: "saved"; at: number; version?: string }
+  /** PSYNC-BUG-2: sent on join, before the first sync: whether the canvas is new. */
+  | { t: "room"; isNew: boolean }
   | { t: "save_error"; retryInMs?: number; message?: string }
   /** docs/15 §3: `copy` → a copy was saved to the host (`fileId`, `url`) and the room is read-only;
    *  `reload` → `closed` and close 1012 follow, and the client must start over from the server. */
@@ -326,7 +333,8 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
     // `caps=live`: it keeps `liveBlock` and `blockRef` too (LIVE-02, an editor older than 0.3).
     // `caps=subdoc`: it loads databases and boards as subdocuments (PSYNC-03, docs/15 §3.2); a
     // split room closes editors without it with 4426.
-    params: { ticket: s.ticket, caps: "ext,live,subdoc" },
+    // `caps=links`: it keeps `canvasLink` (LINK-01; an editor older than 0.5 deletes them).
+    params: { ticket: s.ticket, caps: "ext,live,subdoc,links" },
     maxBackoffTime: 10000,
     connect: opts.connect !== false,
     shouldReconnect: (e: CloseEvent) => {
@@ -469,6 +477,7 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
     try {
       const c = JSON.parse(decoding.readVarString(dec)) as Control;
       if (c.t === "parts") parts.setParts(c.parts);
+      if (c.t === "room") s.isNew = c.isNew;
       if (c.t === "conflict" && c.policy === "reload") reloading = true;
       if (c.t === "saving") savingAt = Date.now();
       else if (c.t === "saved" && savingAt !== null) pending.confirmBefore(savingAt);

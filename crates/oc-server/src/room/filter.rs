@@ -309,6 +309,31 @@ pub fn removes_ext_block(doc: &Doc, update: &[u8]) -> bool {
     ext_block_count(&txn) < before
 }
 
+/// LINK-01: whether `update` would remove a `canvasLink` from `doc` (an editor without the
+/// node in its schema drops each one it is sent). Free when the document has none.
+pub fn removes_canvas_link(doc: &Doc, update: &[u8]) -> bool {
+    let before = count_tags(&doc.transact(), &[oc_model::links::CANVAS_LINK]);
+    if before == 0 {
+        return false;
+    }
+    let Ok(update) = Update::decode_v1(update) else {
+        return true;
+    };
+    let scratch = oc_model::new_doc();
+    let state = doc
+        .transact()
+        .encode_state_as_update_v1(&StateVector::default());
+    if oc_model::ocanvas::apply_update_bytes(&scratch, &state).is_err() {
+        return true;
+    }
+    let mut txn = scratch.transact_mut();
+    if txn.apply_update(update).is_err() {
+        return true;
+    }
+    txn.commit();
+    count_tags(&txn, &[oc_model::links::CANVAS_LINK]) < before
+}
+
 /// BSDK-03: the first schema error an update would add to the room's SDK blocks (attrs or
 /// data of an installed type at its data version), or `None`. Errors the document already
 /// had are not the update's. Free when no package is installed, or when the document has no

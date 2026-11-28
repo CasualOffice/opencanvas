@@ -8,7 +8,7 @@
 import * as Y from "yjs";
 import { bridge } from "./bridge";
 
-export type BlockRoot = "databases" | "boards";
+export type BlockRoot = "databases" | "boards" | "sheets";
 
 /** The room's parts, for the canvas's own document only (a live block's file is never split). */
 const partsOf = (doc: Y.Doc) => (doc === bridge.doc ? (bridge.parts ?? null) : null);

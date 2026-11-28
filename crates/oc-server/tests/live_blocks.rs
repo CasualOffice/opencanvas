@@ -1346,3 +1346,43 @@ async fn a_deleted_live_file_is_reported_as_gone() {
     .await;
     assert_eq!(r.status(), 404);
 }
+
+/// LINK-A5 with LIVE-02: a client that keeps canvas links (`caps=links`) but not live blocks
+/// removes a live block: the live guard still applies and closes it with 4426 (not dropped).
+/// In a canvas that also holds a canvas link, both guards see the update.
+#[tokio::test]
+async fn a_client_with_links_but_not_live_caps_is_closed_with_4426() {
+    let (addr, state, _host) = serve().await;
+    let mut old = Peer::join(
+        &state,
+        with(Role::Edit, |g| {
+            g.ext_blocks = true;
+            g.subdoc = false;
+            g.links_caps = true;
+        }),
+    )
+    .await;
+    old.settle().await;
+    embed(&addr, &["L1"]).await;
+    // A canvas link next to it, so the link guard runs on the same update too.
+    let link = |d: &yrs::Doc| {
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        let p = c.push_back(&mut t, XmlElementPrelim::empty("paragraph"));
+        let l = p.push_back(&mut t, XmlElementPrelim::empty("canvasLink"));
+        l.insert_attribute(&mut t, "fileId", "doc_t");
+        l.insert_attribute(&mut t, "label", "T");
+    };
+    old.edit(link);
+    old.settle().await;
+    assert_eq!(old.closed, None);
+    let before = server_json(&state).await;
+    assert_eq!(oc_model::live::references(&before).len(), 1);
+    old.edit(remove_first("liveBlock"));
+    old.settle().await;
+    assert_eq!(old.closed, Some(4426), "closed with 4426, not dropped");
+    assert_eq!(
+        oc_model::live::references(&server_json(&state).await).len(),
+        1
+    );
+}

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 CasualOffice
 
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BASE_EXTENSIONS } from "./base";
 import { withInputRules } from "./profile";
 import { mentionNode } from "./link";
 import { BlockId } from "./blockId";
+import { deferFirstRender, renderContent } from "./firstrender";
 import { OfflineMarks } from "../offline/marks";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaretBase from "@tiptap/extension-collaboration-caret";
@@ -33,6 +34,7 @@ import { useShell } from "../components/overlay";
 import { caretClampPlugin } from "./carets";
 import { ColumnTools } from "./columns";
 import { DateMention, TextColorMark } from "./inline";
+import { CanvasLink } from "./canvaslink";
 import { ExtBlock } from "../ext/node";
 import { BlockRef, LiveBlock } from "../live/node";
 import { liveCfg, makeStore, parseBlockLink, type BlockLink } from "../live/state";
@@ -284,7 +286,7 @@ export function CanvasEditor(p: EditorProps) {
         OcCodeBlock,
         BlockId,
         OfflineMarks,
-        Collaboration.configure({ document: p.doc, field: "content" }),
+        Collaboration.configure({ document: p.doc, field: "content", ySyncOptions: deferFirstRender() }),
         PartsUndo,
         CollaborationCaret.configure({
           provider: { awareness: p.awareness },
@@ -321,6 +323,7 @@ export function CanvasEditor(p: EditorProps) {
         }),
         MentionNode,
         DateMention,
+        CanvasLink,
         TextColorMark,
         Callout,
         Toggle,
@@ -429,6 +432,12 @@ export function CanvasEditor(p: EditorProps) {
     }
   }, [editable]);
 
+  // PSYNC-BUG-3: the document's one render, after EditorContent (a child, so mounted first) has
+  // set the node views.
+  useLayoutEffect(() => {
+    if (editor) renderContent(editor);
+  }, [editor]);
+
   if (p.nested)
     return (
       <>
@@ -531,12 +540,16 @@ function PeerBars({ editor, awareness }: { editor: Editor; awareness: Awareness 
       raf = requestAnimationFrame(() => {
         const dom = viewDom(editor);
         if (!dom) return;
+        // Nobody else's caret: nothing to measure (reading the layout here forced a full layout
+        // on every transaction while a large canvas loads, PSYNC-BUG-3).
+        const carets = dom.querySelectorAll<HTMLElement>(".collaboration-carets__caret");
+        if (!carets.length) return setBars((b) => (b.length ? [] : b));
         const host = dom.offsetParent as HTMLElement | null;
         if (!host) return;
         const hr = host.getBoundingClientRect();
         const out: typeof bars = [];
         const seen = new Set<Element>();
-        dom.querySelectorAll<HTMLElement>(".collaboration-carets__caret").forEach((c) => {
+        carets.forEach((c) => {
           let blk: HTMLElement | null = c;
           while (blk && blk.parentElement !== dom) blk = blk.parentElement;
           if (!blk || seen.has(blk)) return;

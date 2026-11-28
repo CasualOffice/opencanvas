@@ -129,7 +129,7 @@ export const BlockId = Extension.create({
             // The first pass right away (most documents need few ids or none), later ones idle.
             if (first) {
               first = false;
-              queueMicrotask(run);
+              idle(run);
             } else idle(run);
           };
           later();

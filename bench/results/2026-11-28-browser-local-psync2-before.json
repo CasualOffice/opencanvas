@@ -1,0 +1,155 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-28",
+  "commit": "e26b82f",
+  "machine": "local-psync2-before",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 2,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 299350,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-BRiPvsLK.js",
+        "gzipBytes": 128469
+      },
+      {
+        "file": "assets/index-qwAaqFqH.js",
+        "gzipBytes": 70657
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/yjs-DYXjVKFe.js",
+        "gzipBytes": 30157
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "50mb": {
+      "firstScreenMs": {
+        "median": 4411,
+        "worst": 6706
+      },
+      "heapMb": 16.2,
+      "domNodes": 6249,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "50mb_b68798354_0",
+          "firstScreenMs": 6706,
+          "heapMb": 16.3,
+          "domNodes": 6249,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 3692,
+            "firstFrame": 3735,
+            "mainSynced": 4086
+          },
+          "partsListed": 35,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 25,
+              "totalMs": 12149,
+              "blockingMs": 10468,
+              "worstMs": 2690
+            },
+            "scroll": {
+              "count": 13,
+              "totalMs": 2828,
+              "blockingMs": 2104,
+              "worstMs": 400
+            }
+          },
+          "parts": {
+            "views": 35,
+            "shown": 0
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        },
+        {
+          "fileId": "50mb_b68818932_1",
+          "firstScreenMs": 4411,
+          "heapMb": 16.2,
+          "domNodes": 6249,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 2079,
+            "firstFrame": 2122,
+            "mainSynced": 2439
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 21,
+              "totalMs": 8601,
+              "blockingMs": 7113,
+              "worstMs": 2021
+            },
+            "scroll": {
+              "count": 25,
+              "totalMs": 5410,
+              "blockingMs": 3753,
+              "worstMs": 570
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        }
+      ]
+    }
+  }
+}

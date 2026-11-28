@@ -138,6 +138,7 @@ impl LaunchClaims {
         let members = crate::people::members_from_json(self.members.as_ref());
         Grant {
             ext_blocks: false,
+            links_caps: false,
             subdoc: false,
             live: crate::grant::LiveGrant {
                 claims: live_claims(self.live.as_ref()),

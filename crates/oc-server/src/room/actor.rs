@@ -80,6 +80,10 @@ struct Pending {
     authors: Vec<String>,
     token: String,
     meta: SaveMeta,
+    /// LINK-02: the save's outgoing links, written to the index once the host acknowledges
+    /// it. `None`: links are off, or the row came back from the outbox (extracted from the
+    /// body then).
+    links: Option<Arc<oc_model::links::Extracted>>,
 }
 
 impl From<OutboxRow> for Pending {
@@ -93,6 +97,7 @@ impl From<OutboxRow> for Pending {
             meta,
             authors: r.authors,
             token: r.token,
+            links: None,
         }
     }
 }
@@ -202,6 +207,8 @@ struct Room {
     split: Option<split::SplitState>,
     /// The canvas cut while loading (fast open), taken by `split_on_open`.
     presplit: Option<split::Presplit>,
+    /// PSYNC-BUG-2: the split kept at the last clean close, taken by `split_on_open`.
+    kept: Option<split::Kept>,
 }
 
 /// What clients of an ephemeral room are told when it ends (ADR-043).
@@ -349,7 +356,12 @@ pub(super) async fn run(
         End::Idle => {
             room.flush_mentions().await;
             room.close_events("idle");
-            match ctx.store.purge_room_fenced(&id, room.epoch).await {
+            let keep = room.keep_split().await;
+            match if keep {
+                Ok(())
+            } else {
+                ctx.store.purge_room_fenced(&id, room.epoch).await
+            } {
                 Ok(()) => {}
                 Err(e) if crate::store::is_fenced(&e) => {
                     tracing::warn!(room = %id, "room taken by a newer owner; its WAL is kept")
@@ -475,7 +487,8 @@ fn build_save_body(
     meta: &SaveMeta,
     history: Option<(crate::hosts::FileHistoryLimits, &mut FileHist)>,
     search: oc_model::search::Options,
-) -> Result<Vec<u8>, String> {
+    links: Option<&oc_model::links::UrlPatterns>,
+) -> Result<(Vec<u8>, Option<oc_model::links::Extracted>), String> {
     let fh = history.map(|(limits, fh)| {
         let cur = oc_model::doc_to_json(doc);
         fh.history.advance(
@@ -500,8 +513,10 @@ fn build_save_body(
         fh.keep_prev = meta.checkpoint;
         fh.history.clone()
     });
-    oc_model::ocanvas::write_ocanvas_opts(doc, commit, fh.as_ref(), search)
-        .map_err(|e| e.to_string())
+    let (body, document) = oc_model::ocanvas::write_ocanvas_doc(doc, commit, fh.as_ref(), search)
+        .map_err(|e| e.to_string())?;
+    // LINK-02: the same document.json the save wrote, so no second encode.
+    Ok((body, links.map(|p| oc_model::links::extract(&document, p))))
 }
 
 /// Everything a save needs, taken from the room so that the JSON, `.ocanvas` and history work
@@ -514,6 +529,8 @@ struct SaveBuild {
     /// The history limits and the room's in-file history (`None`: recover it from the host).
     history: Option<(crate::hosts::FileHistoryLimits, Option<FileHist>)>,
     search: oc_model::search::Options,
+    /// LINK-02: `[host.links] url_patterns` when `[host.flags] links` is on.
+    links: Option<oc_model::links::UrlPatterns>,
     row: OutboxRow,
     epoch: i64,
     /// Memory durability: the database gets this state before the host is asked to.
@@ -537,6 +554,7 @@ impl SaveBuild {
             meta,
             history,
             search,
+            links,
             mut row,
             epoch,
             dump,
@@ -604,6 +622,7 @@ impl SaveBuild {
                         &meta,
                         history.as_mut().map(|(l, h, _)| (*l, h)),
                         search,
+                        links.as_ref(),
                     )
                 });
             // The rebuilt doc is gone: give its blocks back, or this (now idle) blocking
@@ -621,7 +640,8 @@ impl SaveBuild {
             }
         };
         out.file_hist = hist;
-        row.payload = match body {
+        let extracted;
+        (row.payload, extracted) = match body {
             Ok(b) => b,
             Err(e) => {
                 out.pending = Err((e, None));
@@ -635,6 +655,7 @@ impl SaveBuild {
         }
         let mut pending = Pending::from(row);
         pending.meta = meta;
+        pending.links = extracted.map(Arc::new);
         out.pending = Ok(pending);
         out
     }
@@ -668,6 +689,7 @@ impl Room {
         // ADR-055: unknown (None) after a WAL recovery; read back from the host before a save.
         let mut file_hist: Option<FileHist> = None;
         let mut presplit: Option<split::Presplit> = None;
+        let mut kept: Option<split::Kept> = None;
         let wal = match &row {
             Some(r) if r.dirty => Some(ctx.store.load_wal(&id).await?).filter(|w| !w.is_empty()),
             _ => None,
@@ -707,7 +729,9 @@ impl Room {
                 .await?;
             tracing::info!(room = %id, "recovered unsaved room state from the commit outbox");
         } else {
-            ctx.store.purge_room(&id).await?;
+            if host.ephemeral() {
+                ctx.store.purge_room(&id).await?;
+            }
             let fetched = if host.ephemeral() {
                 // ADR-043: no load callback; a new canvas, or the host's template.
                 match &host.template_bytes {
@@ -722,20 +746,57 @@ impl Room {
                 // RLB-01c: waiting for the host is not database work. Holding a load slot
                 // through a 2 s answer let 8 rooms open per 2 s after a restart.
                 *permit = None;
+                let t = Instant::now();
                 let got = ctx
                     .host
                     .get_file(&host, &seed.callback_token, &seed.file.id)
                     .await;
+                tracing::info!(room = %id, ms = t.elapsed().as_millis() as u64, "room open: file from the host");
                 *permit = load_permits().acquire().await.ok();
                 got?
             };
+            // PSYNC-BUG-2: the split kept at the last clean close, when the host still has the
+            // version it was kept at; anything else starts from the file.
+            if !host.ephemeral() {
+                let same = match (&row, &fetched) {
+                    (Some(r), Fetched::Found { etag: Some(e), .. }) => {
+                        !r.dirty && r.host_version.as_deref() == Some(e.as_str())
+                    }
+                    _ => false,
+                };
+                if same && host.partial_sync() && ctx.store.supports_parts() {
+                    kept = split::kept_split(&ctx, &id).await?;
+                }
+                if kept.is_none() {
+                    ctx.store.purge_room(&id).await?;
+                }
+            }
+            if kept.is_some() {
+                let wal = ctx.store.load_wal(&id).await?;
+                if let Some((_, state)) = &wal.snapshot {
+                    oc_model::ocanvas::apply_update_bytes(&doc, state).context("kept snapshot")?;
+                }
+                for (_, u) in &wal.updates {
+                    oc_model::ocanvas::apply_update_bytes(&doc, u).context("kept wal entry")?;
+                }
+                seq = wal.last_seq();
+                if let Fetched::Found { etag, .. } = &fetched {
+                    host_version = etag.clone().or(host_version);
+                }
+            }
             // PSYNC-02: a room that will split cuts the stored state as it is (no whole canvas).
-            let fast = if host.partial_sync() && ctx.store.supports_parts() && !host.ephemeral() {
+            let t = Instant::now();
+            let fast = if kept.is_some() {
+                None
+            } else if host.partial_sync() && ctx.store.supports_parts() && !host.ephemeral() {
                 split::open_split(&fetched)?
             } else {
                 None
             };
-            if let Some((main, etag, hist, pre)) = fast {
+            tracing::info!(room = %id, ms = t.elapsed().as_millis() as u64, split = fast.is_some(), "room open: file read and cut");
+            if kept.is_some() {
+                // The file's history is read back from the host before the next save (ADR-055).
+            } else if let Some((main, etag, hist, pre)) = fast {
                 file_hist = Some(hist);
                 doc = main;
                 host_version = etag.or(host_version);
@@ -850,6 +911,7 @@ impl Room {
             ephemeral,
             split: None,
             presplit,
+            kept,
             ctx,
         })
     }
@@ -1141,6 +1203,12 @@ impl Room {
         }
         let sv = self.doc.transact().state_vector();
         let _ = tx.send(Outbound::Frame(protocol::step1(sv).into()));
+        // PSYNC-BUG-2: whether the canvas is new, for a session answered before the room opened.
+        let is_new = oc_model::is_empty(&self.doc)
+            && self.split.as_ref().is_none_or(|s| s.headers.is_empty());
+        let _ = tx.send(Outbound::Frame(
+            protocol::control(&json!({"t": "room", "isNew": is_new})).into(),
+        ));
         if let Some(frame) = self.parts_control() {
             let _ = tx.send(Outbound::Frame(frame.into()));
         }
@@ -1777,6 +1845,18 @@ impl Room {
             }
             return;
         }
+        // LINK-01 (LINK-A5): the same for `canvasLink` (editors before 0.5; `caps=links`).
+        if !grant.links_caps && filter::removes_canvas_link(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: removes a canvas link from a client without caps=links");
+            self.deny(conn, "this editor is out of date; reopen the canvas");
+            if let Some(p) = self.peers.get(&conn) {
+                let _ = p.tx.send(Outbound::Close(
+                    4426,
+                    "editor out of date: reopen the canvas".into(),
+                ));
+            }
+            return;
+        }
         // LIVE-02: the same for `liveBlock` and `blockRef` (editors before 0.3 lack them, and
         // `caps=live` says a connection keeps them), plus the depth rule, the reference limit,
         // the snapshot policy, the feature flag and `perms.live` for adding one.
@@ -1832,12 +1912,13 @@ impl Room {
         // SEC-V4: one client id per document of a split room (the part path checks the same):
         // a main update with a part's client id would collide when the parts are flattened.
         if self.split.as_ref().is_some_and(|s| s.whole_since.is_none()) {
-            let Ok(clocks) = oc_model::parts::update_state(&bytes) else {
-                return self.deny(conn, "malformed update");
-            };
-            if self.client_id_elsewhere(oc_model::parts::MAIN, &clocks) {
-                tracing::info!(room = %self.id, "update refused: client id used in a block's document");
-                return self.deny(conn, "one client id per document");
+            match self.foreign_write(oc_model::parts::MAIN, &bytes) {
+                Ok(false) => {}
+                Ok(true) => {
+                    tracing::info!(room = %self.id, "update refused: client id used in a block's document");
+                    return self.deny(conn, "one client id per document");
+                }
+                Err(_) => return self.deny(conn, "malformed update"),
             }
         }
         // PSYNC-02: in a whole view, a main-document update must not delete the parts' items
@@ -2826,6 +2907,7 @@ impl Room {
                 .file_history()
                 .map(|limits| (limits, self.file_hist.take())),
             search: self.host.search().model_options(),
+            links: self.links_patterns(),
             row,
             epoch: self.epoch,
             dump,
@@ -2937,6 +3019,47 @@ impl Room {
         }
     }
 
+    /// `[host.links] url_patterns` when this room's links go into the index.
+    fn links_patterns(&self) -> Option<oc_model::links::UrlPatterns> {
+        let c = crate::links::LinksCfg::of(&self.host);
+        (c.on && self.ctx.store.links_supported()).then_some(c.patterns)
+    }
+
+    /// Replaces this file's rows in the link index with an acknowledged save's links, off the
+    /// actor. A pending row recovered from the outbox has no extraction: its body is read.
+    fn index_links(&self, pending: &Pending) {
+        let Some(patterns) = self.links_patterns() else {
+            return;
+        };
+        let store = self.ctx.store.clone();
+        let metrics = self.ctx.metrics.clone();
+        let (host_id, file_id) = (self.host.id.clone(), self.file_id.clone());
+        let have = pending.links.clone();
+        let body = pending.body.clone();
+        tokio::spawn(async move {
+            let extracted = match have {
+                Some(e) => e,
+                None => {
+                    let e = tokio::task::spawn_blocking(move || {
+                        oc_model::ocanvas::read_ocanvas(&body).ok().map(|l| {
+                            let json = oc_model::doc_to_json(&l.doc);
+                            oc_model::links::extract(&json, &patterns)
+                        })
+                    })
+                    .await
+                    .ok()
+                    .flatten();
+                    match e {
+                        Some(e) => Arc::new(e),
+                        None => return,
+                    }
+                }
+            };
+            crate::links::index_saved(&store, &metrics, &host_id, &file_id, &extracted, now_ms())
+                .await;
+        });
+    }
+
     async fn save_done(&mut self, id: &str, result: Result<PutOutcome, String>) {
         self.save.in_flight = false;
         let Some(pending) = self.save.pending.clone().filter(|p| p.id == id) else {
@@ -2973,6 +3096,9 @@ impl Room {
                     tracing::error!(room = %self.id, error = %e, "recording save failed");
                 }
                 tracing::info!(room = %self.id, version = ?self.host_version, "saved to host");
+                // LINK-02 (ADR-081): only now, with the host's acknowledgement, does the index
+                // follow this save.
+                self.index_links(&pending);
                 self.flush_events(true);
                 self.emit(crate::events::SAVED, json!({"version": self.host_version}));
                 let version = self.host_version.clone();
@@ -3393,14 +3519,28 @@ mod tests {
         let opts = oc_model::search::Options::default();
         let mut live_hist = FileHist::from_file(&doc, None);
         let mut snap_hist = FileHist::from_file(&doc, None);
-        let live =
-            build_save_body(&doc, &commit, &meta, Some((limits, &mut live_hist)), opts).unwrap();
+        let live = build_save_body(
+            &doc,
+            &commit,
+            &meta,
+            Some((limits, &mut live_hist)),
+            opts,
+            None,
+        )
+        .unwrap();
         let state = doc
             .transact()
             .encode_state_as_update_v1(&StateVector::default());
         let copy = doc_from_state(&state).unwrap();
-        let snap =
-            build_save_body(&copy, &commit, &meta, Some((limits, &mut snap_hist)), opts).unwrap();
+        let snap = build_save_body(
+            &copy,
+            &commit,
+            &meta,
+            Some((limits, &mut snap_hist)),
+            opts,
+            None,
+        )
+        .unwrap();
         assert_eq!(live, snap);
         assert_eq!(live_hist.prev, snap_hist.prev);
     }

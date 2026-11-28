@@ -82,6 +82,12 @@ export default function TopMenus({ kind, anchor, close, bar, shown }: { kind: "s
                 {away ? needsNet : !compact ? <span className="mk">{isMac ? "⇧⌘F" : "Ctrl+Shift+F"}</span> : null}
               </button>
             ) : null}
+            {bar.onLinkedFrom ? (
+              <button className="mi" disabled={away} onClick={() => (close(), bar.onLinkedFrom!())}>
+                <Ic name="link" />
+                Linked from
+              </button>
+            ) : null}
             {bar.onAutomations ? (
               <button className="mi" onClick={() => (close(), bar.onAutomations!())}>
                 <Ic name="zap" />
@@ -94,7 +100,7 @@ export default function TopMenus({ kind, anchor, close, bar, shown }: { kind: "s
                 {bar.automationsHere} {bar.automationsHere === 1 ? "automation" : "automations"} (not run here)
               </div>
             ) : null}
-            {bar.onFind || bar.onSearchAll || bar.onAutomations || bar.automationsHere ? <div className="msep" /> : null}
+            {bar.onFind || bar.onSearchAll || bar.onLinkedFrom || bar.onAutomations || bar.automationsHere ? <div className="msep" /> : null}
             {bar.onHistory ? (
               <>
                 <button className="mi" disabled={away} onClick={() => (close(), bar.onHistory!())}>

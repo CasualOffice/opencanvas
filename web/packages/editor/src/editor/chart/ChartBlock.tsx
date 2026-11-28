@@ -14,6 +14,7 @@ import type * as DbMod from "@opencanvas/database";
 import { loadDatabase, loadSheet } from "../blockdata";
 import { AGGS, AGG_LABEL, CHART_KINDS, KIND_LABEL, a1Range, fmtNum, fromGrid, fromGroups, niceTicks, parseNum, rangeA1, short, toTable, type Agg, type ChartAttrs, type ChartData, type ChartKind } from "./data";
 import { injectChartCss } from "./styles";
+import { blockOf, type PartHeader } from "../../lib/parts";
 
 const KIND_ICON: Record<ChartKind, LucideIcon> = { bar: ChartColumn, line: ChartLine, area: ChartArea, pie: ChartPie, donut: Donut, scatter: ChartScatter };
 const COLORS = ["var(--u0)", "var(--u1)", "var(--u2)", "var(--u3)", "var(--u4)", "var(--amber-fg)", "var(--green-fg)", "var(--red-fg)"];
@@ -26,6 +27,11 @@ interface Props {
   doc: Y.Doc;
   /** The document holding the chart's database (a part under partial sync), when known. */
   dbDoc: Y.Doc | null;
+  /** The document holding the chart's spreadsheet (its part under partial sync; `null` while
+   *  it loads). */
+  sheetDoc?: Y.Doc | null;
+  /** The room's parts list (split rooms): databases and spreadsheets not in `doc`. */
+  parts?: PartHeader[];
   env: BlockEnv;
 }
 
@@ -50,7 +56,7 @@ function useMods(): Mods | null {
 }
 
 /** Redraws (once per frame) when the sheets or the databases change. */
-function useLive(doc: Y.Doc, dbDoc: Y.Doc | null) {
+function useLive(doc: Y.Doc, dbDoc: Y.Doc | null, sheetDoc: Y.Doc | null) {
   const [v, bump] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     let raf = 0;
@@ -58,13 +64,13 @@ function useLive(doc: Y.Doc, dbDoc: Y.Doc | null) {
       if (raf) return;
       raf = requestAnimationFrame(() => ((raf = 0), bump()));
     };
-    const roots = [doc.getMap("sheets"), doc.getMap("databases"), ...(dbDoc && dbDoc !== doc ? [dbDoc.getMap("databases")] : [])];
+    const roots = [doc.getMap("sheets"), doc.getMap("databases"), ...(dbDoc && dbDoc !== doc ? [dbDoc.getMap("databases")] : []), ...(sheetDoc && sheetDoc !== doc ? [sheetDoc.getMap("sheets")] : [])];
     roots.forEach((r) => r.observeDeep(kick));
     return () => {
       roots.forEach((r) => r.unobserveDeep(kick));
       cancelAnimationFrame(raf);
     };
-  }, [doc, dbDoc]);
+  }, [doc, dbDoc, sheetDoc]);
   return v;
 }
 
@@ -123,19 +129,26 @@ export function autoTitle(a: ChartAttrs, r: Read): string {
   return r.dbName || "Chart";
 }
 
-export function ChartBlock({ attrs: a, set, doc, dbDoc, env }: Props) {
+export function ChartBlock({ attrs: a, set, doc, dbDoc, sheetDoc = doc, parts, env }: Props) {
   injectChartCss();
   const mods = useMods();
-  const v = useLive(doc, dbDoc);
+  const v = useLive(doc, dbDoc, sheetDoc);
   const canEdit = env.role === "edit";
   const [editing, setEditing] = useState(!a.src && canEdit);
   const [showTable, setShowTable] = useState(false);
   const read: Read = useMemo(() => {
     if (!mods) return { data: null, why: "Loading…" };
-    if (a.src === "sheet") return readSheet(mods, doc, a);
+    if (a.src === "sheet") return sheetDoc ? readSheet(mods, sheetDoc, a) : { data: null, why: "Loading…" };
     if (a.src === "db") return readDbData(mods, dbDoc ?? doc, a, [env.me, ...env.users]);
     return { data: null, why: canEdit ? "Choose the data to chart." : "This chart has no data yet." };
-  }, [mods, v, a, doc, dbDoc, env.me, env.users, canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mods, v, a, doc, dbDoc, sheetDoc, env.me, env.users, canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A spreadsheet picked before its part was loaded: the first rows and columns once it is.
+  useEffect(() => {
+    if (!canEdit || a.src !== "sheet" || a.r0 || !mods || !sheetDoc) return;
+    const s = mods.sheet.readSheets(sheetDoc, a.sheetId).find((x) => x.id === a.sheet);
+    if (s?.rows.length && s.cols.length) set(defaultRange(s));
+  }, [canEdit, a.src, a.r0, a.sheetId, a.sheet, mods, sheetDoc, v]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A database chart starts grouped by its first status or select field (else its title).
   useEffect(() => {
@@ -184,7 +197,7 @@ export function ChartBlock({ attrs: a, set, doc, dbDoc, env }: Props) {
             </div>
           ) : null}
         </div>
-        {editing && canEdit ? <Panel a={a} set={set} read={read} doc={doc} mods={mods} done={() => setEditing(false)} /> : null}
+        {editing && canEdit ? <Panel a={a} set={set} read={read} doc={doc} sheetDoc={sheetDoc} parts={parts} mods={mods} done={() => setEditing(false)} /> : null}
       </div>
     </div>
   );
@@ -326,11 +339,15 @@ function Legend({ d, a }: { d: ChartData; a: ChartAttrs }) {
 
 /* ------------------------------------------------------------------ side panel */
 
-function Panel({ a, set, read, doc, mods, done }: { a: ChartAttrs; set: (p: Partial<ChartAttrs>) => void; read: Read; doc: Y.Doc; mods: Mods | null; done: () => void }) {
+/** The first rows and columns of a sheet: what a chart of it starts with. */
+const defaultRange = (s: { rows: string[]; cols: string[] }) => ({ r0: s.rows[0], r1: s.rows[Math.min(5, s.rows.length - 1)], c0: s.cols[0], c1: s.cols[Math.min(1, s.cols.length - 1)] });
+
+function Panel({ a, set, read, doc, sheetDoc, parts, mods, done }: { a: ChartAttrs; set: (p: Partial<ChartAttrs>) => void; read: Read; doc: Y.Doc; sheetDoc: Y.Doc | null; parts?: PartHeader[]; mods: Mods | null; done: () => void }) {
   const [range, setRange] = useState(read.a1 ?? "");
   const [bad, setBad] = useState(false);
   useEffect(() => setRange(read.a1 ?? ""), [read.a1]);
-  // Sources: each sheet of each spreadsheet, and each database in this canvas's document.
+  // Sources: each sheet of each spreadsheet, and each database in this canvas: those in the
+  // room's document and, in a split room, those the parts list names (not loaded here).
   const sources = useMemo(() => {
     const out: { v: string; label: string }[] = [];
     if (mods) {
@@ -339,23 +356,31 @@ function Panel({ a, set, read, doc, mods, done }: { a: ChartAttrs; set: (p: Part
         n++;
         for (const s of mods.sheet.readSheets(doc, block)) out.push({ v: `sheet:${block}:${s.id}`, label: `Spreadsheet ${n} · ${s.name}` });
       });
+      for (const h of parts ?? []) {
+        if (h.kind !== "sheet") continue;
+        n++;
+        for (const t of h.tabs ?? []) out.push({ v: `sheet:${blockOf(h.id)}:${t.id}`, label: `Spreadsheet ${n} · ${t.name ?? ""}` });
+      }
       doc.getMap("databases").forEach((m, id) => out.push({ v: `db:${id}`, label: `Database · ${String((m as Y.Map<unknown>).get?.("name") ?? "") || "Untitled"}` }));
+      for (const h of parts ?? []) if (h.kind === "database") out.push({ v: `db:${blockOf(h.id)}`, label: `Database · ${h.name || "Untitled"}` });
       if (a.src === "db" && !out.some((o) => o.v === `db:${a.dbId}`)) out.push({ v: `db:${a.dbId}`, label: `Database · ${read.dbName || "Untitled"}` });
     }
     return out;
-  }, [mods, doc, a.src, a.dbId, read.dbName]);
+  }, [mods, doc, parts, a.src, a.dbId, read.dbName]);
   const cur = a.src === "sheet" ? `sheet:${a.sheetId}:${a.sheet}` : a.src === "db" ? `db:${a.dbId}` : "";
   const pick = (val: string) => {
     const [k, x, y] = val.split(":");
     if (k === "db") return set({ src: "db", dbId: x, groupBy: "", field: "", agg: "count" });
     if (k !== "sheet" || !mods) return;
-    const s = mods.sheet.readSheets(doc, x).find((q) => q.id === y);
-    if (!s) return;
-    set({ src: "sheet", sheetId: x, sheet: y, r0: s.rows[0], r1: s.rows[Math.min(5, s.rows.length - 1)], c0: s.cols[0], c1: s.cols[Math.min(1, s.cols.length - 1)] });
+    // A spreadsheet in its own part (not loaded here): the range is set once it loads.
+    const here = x === a.sheetId && sheetDoc ? sheetDoc : doc;
+    const s = mods.sheet.readSheets(here, x).find((q) => q.id === y);
+    if (!s) return set({ src: "sheet", sheetId: x, sheet: y, r0: "", r1: "", c0: "", c1: "" });
+    set({ src: "sheet", sheetId: x, sheet: y, ...defaultRange(s) });
   };
   const commitRange = () => {
     const q = a1Range(range);
-    const s = mods?.sheet.readSheets(doc, a.sheetId).find((x) => x.id === a.sheet);
+    const s = sheetDoc ? mods?.sheet.readSheets(sheetDoc, a.sheetId).find((x) => x.id === a.sheet) : undefined;
     if (!q || !s || q.r1 >= s.rows.length || q.c1 >= s.cols.length) return setBad(true);
     setBad(false);
     set({ r0: s.rows[q.r0], r1: s.rows[q.r1], c0: s.cols[q.c0], c1: s.cols[q.c1] });

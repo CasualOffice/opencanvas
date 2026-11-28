@@ -254,7 +254,8 @@ read-only.
 partial_sync = true    # the default from 0.4; false keeps every room whole
 ```
 
-A room keeps each database and board (diagrams included) as a subdocument that the editor loads
+A room keeps each database, board (diagrams included) and spreadsheet (from 0.4.1) as a
+subdocument that the editor loads
 when the block comes near the screen, so a large canvas opens on its text and the server and the
 browser hold only what people look at (on the 50 MB benchmark canvas the room holds the main
 document: 220 MB against 4.4 GB for 20 viewers, and the browser 16 MB against 472 MB). Your files
@@ -268,6 +269,15 @@ the canvas", which loads the current editor. If you embed an older editor build,
 that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` until it is
 updated. Turning it off again is safe: a room folds its parts back into one document when it next
 opens. Temporary canvases and live block files are never split.
+
+**Reopening a large canvas (0.4.1).** A split room of 4 MiB or more that closes with everything
+saved keeps its split in the database (`OC_KEEP_SPLIT_MIN_BYTES`, bytes; smaller canvases are
+purged as before). The next open compares the version your load returns (its `ETag`) with the
+version the room saved; when they match, the room opens from what it kept instead of reading
+and cutting the file (the 50 MB benchmark canvas: 1.3 s to its first screen instead of 3.3 s).
+Any other version, or a host that answers the load with a different version name than the save,
+reads the file as before. This costs database space: about the canvas's Yjs size for each large
+canvas until it is opened at another version.
 
 ### 2c-ter. Formulas, relations and rollups (DB4, ADR-078; `[host.flags] formulas`)
 
@@ -318,6 +328,49 @@ unsent_mb    = 5          # unsent changes per canvas before editing pauses (1-5
 **Start-up checks.** An unknown `[host.offline]` key, a value out of range, a bad `max_role`,
 `auto_recent` above `max_canvases`, and `enabled = true` on a WOPI-only host refuse to start,
 naming the host.
+
+### 2d-bis. Links and backlinks (LINK-01..05, docs/38 §2, ADR-081; `[host.flags] links`)
+
+People link a canvas, a heading, a database or a row with `[[` in the editor, or by pasting one of
+your URLs. Every canvas then shows **Linked from** (the canvases that link to it, with the sentence
+around each link) and **unlinked mentions** (canvases that name it without a link, from your
+search, §5). Off until you turn it on:
+
+```toml
+[host.flags]
+links = true          # default false: no index, no panel, [[ inserts an ordinary link
+
+[host.links]
+url_patterns = ["https://app.acme.example/canvas/{fileId}#{blockId}",
+                "https://app.acme.example/canvas/{fileId}"]   # pasted URLs and links that are canvas links
+url_template = "https://app.acme.example/canvas/{fileId}#{blockId}" # what exports and older editors link to
+```
+
+- **What OpenCanvas keeps.** A table `link_edges` (migration 0014) of ids only: which file and
+  block links to which file, block and row, and whether it is a link, an embed (live block or
+  block reference) or a relation. No titles, labels or text. It is written **only after your
+  save callback acknowledged a save**, so it describes what you store. A save you refuse
+  changes nothing.
+- **Who sees what.** Every read asks you, for the reader, about every linking canvas, with
+  **`POST /access/batch`** (§5, optional, up to 200 files a call) or else `POST /access` per file
+  (8 at a time); both are cached 30 s. A canvas the reader cannot open is left out and not
+  counted; a failing answer shows nothing rather than everything. Titles, paths, `updatedAt`,
+  `updatedBy` and `space` come from those answers. `POST /access` is required (JWT hosts that
+  store their files; not WOPI-only or temporary canvases).
+- **Excerpts** are made when the panel opens, from the linking canvas as the reader may read it
+  (the open room, else your load callback with that reader's bearer), kept 5 minutes in memory
+  and never written.
+- **Deleted files.** Answer `/access` with 410 (or `gone: true` in a batch item): a deleted
+  linking canvas loses its rows on the next read that sees it, a deleted target shows as
+  "Deleted canvas". Call `DELETE /api/v1/links/files/{fileId}` (host key) to drop a deleted
+  file's links at once.
+- **Turning it on for existing files.** `POST /api/v1/links/index {"fileIds": [...]}` (host key,
+  up to 100 a call) loads each file through your load callback, writes its links and drops the
+  document. Walk your files once.
+- **Graph.** `GET /api/v1/graph` and MCP `canvas_graph` (ADR-082) read the same index through the
+  same checks. `space` in your access answers groups canvases (else the first segment of `path`).
+- **Storage.** The index needs a database: Redis-only storage (no `DATABASE_URL`) refuses to start
+  with `links = true`.
 
 ### 2e. Automation (AUTO-01..07, docs/34 §5, ADR-067, ADR-068; `[host.automation]`)
 
@@ -648,6 +701,7 @@ OpenCanvas:
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
 | **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none", "name"?, "path"?, "callbackToken"?}`. **Required for live blocks** (§2c): each person who opens one is checked here; `name` titles the live file, `path` says where it lives in your app (at most 200 characters, shown as plain text in the live block's header: "from Leadership weekly › Q1"; without it the header names your app; ignored with `none`) and `callbackToken` is the bearer for that file's load and save (else the embedding session's). Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
+| **Access batch** *(optional, links, §2d-bis)* `POST /access/batch` | JSON `{userId, fileIds}` (at most 200), signed like every callback (v2), no bearer token; 8 s timeout | `{"items":[{"fileId","role":"view"|"comment"|"edit"|"none","name"?,"path"?,"space"?,"updatedAt"?,"updatedBy"?}]}`: one item per file as `POST /access` would answer it; `{"fileId","gone":true}` for a deleted file; a file left out is `none`. Cached 30 s per (file, user) together with `/access`. `404`/`405`/`501` = not implemented (OpenCanvas asks `/access` per file for 10 minutes, then tries again); other errors show no backlinks |
 | **Create file** *(live blocks, §2c)* `POST /files` | JSON `{name, parentFileId, kind: "ocanvas", type?}` (`type` per §2f when a block becomes its own file), signed, with the `callbackToken` of whoever makes the live block and an `Idempotency-Key` | `201 {"fileId":"doc_9001"}`: create it where you like with the ACL you like (by default the parent's) and give that person edit on it. OpenCanvas writes the content and saves it through `PUT /files/{fileId}`. `404`/`405`/`501` = not implemented ("Make live" is hidden) |
 | **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
 | **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
@@ -1095,6 +1149,9 @@ same tool layer as MCP, §7a):
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
 | Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
 | Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
+| Backlinks | `GET /api/v1/files/{fileId}/backlinks?block=&kind=&cursor=&limit=` | **user token only**; view on the file, every linking canvas checked with your `/access/batch` (else `/access`), hidden ones left out and not counted; MCP `canvas_backlinks` answers the same (`[host.flags] links`) |
+| Link graph | `GET /api/v1/graph?root=&depth=&kinds=&blocks=&limit=` | **user token only**; local (root, depth 1-3, ≤ 500 nodes) or full (≤ 2,000 most-connected canvases, `truncated`); every canvas checked with your `/access/batch` before it is shown or expanded, so hidden ones never connect others; 10 a minute per person (2 full); MCP `canvas_graph` (ADR-082) |
+| Link index | `POST /api/v1/links/index {fileIds}`, `DELETE /api/v1/links/files/{fileId}` | host key only: backfill up to 100 files a call; drop a deleted file's links |
 | Automation rules | `GET /api/v1/files/{id}/automations`, `PUT`/`DELETE …/automations/{ruleId}`, `POST …/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs` | needs `[host.automation]`; writes need `canvas:write` and edit; the caller becomes the rule's owner; runs are editors only (§2e) |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
 | Revoke offline copies | `POST /api/v1/offline/revoke {userId}` | host key or `canvas:admin`; raises the person's offline generation → `{gen}`; their devices delete every offline copy for your host at the next session answer (§2d) |

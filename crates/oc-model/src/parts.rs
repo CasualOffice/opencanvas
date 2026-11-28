@@ -2,10 +2,10 @@
 // Copyright 2026 CasualOffice
 
 //! Partial sync (PSYNC-02, ADR-076): the room splits a canvas into a main document and one part
-//! per heavy block (each `databases` and `boards` entry), and flattens the parts back into the
+//! per heavy block (each `databases`, `boards` and `sheets` entry), and flattens the parts back into the
 //! format v1 update on save. **Item ids are kept.** A part is the subset of the original update
 //! whose items descend from that block's map entry, so a part *is* a Yjs document (root
-//! `databases` or `boards` with that one key) that any client or the room can load, and the
+//! `databases`, `boards` or `sheets` with that one key) that any client or the room can load, and the
 //! flatten is a byte merge of the parts' structs.
 //!
 //! Clocks stay contiguous in every part: where a client's clock range belongs to another part,
@@ -16,8 +16,8 @@
 //! delete set of each part counts only for the items it owns (its fillers are GC everywhere).
 //!
 //! Who owns an item: the part of its parent, recursively; an item without encoded parent info
-//! (it has an origin) has the parent of its origin. An item whose parent is the root `databases`
-//! or `boards` with key `k` starts part `databases/k` or `boards/k`. GC and anything unresolved
+//! (it has an origin) has the parent of its origin. An item whose parent is a root of
+//! [`SPLIT_ROOTS`] with key `k` starts part `<root>/k`. GC and anything unresolved
 //! belongs to the main document.
 //!
 //! [`route`] cuts an incremental update (an edit made on a whole, flattened view) the same way,
@@ -33,11 +33,11 @@ use crate::roots;
 
 /// The main document's part key.
 pub const MAIN: &str = "";
-/// Roots whose entries become parts.
-/// `sheets` (Spreadsheet blocks) stays in the main document until the editor loads sheet parts.
-pub const SPLIT_ROOTS: [&str; 2] = [roots::DATABASES, roots::BOARDS];
+/// Roots whose entries become parts: databases, boards and spreadsheets (v0.4.1).
+pub const SPLIT_ROOTS: [&str; 3] = [roots::DATABASES, roots::BOARDS, roots::SHEETS];
 
-/// `databases/<blockId>` or `boards/<blockId>`; [`MAIN`] for the main document.
+/// `databases/<blockId>`, `boards/<blockId>` or `sheets/<blockId>`; [`MAIN`] for the main
+/// document.
 pub type PartKey = String;
 
 pub fn part_key(root: &str, key: &str) -> Option<PartKey> {
@@ -545,6 +545,21 @@ impl OwnerIndex {
                 m.iter()
                     .filter(move |(_, (_, q))| *q == p)
                     .map(move |(s, (e, _))| (*c, *s, *e))
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
+    /// Every range, `(client, start, end, part)` in order: what [`OwnerIndex::record`] takes to
+    /// build the index again (a room keeps it with its split, PSYNC-BUG-2).
+    pub fn ranges(&self) -> Vec<(u64, u32, u32, &str)> {
+        let mut out: Vec<(u64, u32, u32, &str)> = self
+            .ranges
+            .iter()
+            .flat_map(|(c, m)| {
+                m.iter()
+                    .map(move |(s, (e, p))| (*c, *s, *e, self.parts[*p as usize].as_str()))
             })
             .collect();
         out.sort_unstable();
@@ -1111,6 +1126,46 @@ pub fn update_state(update: &[u8]) -> Result<HashMap<u64, u32>, Error> {
                 .map(|s| (*c, s.end()))
         })
         .collect())
+}
+
+/// PSYNC-BUG-4, the one-client-id-per-document rule: the first item of `update`, sent to
+/// document `part`, at a clock that another document was given. `have(client)` is the part's
+/// own clock (structs below it are already integrated and change nothing) and
+/// `elsewhere(client)` the highest clock any other document knows. A clock at or past
+/// `elsewhere` is fresh and the part may claim it; a clock below it must already be the part's
+/// in `owners` (an echo of what the part was given). Fillers (GC) are never refused: GC is what
+/// every document holds where another one owns the item, and a client echoes the fillers it was
+/// sent.
+pub fn foreign_item(
+    update: &[u8],
+    part: &str,
+    owners: &dyn Owners,
+    have: &dyn Fn(u64) -> u32,
+    elsewhere: &dyn Fn(u64) -> u32,
+) -> Result<Option<Id>, Error> {
+    let p = parse(update)?;
+    for (client, structs) in &p.clients {
+        let (mine, known) = (have(*client), elsewhere(*client));
+        for s in structs.iter().filter(|s| s.kind == Kind::Item) {
+            let mut x = s.clock.max(mine);
+            let hi = s.end().min(known);
+            while x < hi {
+                match owners.owner(Id {
+                    client: *client,
+                    clock: x,
+                }) {
+                    Some((k, end)) if k == part => x = end,
+                    _ => {
+                        return Ok(Some(Id {
+                            client: *client,
+                            clock: x,
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// The struct section of a v1 update (the bytes before the delete set), for byte comparisons.

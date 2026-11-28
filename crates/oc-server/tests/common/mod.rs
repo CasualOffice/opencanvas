@@ -96,6 +96,14 @@ pub struct HostState {
     pub search_calls: Vec<(String, bool, String)>,
     /// `GET /search` waits this long before answering.
     pub search_delay_ms: u64,
+    /// LINK-03: `POST /access/batch` answers 404 (not implemented) while set.
+    pub access_batch_off: bool,
+    /// LINK-03: `POST /access/batch` answers 500 while set (a failing host).
+    pub access_batch_fail: bool,
+    /// LINK-03: (userId, fileIds, v2 signature ok) of every batch call.
+    pub access_batch_calls: Vec<(String, Vec<String>, bool)>,
+    /// LINK-A4 / GRAPH-A2: `/access` and `/access/batch` wait this long (a host at 20 ms).
+    pub access_delay_ms: u64,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -352,6 +360,10 @@ async fn members(
 }
 
 async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
+    let delay = s.lock().unwrap().access_delay_ms;
+    if delay > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
     let ok = verify_v2(&headers, "/api/access", &body);
     let v: Value = serde_json::from_slice(&body).unwrap_or_default();
     let (file, user) = (
@@ -381,6 +393,69 @@ async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> imp
             (StatusCode::OK, axum::Json(json!({"role": role})))
         }
     }
+}
+
+/// One file's `/access` answer as [`access`] gives it: `None` = 404, `Some(None)` = 410.
+fn access_answer(st: &HostState, file: &str, user: &str) -> Option<Option<Value>> {
+    if let Some(role) = st.access_files.get(&(file.to_string(), user.to_string())) {
+        if role == "gone" {
+            return Some(None);
+        }
+        let mut answer = json!({"role": role, "name": format!("Name of {file}")});
+        if let Some(path) = st.access_paths.get(file) {
+            answer["path"] = json!(path);
+        }
+        return Some(Some(answer));
+    }
+    if st.access_files.keys().any(|(f, _)| f == file) {
+        return Some(Some(json!({"role": "none"})));
+    }
+    let m = st.access.as_ref()?;
+    let role = m.get(user).cloned().unwrap_or_else(|| "none".into());
+    Some(Some(json!({"role": role})))
+}
+
+/// `POST /access/batch` (LINK-03): the per-file answers in one list; deleted files as
+/// `{gone: true}`; files the host refuses as `role: "none"` (or left out).
+async fn access_batch(
+    State(s): State<Shared>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> impl IntoResponse {
+    let delay = s.lock().unwrap().access_delay_ms;
+    if delay > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
+    let ok = verify_v2(&headers, "/api/access/batch", &body);
+    let v: Value = serde_json::from_slice(&body).unwrap_or_default();
+    let user = v["userId"].as_str().unwrap_or_default().to_string();
+    let files: Vec<String> = v["fileIds"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|f| f.as_str().map(String::from))
+        .collect();
+    let mut st = s.lock().unwrap();
+    st.access_batch_calls
+        .push((user.clone(), files.clone(), ok));
+    if st.access_batch_off {
+        return (StatusCode::NOT_FOUND, axum::Json(json!({})));
+    }
+    if st.access_batch_fail {
+        return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({})));
+    }
+    let mut items = vec![];
+    for f in files {
+        match access_answer(&st, &f, &user) {
+            None => {}
+            Some(None) => items.push(json!({"fileId": f, "gone": true})),
+            Some(Some(mut a)) => {
+                a["fileId"] = json!(f);
+                items.push(a);
+            }
+        }
+    }
+    (StatusCode::OK, axum::Json(json!({"items": items})))
 }
 
 /// `POST /files` (LIVE-01): creates `live_<n>` (empty: the first load is a new canvas) and
@@ -503,6 +578,7 @@ pub async fn mock_host() -> (String, Shared) {
         .route("/api/hooks", axum::routing::post(hooks))
         .route("/api/elsewhere", axum::routing::any(elsewhere))
         .route("/api/access", axum::routing::post(access))
+        .route("/api/access/batch", axum::routing::post(access_batch))
         .route("/api/files", axum::routing::post(create_file))
         .route("/api/search", get(search))
         .route("/assets/{id}", get(asset))
@@ -544,6 +620,7 @@ pub fn host_config(base: &str) -> HostConfig {
         editor: Default::default(),
         live: Default::default(),
         search: Default::default(),
+        links: Default::default(),
         automation: Default::default(),
         offline: Default::default(),
     }
@@ -647,6 +724,7 @@ pub async fn app_ai(
 pub fn grant(user: &str, role: Role) -> Grant {
     Grant {
         ext_blocks: false,
+        links_caps: false,
         subdoc: false,
         live: Default::default(),
         wopi_history: None,

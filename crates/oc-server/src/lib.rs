@@ -17,10 +17,12 @@ pub mod editor;
 pub mod events;
 pub mod fdlimit;
 pub mod grant;
+pub mod graph;
 pub mod history;
 pub mod host_client;
 pub mod hosts;
 pub mod jwt;
+pub mod links;
 pub mod live;
 pub mod metrics;
 pub mod notify;
@@ -91,6 +93,12 @@ pub struct AppState {
     pub live_slots: Arc<live::OpenSlots>,
     /// OFF-01 (ADR-063): the ES256 key that signs offline grants.
     pub offline_key: offline::GrantKey,
+    /// LINK-03: excerpt and `/access/batch` probe caches (memory only).
+    pub links: links::Caches,
+    /// GRAPH-01: graph answers per reader and parameters, 30 s (memory only).
+    pub graph_cache: graph::Cache,
+    /// LINK-05: what "Link" on an unlinked mention changed, for its Undo (memory only, 10 min).
+    pub mention_undo: routes::v1::links::MentionUndo,
 }
 
 #[derive(Clone, Copy)]
@@ -217,6 +225,18 @@ impl AppState {
                 automated.join(", ")
             );
         }
+        // LINK-02 (ADR-081): the link index is a relational query.
+        let linked: Vec<&str> = hosts
+            .iter()
+            .filter(|h| links::LinksCfg::of(h).on)
+            .map(|h| h.id.as_str())
+            .collect();
+        if !linked.is_empty() && store.is_redis_only() {
+            anyhow::bail!(
+                "[host.flags] links ({}) needs a database for the link index (DATABASE_URL: SQLite, MySQL or MariaDB); Redis-only storage has none (ADR-081)",
+                linked.join(", ")
+            );
+        }
         if !hooked.is_empty() {
             if store.is_redis_only() {
                 anyhow::bail!(
@@ -257,6 +277,9 @@ impl AppState {
             blocks,
             live_slots: Default::default(),
             offline_key,
+            links: Default::default(),
+            graph_cache: Default::default(),
+            mention_undo: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the
@@ -329,6 +352,7 @@ impl AppState {
             };
             let grant = grant::Grant {
                 ext_blocks: false,
+                links_caps: false,
                 subdoc: false,
                 live: Default::default(),
                 wopi_history: None,

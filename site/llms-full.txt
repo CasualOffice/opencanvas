@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.4.1, released 2026-11-28; last updated 2026-11-28.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.4.2, released 2026-11-28; last updated 2026-11-28.
 
 
 # Documentation
@@ -9,7 +9,7 @@ URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
-How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.4.1, released 2026-11-28. They describe what is built and say so where something is planned. The roadmap has the full picture.
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.4.2, released 2026-11-28. They describe what is built and say so where something is planned. The roadmap has the full picture.
 
 ## Start
 
@@ -146,7 +146,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.4.1
+  ghcr.io/casualoffice/opencanvas:0.4.2
 ```
 
 From source, with the sample host (Rust stable, Node 24 and pnpm 9):
@@ -802,7 +802,7 @@ OpenCanvas is an open-source, real-time collaborative canvas that other applicat
 
 ## Can I use it in production today?
 
-OpenCanvas 0.4.1 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.4.1] - 2026-11-28” The limits are in the release notes and on the home page .
+OpenCanvas 0.4.2 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.4.2] - 2026-11-28” The limits are in the release notes and on the home page .
 
 ## Is OpenCanvas free?
 
@@ -879,7 +879,7 @@ OpenCanvas, by CasualOffice, is the open-source collaborative workspace engine f
 
 ## At a glance
 
-Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.4.1, released 2026-11-28 Source: CHANGELOG.md, “## [0.4.1] - 2026-11-28” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud with Talk, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
+Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.4.2, released 2026-11-28 Source: CHANGELOG.md, “## [0.4.2] - 2026-11-28” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud with Talk, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
 
 ## Where to check
 
@@ -1145,7 +1145,8 @@ read-only.
 partial_sync = true    # the default from 0.4; false keeps every room whole
 ```
 
-A room keeps each database and board (diagrams included) as a subdocument that the editor loads
+A room keeps each database, board (diagrams included) and spreadsheet (from 0.4.1) as a
+subdocument that the editor loads
 when the block comes near the screen, so a large canvas opens on its text and the server and the
 browser hold only what people look at (on the 50 MB benchmark canvas the room holds the main
 document: 220 MB against 4.4 GB for 20 viewers, and the browser 16 MB against 472 MB). Your files
@@ -1159,6 +1160,15 @@ the canvas", which loads the current editor. If you embed an older editor build,
 that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` until it is
 updated. Turning it off again is safe: a room folds its parts back into one document when it next
 opens. Temporary canvases and live block files are never split.
+
+**Reopening a large canvas (0.4.1).** A split room of 4 MiB or more that closes with everything
+saved keeps its split in the database (`OC_KEEP_SPLIT_MIN_BYTES`, bytes; smaller canvases are
+purged as before). The next open compares the version your load returns (its `ETag`) with the
+version the room saved; when they match, the room opens from what it kept instead of reading
+and cutting the file (the 50 MB benchmark canvas: 1.3 s to its first screen instead of 3.3 s).
+Any other version, or a host that answers the load with a different version name than the save,
+reads the file as before. This costs database space: about the canvas's Yjs size for each large
+canvas until it is opened at another version.
 
 ### 2c-ter. Formulas, relations and rollups (DB4, ADR-078; `[host.flags] formulas`)
 
@@ -1209,6 +1219,49 @@ unsent_mb    = 5          # unsent changes per canvas before editing pauses (1-5
 **Start-up checks.** An unknown `[host.offline]` key, a value out of range, a bad `max_role`,
 `auto_recent` above `max_canvases`, and `enabled = true` on a WOPI-only host refuse to start,
 naming the host.
+
+### 2d-bis. Links and backlinks (LINK-01..05, docs/38 §2, ADR-081; `[host.flags] links`)
+
+People link a canvas, a heading, a database or a row with `[[` in the editor, or by pasting one of
+your URLs. Every canvas then shows **Linked from** (the canvases that link to it, with the sentence
+around each link) and **unlinked mentions** (canvases that name it without a link, from your
+search, §5). Off until you turn it on:
+
+```toml
+[host.flags]
+links = true          # default false: no index, no panel, [[ inserts an ordinary link
+
+[host.links]
+url_patterns = ["https://app.acme.example/canvas/{fileId}#{blockId}",
+                "https://app.acme.example/canvas/{fileId}"]   # pasted URLs and links that are canvas links
+url_template = "https://app.acme.example/canvas/{fileId}#{blockId}" # what exports and older editors link to
+```
+
+- **What OpenCanvas keeps.** A table `link_edges` (migration 0014) of ids only: which file and
+  block links to which file, block and row, and whether it is a link, an embed (live block or
+  block reference) or a relation. No titles, labels or text. It is written **only after your
+  save callback acknowledged a save**, so it describes what you store. A save you refuse
+  changes nothing.
+- **Who sees what.** Every read asks you, for the reader, about every linking canvas, with
+  **`POST /access/batch`** (§5, optional, up to 200 files a call) or else `POST /access` per file
+  (8 at a time); both are cached 30 s. A canvas the reader cannot open is left out and not
+  counted; a failing answer shows nothing rather than everything. Titles, paths, `updatedAt`,
+  `updatedBy` and `space` come from those answers. `POST /access` is required (JWT hosts that
+  store their files; not WOPI-only or temporary canvases).
+- **Excerpts** are made when the panel opens, from the linking canvas as the reader may read it
+  (the open room, else your load callback with that reader's bearer), kept 5 minutes in memory
+  and never written.
+- **Deleted files.** Answer `/access` with 410 (or `gone: true` in a batch item): a deleted
+  linking canvas loses its rows on the next read that sees it, a deleted target shows as
+  "Deleted canvas". Call `DELETE /api/v1/links/files/{fileId}` (host key) to drop a deleted
+  file's links at once.
+- **Turning it on for existing files.** `POST /api/v1/links/index {"fileIds": [...]}` (host key,
+  up to 100 a call) loads each file through your load callback, writes its links and drops the
+  document. Walk your files once.
+- **Graph.** `GET /api/v1/graph` and MCP `canvas_graph` (ADR-082) read the same index through the
+  same checks. `space` in your access answers groups canvases (else the first segment of `path`).
+- **Storage.** The index needs a database: Redis-only storage (no `DATABASE_URL`) refuses to start
+  with `links = true`.
 
 ### 2e. Automation (AUTO-01..07, docs/34 §5, ADR-067, ADR-068; `[host.automation]`)
 
@@ -1539,6 +1592,7 @@ OpenCanvas:
 | **Get asset** `GET /files/{fileId}/assets/{assetId}` | — | bytes or `302` to a signed URL |
 | **Members** *(optional, docs/21)* `GET /files/{fileId}/members?q=&limit=` | signed like every callback, with the `callbackToken` of whoever asked; cached 60 s per file, dropped at once by a revoke (§7) or `POST /v1/files/{fileId}/members/invalidate` | `[{"id","name","detail","avatar","color"}]` (or `{"members":[…]}`, ≤ 500): everyone with access to this file whose name or detail matches `q` (empty = everyone). `404`/`405`/`410`/`501` = not implemented; any e-mail you send is ignored |
 | **Access** *(optional, MCP, docs/24 §7.3)* `POST /access` | JSON `{fileId, userId}`, signed like every callback (v2), no bearer token | `{"role":"view"|"comment"|"edit"|"none", "name"?, "path"?, "callbackToken"?}`. **Required for live blocks** (§2c): each person who opens one is checked here; `name` titles the live file, `path` says where it lives in your app (at most 200 characters, shown as plain text in the live block's header: "from Leadership weekly › Q1"; without it the header names your app; ignored with `none`) and `callbackToken` is the bearer for that file's load and save (else the embedding session's). Used for MCP calls (§7a) instead of the token's `role` claim; cached 30 s per (file, user), dropped by the role API and `members/invalidate` on the node that gets them. `404`/`405`/`501` = not implemented (the token's `role` claim is used, only for the files its `files` claim lists, §7a); other errors refuse the call (`INTERNAL`) |
+| **Access batch** *(optional, links, §2d-bis)* `POST /access/batch` | JSON `{userId, fileIds}` (at most 200), signed like every callback (v2), no bearer token; 8 s timeout | `{"items":[{"fileId","role":"view"|"comment"|"edit"|"none","name"?,"path"?,"space"?,"updatedAt"?,"updatedBy"?}]}`: one item per file as `POST /access` would answer it; `{"fileId","gone":true}` for a deleted file; a file left out is `none`. Cached 30 s per (file, user) together with `/access`. `404`/`405`/`501` = not implemented (OpenCanvas asks `/access` per file for 10 minutes, then tries again); other errors show no backlinks |
 | **Create file** *(live blocks, §2c)* `POST /files` | JSON `{name, parentFileId, kind: "ocanvas", type?}` (`type` per §2f when a block becomes its own file), signed, with the `callbackToken` of whoever makes the live block and an `Idempotency-Key` | `201 {"fileId":"doc_9001"}`: create it where you like with the ACL you like (by default the parent's) and give that person edit on it. OpenCanvas writes the content and saves it through `PUT /files/{fileId}`. `404`/`405`/`501` = not implemented ("Make live" is hidden) |
 | **Team templates** *(optional, `team_templates = true`, TPL-01)* `GET /templates` | signed like every callback, with the `callbackToken` of whoever opened the gallery; cached 60 s per host | `[{"id","name","description","category","icon","tone","updatedAt"}]` (or `{"templates":[…]}`, ≤ 512 KB, first 200 shown). `id` 1-128 of `[A-Za-z0-9_.-]`; entries without a valid id or a `name` are dropped; `icon` a Lucide name, `tone` one of gray blue green amber red pink purple. `404`/`405`/`410`/`501` = not implemented (no team section) |
 | **Team template file** *(optional)* `GET /templates/{id}` | signed; asked only when an editor applies it (never for view/comment) | `.ocanvas` or Markdown bytes, ≤ 5 MB, checked like an import. It replaces the canvas content as one server edit that the person who applied it can undo from its toast. `404`/`410` = gone |
@@ -1872,6 +1926,9 @@ same tool layer as MCP, §7a):
 | Convert | `POST /api/v1/convert?from=&to=` | stateless, as in §7 |
 | Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
 | Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
+| Backlinks | `GET /api/v1/files/{fileId}/backlinks?block=&kind=&cursor=&limit=` | **user token only**; view on the file, every linking canvas checked with your `/access/batch` (else `/access`), hidden ones left out and not counted; MCP `canvas_backlinks` answers the same (`[host.flags] links`) |
+| Link graph | `GET /api/v1/graph?root=&depth=&kinds=&blocks=&limit=` | **user token only**; local (root, depth 1-3, ≤ 500 nodes) or full (≤ 2,000 most-connected canvases, `truncated`); every canvas checked with your `/access/batch` before it is shown or expanded, so hidden ones never connect others; 10 a minute per person (2 full); MCP `canvas_graph` (ADR-082) |
+| Link index | `POST /api/v1/links/index {fileIds}`, `DELETE /api/v1/links/files/{fileId}` | host key only: backfill up to 100 files a call; drop a deleted file's links |
 | Automation rules | `GET /api/v1/files/{id}/automations`, `PUT`/`DELETE …/automations/{ruleId}`, `POST …/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs` | needs `[host.automation]`; writes need `canvas:write` and edit; the caller becomes the rule's owner; runs are editors only (§2e) |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |
 | Revoke offline copies | `POST /api/v1/offline/revoke {userId}` | host key or `canvas:admin`; raises the person's offline generation → `{gen}`; their devices delete every offline copy for your host at the next session answer (§2d) |
@@ -3455,7 +3512,11 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    `answer`, `comment`; `view`: none); `mcp` mirrors `[host.ai] mcp`. The editor shows the
    assistant from this; `?ai=1` only turns it on when `ai` is absent (demo, dev).
    `isNew` is true when the host returned 404 / an empty file. The SPA then shows
-   the template gallery.
+   the template gallery. *(0.4.1, PSYNC-BUG-2)* The answer waits at most 250 ms for the room to
+   open; for a canvas that takes longer to read (a large file) `isNew` is `null`, and the room
+   sends control `{"t":"room","isNew":bool}` on the socket right after its sync step 1 (every
+   join sends it), before the first sync completes. A host error that takes longer than the wait
+   closes the socket (1011) instead of failing the session.
    *(docs/21 revision 2)*: `user` is `{id, name, color, avatar, detail?}`, never an e-mail. A `GET`
    lifts a role-API revoke for that viewer (a fresh token means access). `401 {"error":{"code":"TICKET_INVALID"}}` when unknown or expired.
    (Implementation: `isNew` = the room's doc has no `content` and empty `meta`/`databases`/`boards`,
@@ -3609,8 +3670,8 @@ arguments are sent or logged.
 
 ### 3.2 Partial sync: subdocuments on the room socket (PSYNC-02, ADR-076)
 
-By default a room keeps each `databases` and `boards` entry (including diagrams) as a
-**subdocument** of the main document. This works with SQLite, MySQL, MariaDB, and Redis under
+By default a room keeps each `databases`, `boards` and `sheets` entry (diagrams included;
+spreadsheets since 0.4.1) as a **subdocument** of the main document. This works with SQLite, MySQL, MariaDB, and Redis under
 either durability mode. Hosts can set `[host.flags] partial_sync = false` to keep the canvas
 whole. Temporary canvases and live block files stay whole.
 
@@ -3618,12 +3679,14 @@ whole. Temporary canvases and live block files stay whole.
   room closes a connection without it at once with **4426** `"editor out of date: reopen the
   canvas"` (owner decision: 0.3 editors are not served a flattened view).
 - **Main document.** The ordinary messages (types 0-3, 100) carry the main document: text,
-  outline, meta, comments, people, automations, and the `databases`/`boards` roots without the
-  split entries. Awareness stays on the main document.
+  outline, meta, comments, people, automations, and the `databases`/`boards`/`sheets` roots
+  without the split entries. Awareness stays on the main document.
 - **Parts list.** After its sync step 1 the server sends
-  `{"t":"parts","parts":[{"id":"<fileId>/block/<blockId>","kind":"database"|"board","name","count"}]}`
-  (sorted by id), and sends it again when a part is added. `count` is the rows or items, for the
-  placeholder's size.
+  `{"t":"parts","parts":[{"id":"<fileId>/block/<blockId>","kind":"database"|"board"|"sheet","name","count"}]}`
+  (sorted by id), and sends it again when a part is added. `count` is the rows, items or sheets,
+  for the placeholder's size. A `sheet` also has `tabs`: `[{"id","name"}]` in tab order (0.4.1),
+  so a chart can name it as a source before it is loaded. A 0.4.0 editor reads spreadsheets from
+  the main document and shows them empty until reloaded.
 - **Subdocument frames, type 101:** a y-protocols custom message like type 100:
   `[101, varUint8Array(payload)]`, payload `[varString guid, <one whole y-protocols message>]`,
   guid `<fileId>/block/<blockId>`. The inner message starts with its own type (0, sync) and then
@@ -3637,13 +3700,17 @@ whole. Temporary canvases and live block files stay whole.
     on sends that connection the part's updates as `[101, guid, update]`.
   - *Edit:* `[101, guid, step 2 | update]`, only for a loaded part (else `sub-denied`, "load the
     block first"). Roles as for the main document: `view` and `comment` are refused with an auth
-    frame. **One client id per document:** an update whose client id has written further in
-    another document of the room is refused (`sub-denied`, "one client id per document"); Yjs
-    subdocuments have their own client ids, so this only stops a client that reuses one.
+    frame. **One client id per document:** each document owns the clock ranges it was given (at
+    the split, and as each write is applied). An update may claim clocks no other document
+    knows yet, repeat clocks the document owns, and carry fillers (GC) anywhere; an item at a
+    clock another document knows and this one does not own is refused (`sub-denied`, "one
+    client id per document"; on the main document an auth frame). Yjs subdocuments have their
+    own client ids, so this only stops a client that reuses one. (Changed 0.4.1, PSYNC-BUG-4:
+    the rule compared state vectors before and refused a client's sync reply with fillers.)
   - *Unload:* control `{"t":"sub-unload","id":guid}`; leaving the socket unloads everything. A
     part nobody holds leaves the room's memory after 30 s.
-- **What a part is.** A part is a stock Yjs document whose root map (`databases` or `boards`)
-  holds that one key. Its items keep the ids they have in the whole canvas; clock ranges of other
+- **What a part is.** A part is a stock Yjs document whose root map (`databases`, `boards` or
+  `sheets`) holds that one key. Its items keep the ids they have in the whole canvas; clock ranges of other
   documents are GC structs ("fillers"). A client must not apply a part's update to anything but
   that part: yrs and Yjs list GC in the delete set, so the fillers read as deletions elsewhere
   (`oc_model::parts::own_share` cuts an update to what the part owns).
@@ -6133,6 +6200,173 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## 2026-11-28-links-graph-local-m4 — 2026-11-28-links-graph-local-m4
+
+- **Run:** 2026-11-28, commit `?`; ?, ? vCPU, ? GB RAM, ?, ?; machine `Apple M4, local, other agents' builds running (background load)`; store `?`
+
+
+## BROWSER — 2026-11-28-browser-local
+
+- **Run:** 2026-11-28, commit `87a89b6`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 4,348 | 7,335 | 26.3 |
+
+Initial JavaScript: 299,073 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-reopen
+
+- **Run:** 2026-11-28, commit `87a89b6`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 1,983 | 3,246 | 12.8 |
+
+Initial JavaScript: 299,073 bytes gzip (budget 300 KB).
+
+
+## browser A/B, PSYNC-BUG-3 — 2026-11-28-browser-local-psync3-ab
+
+- **Run:** 2026-11-28, commit `?`; ?, ? vCPU, ? GB RAM, ?, ?; machine `local (Apple M4, load average 10-20 from other work: interleaved rounds)`; store `?`
+- **Load:** ; , CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+
+## BROWSER — 2026-11-28-browser-local-exp-idleids
+
+- **Run:** 2026-11-28, commit `c951139`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-exp-idleids`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 605 | 613 | 7.3 |
+
+Initial JavaScript: 299,346 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-exp-base
+
+- **Run:** 2026-11-28, commit `c951139`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-exp-base`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 721 | 727 | 7.2 |
+
+Initial JavaScript: 299,382 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-ab-prog-reopen
+
+- **Run:** 2026-11-28, commit `c951139`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-ab-prog`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 2,580 | 5,005 | 16.2 |
+
+Initial JavaScript: 299,684 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-ab-noprog-reopen
+
+- **Run:** 2026-11-28, commit `c951139`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-ab-noprog`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 2,096 | 4,266 | 15.3 |
+
+Initial JavaScript: 298,996 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-ab-first-reopen
+
+- **Run:** 2026-11-28, commit `c951139`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-ab-first`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 1,882 | 3,700 | 12.8 |
+
+Initial JavaScript: 299,073 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-psync2-reopen
+
+- **Run:** 2026-11-28, commit `e26b82f`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-psync2`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 1,335 | 3,298 | 15 |
+
+Initial JavaScript: 299,382 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-psync2-before
+
+- **Run:** 2026-11-28, commit `e26b82f`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-psync2-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 4,411 | 6,706 | 16.2 |
+
+Initial JavaScript: 299,350 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-before
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 867 | 1,023 | 7.3 |
+
+Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-before-whole
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 1,018 | 1,097 | 10.2 |
+
+Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-base6e5e-whole
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-base6e5e`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 997 | 1,319 | 10.3 |
+
+Initial JavaScript: 294,137 bytes gzip (budget 300 KB).
+
+
 ## CRASH-SAVE — 2026-11-28-crash-drill-save-mysql84-local
 
 - **Run:** 2026-11-28, commit `c8f0554`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `mysql 8.4.13`
@@ -7813,7 +8047,7 @@ A write runs in the file's live room as one transaction : everyone editing the c
 
 ## Operations
 
-Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JSON blocks, Markdown or an outline Blocks GET /api/v1/files/{fileId}/blocks List top-level blocks Blocks GET /api/v1/files/{fileId}/blocks/{blockId} Read one block (also nested ones) Blocks GET /api/v1/files/{fileId}/blocks:find Find blocks whose text contains q (case-insensitive) Blocks POST /api/v1/files/{fileId}/blocks:batch Change blocks in one atomic transaction Blocks POST /api/v1/files/{fileId}/live Make blocks live Blocks GET /api/v1/files/{fileId}/references List the live blocks and block references Databases GET /api/v1/files/{fileId}/databases List databases with fields, row counts and views Databases POST /api/v1/files/{fileId}/databases Create a database block Databases GET /api/v1/files/{fileId}/databases/{dbId} Describe one database Databases GET /api/v1/files/{fileId}/databases/{dbId}/rows Query rows Databases POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert Create or update rows (at most 200) Databases POST /api/v1/files/{fileId}/databases/{dbId}/fields Add a field Boards POST /api/v1/files/{fileId}/boards Create a board block with shapes Boards GET /api/v1/files/{fileId}/boards/{boardId}/shapes Read a board's shapes Boards POST /api/v1/files/{fileId}/boards/{boardId}/shapes Add shapes to a board Comments GET /api/v1/files/{fileId}/comments List comment threads Comments POST /api/v1/files/{fileId}/comments Start a thread on a block or reply to one Members GET /api/v1/files/{fileId}/members People with access (id, name, detail; never e-mail) Export and import GET /api/v1/files/{fileId}/export/{format} Export the canvas Export and import GET /api/v1/files/{fileId}/render Render the canvas as read-only HTML Export and import POST /api/v1/files/{fileId}/import Import Markdown, HTML or CSV into the canvas Export and import POST /api/v1/convert Stateless conversion Automation GET /api/v1/files/{fileId}/automations List automation rules Automation POST /api/v1/files/{fileId}/automations:test Test run a rule Automation GET /api/v1/files/{fileId}/automations/runs Automation run history Automation PUT /api/v1/files/{fileId}/automations/{ruleId} Create or replace a rule Automation DELETE /api/v1/files/{fileId}/automations/{ruleId} Delete a rule Automation POST /api/v1/files/{fileId}/automations/{ruleId}/enable Switch a rule on or off Search POST /api/v1/extract Extract search.json Search GET /api/v1/search Search across canvases Events and sync GET /api/v1/files/{fileId}/events Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages Events and sync POST /api/v1/files/{fileId}/sync-token A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly Admin POST /api/v1/files/{fileId}/commit Save now (200 saved, 202 queued in the outbox, 409 conflict) Admin POST /api/v1/files/{fileId}/role Change a user's role live (none disconnects them) Admin DELETE /api/v1/files/{fileId}/session Final save, disconnect everyone, drop every ticket Admin POST /api/v1/files/{fileId}/members:invalidate The member list changed; drop cached answers Admin POST /api/v1/offline/revoke Revoke every offline copy of a person OpenAPI document GET /api/v1/openapi.json This document 0.1 routes (deprecated) POST /v1/files/{fileId}/patch Patch blocks (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/commit Save now (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/role Change a role (0.1) 0.1 routes (deprecated) DELETE /v1/files/{fileId}/session Close the session (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/members/invalidate Members changed (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/import Import (0.1) 0.1 routes (deprecated) POST /v1/convert Convert (0.1)
+Resource Operation Summary Canvas GET /api/v1/files/{fileId} Read a canvas as JSON blocks, Markdown or an outline Blocks GET /api/v1/files/{fileId}/blocks List top-level blocks Blocks GET /api/v1/files/{fileId}/blocks/{blockId} Read one block (also nested ones) Blocks GET /api/v1/files/{fileId}/blocks:find Find blocks whose text contains q (case-insensitive) Blocks POST /api/v1/files/{fileId}/blocks:batch Change blocks in one atomic transaction Blocks POST /api/v1/files/{fileId}/live Make blocks live Blocks GET /api/v1/files/{fileId}/references List the live blocks and block references Databases GET /api/v1/files/{fileId}/databases List databases with fields, row counts and views Databases POST /api/v1/files/{fileId}/databases Create a database block Databases GET /api/v1/files/{fileId}/databases/{dbId} Describe one database Databases GET /api/v1/files/{fileId}/databases/{dbId}/rows Query rows Databases POST /api/v1/files/{fileId}/databases/{dbId}/rows:upsert Create or update rows (at most 200) Databases POST /api/v1/files/{fileId}/databases/{dbId}/fields Add a field Boards POST /api/v1/files/{fileId}/boards Create a board block with shapes Boards GET /api/v1/files/{fileId}/boards/{boardId}/shapes Read a board's shapes Boards POST /api/v1/files/{fileId}/boards/{boardId}/shapes Add shapes to a board Comments GET /api/v1/files/{fileId}/comments List comment threads Comments POST /api/v1/files/{fileId}/comments Start a thread on a block or reply to one Members GET /api/v1/files/{fileId}/members People with access (id, name, detail; never e-mail) Export and import GET /api/v1/files/{fileId}/export/{format} Export the canvas Export and import GET /api/v1/files/{fileId}/render Render the canvas as read-only HTML Export and import POST /api/v1/files/{fileId}/import Import Markdown, HTML or CSV into the canvas Export and import POST /api/v1/convert Stateless conversion Automation GET /api/v1/files/{fileId}/automations List automation rules Automation POST /api/v1/files/{fileId}/automations:test Test run a rule Automation GET /api/v1/files/{fileId}/automations/runs Automation run history Automation PUT /api/v1/files/{fileId}/automations/{ruleId} Create or replace a rule Automation DELETE /api/v1/files/{fileId}/automations/{ruleId} Delete a rule Automation POST /api/v1/files/{fileId}/automations/{ruleId}/enable Switch a rule on or off Search POST /api/v1/extract Extract search.json Search GET /api/v1/search Search across canvases Links GET /api/v1/files/{fileId}/backlinks Canvases that link to this canvas Links DELETE /api/v1/links/files/{fileId} Drop a deleted file's links from the index Links POST /api/v1/links/index Backfill the link index from your files Links GET /api/v1/graph The link graph between canvases Events and sync GET /api/v1/files/{fileId}/events Change events of one file, as Server-Sent Events or (with a WebSocket upgrade) JSON text messages Events and sync POST /api/v1/files/{fileId}/sync-token A ticket for the room WebSocket, so a Yjs-native client syncs the CRDT directly Admin POST /api/v1/files/{fileId}/commit Save now (200 saved, 202 queued in the outbox, 409 conflict) Admin POST /api/v1/files/{fileId}/role Change a user's role live (none disconnects them) Admin DELETE /api/v1/files/{fileId}/session Final save, disconnect everyone, drop every ticket Admin POST /api/v1/files/{fileId}/members:invalidate The member list changed; drop cached answers Admin POST /api/v1/offline/revoke Revoke every offline copy of a person OpenAPI document GET /api/v1/openapi.json This document 0.1 routes (deprecated) POST /v1/files/{fileId}/patch Patch blocks (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/commit Save now (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/role Change a role (0.1) 0.1 routes (deprecated) DELETE /v1/files/{fileId}/session Close the session (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/members/invalidate Members changed (0.1) 0.1 routes (deprecated) POST /v1/files/{fileId}/import Import (0.1) 0.1 routes (deprecated) POST /v1/convert Convert (0.1)
 
 ## No "try it" console
 
@@ -7838,7 +8072,7 @@ For code that acts for one of your users (an integration running as that user, a
 
 ## Scopes
 
-A token's scope is a ceiling: the operation's x-opencanvas-scope in the OpenAPI document must be within it, or the answer is 403 SCOPE_REQUIRED . Each scope includes the ones above it. Scope Allows Least role Operations canvas:read Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role. view readFile , listBlocks , getBlock , findBlocks , listDatabases , getDatabase , queryRows , readBoard , listComments , listMembers , exportFile , renderFile , listReferences , streamEvents , createSyncToken , convert , extract , search , listAutomations , listAutomationRuns canvas:comment Everything canvas:read allows, and start or reply to comment threads. comment addComment canvas:write Everything canvas:comment allows, and change blocks, databases and boards, and import. canvas:write:direct counts as canvas:write . edit batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , makeLive , importFile , testAutomation , saveAutomation , deleteAutomation , enableAutomation canvas:admin Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets [host.api] token_admin = true ; otherwise these are the host key's. host key, or a token with canvas:admin commitFile , setRole , closeSession , invalidateMembers , offlineRevoke
+A token's scope is a ceiling: the operation's x-opencanvas-scope in the OpenAPI document must be within it, or the answer is 403 SCOPE_REQUIRED . Each scope includes the ones above it. Scope Allows Least role Operations canvas:read Read canvases, blocks, databases, boards, comments and members; export; stream events; a sync ticket with the view role. view readFile , listBlocks , getBlock , findBlocks , listDatabases , getDatabase , queryRows , readBoard , listComments , listMembers , exportFile , renderFile , listReferences , streamEvents , createSyncToken , convert , extract , search , listAutomations , listAutomationRuns , listBacklinks , getGraph canvas:comment Everything canvas:read allows, and start or reply to comment threads. comment addComment canvas:write Everything canvas:comment allows, and change blocks, databases and boards, and import. canvas:write:direct counts as canvas:write . edit batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , makeLive , importFile , testAutomation , saveAutomation , deleteAutomation , enableAutomation canvas:admin Save now, change a user's role, close the session, drop cached members. Counts for tokens only when the host sets [host.api] token_admin = true ; otherwise these are the host key's. host key, or a token with canvas:admin commitFile , setRole , closeSession , invalidateMembers , offlineRevoke
 
 ## Roles
 
@@ -7877,7 +8111,7 @@ Authentication, the API switch, rate limits and availability: every /api/v1 oper
 
 ## Operation-specific
 
-Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. readFile , findBlocks , batchBlocks , createDatabase , queryRows , upsertRows , addField , createBoard , addShapes , addComment , makeLive , setRole , streamEvents , search , offlineRevoke , testAutomation , saveAutomation , deleteAutomation , enableAutomation CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. listBlocks , queryRows IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. importFile , legacyImport INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. convert , legacyConvert ROLE_INVALID 400 role is not view , comment , edit or none . setRole , legacySetRole RULE_INVALID 400 The rule does not parse, names an action the host does not allow, or schedules more often than the minimum. saveAutomation RULE_LIMIT 400 The canvas has max_rules rules; delete one to add another. saveAutomation URL_NOT_ALLOWED 400 A URL call to an origin that is neither the host's callback origin nor in [host.automation] allow_origins (ADR-068). saveAutomation USER_TOKEN_REQUIRED 400 Search runs as a person, so the host's permissions apply; a host key has no person. search EXPORT_OFF 403 The host's export settings do not allow this format. exportFile IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . importFile , legacyImport LIVE_DEPTH 403 The canvas is itself a live file ( meta.kind = "live" ), which may not contain live blocks or references (the depth rule, docs/27 §2.2). makeLive AUTOMATION_OFF 404 The operator has not turned automation on for this host. listAutomations , testAutomation , listAutomationRuns , saveAutomation , deleteAutomation , enableAutomation BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). getBlock , batchBlocks , createDatabase , addComment , makeLive , importFile , legacyPatch , legacyImport DB_NOT_FOUND 404 The canvas has no database with that dbId . getDatabase FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. exportFile , renderFile , convert , legacyConvert LIVE_OFF 404 Live block operations need [host.flags] live_blocks = true in the host's entry of the hosts file. makeLive NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. getDatabase , queryRows , upsertRows , addField , createBoard , readBoard , addShapes , addComment RULE_NOT_FOUND 404 No rule with that id in this canvas. deleteAutomation , enableAutomation SEARCH_UNAVAILABLE 404 The host has not turned on [host.search] callback , or its GET /search answered 404, 405 or 501. search CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . batchBlocks CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. importFile , commitFile , legacyPatch , legacyCommit , legacyImport IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. listBlocks , queryRows STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. batchBlocks BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers , convert , extract , offlineRevoke , testAutomation , saveAutomation , enableAutomation DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. importFile , legacyPatch , legacyImport IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. importFile , legacyImport EXTRACT_TOO_SLOW 422 Extraction has a 2 s budget per file. extract IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation NOT_OCANVAS 422 The extract body is not a readable .ocanvas (or not UTF-8 Markdown). extract TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. streamEvents LIVE_CREATE_UNSUPPORTED 501 Your POST {callback_base}/files answered 404, 405 or 501: "Make live" needs it. makeLive PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . exportFile , convert , legacyConvert HOST_ERROR 502 The host's search callback failed or answered something that is not a search answer. search HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. readFile , batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , exportFile , renderFile , makeLive , importFile , legacyPatch , legacyImport , listAutomations , testAutomation , listAutomationRuns , saveAutomation , deleteAutomation , enableAutomation ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry. importFile , legacyPatch , legacyImport HOST_TIMEOUT 504 The host's search callback took longer than [host.search] timeout_ms (default 8 s). search
+Each operation's section in the reference lists the ones it can answer. Code Status Meaning BAD_INPUT 400 The request is not what the operation takes: the body is not a JSON object, a field is missing or has the wrong type, an op, mode, format or event type is unknown, or fileId is longer than 1,024 bytes. detail says which. readFile , findBlocks , batchBlocks , createDatabase , queryRows , upsertRows , addField , createBoard , addShapes , addComment , makeLive , setRole , streamEvents , search , offlineRevoke , testAutomation , saveAutomation , deleteAutomation , enableAutomation , listBacklinks , deleteFileLinks , indexLinks , getGraph CURSOR_INVALID 400 The cursor is not one this server signed for this file and query: changed, truncated, from another host, or sent with a different filter , sort or fields . Pass next_cursor back unchanged. listBlocks , queryRows IDEMPOTENCY_KEY_INVALID 400 The Idempotency-Key header is empty, longer than 255 bytes, or has characters outside visible ASCII. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation IMPORT_INVALID 400 The file could not be read: not UTF-8, a malformed CSV, or a diagram that is unreadable, too deep or declares entities. importFile , legacyImport INPUT_INVALID 400 Convert: the body is not a readable .ocanvas file. convert , legacyConvert ROLE_INVALID 400 role is not view , comment , edit or none . setRole , legacySetRole RULE_INVALID 400 The rule does not parse, names an action the host does not allow, or schedules more often than the minimum. saveAutomation RULE_LIMIT 400 The canvas has max_rules rules; delete one to add another. saveAutomation URL_NOT_ALLOWED 400 A URL call to an origin that is neither the host's callback origin nor in [host.automation] allow_origins (ADR-068). saveAutomation USER_TOKEN_REQUIRED 400 Search runs as a person, so the host's permissions apply; a host key has no person. search , listBacklinks , getGraph EXPORT_OFF 403 The host's export settings do not allow this format. exportFile HOST_KEY_REQUIRED 403 Index maintenance ( DELETE /api/v1/links/files/{fileId} , POST /api/v1/links/index ) is for your application, with the host key; a person's token is refused. deleteFileLinks , indexLinks IMPORT_OFF 403 The format is not in the host's [host.flags] import_formats , or the operator set OC_IMPORT=off . importFile , legacyImport LIVE_DEPTH 403 The canvas is itself a live file ( meta.kind = "live" ), which may not contain live blocks or references (the depth rule, docs/27 §2.2). makeLive AUTOMATION_OFF 404 The operator has not turned automation on for this host. listAutomations , testAutomation , listAutomationRuns , saveAutomation , deleteAutomation , enableAutomation BLOCK_NOT_FOUND 404 No block in the canvas has that blockId (the path's, an op's blockId , or a comment's blockId ). getBlock , batchBlocks , createDatabase , addComment , makeLive , importFile , legacyPatch , legacyImport DB_NOT_FOUND 404 The canvas has no database with that dbId . getDatabase FORMAT_UNSUPPORTED 404, 400 Export (404): the format in the path is not one of md , html , json , ocanvas , docx , pdf . Convert (400): from or to is not supported. exportFile , renderFile , convert , legacyConvert LINKS_OFF 404 Backlinks and the link index need [host.flags] links = true and a database (not Redis-only storage). listBacklinks , deleteFileLinks , indexLinks , getGraph LIVE_OFF 404 Live block operations need [host.flags] live_blocks = true in the host's entry of the hosts file. makeLive NOT_FOUND 404 An unknown database, board or comment thread id, or a path that is no API operation. getDatabase , queryRows , upsertRows , addField , createBoard , readBoard , addShapes , addComment RULE_NOT_FOUND 404 No rule with that id in this canvas. deleteAutomation , enableAutomation SEARCH_UNAVAILABLE 404 The host has not turned on [host.search] callback , or its GET /search answered 404, 405 or 501. search CONFIRMATION_REQUIRED 409 The batch deletes more than 5 blocks. Send it again with "confirm": true . batchBlocks CONFLICT 409 Your save callback answered that the file changed outside OpenCanvas; the host's conflict policy runs and the save is not retried. importFile , commitFile , legacyPatch , legacyCommit , legacyImport IDEMPOTENCY_IN_PROGRESS 409 A request with the same key is still running, on this or another node. Retry after Retry-After (1 second) to get its answer. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation CURSOR_EXPIRED 410 Cursors last an hour. Start the walk again without one. listBlocks , queryRows FILE_GONE 410 Your POST /access answered 410 (or gone ) for the canvas asked about. listBacklinks , getGraph STALE_BLOCK 412 A block op's ifMatch or the If-Match header names a revision that is no longer current. fresh carries the current state: the changed blocks with their rev and Markdown, or the document rev . Nothing was applied. batchBlocks BODY_TOO_LARGE 413 The request body is over the server's limit (at least 5 MiB, the import limit). batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , importFile , commitFile , setRole , invalidateMembers , convert , extract , offlineRevoke , testAutomation , saveAutomation , enableAutomation DOC_TOO_LARGE 413 The change would make the canvas larger than the server's document limit. importFile , legacyPatch , legacyImport IMPORT_TOO_LARGE 413 The file is over 5 MiB, or a CSV has more than 10,000 rows or 200 columns. importFile , legacyImport EXTRACT_TOO_SLOW 422 Extraction has a 2 s budget per file. extract IDEMPOTENCY_KEY_REUSED 422 The key was used in the last 24 hours with another method, path or body. Use a new key for a new request. batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , makeLive , importFile , commitFile , setRole , invalidateMembers , testAutomation , saveAutomation , deleteAutomation , enableAutomation NOT_OCANVAS 422 The extract body is not a readable .ocanvas (or not UTF-8 Markdown). extract TOO_MANY_STREAMS 429 A server holds at most 100 event streams per file. Close one, or share one stream between your workers. streamEvents LIVE_CREATE_UNSUPPORTED 501 Your POST {callback_base}/files answered 404, 405 or 501: "Make live" needs it. makeLive PDF_RENDERER_NOT_CONFIGURED 501 PDF needs the operator to run the Gotenberg sidecar and set OC_PDF_RENDERER . exportFile , convert , legacyConvert HOST_ERROR 502 The host's search callback failed or answered something that is not a search answer. search HOST_UNAVAILABLE 502 Your load or save callback failed or timed out, so the file could not be loaded or saved. readFile , batchBlocks , createDatabase , upsertRows , addField , createBoard , addShapes , addComment , exportFile , renderFile , makeLive , importFile , legacyPatch , legacyImport , listAutomations , testAutomation , listAutomationRuns , saveAutomation , deleteAutomation , enableAutomation ROOM_UNAVAILABLE 503 The change could not be stored in the live room. Retry. importFile , legacyPatch , legacyImport HOST_TIMEOUT 504 The host's search callback took longer than [host.search] timeout_ms (default 8 s). search
 
 ## Router fallbacks
 
@@ -8085,6 +8319,10 @@ URL: https://canvas.casualoffice.org/api/changelog.html
 ## API changelog
 
 The API-relevant entries of CHANGELOG.md , newest first. The OpenAPI document is version 1.0.0 ; within /api/v1 changes are additive, and a breaking change gets a new path major.
+
+## 0.4.1 (2026-11-28)
+
+Added Links between canvases (LINK-01..03, ADR-081; off until a host sets [host.flags] links ): a canvasLink node links a canvas, a block or a row; the server keeps a link index of ids only ( link_edges , migration 0014, SQLite, MySQL and MariaDB), written only after the host acknowledged a save. GET /api/v1/files/{fileId}/backlinks and the MCP tool canvas_backlinks list the canvases that link to one, with the sentence around each link, checked with the host's new optional POST /access/batch (else POST /access per file): canvases the reader cannot open are left out and not counted. Backfill with POST /api/v1/links/index , drop a deleted file's links with DELETE /api/v1/links/files/{id} . Exports write canvas links as links to [host.links] url_template . Both API clients have the new operations. Redis-only storage refuses links = true . Added The link graph (GRAPH-01, ADR-082): GET /api/v1/graph and the MCP tool canvas_graph answer the canvases around one canvas (depth 1-3) or the most-connected canvases, with every canvas checked with the host before it is shown or expanded, so a canvas the reader cannot open never connects two others. 30 s cache per person, 10 a minute (2 full). Added Links in the editor (LINK-01/04/05, to the approved prototype; with [host.flags] links ): type [[ to link a canvas from the host's search and your recent canvases, # to link one of its headings, databases or rows, or paste one of the host's URLs. Links show the canvas's current title, and "No access", a struck-through deleted canvas or a missing block when that is so. Resting on a link (or Space on a selected one) previews it. Every canvas ends with "Linked from": the canvases that link here, grouped, with the sentence around each link, filters by kind and block, and only canvases you can open; headings with backlinks get a "Linked from" chip that opens the side panel on that heading. "Unlinked mentions" lists canvases that name this one without a link, with Link (as you, in that canvas) and Undo. All of it loads on its own after the canvas (initial JS +0.6 KB for the node). Fixed Partial sync: the one-client-id-per-document rule now refuses only items at clocks another document was given. An editor that loaded a database during server work had its sync reply refused (PSYNC-BUG-4).
 
 ## 0.4.0 (2026-11-28)
 
@@ -9820,6 +10058,186 @@ Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED
 
 Example:
 curl -s "https://canvas.example.com/api/v1/search?q=SSO&scope=all&cursor=p2&limit=20" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+
+# API reference: Links
+
+URL: https://canvas.casualoffice.org/api/reference/links.html
+
+The canvases that link to a canvas, as a person may see them, and the host's maintenance of the link index.
+
+## Canvases that link to this canvas
+
+GET /api/v1/files/{fileId}/backlinks (operationId listBacklinks, scope canvas:read)
+
+"Linked from" (ADR-081): the canvases whose last acknowledged save links to this canvas (or, with `block`, to one block of it), newest save first, 20 to a page. Needs a **user** token: a host key gets 400 `USER_TOKEN_REQUIRED`. The token's user needs view on this canvas, and every linking canvas is checked with the host (`POST /access/batch`, else `POST /access`): one the user cannot open is left out and not counted, in `items`, `total` and `blocks` alike. Titles and paths are the host's answers; excerpts are made from the linking canvas at read time and never stored. Needs `[host.flags] links`. The MCP tool `canvas_backlinks` answers the same.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+- block (query, string): Only links to this block id of the canvas
+- kind (query, string): `link`, `embed`, `relation` or `all` (default)
+- cursor (query, string): `next` of the previous page
+- limit (query, integer): Linking canvases per page, 1-50 (default 20)
+
+Response 200 (application/json), example:
+{
+  "fileId": "doc_8812",
+  "items": [
+    {
+      "fileId": "doc_7710",
+      "title": "Q1 Platform roadmap",
+      "path": "Engineering / Planning",
+      "updatedAt": "2026-11-27T16:02:00Z",
+      "updatedBy": "Jonas Weber",
+      "savedAt": 1795800000000,
+      "role": "edit",
+      "refs": [
+        {
+          "block": "b_3fQ1",
+          "toBlock": "b_9kP2",
+          "toRow": null,
+          "kind": "link",
+          "section": "Identity",
+          "excerpt": {
+            "before": "Scope and dates live in ",
+            "link": "SSO rollout plan",
+            "after": "."
+          }
+        }
+      ]
+    }
+  ],
+  "total": 1,
+  "blocks": {
+    "b_9kP2": 1
+  },
+  "next": null
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), RATE_LIMITED (429), BAD_INPUT (400), USER_TOKEN_REQUIRED (400), LINKS_OFF (404), FILE_GONE (410), INTERNAL (500)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/files/doc_1/backlinks?block=b_9kP2&kind=link&cursor=o20&limit=20" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Drop a deleted file's links from the index
+
+DELETE /api/v1/links/files/{fileId} (operationId deleteFileLinks)
+
+For a file deleted in your application: its outgoing links leave the link index at once (otherwise they go the next time a read finds the file gone). Links *to* it stay until their sources are saved again; readers see them as "Deleted canvas". Host key only.
+
+Parameters:
+- fileId (path, string, required): The host's file id
+
+Response 200 (application/json), example:
+{
+  "fileId": "doc_1",
+  "removed": 4
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), HOST_KEY_REQUIRED (403), LINKS_OFF (404), BAD_INPUT (400), INTERNAL (500)
+
+Example:
+curl -s -X DELETE "https://canvas.example.com/api/v1/links/files/doc_1" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY"
+
+## Backfill the link index from your files
+
+POST /api/v1/links/index (operationId indexLinks)
+
+Loads each file through your load callback (with the host key's callback bearer), writes its outgoing links to the index and drops the document; nothing else is kept. Up to 100 files per call; run it once over your files when you turn `[host.flags] links` on. Files that are missing, fail to load or are not `.ocanvas` are listed in `failed` with `not_found`, `host_error` or `not_ocanvas`. Host key only.
+
+Request body (application/json), example:
+{
+  "fileIds": [
+    "doc_1",
+    "doc_2"
+  ]
+}
+
+Response 200 (application/json), example:
+{
+  "indexed": [
+    {
+      "fileId": "doc_1",
+      "links": 12,
+      "dropped": 0
+    }
+  ],
+  "failed": [
+    {
+      "fileId": "doc_2",
+      "code": "not_found"
+    }
+  ]
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), HOST_KEY_REQUIRED (403), LINKS_OFF (404), BAD_INPUT (400), INTERNAL (500)
+
+Example:
+curl -s -X POST "https://canvas.example.com/api/v1/links/index" \
+  -H "X-OpenCanvas-Host: acme" \
+  -H "X-OpenCanvas-Key: $OC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"fileIds": ["doc_1", "doc_2"]}'
+
+## The link graph between canvases
+
+GET /api/v1/graph (operationId getGraph, scope canvas:read)
+
+The knowledge graph (ADR-082) from the link index. With `root`: the canvases around it, breadth-first in both directions to `depth`. Without: the most-connected canvases of your application, up to `limit`. Every canvas is checked with your `/access/batch` (else `/access`) **before** it is shown or expanded, so a canvas the user cannot open is neither a node nor a bridge between two others. `truncated` says the walk stopped early; `total` is given only when every candidate was checked. `in` and `out` count the edges in this answer. Needs a **user** token and `[host.flags] links`; 10 graphs a minute per person, 2 of them full. Cached 30 s per person and parameters. The MCP tool `canvas_graph` answers the same.
+
+Parameters:
+- root (query, string): A file id for a local graph; absent for the full graph
+- depth (query, integer): 1-3 around `root` (default 1)
+- kinds (query, string): Comma-separated `link`, `embed`, `relation` (default all)
+- blocks (query, boolean): Add block nodes for link targets (default false)
+- limit (query, integer): Nodes: 1-500 for a local graph (default 200), 1-2000 for the full graph (default 2000)
+
+Response 200 (application/json), example:
+{
+  "nodes": [
+    {
+      "id": "doc_8812",
+      "kind": "canvas",
+      "fileId": "doc_8812",
+      "title": "SSO rollout plan",
+      "path": "Engineering / Identity",
+      "space": "Engineering",
+      "updatedAt": "2026-11-27T16:02:00Z",
+      "in": 4,
+      "out": 2
+    },
+    {
+      "id": "doc_7710",
+      "kind": "canvas",
+      "fileId": "doc_7710",
+      "title": "Q1 Platform roadmap",
+      "path": "Engineering / Planning",
+      "space": "Engineering",
+      "updatedAt": null,
+      "in": 0,
+      "out": 1
+    }
+  ],
+  "edges": [
+    {
+      "from": "doc_7710",
+      "to": "doc_8812",
+      "kind": "link"
+    }
+  ],
+  "truncated": false
+}
+
+Errors: API_OFF (404), UNAUTHENTICATED (401), TOKEN_INVALID (401), TOKEN_EXPIRED (401), SCOPE_REQUIRED (403), ROLE_FORBIDDEN (403), RATE_LIMITED (429), BAD_INPUT (400), USER_TOKEN_REQUIRED (400), LINKS_OFF (404), FILE_GONE (410), INTERNAL (500)
+
+Example:
+curl -s "https://canvas.example.com/api/v1/graph?root=doc_8812&depth=2&kinds=link,embed&blocks=false&limit=200" \
   -H "X-OpenCanvas-Host: acme" \
   -H "X-OpenCanvas-Key: $OC_API_KEY"
 

@@ -124,6 +124,17 @@ pub fn write_ocanvas_opts(
     history: Option<&crate::history::FileHistory>,
     search: crate::search::Options,
 ) -> Result<Vec<u8>, Error> {
+    write_ocanvas_doc(doc, commit, history, search).map(|(b, _)| b)
+}
+
+/// Like [`write_ocanvas_opts`], also giving back the `document.json` it wrote, so a caller
+/// that needs it (the link index, LINK-02) does not encode the document twice.
+pub fn write_ocanvas_doc(
+    doc: &Doc,
+    commit: &CommitInfo,
+    history: Option<&crate::history::FileHistory>,
+    search: crate::search::Options,
+) -> Result<(Vec<u8>, Value), Error> {
     let document = doc_to_json(doc);
     let title = document["meta"]["title"]
         .as_str()
@@ -172,7 +183,7 @@ pub fn write_ocanvas_opts(
             zip.write_all(&bytes)?;
         }
     }
-    Ok(zip.finish()?.into_inner())
+    Ok((zip.finish()?.into_inner(), document))
 }
 
 pub fn is_zip(bytes: &[u8]) -> bool {
