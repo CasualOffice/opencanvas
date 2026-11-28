@@ -1381,5 +1381,8 @@ async fn a_client_with_links_but_not_live_caps_is_closed_with_4426() {
     old.edit(remove_first("liveBlock"));
     old.settle().await;
     assert_eq!(old.closed, Some(4426), "closed with 4426, not dropped");
-    assert_eq!(oc_model::live::references(&server_json(&state).await).len(), 1);
+    assert_eq!(
+        oc_model::live::references(&server_json(&state).await).len(),
+        1
+    );
 }

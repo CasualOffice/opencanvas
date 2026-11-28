@@ -33,7 +33,7 @@ test("formula field: add, check as you type, save, values and error cells", asyn
   await expect(code).toBeVisible({ timeout: 15_000 });
   await code.fill('IF(TRUE, 1, "x")');
   await expect(page.locator(".ocdb-fx-err")).toContainText("#TYPE");
-  await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
   await code.fill("round(10 / 4, 1)");
   await expect(page.locator(".ocdb-fx-type")).toHaveText("Number");
   await page.keyboard.press("Control+Enter");
@@ -43,7 +43,7 @@ test("formula field: add, check as you type, save, values and error cells", asyn
   await db.locator(".ocdb-hcell", { hasText: "Formula" }).click();
   await page.getByRole("button", { name: "Edit formula" }).click();
   await page.getByRole("combobox", { name: "Formula" }).fill("1 / 0");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   const err = db.locator(".ocdb-ferr").first();
   await expect(err).toHaveText("#DIV/0");
   await err.focus();

@@ -38,7 +38,7 @@ test("S11: phone layout, bottom bar, selected shape, add and connect, options; t
   await expect(dialog.getByRole("complementary", { name: "Properties" })).toBeHidden();
   const bar = dialog.getByRole("navigation", { name: "Diagram tools" });
   await expect(bar.getByRole("button")).toHaveText(["Select", "Pan", "Add", "Outline", "Undo"]);
-  expect(await small(page, ".ocdg-pbar button, .ocdg-top button")).toEqual([]);
+  expect(await small(page, ".ocdg-ptabs button, .ocdg-top button")).toEqual([]);
   await axe(page);
 
   // Select a shape through the outline sheet; 11c: the action bar.

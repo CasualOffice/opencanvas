@@ -7,6 +7,28 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Fixed
+
+- Whiteboard: a sticky note or text placed with the mouse takes typing at once. Before, its editor
+  closed straight away and the typed letters switched tools (BRD-05, docs/41 D1).
+- Whiteboard: Escape while typing keeps the text, as other whiteboards do; Undo takes it back (BRD-06).
+- Whiteboard: dragging with the rectangle, ellipse, diamond or sticky note tool sizes the shape
+  (Shift keeps it square); a click still places one of the default size (BRD-07).
+- Diagram: the auto-layout preview bar sits whole at the bottom of the window. A class name shared
+  with the phone tab bar had put it half off the top (BRD-08).
+- Diagram: auto-layout keeps what is drawn inside a frame (a dashed or labelled rectangle) in that
+  frame and records it as the frame's member; connector ends drawn on a shape are bound to it and
+  follow it; text is laid out by its real size, so it no longer lands on other shapes (BRD-09).
+- Whiteboard: the shape toolbar moves clear of the board's own buttons and zoom pill (BRD-10).
+- Diagram: the Libraries chooser fits short windows and scrolls, with Done always visible (BRD-11).
+- Whiteboard and diagram: a shape added from the shapes panel or with the keyboard goes to the
+  free spot nearest the middle of the view instead of on top of other shapes (BRD-12).
+- Diagram: Commands (⌘K) can align, distribute, ungroup, bring to front, send to back and run
+  auto-layout for the selection (BRD-13).
+- Demo: the status says "Demo · not saved" instead of "Saved", because the demo saves nothing (BRD-14).
+- Diagram: library shapes without text are named by their label ("Cylinder", not "cylinder") (BRD-15).
+- Diagram on a phone: the options sheet no longer offers Mermaid import, which is not built (BRD-16).
+
 ## [0.4.1] - 2026-11-28
 
 Spreadsheet cell comments and collaborative undo, floating linked charts, Timeline and Workload

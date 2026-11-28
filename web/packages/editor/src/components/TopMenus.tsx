@@ -229,6 +229,8 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
             ? `Your access ended. Reconnect to keep editing; your changes are kept on this page.`
           : save.kind === "readonly"
             ? `You can view this canvas. ${hostName} saves the changes others make.`
+          : save.kind === "demo"
+            ? "This demo runs in this tab only. Nothing is saved: a reload starts it again."
             : paused
               ? `This tab no longer saves to ${hostName}. Everything saved before is safe there.`
             : save.kind === "saved" && save.at
@@ -242,7 +244,7 @@ function StatusPopover({ anchor, save, hostName, onClose, onHistory, onRetry }: 
             <Ic name={ok ? "circle-check" : bad ? "triangle-alert" : save.kind === "readonly" ? "eye" : "cloud-off"} />
           </span>
           <div>
-            <b style={{ fontWeight: 600, fontSize: ".8438rem" }}>{ok ? "Autosave is on" : save.kind === "readonly" ? "View only" : paused ? "Autosave paused" : "Saving paused"}</b>
+            <b style={{ fontWeight: 600, fontSize: ".8438rem" }}>{ok ? "Autosave is on" : save.kind === "readonly" ? "View only" : save.kind === "demo" ? "Demo canvas" : paused ? "Autosave paused" : "Saving paused"}</b>
             <p style={{ margin: "2px 0 0", fontSize: ".8125rem", color: "var(--fg-2)", lineHeight: 1.5 }}>{msg}</p>
             {save.kind === "saved" && save.version ? (
               <p style={{ margin: ".375rem 0 0", fontSize: ".75rem", color: "var(--fg-3)", fontFamily: "var(--mono)" }}>Version {save.version}</p>

@@ -7,6 +7,7 @@
 // of one shape both keep their change.
 import * as Y from "yjs";
 import { updateShape, type Shape } from "../../model";
+import { descriptorOf } from "../../registry";
 
 export const MIXED = Symbol("mixed");
 export type Shared<T> = T | typeof MIXED | undefined;
@@ -94,4 +95,5 @@ export function relation(c: Shape, selfId: string): string {
 }
 
 /** Display name of a shape (its text, else its kind's label). */
-export const nameOf = (s: Shape | undefined) => (s ? (s.text?.split("\n")[0] || s.label || s.kind?.split(":")[1] || s.type) : "");
+/** BRD-15: a library shape without text is named by its library label ("Cylinder"), not its id. */
+export const nameOf = (s: Shape | undefined) => (s ? (s.text?.split("\n")[0] || s.label || (s.kind ? (descriptorOf(s).kind === s.kind ? descriptorOf(s).label : undefined) ?? s.kind.split(":")[1] : undefined) || s.type) : "");

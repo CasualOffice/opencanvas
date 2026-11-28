@@ -45,10 +45,10 @@ export const PHONE_CSS = `
 .ocdg-phone .ocdg-sl{display:none}
 .ocdg-phone .ocdg-name{max-width:11rem}
 .ocdg-phone .ocdg-people{display:flex}
-.ocdg-pbar{flex:none;display:flex;justify-content:space-around;align-items:center;border-top:1px solid var(--line);background:var(--app);padding:.25rem .5rem calc(.25rem + env(safe-area-inset-bottom,0px));position:relative;z-index:6}
-.ocdg-pbar button,.ocdg-pact button,.ocdg-pbtn{min-width:2.75rem;min-height:2.75rem;border:0;background:none;border-radius:.75rem;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:.125rem;color:var(--fg-2);font-size:.6875rem;padding:0 .375rem}
-.ocdg-pbar button[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
-.ocdg-pbar button:disabled{opacity:.4}
+.ocdg-ptabs{flex:none;display:flex;justify-content:space-around;align-items:center;border-top:1px solid var(--line);background:var(--app);padding:.25rem .5rem calc(.25rem + env(safe-area-inset-bottom,0px));position:relative;z-index:6}
+.ocdg-ptabs button,.ocdg-pact button,.ocdg-pbtn{min-width:2.75rem;min-height:2.75rem;border:0;background:none;border-radius:.75rem;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:.125rem;color:var(--fg-2);font-size:.6875rem;padding:0 .375rem}
+.ocdg-ptabs button[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
+.ocdg-ptabs button:disabled{opacity:.4}
 .ocdg-pact{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(4.5rem + env(safe-area-inset-bottom,0px));z-index:6;display:flex;gap:.125rem;padding:.25rem;border-radius:1rem;background:var(--pop,var(--app));box-shadow:var(--sh-pop)}
 .ocdg-pact button{color:var(--fg)}
 .ocdg-pact button.danger{color:var(--red-fg)}
@@ -347,7 +347,7 @@ export function Phone(p: PhoneProps) {
           </ul>
           <div className="ocdg-pg" style={{ marginTop: ".75rem" }}>On a computer</div>
           <ul className="ocdg-plist">
-            {([[LayoutGrid, "Auto-layout"], [Upload, "Import Mermaid or draw.io"], [Waypoints, "Edit connector bends"], [Table2, "Edit attributes and columns"]] as const).map(([I, l]) => (
+            {([[LayoutGrid, "Auto-layout"], [Upload, "Import draw.io or Excalidraw"], [Waypoints, "Edit connector bends"], [Table2, "Edit attributes and columns"]] as const).map(([I, l]) => (
               <li key={l}>
                 <button type="button" disabled aria-describedby="ocdg-plarge">
                   <I size={18} strokeWidth={SW} aria-hidden="true" />
@@ -371,7 +371,7 @@ export function Phone(p: PhoneProps) {
 export function PhoneBar({ edit, tool, onTool, onAdd, onOutline, undo }: { edit: boolean; tool: "select" | "hand"; onTool: (t: "select" | "hand") => void; onAdd: () => void; onOutline: () => void; undo: { can: boolean; run: () => void } }) {
   ensurePhoneStyles();
   return (
-    <nav className="ocdg-pbar" aria-label="Diagram tools">
+    <nav className="ocdg-ptabs" aria-label="Diagram tools">
       <button type="button" aria-pressed={tool === "select"} onClick={() => onTool("select")}>
         <MousePointer2 size={20} strokeWidth={SW} aria-hidden="true" />
         Select

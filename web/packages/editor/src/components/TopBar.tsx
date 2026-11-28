@@ -38,7 +38,9 @@ export type SaveState =
   /** Conflict or session closed: nothing is being saved from this tab any more. */
   | { kind: "paused" }
   /** ADR-043: a temporary canvas; nothing is saved, it is deleted when the room closes. */
-  | { kind: "temporary" };
+  | { kind: "temporary" }
+  /** BRD-14: the `#demo` canvas lives in this tab only; nothing is ever saved. */
+  | { kind: "demo" };
 
 export interface TopBarProps {
   meta: Meta;
@@ -277,6 +279,8 @@ function statusLook(save: SaveState): { cls: string; icon: string; label: string
       return { cls: "ok", icon: "circle-check", label: "Saved" };
     case "temporary":
       return { cls: "", icon: "clock", label: "Not saved · temporary" };
+    case "demo":
+      return { cls: "", icon: "clock", label: "Demo · not saved" };
   }
 }
 

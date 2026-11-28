@@ -1211,7 +1211,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   // ADR-049: the host's wording for a temporary canvas (meeting by default, room for Matrix).
   const words = temporaryWording(wordingOf(session.wording));
   const shownSave: SaveState =
-    access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : temporary && save.kind !== "readonly" ? { kind: "temporary" } : save;
+    access === "expired" ? { kind: "ended" } : conflict || closed ? { kind: "paused" } : conn === "offline" ? { kind: "offline" } : conn === "reconnecting" ? { kind: "reconnecting" } : temporary && save.kind !== "readonly" ? { kind: "temporary" } : session.demo && save.kind !== "readonly" ? { kind: "demo" } : save;
   // A temporary (meeting) canvas has no place in the host to name: no breadcrumb parent.
   const parent = session.demo ? "Engineering" : session.storage === "ephemeral" ? "" : hostName;
 
