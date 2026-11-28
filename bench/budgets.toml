@@ -52,3 +52,12 @@ s = 1000
 m = 5500
 l = 9000
 50mb = 2000
+
+[first_screen_ms.ci-ubuntu-latest]
+# The nightly runner (ubuntu-latest, 4 vCPU AMD EPYC 7763; the same 4x CPU, 40 Mbit/s, 40 ms
+# profile). S above is the Apple M4 baseline (733 ms) plus headroom; no CI baseline existed when it
+# was set. Measured on CI: 1,493 ms (run 46136980463, c8f0554, v0.4.0), then 1,191 ms median of 3
+# (1,157 / 1,191 / 1,299; run 46161398899, after PSYNC-BUG-3), the socket opening at 556-617 ms
+# and one 431-502 ms frame (the editor mount) before the first screen. Budget: that baseline with
+# the reference machine's headroom (1,000 / 733 = 1.36x), 1,600 ms. Lower it as the mount shrinks.
+s = 1600

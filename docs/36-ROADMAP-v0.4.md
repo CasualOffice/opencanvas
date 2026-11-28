@@ -257,6 +257,12 @@ startup are not measured at all, and the owner's targets need numbers anyone can
   scenario fails. A failed gate opens an issue with the two result files linked.
 - Budgets change only in a reviewed commit that says why; the baseline is never refreshed
   automatically.
+- **Budgets are per machine.** `[first_screen_ms]` is set from the reference machine (Apple M4).
+  A machine whose baseline differs gets its own table, `[first_screen_ms.<machine>]`, set from
+  results measured on that machine with the same headroom (`check-browser.mjs` reads the
+  result's `machine`). The nightly runner `ci-ubuntu-latest`: S 1,191 ms median on CI
+  (2026-11-28, after PSYNC-BUG-3; it was 1,493 ms at v0.4.0) against 733 ms on the M4, so its S
+  budget is 1,600 ms instead of 1,000 ms. The reference budget is unchanged.
 
 ### 3.6 Published results
 
