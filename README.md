@@ -82,7 +82,9 @@ upgrades and every `WS_*` setting; the design is in [docs/40](docs/40-WORKSPACE.
 - **Timeline (Gantt) and Workload.** Dependencies, milestones and the critical path; a Workload view
   of people against weeks, with drag to reassign.
 - **Whiteboards and diagrams.** Pen, sticky notes, shapes, attached arrows, shape libraries,
-  connector routing and layout, with draw.io and Excalidraw import ([diagram guide](docs/29-DIAGRAMMING.md)).
+  connector routing and layout, with draw.io and Excalidraw import. A context menu, tool lock, a
+  style panel with rotation, smart guides, quick-connect, frames and Present, export and copy as
+  image, starter templates, and named cursors with Follow ([diagram guide](docs/29-DIAGRAMMING.md)).
 - **Integrations.** [Nextcloud](integrations/nextcloud/README.md) with Talk (a canvas beside the chat
   or call, and meeting canvases), [Jitsi Meet](integrations/jitsi/README.md),
   [Mattermost](integrations/mattermost/README.md) channels and [Element / Matrix](integrations/matrix/README.md).
@@ -104,7 +106,9 @@ stronger, are on the [website](https://canvas.casualoffice.org/alternatives/noti
 - Databases: typed fields with table, board, calendar, gallery, Timeline and Workload views;
   filter, sort, CSV import and export; formulas, relations and rollups.
 - Whiteboards and diagrams: shapes, sticky notes, pen, attached arrows, shape libraries,
-  connector routing, layout, and draw.io and Excalidraw import ([diagram guide](docs/29-DIAGRAMMING.md)).
+  connector routing, layout, and draw.io and Excalidraw import; context menu, tool lock, style
+  panel and rotation, smart guides, quick-connect, frames and Present, PNG and SVG export and copy,
+  templates, cursors and Follow ([diagram guide](docs/29-DIAGRAMMING.md#9-whiteboard-ux-pass-brd-1731-built-2026-11-28)).
 - 40 templates in 9 categories. Autosave only, on desktop and phone.
 
 **Collaboration**

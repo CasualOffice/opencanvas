@@ -32,6 +32,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   1,600 ms, from its measured baseline (1,191 ms); the reference machine keeps 1,000 ms.
 ### Added
 
+- Whiteboard: Wrap in frame (⇧F or the context menu) puts a frame around the selection; a frame's
+  menu has Zoom to frame and Delete frame and contents; the frame a dragged shape will join is
+  outlined; Copy link to shape copies `#block=<id>&shape=<id>` and opens the board at that shape
+  (`UI_BlockLink` and `Action_ScrollToBlock` take an optional `shapeId`, docs/05 §4); Enter renames
+  a selected frame; the board's ? list and the editor's keyboard shortcuts list the new keys. The
+  site, README and docs/29 §9 describe the whole whiteboard UX pass (BRD-21).
 - Whiteboard: one Export dialog for PNG and SVG with a background (none, light or dark; light by
   default and remembered per person), the colours to draw for when transparent, a 1×, 2× or 3× scale
   for PNG, and what to export (the whole board, the selection or one frame). Copy as PNG (⇧⌘C) and
