@@ -6185,32 +6185,6 @@ Initial JavaScript: 299,073 bytes gzip (budget 300 KB).
 - **Load:** ; , CPU throttle 4×, 40 Mbit/s, 40 ms RTT
 
 
-## BROWSER — 2026-11-28-browser-local-psync2-reopen
-
-- **Run:** 2026-11-28, commit `e26b82f`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-psync2`; store `sqlite`
-- **Server settings:** `OC_MAX_DOC_MB=128`
-- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
-
-| Fixture | First screen median ms | Worst ms | Heap MB |
-|---|---|---|---|
-| 50mb | 1,335 | 3,298 | 15 |
-
-Initial JavaScript: 299,382 bytes gzip (budget 300 KB).
-
-
-## BROWSER — 2026-11-28-browser-local-psync2-before
-
-- **Run:** 2026-11-28, commit `e26b82f`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-psync2-before`; store `sqlite`
-- **Server settings:** `OC_MAX_DOC_MB=128`
-- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
-
-| Fixture | First screen median ms | Worst ms | Heap MB |
-|---|---|---|---|
-| 50mb | 4,411 | 6,706 | 16.2 |
-
-Initial JavaScript: 299,350 bytes gzip (budget 300 KB).
-
-
 ## BROWSER — 2026-11-28-browser-local-exp-idleids
 
 - **Run:** 2026-11-28, commit `c951139`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-exp-idleids`; store `sqlite`
@@ -6235,45 +6209,6 @@ Initial JavaScript: 299,346 bytes gzip (budget 300 KB).
 | s | 721 | 727 | 7.2 |
 
 Initial JavaScript: 299,382 bytes gzip (budget 300 KB).
-
-
-## BROWSER — 2026-11-28-browser-local-before
-
-- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
-- **Server settings:** `OC_MAX_DOC_MB=128`
-- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
-
-| Fixture | First screen median ms | Worst ms | Heap MB |
-|---|---|---|---|
-| s | 867 | 1,023 | 7.3 |
-
-Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
-
-
-## BROWSER — 2026-11-28-browser-local-before-whole
-
-- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
-- **Server settings:** `OC_MAX_DOC_MB=128`
-- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
-
-| Fixture | First screen median ms | Worst ms | Heap MB |
-|---|---|---|---|
-| s | 1,018 | 1,097 | 10.2 |
-
-Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
-
-
-## BROWSER — 2026-11-28-browser-local-base6e5e-whole
-
-- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-base6e5e`; store `sqlite`
-- **Server settings:** `OC_MAX_DOC_MB=128`
-- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
-
-| Fixture | First screen median ms | Worst ms | Heap MB |
-|---|---|---|---|
-| s | 997 | 1,319 | 10.3 |
-
-Initial JavaScript: 294,137 bytes gzip (budget 300 KB).
 
 
 ## BROWSER — 2026-11-28-browser-local-ab-prog-reopen
@@ -6313,6 +6248,71 @@ Initial JavaScript: 298,996 bytes gzip (budget 300 KB).
 | 50mb | 1,882 | 3,700 | 12.8 |
 
 Initial JavaScript: 299,073 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-psync2-reopen
+
+- **Run:** 2026-11-28, commit `e26b82f`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-psync2`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 1,335 | 3,298 | 15 |
+
+Initial JavaScript: 299,382 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-psync2-before
+
+- **Run:** 2026-11-28, commit `e26b82f`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-psync2-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| 50mb | 4,411 | 6,706 | 16.2 |
+
+Initial JavaScript: 299,350 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-before
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 867 | 1,023 | 7.3 |
+
+Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-before-whole
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-before`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 1,018 | 1,097 | 10.2 |
+
+Initial JavaScript: 299,312 bytes gzip (budget 300 KB).
+
+
+## BROWSER — 2026-11-28-browser-local-base6e5e-whole
+
+- **Run:** 2026-11-28, commit `754a937`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local-base6e5e`; store `sqlite`
+- **Server settings:** `OC_MAX_DOC_MB=128`
+- **Load:** one editor per run, a fresh file id each run (the room loads the fixture from the host); Chromium 159.0.8154.6, CPU throttle 4×, 40 Mbit/s, 40 ms RTT
+
+| Fixture | First screen median ms | Worst ms | Heap MB |
+|---|---|---|---|
+| s | 997 | 1,319 | 10.3 |
+
+Initial JavaScript: 294,137 bytes gzip (budget 300 KB).
 
 
 ## CRASH-SAVE — 2026-11-28-crash-drill-save-mysql84-local
