@@ -154,6 +154,13 @@ pub fn write_ocanvas_doc(
     if !blocks.is_empty() {
         manifest["requires"] = json!({ "blocks": blocks });
     }
+    // FTY-02 (docs/05 §2f): a typed file says so, so it reopens the same way in any host.
+    let ftype = document["meta"]["app"]
+        .as_str()
+        .filter(|t| matches!(*t, "spreadsheet" | "whiteboard" | "database"));
+    if let Some(t) = ftype {
+        manifest["type"] = json!(t);
+    }
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let deflate = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     zip.start_file("manifest.json", deflate)?;
@@ -168,9 +175,11 @@ pub fn write_ocanvas_doc(
     // SRCH-02 (ADR-065): the plain-text projection the host indexes; additive to format 1
     // (older readers skip the entry). Never read back: every save writes it afresh.
     zip.start_file(crate::search::ENTRY, deflate)?;
-    zip.write_all(&serde_json::to_vec(&crate::search::search_json(
-        &document, search,
-    ))?)?;
+    let mut sj = crate::search::search_json(&document, search);
+    if let Some(t) = ftype {
+        sj["type"] = json!(t);
+    }
+    zip.write_all(&serde_json::to_vec(&sj)?)?;
     if let Some(h) = history.filter(|h| !h.entries.is_empty()) {
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
         for (name, bytes) in h.to_files() {
@@ -512,5 +521,35 @@ mod asset_tests {
         assert_eq!(read_assets(&again).unwrap(), assets[..1].to_vec());
         assert!(!valid_asset_id("../x"));
         assert!(valid_asset_id("a_01JD"));
+    }
+}
+
+#[cfg(test)]
+mod type_tests {
+    use super::*;
+    use yrs::{Map, Transact};
+
+    /// FTY-02 (docs/05 §2f): a typed file says so in its manifest and its search.json, so it
+    /// reopens the same way in any host; a document says nothing (format 1 unchanged).
+    #[test]
+    fn the_file_type_travels_in_the_manifest() {
+        let doc = Doc::new();
+        let bytes = write_ocanvas(&doc, &CommitInfo::default()).unwrap();
+        let m = read_manifest(&bytes).unwrap();
+        assert!(m.get("type").is_none(), "{m}");
+        {
+            let meta = doc.get_or_insert_map("meta");
+            meta.insert(&mut doc.transact_mut(), "app", "spreadsheet");
+        }
+        let bytes = write_ocanvas(&doc, &CommitInfo::default()).unwrap();
+        assert_eq!(read_manifest(&bytes).unwrap()["type"], "spreadsheet");
+        let doc2 = Doc::new();
+        doc2.get_or_insert_map("meta")
+            .insert(&mut doc2.transact_mut(), "app", "slides");
+        let bytes = write_ocanvas(&doc2, &CommitInfo::default()).unwrap();
+        assert!(
+            read_manifest(&bytes).unwrap().get("type").is_none(),
+            "unknown types are dropped"
+        );
     }
 }

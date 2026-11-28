@@ -1,0 +1,104 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright 2026 CasualOffice */
+
+/* App-only rules on top of the prototype's components (proto.css): the full-page layout, the
+ * editor frame, the phone layout (10a, 10b, 13h-13j) and a few states the prototype draws statically.
+ * rem for type and spacing, em for breakpoints (ADR-050). */
+
+.app{height:100dvh;min-height:0;overflow:hidden}
+.app .mn{min-height:0;overflow:hidden}
+.app .mn-b{overflow:auto}
+.app.sb-hidden>.sb{display:none}
+a{color:inherit;text-decoration:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.nv{font:inherit}
+.nv-row{display:flex;align-items:center}
+.nv-row .tw-b{width:1.25rem;min-width:1.25rem;padding:0;justify-content:center;flex:none}
+.nv-row .tw-b:disabled{cursor:default;background:none}
+.nv-row>a.nv{flex:1;min-width:0}
+.wt-l{font-size:.625rem;font-weight:700}
+.sb-f .btn{position:relative}
+.sb-f .dot{position:absolute;top:.3rem;right:.3rem;width:.45rem;height:.45rem;border-radius:50%;background:var(--red-fg)}
+.cc{color:var(--fg)}
+.card .card-a{display:flex;flex-direction:column;color:var(--fg)}
+.thumb-sheet{padding:0;gap:0;display:grid;grid-template-columns:1.25rem repeat(4,1fr);grid-auto-rows:1.25rem}
+.thumb-sheet span{border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.thumb-sheet span.h{background:var(--panel)}
+.thumb-sheet span.s{box-shadow:inset 0 0 0 1.5px var(--green-fg)}
+.tbl-wrap{overflow-x:auto}
+.tbl .nm{color:var(--fg)}
+.loading{min-height:8rem;display:grid;place-items:center}
+.loading::after{content:"";width:1.25rem;height:1.25rem;border-radius:50%;border:2px solid var(--line-2);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.form-err{color:var(--red-fg);background:var(--red-bg);border-radius:.5rem;padding:.5rem .75rem;font-size:.8125rem;margin:.5rem 0}
+.lnk-btn{border:0;background:none;padding:0;font-size:inherit;font-weight:400;cursor:pointer}
+.sw-check{appearance:none;-webkit-appearance:none;width:1.75rem;height:1rem;border-radius:999px;background:var(--line-2);position:relative;cursor:pointer;flex:none;margin:0}
+.sw-check::after{content:"";position:absolute;left:.125rem;top:.125rem;width:.75rem;height:.75rem;border-radius:50%;background:#fff;transition:left .15s}
+.sw-check:checked{background:var(--accent)}
+.sw-check:checked::after{left:.875rem}
+.sw:disabled{opacity:.5}
+.app-toast{position:fixed;z-index:200}
+.app-mask{position:fixed;z-index:100}
+.newm-host{position:fixed;inset:0;z-index:90;pointer-events:none}
+.newm-host .newm{pointer-events:auto;position:fixed;top:3.25rem;right:1rem}
+.newm .mi{border:0;background:none;width:100%;text-align:left;color:var(--fg);font:inherit}
+.newm .mi:focus-visible,.pop .mi:focus-visible{background:var(--hover);outline-offset:-2px}
+.pop .mi{border:0;background:none;width:100%;text-align:left;color:var(--fg);font:inherit;font-size:.8125rem}
+.pop .mi:disabled{opacity:.45;cursor:not-allowed}
+.more-menu{right:0;top:2.25rem;width:15rem}
+.sugg .mi{display:flex}
+.tabs{display:flex;gap:.25rem;padding:0 1rem;border-bottom:1px solid var(--line);flex:none}
+.tabs .tab{border:0;background:none;height:2.5rem;padding:0 .75rem;color:var(--fg-2);cursor:pointer;border-bottom:2px solid transparent;font-size:.8125rem}
+.tabs .tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent);font-weight:500}
+.tabs .tab .n{color:var(--fg-3);font-size:.6875rem;margin-left:.25rem}
+.note-row{color:var(--fg)}
+.note-row:hover{background:var(--hover)}
+.link-opts{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.25rem 0 0 2.75rem}
+.banner{background:var(--amber-bg);color:var(--amber-fg);padding:.5rem 1rem;font-size:.8125rem;display:flex;gap:.5rem;align-items:center}
+.banner .btn{color:inherit;margin-left:auto}
+
+/* The file page: header, then the editor edge to edge. */
+.file-page{display:flex;flex-direction:column;height:100%;min-height:0}
+.file-page .cv-t .crumbs .par a:hover{text-decoration:underline}
+.file-page .cv-b{flex:1;min-height:0}
+.editor-frame{flex:1;width:100%;height:100%;border:0;display:block;background:var(--app)}
+.file-page.visitor{height:100dvh}
+.show-s{display:none!important}
+
+/* Phone (10a, 10b, 13h-13j): the sidebar becomes a sheet, a bottom bar appears. */
+.app-phone-top,.app-dock{display:none}
+.phone-sheet{place-items:stretch start;background:rgba(10,10,14,.32)}
+.sheet-side{height:100%;width:min(19rem,86vw);background:var(--panel);box-shadow:var(--sh-pop);display:flex}
+.sheet-side .sb{display:flex;width:100%}
+@media (max-width:48em){
+  .app{flex-direction:column}
+  .app>.sb{display:none}
+  .app-phone-top{display:flex;padding-top:max(.5rem,env(safe-area-inset-top,0px))}
+  .app-dock{display:flex;padding-bottom:max(.75rem,env(safe-area-inset-bottom,0px))}
+  .app .mn{flex:1}
+  .app .mn-b{padding:1rem 1rem 1.5rem}
+  .app .mn-t{padding:0 .75rem}
+  .hide-s{display:none!important}
+  .show-s{display:inline-flex!important}
+  .cg{grid-template-columns:1fr 1fr;gap:.625rem}
+  .thumb{height:5.5rem}
+  .file-page .cv-t{padding:0 .375rem;gap:.25rem}
+  .file-page .cv-t .btn.ic,.file-page .cv-t .btn.pri{min-width:2.75rem;height:2.75rem}
+  .newm-host .newm{left:.5rem;right:.5rem;top:auto;bottom:5.5rem;width:auto}
+  .newm .mi{min-height:3.25rem}
+  .stg{flex-direction:column}
+  .stg-n{width:auto;display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:.5rem}
+  .stg-n .nv{width:auto;flex:none}
+  .stg-b{padding:1rem}
+  .sec-r{flex-wrap:wrap}
+  .cmdk{top:.5rem;width:calc(100% - 1rem);max-height:calc(100% - 1rem)}
+  .setup{flex-direction:column;overflow:auto;height:auto;min-height:100dvh}
+  .st-l{width:auto;border-right:0;border-bottom:1px solid var(--line);padding:1rem}
+  .st-l ol,.st-l .foot{display:none}
+  .st-r{padding:1.25rem 1rem}
+  .link-opts{margin-left:0}
+}
+@media (max-width:22em){.cg{grid-template-columns:1fr}}
+
+/* The search results scroll inside the dialog; without a fixed height a 0 basis hid them. */
+.app-mask .cmdk-b{flex:1 1 auto;min-height:0}

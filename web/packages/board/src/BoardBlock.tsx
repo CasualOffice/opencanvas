@@ -202,8 +202,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [sel, setSelState] = useState<string[]>([]);
   const [view, setView] = useState<View>({ tx: 0, ty: 0, z: 1 });
   const [size, setSize] = useState<[number, number]>([0, 0]);
-  const [full, setFull] = useState(false);
-  const [active, setActive] = useState(false);
+  // FTY-04: a whiteboard file's root board is full screen from the start and stays there.
+  const app = !!env.app;
+  const [full, setFull] = useState(app);
+  const [active, setActive] = useState(app);
   // Diagram mode (DGM-14 S1): per person, per board; React state only, never in the document.
   const [dgm, setDgm] = useState<null | "open" | "closing">(null);
   const big = full || dgm !== null;
@@ -1617,6 +1619,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /* ---- full screen ---- */
   const exitFull = () => {
+    if (app) return;
     setFull(false);
     if (compact) setActive(false);
   };
@@ -1655,6 +1658,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (S.current.dgm !== "closing") return;
     refocus.current = true;
     setDgm(null);
+    if (app) {
+      setFull(true);
+      return;
+    }
     if (compact) setActive(false);
     env.toast("Back in the document");
   };
@@ -2216,9 +2223,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <button className="ocbd-ib" title="Board options" aria-label="Board options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
           <Ellipsis size={16} strokeWidth={SW} />
         </button>
-        <button className="ocbd-ib" title={full ? "Exit full screen (Esc)" : "Full screen"} aria-label={full ? "Exit full screen" : "Full screen"} onClick={() => (full ? exitFull() : (setFull(true), setActive(true)))}>
-          {full ? <Minimize2 size={16} strokeWidth={SW} /> : <Maximize2 size={16} strokeWidth={SW} />}
-        </button>
+        {app ? null : (
+          <button className="ocbd-ib" title={full ? "Exit full screen (Esc)" : "Full screen"} aria-label={full ? "Exit full screen" : "Full screen"} onClick={() => (full ? exitFull() : (setFull(true), setActive(true)))}>
+            {full ? <Minimize2 size={16} strokeWidth={SW} /> : <Maximize2 size={16} strokeWidth={SW} />}
+          </button>
+        )}
       </div>
 
       {menu ? (

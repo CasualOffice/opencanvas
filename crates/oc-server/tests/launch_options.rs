@@ -187,3 +187,89 @@ async fn session_carries_the_document_size_limit() {
     assert_eq!(status, 200);
     assert_eq!(s["maxDocBytes"], 8 * 1024 * 1024);
 }
+
+/// FTY-02 (docs/05 §2f): a typed file's `file.type` travels in the app fragment as `app=`, so the
+/// editor opens in app mode; documents (or no type) add nothing; anything else is refused.
+#[tokio::test]
+async fn file_type_claim_opens_app_mode() {
+    let (base, _host) = mock_host().await;
+    let addr = serve_state(app(&base, room_cfg()).await).await;
+    for t in ["spreadsheet", "whiteboard", "database"] {
+        let loc = location(
+            &addr,
+            token(json!({"file": {"id": FILE, "name": "Doc one", "version": "0", "type": t}})),
+        )
+        .await;
+        assert!(
+            loc.starts_with("/app/#t=") && loc.ends_with(&format!("&app={t}")),
+            "{loc}"
+        );
+    }
+    let loc = location(
+        &addr,
+        token(json!({"file": {"id": FILE, "name": "Doc one", "version": "0", "type": "document"}})),
+    )
+    .await;
+    assert!(!loc.contains("app="), "{loc}");
+    let both = location(
+        &addr,
+        token(json!({"start": "page", "file": {"id": FILE, "version": "0", "type": "whiteboard"}})),
+    )
+    .await;
+    assert!(
+        both.contains("&app=whiteboard") && !both.contains("start=page"),
+        "start is ignored in app mode: {both}"
+    );
+    for bad in [json!("slides"), json!(3)] {
+        let res = http()
+            .post(format!("http://{addr}/v1/launch"))
+            .form(&[(
+                "token",
+                token(json!({"file": {"id": FILE, "version": "0", "type": bad}})),
+            )])
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 400, "{bad}");
+        assert!(res.text().await.unwrap().contains("TYPE_INVALID"));
+    }
+    // The session answer says the app mode too (docs/05 §2f).
+    let loc = location(
+        &addr,
+        token(json!({"file": {"id": FILE, "name": "Doc one", "version": "0", "type": "database"}})),
+    )
+    .await;
+    let ticket = loc
+        .split("#t=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+    let (st, s) = session(&addr, &ticket).await;
+    assert_eq!(st, 200);
+    assert_eq!(s["app"], "database", "{s}");
+    let loc = location(&addr, token(json!({}))).await;
+    let ticket = loc
+        .split("#t=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+    assert_eq!(session(&addr, &ticket).await.1["app"], "document");
+    let caps: Value = http()
+        .get(format!("http://{addr}/hosting/capabilities"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        caps["fileTypes"],
+        json!(["document", "spreadsheet", "whiteboard", "database"])
+    );
+}

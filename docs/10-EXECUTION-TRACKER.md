@@ -370,27 +370,27 @@ ADR-085 Proposed. Sizes: S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks. Every UI row
 |---|---|---|---|
 | WS-01 | Prototype, ADR-085 and this plan approved by the owner | Done | Draft: docs/40, ADR-085, docs/prototypes/workspace/workspace.html; awaiting the owner; S |
 | WS-25 | Workspace benchmark on the user base: sign-in, home, search and launch latency and memory at rest with many users, workspaces and canvases; a large-room canvas (550, up to 1,000) through the Workspace; published with the hardware and load mix | Todo | M; owner decision 2026-11-28 |
-| WS-01b | Prototype frames 13a–13j for typed files (owner decision 8): New menu with types, typed icons in Home, search and trash, spreadsheet, whiteboard and database files full screen, phone versions, a sheet block in a document versus a spreadsheet file | Todo | Frames drafted in docs/prototypes/workspace/workspace.html §13; awaiting the owner (ADR-011); S |
-| WS-02 | Contract gap spike: list every docs/05 call the Workspace needs, confirm thumbnails, presence counts, title on save, link visitors (guest identity in the JWT), role API on revoke; contract additions written into docs/05 | Todo | M; depends on WS-01 |
-| WS-03 | `crates/oc-workspace` skeleton, config (`WS_*`), migrations (SQLite, MySQL/MariaDB), single-binary launcher with the engine as a library, loopback host registration, generated secrets | Todo | L; depends on WS-02 |
+| WS-01b | Prototype frames 13a–13j for typed files (owner decision 8): New menu with types, typed icons in Home, search and trash, spreadsheet, whiteboard and database files full screen, phone versions, a sheet block in a document versus a spreadsheet file | Done | Approved by the owner 2026-11-28 (frames 13a–13j in docs/prototypes/workspace/workspace.html §13); UI follow-ups pending from the owner; S |
+| WS-02 | Contract gap spike: list every docs/05 call the Workspace needs, confirm thumbnails, presence counts, title on save, link visitors (guest identity in the JWT), role API on revoke; contract additions written into docs/05 | Done | docs/40 §11: every call checked and run end to end; gaps: hosts reload, presence call (both for WS-12); M |
+| WS-03 | `crates/oc-workspace` skeleton, config (`WS_*`), migrations (SQLite, MySQL/MariaDB), single-binary launcher with the engine as a library, loopback host registration, generated secrets | Done | crates/oc-workspace, `opencanvas-workspace` (one port, engine as a library, loopback host entry, generated 0600 secrets), SQLite and MySQL migrations, downgrade refused; MySQL path not yet run in CI; L |
 | WS-04 | Shared host conformance suite (from the sample host's checks), run against both hosts in CI | Todo | M; depends on WS-03 |
-| WS-05 | Accounts: passwords (Argon2id), sessions, CSRF, rate limits, lockout, reset links, CLI admin commands | Todo | M; depends on WS-03 |
-| WS-06 | Passkeys (WebAuthn registration, sign-in, conditional UI) | Todo | M; depends on WS-05 |
+| WS-05 | Accounts: passwords (Argon2id), sessions, CSRF, rate limits, lockout, reset links, CLI admin commands | Done | Argon2id, server sessions, CSRF header + Origin, per-account and per-address lockout, admin reset links, `admin reset-password`; M |
+| WS-06 | Passkeys (WebAuthn registration, sign-in, conditional UI) | Done | Registration, sign-in with conditional UI, passkey-only accounts from an invite, list and remove (not the last sign-in), single-use challenges, counter check; ES256 (RS256 and EdDSA later); verified with a software authenticator; M |
 | WS-07 | OIDC SSO (one provider, domains, JIT, SSO-only with break-glass Owner) | Backlog | M; depends on WS-05 |
-| WS-08 | Invites (organisation, workspace, canvas), links without SMTP, optional SMTP sending | Todo | M; depends on WS-05 |
-| WS-09 | First-run setup with setup code, loopback exception, checklist | Todo | S; depends on WS-05 |
-| WS-10 | Model: organisation, workspaces, teams, folders, canvases, roles, effective-access resolver (property-tested) | Todo | L; depends on WS-03 |
-| WS-11 | Host callbacks: load, save (with `If-Match`), copies, assets, members, access, mentions, templates, create file; storage on disk and S3 | Todo | L; depends on WS-10 |
+| WS-08 | Invites (organisation, workspace, canvas), links without SMTP, optional SMTP sending | In progress | Links (org, workspace, canvas; single use; 7 days) done; SMTP sending later; M |
+| WS-09 | First-run setup with setup code, loopback exception, checklist | Done | Setup code (6 words, in the log), loopback exception, Welcome workspace; the checklist is UI (WS-16); S |
+| WS-10 | Model: organisation, workspaces, teams, folders, canvases, roles, effective-access resolver (property-tested) | Done | Model and resolver on an in-memory snapshot; property tests (monotonic grants, instance rules, no access without a grant); L |
+| WS-11 | Host callbacks: load, save (with `If-Match`), copies, assets, members, access, mentions, templates, create file; storage on disk and S3 | In progress | All callbacks done on local disk (tests/flows.rs, tests/engine.rs); S3 storage to do; L |
 | WS-12 | Thumbnails and presence on cards (per WS-02 result) | Todo | M; depends on WS-11 |
-| WS-13 | Sharing and links (people, teams, organisation link, public view link), revocation through the role API | Todo | M; depends on WS-10, WS-11 |
-| WS-14 | Search index from `search.json` (FTS5, FULLTEXT), access filter, `GET /search` callback | Todo | M; depends on WS-11 |
-| WS-15 | Trash with retention job; version history callbacks with thinning | Todo | M; depends on WS-11 |
-| WS-16 | Web app shell: sign-in, sign-up, setup, Home (grid, list, tree, favourites, recent), templates dialog | Todo | L; depends on WS-01, WS-05, WS-10 |
-| WS-17 | Canvas page chrome around the editor (breadcrumb, presence, share, history, more menu); phone layout | Todo | M; depends on WS-16 |
-| WS-18 | Share dialog, search page and ⌘K, trash page, notifications bell | Todo | M; depends on WS-13, WS-14, WS-15 |
-| WS-19 | Admin: members, teams, settings (branding, sign-in, SSO, storage, SMTP, backups, public links, about) | Todo | L; depends on WS-16 |
-| WS-20 | Backups and restore (CLI and schedule, encrypted secrets), pre-upgrade backup, downgrade refusal | Todo | M; depends on WS-11 |
-| WS-21 | Image (`deploy/workspace/Dockerfile`), compose file (MySQL, Redis, MinIO, nginx), docs/13 section, release pipeline to GHCR | Todo | M; depends on WS-03 |
+| WS-13 | Sharing and links (people, teams, organisation link, public view link), revocation through the role API | Done | People, teams, folder inheritance, org link, public links (admin on/off, max role, expiry, password); role API on every change; M |
+| WS-14 | Search index from `search.json` (FTS5, FULLTEXT), access filter, `GET /search` callback | Done | FTS5 index from search.json, access filter at query time, `GET /search` callback; MySQL FULLTEXT path not yet run in CI; M |
+| WS-15 | Trash with retention job; version history callbacks with thinning | Done | Trash (folders with content, restore to the original place or the top), hourly retention job, version thinning; M |
+| WS-16 | Web app shell: sign-in, sign-up, setup, Home (grid, list, tree, favourites, recent), templates dialog | Done | Setup, sign-in (password, passkey, branding), invite sign-up, reset, Home with the admin setup checklist, typed New menu, grid and list, tree, favourites, recent, shared, templates dialog, phone layout; e2e/specs/ws-workspace.spec.ts; L |
+| WS-17 | Canvas page chrome around the editor (breadcrumb, presence, share, history, more menu); phone layout | In progress | Header around the engine editor (breadcrumb, type tile, star, save state, presence from Presence_Changed, History, Share, more menu), phone header; the editor's own top bar still shows inside (needs an embed option); M |
+| WS-18 | Share dialog, search page and ⌘K, trash page, notifications bell | In progress | Share dialog (people, teams, e-mail invite, inherited, general access with public-link expiry and password), ⌘K search with type and workspace filters, Trash, Inbox; M |
+| WS-19 | Admin: members, teams, settings (branding, sign-in, SSO, storage, SMTP, backups, public links, about) | In progress | Members, teams, invites; settings: general, branding (accent, sign-in message), sign-in, sharing and links, e-mail (SMTP settings kept, password write-only; sending is WS-08), storage and retention, backups (Back up now), about; storage usage and AI pages to do; L |
+| WS-20 | Backups and restore (CLI and schedule, encrypted secrets), pre-upgrade backup, downgrade refusal | In progress | Back up now: SQLite `VACUUM INTO` and the files into `<data>/backups/<time>`, listed in Settings; to do: schedule, `.tar.zst`, encrypted secrets, restore CLI, pre-upgrade backup; M |
+| WS-21 | Image (`deploy/workspace/Dockerfile`), compose file (MySQL, Redis, MinIO, nginx), docs/13 section, release pipeline to GHCR | In progress | Image (deploy/workspace/Dockerfile), compose (workspace, two engine nodes, MariaDB, Redis, nginx); CI job `workspace-image` builds it and runs scripts/workspace/image-smoke.sh (size, start to setup page, memory at rest, budgets) into a bench result; GHCR release and docs/13 to do; M |
 | WS-22 | Acceptance run (§6) in CI: 2-minute first run, restart, crash, backup/restore, upgrade, compose | Todo | M; depends on WS-21 |
 | WS-23 | Security audit of the Workspace surfaces and fixes | Todo | M; depends on WS-18, WS-19 |
 | WS-24 | Docs and site: quick start, operator guide, admin guide, release notes | Todo | S; depends on WS-22 |
@@ -401,10 +401,10 @@ host; the Workspace is its first user. UI rows wait for WS-01b.
 | ID | Item | Status | Notes |
 |---|---|---|---|
 | FTY-01 | Design: `file.type` claim, app mode, manifest `type`, fallback to document, create-file `type`, capabilities; docs/05 §2f | Done | This change; S |
-| FTY-02 | Engine: validate `file.type`, manifest `type`, root block created on a new typed file (server edit, saved through `PUT`), session `app` and `appFallback`, `fileTypes` in capabilities; tests incl. the mixed-content fallback | Todo | M; depends on FTY-01 |
-| FTY-03 | Editor: spreadsheet app mode (toolbar, formula bar, full grid, sheet tabs, status sum), desktop and phone | Todo | M; depends on FTY-02, WS-01b |
-| FTY-04 | Editor: whiteboard app mode (tools, board bar with Sketch / Diagram, zoom, minimap), desktop and phone | Todo | M; depends on FTY-02, WS-01b |
-| FTY-05 | Editor: database app mode (view tabs, filter, sort, New row; row pages stay documents) | Todo | M; depends on FTY-02, WS-01b |
+| FTY-02 | Engine: validate `file.type`, manifest `type`, root block created on a new typed file (server edit, saved through `PUT`), session `app` and `appFallback`, `fileTypes` in capabilities; tests incl. the mixed-content fallback | In progress | Done: `file.type` check, `&app=`, `fileTypes`, session `app`, manifest and search.json `type` from `meta.app`, `UI_AppMode` fallback report; to do: the server creates the root block (today the first editor does); M |
+| FTY-03 | Editor: spreadsheet app mode (toolbar, formula bar, full grid, sheet tabs, status sum), desktop and phone | Done | Spreadsheet files open in the sheet's full-screen view with no way back; `[host.editor] chrome = "host"` hides the editor top bar; `Action_OpenPanel`; M |
+| FTY-04 | Editor: whiteboard app mode (tools, board bar with Sketch / Diagram, zoom, minimap), desktop and phone | Done | Whiteboard files open in the board's full-screen view, diagram mode returns to it (board.test.tsx); M |
+| FTY-05 | Editor: database app mode (view tabs, filter, sort, New row; row pages stay documents) | Done | Database files fill the page with no document header; M |
 | FTY-06 | Exports, search (`search.json` `type`), API v1 and `/extract` `type`, default export per type | Todo | S; depends on FTY-02 |
 | FTY-07 | Block *Expand* and *Make a … file* through the create-file callback with `type`, optional live block in place | Todo | M; depends on FTY-02, WS-01b |
 | FTY-08 | Workspace: typed New menu, type icons and column, search type filter, import picks the type, sample host passes `file.type` too | Todo | M; depends on WS-16, FTY-02, WS-01b |
@@ -432,6 +432,7 @@ Owner request 2026-11-28: the whiteboard and diagram block has many issues; audi
 | BRD-20 | Export background (light, dark, transparent) and copy as PNG/SVG (D15) | Todo | UX, needs a prototype; M |
 | BRD-21 | Frames as a real tool (named container with membership) | Todo | UX, needs a prototype; M |
 | BRD-22 | Stroke width, stroke colour and rotation (docs/20 B21) | Todo | UX, needs a prototype; M |
+| FTY-08 | Workspace: typed New menu, type icons and column, search type filter, import picks the type, sample host passes `file.type` too | In progress | Typed New menu, type tiles in Home, list, search, trash and phone, type column and filters done; import picking the type to do; the editor's app mode is FTY-02..05; M |
 
 ## Diagramming workstream (DGM, [docs/29](29-DIAGRAMMING.md))
 

@@ -371,7 +371,10 @@ pub async fn discovery(State(state): State<SharedState>, headers: HeaderMap) -> 
 
 /// `GET /hosting/capabilities`.
 pub async fn capabilities() -> Response {
-    Json(wopi::capabilities()).into_response()
+    let mut caps = wopi::capabilities();
+    // FTY-02: hosts check this before offering typed files (docs/05 §2f).
+    caps["fileTypes"] = serde_json::json!(crate::jwt::FILE_TYPES);
+    Json(caps).into_response()
 }
 
 /// `OC_PUBLIC_URL`, else the request's own origin.
@@ -408,6 +411,9 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
     let jti = claims.jti.clone();
     let iat = claims.iat;
     let start_page = claims.start_page();
+    let app_mode = claims
+        .app_mode()
+        .map_err(|m| rejected(state, StatusCode::BAD_REQUEST, "TYPE_INVALID", m))?;
     let mut grant = claims.into_grant();
     if let Some(iat) = iat {
         match state.members.role_since(&grant.room, &grant.user.id, iat) {
@@ -443,10 +449,11 @@ async fn launch(state: &SharedState, token: &str) -> Result<Response, ApiError> 
     Metrics::inc(&state.metrics.launches_total);
     tracing::info!(host = %host.id, room = %grant.room, role = grant.role.as_str(), "launch accepted");
     // ADR-048: the host chose the kind already, so the editor skips its template picker.
-    let ticket = if start_page {
-        format!("{ticket}&start=page")
-    } else {
-        ticket
+    // FTY-02 (docs/05 §2f): a typed file opens in app mode; `start` does not apply there.
+    let ticket = match (app_mode, start_page) {
+        (Some(app), _) => format!("{ticket}&app={app}"),
+        (None, true) => format!("{ticket}&start=page"),
+        (None, false) => ticket,
     };
     Ok(redirect_to_app(&host, &ticket))
 }
@@ -568,6 +575,9 @@ pub async fn session_info(
         "role": grant.role,
         "user": grant.user,
         "file": {"id": grant.file.id, "name": grant.file.name},
+        // FTY-02 (docs/05 §2f): the app mode the launch asked for; the editor reports a
+        // fallback to the host itself (`UI_AppMode`), since only it sees the content.
+        "app": grant.file.app.as_deref().unwrap_or("document"),
         "host": {"id": host.id, "name": host.name},
         // docs/30 §7: what this person may do with history (effective, role included).
         "perms": {

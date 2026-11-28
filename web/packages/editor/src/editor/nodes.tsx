@@ -3,6 +3,7 @@
 
 // Custom Tiptap nodes per docs/15 §4. Node and attribute names are part of the
 // file format: never rename them.
+import { useIsAppRoot } from "../lib/appmode";
 import { InputRule, Mark, Node, mergeAttributes, type Editor } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
@@ -626,11 +627,12 @@ function DatabaseView({ node }: ReactNodeViewProps) {
   const fields = (m?.get("fields") as Y.Array<unknown> | undefined)?.length;
   const name = (m?.get("name") as string | undefined) ?? part.header?.name;
   const { Comp: DatabaseBlock, failed, wrap } = useRetryingLazy(loadDbBlock);
+  const appDb = useIsAppRoot(dbId);
   const ph = <BlockPlaceholder info={{ kind: "db", name, count: rows, fields, view }} failed={failed} />;
   return (
-    <NodeViewWrapper className="stubhost wideblock" data-db={node.attrs.dbId}>
+    <NodeViewWrapper className={"stubhost wideblock" + (appDb ? " app-root" : "")} data-db={node.attrs.dbId}>
       <div contentEditable={false} ref={ref}>
-        {part.doc ? wrap(<Suspense fallback={ph}><DatabaseBlock doc={part.doc} dbId={dbId} env={part.env} /></Suspense>, ph) : ph}
+        {part.doc ? wrap(<Suspense fallback={ph}><DatabaseBlock doc={part.doc} dbId={dbId} env={appDb ? { ...part.env, app: true } : part.env} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );
@@ -653,11 +655,12 @@ function BoardView({ node }: ReactNodeViewProps) {
   const boardId = String(node.attrs.boardId);
   const part = usePartDoc(b, boardId, ref);
   const { Comp: BoardBlock, failed, wrap } = useRetryingLazy(loadBoardBlock);
+  const appBoard = useIsAppRoot(boardId);
   const ph = <BlockPlaceholder info={{ kind: "board", name: part.header?.name, count: part.header?.count }} failed={failed} />;
   return (
     <NodeViewWrapper className="stubhost wideblock" data-board={node.attrs.boardId}>
       <div contentEditable={false} ref={ref}>
-        {part.doc ? wrap(<Suspense fallback={ph}><BoardBlock doc={part.doc} boardId={boardId} env={part.env} awareness={b.awareness} /></Suspense>, ph) : ph}
+        {part.doc ? wrap(<Suspense fallback={ph}><BoardBlock key={appBoard ? "app" : "doc"} doc={part.doc} boardId={boardId} env={appBoard ? { ...part.env, app: true } : part.env} awareness={b.awareness} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );
@@ -698,12 +701,13 @@ function SpreadsheetView({ node }: ReactNodeViewProps) {
   const linkDb = String(linkMap?.get("db") ?? "");
   const dbPart = usePartDoc(b, linkDb, ref);
   const { Comp: SheetBlock, failed, wrap } = useRetryingLazy(loadSheetBlock);
+  const appSheet = useIsAppRoot(sheetId);
   const ph = <BlockPlaceholder info={{ kind: "sheet" }} failed={failed} />;
   return (
     <NodeViewWrapper className="stubhost wideblock" data-sheet={sheetId}>
       <div contentEditable={false} ref={ref}>
         {linkDb && part.doc ? <Suspense fallback={null}><SheetLinkLazy doc={part.doc} block={sheetId} dbDoc={dbPart.doc} dbId={linkDb} env={part.env} leader={() => isLeader(b)} /></Suspense> : null}
-        {part.doc ? wrap(<Suspense fallback={ph}><SheetBlock doc={part.doc} blockId={sheetId} env={part.env} awareness={b.awareness ?? undefined} chart={ChartLazy} /></Suspense>, ph) : ph}
+        {part.doc ? wrap(<Suspense fallback={ph}><SheetBlock key={appSheet ? "app" : "doc"} doc={part.doc} blockId={sheetId} env={appSheet ? { ...part.env, app: true } : part.env} awareness={b.awareness ?? undefined} chart={ChartLazy} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );

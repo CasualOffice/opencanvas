@@ -162,6 +162,9 @@ pub struct EditorCfg {
     pub intents: bool,
     pub chips: Vec<String>,
     pub features: Features,
+    /// FTY-03 (docs/05 §2b): `"host"` when the host draws the file header around the editor
+    /// (the editor then shows no top bar); `"editor"` by default.
+    pub chrome: String,
 }
 
 /// At most this many goal chips (they share one row of the menu).
@@ -181,6 +184,7 @@ impl Default for EditorCfg {
             quick_insert: vec![],
             intents: true,
             chips: vec![],
+            chrome: "editor".into(),
             features: Features::default(),
         }
     }
@@ -213,11 +217,25 @@ impl EditorCfg {
         for k in t.keys() {
             if !matches!(
                 k.as_str(),
-                "profile" | "allow_profile_switch" | "blocks" | "features" | "intents" | "chips"
+                "profile"
+                    | "allow_profile_switch"
+                    | "blocks"
+                    | "features"
+                    | "intents"
+                    | "chips"
+                    | "chrome"
             ) {
                 bail!(
-                    "[host.editor] {k} is not a setting (profile, allow_profile_switch, blocks, features, intents, chips)"
+                    "[host.editor] {k} is not a setting (profile, allow_profile_switch, blocks, features, intents, chips, chrome)"
                 );
+            }
+        }
+        if let Some(v) = t.get("chrome") {
+            match v.as_str() {
+                Some(c @ ("editor" | "host")) => cfg.chrome = c.into(),
+                _ => bail!(
+                    "[host.editor] chrome is \"editor\" (default) or \"host\" (you draw the file header)"
+                ),
             }
         }
         if let Some(p) = t.get("profile") {
@@ -344,6 +362,7 @@ impl EditorCfg {
             "quickInsert": self.quick_insert,
             "intents": self.intents,
             "chips": self.chips,
+            "chrome": self.chrome,
             "features": {
                 "comments": self.features.comments.unwrap_or(true),
                 "versionHistory": self.features.version_history.unwrap_or(true),
@@ -377,6 +396,20 @@ mod tests {
     fn parse(src: &str) -> anyhow::Result<EditorCfg> {
         let t: toml::Table = toml::from_str(src).unwrap();
         EditorCfg::parse(&t, &["acme.okr".to_string()])
+    }
+
+    /// FTY-03 (docs/05 §2b): `chrome = "host"` means the host draws the file header, so the
+    /// editor shows no top bar of its own; the default is the editor's.
+    #[test]
+    fn chrome_is_the_editors_unless_the_host_draws_it() {
+        assert_eq!(
+            parse("").unwrap().session_json(false, false)["chrome"],
+            "editor"
+        );
+        let c = parse("chrome = \"host\"").unwrap();
+        assert_eq!(c.session_json(false, false)["chrome"], "host");
+        assert!(parse("chrome = \"none\"").is_err());
+        assert!(parse("chrome = true").is_err());
     }
 
     #[test]
