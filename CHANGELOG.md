@@ -7,6 +7,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-28
+
+Fixes the release container: since 0.4.0 the image build failed because the Dockerfile did not
+copy the spreadsheet package manifest, so no 0.4.0-0.4.2 container was published. 0.4.3 is 0.4.2
+with that fix, and the pre-push check now verifies the Dockerfile covers every web package.
+
 ## [0.4.2] - 2026-11-28
 
 Partial sync completed: spreadsheets load as parts, the session answers before a large file has
@@ -802,7 +808,8 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/CasualOffice/opencanvas/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/CasualOffice/opencanvas/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/CasualOffice/opencanvas/compare/v0.3.0...v0.4.0
