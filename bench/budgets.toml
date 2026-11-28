@@ -32,6 +32,8 @@ forbid = [
   "packages/editor/src/offline/(ui|controller)",
   "packages/editor/src/history/",
   "packages/editor/src/links/",
+  # GRAPH-A4: the knowledge graph (and its layout worker) loads when it opens.
+  "packages/editor/src/graph/",
 ]
 
 

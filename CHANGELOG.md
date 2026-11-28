@@ -32,6 +32,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   1,600 ms, from its measured baseline (1,191 ms); the reference machine keeps 1,000 ms.
 ### Added
 
+- The knowledge graph in the editor (GRAPH-02/03, to the approved prototype; with
+  `[host.flags] links`): the Graph button opens the local graph beside the canvas (depth 1-3, block
+  nodes on request), and Open full graph (or the host's `Action_OpenGraph`) shows every canvas you
+  can open, with filters for spaces, link kinds, blocks, orphans and last update, colour by space
+  or update, search that highlights and dims, a hover card, selection with Open, Local graph and
+  Pin, and drag to pin (pins stay in your browser). The layout runs in a Web Worker and stops when
+  it settles. The same canvases are a sortable list (L), with CSV; the graph is one Tab stop with
+  arrow keys, Enter, Space and P, and announces each move. On a phone the list comes first. The
+  graph loads only when opened.
 - Whiteboard: one Export dialog for PNG and SVG with a background (none, light or dark; light by
   default and remembered per person), the colours to draw for when transparent, a 1×, 2× or 3× scale
   for PNG, and what to export (the whole board, the selection or one frame). Copy as PNG (⇧⌘C) and
