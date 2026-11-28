@@ -86,6 +86,7 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-082 | Graph API (GRAPH-01..03, docs/38 §3): `GET /api/v1/graph` local (`root`, depth 1–3, ≤ 500 nodes) and full (≤ 2,000 most-connected readable canvases, `truncated`) from `link_edges`; every node access-checked before it is expanded, so hidden canvases neither appear nor connect others; optional host callback `GET /files/readable`; block nodes optional; 30 s per-reader cache; 10 requests/min (2 full); MCP `canvas_graph`; view in a lazy chunk with a list fallback | Accepted (owner, 2026-11-28) (2026-11-28) |
 | ADR-083 | Plugin packaging, signing and distribution (PLUG-01..06, docs/38 §4): one `.ocplugin` zip with `plugin.json` (id, SemVer, `engines`, `contributes`, `permissions`, per-file sha384) that may contribute blocks, views, commands, importers, exporters, actions and providers; block packages are plugins (`OC_BLOCKS_DIR` kept); publisher Ed25519 signature plus marketplace countersignature; a signed `index.json` with version and 7-day expiry (rollback and freeze refused) carrying revocations fetched hourly; private registries in the same format and signed offline bundles; operator (`[plugins]` registries, `server_code`, ceilings), host admin (`perms.plugins: "admin"` or `/api/v1/plugins`) and person (request) roles; per-host policy; auto-update only when permissions do not change | Accepted (owner, 2026-11-28) (2026-11-28) |
 | ADR-084 | SDK extension points and the server runtime (EXT-01..08, docs/38 §5): database views and commands run in the block origin's sandbox (ADR-040) with a checked bridge; importers, exporters, automation actions and integration providers run as WebAssembly components on wasmtime (world `opencanvas:plugin@0.5.0`; fuel, 256 MB, 10 s / 60 s, fresh instance per call, bounded pool; host imports `log`, `http-fetch` to declared and allowed origins, `connection-token`, `clock`, `random`; no filesystem, sockets or environment); outputs are data applied through the tool layer (role filter, MOD-01); provider connections per person or organisation encrypted under `OC_KEK`; amends ADR-040: server code is off unless `[plugins] server_code = true` | Accepted (owner, 2026-11-28) (2026-11-28) |
+| ADR-085 | OpenCanvas Workspace, a first-party host (WS-01.., docs/40, prototype `prototypes/workspace/workspace.html`): a separate Apache-2.0 host application (new Rust crate `oc-workspace`, its own React UI) that owns users, auth, workspaces, folders, files, ACL, sharing, search, trash and version history, and talks to the engine only through the docs/05 host contract (JWT launch, signed callbacks, REST); shipped as one image `ghcr.io/casualoffice/opencanvas-workspace` that runs both on one port, plus a compose file for production; SQLite and local disk by default, MySQL/MariaDB and S3-compatible storage optional (Postgres open); local accounts (Argon2id), passkeys, optional OIDC, invite links; first-run setup with a one-time setup code. ADR-001 unchanged for the engine. Rejected: storing documents in the engine, growing the Node sample host into the product | Proposed |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -1194,3 +1195,69 @@ engine in the server (larger attack surface than wasmtime and no fuel metering; 
 resource limits and no ambient I/O; + one runtime for v0.6 scripted steps; − a new large dependency
 (`wasmtime`) to keep current and audit; − compile time per plugin version (cached); − plugin
 authors need a component toolchain (Rust, or others through the SDK).
+### ADR-085 — OpenCanvas Workspace, a first-party host (Proposed)
+**Context.** OpenCanvas by CasualOffice only works embedded in a host: the host owns users, ACL and files (ADR-001) and the server
+never keeps documents. Apart from the integrations (Nextcloud, Mattermost, Matrix, WOPI hosts) the only stand-alone way to try it is
+`examples/sample-host`, a 661-line zero-dependency Node demo with five fixed users and JSON files on disk, not meant for real use.
+The owner sees the lack of a turnkey option as a major gap: a team that wants a self-hosted Notion- or Confluence-like workspace
+today has to write a host first. Full plan: [docs/40](40-WORKSPACE.md); prototype `docs/prototypes/workspace/workspace.html`.
+
+**Decision.**
+1. *A separate host, not a mode of the engine.* **OpenCanvas Workspace** is its own application that owns users, sign-in,
+   workspaces, teams, folders, canvases (the `.ocanvas` files), assets, ACL, sharing links, search, trash and version history. It
+   talks to the engine only through the published host contract (docs/05: JWT launch, signed callbacks §5, version callbacks §5a,
+   search callback, `members`, `access`, `templates`, REST §7 and webhooks §7c), registered as an ordinary `[[host]]`. ADR-001 stays
+   intact: the engine still stores no documents, and every engine feature the Workspace needs is one any host can use. Anything the
+   Workspace cannot do through the contract is a contract gap, fixed in the contract (and docs/05) for every host, never a private
+   side channel.
+2. *Packaging.* One image, `ghcr.io/casualoffice/opencanvas-workspace`, runs both: `docker run -p 8080:8080 -v oc:/data
+   ghcr.io/casualoffice/opencanvas-workspace` gives a working workspace on one port. Inside is one binary (`opencanvas-workspace`)
+   that starts the engine (`oc-server` as a library, already a lib crate) and the Workspace host in one process on one listener;
+   the Workspace answers `/`, `/app/*` and `/api/ws/*`, the engine keeps its own paths (`/v1/*`, `/api/v1/*`, editor assets).
+   The two halves still call each other over loopback HTTP with the real signatures, so the single-process build exercises exactly
+   the contract an external host uses. Secrets the engine needs (`OC_KEK`, the host JWT and callback secrets) are generated on first
+   start into `/data/secrets` (mode 0600) unless given in the environment. A `deploy/workspace/compose.yml` is the production
+   shape: the same image run twice (`--role workspace`, `--role engine`), Redis for the engine's hot WAL and cluster, MySQL/MariaDB,
+   optional S3-compatible storage (MinIO in the example), optional Gotenberg for PDF, behind the existing nginx config. The
+   plain engine image (`deploy/Dockerfile`) is unchanged for hosts that bring their own app.
+3. *Language and stack.* A new Rust crate `crates/oc-workspace` (axum, sqlx, tokio: the engine's stack, so one toolchain, one
+   image build, one set of linters and audits) and a new web app `web/packages/workspace` (React 19, `@opencanvas/ui` tokens and
+   Lucide icons, like the editor) built into the image. The Node sample host is not grown into the product: no persistence model,
+   no auth, single-threaded, and a second runtime in the image. It stays the minimal reference integration; its contract tests
+   become a shared conformance suite that both hosts pass.
+4. *Storage.* Metadata in SQLite by default (`/data/workspace.db`, WAL mode); MySQL 8 / MariaDB 10.6+ when
+   `WS_DATABASE_URL` is set, matching ADR-004 so one database server serves both halves. PostgreSQL is a question for the owner
+   (docs/40 §9): the engine does not support it, so it would be Workspace-only. Files (canvas versions, assets, avatars, backups)
+   on local disk under `/data/files` by default, or any S3-compatible bucket (`WS_S3_*`). Canvas content is stored as the `.ocanvas`
+   bytes the engine commits; the Workspace never parses Yjs.
+5. *Auth.* Local accounts with e-mail and password (Argon2id, breached-password and length rules, rate limits, lockout),
+   passkeys (WebAuthn, usable as the only sign-in), optional TOTP, optional OIDC single sign-on (one or more providers, with
+   just-in-time accounts limited to allowed e-mail domains and group-to-team mapping), and invites. Invites work without e-mail:
+   an admin copies a single-use link (7 days by default); with SMTP set the link is also sent. Password reset without SMTP is an
+   admin-issued link or `opencanvas-workspace admin reset-password`. Sessions are server-side, `HttpOnly`, `SameSite=Lax` cookies.
+6. *Model.* One deployment = one organisation. People have an instance role (Owner, Admin, Member, Guest). Inside it,
+   **workspaces** (like teamspaces) hold folders and canvases, with workspace roles (Admin, Editor, Commenter, Viewer); **teams**
+   are named groups used as share targets. Canvas access is the highest of: workspace role, folder share, canvas share (person or
+   team), link. Roles map onto the engine's `edit` / `comment` / `view` plus "Full access" (may share and delete), which the
+   engine never sees. Links: off, anyone in the organisation, or anyone with the link (view or comment only, optional expiry,
+   admin can turn public links off). Favourites, recent, folder tree and private "My canvases" per person.
+7. *Search, trash and history.* Search indexes the `search.json` the engine puts in every save (ADR-065) into SQLite FTS5 or
+   MySQL FULLTEXT, filtered by the person's access at query time; it implements the `GET /search` callback, so "Search all
+   canvases" in the editor works. Trash is a soft delete kept 30 days (setting), restorable by anyone with Full access, purged by a
+   job. Version history implements the §5a callbacks: every checkpoint save is kept, autosaves thinned (all for 24 h, hourly for
+   7 days, daily for 90 days; settings), named versions forever.
+8. *Admin.* First-run setup (admin account, organisation and first workspace) is guarded by a one-time setup code printed in the
+   log, except from loopback. Settings: branding (name, logo, accent), sign-in methods and SSO, storage, SMTP (optional, with a
+   test), backups (scheduled `.tar.zst` of the database and files to `/data/backups` or S3, retention, one-click restore from the
+   CLI), and the AI provider when the engine's server-side AI (ADR-031) is configured. Upgrades: migrations run on start after an automatic
+   pre-upgrade backup; downgrades are refused; the image follows the engine's release numbers.
+9. *Licence.* Apache-2.0 with SPDX headers and the NOTICE, like the rest of the repository. No paid tier in the code.
+
+**Consequences.** + A turnkey product: one command to a working, multi-user workspace; + the strongest proof of the host
+contract, and a driver that finds its gaps; + ADR-001 unchanged, hosts keep using the engine image; − we now own a product with
+accounts, passwords and backups (security surface: auth, sessions, uploads, public links; covered by its own audit row);
+− a second UI to design and keep at the same bar; − one more release artifact and upgrade path to support; − single-process mode
+couples both halves' restarts (compose splits them).
+
+**Open for the owner.** docs/40 §9: PostgreSQL in the MVP or not; public links in the MVP; setup-code rule; one organisation per
+deployment (no multi-tenant SaaS mode); retention defaults; image name.
