@@ -9,6 +9,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Changed
 
+- The editor renders a canvas once when it opens, not twice, and gives blocks without ids their
+  ids after the first screen: the editor's mount after the document arrives is 35-43% shorter
+  (PSYNC-BUG-3).
 - Partial sync: a canvas reopened at the version it was saved at opens from the room's kept
   split instead of reading and cutting the file again (the 50 MB benchmark canvas: 1.3 s to its
   first screen on a reopen), and the session no longer waits for a large file to be read

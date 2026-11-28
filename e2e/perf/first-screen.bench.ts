@@ -147,11 +147,21 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
       const ctx = await browser.newContext({ viewport: PROFILE.viewport });
       const page = await ctx.newPage();
       await page.addInitScript(() => {
-        const w = window as unknown as { __loaf: { start: number; duration: number; blocking: number }[] };
+        type Loaf = { start: number; duration: number; blocking: number; layout: number; scripts: [string, number][] };
+        const w = window as unknown as { __loaf: Loaf[] };
         w.__loaf = [];
         try {
           new PerformanceObserver((l) => {
-            for (const e of l.getEntries()) w.__loaf.push({ start: e.startTime, duration: e.duration, blocking: (e as unknown as { blockingDuration?: number }).blockingDuration ?? 0 });
+            for (const e of l.getEntries()) {
+              // Where a long frame went: style and layout at its end, and its longest scripts.
+              const f = e as unknown as { blockingDuration?: number; styleAndLayoutStart?: number; scripts?: { duration: number; invoker?: string; sourceFunctionName?: string; sourceURL?: string }[] };
+              const layout = f.styleAndLayoutStart ? e.startTime + e.duration - f.styleAndLayoutStart : 0;
+              const scripts = (f.scripts ?? [])
+                .map((x): [string, number] => [`${x.invoker ?? ""} ${x.sourceFunctionName ?? ""} ${(x.sourceURL ?? "").split("/").pop()}`.trim(), Math.round(x.duration)])
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+              w.__loaf.push({ start: e.startTime, duration: e.duration, blocking: f.blockingDuration ?? 0, layout: Math.round(layout), scripts });
+            }
           }).observe({ type: "long-animation-frame", buffered: true });
         } catch {
           /* no LoAF in this browser */
@@ -212,7 +222,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
         painted = true;
         run.firstScreenMs = Math.round((await h.jsonValue()) as number);
         if (profiling) {
-          type Node = { id: number; callFrame: { functionName: string; url: string; lineNumber: number }; hitCount?: number };
+          type Node = { id: number; callFrame: { functionName: string; url: string; lineNumber: number }; hitCount?: number; children?: number[] };
           const { profile } = (await cdp.send("Profiler.stop")) as { profile: { nodes: Node[]; samples: number[]; timeDeltas: number[] } };
           const self = new Map<number, number>();
           profile.samples.forEach((id, k) => self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[k] ?? 0)));
@@ -223,6 +233,22 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
           }
           const top = [...byFn].sort((a, b) => b[1] - a[1]).slice(0, 40);
           for (const [f, us] of top) console.log(`profile ${Math.round(us / 1000)} ms  ${f}`);
+          // Inclusive time (a function and everything it called), for where a long task went.
+          const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+          const incl = new Map<number, number>();
+          const total = (id: number): number => {
+            if (incl.has(id)) return incl.get(id)!;
+            const n = byId.get(id)!;
+            const t = (self.get(id) ?? 0) + (n.children ?? []).reduce((a, c) => a + total(c), 0);
+            incl.set(id, t);
+            return t;
+          };
+          const inclFn = new Map<string, number>();
+          for (const n of profile.nodes) {
+            const f = `${n.callFrame.functionName || "(anon)"} ${n.callFrame.url.split("/").pop()}:${n.callFrame.lineNumber}`;
+            inclFn.set(f, Math.max(inclFn.get(f) ?? 0, total(n.id)));
+          }
+          for (const [f, us] of [...inclFn].sort((a, b) => b[1] - a[1]).slice(0, 60)) console.log(`incl ${Math.round(us / 1000)} ms  ${f}`);
         }
         // Settle: let the rest of the document arrive and render before measuring memory.
         await page.waitForTimeout(0);
@@ -249,7 +275,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
         }
         // How far the page scrolled (the editor may scroll inside a container).
         run.scrolledPx = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll("*")].map((e) => e.scrollTop)));
-        const loaf = await page.evaluate(() => (window as unknown as { __loaf: { start: number; duration: number; blocking: number }[] }).__loaf);
+        const loaf = await page.evaluate(() => (window as unknown as { __loaf: { start: number; duration: number; blocking: number; layout: number; scripts: [string, number][] }[] }).__loaf);
         const summary = (l: { duration: number; blocking: number }[]) => ({
           count: l.length,
           totalMs: Math.round(l.reduce((a, b) => a + b.duration, 0)),
@@ -257,6 +283,10 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
           worstMs: Math.round(Math.max(0, ...l.map((e) => e.duration))),
         });
         run.longFrames = { load: summary(loaf.slice(0, loadLoaf)), scroll: summary(loaf.filter((e) => e.start >= t0)) };
+        // The worst frame before the first screen: its style and layout, and its longest scripts.
+        const before = loaf.slice(0, loadLoaf).filter((e) => e.start < (run.firstScreenMs as number));
+        const worst = before.sort((a, b) => b.duration - a.duration)[0];
+        if (worst) run.worstLoadFrame = { at: Math.round(worst.start), ms: Math.round(worst.duration), layoutMs: worst.layout, scripts: worst.scripts };
         run.parts = await page.evaluate(() => {
           const views = [...document.querySelectorAll("[data-db], [data-board]")];
           return { views: views.length, shown: views.filter((v) => !v.querySelector(".bskel")).length };

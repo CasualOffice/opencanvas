@@ -1,0 +1,278 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-28",
+  "commit": "c951139",
+  "machine": "local-exp-idleids",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 5,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 299346,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-BRiPvsLK.js",
+        "gzipBytes": 128469
+      },
+      {
+        "file": "assets/index-cMCoe66T.js",
+        "gzipBytes": 70653
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/yjs-DYXjVKFe.js",
+        "gzipBytes": 30157
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "s": {
+      "firstScreenMs": {
+        "median": 605,
+        "worst": 613
+      },
+      "heapMb": 7.3,
+      "domNodes": 625,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "s_b70846965_0",
+          "firstScreenMs": 613,
+          "heapMb": 7.3,
+          "domNodes": 625,
+          "partsBeforeScroll": {
+            "views": 2,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 318,
+            "firstFrame": 366,
+            "mainSynced": 402
+          },
+          "partsListed": 2,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 6,
+              "totalMs": 578,
+              "blockingMs": 245,
+              "worstMs": 218
+            },
+            "scroll": {
+              "count": 3,
+              "totalMs": 244,
+              "blockingMs": 29,
+              "worstMs": 123
+            }
+          },
+          "parts": {
+            "views": 4,
+            "shown": 4
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        },
+        {
+          "fileId": "s_b70849344_1",
+          "firstScreenMs": 610,
+          "heapMb": 7.2,
+          "domNodes": 625,
+          "partsBeforeScroll": {
+            "views": 2,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 324,
+            "firstFrame": 373,
+            "mainSynced": 408
+          },
+          "partsListed": 2,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 6,
+              "totalMs": 590,
+              "blockingMs": 233,
+              "worstMs": 209
+            },
+            "scroll": {
+              "count": 2,
+              "totalMs": 168,
+              "blockingMs": 21,
+              "worstMs": 114
+            }
+          },
+          "parts": {
+            "views": 4,
+            "shown": 4
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        },
+        {
+          "fileId": "s_b70851637_2",
+          "firstScreenMs": 597,
+          "heapMb": 7.3,
+          "domNodes": 625,
+          "partsBeforeScroll": {
+            "views": 2,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 317,
+            "firstFrame": 362,
+            "mainSynced": 401
+          },
+          "partsListed": 2,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 6,
+              "totalMs": 581,
+              "blockingMs": 236,
+              "worstMs": 220
+            },
+            "scroll": {
+              "count": 3,
+              "totalMs": 232,
+              "blockingMs": 19,
+              "worstMs": 113
+            }
+          },
+          "parts": {
+            "views": 4,
+            "shown": 4
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        },
+        {
+          "fileId": "s_b70853995_3",
+          "firstScreenMs": 602,
+          "heapMb": 7.2,
+          "domNodes": 625,
+          "partsBeforeScroll": {
+            "views": 2,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 320,
+            "firstFrame": 360,
+            "mainSynced": 400
+          },
+          "partsListed": 2,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 6,
+              "totalMs": 595,
+              "blockingMs": 233,
+              "worstMs": 208
+            },
+            "scroll": {
+              "count": 3,
+              "totalMs": 226,
+              "blockingMs": 18,
+              "worstMs": 112
+            }
+          },
+          "parts": {
+            "views": 4,
+            "shown": 4
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        },
+        {
+          "fileId": "s_b70856304_4",
+          "firstScreenMs": 605,
+          "heapMb": 7.3,
+          "domNodes": 625,
+          "partsBeforeScroll": {
+            "views": 2,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 315,
+            "firstFrame": 360,
+            "mainSynced": 399
+          },
+          "partsListed": 2,
+          "scrolledPx": 18000,
+          "longFrames": {
+            "load": {
+              "count": 6,
+              "totalMs": 580,
+              "blockingMs": 233,
+              "worstMs": 228
+            },
+            "scroll": {
+              "count": 2,
+              "totalMs": 168,
+              "blockingMs": 19,
+              "worstMs": 113
+            }
+          },
+          "parts": {
+            "views": 4,
+            "shown": 4
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.1
+          }
+        }
+      ]
+    }
+  }
+}
