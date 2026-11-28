@@ -850,6 +850,41 @@ impl Client {
         .await
     }
 
+    /// `GET …/backlinks?block=&kind=&cursor=` (LINK-03): the canvases that link here, as the
+    /// token's user may see them.
+    pub async fn list_backlinks(
+        &self,
+        file_id: &str,
+        block: Option<&str>,
+        cursor: Option<&str>,
+    ) -> Result<models::Backlinks> {
+        let mut p = Params::file(file_id);
+        if let Some(b) = block {
+            p = p.query("block", b);
+        }
+        if let Some(c) = cursor {
+            p = p.query("cursor", c);
+        }
+        self.typed("listBacklinks", p, &CallOptions::default())
+            .await
+    }
+
+    /// `POST /api/v1/links/index {fileIds}` (host key): backfill the link index.
+    pub async fn index_links(&self, file_ids: &[&str]) -> Result<models::LinkIndexResult> {
+        let p = Params::new().json(json!({ "fileIds": file_ids }));
+        self.typed("indexLinks", p, &CallOptions::default()).await
+    }
+
+    /// `DELETE /api/v1/links/files/{fileId}` (host key): drop a deleted file's links.
+    pub async fn delete_file_links(&self, file_id: &str) -> Result<models::LinkDeleteResult> {
+        self.typed(
+            "deleteFileLinks",
+            Params::file(file_id),
+            &CallOptions::default(),
+        )
+        .await
+    }
+
     /// `POST …/import?format=`
     pub async fn import_file(
         &self,

@@ -56,6 +56,10 @@
     {
       "name": "search",
       "description": "Search across canvases through the host (ADR-065); OpenCanvas keeps no index"
+    },
+    {
+      "name": "links",
+      "description": "Links between canvases and backlinks (ADR-081); the index holds ids only and every answer goes through the host's ACL"
     }
   ],
   "x-opencanvas-error-codes": [
@@ -542,6 +546,30 @@
       "detail": "the server is busy; retry",
       "description": "The server cannot take the request right now: rooms are recovering after a restart, or no database connection is free. The answer carries `Retry-After` (1-5 s); send the same request again after it. Never a 500 for overload (RLB-01b).",
       "kind": "common"
+    },
+    {
+      "code": "LINKS_OFF",
+      "status": [
+        404
+      ],
+      "detail": "links are not enabled for this host ([host.flags] links) or the storage has no link index",
+      "description": "Backlinks and the link index need `[host.flags] links = true` and a database (not Redis-only storage)."
+    },
+    {
+      "code": "FILE_GONE",
+      "status": [
+        410
+      ],
+      "detail": "the file was deleted",
+      "description": "Your `POST /access` answered 410 (or `gone`) for the canvas asked about."
+    },
+    {
+      "code": "HOST_KEY_REQUIRED",
+      "status": [
+        403
+      ],
+      "detail": "this operation needs the host key",
+      "description": "Index maintenance (`DELETE /api/v1/links/files/{fileId}`, `POST /api/v1/links/index`) is for your application, with the host key; a person's token is refused."
     }
   ],
   "paths": {
@@ -7242,6 +7270,349 @@
           "RULE_NOT_FOUND"
         ]
       }
+    },
+    "/api/v1/files/{fileId}/backlinks": {
+      "get": {
+        "operationId": "listBacklinks",
+        "summary": "Canvases that link to this canvas",
+        "tags": [
+          "links"
+        ],
+        "security": [
+          {
+            "bearer": [
+              "canvas:read"
+            ]
+          }
+        ],
+        "description": "\"Linked from\" (ADR-081): the canvases whose last acknowledged save links to this canvas (or, with `block`, to one block of it), newest save first, 20 to a page. Needs a **user** token: a host key gets 400 `USER_TOKEN_REQUIRED`. The token's user needs view on this canvas, and every linking canvas is checked with the host (`POST /access/batch`, else `POST /access`): one the user cannot open is left out and not counted, in `items`, `total` and `blocks` alike. Titles and paths are the host's answers; excerpts are made from the linking canvas at read time and never stored. Needs `[host.flags] links`. The MCP tool `canvas_backlinks` answers the same.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          },
+          {
+            "name": "block",
+            "in": "query",
+            "required": false,
+            "description": "Only links to this block id of the canvas",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "example": "b_9kP2"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "`link`, `embed`, `relation` or `all` (default)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "link",
+                "embed",
+                "relation",
+                "all"
+              ]
+            },
+            "example": "link"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`next` of the previous page",
+            "schema": {
+              "type": "string"
+            },
+            "example": "o20"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Linking canvases per page, 1-50 (default 20)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backlinks",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backlinks"
+                },
+                "example": {
+                  "fileId": "doc_8812",
+                  "items": [
+                    {
+                      "fileId": "doc_7710",
+                      "title": "Q1 Platform roadmap",
+                      "path": "Engineering / Planning",
+                      "updatedAt": "2026-11-27T16:02:00Z",
+                      "updatedBy": "Jonas Weber",
+                      "savedAt": 1795800000000,
+                      "role": "edit",
+                      "refs": [
+                        {
+                          "block": "b_3fQ1",
+                          "toBlock": "b_9kP2",
+                          "toRow": null,
+                          "kind": "link",
+                          "section": "Identity",
+                          "excerpt": {
+                            "before": "Scope and dates live in ",
+                            "link": "SSO rollout plan",
+                            "after": "."
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "total": 1,
+                  "blocks": {
+                    "b_9kP2": 1
+                  },
+                  "next": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-opencanvas-scope": "canvas:read",
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "TOKEN_INVALID",
+          "TOKEN_EXPIRED",
+          "SCOPE_REQUIRED",
+          "ROLE_FORBIDDEN",
+          "RATE_LIMITED",
+          "BAD_INPUT",
+          "USER_TOKEN_REQUIRED",
+          "LINKS_OFF",
+          "FILE_GONE",
+          "INTERNAL"
+        ]
+      }
+    },
+    "/api/v1/links/files/{fileId}": {
+      "delete": {
+        "operationId": "deleteFileLinks",
+        "summary": "Drop a deleted file's links from the index",
+        "tags": [
+          "links"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "description": "For a file deleted in your application: its outgoing links leave the link index at once (otherwise they go the next time a read finds the file gone). Links *to* it stay until their sources are saved again; readers see them as \"Deleted canvas\". Host key only.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkDeleteResult"
+                },
+                "example": {
+                  "fileId": "doc_1",
+                  "removed": 4
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "HOST_KEY_REQUIRED",
+          "LINKS_OFF",
+          "BAD_INPUT",
+          "INTERNAL"
+        ]
+      }
+    },
+    "/api/v1/links/index": {
+      "post": {
+        "operationId": "indexLinks",
+        "summary": "Backfill the link index from your files",
+        "tags": [
+          "links"
+        ],
+        "security": [
+          {
+            "hostKey": [],
+            "hostId": []
+          }
+        ],
+        "description": "Loads each file through your load callback (with the host key's callback bearer), writes its outgoing links to the index and drops the document; nothing else is kept. Up to 100 files per call; run it once over your files when you turn `[host.flags] links` on. Files that are missing, fail to load or are not `.ocanvas` are listed in `failed` with `not_found`, `host_error` or `not_ocanvas`. Host key only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileIds": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  }
+                },
+                "required": [
+                  "fileIds"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "fileIds": [
+                  "doc_1",
+                  "doc_2"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Indexed",
+            "headers": {
+              "RateLimit-Policy": {
+                "description": "Token buckets that apply: \"subject\";q=<burst>;w=<seconds to refill>, and \"file-writes\" on writes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "RateLimit": {
+                "description": "The bucket closest to empty: \"<name>\";r=<remaining>;t=<seconds until full>",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkIndexResult"
+                },
+                "example": {
+                  "indexed": [
+                    {
+                      "fileId": "doc_1",
+                      "links": 12,
+                      "dropped": 0
+                    }
+                  ],
+                  "failed": [
+                    {
+                      "fileId": "doc_2",
+                      "code": "not_found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-opencanvas-errors": [
+          "API_OFF",
+          "UNAUTHENTICATED",
+          "HOST_KEY_REQUIRED",
+          "LINKS_OFF",
+          "BAD_INPUT",
+          "INTERNAL"
+        ]
+      }
     }
   },
   "components": {
@@ -7903,6 +8274,242 @@
           "trigger",
           "result",
           "at"
+        ],
+        "additionalProperties": false
+      },
+      "Backlinks": {
+        "type": "object",
+        "description": "Canvases that link here, as the reader may see them (ADR-081)",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "The host's current title"
+                },
+                "path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "updatedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "updatedBy": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "savedAt": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "When the link index last saw this canvas saved (ms)"
+                },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "block": {
+                        "type": "string",
+                        "description": "The block of the linking canvas that holds the link (empty: none)"
+                      },
+                      "toBlock": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "toRow": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "link",
+                          "embed",
+                          "relation"
+                        ]
+                      },
+                      "section": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "excerpt": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "description": "Plain text around the link, at most 240 characters; escape it before showing",
+                        "properties": {
+                          "before": {
+                            "type": "string"
+                          },
+                          "link": {
+                            "type": "string"
+                          },
+                          "after": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "before",
+                          "link",
+                          "after"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "block",
+                      "toBlock",
+                      "toRow",
+                      "kind",
+                      "section",
+                      "excerpt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "fileId",
+                "title",
+                "path",
+                "updatedAt",
+                "updatedBy",
+                "savedAt",
+                "role",
+                "refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Linking canvases the reader can open (matching the filter)"
+          },
+          "blocks": {
+            "type": "object",
+            "description": "Per block id of this canvas: linking canvases the reader can open",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "fileId",
+          "items",
+          "total",
+          "blocks",
+          "next"
+        ],
+        "additionalProperties": false
+      },
+      "LinkIndexResult": {
+        "type": "object",
+        "properties": {
+          "indexed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string"
+                },
+                "links": {
+                  "type": "integer"
+                },
+                "dropped": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "fileId",
+                "links",
+                "dropped"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "not_found",
+                    "host_error",
+                    "not_ocanvas"
+                  ]
+                }
+              },
+              "required": [
+                "fileId",
+                "code"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "indexed",
+          "failed"
+        ],
+        "additionalProperties": false
+      },
+      "LinkDeleteResult": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fileId",
+          "removed"
         ],
         "additionalProperties": false
       }

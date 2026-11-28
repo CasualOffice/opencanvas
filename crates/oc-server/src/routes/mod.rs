@@ -298,6 +298,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/unfurl/image", get(unfurl::image))
         .route("/v1/members", get(proxy::members))
         .route("/v1/search", get(v1::search::editor_search))
+        .route("/v1/backlinks", get(v1::links::editor_backlinks))
+        .route("/v1/backlinks/mentions", get(v1::links::editor_mentions))
         .route("/v1/offline/clear", get(crate::offline::clear_page))
         .route("/v1/offline/clear.js", get(crate::offline::clear_js))
         .route("/v1/automations/runs", get(v1::automation::editor_runs))

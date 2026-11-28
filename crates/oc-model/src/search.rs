@@ -47,6 +47,7 @@ fn inline(n: &Value, out: &mut String) {
             out.push_str(l.trim_start_matches('@'));
         }
         "dateMention" => out.push_str(attr_str(n, "date")),
+        "canvasLink" => out.push_str(attr_str(n, "label")),
         "hardBreak" => out.push(' '),
         _ => {
             for c in children(n) {

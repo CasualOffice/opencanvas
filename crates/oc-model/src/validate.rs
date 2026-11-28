@@ -379,6 +379,19 @@ fn spec(ty: &str) -> Option<Spec> {
             false,
         ),
         "dateMention" => s(Inline, &[("date", A::Date)], C::None, false),
+        // LINK-01 (ADR-081): a link to another canvas, or a block or row in it. The target
+        // block is `targetBlockId` (`blockId` is a node's own id, ADR-023).
+        "canvasLink" => s(
+            Inline,
+            &[
+                ("fileId", A::Id),
+                ("targetBlockId", A::Str),
+                ("rowId", A::Str),
+                ("label", A::Str),
+            ],
+            C::None,
+            false,
+        ),
         // BSDK-02: every SDK block (docs/15 §4.2); `crate::ext::check` checks its attributes.
         "extBlock" => s(
             Block,

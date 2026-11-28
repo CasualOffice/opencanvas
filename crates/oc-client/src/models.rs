@@ -75,6 +75,20 @@ pub struct AutomationRun {
     pub trigger: String,
 }
 
+/// Canvases that link here, as the reader may see them (ADR-081)
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Backlinks {
+    /// Per block id of this canvas: linking canvases the reader can open
+    pub blocks: Map<String, Value>,
+    #[serde(rename = "fileId")]
+    pub file_id: String,
+    pub items: Vec<Value>,
+    #[serde(default)]
+    pub next: Option<String>,
+    /// Linking canvases the reader can open (matching the filter)
+    pub total: i64,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct BatchOp {
     #[serde(rename = "blockId", default, skip_serializing_if = "Option::is_none")]
@@ -187,6 +201,19 @@ pub struct Event {
 pub struct LegacyError {
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub error: Value,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LinkDeleteResult {
+    #[serde(rename = "fileId")]
+    pub file_id: String,
+    pub removed: i64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LinkIndexResult {
+    pub failed: Vec<Value>,
+    pub indexed: Vec<Value>,
 }
 
 /// RFC 9457 problem details
@@ -393,6 +420,18 @@ pub const OPERATIONS: &[Operation] = &[
         response: ResponseKind::Json,
         paged: None,
         idempotent: true,
+    },
+    Operation {
+        id: "listBacklinks",
+        method: "GET",
+        path: "/api/v1/files/{fileId}/backlinks",
+        scope: Some("canvas:read"),
+        path_params: &["fileId"],
+        query: &["block", "kind", "cursor", "limit"],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
     },
     Operation {
         id: "listBlocks",
@@ -714,6 +753,30 @@ pub const OPERATIONS: &[Operation] = &[
         path_params: &["fileId"],
         query: &[],
         body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "deleteFileLinks",
+        method: "DELETE",
+        path: "/api/v1/links/files/{fileId}",
+        scope: None,
+        path_params: &["fileId"],
+        query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "indexLinks",
+        method: "POST",
+        path: "/api/v1/links/index",
+        scope: None,
+        path_params: &[],
+        query: &[],
+        body: BodyKind::Json,
         response: ResponseKind::Json,
         paged: None,
         idempotent: false,

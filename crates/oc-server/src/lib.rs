@@ -21,6 +21,7 @@ pub mod history;
 pub mod host_client;
 pub mod hosts;
 pub mod jwt;
+pub mod links;
 pub mod live;
 pub mod metrics;
 pub mod notify;
@@ -91,6 +92,8 @@ pub struct AppState {
     pub live_slots: Arc<live::OpenSlots>,
     /// OFF-01 (ADR-063): the ES256 key that signs offline grants.
     pub offline_key: offline::GrantKey,
+    /// LINK-03: excerpt and `/access/batch` probe caches (memory only).
+    pub links: links::Caches,
 }
 
 #[derive(Clone, Copy)]
@@ -217,6 +220,18 @@ impl AppState {
                 automated.join(", ")
             );
         }
+        // LINK-02 (ADR-081): the link index is a relational query.
+        let linked: Vec<&str> = hosts
+            .iter()
+            .filter(|h| links::LinksCfg::of(h).on)
+            .map(|h| h.id.as_str())
+            .collect();
+        if !linked.is_empty() && store.is_redis_only() {
+            anyhow::bail!(
+                "[host.flags] links ({}) needs a database for the link index (DATABASE_URL: SQLite, MySQL or MariaDB); Redis-only storage has none (ADR-081)",
+                linked.join(", ")
+            );
+        }
         if !hooked.is_empty() {
             if store.is_redis_only() {
                 anyhow::bail!(
@@ -257,6 +272,7 @@ impl AppState {
             blocks,
             live_slots: Default::default(),
             offline_key,
+            links: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

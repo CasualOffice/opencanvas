@@ -107,6 +107,10 @@ pub struct HostConfig {
     /// `timeout_ms`; read through [`HostConfig::search`].
     #[serde(default)]
     pub search: toml::Table,
+    /// `[host.links]` (LINK-01..05, ADR-081, docs/05 §2): `url_patterns`, `url_template`; read
+    /// through [`crate::links::LinksCfg`]. The feature itself is `[host.flags] links`.
+    #[serde(default)]
+    pub links: toml::Table,
     /// `[host.automation]` (AUTO-01..05, ADR-067/068, docs/05 §2): read through
     /// `crate::automation::AutomationCfg`.
     #[serde(default)]
@@ -426,6 +430,7 @@ impl Hosts {
             crate::editor::EditorCfg::parse(&h.editor, &crate::editor::sdk_types(&h.blocks))
                 .with_context(|| format!("host {}", h.id))?;
             crate::live::check_host(&h).with_context(|| format!("host {}", h.id))?;
+            crate::links::check_host(&h)?;
             if h.flags.get("unfurl").is_some_and(|v| v.as_bool().is_none()) {
                 bail!("host {}: [host.flags] unfurl takes true or false", h.id);
             }

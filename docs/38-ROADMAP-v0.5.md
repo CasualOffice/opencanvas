@@ -79,7 +79,7 @@ offer the target block, and the link breaks silently on a move or a deletion.
 
 ### 2.2 Link model (in the document)
 
-1. **`canvasLink` inline node** `{fileId, blockId?, rowId?, label}`. `label` is the text written
+1. **`canvasLink` inline node** `{fileId, targetBlockId?, rowId?, label}` (the target block is `targetBlockId`: `blockId` is a node's own id, ADR-023). `label` is the text written
    at insert time and is shown only when the host cannot be asked (export, a 0.4 reader); the
    editor shows the host's current title. Inserted with **`[[`** (a picker over the host's
    `GET /search` and recent canvases from the session), by pasting a host URL that matches

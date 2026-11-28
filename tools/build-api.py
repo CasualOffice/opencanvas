@@ -367,6 +367,7 @@ RESOURCES = [
     ("files", "files", "Export and import", "Export a canvas, import Markdown, HTML or CSV into it, and convert files without a canvas."),
     ("automation", "automation", "Automation", "Rules stored in a canvas and run by the server on behalf of their owner: list, save, switch on or off, test and read the run history."),
     ("search", "search", "Search", "Search across the canvases a person can open, through the host's own index, and extract a canvas's search text."),
+    ("links", "links", "Links", "The canvases that link to a canvas, as a person may see them, and the host's maintenance of the link index."),
     ("events", "streams", "Events and sync", "Stream a file's change events, and get a ticket to sync the CRDT document directly."),
     ("admin", "admin", "Admin", "Host operations: save now, change a user's role live, close the session, drop cached members."),
     ("meta", "meta", "OpenAPI document", "The OpenAPI 3.1 document this reference is generated from."),
@@ -406,6 +407,7 @@ def nav_title(o: dict) -> str:
                  "listMembers": "List members", "listBlocks": "List blocks", "listDatabases": "List databases",
                  "createDatabase": "Create a database",
                  "extract": "Extract search text", "search": "Search across canvases",
+                 "listBacklinks": "List backlinks", "indexLinks": "Backfill the index", "deleteFileLinks": "Drop a file's links",
                  "listAutomations": "List rules", "saveAutomation": "Save a rule", "deleteAutomation": "Delete a rule",
                  "enableAutomation": "Switch a rule on or off", "testAutomation": "Test run", "listAutomationRuns": "Run history"}
     if o["id"] in overrides:

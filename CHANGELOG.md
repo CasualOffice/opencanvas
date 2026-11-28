@@ -21,6 +21,16 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 - Timeline (DB5-01): drag a task to another person's row in Workload to reassign it; Weeks and
   Months grouping on phones; the frame 6b "Jump to" panel when the visible range is empty;
   Timeline and Workload variants in the insert menu (`/timeline`, `/gantt`, `/workload`).
+- Links between canvases (LINK-01..03, ADR-081; off until a host sets `[host.flags] links`): a
+  `canvasLink` node links a canvas, a block or a row; the server keeps a link index of ids only
+  (`link_edges`, migration 0014, SQLite, MySQL and MariaDB), written only after the host
+  acknowledged a save. `GET /api/v1/files/{fileId}/backlinks` and the MCP tool
+  `canvas_backlinks` list the canvases that link to one, with the sentence around each link,
+  checked with the host's new optional `POST /access/batch` (else `POST /access` per file):
+  canvases the reader cannot open are left out and not counted. Backfill with
+  `POST /api/v1/links/index`, drop a deleted file's links with `DELETE /api/v1/links/files/{id}`.
+  Exports write canvas links as links to `[host.links] url_template`. Both API clients have the
+  new operations. Redis-only storage refuses `links = true`.
 
 ### Fixed
 

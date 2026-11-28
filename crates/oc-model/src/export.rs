@@ -357,6 +357,8 @@ fn md_inline(nodes: &[Value]) -> String {
                     None => t,
                 }
             }
+            // LINK-01: unlowered (no host URL): the label as text.
+            "canvasLink" => md_text(attr_str(n, "label")),
             "mention" => format!("@{}", md_text(attr_str(n, "label"))),
             "dateMention" => iso_date(attr_str(n, "date"))
                 .unwrap_or_default()
@@ -773,6 +775,7 @@ pub(crate) fn html_inline(nodes: &[Value]) -> String {
                 }
                 t
             }
+            "canvasLink" => escape(attr_str(n, "label")),
             "mention" => format!(
                 "<span class=\"mention\">@{}</span>",
                 escape(attr_str(n, "label"))
