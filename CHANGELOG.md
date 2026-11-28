@@ -7,6 +7,12 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Fixed
+
+- Partial sync: the one-client-id-per-document rule now refuses only items at clocks another
+  document was given. An editor that loaded a database during server work had its sync reply
+  refused (PSYNC-BUG-4).
+
 ## [0.4.0] - 2026-11-28
 
 Spreadsheets, advanced databases (formulas, relations, rollups, Timeline and Workload) and linked

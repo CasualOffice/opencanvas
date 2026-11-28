@@ -1832,12 +1832,13 @@ impl Room {
         // SEC-V4: one client id per document of a split room (the part path checks the same):
         // a main update with a part's client id would collide when the parts are flattened.
         if self.split.as_ref().is_some_and(|s| s.whole_since.is_none()) {
-            let Ok(clocks) = oc_model::parts::update_state(&bytes) else {
-                return self.deny(conn, "malformed update");
-            };
-            if self.client_id_elsewhere(oc_model::parts::MAIN, &clocks) {
-                tracing::info!(room = %self.id, "update refused: client id used in a block's document");
-                return self.deny(conn, "one client id per document");
+            match self.foreign_write(oc_model::parts::MAIN, &bytes) {
+                Ok(false) => {}
+                Ok(true) => {
+                    tracing::info!(room = %self.id, "update refused: client id used in a block's document");
+                    return self.deny(conn, "one client id per document");
+                }
+                Err(_) => return self.deny(conn, "malformed update"),
             }
         }
         // PSYNC-02: in a whole view, a main-document update must not delete the parts' items

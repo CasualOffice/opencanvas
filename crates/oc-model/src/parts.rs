@@ -1113,6 +1113,46 @@ pub fn update_state(update: &[u8]) -> Result<HashMap<u64, u32>, Error> {
         .collect())
 }
 
+/// PSYNC-BUG-4, the one-client-id-per-document rule: the first item of `update`, sent to
+/// document `part`, at a clock that another document was given. `have(client)` is the part's
+/// own clock (structs below it are already integrated and change nothing) and
+/// `elsewhere(client)` the highest clock any other document knows. A clock at or past
+/// `elsewhere` is fresh and the part may claim it; a clock below it must already be the part's
+/// in `owners` (an echo of what the part was given). Fillers (GC) are never refused: GC is what
+/// every document holds where another one owns the item, and a client echoes the fillers it was
+/// sent.
+pub fn foreign_item(
+    update: &[u8],
+    part: &str,
+    owners: &dyn Owners,
+    have: &dyn Fn(u64) -> u32,
+    elsewhere: &dyn Fn(u64) -> u32,
+) -> Result<Option<Id>, Error> {
+    let p = parse(update)?;
+    for (client, structs) in &p.clients {
+        let (mine, known) = (have(*client), elsewhere(*client));
+        for s in structs.iter().filter(|s| s.kind == Kind::Item) {
+            let mut x = s.clock.max(mine);
+            let hi = s.end().min(known);
+            while x < hi {
+                match owners.owner(Id {
+                    client: *client,
+                    clock: x,
+                }) {
+                    Some((k, end)) if k == part => x = end,
+                    _ => {
+                        return Ok(Some(Id {
+                            client: *client,
+                            clock: x,
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// The struct section of a v1 update (the bytes before the delete set), for byte comparisons.
 pub fn struct_section(update: &[u8]) -> Result<&[u8], Error> {
     let p = parse(update)?;

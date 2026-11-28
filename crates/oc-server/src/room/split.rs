@@ -22,7 +22,7 @@
 
 use std::collections::BTreeMap;
 
-use oc_model::parts::{self, MAIN, OwnerIndex, Owners};
+use oc_model::parts::{self, MAIN, OwnerIndex};
 use yrs::encoding::read::Read;
 
 use super::*;
@@ -480,37 +480,33 @@ impl Room {
         Some((txn.encode_state_as_update_v1(sv), txn.state_vector()))
     }
 
-    /// Extending a client stream requires owning its last item if another document has clocks
-    /// for it. A routed filler advances the other document's vector without transferring
-    /// ownership of the stream.
-    pub(super) fn client_id_elsewhere(&self, key: &str, inc: &HashMap<u64, u32>) -> bool {
+    /// PSYNC-BUG-4, one client id per document: an item of `bytes` (sent to document `key`)
+    /// at a clock another document was given. Each document owns the clock ranges recorded for
+    /// it in `owners` (at the split, and as each write is applied); a write may claim clocks no
+    /// other document knows yet, echo what it was given, and carry fillers anywhere. Anything
+    /// else reuses a client id across documents and would collide in the flatten. `Err` when
+    /// the update is malformed.
+    pub(super) fn foreign_write(&self, key: &str, bytes: &[u8]) -> Result<bool, parts::Error> {
         let Some(s) = &self.split else {
-            return false;
+            return Ok(false);
         };
         let mine = s.svs.get(key);
-        inc.iter().any(|(c, end)| {
-            let have = mine.and_then(|m| m.get(c)).copied().unwrap_or(0);
-            if *end <= have {
-                return false;
-            }
-            let elsewhere = s
-                .svs
-                .iter()
-                .filter(|(k, _)| *k != key)
-                .filter_map(|(_, sv)| sv.get(c))
-                .copied()
-                .max()
-                .unwrap_or(0);
-            if elsewhere == 0 {
-                return false;
-            }
-            let owns_tail = have.checked_sub(1).is_some_and(|clock| {
-                s.owners
-                    .owner(parts::Id { client: *c, clock })
-                    .is_some_and(|(owner, _)| owner == key)
-            });
-            elsewhere > have || !owns_tail
-        })
+        let hit = parts::foreign_item(
+            bytes,
+            key,
+            &s.owners,
+            &|c| mine.and_then(|m| m.get(&c)).copied().unwrap_or(0),
+            &|c| {
+                s.svs
+                    .iter()
+                    .filter(|(k, _)| k.as_str() != key)
+                    .filter_map(|(_, sv)| sv.get(&c))
+                    .copied()
+                    .max()
+                    .unwrap_or(0)
+            },
+        )?;
+        Ok(hit.is_some())
     }
 
     /// Records updates applied while split, including server writes such as the people map.
@@ -590,9 +586,6 @@ impl Room {
         if grant.role == Role::Comment {
             return self.deny(conn, "comment role may only change comments");
         }
-        let Ok(inc) = parts::update_state(&u) else {
-            return self.deny_sub(conn, guid, "malformed update");
-        };
         // SEC-V4: part edits count against the document size limit, as main edits do.
         if self.doc_bytes + u.len() > self.ctx.cfg.max_doc_bytes {
             tracing::info!(room = %self.id, size = self.doc_bytes, update = u.len(), "part update refused: document size limit");
@@ -600,9 +593,13 @@ impl Room {
         }
         // Clocks of one client id live in one document: a client id reused across documents
         // would collide in the flatten (Yjs subdocuments have their own client ids).
-        if self.client_id_elsewhere(key, &inc) {
-            tracing::info!(room = %self.id, "part update refused: client id used in another document");
-            return self.deny_sub(conn, guid, "one client id per document");
+        match self.foreign_write(key, &u) {
+            Ok(false) => {}
+            Ok(true) => {
+                tracing::info!(room = %self.id, "part update refused: client id used in another document");
+                return self.deny_sub(conn, guid, "one client id per document");
+            }
+            Err(_) => return self.deny_sub(conn, guid, "malformed update"),
         }
         // Automation rules watch blocks: with rules, edits go through the whole view.
         let has_rules = self

@@ -378,6 +378,107 @@ async fn a_client_id_used_in_the_main_document_is_refused_in_a_part() {
     assert_eq!(whole["databases"]["d1"]["rows"]["r1"]["title"], "One");
 }
 
+/// PSYNC-BUG-4: the client-id rule refuses a write only where another document was given the
+/// clocks. An editor that made a database in its main document (its items moved to a part at
+/// the next split) keeps typing in the main document; and an editor that loads that part
+/// during a whole view answers the room's step 1 with the fillers it was sent. The old rule
+/// (refuse past what every document knows, or without owning the stream's tail) refused both.
+#[tokio::test]
+async fn the_client_id_rule_refuses_only_clocks_another_document_was_given() {
+    let (state, _) = server(true).await;
+    let host = state.hosts.get("sample").unwrap();
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    a.settle().await;
+    b.settle().await;
+    a.edit(|d| {
+        let dbs = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let db = dbs.insert(&mut txn, "d9", yrs::MapPrelim::default());
+        db.insert(&mut txn, "name", "New");
+    });
+    a.settle().await;
+    let append = |text: &str| -> Vec<oc_model::patch::PatchOp> {
+        vec![serde_json::from_value(json!({"op": "append", "markdown": text})).unwrap()]
+    };
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), append("x"), "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    // Idle: the view splits and d9 (a's items) becomes a part.
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    a.settle().await;
+    b.settle().await;
+    a.edit(|d| {
+        let meta = d.get_or_insert_map("meta");
+        meta.insert(&mut d.transact_mut(), "note", "after the split");
+    });
+    a.settle().await;
+    let refused = |p: &Peer| {
+        p.denied > 0
+            || p.controls.iter().any(|c| {
+                c["reason"]
+                    .as_str()
+                    .is_some_and(|r| r.contains("client id"))
+            })
+    };
+    assert!(!refused(&a), "a main edit was refused: {:?}", a.controls);
+    assert_eq!(server_json(&state).await["meta"]["note"], "after the split");
+    // A whole view; b loads d9 and answers the room's step 1 as a Yjs client does.
+    state
+        .rooms
+        .patch(&host, &grant("u_api", Role::Edit), append("y"), "u_api")
+        .await
+        .unwrap()
+        .unwrap();
+    let d = Doc::with_client_id(777);
+    oc_model::ensure_roots(&d);
+    b.send(protocol::subdoc(
+        &guid("d9"),
+        &protocol::step1(d.transact().state_vector()),
+    ));
+    b.settle().await;
+    let mut asked = None;
+    for (g, m) in std::mem::take(&mut b.subs) {
+        if g != guid("d9") {
+            continue;
+        }
+        match m {
+            Message::Sync(SyncMessage::SyncStep2(u) | SyncMessage::Update(u)) => {
+                d.transact_mut()
+                    .apply_update(Update::decode_v1(&u).unwrap())
+                    .unwrap();
+            }
+            Message::Sync(SyncMessage::SyncStep1(sv)) => asked = Some(sv),
+            _ => {}
+        }
+    }
+    let asked = asked.expect("the room asks for the part's state");
+    let reply = d.transact().encode_state_as_update_v1(&asked);
+    b.send(protocol::subdoc(&guid("d9"), &protocol::step2(reply)));
+    b.settle().await;
+    assert!(!refused(&b), "the sync reply was refused: {:?}", b.controls);
+    // b's own edit of the part lands.
+    let sv = d.transact().state_vector();
+    {
+        let dbs: MapRef = d.get_or_insert_map("databases");
+        let mut txn = d.transact_mut();
+        let Some(Out::YMap(db)) = dbs.get(&txn, "d9") else {
+            panic!("d9 not loaded");
+        };
+        db.insert(&mut txn, "name", "Renamed by b");
+    }
+    let u = d.transact().encode_state_as_update_v1(&sv);
+    b.send(protocol::subdoc(&guid("d9"), &protocol::update(u)));
+    b.settle().await;
+    assert!(!refused(&b), "b's edit was refused: {:?}", b.controls);
+    let whole = server_json(&state).await;
+    assert_eq!(whole["databases"]["d9"]["name"], "Renamed by b");
+    assert_eq!(whole["meta"]["note"], "after the split");
+}
+
 /// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
 /// document edits do (`max_doc_bytes`); they bypassed it, so one editor could grow a split
 /// canvas without bound.
