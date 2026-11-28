@@ -20,6 +20,7 @@ bash scripts/bench/check-fast.sh
 python3 -I tools/test_sitelib.py
 python3 -I tools/test_apilib.py || { echo "prepush: test_apilib failed"; exit 1; }
 python3 -I tools/check-openapi.py >/dev/null || { echo "prepush: openapi check failed"; exit 1; }
+python3 -I tools/check-dockerfile.py || { echo "prepush: Dockerfile check failed"; exit 1; }
 # One step per line: under `set -e` a failure inside an `a && b` chain does not stop the script.
 python3 tools/build-site.py >/dev/null
 python3 tools/check-site-links.py >/dev/null
