@@ -86,7 +86,9 @@ test("first run from the same machine needs no setup code and lands on Home", as
 test.describe("signed in", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(`${BASE}/ws/signin`);
-    if (await page.locator("#si-e").isVisible().catch(() => false)) {
+    // Wait for either Home or the sign-in form; checking before the page rendered skipped sign-in.
+    await page.locator(".sb, #si-e").first().waitFor({ timeout: 15_000 });
+    if (await page.locator("#si-e").isVisible()) {
       await page.locator("#si-e").fill("priya@acme.example");
       await page.locator("#si-p").fill("plum orbit lantern");
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -154,4 +156,40 @@ test.describe("signed in", () => {
     await expect(dock.getByRole("button", { name: "New" })).toBeVisible();
     await expect(page.locator(".app > .sb")).toBeHidden();
   });
+});
+
+// Site screenshots (WS-24): `WS_SHOTS=<dir>` writes light and dark captures of Home, a spreadsheet
+// file, a whiteboard file and the share dialog, at 1440 × 900 and device scale 2, for
+// `python3 tools/build-site.py --screens <dir>`. Skipped in normal runs.
+test("site screenshots", async ({ browser }) => {
+  const dir = process.env.WS_SHOTS;
+  test.skip(!dir, "set WS_SHOTS to capture the site screenshots");
+  for (const scheme of ["light", "dark"] as const) {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: scheme });
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/ws/signin`);
+    // Wait for either Home or the sign-in form; checking before the page rendered skipped sign-in.
+    await page.locator(".sb, #si-e").first().waitFor({ timeout: 15_000 });
+    if (await page.locator("#si-e").isVisible()) {
+      await page.locator("#si-e").fill("priya@acme.example");
+      await page.locator("#si-p").fill("plum orbit lantern");
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    }
+    await expect(page.locator(".sb")).toBeVisible();
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(dir!, `${scheme}-workspace-home.png`) });
+    let ed = await newFile(page, "Spreadsheet");
+    await expect(ed.locator(".ocsh-full")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(dir!, `${scheme}-workspace-sheet.png`) });
+    ed = await newFile(page, "Whiteboard");
+    await expect(ed.locator(".ocbd.ocbd-full")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(dir!, `${scheme}-workspace-board.png`) });
+    await page.locator(".file-page").getByRole("button", { name: /Share/ }).first().click();
+    await expect(page.getByRole("dialog").first()).toBeVisible();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(dir!, `${scheme}-workspace-share.png`) });
+    await ctx.close();
+  }
 });

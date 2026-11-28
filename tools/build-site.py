@@ -68,6 +68,7 @@ SHOTS = {
     "phone": 780,
     "assistant-plan": 2000, "assistant-review": 2000,
     "assistant-phone-plan": 780, "assistant-phone-review": 780,
+    "workspace-home": 2000, "workspace-sheet": 2000, "workspace-board": 2000, "workspace-share": 2000,
 }
 PNG_MAX = 1280
 
