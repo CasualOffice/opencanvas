@@ -7,6 +7,7 @@ import { yUndoPluginKey } from "@tiptap/y-tiptap";
 import type { BlockEnv, OcUser, Role } from "@opencanvas/ui";
 import { Ic, loadExtraIcons } from "./icons";
 import { CanvasEditor } from "./editor/CanvasEditor";
+import { focusEndOnClickBelow } from "./editor/clickBelow";
 import { flashBlock } from "./editor/blockId";
 import { followScroll, reportView } from "./editor/follow";
 import { loadDatabase } from "./editor/blockdata";
@@ -1467,7 +1468,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
               </Suspense>
             ) : null}
             <div className="body">
-              <div className="scroll" ref={scrollRef}>
+              <div className="scroll" ref={scrollRef} onMouseDown={(e) => { if (focusEndOnClickBelow(editor, e.target, e.clientY)) e.preventDefault(); }}>
                 <div className={"doc" + (wide && !compact ? " wide" : "")}>
                   {ov.locked || ov.revoked ? (
                     <Suspense fallback={null}>
