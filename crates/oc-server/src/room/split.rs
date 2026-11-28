@@ -31,6 +31,55 @@ use crate::host_client::Fetched;
 pub(super) use protocol::MSG_SUBDOC;
 /// Longest part key the WAL stores (`room_part_snapshots.doc_id`).
 const KEY_MAX: usize = 191;
+/// PSYNC-BUG-2: the stored row that keeps a closed room's split (owners, state vectors,
+/// headers). Not a part: no `/`, so [`parts::part_root`] never names it.
+pub(super) const INDEX_KEY: &str = "~split";
+
+/// A split kept from the room's last clean close (PSYNC-BUG-2): read on open when the host's
+/// version is the one it was kept at, so the room skips reading and cutting the file.
+pub(super) struct Kept {
+    seq: i64,
+    bytes: usize,
+    owners: OwnerIndex,
+    svs: HashMap<String, HashMap<u64, u32>>,
+    headers: BTreeMap<String, Value>,
+}
+
+/// The kept split of `room`, if its index row is there and readable.
+pub(super) async fn kept_split(ctx: &Ctx, room: &str) -> anyhow::Result<Option<Kept>> {
+    let keys = ctx.store.part_keys(room).await?;
+    let Some((_, index)) = keys.into_iter().find(|(k, _)| k == INDEX_KEY) else {
+        return Ok(None);
+    };
+    if index["v"] != 1 {
+        return Ok(None);
+    }
+    let mut owners = OwnerIndex::default();
+    for r in index["owners"].as_array().into_iter().flatten() {
+        let (Some(c), Some(a), Some(b), Some(k)) =
+            (r[0].as_u64(), r[1].as_u64(), r[2].as_u64(), r[3].as_str())
+        else {
+            return Ok(None);
+        };
+        let (Ok(a), Ok(b)) = (u32::try_from(a), u32::try_from(b)) else {
+            return Ok(None);
+        };
+        owners.record(c, a, b, k);
+    }
+    let Ok(svs) = serde_json::from_value(index["svs"].clone()) else {
+        return Ok(None);
+    };
+    let Ok(headers) = serde_json::from_value(index["headers"].clone()) else {
+        return Ok(None);
+    };
+    Ok(Some(Kept {
+        seq: index["seq"].as_i64().unwrap_or(0),
+        bytes: index["bytes"].as_u64().unwrap_or(0) as usize,
+        owners,
+        svs,
+        headers,
+    }))
+}
 
 pub(super) struct SplitState {
     pub owners: OwnerIndex,
@@ -45,6 +94,9 @@ pub(super) struct SplitState {
     /// Parts changed since their last snapshot. Under memory durability (no WAL rows) these
     /// are written when a whole view splits again and on every dump.
     pub dirty_parts: HashSet<String>,
+    /// The canvas's stored size when it was cut (every document's bytes): whether a clean
+    /// close keeps the split (`keep_split_min_bytes`).
+    pub bytes: usize,
 }
 
 pub(super) struct Part {
@@ -144,16 +196,21 @@ pub(super) fn open_split(fetched: &Fetched) -> anyhow::Result<Option<Opened>> {
     if bytes.starts_with(crate::hosts::TEMPLATE_JSON_TAG) || !oc_model::ocanvas::is_zip(bytes) {
         return Ok(None);
     }
+    let t = Instant::now();
     let Some(raw) = oc_model::ocanvas::read_ocanvas_raw(bytes)? else {
         return Ok(None);
     };
     let Some(document) = raw.document.as_deref() else {
         return Ok(None);
     };
+    let unzip_ms = t.elapsed().as_millis() as u64;
+    let t = Instant::now();
     let split = parts::split(&raw.state)?;
     if split.parts.keys().any(|k| k.len() > KEY_MAX) {
         return Ok(None);
     }
+    let split_ms = t.elapsed().as_millis() as u64;
+    let t = Instant::now();
     drop(raw.state);
     let main = doc_of(&split.parts[MAIN])?;
     let live_file = {
@@ -169,6 +226,8 @@ pub(super) fn open_split(fetched: &Fetched) -> anyhow::Result<Option<Opened>> {
     if let Some(e) = report.first_error() {
         anyhow::bail!("{e}");
     }
+    let main_ms = t.elapsed().as_millis() as u64;
+    let t = Instant::now();
     // The file's own logical JSON: the history's starting point and the parts' headers.
     let prev: Value = serde_json::from_slice(document)?;
     let mut headers = BTreeMap::new();
@@ -177,6 +236,14 @@ pub(super) fn open_split(fetched: &Fetched) -> anyhow::Result<Option<Opened>> {
             headers.insert(k.clone(), header_json(root, &prev[root][id]));
         }
     }
+    tracing::info!(
+        unzip_ms,
+        split_ms,
+        main_ms,
+        json_ms = t.elapsed().as_millis() as u64,
+        parts = headers.len(),
+        "room open: fast split"
+    );
     let hist = FileHist {
         history: raw.history,
         prev,
@@ -212,7 +279,26 @@ impl Room {
     /// After load: split the canvas (flag on), pick up the parts a recovered WAL holds, or fold
     /// parts back in (flag turned off since).
     pub(super) async fn split_on_open(&mut self) -> anyhow::Result<()> {
-        let keys = self.ctx.store.part_keys(&self.id).await?;
+        if let Some(k) = self.kept.take() {
+            // PSYNC-BUG-2: the split kept at the last clean close, at this host version.
+            self.seq = self.seq.max(k.seq);
+            self.compacted_seq = self.compacted_seq.min(self.seq);
+            self.awareness = Awareness::new(self.doc.clone());
+            tracing::info!(room = %self.id, parts = k.headers.len(), "split room opened from its kept split");
+            self.split = Some(SplitState {
+                owners: k.owners,
+                svs: k.svs,
+                headers: k.headers,
+                loaded: HashMap::new(),
+                holders: HashMap::new(),
+                whole_since: None,
+                dirty_parts: HashSet::new(),
+                bytes: k.bytes,
+            });
+            return Ok(());
+        }
+        let mut keys = self.ctx.store.part_keys(&self.id).await?;
+        keys.retain(|(k, _)| k != INDEX_KEY);
         // A live block's own file (LIVE-01) stays whole: it is small, and the canvases that
         // embed it read its blocks from its document.
         let live_file = self
@@ -253,8 +339,11 @@ impl Room {
             holders: HashMap::new(),
             whole_since: None,
             dirty_parts: HashSet::new(),
+            bytes: 0,
         };
         if let Some(pre) = self.presplit.take() {
+            let t = Instant::now();
+            st.bytes = pre.split.parts.values().map(Vec::len).sum();
             // Fast open: every part starts at the original state vector (fillers).
             let sv = sv_of(&self.doc);
             let mut rows = Vec::new();
@@ -282,12 +371,15 @@ impl Room {
                 .await?;
             self.compacted_seq = self.seq;
             st.owners = pre.split.owners;
+            tracing::info!(room = %self.id, ms = t.elapsed().as_millis() as u64, "room open: parts and main written");
         } else if recovered {
             st.svs.insert(MAIN.into(), sv_of(&self.doc));
             st.owners.record_update(MAIN, &encode(&self.doc))?;
+            st.bytes = self.doc_bytes;
             for (k, header) in keys {
                 let doc = self.load_part_doc(&k).await?;
                 let bytes = encode(&doc);
+                st.bytes += bytes.len();
                 st.owners.record_update(&k, &bytes)?;
                 st.svs.insert(k.clone(), sv_of(&doc));
                 let header = if header.is_null() {
@@ -303,6 +395,7 @@ impl Room {
                 self.ctx.store.drop_parts(&self.id, self.epoch).await?;
             }
             let s = parts::split(&encode(&self.doc))?;
+            st.bytes = s.parts.values().map(Vec::len).sum();
             if s.parts.keys().any(|k| k.len() > KEY_MAX) {
                 tracing::warn!(room = %self.id, "a block id is too long for partial sync; the room stays whole");
                 return Ok(());
@@ -751,13 +844,19 @@ impl Room {
 
     /// Back to parts after whole-canvas work: re-split the whole view, snapshot what moved.
     pub(super) async fn release_whole(&mut self) {
+        self.release_whole_after(self.ctx.cfg.whole_release).await;
+    }
+
+    /// [`Room::release_whole`] once the view has been whole for `after` (zero: at once, as an
+    /// idle close does before it keeps the split).
+    async fn release_whole_after(&mut self, after: std::time::Duration) {
         let Some(s) = self.split.as_ref() else {
             return;
         };
         let Some(since) = s.whole_since else {
             return;
         };
-        if since.elapsed() < self.ctx.cfg.whole_release
+        if since.elapsed() < after
             || self.save.in_flight
             || self.conflict.is_some()
             || !self.wal_queue.is_empty()
@@ -849,6 +948,74 @@ impl Room {
             }
         }
         tracing::info!(room = %self.id, "whole view released to parts");
+    }
+
+    /// PSYNC-BUG-2: at a clean idle close, keep the split instead of purging it: written loaded
+    /// parts and the main document as snapshots (memory durability has no rows for them), and
+    /// an index of owners, state vectors and headers. The next open at the same host version
+    /// takes it and never reads or cuts the file. `false`: nothing kept (purge as before).
+    pub(super) async fn keep_split(&mut self) -> bool {
+        // A room closing right after a save still holds the save's whole view: split it first.
+        if self.dirty_since.is_none() && self.conflict.is_none() {
+            self.release_whole_after(std::time::Duration::ZERO).await;
+        }
+        let large = self
+            .split
+            .as_ref()
+            .is_some_and(|s| s.bytes >= self.ctx.cfg.keep_split_min_bytes);
+        let clean = large
+            && self.dirty_since.is_none()
+            && self.conflict.is_none()
+            && self.lost.is_none()
+            && self.host_version.is_some()
+            && self.split.as_ref().is_some_and(|s| s.whole_since.is_none());
+        if !clean || !self.flush_wal().await {
+            return false;
+        }
+        let Some(s) = self.split.as_ref() else {
+            return false;
+        };
+        let mut headers = s.headers.clone();
+        let mut rows = Vec::new();
+        for (k, p) in &s.loaded {
+            if p.dirty || s.dirty_parts.contains(k) {
+                let h = header_of(k, &p.doc);
+                headers.insert(k.clone(), h.clone());
+                rows.push((k.clone(), encode(&p.doc), h));
+            }
+        }
+        let owners: Vec<Value> = s
+            .owners
+            .ranges()
+            .into_iter()
+            .map(|(c, a, b, k)| json!([c, a, b, k]))
+            .collect();
+        let index = json!({"v": 1, "seq": self.seq, "bytes": s.bytes, "svs": s.svs, "owners": owners, "headers": headers});
+        rows.push((INDEX_KEY.to_string(), Vec::new(), index));
+        let (store, id, epoch, seq) = (
+            self.ctx.store.clone(),
+            self.id.clone(),
+            self.epoch,
+            self.seq,
+        );
+        let kept = async {
+            store
+                .compact_parts(&id, epoch, seq, &rows, now_ms())
+                .await?;
+            store
+                .compact(&id, epoch, seq, &encode(&self.doc), now_ms())
+                .await
+        };
+        match kept.await {
+            Ok(()) => {
+                tracing::info!(room = %self.id, parts = headers.len(), "split kept for the next open");
+                true
+            }
+            Err(e) => {
+                tracing::warn!(room = %self.id, error = %e, "keeping the split failed; purged");
+                false
+            }
+        }
     }
 
     /// Memory durability's dump (ADR-029) for a split room: every written loaded part goes to

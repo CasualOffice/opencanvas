@@ -270,6 +270,15 @@ that edits the Y.Doc directly without `caps=subdoc`, set `partial_sync = false` 
 updated. Turning it off again is safe: a room folds its parts back into one document when it next
 opens. Temporary canvases and live block files are never split.
 
+**Reopening a large canvas (0.4.1).** A split room of 4 MiB or more that closes with everything
+saved keeps its split in the database (`OC_KEEP_SPLIT_MIN_BYTES`, bytes; smaller canvases are
+purged as before). The next open compares the version your load returns (its `ETag`) with the
+version the room saved; when they match, the room opens from what it kept instead of reading
+and cutting the file (the 50 MB benchmark canvas: 1.3 s to its first screen instead of 3.3 s).
+Any other version, or a host that answers the load with a different version name than the save,
+reads the file as before. This costs database space: about the canvas's Yjs size for each large
+canvas until it is opened at another version.
+
 ### 2c-ter. Formulas, relations and rollups (DB4, ADR-078; `[host.flags] formulas`)
 
 `formulas = true` lets people add formula, relation and rollup fields to databases (off by

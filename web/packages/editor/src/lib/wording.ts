@@ -64,7 +64,7 @@ export function temporaryWording(w: Wording): TemporaryWording {
  * mid-meeting), and not when the host launched with `"start": "page"` (ADR-048, MM S2f):
  * the host already asked what kind of canvas it is.
  */
-export function showsGallery(s: { isNew: boolean; storage?: string; role: string; empty: boolean; hash: string }): boolean {
+export function showsGallery(s: { isNew: boolean | null; storage?: string; role: string; empty: boolean; hash: string }): boolean {
   if (!s.isNew || s.role !== "edit" || !s.empty || s.storage === "ephemeral") return false;
   return new URLSearchParams(s.hash.replace(/^#/, "")).get("start") !== "page";
 }

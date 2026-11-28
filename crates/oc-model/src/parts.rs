@@ -551,6 +551,21 @@ impl OwnerIndex {
         out
     }
 
+    /// Every range, `(client, start, end, part)` in order: what [`OwnerIndex::record`] takes to
+    /// build the index again (a room keeps it with its split, PSYNC-BUG-2).
+    pub fn ranges(&self) -> Vec<(u64, u32, u32, &str)> {
+        let mut out: Vec<(u64, u32, u32, &str)> = self
+            .ranges
+            .iter()
+            .flat_map(|(c, m)| {
+                m.iter()
+                    .map(move |(s, (e, p))| (*c, *s, *e, self.parts[*p as usize].as_str()))
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
     /// The parts that own something.
     pub fn parts(&self) -> impl Iterator<Item = &str> {
         self.parts.iter().map(String::as_str)

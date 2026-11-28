@@ -578,6 +578,138 @@ async fn a_spreadsheet_is_a_part_and_its_edits_survive_a_reopen() {
     assert_eq!(whole["content"][0]["attrs"]["sheetId"], "s1");
 }
 
+/// PSYNC-BUG-2: a split room that closes clean keeps its split (main, parts and an index), and
+/// opening it again at the same host version takes that instead of reading and cutting the
+/// file. When the host has another version, the kept split is dropped and the file is read.
+#[tokio::test]
+async fn a_clean_close_keeps_the_split_for_a_reopen_at_the_same_version() {
+    let (base, mock) = mock_host().await;
+    mock.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (canvas(), 1));
+    let mut cfg = room_cfg();
+    cfg.room_ttl = Duration::from_millis(400);
+    // Longer than the test: the room closes holding the save's whole view, as after a real save.
+    cfg.whole_release = Duration::from_secs(600);
+    // Keep even this small canvas (the default keeps canvases of 4 MiB and more).
+    cfg.keep_split_min_bytes = 0;
+    let state = app_custom(&base, cfg, &temp_db(), |h| {
+        h.flags.remove("partial_sync");
+    })
+    .await;
+    let host = state.hosts.get("sample").unwrap();
+    let room = oc_server::grant::room_id("sample", FILE);
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let d = oc_model::new_doc();
+    load(&mut a, "d1", &d).await;
+    edit_part(&a, &d, "d1", "Saved");
+    a.settle().await;
+    state
+        .rooms
+        .commit(&host, &grant("u_a", Role::Edit))
+        .await
+        .unwrap();
+    a.leave();
+    // The idle room closes (400 ms) still holding the save's whole view.
+    wait_until(|| !state.rooms.is_live(&room)).await;
+    let kept = state.store.part_keys(&room).await.unwrap();
+    assert!(
+        kept.iter().any(|(k, _)| k == "databases/d1"),
+        "the split was purged at a clean close: {kept:?}"
+    );
+    // Proof that the reopen takes the kept split: the host's bytes change under the same
+    // version (etag), and the room must not read them.
+    {
+        let saved = mock.lock().unwrap().files[FILE].clone();
+        let f = oc_model::read_ocanvas(&saved.0).unwrap().doc;
+        {
+            let dbs = f.get_or_insert_map("databases");
+            let mut txn = f.transact_mut();
+            let Some(Out::YMap(d2)) = dbs.get(&txn, "d2") else {
+                panic!("d2")
+            };
+            d2.insert(&mut txn, "name", "Not read");
+        }
+        let bytes = oc_model::write_ocanvas(&f, &Default::default()).unwrap();
+        mock.lock()
+            .unwrap()
+            .files
+            .insert(FILE.into(), (bytes, saved.1));
+    }
+    // Same version: the parts list and the edit, from the kept split.
+    let mut b = Peer::join(&state, subdoc_grant("u_b", Role::Edit)).await;
+    b.settle().await;
+    let parts = b
+        .controls
+        .iter()
+        .find(|c| c["t"] == "parts")
+        .expect("split");
+    assert_eq!(parts["parts"].as_array().unwrap().len(), 3);
+    let d2 = oc_model::new_doc();
+    load(&mut b, "d1", &d2).await;
+    assert_eq!(row_title(&d2, "d1", "r1").as_deref(), Some("Saved"));
+    assert_eq!(server_json(&state).await["databases"]["d2"]["name"], "Bugs");
+    // The client-id rule and routing still know the owners: an edit lands, the save has it.
+    edit_part(&b, &d2, "d1", "Again");
+    b.settle().await;
+    assert!(
+        !b.controls.iter().any(|c| c["t"] == "sub-denied"),
+        "{:?}",
+        b.controls
+    );
+    state
+        .rooms
+        .commit(&host, &grant("u_b", Role::Edit))
+        .await
+        .unwrap();
+    let saved = mock.lock().unwrap().files[FILE].0.clone();
+    let file = oc_model::read_ocanvas(&saved).unwrap().doc;
+    assert_eq!(row_title(&file, "d1", "r1").as_deref(), Some("Again"));
+    assert_eq!(db(&file, "d2")["name"], "Bugs");
+    b.leave();
+    wait_until(|| !state.rooms.is_live(&room)).await;
+    // The host changes the file elsewhere: the kept split is not used.
+    let other = oc_model::read_ocanvas(&canvas()).unwrap().doc;
+    {
+        let dbs = other.get_or_insert_map("databases");
+        let mut txn = other.transact_mut();
+        let Some(Out::YMap(d1)) = dbs.get(&txn, "d1") else {
+            panic!("d1")
+        };
+        d1.insert(&mut txn, "name", "Renamed elsewhere");
+    }
+    {
+        let mut m = mock.lock().unwrap();
+        let v = m.files[FILE].1 + 1;
+        m.files.insert(
+            FILE.into(),
+            (
+                oc_model::write_ocanvas(&other, &Default::default()).unwrap(),
+                v,
+            ),
+        );
+    }
+    let mut c = Peer::join(&state, subdoc_grant("u_c", Role::Edit)).await;
+    c.settle().await;
+    let d3 = oc_model::new_doc();
+    load(&mut c, "d1", &d3).await;
+    assert_eq!(db(&d3, "d1")["name"], "Renamed elsewhere");
+    assert_eq!(row_title(&d3, "d1", "r1").as_deref(), Some("One"));
+}
+
+/// PSYNC-BUG-2: every join tells the editor whether the canvas is new (the session may have
+/// been answered before the room opened the file).
+#[tokio::test]
+async fn a_join_says_whether_the_canvas_is_new() {
+    let (state, _) = server(true).await;
+    let mut a = Peer::join(&state, subdoc_grant("u_a", Role::Edit)).await;
+    a.settle().await;
+    let room = a.controls.iter().find(|c| c["t"] == "room").cloned();
+    assert_eq!(room, Some(json!({"t": "room", "isNew": false})));
+}
+
 /// SEC-V4 (partial sync): edits to a part count against the document size limit, as main
 /// document edits do (`max_doc_bytes`); they bypassed it, so one editor could grow a split
 /// canvas without bound.

@@ -61,7 +61,11 @@ The server serves the built editor (`web/packages/editor/dist`) at `/app/`.
    `answer`, `comment`; `view`: none); `mcp` mirrors `[host.ai] mcp`. The editor shows the
    assistant from this; `?ai=1` only turns it on when `ai` is absent (demo, dev).
    `isNew` is true when the host returned 404 / an empty file. The SPA then shows
-   the template gallery.
+   the template gallery. *(0.4.1, PSYNC-BUG-2)* The answer waits at most 250 ms for the room to
+   open; for a canvas that takes longer to read (a large file) `isNew` is `null`, and the room
+   sends control `{"t":"room","isNew":bool}` on the socket right after its sync step 1 (every
+   join sends it), before the first sync completes. A host error that takes longer than the wait
+   closes the socket (1011) instead of failing the session.
    *(docs/21 revision 2)*: `user` is `{id, name, color, avatar, detail?}`, never an e-mail. A `GET`
    lifts a role-API revoke for that viewer (a fresh token means access). `401 {"error":{"code":"TICKET_INVALID"}}` when unknown or expired.
    (Implementation: `isNew` = the room's doc has no `content` and empty `meta`/`databases`/`boards`,

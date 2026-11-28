@@ -23,6 +23,9 @@
 //                     the most self time, printed (an unminified build makes them readable)
 //   BENCH_PARTIAL=0   the host turns `[host.flags] partial_sync` off (whole rooms; on by default
 //                     since 0.4, so unset measures what a host gets)
+//   BENCH_REOPEN=1    one file id per fixture: run 1 opens it cold, every later run opens it
+//                     again after the room has closed (OC_ROOM_IDLE_MS 1500 unless set), the
+//                     way a person reopens a canvas (PSYNC-BUG-2: the kept split)
 //   BENCH_PARTIAL=1   the host has `[host.flags] partial_sync` (PSYNC-02/03): databases and
 //                     boards load as subdocuments when scrolled near; `parts` counts the
 //                     database and board views showing content (not the placeholder) after
@@ -46,6 +49,7 @@ const RUNS = Number(process.env.BENCH_RUNS ?? 3);
 const MACHINE = process.env.BENCH_MACHINE ?? "local";
 const PARTIAL = !!process.env.BENCH_PARTIAL && process.env.BENCH_PARTIAL !== "0";
 const WHOLE = process.env.BENCH_PARTIAL === "0";
+const REOPEN = !!process.env.BENCH_REOPEN;
 const SECRET = "bench-secret-0123456789abcdef0123456789";
 const TGT = path.resolve(ROOT, process.env.CARGO_TARGET_DIR ?? "target");
 const DIST = path.join(ROOT, "web/packages/editor/dist");
@@ -80,6 +84,8 @@ function jwt(fileId: string, i: number) {
   return `${head}.${body}.${sig}`;
 }
 
+const STAMP = Date.now() % 1e8;
+
 const median = (v: number[]) => {
   const s = v.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   return s.length ? s[Math.floor((s.length - 1) / 2)] : null;
@@ -103,7 +109,7 @@ test.beforeAll(async () => {
   );
   const log = fs.openSync(path.join(work, "logs.txt"), "a");
   children.push(
-    spawn(path.join(TGT, "release/oc-bench"), ["host", "--host-port", String(HOST_PORT)], {
+    spawn(path.join(TGT, "release/oc-bench"), ["host", "--host-port", String(HOST_PORT), ...(REOPEN ? ["--keep-saves"] : [])], {
       cwd: ROOT, env: { ...process.env, OC_BENCH_FIXTURES: path.join(ROOT, "bench/fixtures") }, stdio: ["ignore", log, log],
     }),
   );
@@ -117,7 +123,8 @@ test.beforeAll(async () => {
     OC_WEB_DIR: DIST,
     // The 50 MB fixture is over the 20 MB default document limit.
     OC_MAX_DOC_MB: "128",
-    OC_LOG: "warn",
+    ...(REOPEN ? { OC_ROOM_IDLE_MS: process.env.OC_ROOM_IDLE_MS ?? "1500" } : {}),
+    OC_LOG: process.env.OC_LOG ?? "warn",
   };
   delete env.OC_DEV;
   // OC_BIN: a server binary kept aside (a shared CARGO_TARGET_DIR can be rebuilt by another tree).
@@ -127,6 +134,7 @@ test.beforeAll(async () => {
 
 test.afterAll(() => {
   for (const c of children) c.kill();
+  if (process.env.OC_LOG) console.log(`server log: ${path.join(work, "logs.txt")}`);
 });
 
 test("first screen, heap, initial JS and long frames per fixture", async ({ browser }) => {
@@ -135,7 +143,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
   for (const fx of FIXTURES) {
     const runs: Record<string, unknown>[] = [];
     for (let i = 0; i < RUNS; i++) {
-      const fileId = `${fx}_b${Date.now() % 1e8}_${i}`;
+      const fileId = REOPEN ? `${fx}_r${STAMP}` : `${fx}_b${Date.now() % 1e8}_${i}`;
       const ctx = await browser.newContext({ viewport: PROFILE.viewport });
       const page = await ctx.newPage();
       await page.addInitScript(() => {
@@ -264,6 +272,15 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
       console.log(`${fx} #${i + 1}: ${JSON.stringify(run)}`);
       runs.push(run);
       await ctx.close();
+      // A reopen starts once the room has closed (the server lists no live room).
+      if (REOPEN) {
+        const t = Date.now();
+        while (Date.now() - t < 180_000) {
+          const r = (await (await fetch(`${OC}/readyz`)).json().catch(() => ({}))) as { rooms?: number };
+          if (r.rooms === 0) break;
+          await new Promise((res) => setTimeout(res, 250));
+        }
+      }
     }
     const num = (k: string) => runs.map((r) => r[k] as number);
     results[fx] = {
@@ -284,7 +301,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
   const commit = execSync("git rev-parse --short HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
   const date = new Date().toISOString().slice(0, 10);
   const browserVersion = browser.version();
-  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : WHOLE ? "-whole" : ""}.json`);
+  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : WHOLE ? "-whole" : ""}${REOPEN ? "-reopen" : ""}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(
     out,

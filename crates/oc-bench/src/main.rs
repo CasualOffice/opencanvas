@@ -242,10 +242,21 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        // `oc-bench host --host-port 8702`: only the mock host (browser benchmarks).
+        // `oc-bench host --host-port 8702 [--keep-saves]`: only the mock host (browser
+        // benchmarks); `--keep-saves` serves each file's last save, under its version.
         Some("host") => {
-            let a = Args::parse(&argv[1..])?;
-            mockhost::serve(a.n("host-port", 8702), Arc::default()).await?;
+            let keep = argv[1..].iter().any(|x| x == "--keep-saves");
+            let rest: Vec<String> = argv[1..]
+                .iter()
+                .filter(|x| *x != "--keep-saves")
+                .cloned()
+                .collect();
+            let a = Args::parse(&rest)?;
+            let stats = Arc::new(mockhost::HostStats::default());
+            stats
+                .store
+                .store(keep, std::sync::atomic::Ordering::Relaxed);
+            mockhost::serve(a.n("host-port", 8702), stats).await?;
             println!("mock host on :{}", a.n("host-port", 8702u16));
             std::future::pending::<()>().await;
             Ok(())

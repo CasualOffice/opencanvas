@@ -9,6 +9,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Changed
 
+- Partial sync: a canvas reopened at the version it was saved at opens from the room's kept
+  split instead of reading and cutting the file again (the 50 MB benchmark canvas: 1.3 s to its
+  first screen on a reopen), and the session no longer waits for a large file to be read
+  (`isNew` can be `null`; the room says it on the socket). PSYNC-BUG-2.
 - Partial sync: spreadsheets load as their own parts, as databases and boards do, so a canvas
   with large spreadsheets opens faster. Charts of a spreadsheet follow its part. Reload any
   editor tab left open across the upgrade (PSYNC-05).
