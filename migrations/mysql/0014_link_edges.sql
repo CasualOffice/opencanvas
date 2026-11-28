@@ -21,5 +21,6 @@ CREATE TABLE link_edges (
   kind      VARCHAR(16)   NOT NULL,
   saved_at  BIGINT        NOT NULL,
   PRIMARY KEY (src_key, n),
-  INDEX ix_link_dst (dst_key, src_key)
+  INDEX ix_link_dst (dst_key, src_key),
+  INDEX ix_link_host (host_id, saved_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC;

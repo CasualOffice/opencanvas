@@ -110,6 +110,7 @@ impl Store {
             q.execute(&mut *tx).await?;
         }
         tx.commit().await?;
+        crate::links::GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 
@@ -145,6 +146,20 @@ impl Store {
         rows(rs)
     }
 
+    /// A host's edges, newest saves first, at most `limit` (the full graph, GRAPH-01).
+    pub async fn links_all(&self, host_id: &str, limit: i64) -> anyhow::Result<Vec<LinkRow>> {
+        self.links_tables()?;
+        let rs = sqlx::query(
+            "SELECT src_file, src_block, dst_file, dst_block, dst_row, kind, saved_at FROM link_edges \
+             WHERE host_id = ? ORDER BY saved_at DESC, src_key, n LIMIT ?",
+        )
+        .bind(host_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        rows(rs)
+    }
+
     /// Drops `src_file`'s outgoing edges (a deleted source). Answers how many went.
     pub async fn links_delete_src(&self, host_id: &str, src_file: &str) -> anyhow::Result<u64> {
         self.links_tables()?;
@@ -153,6 +168,7 @@ impl Store {
             .bind(room_id(host_id, src_file))
             .execute(&self.pool)
             .await?;
+        crate::links::GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(r.rows_affected())
     }
 

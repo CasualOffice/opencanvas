@@ -247,6 +247,32 @@ export interface LinkDeleteResult {
   removed: number;
 }
 
+/** Canvases (and optionally blocks) the reader can open, and the links between them (ADR-082) */
+export interface Graph {
+  nodes: Array<{
+    /** The file id, or `<fileId>#<blockId>` for a block node */
+    id: string;
+    kind: "canvas" | "block";
+    fileId: string;
+    blockId?: string;
+    title: string | null;
+    path: string | null;
+    space: string | null;
+    updatedAt: string | null;
+    in: number;
+    out: number;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    /** `in`: a block node to its canvas */
+    kind: "link" | "embed" | "relation" | "in";
+  }>;
+  truncated: boolean;
+  /** Every readable node, given only when every candidate was checked */
+  total?: number;
+}
+
 /** Path parameters, query, body and answer of every operation. */
 export interface Operations {
   /** GET /api/v1/openapi.json: This document */
@@ -847,6 +873,24 @@ export interface Operations {
     };
     response: LinkIndexResult;
   };
+  /** GET /api/v1/graph: The link graph between canvases */
+  getGraph: {
+    path: {};
+    query: {
+      /** A file id for a local graph; absent for the full graph */
+      root?: string;
+      /** 1-3 around `root` (default 1) */
+      depth?: number;
+      /** Comma-separated `link`, `embed`, `relation` (default all) */
+      kinds?: string;
+      /** Add block nodes for link targets (default false) */
+      blocks?: boolean;
+      /** Nodes: 1-500 for a local graph (default 200), 1-2000 for the full graph (default 2000) */
+      limit?: number;
+    };
+    body: never;
+    response: Graph;
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -910,6 +954,7 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   listBacklinks: {"method": "GET", "path": "/api/v1/files/{fileId}/backlinks", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["block", "kind", "cursor", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
   deleteFileLinks: {"method": "DELETE", "path": "/api/v1/links/files/{fileId}", "scope": null, "pathParams": ["fileId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
   indexLinks: {"method": "POST", "path": "/api/v1/links/index", "scope": null, "pathParams": [], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": false},
+  getGraph: {"method": "GET", "path": "/api/v1/graph", "scope": "canvas:read", "pathParams": [], "query": ["root", "depth", "kinds", "blocks", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
 };
 
 /** The arguments of an operation: its path parameters, plus `query` and `body` when it has them. */
@@ -1131,5 +1176,10 @@ export abstract class GeneratedApi {
   /** Backfill the link index from your files (`POST /api/v1/links/index`). */
   async indexLinks(params: Params<"indexLinks">, options?: CallOptions): Promise<Operations["indexLinks"]["response"]> {
     return (await this.call("indexLinks", params, options)).data;
+  }
+
+  /** The link graph between canvases (`GET /api/v1/graph`, canvas:read). */
+  async getGraph(params?: Params<"getGraph">, options?: CallOptions): Promise<Operations["getGraph"]["response"]> {
+    return (await this.call("getGraph", (params ?? {}) as Params<"getGraph">, options)).data;
   }
 }

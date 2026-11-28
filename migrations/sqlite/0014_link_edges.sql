@@ -23,3 +23,4 @@ CREATE TABLE link_edges (
   PRIMARY KEY (src_key, n)
 );
 CREATE INDEX ix_link_dst ON link_edges(dst_key, src_key);
+CREATE INDEX ix_link_host ON link_edges(host_id, saved_at);

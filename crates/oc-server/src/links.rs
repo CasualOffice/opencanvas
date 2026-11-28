@@ -282,7 +282,7 @@ fn view_grant(host: &HostConfig, user_id: &str, file_id: &str, token: &str) -> G
 
 /// The source's `document.json`: from its room when the room is open on this node, else
 /// loaded through the host with the reader's bearer and dropped after use.
-async fn source_doc(
+pub(crate) async fn source_doc(
     state: &SharedState,
     host: &Arc<HostConfig>,
     reader: Reader<'_>,
@@ -350,7 +350,7 @@ fn inline_text(n: &Value, patterns: &UrlPatterns, parts: &mut Vec<(String, Optio
 
 /// Indexes the source's text by block id: every block that has an id, with its inline text
 /// and the last heading before it. The text never leaves memory.
-fn source_text(doc: &Value, patterns: &UrlPatterns) -> SourceText {
+pub(crate) fn source_text(doc: &Value, patterns: &UrlPatterns) -> SourceText {
     fn walk(
         nodes: &[Value],
         patterns: &UrlPatterns,
@@ -461,6 +461,19 @@ fn source_text(doc: &Value, patterns: &UrlPatterns) -> SourceText {
     }
     out
 }
+
+impl SourceText {
+    /// The plain text of a block (its heading or first paragraph), at most `max` characters.
+    pub fn block_text(&self, block: &str, max: usize) -> Option<String> {
+        let b = self.blocks.get(block)?;
+        let t: String = b.parts.iter().map(|(t, _)| t.as_str()).collect();
+        let t = t.trim();
+        (!t.is_empty()).then(|| t.chars().take(max).collect())
+    }
+}
+
+/// Bumped at every index write: cached graph answers older than it are not reused.
+pub static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// The sentence-sized excerpt of `block` around its first link to `target`: `{before, link,
 /// after}` with `link` replaced by `title` (the host's current title), at most

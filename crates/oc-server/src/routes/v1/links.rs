@@ -316,3 +316,86 @@ pub async fn editor_mentions(
     .await;
     Ok(editor_answer(r))
 }
+
+#[derive(Deserialize, Default)]
+pub struct GraphQ {
+    pub root: Option<String>,
+    pub depth: Option<u8>,
+    pub kinds: Option<String>,
+    pub blocks: Option<bool>,
+    pub limit: Option<usize>,
+}
+
+fn graph_params(q: GraphQ) -> Result<crate::graph::Params, LinkError> {
+    crate::graph::Params::parse(q.root, q.depth, q.kinds.as_deref(), q.blocks, q.limit)
+}
+
+/// The graph shared by the API and MCP (GRAPH-01): a user token; every node checked first.
+pub async fn api_graph(state: &SharedState, p: &Principal, q: GraphQ) -> Result<Value, Problem> {
+    if p.via == Via::HostKey {
+        return Err(Problem::bad_request(
+            "USER_TOKEN_REQUIRED",
+            "the graph needs a user token: what a person may see depends on who they are",
+        ));
+    }
+    let params = graph_params(q)?;
+    let reader = Reader {
+        user_id: &p.sub,
+        token: &p.callback_token,
+        files: p.files.as_deref(),
+    };
+    Ok(crate::graph::graph(state, &p.host, reader, params).await?)
+}
+
+/// `GET /api/v1/graph?root=&depth=&kinds=&blocks=&limit=` (ADR-082).
+pub async fn graph(
+    State(state): State<SharedState>,
+    Query(q): Query<GraphQ>,
+    headers: HeaderMap,
+) -> Answer {
+    let p = caller(&state, &headers).await?;
+    let v = api_graph(&state, &p, q).await?;
+    Ok(([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response())
+}
+
+#[derive(Deserialize)]
+pub struct EditorGraphQ {
+    pub ticket: String,
+    /// `"none"` for the full graph; absent: the session's canvas.
+    pub root: Option<String>,
+    pub depth: Option<u8>,
+    pub kinds: Option<String>,
+    pub blocks: Option<bool>,
+    pub limit: Option<usize>,
+}
+
+/// `GET /v1/graph?ticket=…`: the local graph of the session's canvas (or `root=none` for the
+/// full graph), as the session's person.
+pub async fn editor_graph(
+    State(state): State<SharedState>,
+    Query(q): Query<EditorGraphQ>,
+) -> Result<Response, crate::routes::ApiError> {
+    let (host, grant) = crate::routes::session(&state, &q.ticket).await?;
+    let r = async {
+        let root = match q.root.as_deref() {
+            Some("none") => None,
+            Some(r) if !r.is_empty() => Some(r.to_string()),
+            _ => Some(grant.file.id.clone()),
+        };
+        let params = graph_params(GraphQ {
+            root,
+            depth: q.depth,
+            kinds: q.kinds,
+            blocks: q.blocks,
+            limit: q.limit,
+        })?;
+        let reader = Reader {
+            user_id: &grant.user.id,
+            token: &grant.callback_token,
+            files: None,
+        };
+        crate::graph::graph(&state, &host, reader, params).await
+    }
+    .await;
+    Ok(editor_answer(r))
+}

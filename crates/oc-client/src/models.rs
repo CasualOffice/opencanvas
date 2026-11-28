@@ -197,6 +197,17 @@ pub struct Event {
     pub type_: String,
 }
 
+/// Canvases (and optionally blocks) the reader can open, and the links between them (ADR-082)
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Graph {
+    pub edges: Vec<Value>,
+    pub nodes: Vec<Value>,
+    /// Every readable node, given only when every candidate was checked
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total: Option<i64>,
+    pub truncated: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LegacyError {
     #[serde(default, skip_serializing_if = "Value::is_null")]
@@ -752,6 +763,18 @@ pub const OPERATIONS: &[Operation] = &[
         scope: Some("canvas:read"),
         path_params: &["fileId"],
         query: &[],
+        body: BodyKind::None,
+        response: ResponseKind::Json,
+        paged: None,
+        idempotent: false,
+    },
+    Operation {
+        id: "getGraph",
+        method: "GET",
+        path: "/api/v1/graph",
+        scope: Some("canvas:read"),
+        path_params: &[],
+        query: &["root", "depth", "kinds", "blocks", "limit"],
         body: BodyKind::None,
         response: ResponseKind::Json,
         paged: None,

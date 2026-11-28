@@ -17,6 +17,7 @@ pub mod editor;
 pub mod events;
 pub mod fdlimit;
 pub mod grant;
+pub mod graph;
 pub mod history;
 pub mod host_client;
 pub mod hosts;
@@ -94,6 +95,8 @@ pub struct AppState {
     pub offline_key: offline::GrantKey,
     /// LINK-03: excerpt and `/access/batch` probe caches (memory only).
     pub links: links::Caches,
+    /// GRAPH-01: graph answers per reader and parameters, 30 s (memory only).
+    pub graph_cache: graph::Cache,
 }
 
 #[derive(Clone, Copy)]
@@ -273,6 +276,7 @@ impl AppState {
             live_slots: Default::default(),
             offline_key,
             links: Default::default(),
+            graph_cache: Default::default(),
         });
         if let Some(rt) = &ai {
             // The agent edits through the same tool layer as MCP (docs/24 §5). Weak, so the

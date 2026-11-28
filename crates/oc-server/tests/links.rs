@@ -578,3 +578,165 @@ async fn exports_write_host_urls() {
     let j: Value = res.json().await.unwrap();
     assert_eq!(j["content"][1]["content"][1]["type"], "canvasLink", "{j}");
 }
+
+fn edge_to(dst: &str, kind: oc_model::links::Kind) -> oc_model::links::Edge {
+    oc_model::links::Edge {
+        src_block: String::new(),
+        dst_file: dst.into(),
+        dst_block: String::new(),
+        dst_row: String::new(),
+        kind,
+    }
+}
+
+/// GRAPH-A1 (ADR-082): no node, edge, title or count for a canvas the reader cannot open, at any
+/// depth; a hidden canvas between two readable ones does not connect them. Local and full
+/// graphs, the API, MCP and the editor route.
+#[tokio::test]
+async fn the_graph_never_shows_or_bridges_through_a_hidden_canvas() {
+    use oc_model::links::Kind;
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        for (k, v) in [
+            ("g_a", "view"),
+            ("g_b", "edit"),
+            ("g_c", "view"),
+            ("g_h", "none"),
+        ] {
+            h.access_files.insert((k.into(), "u_1".into()), v.into());
+        }
+        h.access_paths
+            .insert("g_a".into(), "Engineering / Identity".into());
+    }
+    // a → h → b (h hidden), a → c, b → a? no: b is only reachable through h.
+    st.store
+        .links_replace(
+            "sample",
+            "g_a",
+            &[edge_to("g_h", Kind::Link), edge_to("g_c", Kind::Embed)],
+            1,
+        )
+        .await
+        .unwrap();
+    st.store
+        .links_replace("sample", "g_h", &[edge_to("g_b", Kind::Link)], 2)
+        .await
+        .unwrap();
+    st.store
+        .links_replace("sample", "g_b", &[edge_to("g_c", Kind::Link)], 3)
+        .await
+        .unwrap();
+
+    let ids = |v: &Value| -> Vec<String> {
+        let mut n: Vec<String> = v["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| n["id"].as_str().unwrap().to_string())
+            .collect();
+        n.sort();
+        n
+    };
+    // Depth 1 from a: a and c (h is hidden).
+    let (s, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=1"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(ids(&v), vec!["g_a", "g_c"], "{v}");
+    assert_eq!(
+        v["edges"],
+        json!([{"from": "g_a", "to": "g_c", "kind": "embed"}])
+    );
+    let a = v["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["id"] == "g_a")
+        .unwrap();
+    assert_eq!(a["space"], "Engineering");
+    assert_eq!(a["out"], 1, "the hidden canvas is not counted: {a}");
+    // Depth 3 from a: b is reached through c (b → c), never through h.
+    let (_, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=3"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(ids(&v), vec!["g_a", "g_b", "g_c"], "{v}");
+    assert!(!v.to_string().contains("g_h"), "{v}");
+    let edges = v["edges"].as_array().unwrap();
+    assert!(
+        !edges.iter().any(|e| e["from"] == "g_a" && e["to"] == "g_b"),
+        "a and b must not be joined through h: {v}"
+    );
+    // Only links, depth 2: c is an embed, so nothing beyond a.
+    let (_, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=2&kinds=link"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(ids(&v), vec!["g_a"], "{v}");
+    // Full graph: the readable canvases, no hidden one, and `total` because all were checked.
+    let (s, full) = get_json(format!("http://{addr}/api/v1/graph"), &api_token("u_1")).await;
+    assert_eq!(s, 200, "{full}");
+    assert_eq!(ids(&full), vec!["g_a", "g_b", "g_c"], "{full}");
+    assert_eq!(full["truncated"], false);
+    assert_eq!(full["total"], 3);
+    assert!(!full.to_string().contains("g_h"));
+    // MCP answers the same.
+    let res = http()
+        .post(format!("http://{addr}/mcp/sample"))
+        .bearer_auth(mcp_token("u_1"))
+        .json(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "canvas_graph", "arguments": {}}}))
+        .send()
+        .await
+        .unwrap();
+    let mcp: Value = res.json().await.unwrap();
+    assert_eq!(mcp["result"]["structuredContent"], full, "{mcp}");
+    // A reader who can open only a: just a.
+    host.lock()
+        .unwrap()
+        .access_files
+        .insert(("g_a".into(), "u_2".into()), "view".into());
+    let (_, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=3"),
+        &api_token("u_2"),
+    )
+    .await;
+    assert_eq!(ids(&v), vec!["g_a"], "{v}");
+    assert_eq!(v["edges"], json!([]));
+    // A root the reader cannot open: no answer.
+    let (s, _) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_h"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 403);
+    // Bad parameters.
+    let (s, _) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=4"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 400);
+}
+
+/// Two full graphs a minute per person.
+#[tokio::test]
+async fn full_graphs_are_rate_limited() {
+    let (addr, _st, _host, _db) = serve(on).await;
+    let mut codes = vec![];
+    for limit in [10, 11, 12] {
+        // Different parameters, so the cache does not answer.
+        let (s, _) = get_json(
+            format!("http://{addr}/api/v1/graph?limit={limit}"),
+            &api_token("u_rl"),
+        )
+        .await;
+        codes.push(s);
+    }
+    assert_eq!(codes, vec![200, 200, 429]);
+}

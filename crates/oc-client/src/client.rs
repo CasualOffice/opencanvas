@@ -869,6 +869,19 @@ impl Client {
             .await
     }
 
+    /// `GET /api/v1/graph?root=&depth=` (GRAPH-01): the link graph as the token's user may
+    /// see it; `root: None` for the full graph.
+    pub async fn graph(&self, root: Option<&str>, depth: Option<u8>) -> Result<models::Graph> {
+        let mut p = Params::new();
+        if let Some(r) = root {
+            p = p.query("root", r);
+        }
+        if let Some(d) = depth {
+            p = p.query("depth", d);
+        }
+        self.typed("getGraph", p, &CallOptions::default()).await
+    }
+
     /// `POST /api/v1/links/index {fileIds}` (host key): backfill the link index.
     pub async fn index_links(&self, file_ids: &[&str]) -> Result<models::LinkIndexResult> {
         let p = Params::new().json(json!({ "fileIds": file_ids }));

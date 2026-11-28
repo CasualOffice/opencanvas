@@ -407,7 +407,7 @@ def nav_title(o: dict) -> str:
                  "listMembers": "List members", "listBlocks": "List blocks", "listDatabases": "List databases",
                  "createDatabase": "Create a database",
                  "extract": "Extract search text", "search": "Search across canvases",
-                 "listBacklinks": "List backlinks", "indexLinks": "Backfill the index", "deleteFileLinks": "Drop a file's links",
+                 "listBacklinks": "List backlinks", "getGraph": "The link graph", "indexLinks": "Backfill the index", "deleteFileLinks": "Drop a file's links",
                  "listAutomations": "List rules", "saveAutomation": "Save a rule", "deleteAutomation": "Delete a rule",
                  "enableAutomation": "Switch a rule on or off", "testAutomation": "Test run", "listAutomationRuns": "Run history"}
     if o["id"] in overrides:

@@ -31,6 +31,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   `POST /api/v1/links/index`, drop a deleted file's links with `DELETE /api/v1/links/files/{id}`.
   Exports write canvas links as links to `[host.links] url_template`. Both API clients have the
   new operations. Redis-only storage refuses `links = true`.
+- The link graph (GRAPH-01, ADR-082): `GET /api/v1/graph` and the MCP tool `canvas_graph` answer
+  the canvases around one canvas (depth 1-3) or the most-connected canvases, with every canvas
+  checked with the host before it is shown or expanded, so a canvas the reader cannot open never
+  connects two others. 30 s cache per person, 10 a minute (2 full).
 
 ### Fixed
 

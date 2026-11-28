@@ -357,6 +357,8 @@ url_template = "https://app.acme.example/canvas/{fileId}#{blockId}" # what expor
 - **Turning it on for existing files.** `POST /api/v1/links/index {"fileIds": [...]}` (host key,
   up to 100 a call) loads each file through your load callback, writes its links and drops the
   document. Walk your files once.
+- **Graph.** `GET /api/v1/graph` and MCP `canvas_graph` (ADR-082) read the same index through the
+  same checks. `space` in your access answers groups canvases (else the first segment of `path`).
 - **Storage.** The index needs a database: Redis-only storage (no `DATABASE_URL`) refuses to start
   with `links = true`.
 
@@ -1097,6 +1099,7 @@ same tool layer as MCP, §7a):
 | Extract search text | `POST /api/v1/extract` | body `.ocanvas` (`application/vnd.opencanvas+zip`) or Markdown (`text/markdown`), ≤ 100 MB, 2 s budget; answers `search.json` (§5); stores nothing; 413, 415, 422 |
 | Search across canvases | `GET /api/v1/search?q=&scope=&cursor=&limit=` | **user token only** (a host key gets 400 `USER_TOKEN_REQUIRED`); proxies your `GET /search` as that user; 10 a minute per user; MCP `canvas_search` answers the same |
 | Backlinks | `GET /api/v1/files/{fileId}/backlinks?block=&kind=&cursor=&limit=` | **user token only**; view on the file, every linking canvas checked with your `/access/batch` (else `/access`), hidden ones left out and not counted; MCP `canvas_backlinks` answers the same (`[host.flags] links`) |
+| Link graph | `GET /api/v1/graph?root=&depth=&kinds=&blocks=&limit=` | **user token only**; local (root, depth 1-3, ≤ 500 nodes) or full (≤ 2,000 most-connected canvases, `truncated`); every canvas checked with your `/access/batch` before it is shown or expanded, so hidden ones never connect others; 10 a minute per person (2 full); MCP `canvas_graph` (ADR-082) |
 | Link index | `POST /api/v1/links/index {fileIds}`, `DELETE /api/v1/links/files/{fileId}` | host key only: backfill up to 100 files a call; drop a deleted file's links |
 | Automation rules | `GET /api/v1/files/{id}/automations`, `PUT`/`DELETE …/automations/{ruleId}`, `POST …/{ruleId}/enable`, `POST …/automations:test`, `GET …/automations/runs` | needs `[host.automation]`; writes need `canvas:write` and edit; the caller becomes the rule's owner; runs are editors only (§2e) |
 | Admin | `POST …/commit`, `POST …/role {userId, role}`, `DELETE …/session`, `POST …/members:invalidate` | as the §7 routes |

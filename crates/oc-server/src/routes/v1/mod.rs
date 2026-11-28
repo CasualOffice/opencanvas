@@ -134,6 +134,7 @@ pub fn table() -> Table {
             links::delete_file,
         )
         .op(M::POST, "/api/v1/links/index", links::index_files)
+        .op(M::GET, "/api/v1/graph", links::graph)
         .op(M::POST, "/api/v1/extract", search::extract)
         .op(M::GET, "/api/v1/search", search::search)
         .op(M::POST, "/api/v1/offline/revoke", offline_revoke)
