@@ -490,7 +490,7 @@ A guide in docs/39 and one sample per extension point under `examples/plugins/`.
 ## 8. Prototypes needing owner approval (V5UI-01)
 
 Same format as the v0.4 pages (sticky bar, light and dark, fit and actual size, real-size frames
-with notes, owner decisions at the top), in `docs/prototypes/v05/`. Nothing under them is built
+with notes, owner decisions at the top), in `docs/prototypes/v05-approved/`. Nothing under them is built
 before approval (ADR-011).
 
 1. `links-backlinks.html`: `[[` picker and block targets, the "Linked from" panel and unlinked

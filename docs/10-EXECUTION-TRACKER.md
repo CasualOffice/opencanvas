@@ -329,7 +329,7 @@ Every UI row waits for V5UI-01 (ADR-011). The link index stores ids only; every 
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| V5UI-01 | Prototypes (docs/38 §8): links and backlinks, knowledge graph, plugin marketplace, extension points; owner approval | Todo | M; Prototypes. Drafts in docs/prototypes/v05/ (2026-11-28), to be published for review |
+| V5UI-01 | Prototypes (docs/38 §8): links and backlinks, knowledge graph, plugin marketplace, extension points; owner approval | Done | Approved by the owner 2026-11-28: all four v0.5 prototypes (docs/prototypes/v05-approved/) and ADR-081..084  M; Prototypes. Drafts in docs/prototypes/v05-approved/ (2026-11-28), to be published for review |
 | LINK-01 | `canvasLink` node, block and row targets, `[[` picker, URL patterns, exports, 0.4 round trip (ADR-081) | Todo | M; Links |
 | LINK-02 | Link index: extraction at acknowledged saves, `link_edges` migration (SQLite, MySQL, MariaDB), backfill, deletes, Redis-only refusal | Todo | L; Links |
 | LINK-03 | Backlinks read path: `/access/batch` with fallback, read-time excerpts, API, MCP, clients | Todo | M; Links |
