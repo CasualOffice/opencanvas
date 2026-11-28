@@ -15,6 +15,9 @@ import {
 import { ensurePropsStyles } from "./styles";
 import { PlaceholderPanel, unknownOf } from "../Placeholder";
 import { OrphanNotice } from "../Presence";
+// BRD-22 decision 4: the board's style panel, the same component, inside Properties.
+import StylePanel from "../../style/StylePanel";
+import { applyStyle, rememberLast, styled } from "../../style/style";
 
 const SW = 1.75;
 
@@ -283,6 +286,18 @@ export function Properties(p: PropertiesProps) {
       {panel === "erd-entity" && one ? <ErdProps s={one} edit={edit} prop={prop} field={field} shapes={shapes} byId={byId} /> : null}
       {panel === "network" ? <NetworkProps sel={selected} edit={edit} prop={prop} field={field} shapes={shapes} byId={byId} /> : null}
       {panel === "shape" || panel === MIXED || ((panel === "uml-class" || panel === "erd-entity") && !one) ? <ShapeProps sel={selected} edit={edit} field={field} /> : null}
+      {edit && selected.some(styled) ? (
+        <Sec title="Style">
+          <StylePanel
+            embedded
+            list={selected.filter(styled)}
+            onSet={(k, v) => {
+              applyStyle(doc, boardId, selected, k, v, origin);
+              if (k !== "ah0" && k !== "ah1") rememberLast(k, v);
+            }}
+          />
+        </Sec>
+      ) : null}
       {!edit ? <CopyText sel={selected} /> : null}
     </div>
   );

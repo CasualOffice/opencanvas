@@ -103,3 +103,49 @@ test.describe("BRD-19: tool lock", () => {
     await expect(board.getByRole("button", { name: "Keep tool active" })).toHaveAttribute("aria-pressed", "true");
   });
 });
+
+test.describe("BRD-22: style panel and rotation", () => {
+  test("Style docks inside the board, clear of the toolbar; stroke and width change the drawn rectangle", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Rectangle", exact: true }).click();
+    const p = await emptySpot(board, -60, -60);
+    await drawRect(page, p.x, p.y);
+    await board.locator(".ocbd-swatch").getByRole("button", { name: "Style" }).click();
+    const panel = board.getByRole("dialog", { name: "Style" });
+    await expect(panel).toBeVisible();
+    const pb = (await panel.boundingBox())!, bb = (await board.boundingBox())!, tb = (await board.locator(".ocbd-swatch").boundingBox())!;
+    expect(pb.x + pb.width).toBeLessThanOrEqual(bb.x + bb.width + 0.5);
+    expect(pb.y + pb.height).toBeLessThanOrEqual(bb.y + bb.height + 0.5);
+    expect(pb.x >= tb.x + tb.width || pb.x + pb.width <= tb.x || pb.y >= tb.y + tb.height || pb.y + pb.height <= tb.y).toBe(true);
+    await panel.getByRole("radiogroup", { name: "Stroke colour" }).getByRole("radio", { name: "Red" }).click();
+    await panel.getByRole("radiogroup", { name: "Stroke width" }).getByRole("radio", { name: "Bold" }).click();
+    const r = board.locator("g[data-s]").last().locator("rect").first();
+    await expect(r).toHaveAttribute("stroke", "var(--red-fg)");
+    await expect(r).toHaveAttribute("stroke-width", "4");
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+  });
+
+  test("the rotation handle turns a note in 15° steps; Alt turns it freely", async ({ page }) => {
+    const board = await openDemo(page, srv.url);
+    const note = board.locator("g[data-s]").filter({ hasText: "Autosave" });
+    const id = await note.getAttribute("data-s");
+    const c = await centre(note);
+    await page.mouse.click(c.x, c.y);
+    const h = board.locator(`[data-rot][data-s="${id}"]`);
+    await expect(h).toBeVisible();
+    const hc = await centre(h);
+    const rad = c.y - hc.y;
+    // Drag the handle from straight above to about 50° clockwise: 45°.
+    await page.mouse.move(hc.x, hc.y);
+    await page.mouse.down();
+    await page.mouse.move(c.x + Math.sin(0.5) * rad, c.y - Math.cos(0.5) * rad, { steps: 4 });
+    await page.mouse.move(c.x + Math.sin((50 * Math.PI) / 180) * rad, c.y - Math.cos((50 * Math.PI) / 180) * rad, { steps: 4 });
+    await page.mouse.up();
+    const wrap = board.locator(`g[transform^="rotate("]:has(> g[data-s="${id}"])`);
+    await expect(wrap).toHaveAttribute("transform", /^rotate\(45 /);
+    // Shift+R adds 15°.
+    await page.keyboard.press("Shift+R");
+    await expect(wrap).toHaveAttribute("transform", /^rotate\(60 /);
+  });
+});

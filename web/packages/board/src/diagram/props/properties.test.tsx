@@ -240,3 +240,20 @@ describe("properties panel", { timeout: 30_000 }, () => {
     await vi.waitFor(() => expect(host.querySelector('[aria-label="Properties"] .ocpp-title')!.textContent).toBe("Order"), { timeout: 10_000 });
   });
 });
+
+describe("BRD-22: the style panel inside Properties (decision 4, one component)", () => {
+  it("shows Style for a box and writes the same keys as the board's panel", () => {
+    const { el, get } = setup([{ type: "rect", x: 0, y: 0, w: 120, h: 60, text: "Box" }], [0]);
+    const sec = [...el.querySelectorAll("section")].find((s) => s.querySelector("h3")?.textContent === "Style")!;
+    expect(sec).toBeTruthy();
+    expect(sec.querySelector('[role="dialog"]')).toBeNull();
+    act(() => sec.querySelector<HTMLElement>('[aria-label="Stroke colour"] [aria-label="Blue"]')!.click());
+    expect(get(0).stroke).toBe("blue");
+    act(() => sec.querySelector<HTMLElement>('[aria-label="Stroke width"] [aria-label="Thin"]')!.click());
+    expect(get(0).sw).toBe(1);
+  });
+  it("is not offered to view-only people", () => {
+    const { el } = setup([{ type: "rect", x: 0, y: 0, w: 120, h: 60 }], [0], false);
+    expect([...el.querySelectorAll("section h3")].some((h) => h.textContent === "Style")).toBe(false);
+  });
+});

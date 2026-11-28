@@ -129,7 +129,7 @@ ${ICON_REM}
 .ocbd-mi.danger,.ocbd-mi.danger svg{color:var(--red-fg)}
 .ocbd-ck{width:1rem;display:inline-grid;place-items:center;flex:none}
 .ocbd-chev{margin-left:auto;color:var(--fg-3)}
-.ocbd-mh{font-size:.6875rem;color:var(--fg-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:.4rem .625rem .25rem}
+.ocbd-mh{font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:.4rem .625rem .25rem}
 .ocbd-scrim{z-index:7}
 .ocbd-scrim.dim{background:rgba(10,10,14,.32)}
 .ocbd-ctx.sheet{left:0;right:0;top:auto;bottom:0;max-width:none;min-width:0;border-radius:1.25rem 1.25rem 0 0;padding:.5rem .75rem calc(1rem + env(safe-area-inset-bottom,0px));max-height:85%;animation:ocbd-sheet .2s var(--ease)}
@@ -152,7 +152,7 @@ ${ICON_REM}
 .ocbd-dlg-h{display:flex;align-items:center;gap:.5rem;margin:0 0 .5rem}
 .ocbd-dlg-h h3{margin:0;font-size:1rem;font-weight:600;flex:1}
 .ocbd-keys table{width:100%;border-collapse:collapse;font-size:.8125rem}
-.ocbd-keys th{text-align:left;font-size:.6875rem;color:var(--fg-3);text-transform:uppercase;letter-spacing:.05em;padding:.6rem .25rem .25rem;font-weight:600}
+.ocbd-keys th{text-align:left;font-size:.6875rem;color:var(--fg-2);text-transform:uppercase;letter-spacing:.05em;padding:.6rem .25rem .25rem;font-weight:600}
 .ocbd-keys td{padding:.3rem .25rem;border-bottom:1px solid var(--line)}
 .ocbd-keys td:first-child{font-variant-numeric:tabular-nums;color:var(--fg-2);white-space:nowrap;width:45%}
 .ocbd-new{font-size:.625rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
@@ -164,6 +164,36 @@ ${ICON_REM}
 .ocbd-btn{display:inline-flex;align-items:center;gap:.375rem;min-height:2rem;padding:0 .75rem;border-radius:.5rem;border:0;background:var(--sunk);color:var(--fg);font-size:.8125rem;font-weight:500}
 .ocbd-btn.pri{background:var(--accent);color:var(--accent-fg)}
 .ocbd-compact .ocbd-ctx .ocbd-mi,.ocbd-compact .ocbd-linkpop input{min-height:2.75rem}
+/* BRD-22: style panel (style/StylePanel.tsx), fonts, rotation handle */
+.ocbd-svg [data-font="serif"] text,.ocst-serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+.ocbd-svg [data-font="mono"] text,.ocst-mono{font-family:var(--mono,"Geist Mono",ui-monospace,Menlo,monospace)}
+.ocst{position:absolute;right:.75rem;top:3.5rem;width:15.5rem;max-height:calc(100% - 8rem);overflow:auto;border-radius:.75rem;background:var(--pop);box-shadow:var(--sh-pop);z-index:4;padding:.5rem .75rem .75rem;animation:ocbd-menu .14s var(--ease);font-size:.8125rem;color:var(--fg)}
+.ocst.sheet{left:0;right:0;top:auto;bottom:0;width:auto;border-radius:1.25rem 1.25rem 0 0;max-height:70%;padding:.5rem 1rem calc(1.25rem + env(safe-area-inset-bottom,0px));z-index:8;animation:ocbd-sheet .2s var(--ease)}
+.ocst-embedded{position:static;width:auto;max-height:none;box-shadow:none;padding:0;background:none;animation:none}
+.ocst-h{display:flex;align-items:center;gap:.375rem;font-weight:600;padding:.125rem 0 .25rem}
+.ocst-h span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ocst-h .ocbd-ib{width:1.75rem;height:1.75rem}
+.ocst-sec{padding:.375rem 0 .25rem}
+.ocst-l{font-size:.6875rem;color:var(--fg-2);font-weight:500;margin:0 0 .3rem;display:flex;justify-content:space-between}
+.ocst-sw{display:flex;flex-wrap:wrap;gap:.25rem}
+.ocst-sw button{width:1.375rem;height:1.375rem;border-radius:50%;border:0;padding:0;box-shadow:inset 0 0 0 1px var(--line-2)}
+.ocst-sw button[aria-checked="true"]{box-shadow:inset 0 0 0 1px var(--line-2),0 0 0 2px var(--pop),0 0 0 3.5px var(--accent)}
+.ocst-sw button.none{background:linear-gradient(135deg,transparent 46%,var(--red-fg) 46%,var(--red-fg) 54%,transparent 54%),var(--app)}
+.ocst-seg{display:flex;padding:.15rem;border-radius:.5rem;background:var(--sunk);gap:.125rem}
+.ocst-seg button{flex:1;border:0;background:none;min-height:1.75rem;border-radius:.375rem;font-size:.75rem;color:var(--fg-2);display:grid;place-items:center;padding:0 .25rem}
+.ocst-seg button[aria-checked="true"]{background:var(--app);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.ocst :focus-visible{outline:.125rem solid var(--accent);outline-offset:.125rem}
+.ocst-g{width:1.5rem;height:.875rem;stroke:currentColor;fill:none}
+.ocst-two{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.ocst-row{display:flex;align-items:center;gap:.5rem}
+.ocst-row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.ocst-row output{font-size:.75rem;color:var(--fg-2);min-width:2.5rem;text-align:right;font-variant-numeric:tabular-nums}
+.ocst-num{width:4.25rem;height:1.875rem;border-radius:.5rem;border:0;background:var(--sunk);padding:0 .5rem;font:inherit;font-size:.8125rem;color:var(--fg);font-variant-numeric:tabular-nums}
+.ocst-sp{flex:1}
+.ocst-hint{font-size:.6875rem;color:var(--fg-2);line-height:1.45;margin:.3rem 0 0}
+.ocst.sheet .ocst-sw button{width:2.25rem;height:2.25rem}
+.ocst.sheet .ocst-seg button{min-height:2.5rem}
+.ocbd-compact .ocst .ocbd-ib{width:2.75rem;height:2.75rem}
 @keyframes ocbd-sheet{from{transform:translateY(30%);opacity:0}}
 @media (prefers-reduced-motion:reduce){.ocbd *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 `;

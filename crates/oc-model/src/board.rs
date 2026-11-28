@@ -154,6 +154,16 @@ struct Shape {
     icon_paths: Vec<String>,
     /// An icon added to the document (`doc:<id>`): its checked `data:` URL, else empty.
     icon_img: String,
+    /// BRD-22 style (web `style/style.ts`): stroke width 0..=12, `dashed` / `dotted`, opacity
+    /// 10..100 %, `serif` / `mono`, rotation in degrees, connector ends (`props.startArrow` /
+    /// `props.endArrow`). Invalid values read as unset.
+    sw: Option<f64>,
+    dash: String,
+    op: Option<f64>,
+    font: String,
+    rot: f64,
+    start_arrow: String,
+    end_arrow: String,
 }
 
 fn num(v: &Value) -> f64 {
@@ -268,7 +278,139 @@ fn shape(id: &str, v: &Value) -> Shape {
         label_pos: string(&v["props"]["labelPos"]),
         icon_paths: embedded_paths(&v["props"]["paths"]),
         icon_img: String::new(),
+        sw: v["sw"]
+            .as_f64()
+            .filter(|f| f.is_finite() && *f > 0.0 && *f <= 12.0),
+        dash: match v["dash"].as_str() {
+            Some(d @ ("dashed" | "dotted")) => d.to_string(),
+            _ => String::new(),
+        },
+        op: v["op"]
+            .as_f64()
+            .filter(|f| f.is_finite() && *f >= 10.0 && *f < 100.0),
+        font: match v["font"].as_str() {
+            Some(f @ ("serif" | "mono")) => f.to_string(),
+            _ => String::new(),
+        },
+        rot: v["rot"].as_f64().filter(|f| f.is_finite()).unwrap_or(0.0),
+        start_arrow: v["props"]["startArrow"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        end_arrow: v["props"]["endArrow"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
     }
+}
+
+/* ---------------------------------------------------------- style (BRD-22) */
+
+/// Fonts for `font` (web `EXPORT_FONTS`).
+const SERIF: &str = "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif";
+const MONO: &str = "'Geist Mono', ui-monospace, Menlo, monospace";
+
+/// The colour `stroke` names (`ink` or a tone), else none (legacy `accent` included).
+fn style_ink(s: &Shape) -> Option<&'static str> {
+    if s.stroke == "ink" {
+        return Some(p::FG);
+    }
+    p::tone(&s.stroke).map(|t| t.1)
+}
+
+/// ` stroke-dasharray="…"` for `dash` at width `w` (round caps for dots), else empty.
+fn style_dash(s: &Shape, w: f64) -> String {
+    match s.dash.as_str() {
+        "dashed" => format!(" stroke-dasharray=\"{} {}\"", n(w * 3.0), n(w * 2.5)),
+        "dotted" => format!(
+            " stroke-dasharray=\"0.01 {}\" stroke-linecap=\"round\"",
+            n(w * 2.4)
+        ),
+        _ => String::new(),
+    }
+}
+
+/// Wraps a shape's markup in a group that turns, fades and sets its font (web `wrapStyled`).
+fn style_wrap(s: &Shape, inner: String) -> String {
+    let op = s.op.map(|o| o.round() / 100.0);
+    if inner.is_empty() || (s.rot == 0.0 && op.is_none() && s.font.is_empty()) {
+        return inner;
+    }
+    let b = bbox(s);
+    let mut g = String::from("<g");
+    if s.rot != 0.0 {
+        g += &format!(
+            " transform=\"rotate({} {} {})\"",
+            n(s.rot),
+            n((b[0] + b[2]) / 2.0),
+            n((b[1] + b[3]) / 2.0)
+        );
+    }
+    if let Some(o) = op {
+        g += &format!(" opacity=\"{}\"", n(o));
+    }
+    match s.font.as_str() {
+        "serif" => g += &format!(" font-family=\"{SERIF}\""),
+        "mono" => g += &format!(" font-family=\"{MONO}\""),
+        _ => {}
+    }
+    format!("{g}>{inner}</g>")
+}
+
+/// The circle a rotated shape's box can reach (web `reach`); an unrotated shape keeps its box.
+fn style_reach(s: &Shape) -> [f64; 4] {
+    let b = bbox(s);
+    if s.rot == 0.0 {
+        return b;
+    }
+    let (cx, cy) = ((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0);
+    let (w, h) = (b[2] - b[0], b[3] - b[1]);
+    let r = (w * w + h * h).sqrt() / 2.0;
+    [cx - r, cy - r, cx + r, cy + r]
+}
+
+/// Marker attributes for a connector's ends (web `arrowEnds`), adding the markers it needs.
+fn style_ends(s: &Shape, col: &str, col_key: &str, ids: &mut Ids) -> String {
+    let pick = |v: &str, dflt: &'static str| -> String {
+        match v {
+            "none" | "arrow" | "triangle" | "circle" | "diamond" | "diamond-filled" => v.to_string(),
+            _ => dflt.to_string(),
+        }
+    };
+    let (start, end) = (pick(&s.start_arrow, "none"), pick(&s.end_arrow, "arrow"));
+    let mut url = |head: &str| -> String {
+        if head == "arrow" && col_key == "d" {
+            return format!("url(#{}ah)", ids.prefix);
+        }
+        let id = format!("{}ah-{col_key}-{head}", ids.prefix);
+        if !ids.heads.iter().any(|(k, _)| *k == id) {
+            let def = if head == "arrow" {
+                format!(
+                    "<marker id=\"{id}\" viewBox=\"0 0 10 10\" refX=\"8.5\" refY=\"5\" markerWidth=\"8\" markerHeight=\"8\" orient=\"auto-start-reverse\"><path d=\"M1 1.5 L9 5 L1 8.5\" fill=\"none\" stroke=\"{col}\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></marker>"
+                )
+            } else {
+                let d = match head {
+                    "triangle" => "M3 3 L19 10 L3 17 Z",
+                    "circle" => "M8 10A5 5 0 1 1 18 10A5 5 0 1 1 8 10Z",
+                    _ => "M1 10 L10 4 L19 10 L10 16 Z",
+                };
+                let fill = if head == "diamond-filled" { col } else { p::APP };
+                format!(
+                    "<marker id=\"{id}\" viewBox=\"0 0 20 20\" refX=\"19\" refY=\"10\" markerWidth=\"18\" markerHeight=\"18\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\"><path d=\"{d}\" fill=\"{fill}\" stroke=\"{col}\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/></marker>"
+                )
+            };
+            ids.heads.push((id.clone(), def));
+        }
+        format!("url(#{id})")
+    };
+    let mut out = String::new();
+    if start != "none" {
+        out += &format!(" marker-start=\"{}\"", url(&start));
+    }
+    if end != "none" {
+        out += &format!(" marker-end=\"{}\"", url(&end));
+    }
+    out
 }
 
 /// Most paths an embedded icon may carry (as the web `MAX_PATHS`).
@@ -1168,6 +1310,8 @@ fn safe_href(src: &str) -> bool {
 struct Ids {
     prefix: String,
     clip: u32,
+    /// Connector end markers beyond the shared one (BRD-22), in the order first used.
+    heads: Vec<(String, String)>,
 }
 
 fn shape_svg(
@@ -1184,7 +1328,12 @@ fn shape_svg(
         p::FG2
     };
     let tone = s.fill.as_deref().and_then(p::tone);
+    // BRD-22: `stroke` names the outline colour; `sw` and `dash` its width and pattern.
+    let ink = style_ink(s);
     let (bg, line) = tone.unwrap_or((p::APP, stroke));
+    let line = ink.unwrap_or(line);
+    let width = |d: f64| n(s.sw.unwrap_or(d));
+    let dash = |d: f64| style_dash(s, s.sw.unwrap_or(d));
     match s.kind.as_str() {
         "sticky" => {
             use sticky_text::*;
@@ -1243,28 +1392,31 @@ fn shape_svg(
                 )
             };
             format!(
-                "<g><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>{label}{body}</g>",
+                "<g><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>{label}{body}</g>",
                 n(x),
                 n(y),
                 n(w),
                 n(h),
                 if s.dashed { "none" } else { bg },
                 if s.dashed { p::FG3 } else { line },
+                width(1.5),
                 if s.dashed {
-                    " stroke-dasharray=\"6 5\""
+                    " stroke-dasharray=\"6 5\"".to_string()
                 } else {
-                    ""
+                    dash(1.5)
                 },
             )
         }
         "ellipse" => {
             let size = s.size.unwrap_or(15.0);
             format!(
-                "<g><ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{bg}\" stroke=\"{line}\" stroke-width=\"1.5\"/>{}</g>",
+                "<g><ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{bg}\" stroke=\"{line}\" stroke-width=\"{}\"{}/>{}</g>",
                 n(x + w / 2.0),
                 n(y + h / 2.0),
                 n(w / 2.0),
                 n(h / 2.0),
+                width(1.5),
+                dash(1.5),
                 if text.is_empty() {
                     String::new()
                 } else {
@@ -1283,7 +1435,7 @@ fn shape_svg(
             let (cx, cy) = (x + w / 2.0, y + h / 2.0);
             let size = s.size.unwrap_or(14.0);
             format!(
-                "<g><path d=\"M{} {} L{} {} L{} {} L{} {} Z\" fill=\"{bg}\" stroke=\"{line}\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/>{}</g>",
+                "<g><path d=\"M{} {} L{} {} L{} {} L{} {} Z\" fill=\"{bg}\" stroke=\"{line}\" stroke-width=\"{}\" stroke-linejoin=\"round\"{}/>{}</g>",
                 n(cx),
                 n(y),
                 n(x + w),
@@ -1292,6 +1444,8 @@ fn shape_svg(
                 n(y + h),
                 n(x),
                 n(cy),
+                width(1.5),
+                dash(1.5),
                 if text.is_empty() {
                     String::new()
                 } else {
@@ -1319,7 +1473,7 @@ fn shape_svg(
                     anchor: false,
                     size,
                     weight: Some(600),
-                    fill: p::FG,
+                    fill: ink.unwrap_or(p::FG),
                 },
             )
         }
@@ -1356,15 +1510,17 @@ fn shape_svg(
             if s.pts.len() < 2 {
                 return String::new();
             }
+            let col = ink.unwrap_or(p::FG2);
+            let ends = style_ends(s, col, if ink.is_some() { &s.stroke } else { "d" }, ids);
             let path = format!(
-                "<path d=\"M{}\" stroke=\"{}\" stroke-width=\"1.6\" fill=\"none\" stroke-linejoin=\"round\" stroke-linecap=\"round\" marker-end=\"url(#{}ah)\"/>",
+                "<path d=\"M{}\" stroke=\"{col}\" stroke-width=\"{}\" fill=\"none\" stroke-linejoin=\"round\" stroke-linecap=\"round\"{}{ends}/>",
                 s.pts
                     .iter()
                     .map(|q| format!("{} {}", n(q[0]), n(q[1])))
                     .collect::<Vec<_>>()
                     .join(" L"),
-                p::FG2,
-                ids.prefix
+                width(1.6),
+                dash(1.6)
             );
             let Some(lb) = label_box(s) else {
                 return path;
@@ -1401,8 +1557,11 @@ fn shape_svg(
                 return String::new();
             }
             format!(
-                "<path d=\"{}\" stroke=\"{stroke}\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
-                smooth(&s.pts)
+                "<path d=\"{}\" stroke=\"{}\" stroke-width=\"{}\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"{}/>",
+                smooth(&s.pts),
+                ink.unwrap_or(stroke),
+                width(3.0),
+                dash(3.0)
             )
         }
         // A type this build doesn't know (a newer client, a missing plugin; ADR-045): a shape
@@ -1471,6 +1630,16 @@ fn export_bounds(resolved: &[Shape]) -> [f64; 4] {
     let Some(mut b) = content_bounds(resolved) else {
         return [0.0, 0.0, 320.0, 200.0];
     };
+    // A rotated shape (BRD-22) can reach past its box.
+    for s in resolved.iter().filter(|s| s.rot != 0.0) {
+        let r = style_reach(s);
+        b = [
+            b[0].min(r[0]),
+            b[1].min(r[1]),
+            b[2].max(r[2]),
+            b[3].max(r[3]),
+        ];
+    }
     let boxes = resolved.iter().filter_map(|s| {
         label_box(s).map(|lb| lb.rect).or_else(|| {
             (icon_paths(s).is_some() || !s.icon_img.is_empty())
@@ -1528,14 +1697,19 @@ fn render_svg(
     let mut ids = Ids {
         prefix: id_prefix(board_id),
         clip: 0,
+        heads: Vec::new(),
     };
     let body: String = list
         .iter()
-        .map(|s| shape_svg(s, &mut ids, images, inline_only))
+        .map(|s| {
+            let inner = shape_svg(s, &mut ids, images, inline_only);
+            style_wrap(s, inner)
+        })
         .collect();
+    let heads: String = ids.heads.iter().map(|(_, d)| d.as_str()).collect();
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}\" height=\"{h}\" viewBox=\"{} {} {w} {h}\" font-family=\"{FONT}\">\
-         <defs><marker id=\"{}ah\" viewBox=\"0 0 10 10\" refX=\"8.5\" refY=\"5\" markerWidth=\"8\" markerHeight=\"8\" orient=\"auto-start-reverse\"><path d=\"M1 1.5 L9 5 L1 8.5\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></marker></defs>\
+         <defs><marker id=\"{}ah\" viewBox=\"0 0 10 10\" refX=\"8.5\" refY=\"5\" markerWidth=\"8\" markerHeight=\"8\" orient=\"auto-start-reverse\"><path d=\"M1 1.5 L9 5 L1 8.5\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></marker>{heads}</defs>\
          <rect x=\"{}\" y=\"{}\" width=\"{w}\" height=\"{h}\" fill=\"{}\"/>{body}</svg>",
         n(x0),
         n(y0),

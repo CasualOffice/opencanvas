@@ -10,9 +10,14 @@ import {
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
   Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
-  ClipboardPaste, CopyPlus, ExternalLink, Keyboard, Layers, Link2, Lock, LockOpen, Scissors, SquareDashed,
+  ClipboardPaste, CopyPlus, ExternalLink, Keyboard, Layers, Link2, Lock, LockOpen, RotateCw, Scissors, SlidersHorizontal, SquareDashed,
 } from "lucide-react";
 import { ContextMenu, KeysDialog, LinkPop, type MenuEntry, type QuickAction } from "./menu";
+import { applyStyle, dashOf, fontOf, inkOf, lastFor, normDeg, opOf, rememberLast, rotates, rotOf, styled, swOf, type StyleKey } from "./style/style";
+// The style panel (BRD-22): its own lazy chunk, loaded the first time someone opens Style.
+type StyleModule = typeof import("./style/StylePanel");
+let styleModule: Promise<StyleModule> | null = null;
+const loadStyle = () => (styleModule ??= import("./style/StylePanel"));
 import type { BlockEnv } from "@opencanvas/ui";
 import {
   addShape, bbox, contentBounds, deleteShape, getBoardMap, safeLink, simplify, smooth, updateShape,
@@ -182,7 +187,9 @@ type Drag =
   | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
   /** Dragging waypoint `i` of a connector; `insert` when it was a segment's midpoint handle. */
   | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean; seg?: { pts: Pt[]; horiz: boolean } }
-  | { kind: "pinch"; d0: number; c0: [number, number]; v: View };
+  | { kind: "pinch"; d0: number; c0: [number, number]; v: View }
+  /** BRD-22: the rotation handle; `c` the centre, `a0` the pointer's angle at the start. */
+  | { kind: "rotate"; sid: string; c: Pt; a0: number; r0: number; moved: boolean };
 
 const describeShape = (s: Shape) => {
   const t = (s.text ?? s.label ?? s.alt ?? "").replace(/\s+/g, " ").trim();
@@ -306,6 +313,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const [keysOpen, setKeysOpen] = useState(false);
   const [linkEdit, setLinkEdit] = useState<{ id: string; at: [number, number] } | null>(null);
   const [snap, setSnapState] = useState(readSnap);
+  // BRD-22: the style panel (lazy) and when the last opacity write was (one Undo step per drag).
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [StyleMod, setStyleMod] = useState<StyleModule | null>(null);
+  const lastOp = useRef(0);
+  // The floating toolbar keeps clear of the docked panel, which it can only measure once the panel
+  // is in the page: one more layout pass after it opens.
+  const [, relayout] = useState(0);
+  useLayoutEffect(() => {
+    if (styleOpen && StyleMod) relayout((n) => n + 1);
+  }, [styleOpen, StyleMod]);
   const lp = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const lpAt = useRef(0);
 
@@ -647,6 +664,37 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     S.current.snap = on;
     setSnapState(on);
     setLive(on ? "Snapping to objects on" : "Snapping to objects off");
+  };
+
+  /* ---- style and rotation (BRD-22) ---- */
+  const openStyle = (on = true) => {
+    if (!on) return setStyleOpen(false);
+    void loadStyle().then((m) => {
+      setStyleMod(() => m);
+      setStyleOpen(true);
+    });
+  };
+  const onStyleSet = (k: StyleKey | "ah0" | "ah1", v: string | number | null) => {
+    const list = selShapes();
+    if (!list.length || !S.current.edit) return;
+    // Opacity while dragging the slider: one Undo step.
+    if (k !== "op" || Date.now() - lastOp.current > 600) um?.stopCapturing();
+    if (k === "op") lastOp.current = Date.now();
+    applyStyle(doc, boardId, list, k, v, origin);
+    if (k !== "ah0" && k !== "ah1") rememberLast(k, v);
+    if (k === "rot") setLive(`Rotated to ${normDeg(Number(v) || 0)} degrees`);
+  };
+  /** Rotate the selection by `d` degrees (Shift+R, Alt+Shift+R). */
+  const rotBy = (d: number) => {
+    const list = selShapes().filter((q) => rotates(q) && !q.locked);
+    if (!list.length) return;
+    um?.stopCapturing();
+    doc.transact(() => list.forEach((q) => {
+      const r = normDeg(rotOf(q) + d);
+      updateShape(doc, boardId, q.id, { rot: r ? r : undefined }, origin);
+    }), origin);
+    const r = normDeg(rotOf(list[0]) + d);
+    setLive(`${list.length === 1 ? TYPE_NAME[list[0].type] : `${list.length} shapes`} rotated to ${r} degrees`);
   };
 
   /* ---- context menu (BRD-18) ---- */
@@ -1122,6 +1170,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (t === "sticky") s = { type: "sticky", x: x - 75, y: y - 55, w: 150, h: 110, fill: ["y", "b", "p", "g"][S.current.shapes.filter((q) => q.type === "sticky").length % 4], text: "" };
     else if (t === "text") s = { type: "text", x, y: y + 9, text: "", size: 18 };
     else s = { type: t as ShapeType, x: x - 70, y: y - (t === "diamond" ? 50 : 40), w: 140, h: t === "diamond" ? 100 : 80, text: "" };
+    // Decision 4: new shapes take the last style this person picked.
+    Object.assign(s, lastFor(s.type));
     if (o.box && t !== "text") Object.assign(s, { x: Math.round(o.box[0]), y: Math.round(o.box[1]), w: Math.round(o.box[2] - o.box[0]), h: Math.round(o.box[3] - o.box[1]) });
     else if (o.free) {
       const others = S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
@@ -1202,6 +1252,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
     }
     if (t === "select") {
+      const rotEl = (e.target as Element).closest?.("[data-rot]");
+      if (rotEl && sid && S.current.edit) {
+        const s0 = S.current.byId.get(sid);
+        if (s0 && !s0.locked) {
+          const b = bbox(s0);
+          const c: Pt = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+          um?.stopCapturing();
+          drag.current = { kind: "rotate", sid, c, a0: Math.atan2(y - c[1], x - c[0]), r0: rotOf(s0), moved: false };
+          cap();
+          return;
+        }
+      }
       if (sid) {
         const s = S.current.shapes.find((q) => q.id === sid);
         const tEl = e.target as Element;
@@ -1438,6 +1500,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       setHint(b);
       return;
     }
+    if (d.kind === "rotate") {
+      if (!d.moved) setDragging(true);
+      d.moved = true;
+      let r = d.r0 + ((Math.atan2(y - d.c[1], x - d.c[0]) - d.a0) * 180) / Math.PI;
+      // Decision 5: 15° steps; Alt rotates freely (as Alt moves freely).
+      if (!e.altKey) r = Math.round(r / 15) * 15;
+      r = normDeg(r);
+      schedule(d.sid, { rot: r ? r : undefined });
+      return;
+    }
     let dx = x - d.ox, dy = y - d.oy;
     if (!d.moved && Math.hypot(dx, dy) * S.current.view.z < 2) return;
     if (!d.moved) setDragging(true);
@@ -1531,18 +1603,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const n = d.orig.length + (d.insert ? 1 : 0);
       announceWp(d.i, n);
     }
-    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp") {
+    if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp" || d.kind === "rotate") {
       doc.transact(() => {
         flush();
         if (d.moved) syncAfter(d.kind === "move" ? d.ids : [d.sid]);
       }, origin);
+    }
+    if (d.kind === "rotate" && d.moved) {
+      const r = rotOf(S.current.raw.find((q) => q.id === d.sid) ?? ({ id: "", type: "rect" } as Shape));
+      setLive(`Rotated to ${r} degrees`);
     }
     const p = draftRef.current;
     if (d.kind === "pen") {
       setDraft(null);
       if (p?.pts) {
         const pts: Pt[] = p.pts.length === 1 ? [p.pts[0], [p.pts[0][0] + 0.1, p.pts[0][1] + 0.1]] : simplify(p.pts);
-        addShape(doc, boardId, { type: "pen", pts, stroke: "accent" }, origin);
+        addShape(doc, boardId, { type: "pen", pts, stroke: "accent", ...lastFor("pen") }, origin);
       }
     }
     if (d.kind === "arrow") {
@@ -1552,7 +1628,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         const pts = resolveArrow(p, byId);
         const a = pts[0], b = pts[pts.length - 1];
         if (bound || (a && b && Math.hypot(b[0] - a[0], b[1] - a[1]) > 6)) {
-          const s: Omit<Shape, "id"> = { type: "arrow", pts: pts.map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt) };
+          const s: Omit<Shape, "id"> = { type: "arrow", pts: pts.map((q) => [Math.round(q[0]), Math.round(q[1])] as Pt), ...(p.props ? {} : lastFor("arrow")) };
           if (p.start) s.start = p.start;
           if (p.end && p.end.shapeId !== p.start?.shapeId) s.end = p.end;
           if (p.route) s.route = p.route;
@@ -1652,6 +1728,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const onKeyUp = (e: React.KeyboardEvent) => {
     if (e.key === " ") space.current = false;
   };
+  const list0 = () => selShapes().filter((q) => !q.locked);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
     // Typing in a field of this board keeps its keys. (The board itself sits inside the editor's
@@ -1667,6 +1744,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         setWp(null);
         setLive("Connector selected");
       } else if (menu) setMenu(false);
+      else if (styleOpen) setStyleOpen(false);
       else if (S.current.tool !== "select" || S.current.lock) {
         setTool("select");
         setLive("Select tool");
@@ -1810,6 +1888,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (mod && k === "g") {
       e.preventDefault();
       groupSel(!e.shiftKey);
+      return;
+    }
+    if (e.altKey && !mod && e.code === "KeyS" && list0().some(styled)) {
+      e.preventDefault();
+      openStyle(!styleOpen);
+      return;
+    }
+    if (e.shiftKey && !mod && e.code === "KeyR" && list0().length) {
+      e.preventDefault();
+      rotBy(e.altKey ? -15 : 15);
       return;
     }
     if (mod && e.shiftKey && k === "l") {
@@ -1980,6 +2068,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   useEffect(() => {
     if (sel.length && sel.some((id) => !byId.has(id))) setSel(sel.filter((id) => byId.has(id)));
     if (editing && !byId.has(editing.id)) setEditing(null);
+    if (styleOpen && !sel.some((id) => byId.has(id))) setStyleOpen(false);
   }, [shapes, sel, editing]);
 
   /* ---- render ---- */
@@ -2037,8 +2126,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ) : (
             (() => {
               const b = bbox(s);
+              const rr = rotOf(s);
               return (
-                <g key={s.id} pointerEvents="none">
+                <g key={s.id} pointerEvents="none" transform={rr ? `rotate(${rr} ${(b[0] + b[2]) / 2} ${(b[1] + b[3]) / 2})` : undefined}>
                   <rect className="ocbd-selring" x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeDasharray={s.locked ? `${4 / z} ${3 / z}` : undefined} />
                   {s.locked ? (
                     <g className="ocbd-lockbadge" transform={`translate(${b[2] + 6} ${b[1] - 6}) scale(${1 / z})`}>
@@ -2133,6 +2223,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
                 ),
               );
               return out;
+            })()
+          : null}
+        {edit && selShape && rotates(selShape) && !selShape.locked
+          ? (() => {
+              const b = bbox(selShape);
+              const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, top = b[1] - 6, hy = top - 24 / z;
+              const rr = rotOf(selShape);
+              return (
+                <g transform={rr ? `rotate(${rr} ${cx} ${cy})` : undefined}>
+                  <line x1={cx} y1={top} x2={cx} y2={hy + 6 / z} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" />
+                  <circle className="ocbd-rot" data-rot="" data-s={selShape.id} cx={cx} cy={hy} r={(compact ? 10 : 6) / z} fill="var(--app)" stroke="var(--accent)" strokeWidth={sw} style={{ cursor: "grab" }}>
+                    <title>Drag to rotate: 15° steps, Alt for free (Shift+R)</title>
+                  </circle>
+                  <RotateCw x={cx - 4 / z} y={hy - 4 / z} width={8 / z} height={8 / z} strokeWidth={3} color="var(--accent)" pointerEvents="none" />
+                </g>
+              );
             })()
           : null}
         {edit && selShape && SIZED.includes(selShape.type) && !selShape.locked
@@ -2232,7 +2338,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // Above the selection. Without room there it would sit on the board's own buttons and over the
     // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
     const minTop = compact ? 64 : 56;
-    const above = u[1] * z + ty - 14, below = u[3] * z + ty + 14;
+    // Above the rotation handle (BRD-22) when one shows, so the handle stays reachable.
+    const handle = selShape && rotates(selShape) && !selShape.locked ? 30 : 0;
+    const above = u[1] * z + ty - 14 - handle, below = u[3] * z + ty + 14;
     const Hd = svgRef.current?.clientHeight ?? 0;
     let flip = above < minTop && below + (compact ? 56 : 44) <= Hd;
     let sy = flip ? below : Math.max(minTop, above);
@@ -2241,7 +2349,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     // place covers one, try above, then below, each also moved sideways clear of the control.
     const svgR = svgRef.current?.getBoundingClientRect();
     const blocks: Box[] = svgR
-      ? [...(rootRef.current?.querySelectorAll<HTMLElement>(".ocbd-top, .ocbd-tool, .ocbd-zoom") ?? [])]
+      ? [...(rootRef.current?.querySelectorAll<HTMLElement>(".ocbd-top, .ocbd-tool, .ocbd-zoom, .ocst:not(.sheet)") ?? [])]
           .map((el) => el.getBoundingClientRect())
           .filter((r) => r.width > 0 && r.height > 0)
           .map((r) => [r.left - svgR.left - 6, r.top - svgR.top - 6, r.right - svgR.left + 6, r.bottom - svgR.top + 6] as Box)
@@ -2281,6 +2389,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       items.push(<span key="lk" className="lbl">{selList.length > 1 ? `${selList.length} locked` : "Locked"}</span>);
       items.push(btn("Unlock", LockOpen, lockSel, { keys: "Ctrl+Shift+L" }));
       items.push(moreBtn());
+    }
+    if (!allLocked && selList.some(styled)) items.push(btn("Style", SlidersHorizontal, () => openStyle(!styleOpen), { pressed: styleOpen, keys: "Alt+S" }));
+    if (allLocked) {
+      /* only Unlock and More */
     } else if (s1?.type === "sticky") {
       (["y", "p", "b", "g"] as const).forEach((c) =>
         items.push(
@@ -2439,6 +2551,22 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             <path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="var(--fg-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </marker>
           {/* Connector ends from `props` (UML arrows, ERD cardinality): S2 presets, S4 panel. */}
+          {/* BRD-22: connectors drawn in a colour get their ends in the same colour. */}
+          {[...new Set(visible.filter((q) => q.type === "arrow" && inkOf(q)).map((q) => q.stroke!))].map((c) => {
+            const col = inkOf({ id: "", type: "arrow", stroke: c })!;
+            return (
+              <g key={c}>
+                <marker id={`${ah}-k-${c}`} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke={col} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </marker>
+                {Object.entries(HEADS).map(([name, h]) => (
+                  <marker key={name} id={`${ah}-k-${c}-${name}`} viewBox="0 0 20 20" refX={19} refY={10} markerWidth={18} markerHeight={18} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+                    <path d={h.d} fill={h.fill === "var(--fg-2)" ? col : (h.fill ?? "none")} stroke={col} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+                  </marker>
+                ))}
+              </g>
+            );
+          })}
           {Object.entries(HEADS).map(([name, h]) => (
             <marker key={name} id={`${ah}-${name}`} viewBox="0 0 20 20" refX={19} refY={10} markerWidth={18} markerHeight={18} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
               <path d={h.d} fill={h.fill ?? "none"} stroke="var(--fg-2)" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
@@ -2655,6 +2783,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ] as QuickAction[]) : undefined}
           onClose={closeCtx}
         />
+      ) : null}
+      {styleOpen && StyleMod && edit && selList.some(styled) && !dragging ? (
+        <StyleMod.default list={selList.filter(styled)} onSet={onStyleSet} sheet={narrow()} onClose={() => (setStyleOpen(false), rootRef.current?.focus({ preventScroll: true }))} />
       ) : null}
       {keysOpen ? <KeysDialog onClose={() => (setKeysOpen(false), rootRef.current?.focus({ preventScroll: true }))} /> : null}
       {linkEdit ? (
@@ -2982,8 +3113,25 @@ function IconNodeView({ s, stroke, hideText }: { s: Shape; stroke: string; hideT
   );
 }
 
-const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string; growH?: number }) {
-  const stroke = s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)";
+type ShapeProps = { s: Shape; ah: string; hideText?: boolean; resolve?: (src: string) => string; growH?: number };
+/** A shape, turned, faded and in its font when its style says so (BRD-22). */
+const ShapeView = memo(function ShapeView(p: ShapeProps) {
+  const { s } = p;
+  const r = rotOf(s), o = opOf(s), f = fontOf(s);
+  if (!r && o === undefined && !f) return <ShapeBody {...p} />;
+  const b = bbox(s);
+  return (
+    <g transform={r ? `rotate(${r} ${(b[0] + b[2]) / 2} ${(b[1] + b[3]) / 2})` : undefined} opacity={o} data-font={f}>
+      <ShapeBody {...p} />
+    </g>
+  );
+});
+
+function ShapeBody({ s, ah, hideText, resolve, growH }: ShapeProps) {
+  const ink = inkOf(s);
+  const stroke = ink ?? (s.stroke === "accent" ? "var(--accent)" : "var(--fg-2)");
+  // Outline width and dash (BRD-22); without them the shapes draw as they always did.
+  const wOf = (d: number) => swOf(s) ?? d;
   const x = s.x ?? 0, y = s.y ?? 0, w = s.w ?? 0, h = growH ?? s.h ?? 0;
   const text = hideText ? "" : (s.text ?? "");
   const tone = toneFill(s);
@@ -2999,7 +3147,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
     const ty = y + (h * (by + bh / 2)) / 100 + size * 0.36 - ((n - 1) * lh) / 2;
     return (
       <g data-s={s.id} data-kind={s.kind} style={{ cursor: "move", color: "var(--fg)" }}>
-        <path d={look.path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray={s.dashed ? "6 5" : undefined} />
+        <path d={look.path} transform={`translate(${x} ${y}) scale(${w / 100} ${h / 100})`} fill={tone?.fill ?? "var(--app)"} stroke={ink ?? tone?.stroke ?? stroke} strokeWidth={wOf(1.5)} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={s.dashed ? "6 5" : dashOf(s, wOf(1.5))} />
         {text ? <Lines text={text} x={x + (w * (bx + bw / 2)) / 100} y={ty} lh={lh} anchor size={size} wrap={wrap} /> : null}
       </g>
     );
@@ -3031,7 +3179,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       }
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (tone?.stroke ?? stroke)} strokeWidth={1.5} strokeDasharray={s.dashed ? "6 5" : undefined} />
+          <rect x={x} y={y} width={w} height={h} rx={12} fill={tone?.fill ?? "var(--app)"} fillOpacity={s.dashed ? 0.001 : 1} stroke={s.dashed ? "var(--fg-3)" : (ink ?? tone?.stroke ?? stroke)} strokeWidth={wOf(1.5)} strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={s.dashed ? "6 5" : dashOf(s, wOf(1.5))} />
           {s.label ? (
             <text x={x + 14} y={y + 24} fontSize={11.5} fontWeight={600} fill="var(--fg-3)" letterSpacing=".6">{s.label.toUpperCase()}</text>
           ) : null}
@@ -3043,7 +3191,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       const size = s.size ?? 15, lh = Math.round(size * 1.27);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} />
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={tone?.fill ?? "var(--app)"} stroke={ink ?? tone?.stroke ?? stroke} strokeWidth={wOf(1.5)} strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={dashOf(s, wOf(1.5))} />
           {text ? <Lines text={text} x={x + w / 2} y={centered(s, lh, size, Math.max(20, w * 0.72))} lh={lh} anchor size={size} weight={600} wrap={Math.max(20, w * 0.72)} /> : null}
         </g>
       );
@@ -3053,7 +3201,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
       return (
         <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
-          <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill={tone?.fill ?? "var(--app)"} stroke={tone?.stroke ?? stroke} strokeWidth={1.5} strokeLinejoin="round" />
+          <path d={`M${cx} ${y} L${x + w} ${cy} L${cx} ${y + h} L${x} ${cy} Z`} fill={tone?.fill ?? "var(--app)"} stroke={ink ?? tone?.stroke ?? stroke} strokeWidth={wOf(1.5)} strokeLinejoin="round" strokeLinecap={s.dash === "dotted" ? "round" : undefined} strokeDasharray={dashOf(s, wOf(1.5))} />
           {text ? <Lines text={text} x={cx} y={centered(s, lh, size, Math.max(20, w * 0.6))} lh={lh} anchor size={size} wrap={Math.max(20, w * 0.6)} /> : null}
         </g>
       );
@@ -3084,7 +3232,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
     case "text": {
       const size = s.size || 18;
       return (
-        <g data-s={s.id} style={{ cursor: "move", color: "var(--fg)" }}>
+        <g data-s={s.id} style={{ cursor: "move", color: ink ?? "var(--fg)" }}>
           <rect x={x - 4} y={y - size} width={Math.max(24, bbox(s)[2] - x + 8)} height={bbox(s)[3] - y + size} fill="transparent" />
           <Lines text={text} x={x} y={y} lh={size * 1.3} size={size} weight={600} />
         </g>
@@ -3112,7 +3260,7 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       return (
         <g data-s={s.id} style={{ cursor: "move" }}>
           <path d={d} stroke="transparent" strokeWidth={14} fill="none" />
-          <path d={d} stroke="var(--fg-2)" strokeWidth={1.6} fill="none" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dashed ? "6 5" : undefined} {...ends(s, ah)} />
+          <path d={d} stroke={ink ?? "var(--fg-2)"} strokeWidth={wOf(1.6)} fill="none" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={dashOf(s, wOf(1.6)) ?? (s.dashed ? "6 5" : undefined)} {...ends(s, ink ? `${ah}-k-${s.stroke}` : ah)} />
           {tag}
         </g>
       );
@@ -3123,13 +3271,13 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       return (
         <g data-s={s.id} style={{ cursor: "move" }}>
           <path d={d} stroke="transparent" strokeWidth={14} fill="none" strokeLinecap="round" />
-          <path d={d} stroke={stroke} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={d} stroke={stroke} strokeWidth={wOf(3)} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={dashOf(s, wOf(3))} />
         </g>
       );
     }
   }
   return <UnknownShape s={s} />;
-});
+}
 
 /* ------------------------------------------------------- text editor */
 

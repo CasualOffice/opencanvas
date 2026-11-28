@@ -78,6 +78,12 @@ export interface Shape {
   locked?: boolean;
   /** A link the shape opens: http(s) or mailto only (`safeLink`). */
   link?: string;
+  /** Style (BRD-22, style/style.ts): stroke width, dash, opacity %, font, rotation in degrees. */
+  sw?: number;
+  dash?: "dashed" | "dotted";
+  op?: number;
+  font?: "serif" | "mono";
+  rot?: number;
 }
 
 /** `v` when it is a link a shape may open (http, https, mailto), else null. */
