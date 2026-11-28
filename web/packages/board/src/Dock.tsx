@@ -87,10 +87,11 @@ export function Dock(p: DockProps) {
 
   const n = p.tools.length;
   const extra = p.onLock ? 1 : 0;
-  const fit = p.rail ? { shown: fitRail(box[1], n, p.compact, extra), zoomFull: true } : fitTools(box[0], n, p.compact, extra);
+  const fit = p.rail ? { shown: fitRail(box[1], n, p.compact, extra), zoomFull: true, centred: false } : fitTools(box[0], n, p.compact, extra, p.frames?.length ? 1 : 0);
   const shown = p.tools.slice(0, fit.shown);
   const hidden = p.tools.slice(fit.shown);
   const hiddenActive = hidden.find(([t]) => t === p.tool);
+  const centred = !p.rail && fit.centred;
 
   const [menu, setMenu] = useState<"" | "more" | "zoom">("");
   const focusFirst = useRef(false);
@@ -101,7 +102,23 @@ export function Dock(p: DockProps) {
     if (menu && focusFirst.current) menuRef.current?.querySelector<HTMLButtonElement>("[role^='menuitem']")?.focus();
     focusFirst.current = false;
   }, [menu]);
+  // BRD-32: the More menu opens next to its button (the bar is centred, not in the corner),
+  // kept inside the board. Placed when it opens (its min-width, 12.5rem), then by its real width.
+  const [moreLeft, setMoreLeft] = useState<number | null>(null);
+  const placeMore = (w: number) => {
+    const b = dockRef.current?.closest<HTMLElement>(".ocbd")?.getBoundingClientRect();
+    const m = moreRef.current?.getBoundingClientRect();
+    if (!b || !m || p.rail) return null;
+    const inset = 0.75 * remPx();
+    return Math.max(inset, Math.min(m.left - b.left, b.width - w - inset));
+  };
+  useLayoutEffect(() => {
+    if (menu !== "more") return;
+    const v = placeMore(menuRef.current?.offsetWidth ?? 0);
+    if (v !== moreLeft) setMoreLeft(v);
+  }, [menu, p.rail, box[0]]);
   const open = (m: "more" | "zoom") => {
+    if (m === "more") setMoreLeft(placeMore(12.5 * remPx()));
     focusFirst.current = true;
     setMenu((v) => (v === m ? "" : m));
   };
@@ -158,7 +175,7 @@ export function Dock(p: DockProps) {
   const MoreIcon = hiddenActive ? hiddenActive[1] : Ellipsis;
   return (
     <>
-      <div ref={dockRef} className="ocbd-dock">
+      <div ref={dockRef} className="ocbd-dock" data-centre={centred ? "" : undefined}>
         <div ref={barRef} className="ocbd-tool" role="toolbar" aria-label="Board tools" aria-orientation={p.rail ? "vertical" : "horizontal"} onKeyDown={barKeys}>
           {shown.map(([t, I, label, key], i) => [
             i === 3 ? <span key="vs" className="ocbd-vs" /> : null,
@@ -261,7 +278,7 @@ export function Dock(p: DockProps) {
       </div>
 
       {menu === "more" ? (
-        <div ref={menuRef} className="ocbd-menu ocbd-moremenu" role="menu" aria-label="More tools" onKeyDown={(e) => menuKeys(e, close)} onBlur={blurClose} onPointerDown={(e) => e.stopPropagation()}>
+        <div ref={menuRef} className="ocbd-menu ocbd-moremenu" style={p.rail || moreLeft === null ? undefined : { left: moreLeft }} role="menu" aria-label="More tools" onKeyDown={(e) => menuKeys(e, close)} onBlur={blurClose} onPointerDown={(e) => e.stopPropagation()}>
           {hidden.map(([t, I, label, key]) => (
             <button
               key={t}

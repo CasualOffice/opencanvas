@@ -22,20 +22,27 @@ const ZOOM_SHORT = 0.375 + 2.75;
 const barLen = (n: number, compact: boolean, extra = 0) => PAD + (n + 1) * tb(compact) + n * GAP + (n > SEP_AFTER ? SEP : 0) + (extra ? SEP + extra * (tb(compact) + GAP) : 0);
 
 /**
- * Tools shown (from the start of the priority order) and whether the zoom pill is full, for a board
- * `boardRem` wide. Tools leave from the end first, down to three; only then does the pill shrink to
- * its 100% button (and the tools it frees come back). A board not yet measured shows everything.
+ * Tools shown (from the start of the priority order), whether the zoom pill is full, and whether
+ * the bar is centred, for a board `boardRem` wide. BRD-32 (owner, 2026-11-28): the bar is centred
+ * at the bottom of the board and the zoom pill stays at the bottom right, so the pill's width (with
+ * `zoomExtra` more buttons, the Frames button) is reserved on both sides of the bar. Tools leave
+ * from the end first, down to three; only then does the pill shrink to its 100% button (and the
+ * tools it frees come back). When even that cannot be centred (a phone), the bar starts at the
+ * left edge with the pill after it, still clear of it. A board not yet measured shows everything.
  */
-export function fitTools(boardRem: number, count: number, compact: boolean, extra = 0): { shown: number; zoomFull: boolean } {
-  if (!(boardRem > 0)) return { shown: count, zoomFull: true };
+export function fitTools(boardRem: number, count: number, compact: boolean, extra = 0, zoomExtra = 0): { shown: number; zoomFull: boolean; centred: boolean } {
+  if (!(boardRem > 0)) return { shown: count, zoomFull: true, centred: true };
   const min = Math.min(3, count);
-  const most = (zoom: number) => {
-    for (let n = count; n >= min; n--) if (EDGE + barLen(n, compact, extra) + BETWEEN + zoom <= boardRem + 1e-6) return n;
+  const most = (zoom: number, sides: number) => {
+    for (let n = count; n >= min; n--) if (EDGE + barLen(n, compact, extra) + sides * (BETWEEN + zoom) <= boardRem + 1e-6) return n;
     return 0;
   };
-  const full = most(zoomFull(compact));
-  if (full) return { shown: full, zoomFull: true };
-  return { shown: Math.max(min, most(ZOOM_SHORT)), zoomFull: false };
+  const full = most(zoomFull(compact) + zoomExtra * (compact ? 2.375 : 1.75), 2);
+  if (full > min) return { shown: full, zoomFull: true, centred: true };
+  const short = most(ZOOM_SHORT, 2);
+  if (short > full) return { shown: short, zoomFull: false, centred: true };
+  if (full) return { shown: full, zoomFull: true, centred: true };
+  return { shown: Math.max(min, most(ZOOM_SHORT, 1)), zoomFull: false, centred: false };
 }
 
 /** Tools shown in the left rail of a board `boardRem` tall (the bottom-right pill is not in its way). */
