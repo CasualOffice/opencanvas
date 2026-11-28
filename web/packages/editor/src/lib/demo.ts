@@ -188,13 +188,14 @@ export function createDemo(role: Role): Demo {
     const hit = findText(frag, "hosts can change it per tenant");
     if (hit) asha.setLocalStateField("cursor", { anchor: relJSON(hit.text, hit.index), head: relJSON(hit.text, hit.index + 30) });
 
-    // Ravi: on the board; Sam: viewing.
+    // Ravi: on the board (cursor and viewport, decision 12); Sam: viewing.
     const ravi = addPeer("ravi");
+    const boardId = [...doc.getMap("boards").keys()][0];
     let t = 0;
     timers.push(
       window.setInterval(() => {
         t += 0.05;
-        ravi.setLocalStateField("board", { x: 430 + 190 * Math.cos(t * 0.8), y: 200 + 80 * Math.sin(t * 1.25), tool: "select" });
+        ravi.setLocalStateField("board", { id: boardId, x: 430 + 190 * Math.cos(t * 0.8), y: 200 + 80 * Math.sin(t * 1.25), vp: [430, 200, 1], tool: "select" });
       }, 120),
     );
     addPeer("sam");
