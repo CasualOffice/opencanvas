@@ -389,9 +389,9 @@ full-page with its own chrome, with no document title, page margins, gutter or i
 - **Telling us.** Put `file.type` in the launch token (§3). Any other value is refused at launch with `400 TYPE_INVALID`.
   `GET /hosting/capabilities` lists `fileTypes`; a server without it ignores the claim and opens a document, so check it
   before you show typed *New* entries.
-- **New files.** When your load callback answers `404` (a new file) for a typed launch, the server creates the root block
-  as the file's first edit (an empty sheet `Sheet1`, an empty board, a database with one Table view) and saves it through
-  your `PUT /files/{fileId}` like any edit. `start` (ADR-048) is ignored in app mode.
+- **New files.** When your load callback answers `404` (a new file) for a typed launch, the first editor to open it creates
+  the root block as the file's first edit (an empty sheet `Sheet1`, an empty board, a database with one Table view), saved
+  through your `PUT /files/{fileId}` like any edit. (Planned: the server creates it, so API-made typed files start right too.) `start` (ADR-048) is ignored in app mode.
 - **The file remembers.** The `.ocanvas` manifest carries `type` (additive to format 1; older readers ignore it). A launch
   without the claim uses the manifest's type, so a downloaded spreadsheet reopens as one in any host. The claim wins when both
   are present.

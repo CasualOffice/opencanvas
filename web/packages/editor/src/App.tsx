@@ -39,7 +39,7 @@ import type { ImportResult } from "./components/Dialogs";
 import { ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
 import { leaveGuard, offlineView, patchView, reconnectToken } from "./offline/status";
-import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
+import { appMode, showsGallery, temporaryWording, wordingOf } from "./lib/wording";
 import type { Template } from "./templates";
 import { applyTeamTemplate, loadTeamTemplates, teamEnabled, undoTeamTemplate, type TeamItem, type TeamState } from "./lib/teamtemplates";
 
@@ -725,6 +725,19 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     // and expect to type at once. A host that already asked for the kind launches with
     // `"start": "page"` (ADR-048). Templates stay one click away on the blank page.
     if (featureOn("templates") && showsGallery({ isNew: session.isNew, storage: session.storage, role, empty: editor.isEmpty, hash: window.location.hash })) setScreen("gallery");
+    // FTY-02 (docs/05 §2f): a new typed file gets its one root block, made by the first editor
+    // to open it; the file then reopens as that block. Full-page app chrome is FTY-03..05.
+    const app = appMode(window.location.hash);
+    if (app) document.documentElement.dataset.app = app;
+    if (app && role === "edit" && editor.isEmpty && session.isNew) {
+      if (app === "whiteboard") start("boardblank");
+      else if (app === "database") start("dbblank");
+      else
+        void import("./editor/blockdata")
+          .then((m) => m.loadSheet())
+          .then((m) => editor.commands.setContent({ type: "doc", content: [{ type: "spreadsheet", attrs: { sheetId: m.createSheetBlock(doc)[0] } }, { type: "paragraph" }] }))
+          .catch(() => toast("The spreadsheet couldn't load. Check your connection and reload.", { icon: "triangle-alert" }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 

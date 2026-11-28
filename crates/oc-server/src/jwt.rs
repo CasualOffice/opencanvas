@@ -48,7 +48,13 @@ struct FileClaim {
     name: Option<String>,
     #[serde(default)]
     version: Option<Value>,
+    /// FTY-02 (docs/05 §2f): `document` (default), `spreadsheet`, `whiteboard` or `database`.
+    #[serde(default, rename = "type")]
+    ftype: Option<Value>,
 }
+
+/// The file types a launch may name (docs/05 §2f), also listed in `/hosting/capabilities`.
+pub const FILE_TYPES: [&str; 4] = ["document", "spreadsheet", "whiteboard", "database"];
 
 #[derive(Debug, Deserialize)]
 struct UserClaim {
@@ -100,6 +106,23 @@ impl LaunchClaims {
     /// ADR-048: whether the host asked to skip the start screen (`"start": "page"`).
     pub fn start_page(&self) -> bool {
         self.start.as_ref().and_then(Value::as_str) == Some("page")
+    }
+
+    /// FTY-02: the app mode a typed file opens in (`None` for a document or no type); an
+    /// unknown or non-string type is an error (`400 TYPE_INVALID`).
+    pub fn app_mode(&self) -> Result<Option<&'static str>, String> {
+        match &self.file.ftype {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(t)) => match FILE_TYPES.iter().find(|x| **x == t.as_str()) {
+                Some(&"document") => Ok(None),
+                Some(x) => Ok(Some(x)),
+                None => Err(format!(
+                    "unknown file.type {t:?}; use one of {}",
+                    FILE_TYPES.join(", ")
+                )),
+            },
+            Some(other) => Err(format!("file.type must be a string, got {other}")),
+        }
     }
 
     pub fn into_grant(self) -> Grant {

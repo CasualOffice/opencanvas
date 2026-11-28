@@ -9,6 +9,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- Typed files (docs/05 §2f, FTY-02): a launch token's `file.type` (`spreadsheet`, `whiteboard`, `database`) opens the
+  editor in app mode (`&app=` in its fragment, no template picker), and a new typed file starts as one spreadsheet, board or
+  database block. An unknown type is refused with `400 TYPE_INVALID`; `/hosting/capabilities` lists `fileTypes`. The
+  full-page app chrome for each type follows.
 - OpenCanvas Workspace web app (`web/packages/workspace`, served at `/ws/`): first-run setup, sign-in, sign-up from an
   invite, Home with the typed New menu (Document, Spreadsheet, Whiteboard, Database), grid and list views, the workspace and
   folder tree, favourites, recent and shared, a file page with the Workspace header around the editor, the share dialog with

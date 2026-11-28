@@ -399,10 +399,10 @@ host; the Workspace is its first user. UI rows wait for WS-01b.
 | ID | Item | Status | Notes |
 |---|---|---|---|
 | FTY-01 | Design: `file.type` claim, app mode, manifest `type`, fallback to document, create-file `type`, capabilities; docs/05 §2f | Done | This change; S |
-| FTY-02 | Engine: validate `file.type`, manifest `type`, root block created on a new typed file (server edit, saved through `PUT`), session `app` and `appFallback`, `fileTypes` in capabilities; tests incl. the mixed-content fallback | Todo | M; depends on FTY-01 |
-| FTY-03 | Editor: spreadsheet app mode (toolbar, formula bar, full grid, sheet tabs, status sum), desktop and phone | Todo | M; depends on FTY-02, WS-01b |
-| FTY-04 | Editor: whiteboard app mode (tools, board bar with Sketch / Diagram, zoom, minimap), desktop and phone | Todo | M; depends on FTY-02, WS-01b |
-| FTY-05 | Editor: database app mode (view tabs, filter, sort, New row; row pages stay documents) | Todo | M; depends on FTY-02, WS-01b |
+| FTY-02 | Engine: validate `file.type`, manifest `type`, root block created on a new typed file (server edit, saved through `PUT`), session `app` and `appFallback`, `fileTypes` in capabilities; tests incl. the mixed-content fallback | In progress | Done: `file.type` validated (`400 TYPE_INVALID`), `&app=<type>` in the editor fragment (`start` ignored), `fileTypes` in `/hosting/capabilities` (tests/launch_options.rs); the editor makes the root block of a new typed file. To do: manifest `type`, session `app` and `appFallback`; M |
+| FTY-03 | Editor: spreadsheet app mode (toolbar, formula bar, full grid, sheet tabs, status sum), desktop and phone | In progress | A new spreadsheet file opens on one spreadsheet block (sheet, formula bar, tabs); the full-page chrome of 13c (no title, grid edge to edge, status sum) to do; M |
+| FTY-04 | Editor: whiteboard app mode (tools, board bar with Sketch / Diagram, zoom, minimap), desktop and phone | In progress | A new whiteboard file opens on one board; full-page board (13d) to do; M |
+| FTY-05 | Editor: database app mode (view tabs, filter, sort, New row; row pages stay documents) | In progress | A new database file opens on one database; full-page views (13e) to do; M |
 | FTY-06 | Exports, search (`search.json` `type`), API v1 and `/extract` `type`, default export per type | Todo | S; depends on FTY-02 |
 | FTY-07 | Block *Expand* and *Make a … file* through the create-file callback with `type`, optional live block in place | Todo | M; depends on FTY-02, WS-01b |
 | FTY-08 | Workspace: typed New menu, type icons and column, search type filter, import picks the type, sample host passes `file.type` too | In progress | Typed New menu, type tiles in Home, list, search, trash and phone, type column and filters done; import picking the type to do; the editor's app mode is FTY-02..05; M |

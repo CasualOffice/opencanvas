@@ -66,5 +66,17 @@ export function temporaryWording(w: Wording): TemporaryWording {
  */
 export function showsGallery(s: { isNew: boolean; storage?: string; role: string; empty: boolean; hash: string }): boolean {
   if (!s.isNew || s.role !== "edit" || !s.empty || s.storage === "ephemeral") return false;
+  if (appMode(s.hash)) return false;
   return new URLSearchParams(s.hash.replace(/^#/, "")).get("start") !== "page";
+}
+
+export type AppMode = "spreadsheet" | "whiteboard" | "database";
+
+/**
+ * FTY-02 (docs/05 §2f): a typed file opens in app mode, `#t=…&app=spreadsheet`. A document (or
+ * anything else) is `null`: the canvas editor as always.
+ */
+export function appMode(hash: string): AppMode | null {
+  const a = new URLSearchParams(hash.replace(/^#/, "")).get("app");
+  return a === "spreadsheet" || a === "whiteboard" || a === "database" ? a : null;
 }
