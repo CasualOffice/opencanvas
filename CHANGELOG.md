@@ -14,6 +14,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   for PNG, and what to export (the whole board, the selection or one frame). Copy as PNG (⇧⌘C) and
   Copy as SVG are in the board menu and the dialog; where the browser can't copy images, it says so
   and offers Download (BRD-20).
+- Whiteboard: frames (F). A frame is a named area drawn under everything; a shape joins the frame
+  its centre is dropped in, moving a frame moves what is in it, and deleting a frame keeps its
+  contents. Double-click the name (or F2) to rename. Frames are listed by the zoom controls, and
+  Present (⇧P) shows them one at a time, full screen (BRD-21).
 
 ## [0.4.2] - 2026-11-28
 

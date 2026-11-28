@@ -81,7 +81,7 @@ describe("board tool bar, option A", () => {
   it("is in the priority order, Pan last", () => {
     boardSize(1100);
     const el = board();
-    expect(tools(el)).toEqual(["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Pan"]);
+    expect(tools(el)).toEqual(["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Frame", "Pan"]);
     expect(more(el)).toBeTruthy();
     // Tools and zoom sit in one row.
     expect(el.querySelector(".ocbd-dock .ocbd-tool")).toBeTruthy();
@@ -101,7 +101,7 @@ describe("board tool bar, option A", () => {
     act(() => more(el).click());
     const m = el.querySelector('[role="menu"][aria-label="More tools"]')!;
     const items = [...m.querySelectorAll('[role="menuitemradio"]')].map((b) => b.getAttribute("aria-label"));
-    expect(items).toEqual(["Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Pan"]);
+    expect(items).toEqual(["Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Frame", "Pan"]);
     expect(m.querySelector('[role="menuitemcheckbox"]')!.textContent).toContain("Tools on the left");
   });
 

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
-  addShape, bbox, contentBounds, deleteShape, getBoardMap, simplify, smooth, updateShape,
+  addShape, bbox, contentBounds, deleteShape, getBoardMap, readShapes, simplify, smooth, updateShape,
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
@@ -21,6 +21,10 @@ import { Dock } from "./Dock";
 import { readToolsLeft, writeToolsLeft } from "./toolbar";
 import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { ExportMenuItems, useBoardExport } from "./export/hooks";
+import { useFrames } from "./frames/hooks";
+import { FrameNames, FrameView } from "./frames/view";
+import { FRAME_SIZE, isFrame, membersOf } from "./frames/model";
+import { applyMembership, createFrame, releaseMembers } from "./frames/ops";
 import { createArrowResolver } from "./edges";
 import { BoardProjection } from "./projection";
 import { SceneIndex } from "./scene";
@@ -60,7 +64,7 @@ import {
   stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
 } from "./ops";
 
-type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text";
+type Tool = "select" | "hand" | "pen" | "sticky" | "rect" | "ellipse" | "diamond" | "arrow" | "text" | "frame";
 // SCALE-02 / UX4-01: the priority order is the visual order; overflow takes from the end (Pan first).
 const TOOLS: [Tool, LucideIcon, string, string][] = [
   ["select", MousePointer2, "Select", "V"],
@@ -71,9 +75,10 @@ const TOOLS: [Tool, LucideIcon, string, string][] = [
   ["arrow", ArrowUpRight, "Arrow", "A"],
   ["ellipse", Circle, "Ellipse", "O"],
   ["diamond", Diamond, "Diamond", "D"],
+  ["frame", Frame, "Frame", "F"],
   ["hand", Hand, "Pan", "H"],
 ];
-const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "sticky", r: "rect", o: "ellipse", d: "diamond", a: "arrow", t: "text" };
+const KEY_TOOL: Record<string, Tool> = { v: "select", h: "hand", p: "pen", n: "sticky", r: "rect", o: "ellipse", d: "diamond", a: "arrow", t: "text", f: "frame" };
 const STICKY: Record<string, string> = { y: "var(--sticky-y)", p: "var(--sticky-p)", b: "var(--sticky-b)", g: "var(--sticky-g)" };
 const SWATCH: Record<string, string> = { accent: "var(--accent)", amber: "var(--amber-fg)", green: "var(--green-fg)", pink: "var(--pink-fg)", purple: "var(--purple-fg)", red: "var(--red-fg)", blue: "var(--blue-fg)" };
 /** Shape fills for rect / ellipse / diamond: a tone's background with its foreground as the outline. */
@@ -258,6 +263,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const rootRef = useRef<HTMLDivElement>(null);
   // BRD-20: the export dialog (lazy), Copy as PNG / SVG.
   const xport = useBoardExport({ doc, shapes, sel, name: String(getBoardMap(doc, boardId)?.get("name") ?? "board"), toast: env.toast, onClose: () => rootRef.current?.focus({ preventScroll: true }) });
+  // BRD-21: frames (names, rename, Present).
+  const frm = useFrames({ doc, boardId, shapes, view, origin, edit, onSay: (m) => setLive(m), onDone: () => rootRef.current?.focus({ preventScroll: true }) });
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const pointers = useRef(new Map<number, [number, number]>());
@@ -514,7 +521,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const ids = S.current.sel;
     if (!ids.length) return;
     um?.stopCapturing();
-    doc.transact(() => ids.forEach((sid) => deleteShape(doc, boardId, sid, origin)), origin);
+    doc.transact(() => {
+      // BRD-21: deleting a frame keeps its contents (they leave it).
+      releaseMembers(doc, boardId, S.current.raw, ids, origin);
+      ids.forEach((sid) => deleteShape(doc, boardId, sid, origin));
+    }, origin);
     setLive(ids.length === 1 ? "Deleted" : `Deleted ${ids.length} shapes`);
     setSel([]);
   };
@@ -886,6 +897,20 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   /* ---- creating shapes ---- */
   /** `box`: the dragged box (BRD-07); `free`: keyboard placement moves to the nearest free spot (BRD-12). */
   const createAt = (t: Tool, x: number, y: number, o: { box?: Box; free?: boolean } = {}) => {
+    if (t === "frame") {
+      // BRD-21: a frame adopts the free shapes whose centre is inside it and goes behind them.
+      let b: Box = o.box ?? [x - FRAME_SIZE.w / 2, y - FRAME_SIZE.h / 2, x + FRAME_SIZE.w / 2, y + FRAME_SIZE.h / 2];
+      if (!o.box && o.free) {
+        const [dx, dy] = freeSpot(b, S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box));
+        b = [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
+      }
+      um?.stopCapturing();
+      const fid = createFrame(doc, boardId, S.current.shapes, b, origin);
+      setSel([fid]);
+      setTool("select");
+      setLive("Added frame. Press F2 to rename it");
+      return;
+    }
     let s: Omit<Shape, "id">;
     if (t === "sticky") s = { type: "sticky", x: x - 75, y: y - 55, w: 150, h: 110, fill: ["y", "b", "p", "g"][S.current.shapes.filter((q) => q.type === "sticky").length % 4], text: "" };
     else if (t === "text") s = { type: "text", x, y: y + 9, text: "", size: 18 };
@@ -998,6 +1023,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             // Diagram mode: moving a container moves what it holds (3g).
             const boxes = S.current.dgm ? S.current.shapes.filter((q) => next.includes(q.id) && isContainer(q)) : [];
             if (boxes.length) next = [...next, ...containedIn(S.current.shapes, boxes).filter((x) => !next.includes(x))];
+            // BRD-21: a frame's members (`props.parent`) move with it, in both modes.
+            for (const f of S.current.shapes.filter((q) => next.includes(q.id) && isFrame(q))) next = [...next, ...membersOf(S.current.shapes, f.id).filter((x) => !next.includes(x))];
             const moving = S.current.shapes.filter((q) => next.includes(q.id));
             const set = new Set(next);
             const others = S.current.shapes.length > 1500 ? [] : S.current.shapes.filter((q) => !set.has(q.id) && q.type !== "arrow" && q.type !== "pen").map((q) => bbox(q));
@@ -1097,7 +1124,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
       d.box = [Math.min(d.x0, d.x0 + w), Math.min(d.y0, d.y0 + h), Math.max(d.x0, d.x0 + w), Math.max(d.y0, d.y0 + h)];
       const [bx0, by0, bx1, by1] = d.box;
-      setDraft({ id: "draft", type: d.t as ShapeType, x: bx0, y: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), text: "", ...(d.t === "sticky" ? { fill: "y" } : {}) });
+      setDraft({ id: "draft", type: d.t as ShapeType, x: bx0, y: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), text: "", ...(d.t === "sticky" ? { fill: "y" } : {}), ...(d.t === "frame" ? { type: "rect", kind: CONTAINER } : {}) });
       return;
     }
     if (d.kind === "box") {
@@ -1270,10 +1297,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       announceWp(d.i, n);
     }
     if (d.kind === "move" || d.kind === "resize" || d.kind === "end" || d.kind === "wp") {
+      let said: string | null = null;
+      const movedIds = d.kind === "move" && d.moved ? d.ids : null;
       doc.transact(() => {
         flush();
         if (d.moved) syncAfter(d.kind === "move" ? d.ids : [d.sid]);
+        // BRD-21: a moved shape joins the frame its centre was dropped in (or leaves its frame).
+        const m = movedIds ? getBoardMap(doc, boardId) : null;
+        if (m && movedIds) said = applyMembership(doc, boardId, readShapes(m), movedIds, origin);
       }, origin);
+      if (said) setLive(said);
     }
     const p = draftRef.current;
     if (d.kind === "pen") {
@@ -1311,6 +1344,11 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const target = (hit ?? (e.target as Element)).closest?.("[data-s]");
     const sid = target?.getAttribute("data-s") ?? (lodOn(S.current.view.z, S.current.shapes.length) ? scene.hitAt(toWorld(e.clientX, e.clientY), 6 / S.current.view.z) : null);
     const s = sid ? S.current.shapes.find((q) => q.id === sid) : null;
+    if (s && isFrame(s)) {
+      // BRD-21: double-clicking a frame's name or edge renames it.
+      frm.rename?.(s.id);
+      return;
+    }
     if (s) {
       // On a connector: double-click a waypoint to remove it, the line to add one there.
       // Its label (or Enter, or the toolbar) edits the text.
@@ -1417,6 +1455,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (mod && e.shiftKey && !e.altKey && k === "c") {
       e.preventDefault();
       void xport.copy("png");
+      return;
+    }
+    // BRD-21: ⇧P presents the frames (from the selected one); F2 renames the selected frame.
+    if (e.shiftKey && !mod && !e.altKey && k === "p") {
+      e.preventDefault();
+      const f = S.current.sel.length === 1 ? S.current.sel[0] : undefined;
+      if (!frm.present(f && frm.frames.some((q) => q.id === f) ? f : undefined)) setLive("No frames to present. Draw one with F");
+      return;
+    }
+    if (e.key === "F2" && frm.rename && S.current.sel.length === 1 && frm.frames.some((q) => q.id === S.current.sel[0])) {
+      e.preventDefault();
+      frm.rename(S.current.sel[0]);
       return;
     }
     // Shift+D: open this board as a diagram (1b).
@@ -2133,7 +2183,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             />
           ))}
           <KindMarks shapes={visible} />
-          {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
+          {lod ? null : <FrameNames frames={frm.frames} z={z} selected={new Set(sel)} />}
+          {draft ?<ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
           {dgm ? <OrphanLayer boardId={boardId} shapes={shapes} z={z} /> : null}
           {peerSel}
           {selection}
@@ -2244,6 +2295,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         </>
       ) : null}
       {xport.node}
+      {frm.node}
       {edit ? (
         <input
           ref={fileRef}
@@ -2273,6 +2325,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         onFit={fit}
         mini={mini}
         onMini={() => setMini((v) => !v)}
+        frames={frm.frames.map((f) => ({ id: f.id, name: String(f.label || f.text || "Frame") }))}
+        onFrame={(id) => {
+          const f = S.current.byId.get(id);
+          if (!f) return;
+          const b = bbox(f);
+          fitBox([b[0], b[1] - 24, b[2], b[3]], 2);
+          setSel([id]);
+        }}
+        onPresent={() => void frm.present()}
       />
       {mini && W ? <Minimap shapes={shapes} view={view} size={size} onView={setView} /> : null}
 
@@ -2635,6 +2696,8 @@ const ShapeView = memo(function ShapeView({ s, ah, hideText, resolve, growH }: {
       const size = s.size ?? 14, lh = Math.round(size * 1.3);
       // An icon shape (DGM-17): tinted tile, the glyph, the label below or to the right.
       if (s.kind === ICON_KIND) return <IconNodeView s={s} stroke={stroke} hideText={hideText} />;
+      // A frame (BRD-21): its name is drawn above it by `FrameNames`.
+      if (s.kind === CONTAINER) return <FrameView s={s} />;
       const glyph = look?.icon ? iconById(look.icon) : undefined;
       if (glyph) {
         // Network kinds drawn with a generic icon (DGM-17 decision 6): glyph on the left, text beside it.

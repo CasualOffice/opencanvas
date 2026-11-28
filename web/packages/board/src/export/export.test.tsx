@@ -41,8 +41,9 @@ function mount(node: React.ReactNode) {
   cleanup = () => act(() => root.unmount());
   return el;
 }
-const flush = async () => {
-  for (let i = 0; i < 6; i++) await act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+// The dialog is a lazy chunk: wait for it (and for the render after a click) under load too.
+const flush = async (until?: () => unknown) => {
+  for (let i = 0; i < 6 || (until && !until() && i < 150); i++) await act(async () => void (await new Promise((r) => setTimeout(r, i < 6 ? 0 : 20))));
 };
 
 const S = (id: string, x: number, y: number, o: Partial<Shape> = {}): Shape => ({ id, type: "rect", x, y, w: 100, h: 60, text: id, ...o });
@@ -123,7 +124,7 @@ describe("export dialog", () => {
     const item = [...el.querySelectorAll<HTMLButtonElement>(".ocbd-menu [role=menuitem]")].find((b) => b.textContent?.startsWith("Export"));
     expect(item?.textContent).toContain("Export…");
     act(() => item!.click());
-    await flush();
+    await flush(() => el.querySelector('[role="dialog"]'));
     const dlg = el.querySelector<HTMLElement>('[role="dialog"][aria-label="Export board"]')!;
     expect(dlg).toBeTruthy();
     const radio = (group: string, name: string) => [...dlg.querySelectorAll<HTMLButtonElement>(`[role=radiogroup][aria-label="${group}"] [role=radio]`)].find((b) => b.textContent === name)!;
@@ -139,7 +140,7 @@ describe("export dialog", () => {
     act(() => radio("Background", "Dark").click());
     const dl = [...dlg.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Download")!;
     await act(async () => dl.click());
-    await flush();
+    await flush(() => names.length);
     expect(names).toEqual(["board.svg"]);
     const before = saved.length;
     expect(before).toBeGreaterThan(0);
@@ -153,12 +154,12 @@ describe("export dialog", () => {
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     act(() => el.querySelector<HTMLButtonElement>('[aria-label="Board options"]')!.click());
     act(() => [...el.querySelectorAll<HTMLButtonElement>(".ocbd-menu [role=menuitem]")].find((b) => b.textContent?.startsWith("Export"))!.click());
-    await flush();
+    await flush(() => el.querySelector('[role="dialog"]'));
     const dlg = el.querySelector<HTMLElement>('[role="dialog"]')!;
     act(() => [...dlg.querySelectorAll<HTMLButtonElement>("[role=radio]")].find((b) => b.textContent === "SVG")!.click());
     const copy = [...dlg.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Copy SVG")!;
     await act(async () => copy.click());
-    await flush();
+    await flush(() => dlg.querySelector("[role=alert]"));
     expect(dlg.querySelector("[role=alert]")?.textContent).toMatch(/can.t copy images/i);
   });
   it("the board menu has Copy as PNG and Copy as SVG", () => {

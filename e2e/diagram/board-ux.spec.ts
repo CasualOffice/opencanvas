@@ -40,3 +40,65 @@ test("BRD-20: export dialog downloads a dark SVG and copies a PNG", async ({ pag
   await menu(page, board, /^Export…/);
   await expect(board.getByRole("dialog").getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
 });
+
+async function tool(board: Locator, name: string) {
+  await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name, exact: true }).click();
+}
+/** A shape's screen box by its id. */
+const boxOf = async (board: Locator, id: string) => (await board.locator(`g[data-s="${id}"] rect`).first().boundingBox())!;
+const ids = (board: Locator) => board.locator("g[data-s]").evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute("data-s")!))]);
+
+test("BRD-21: draw a frame with F, drop a shape in it, move the frame, present", async ({ page }) => {
+  const board = await openDemo(page, srv.url);
+  const bb = (await board.boundingBox())!;
+  // An empty area right of the demo flow, above the bottom row.
+  const x0 = bb.x + bb.width - 330, y0 = bb.y + bb.height - 260;
+  await tool(board, "Frame");
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  await page.mouse.move(x0 + 120, y0 + 80, { steps: 4 });
+  await page.mouse.move(x0 + 260, y0 + 160, { steps: 4 });
+  await page.mouse.up();
+  const name = board.locator("[data-frame-name]").last();
+  await expect(name).toHaveText("Frame 1");
+  const fid = (await name.getAttribute("data-frame-name"))!;
+  // Clicking inside the frame reaches the canvas: the rectangle tool places a shape there.
+  const had = await ids(board);
+  await tool(board, "Rectangle");
+  await page.mouse.click(x0 + 90, y0 + 70);
+  await expect.poll(async () => (await ids(board)).length).toBe(had.length + 1);
+  const rid = (await ids(board)).find((v) => !had.includes(v))!;
+  await page.keyboard.press("Escape");
+  // Drop it again inside the frame (centre-drop): it joins and says so.
+  const r = await boxOf(board, rid);
+  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(r.x + r.width / 2 + 10, r.y + r.height / 2 + 5, { steps: 5 });
+  await page.mouse.move(r.x + r.width / 2 + 20, r.y + r.height / 2 + 10, { steps: 5 });
+  await page.mouse.up();
+  await expect(board.locator(".ocbd-sr[role=status]")).toHaveText("Added to Frame 1");
+  // Dragging the frame by its name moves the shape with it. (Esc first: the shape's toolbar sits above it.)
+  await page.keyboard.press("Escape");
+  await expect(board.locator(".ocbd-swatch")).toHaveCount(0);
+  const before = await boxOf(board, rid);
+  const n = (await name.boundingBox())!;
+  await page.mouse.move(n.x + 10, n.y + n.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(n.x - 20, n.y + n.height / 2 - 10, { steps: 5 });
+  await page.mouse.move(n.x - 50, n.y + n.height / 2 - 20, { steps: 5 });
+  await page.mouse.up();
+  const after = await boxOf(board, rid);
+  expect(Math.abs(after.x - before.x + 60)).toBeLessThan(3);
+  expect(Math.abs(after.y - before.y + 20)).toBeLessThan(3);
+  // The zoom area lists frames; Present steps through them and Esc ends.
+  await board.getByRole("button", { name: "Frames" }).click();
+  await expect(board.getByRole("menu", { name: "Zoom" }).getByRole("menuitem", { name: "Frame 1" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await board.locator(`[data-frame-name="${fid}"]`).click();
+  await page.keyboard.press("Shift+P");
+  const pres = page.getByRole("dialog", { name: "Presenting frames" });
+  await expect(pres).toBeVisible();
+  await expect(pres).toContainText("Frame 1");
+  await page.keyboard.press("Escape");
+  await expect(pres).toHaveCount(0);
+});
