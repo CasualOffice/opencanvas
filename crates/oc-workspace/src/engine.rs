@@ -315,7 +315,7 @@ pub fn host_toml(
     format!(
         "[[host]]\nid = {}\nname = \"OpenCanvas Workspace\"\nmode = \"jwt\"\njwt_alg = \"HS256\"\njwt_secret = {}\napi_key = {}\n\
          callback_base = {}\nallowed_origins = [{}]\nasset_origins = [{}]\n\n[host.flags]\non_conflict = \"copy\"\nteam_templates = true\nhistory = true\napi_v1 = true\n\n\
-         [host.search]\ncallback = true\n",
+         [host.search]\ncallback = true\n\n[host.editor]\nchrome = \"host\"\n",
         q(&cfg.host_id),
         q(&s.host_secret),
         q(&s.host_api_key),

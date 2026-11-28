@@ -446,6 +446,7 @@ mod tests {
                 id: "f".into(),
                 name: "F".into(),
                 version: None,
+                app: None,
             },
             perms: crate::grant::Perms::default(),
             callback_token: "t".into(),

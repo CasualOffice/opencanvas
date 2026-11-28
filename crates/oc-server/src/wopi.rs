@@ -282,6 +282,7 @@ impl FileInfo {
                 id: src.as_str().to_string(),
                 name: self.base_file_name.clone(),
                 version: self.stamp(),
+                app: None,
             },
             perms: self.perms(),
             callback_token: access_token.to_string(),

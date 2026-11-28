@@ -330,6 +330,7 @@ pub fn derive(
             id: file_id.to_string(),
             name: name.unwrap_or_else(|| file_id.to_string()),
             version: None,
+            app: None,
         },
         perms,
         callback_token: callback_token.unwrap_or_else(|| parent.callback_token.clone()),
@@ -971,6 +972,7 @@ mod tests {
                 id: "a".into(),
                 name: "A".into(),
                 version: None,
+                app: None,
             },
             perms: crate::grant::Perms {
                 export: false,

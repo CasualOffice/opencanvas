@@ -228,6 +228,7 @@ pub(super) fn api_grant(host: &HostConfig, file_id: &str, author: &Author, token
             id: file_id.to_string(),
             name: file_id.to_string(),
             version: None,
+            app: None,
         },
         perms: Perms::default(),
         callback_token: token,

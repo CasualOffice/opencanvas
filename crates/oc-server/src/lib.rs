@@ -345,6 +345,7 @@ impl AppState {
                     id: row.file_id.clone(),
                     name: row.file_id.clone(),
                     version: row.base_version.clone(),
+                    app: None,
                 },
                 perms: grant::Perms::default(),
                 callback_token: row.token.clone(),

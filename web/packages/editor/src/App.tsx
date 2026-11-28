@@ -39,7 +39,9 @@ import type { ImportResult } from "./components/Dialogs";
 import { ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
 import { leaveGuard, offlineView, patchView, reconnectToken } from "./offline/status";
-import { appMode, showsGallery, temporaryWording, wordingOf } from "./lib/wording";
+import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
+import { appRootOf, resolveApp, setAppRoot } from "./lib/appmode";
+import { profileStore } from "./editor/profile";
 import type { Template } from "./templates";
 import { applyTeamTemplate, loadTeamTemplates, teamEnabled, undoTeamTemplate, type TeamItem, type TeamState } from "./lib/teamtemplates";
 
@@ -694,6 +696,14 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       onHost("Action_SetReadOnly", (v) => setForcedReadOnly(!!v.readOnly)),
       onHost("Action_Commit", (v) => collab.sendControl({ t: "save", message: v.message ?? null })),
       onHost("Action_Export", (v) => doExport(String(v.format ?? "md"))),
+      // FTY-03 (docs/05 §4): with `[host.editor] chrome = "host"` the host's header opens the panels.
+      onHost("Action_OpenPanel", (v) => {
+        const p = String(v.panel ?? "");
+        if (p === "history" && canHistoryRef.current) setSide((s) => (s === "history" ? null : "history"));
+        if (p === "comments" && featureOn("comments")) setSide((s) => (s === "comments" ? null : "comments"));
+        if (p === "find") openFindRef.current?.(false);
+        if (p === "shortcuts") setHelp(true);
+      }),
       onHost("Action_Theme", (v) => {
         const t = v.theme;
         if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
@@ -727,9 +737,33 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     if (featureOn("templates") && showsGallery({ isNew: session.isNew, storage: session.storage, role, empty: editor.isEmpty, hash: window.location.hash })) setScreen("gallery");
     // FTY-02 (docs/05 §2f): a new typed file gets its one root block, made by the first editor
     // to open it; the file then reopens as that block. Full-page app chrome is FTY-03..05.
-    const app = appMode(window.location.hash);
-    if (app) document.documentElement.dataset.app = app;
+    const app = resolveApp(window.location.hash, (session as { app?: string }).app, meta.app);
+    if (app) {
+      document.documentElement.dataset.app = app;
+      // The root block is the file; anything else opens as a document, unchanged (§2f).
+      let told = false;
+      const find = () => {
+        const r = appRootOf(editor.getJSON(), app);
+        if ("id" in r) {
+          setAppRoot(r.id);
+          document.documentElement.dataset.appRoot = "1";
+          postToHost("UI_AppMode", { app, fallback: null });
+        } else if ("fallback" in r) {
+          setAppRoot(null);
+          delete document.documentElement.dataset.appRoot;
+          if (!told) {
+            told = true;
+            postToHost("UI_AppMode", { app: "document", fallback: r.fallback });
+            toast(`This ${app} has other content, so it opened as a document`, { icon: "info" });
+          }
+        }
+      };
+      find();
+      editor.on("update", find);
+    }
     if (app && role === "edit" && editor.isEmpty && session.isNew) {
+      // The file records its type (manifest `type`), so it reopens the same way anywhere.
+      setMeta(doc, { app }, null);
       if (app === "whiteboard") start("boardblank");
       else if (app === "database") start("dbblank");
       else
@@ -1334,6 +1368,8 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
     );
 
   const shell = useMemo(() => ({ root, compact }), [root, compact]);
+  // FTY-03: the host draws the file header (`[host.editor] chrome = "host"`), so no top bar here.
+  const hostChrome = profileStore.get()?.chrome === "host";
 
   return (
     <ShellCtx.Provider value={shell}>
@@ -1360,7 +1396,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             </Suspense>
           ) : null}
           <div className={screen === "gallery" ? "hidden" : "wsp" + (side === "history" && canHistory ? " vh-open" : "") + (previewing && side === "history" ? " vh-previewing" : "")}>
-            <TopBar
+            {hostChrome ? null : <TopBar
               temporaryTitle={words.pill}
               meta={meta}
               parent={parent}
@@ -1407,7 +1443,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                     }
                   : undefined
               }
-            />
+            />}
             {banners}
             {offlineOn ? (
               <Suspense fallback={null}>

@@ -126,6 +126,7 @@ impl LaunchClaims {
     }
 
     pub fn into_grant(self) -> Grant {
+        let app = self.app_mode().ok().flatten().map(String::from);
         let version = self.file.version.and_then(|v| match v {
             Value::String(s) => Some(s),
             Value::Null => None,
@@ -188,6 +189,7 @@ impl LaunchClaims {
                 name: self.file.name.unwrap_or_else(|| self.file.id.clone()),
                 id: self.file.id,
                 version,
+                app,
             },
             perms,
             callback_token: self.callback_token.unwrap_or_default(),

@@ -663,6 +663,7 @@ pub fn grant(user: &str, role: Role) -> Grant {
             id: FILE.into(),
             name: "Doc one".into(),
             version: Some("0".into()),
+            app: None,
         },
         perms: Perms {
             history: None,

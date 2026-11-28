@@ -562,6 +562,9 @@ pub async fn session_info(
         "role": grant.role,
         "user": grant.user,
         "file": {"id": grant.file.id, "name": grant.file.name},
+        // FTY-02 (docs/05 §2f): the app mode the launch asked for; the editor reports a
+        // fallback to the host itself (`UI_AppMode`), since only it sees the content.
+        "app": grant.file.app.as_deref().unwrap_or("document"),
         "host": {"id": host.id, "name": host.name},
         // docs/30 §7: what this person may do with history (effective, role included).
         "perms": {

@@ -10,6 +10,8 @@ export interface Meta {
   icon: string;
   tone: Tone;
   template: string;
+  /** FTY-02 (docs/05 §2f): the file's type when it is a spreadsheet, whiteboard or database. */
+  app?: string;
 }
 
 export const metaMap = (doc: Y.Doc) => doc.getMap<unknown>("meta");
@@ -18,6 +20,7 @@ function read(doc: Y.Doc): Meta {
   const m = metaMap(doc);
   return {
     title: String(m.get("title") ?? ""),
+    app: typeof m.get("app") === "string" ? (m.get("app") as string) : undefined,
     icon: String(m.get("icon") ?? "file-text"),
     tone: (m.get("tone") as Tone) ?? "gray",
     template: String(m.get("template") ?? ""),

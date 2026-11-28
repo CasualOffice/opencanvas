@@ -490,6 +490,7 @@ fn grant(role: Role, user: &str) -> Grant {
             id: "doc_1".into(),
             name: "Doc".into(),
             version: None,
+            app: None,
         },
         perms: Perms::default(),
         callback_token: "cb-token".into(),

@@ -233,6 +233,33 @@ async fn file_type_claim_opens_app_mode() {
         assert_eq!(res.status(), 400, "{bad}");
         assert!(res.text().await.unwrap().contains("TYPE_INVALID"));
     }
+    // The session answer says the app mode too (docs/05 §2f).
+    let loc = location(
+        &addr,
+        token(json!({"file": {"id": FILE, "name": "Doc one", "version": "0", "type": "database"}})),
+    )
+    .await;
+    let ticket = loc
+        .split("#t=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+    let (st, s) = session(&addr, &ticket).await;
+    assert_eq!(st, 200);
+    assert_eq!(s["app"], "database", "{s}");
+    let loc = location(&addr, token(json!({}))).await;
+    let ticket = loc
+        .split("#t=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+    assert_eq!(session(&addr, &ticket).await.1["app"], "document");
     let caps: Value = http()
         .get(format!("http://{addr}/hosting/capabilities"))
         .send()

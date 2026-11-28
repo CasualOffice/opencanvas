@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, Building2, Check, Copy, Globe, History, LayoutTemplate, Link2, Lock, MoreHorizontal, PanelLeft, Pencil, Share, Star, Trash2, UserPlus, Users, X,
+  ArrowLeft, Building2, Check, Copy, Download, Globe, History, LayoutTemplate, Link2, Lock, MessageSquare, MoreHorizontal, PanelLeft, Pencil, Share, Star, Trash2, UserPlus, Users, X,
 } from "lucide-react";
 import { ago, api, type Card } from "./api";
 import { go, onLink } from "./router";
@@ -29,6 +29,7 @@ export function EditorFrame({
   onClosed,
   renew,
   title,
+  postRef,
 }: {
   token: string;
   onPresence?: (p: Presence[]) => void;
@@ -36,6 +37,8 @@ export function EditorFrame({
   onClosed?: (why: string) => void;
   renew?: () => Promise<string | null>;
   title: string;
+  /** Lets the header send host actions (`Action_OpenPanel`, `Action_Export`; docs/05 §4). */
+  postRef?: React.MutableRefObject<((id: string, v?: object) => void) | null>;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -49,6 +52,7 @@ export function EditorFrame({
   }, [token]);
   useEffect(() => {
     const post = (MessageId: string, Values: object = {}) => frame.current?.contentWindow?.postMessage({ MessageId, SendTime: Date.now(), Values }, location.origin);
+    if (postRef) postRef.current = post;
     const on = async (e: MessageEvent) => {
       if (e.origin !== location.origin || e.source !== frame.current?.contentWindow) return;
       const { MessageId, Values = {} } = (e.data || {}) as { MessageId?: string; Values?: Record<string, unknown> };
@@ -78,7 +82,7 @@ export function EditorFrame({
     };
     window.addEventListener("message", on);
     return () => window.removeEventListener("message", on);
-  }, [onPresence, onSaved, onClosed, renew, toast]);
+  }, [onPresence, onSaved, onClosed, renew, toast, postRef]);
   return (
     <>
       <form ref={form} method="post" action="/v1/launch" target={name.current} hidden>
@@ -423,6 +427,7 @@ export function FilePage({ id, onToggleSidebar }: { id: string; onToggleSidebar:
   const [hist, setHist] = useState(false);
   const [more, setMore] = useState(false);
   const [closed, setClosed] = useState("");
+  const post = useRef<((id: string, v?: object) => void) | null>(null);
   const load = useCallback(async () => {
     const r = await api.get<{ canvas: Card; location: string }>(`/canvases/${id}`);
     setFile(r.canvas);
@@ -570,7 +575,10 @@ export function FilePage({ id, onToggleSidebar }: { id: string; onToggleSidebar:
             {others.length > 4 && <span className="av" style={{ background: "var(--fg-3)" }}>+{others.length - 4}</span>}
           </span>
         )}
-        <button className={`btn hide-s ${hist ? "on" : ""}`} aria-pressed={hist} onClick={() => setHist(!hist)}>
+        <button className="btn ic hide-s" aria-label="Comments" onClick={() => post.current?.("Action_OpenPanel", { panel: "comments" })}>
+          <MessageSquare size={16} />
+        </button>
+        <button className={`btn hide-s ${hist ? "on" : ""}`} onClick={() => post.current?.("Action_OpenPanel", { panel: "history" })}>
           <History size={16} />
           History
         </button>
@@ -596,10 +604,21 @@ export function FilePage({ id, onToggleSidebar }: { id: string; onToggleSidebar:
                 <Link2 size={14} />
                 Copy link
               </button>
-              <button className="mi show-s" role="menuitem" onClick={() => (setMore(false), setHist(true))}>
+              <button className="mi show-s" role="menuitem" onClick={() => (setMore(false), post.current?.("Action_OpenPanel", { panel: "history" }))}>
                 <History size={14} />
                 History
               </button>
+              <button className="mi" role="menuitem" onClick={() => (setMore(false), setHist(true))}>
+                <History size={14} />
+                All saved versions
+              </button>
+              <div className="sepl" />
+              {[["pdf", "PDF"], ["docx", "Word"], ["md", "Markdown"], ["ocanvas", "OpenCanvas file"]].map(([f, l]) => (
+                <button className="mi" role="menuitem" key={f} onClick={() => (setMore(false), post.current?.("Action_Export", { format: f }))}>
+                  <Download size={14} />
+                  Download as {l}
+                </button>
+              ))}
               {(me.role === "owner" || me.role === "admin") && (
                 <button className="mi" role="menuitem" onClick={() => act("template")}>
                   <LayoutTemplate size={14} />
@@ -624,7 +643,7 @@ export function FilePage({ id, onToggleSidebar }: { id: string; onToggleSidebar:
         </div>
       )}
       <div className="cv-b">
-        {token && <EditorFrame token={token} title={file.name} onPresence={setPeople} onSaved={setSaved} onClosed={setClosed} renew={launch} />}
+        {token && <EditorFrame token={token} title={file.name} onPresence={setPeople} onSaved={setSaved} onClosed={setClosed} renew={launch} postRef={post} />}
         {hist && <VersionPanel file={file} onClose={() => setHist(false)} />}
       </div>
       {share && (

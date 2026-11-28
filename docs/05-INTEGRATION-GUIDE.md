@@ -113,6 +113,7 @@ One engine, many experiences. A profile decides which blocks the editor **offers
 profile = "meeting"          # notebook | meeting | project | diagramming | document | full (default)
 allow_profile_switch = false # reserved: stored and sent, no UI yet
 intents = true               # INS-01: goal chips in the insert menu (default true)
+chrome  = "editor"           # FTY-03: "host" when your page draws the file header (no editor top bar; §4 Action_OpenPanel)
 chips   = ["Track tasks", "Plan a sprint", "Draw architecture"]  # replaces the built-in chips
 
 [host.editor.blocks]         # optional
@@ -397,9 +398,14 @@ full-page with its own chrome, with no document title, page margins, gutter or i
   are present.
 - **Never lose content.** If a typed launch meets content that is not exactly one root block of that kind (someone added a
   paragraph through the API, or the host typed an old document), the editor opens it as a document with a notice ("This
-  spreadsheet has other content, so it opened as a document") and the session answers `app: "document"`,
-  `appFallback: "content"`. Nothing is removed or rewritten.
-- **Session answer** (docs/15 §2): `app` (`document` | `spreadsheet` | `whiteboard` | `database`). Profiles (§2b) apply to
+  spreadsheet has other content, so it opened as a document") and posts `UI_AppMode {app: "document", fallback:
+  "content"}` to your page (§4). Nothing is removed or rewritten.
+- **Session answer** (docs/15 §2): `app` (`document` | `spreadsheet` | `whiteboard` | `database`), the mode the launch
+  asked for. Only the editor sees the content, so the fallback is reported by `UI_AppMode`, not by the session.
+- **App views.** A spreadsheet file opens in the sheet's full-screen view (toolbar, formula bar, grid, sheet tabs) and a
+  board in the board's full-screen view, with no way back to a document view; a database fills the page. With
+  `[host.editor] chrome = "host"` (§2b) the editor shows no top bar either, and your header opens its panels with
+  `Action_OpenPanel` (§4). Profiles (§2b) apply to
   documents and to database row pages; app mode has no insert surfaces to filter. `[host.editor.features]` apply as usual
   (comments on cells and shapes, version history, AI, import).
 - **Everything else is the same file.** Version history (§5a), search (`search.json` gains `type`), exports, the headless API
@@ -559,6 +565,8 @@ Messages are `{ "MessageId": "...", "SendTime": ms, "Values": {...} }`
 | host → canvas | `Action_SetReadOnly` | `{ readOnly }` |
 | host → canvas | `Action_RefreshToken` | `{ token }` |
 | host → canvas | `Action_Export` | `{ format }` |
+| host → canvas | `Action_OpenPanel` | `{ panel: "history" \| "comments" \| "find" \| "shortcuts" }`: open (or close) that panel, for hosts that draw the file header (`[host.editor] chrome = "host"`, FTY-03) |
+| canvas → host | `UI_AppMode` | `{ app, fallback }`: a typed file opened in app mode (`fallback: null`), or as a document because of its content (`app: "document", fallback: "content"`, §2f) |
 | host → canvas | `Action_Theme` | `{ theme: "light"\|"dark"\|tokens }` |
 | host → canvas | `Action_InsertLiveBlock` | `{ fileId, title? }`: insert this live block where the person was (after `UI_PickLiveBlock`). The editor checks the 50-reference limit and depth first |
 | host → canvas | `Action_LiveBlockPicker` | `{ state: "open" \| "cancel" }`: your picker opened or was dismissed |

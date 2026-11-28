@@ -147,6 +147,8 @@ async fn workspace_and_engine_speak_the_contract() {
     assert_eq!(s.status(), 200);
     let sess: Value = s.json().await.unwrap();
     assert_eq!(sess["role"], "edit", "{sess}");
+    // The Workspace draws the file header, so the editor shows no top bar (FTY-03).
+    assert_eq!(sess["editor"]["chrome"], "host", "{sess}");
     // A bot edit through the host API: the engine loads from us (new file) and saves to us with
     // a real v2 signature, which our save handler checks.
     let p = http

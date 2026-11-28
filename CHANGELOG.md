@@ -9,6 +9,11 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- App views for typed files (FTY-03..05): a spreadsheet file opens in the sheet's full-screen view, a whiteboard in the
+  board's, a database fills the page; none offers a way back to a document view. A host that draws its own file header sets
+  `[host.editor] chrome = "host"` (no editor top bar) and opens panels with `Action_OpenPanel`. The file records its type
+  (manifest and `search.json` `type`), the session answers `app`, and the editor reports a fallback with `UI_AppMode`.
+  The Workspace uses all of it: no second header inside a file, and Comments, History and downloads in its own header.
 - Typed files (docs/05 §2f, FTY-02): a launch token's `file.type` (`spreadsheet`, `whiteboard`, `database`) opens the
   editor in app mode (`&app=` in its fragment, no template picker), and a new typed file starts as one spreadsheet, board or
   database block. An unknown type is refused with `400 TYPE_INVALID`; `/hosting/capabilities` lists `fileTypes`. The
