@@ -18,6 +18,9 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
   its centre is dropped in, moving a frame moves what is in it, and deleting a frame keeps its
   contents. Double-click the name (or F2) to rename. Frames are listed by the zoom controls, and
   Present (⇧P) shows them one at a time, full screen (BRD-21).
+- Whiteboard: an empty board shows how to start (draw, double-click to type, N for a sticky note,
+  F for a frame, ? for all shortcuts) and three starters: Retrospective, Flowchart and Brainstorm,
+  each one Undo step. People who can only view see "This board is empty" (BRD-23).
 
 ## [0.4.2] - 2026-11-28
 

@@ -9,7 +9,7 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Download, Ellipsis, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
-  Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
+  Redo2, RouteOff, SendToBack, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
@@ -22,6 +22,7 @@ import { readToolsLeft, writeToolsLeft } from "./toolbar";
 import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, type ArrowRoute, type Binding } from "./connectors";
 import { ExportMenuItems, useBoardExport } from "./export/hooks";
 import { useFrames } from "./frames/hooks";
+import { EmptyBoard, insertTemplate } from "./empty/EmptyBoard";
 import { FrameNames, FrameView } from "./frames/view";
 import { FRAME_SIZE, isFrame, membersOf } from "./frames/model";
 import { applyMembership, createFrame, releaseMembers } from "./frames/ops";
@@ -2227,11 +2228,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       <div className="ocbd-sr" role="status" aria-live="polite">{live}</div>
 
       {!shapes.length && !draft ? (
-        <div className="ocbd-empty">
-          <Shapes size={22} strokeWidth={1.5} />
-          <span>{edit ? "Pick a tool below, or double-click to add text." : "This board is empty."}</span>
-          {edit ? <span className="ocbd-empty-k">Press N then Enter for a sticky note</span> : null}
-        </div>
+        <EmptyBoard
+          edit={edit}
+          onTemplate={(t) => {
+            // A starter template (decision 11): ordinary shapes and frames, one Undo step.
+            const [cx, cy] = viewCenter();
+            um?.stopCapturing();
+            insertTemplate(doc, boardId, t, cx, cy, origin);
+            um?.stopCapturing();
+            setLive(`${t.name} template added. Undo removes it`);
+            requestAnimationFrame(() => fitBox(contentBounds(S.current.shapes)));
+            rootRef.current?.focus({ preventScroll: true });
+          }}
+        />
       ) : null}
 
       <div className="ocbd-top">

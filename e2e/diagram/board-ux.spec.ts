@@ -41,6 +41,24 @@ test("BRD-20: export dialog downloads a dark SVG and copies a PNG", async ({ pag
   await expect(board.getByRole("dialog").getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
 });
 
+test("decision 11: an emptied board shows hints and starters; a starter is one Undo step", async ({ page }) => {
+  const board = await openDemo(page, srv.url);
+  const bb = (await board.boundingBox())!;
+  // Empty the demo board: click empty canvas, select all, delete.
+  await page.mouse.click(bb.x + bb.width - 40, bb.y + bb.height - 120);
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  const empty = board.locator(".ocbd-empty");
+  await expect(empty.getByRole("heading", { name: "Start your board" })).toBeVisible();
+  await expect(empty).toContainText("double-click anywhere to type");
+  await empty.getByRole("group", { name: "Start from a template" }).getByRole("button", { name: "Retrospective" }).click();
+  await expect(empty).toHaveCount(0);
+  await expect(board.locator("[data-frame-name]")).toHaveText(["Went well", "To improve", "Actions"]);
+  await board.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(board.locator("[data-frame-name]")).toHaveCount(0);
+  await expect(empty.getByRole("heading", { name: "Start your board" })).toBeVisible();
+});
+
 async function tool(board: Locator, name: string) {
   await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name, exact: true }).click();
 }
