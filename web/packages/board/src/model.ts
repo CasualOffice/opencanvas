@@ -70,6 +70,26 @@ export interface Shape {
   props?: Record<string, unknown>;
   /** Named connection points in addition to the five legacy anchors (see ports.ts). */
   ports?: Port[];
+  /*
+   * Whiteboard UX pass (BRD-18..22, docs/prototypes/board-ux-approved). Additive: 0.1.x clients
+   * ignore these keys and keep them when they edit the shape.
+   */
+  /** Locked: selectable (to unlock), never moved, resized, deleted or picked by the marquee. */
+  locked?: boolean;
+  /** A link the shape opens: http(s) or mailto only (`safeLink`). */
+  link?: string;
+}
+
+/** `v` when it is a link a shape may open (http, https, mailto), else null. */
+export function safeLink(v: string): string | null {
+  const t = v.trim();
+  if (!t || t.length > 2048) return null;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:" || u.protocol === "mailto:" ? u.href : null;
+  } catch {
+    return null;
+  }
 }
 
 export type BoardPreset = "blank" | "flow" | "brainstorm" | "mindmap" | "journey" | "moodboard" | "flowchart";

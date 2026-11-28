@@ -18,19 +18,19 @@ const tb = (compact: boolean) => (compact ? 2.75 : 2.125);
 const zoomFull = (compact: boolean) => 0.375 + 3 * (compact ? 2.375 : 1.75) + 2.75 + SEP;
 const ZOOM_SHORT = 0.375 + 2.75;
 
-/** The bar's length (rem) with `n` tools plus More. */
-const barLen = (n: number, compact: boolean) => PAD + (n + 1) * tb(compact) + n * GAP + (n > SEP_AFTER ? SEP : 0);
+/** The bar's length (rem) with `n` tools plus More, and `extra` buttons after a separator (the tool lock, BRD-19). */
+const barLen = (n: number, compact: boolean, extra = 0) => PAD + (n + 1) * tb(compact) + n * GAP + (n > SEP_AFTER ? SEP : 0) + (extra ? SEP + extra * (tb(compact) + GAP) : 0);
 
 /**
  * Tools shown (from the start of the priority order) and whether the zoom pill is full, for a board
  * `boardRem` wide. Tools leave from the end first, down to three; only then does the pill shrink to
  * its 100% button (and the tools it frees come back). A board not yet measured shows everything.
  */
-export function fitTools(boardRem: number, count: number, compact: boolean): { shown: number; zoomFull: boolean } {
+export function fitTools(boardRem: number, count: number, compact: boolean, extra = 0): { shown: number; zoomFull: boolean } {
   if (!(boardRem > 0)) return { shown: count, zoomFull: true };
   const min = Math.min(3, count);
   const most = (zoom: number) => {
-    for (let n = count; n >= min; n--) if (EDGE + barLen(n, compact) + BETWEEN + zoom <= boardRem + 1e-6) return n;
+    for (let n = count; n >= min; n--) if (EDGE + barLen(n, compact, extra) + BETWEEN + zoom <= boardRem + 1e-6) return n;
     return 0;
   };
   const full = most(zoomFull(compact));
@@ -39,10 +39,10 @@ export function fitTools(boardRem: number, count: number, compact: boolean): { s
 }
 
 /** Tools shown in the left rail of a board `boardRem` tall (the bottom-right pill is not in its way). */
-export function fitRail(boardRem: number, count: number, compact: boolean): number {
+export function fitRail(boardRem: number, count: number, compact: boolean, extra = 0): number {
   if (!(boardRem > 0)) return count;
   const min = Math.min(3, count);
-  for (let n = count; n > min; n--) if (EDGE + barLen(n, compact) <= boardRem + 1e-6) return n;
+  for (let n = count; n > min; n--) if (EDGE + barLen(n, compact, extra) <= boardRem + 1e-6) return n;
   return min;
 }
 

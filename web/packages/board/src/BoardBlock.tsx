@@ -10,10 +10,12 @@ import {
   AlignStartVertical, AlignVerticalDistributeCenter, ALargeSmall, ArrowUpRight, BringToFront, Circle, CircleMinus, Copy, CornerDownRight, Diamond,
   Download, Ellipsis, FileCode2, FileImage, FileUp, Frame, Group, Hand, ImagePlus, Maximize2, Minimize2, MousePointer2, MoveUpRight, Pencil,
   Redo2, RouteOff, SendToBack, Shapes, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
+  ClipboardPaste, CopyPlus, ExternalLink, Keyboard, Layers, Link2, Lock, LockOpen, Scissors, SquareDashed,
 } from "lucide-react";
+import { ContextMenu, KeysDialog, LinkPop, type MenuEntry, type QuickAction } from "./menu";
 import type { BlockEnv } from "@opencanvas/ui";
 import {
-  addShape, bbox, contentBounds, deleteShape, getBoardMap, simplify, smooth, updateShape,
+  addShape, bbox, contentBounds, deleteShape, getBoardMap, safeLink, simplify, smooth, updateShape,
   type Pt, type Shape, type ShapeType,
 } from "./model";
 import { ensureStyles } from "./styles";
@@ -93,6 +95,24 @@ const CULL_AT = 300;
 
 interface View { tx: number; ty: number; z: number }
 interface Peer { id: number; name: string; color: string; x: number | null; y: number | null; sel: string[] }
+
+/** "Snap to objects" (decision 9): a personal setting, on by default, kept per device. */
+const SNAP_KEY = "oc.board.snap";
+function readSnap(): boolean {
+  try {
+    return localStorage.getItem(SNAP_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+function writeSnap(on: boolean) {
+  try {
+    if (on) localStorage.removeItem(SNAP_KEY);
+    else localStorage.setItem(SNAP_KEY, "0");
+  } catch {
+    /* private window: the setting lasts for this page */
+  }
+}
 
 /* --------------------------------------------------- clipboard (shared) */
 
@@ -279,20 +299,49 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (w && Math.abs(w - barW) > 0.5) setBarW(w);
   });
   const [mini, setMini] = useState(false);
+  // BRD-19: the tool stays active after each shape while locked (Q, the lock button, double-click a tool).
+  const [lock, setLockState] = useState(false);
+  // BRD-18: the context menu, at a point in the board; a sheet on phones and after a long press.
+  const [ctx, setCtx] = useState<{ at: [number, number]; world: Pt | null; sheet: boolean } | null>(null);
+  const [keysOpen, setKeysOpen] = useState(false);
+  const [linkEdit, setLinkEdit] = useState<{ id: string; at: [number, number] } | null>(null);
+  const [snap, setSnapState] = useState(readSnap);
+  const lp = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const lpAt = useRef(0);
 
   // Always-fresh values for event handlers.
-  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp });
-  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp };
+  const S = useRef({ shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp, lock, snap });
+  S.current = { shapes, raw, byId, view, tool, sel, edit, editing, wp, dgm, dp, lock, snap };
   const setWp = (i: number | null) => {
     S.current.wp = i;
     setWpState(i);
   };
 
   const tool_ = edit ? tool : tool === "hand" ? "hand" : "select";
-  const setTool = (t: Tool) => {
+  const setLock = (on: boolean) => {
+    S.current.lock = on;
+    setLockState(on);
+  };
+  const setTool = (t: Tool, keep?: boolean) => {
     presetRef.current = null;
     setPresetState(null);
-    setToolState(edit || t === "select" || t === "hand" ? t : "select");
+    const next = edit || t === "select" || t === "hand" ? t : "select";
+    S.current.tool = next;
+    setToolState(next);
+    if (keep !== undefined) setLock(keep && edit);
+    else if (next === "select" || next === "hand") setLock(false);
+  };
+  /** After a shape is placed: back to Select unless the tool is locked. */
+  const afterPlace = () => {
+    if (!S.current.lock) setTool("select");
+  };
+  const toolName = (t: Tool) => TOOLS.find((x) => x[0] === t)![2];
+  const toggleLock = () => {
+    const on = !S.current.lock;
+    setLock(on);
+    const t = S.current.tool;
+    if (t === "select" || t === "hand") setLive(on ? "Tool lock on. The next tool you pick stays active." : "Tool lock off");
+    else setLive(on ? `${toolName(t)} tool kept active. Press Q or Escape to release.` : `${toolName(t)} tool returns to Select after each shape`);
   };
 
   /* ---- presence: pointer + selection ---- */
@@ -509,7 +558,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const removeSel = () => {
-    const ids = S.current.sel;
+    const ids = S.current.sel.filter((id) => !S.current.byId.get(id)?.locked);
     if (!ids.length) return;
     um?.stopCapturing();
     doc.transact(() => ids.forEach((sid) => deleteShape(doc, boardId, sid, origin)), origin);
@@ -541,6 +590,170 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setGroup(doc, boardId, ids, on ? "" : null, origin);
     setLive(on ? `Grouped ${ids.length} shapes` : "Ungrouped");
   };
+  /** Lock or unlock the selection (all locked: unlock). */
+  const lockSel = () => {
+    const list = selShapes();
+    if (!list.length) return;
+    const to = !list.every((s) => s.locked);
+    um?.stopCapturing();
+    doc.transact(() => list.forEach((s) => updateShape(doc, boardId, s.id, { locked: to ? true : undefined }, origin)), origin);
+    const what = list.length === 1 ? TYPE_NAME[list[0].type] : `${list.length} shapes`;
+    setLive(to ? `${what} locked. Press Shift Control L or use the menu to unlock` : `${what} unlocked`);
+  };
+  /** Copy the selection to the board clipboard (and its text to the system one, where allowed). */
+  const copySel = () => {
+    const list = selShapes();
+    if (!list.length) return;
+    const text = list.map((s) => s.text ?? "").filter(Boolean).join("\n");
+    CLIP = { shapes: JSON.parse(JSON.stringify(list)), text, pastes: 0 };
+    try {
+      void navigator.clipboard?.writeText(text).catch(() => {});
+    } catch {
+      /* no clipboard access: the board clipboard still has the shapes */
+    }
+    setLive(list.length === 1 ? "Copied" : `Copied ${list.length} shapes`);
+  };
+  /** Paste the board clipboard: at `at` (the menu's point) or offset from the originals. */
+  const pasteClip = (at?: Pt | null) => {
+    if (!CLIP || !S.current.edit) return;
+    const u = unionBox(CLIP.shapes);
+    if (at && u) paste(CLIP.shapes, at[0] - u[0], at[1] - u[1]);
+    else {
+      const n = ++CLIP.pastes;
+      paste(CLIP.shapes, 24 * n, 24 * n);
+    }
+  };
+  const openLink = () => {
+    const list = selShapes();
+    const root = rootRef.current, svg = svgRef.current;
+    if (!list.length || !root || !svg || !S.current.edit) return;
+    const u = unionBox(list)!;
+    const v = S.current.view, rr = root.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+    const x = Math.max(8, Math.min(u[2] * v.z + v.tx + sr.left - rr.left - 120, root.clientWidth - 280));
+    const y = Math.max(8, Math.min(u[1] * v.z + v.ty + sr.top - rr.top - 8, root.clientHeight - 150));
+    setLinkEdit({ id: list[0].id, at: [x, y] });
+  };
+  const saveLink = (v: string | null) => {
+    const ids = S.current.sel;
+    setLinkEdit(null);
+    um?.stopCapturing();
+    doc.transact(() => ids.forEach((id) => updateShape(doc, boardId, id, { link: v ?? undefined }, origin)), origin);
+    setLive(v ? "Link added" : "Link removed");
+    rootRef.current?.focus({ preventScroll: true });
+  };
+  const toggleSnap = () => {
+    const on = !S.current.snap;
+    writeSnap(on);
+    S.current.snap = on;
+    setSnapState(on);
+    setLive(on ? "Snapping to objects on" : "Snapping to objects off");
+  };
+
+  /* ---- context menu (BRD-18) ---- */
+  const narrow = () => {
+    const el = rootRef.current;
+    if (!el) return compact;
+    const em = parseFloat(getComputedStyle(el).fontSize) || 14;
+    return compact || (el.clientWidth > 0 && el.clientWidth / em < 36);
+  };
+  /**
+   * Open the menu at a client point. `sid`: the shape under it (selected first when it is not);
+   * `null` on empty canvas (clears the selection); `undefined` from the keyboard (keeps it).
+   */
+  const openCtx = (cx: number, cy: number, sid: string | null | undefined, sheet = false) => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (editRef.current) commitEdit();
+    if (sid) {
+      if (!S.current.sel.includes(sid)) {
+        const ids = withGroups(S.current.shapes, [sid]);
+        setSel(ids);
+        announceSel(ids);
+      }
+    } else if (sid === null && S.current.sel.length) setSel([]);
+    const r = root.getBoundingClientRect();
+    setCtx({ at: [cx - r.left, cy - r.top], world: svgRef.current ? toWorld(cx, cy) : null, sheet: sheet || narrow() });
+  };
+  const closeCtx = (refocus: boolean) => {
+    setCtx(null);
+    if (refocus) rootRef.current?.focus({ preventScroll: true });
+  };
+  /** Shift+F10 / the Menu key: at the selection's top right, else the middle of the board. */
+  const ctxFromKeys = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const sr = svg.getBoundingClientRect(), v = S.current.view;
+    const u = unionBox(selShapes());
+    if (u) openCtx(sr.left + Math.min(u[2] * v.z + v.tx, svg.clientWidth - 40), sr.top + Math.max(8, u[1] * v.z + v.ty), undefined);
+    else openCtx(sr.left + svg.clientWidth / 2 - 110, sr.top + svg.clientHeight / 3, undefined);
+  };
+  const shapeMenu = (): MenuEntry[] => {
+    const list = selShapes();
+    const n = list.length;
+    if (!S.current.edit) return [{ label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, ...(list[0]?.link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : [])];
+    if (list.every((s) => s.locked)) {
+      return [{ label: "Unlock", icon: LockOpen, kbd: "Shift+Mod+L", run: lockSel }, { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel }, "-", { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink }];
+    }
+    const grouped = n > 1 && list.every((s) => s.group && s.group === list[0].group);
+    const few = "Select two or more shapes", three = "Select three or more shapes";
+    return [
+      { label: "Cut", icon: Scissors, kbd: "Mod+X", run: () => (copySel(), removeSel()) },
+      { label: "Copy", icon: Copy, kbd: "Mod+C", run: copySel },
+      { label: "Paste", icon: ClipboardPaste, kbd: "Mod+V", run: () => pasteClip(), disabled: !CLIP, why: "Nothing copied yet" },
+      { label: "Duplicate", icon: CopyPlus, kbd: "Mod+D", run: dupSel },
+      "-",
+      {
+        label: "Arrange", icon: Layers, sub: [
+          { label: "Bring to front", icon: BringToFront, kbd: "Shift+Mod+]", run: () => zSel("front") },
+          { label: "Bring forward", icon: BringToFront, kbd: "Mod+]", run: () => zSel("forward") },
+          { label: "Send backward", icon: SendToBack, kbd: "Mod+[", run: () => zSel("backward") },
+          { label: "Send to back", icon: SendToBack, kbd: "Shift+Mod+[", run: () => zSel("back") },
+        ],
+      },
+      {
+        label: "Align", icon: AlignStartVertical, disabled: n < 2, why: few, sub: [
+          { label: "Align left", icon: AlignStartVertical, kbd: "Alt+Shift+←", run: () => align("left") },
+          { label: "Align centres", icon: AlignCenterVertical, run: () => align("hcenter") },
+          { label: "Align right", icon: AlignEndVertical, kbd: "Alt+Shift+→", run: () => align("right") },
+          "-",
+          { label: "Align top", icon: AlignStartHorizontal, kbd: "Alt+Shift+↑", run: () => align("top") },
+          { label: "Align middles", icon: AlignCenterHorizontal, run: () => align("vcenter") },
+          { label: "Align bottom", icon: AlignEndHorizontal, kbd: "Alt+Shift+↓", run: () => align("bottom") },
+          "-",
+          { label: "Distribute horizontally", icon: AlignHorizontalDistributeCenter, run: () => distribute("h"), disabled: n < 3, why: three },
+          { label: "Distribute vertically", icon: AlignVerticalDistributeCenter, run: () => distribute("v"), disabled: n < 3, why: three },
+        ],
+      },
+      "-",
+      grouped ? { label: "Ungroup", icon: Ungroup, kbd: "Shift+Mod+G", run: () => groupSel(false) } : { label: "Group", icon: Group, kbd: "Mod+G", run: () => groupSel(true), disabled: n < 2, why: few },
+      { label: "Lock", icon: Lock, kbd: "Shift+Mod+L", run: lockSel },
+      "-",
+      { label: list.some((s) => s.link) ? "Edit link…" : "Add link…", icon: Link2, kbd: "Shift+Mod+K", run: openLink },
+      ...(list[0].link ? [{ label: "Open link", icon: ExternalLink, run: () => openUrl(list[0].link) } as MenuEntry] : []),
+      "-",
+      { label: "Delete", icon: Trash2, kbd: "Delete", run: removeSel, danger: true },
+    ];
+  };
+  const canvasMenu = (at: Pt | null): MenuEntry[] => [
+    ...(S.current.edit ? [{ label: "Paste here", icon: ClipboardPaste, kbd: "Mod+V", run: () => pasteClip(at), disabled: !CLIP, why: "Nothing copied yet" } as MenuEntry] : []),
+    { label: "Select all", icon: SquareDashed, kbd: "Mod+A", run: selectAll },
+    "-",
+    { label: "Zoom to fit", icon: Maximize2, kbd: "Shift+1", run: fit },
+    "-",
+    { label: "Snap to objects", check: S.current.snap, run: toggleSnap },
+    { label: "Keyboard shortcuts", icon: Keyboard, kbd: "?", run: () => setKeysOpen(true) },
+  ];
+  /** Opens a shape's link in a new tab (only links `safeLink` accepts). */
+  const openUrl = (v?: string) => {
+    const u = v ? safeLink(v) : null;
+    if (u) window.open(u, "_blank", "noopener,noreferrer");
+  };
+  const selectAll = () => {
+    const all = S.current.shapes.filter((s) => !s.locked).map((s) => s.id);
+    setSel(all);
+    announceSel(all);
+  };
+
   /** Diagram mode: put the selection in a new container, drawn behind it (3f, 3g). */
   const containSel = () => {
     const list = selShapes();
@@ -919,9 +1132,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     um?.stopCapturing();
     const nidv = addShape(doc, boardId, s, origin);
     setSel([nidv]);
-    setTool("select");
+    afterPlace();
     if (t === "sticky" || t === "text") setEditing({ id: nidv, text: "" });
-    else setLive(`Added ${TYPE_NAME[s.type].toLowerCase()}`);
+    else setLive(`Added ${TYPE_NAME[s.type].toLowerCase()}${S.current.lock ? ". Tool stays active" : ""}`);
   };
 
   /* ---- pointer ---- */
@@ -952,6 +1165,23 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const cap = () => {
       try { svg.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
     };
+    // BRD-18: a long press (500 ms without moving) opens the menu as a sheet.
+    if (e.pointerType === "touch" && pointers.current.size === 1 && (t === "select" || t === "hand")) {
+      const cx = e.clientX, cy = e.clientY, pid = e.pointerId;
+      if (lp.current) clearTimeout(lp.current.timer);
+      lp.current = {
+        x: cx, y: cy, timer: setTimeout(() => {
+          lp.current = null;
+          lpAt.current = Date.now();
+          drag.current = null;
+          pointers.current.delete(pid);
+          setDragging(false);
+          setMarquee(null);
+          setGuides(null);
+          openCtx(cx, cy, sid ?? null, true);
+        }, 500),
+      };
+    }
     if (t === "hand" || e.button === 1 || space.current || (!S.current.edit && t !== "select")) {
       drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, v: S.current.view };
       cap();
@@ -993,6 +1223,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           setSel(next);
           announceSel(next);
         }
+        if (s?.locked && S.current.edit) {
+          setLive(`${describeShape(s)} is locked. Press Shift Control L or use the menu to unlock`);
+          return;
+        }
         if (s && S.current.edit) {
           um?.stopCapturing();
           const end = (e.target as Element).getAttribute?.("data-end");
@@ -1017,6 +1251,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             // Diagram mode: moving a container moves what it holds (3g).
             const boxes = S.current.dgm ? S.current.shapes.filter((q) => next.includes(q.id) && isContainer(q)) : [];
             if (boxes.length) next = [...next, ...containedIn(S.current.shapes, boxes).filter((x) => !next.includes(x))];
+            next = next.filter((x) => !S.current.byId.get(x)?.locked);
             const moving = S.current.shapes.filter((q) => next.includes(q.id));
             const set = new Set(next);
             const others = S.current.shapes.length > 1500 ? [] : S.current.shapes.filter((q) => !set.has(q.id) && q.type !== "arrow" && q.type !== "pen").map((q) => bbox(q));
@@ -1068,6 +1303,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (lp.current && Math.hypot(e.clientX - lp.current.x, e.clientY - lp.current.y) > 8) {
+      clearTimeout(lp.current.timer);
+      lp.current = null;
+    }
     if (e.pointerType === "mouse" || pointers.current.has(e.pointerId)) {
       const [wx, wy] = toWorld(e.clientX, e.clientY);
       publish(wx, wy);
@@ -1123,7 +1362,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const b: Box = [Math.min(d.x0, x), Math.min(d.y0, y), Math.max(d.x0, x), Math.max(d.y0, y)];
       if ((b[2] - b[0]) * S.current.view.z < 3 && (b[3] - b[1]) * S.current.view.z < 3) return;
       setMarquee(b);
-      const hits = withGroups(S.current.shapes, scene.inBox(b));
+      const hits = withGroups(S.current.shapes, scene.inBox(b)).filter((id) => !S.current.byId.get(id)?.locked);
       const next = d.add ? [...d.base, ...hits.filter((h) => !d.base.includes(h))] : hits;
       const cur = S.current.sel;
       if (next.length !== cur.length || next.some((id, i) => id !== cur[i])) setSel(next);
@@ -1232,7 +1471,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
       setGuides(sn.gx.length || sn.gy.length ? { gx: sn.gx, gy: sn.gy } : null);
       setGaps(eq.marks.length ? eq.marks : null);
-    } else if (d.box && !e.altKey) {
+    } else if (d.box && !e.altKey && S.current.snap) {
       const sn = snapOffset(d.box, d.others, dx, dy, 6 / S.current.view.z);
       dx = sn.dx;
       dy = sn.dy;
@@ -1257,6 +1496,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (lp.current) {
+      clearTimeout(lp.current.timer);
+      lp.current = null;
+    }
     pointers.current.delete(e.pointerId);
     const d = drag.current;
     if (d?.kind === "pinch") {
@@ -1319,7 +1562,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           setSel([addShape(doc, boardId, s, origin)]);
         }
       }
-      setTool("select");
+      afterPlace();
     }
   };
 
@@ -1387,7 +1630,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /* ---- keyboard ---- */
   const nudge = (dx: number, dy: number) => {
-    const list = selShapes();
+    const list = selShapes().filter((s) => !s.locked);
     const set = new Set(list.map((s) => s.id));
     const moves: { id: string; patch: Partial<Shape> }[] = [];
     for (const s of list) {
@@ -1424,7 +1667,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         setWp(null);
         setLive("Connector selected");
       } else if (menu) setMenu(false);
-      else if (S.current.tool !== "select") setTool("select");
+      else if (S.current.tool !== "select" || S.current.lock) {
+        setTool("select");
+        setLive("Select tool");
+      }
       else if (S.current.sel.length) {
         setSel([]);
         announceSel([]);
@@ -1489,9 +1735,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     }
     if (mod && k === "a") {
       e.preventDefault();
-      const all = S.current.shapes.map((s) => s.id);
-      setSel(all);
-      announceSel(all);
+      selectAll();
+      return;
+    }
+    // BRD-18: Shift+F10 or the Menu key open the context menu; ? lists the shortcuts.
+    if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
+      e.preventDefault();
+      ctxFromKeys();
+      return;
+    }
+    if (e.key === "?" && !mod) {
+      e.preventDefault();
+      setKeysOpen(true);
       return;
     }
     if (k === "m" && !mod && !e.altKey) {
@@ -1557,6 +1812,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       groupSel(!e.shiftKey);
       return;
     }
+    if (mod && e.shiftKey && k === "l") {
+      e.preventDefault();
+      lockSel();
+      return;
+    }
+    if (mod && e.shiftKey && k === "k") {
+      e.preventDefault();
+      openLink();
+      return;
+    }
     if (mod && (e.key === "]" || e.key === "[" || e.code === "BracketRight" || e.code === "BracketLeft")) {
       e.preventDefault();
       const up = e.key === "]" || e.code === "BracketRight";
@@ -1590,6 +1855,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       }
       return;
     }
+    if (list.length >= 2 && e.altKey && e.shiftKey && e.key.startsWith("Arrow")) {
+      e.preventDefault();
+      align(({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "top", ArrowDown: "bottom" } as Record<string, AlignMode>)[e.key]);
+      setLive(`Aligned ${({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "top", ArrowDown: "bottom" } as Record<string, string>)[e.key]}`);
+      return;
+    }
     if (list.length && e.key.startsWith("Arrow")) {
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;
@@ -1598,7 +1869,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       if (e.altKey) {
         // Alt+arrows resize (the keyboard alternative to dragging the handle).
         const s = list[0];
-        if (list.length !== 1 || !SIZED.includes(s.type)) return;
+        if (list.length !== 1 || !SIZED.includes(s.type) || s.locked) return;
         doc.transact(() => {
           updateShape(doc, boardId, s.id, { w: Math.max(40, (s.w ?? 0) + dx), h: Math.max(30, (s.h ?? 0) + dy) }, origin);
           syncAfter([s.id]);
@@ -1609,9 +1880,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       nudge(dx, dy);
       return;
     }
+    if (!mod && !e.altKey && !e.shiftKey && k === "q") {
+      e.preventDefault();
+      toggleLock();
+      return;
+    }
     if (!mod && !e.altKey && KEY_TOOL[k]) {
-      setTool(KEY_TOOL[k]);
-      if (KEY_TOOL[k] !== "select" && KEY_TOOL[k] !== "hand" && KEY_TOOL[k] !== "pen") setLive(`${TOOLS.find((x) => x[0] === KEY_TOOL[k])![2]} tool. Press Enter to place one in the middle of the view`);
+      const nt = KEY_TOOL[k];
+      // A locked tool switched by its letter stays locked (the lock belongs to the tool bar).
+      setTool(nt, nt === "select" || nt === "hand" ? false : S.current.lock);
+      if (nt !== "select" && nt !== "hand" && nt !== "pen") setLive(`${toolName(nt)} tool${S.current.lock ? ", kept active" : ""}. Press Enter to place one in the middle of the view`);
     }
   };
 
@@ -1759,7 +2037,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ) : (
             (() => {
               const b = bbox(s);
-              return <rect key={s.id} x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={sw} pointerEvents="none" />;
+              return (
+                <g key={s.id} pointerEvents="none">
+                  <rect className="ocbd-selring" x={b[0] - 6} y={b[1] - 6} width={b[2] - b[0] + 12} height={b[3] - b[1] + 12} rx={6} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeDasharray={s.locked ? `${4 / z} ${3 / z}` : undefined} />
+                  {s.locked ? (
+                    <g className="ocbd-lockbadge" transform={`translate(${b[2] + 6} ${b[1] - 6}) scale(${1 / z})`}>
+                      <circle r={9} fill="var(--pop)" stroke="var(--line-2)" />
+                      <Lock x={-5.5} y={-5.5} width={11} height={11} strokeWidth={2.2} color="var(--fg-2)" />
+                    </g>
+                  ) : null}
+                </g>
+              );
             })()
           ),
         )}
@@ -1769,7 +2057,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               return <rect x={u[0] - 12} y={u[1] - 12} width={u[2] - u[0] + 24} height={u[3] - u[1] + 24} rx={8} fill="none" stroke="var(--accent)" strokeWidth={sw} strokeDasharray={`${4 / z} ${4 / z}`} pointerEvents="none" />;
             })()
           : null}
-        {selShape?.type === "arrow" && selShape.pts && selShape.pts.length >= 2 && edit
+        {selShape?.type === "arrow" && selShape.pts && selShape.pts.length >= 2 && edit && !selShape.locked
           ? (["start", "end"] as const).map((which) => {
               const q = which === "start" ? selShape.pts![0] : selShape.pts![selShape.pts!.length - 1];
               const bound = !!selShape[which];
@@ -1847,7 +2135,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
               return out;
             })()
           : null}
-        {edit && selShape && SIZED.includes(selShape.type)
+        {edit && selShape && SIZED.includes(selShape.type) && !selShape.locked
           ? (() => {
               const b = bbox(selShape);
               return (
@@ -1932,7 +2220,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
 
   /* ---- contextual toolbar ---- */
   let swatch: ReactNode = null;
-  if (selList.length && edit && !editing && !dragging && !marquee) {
+  if (selList.length && edit && !editing && !dragging && !marquee && !ctx) {
     const u = unionBox(selList)!;
     const Wd = svgRef.current?.clientWidth || 600;
     // Kept inside the canvas (8 px gutter; past the ruler in diagram mode) by its measured width;
@@ -1982,7 +2270,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     );
     const sep = (k: string) => <span key={k} className="sep" />;
     const items: ReactNode[] = [];
-    if (s1?.type === "sticky") {
+    const moreBtn = () =>
+      btn("More", Ellipsis, () => {
+        const b = barRef.current?.querySelector<HTMLElement>('[aria-label="More"]')?.getBoundingClientRect();
+        if (b) openCtx(b.left, b.bottom + 6, undefined);
+        else ctxFromKeys();
+      }, { keys: "Shift+F10" });
+    const allLocked = selList.every((q) => q.locked);
+    if (allLocked) {
+      items.push(<span key="lk" className="lbl">{selList.length > 1 ? `${selList.length} locked` : "Locked"}</span>);
+      items.push(btn("Unlock", LockOpen, lockSel, { keys: "Ctrl+Shift+L" }));
+      items.push(moreBtn());
+    } else if (s1?.type === "sticky") {
       (["y", "p", "b", "g"] as const).forEach((c) =>
         items.push(
           <button key={c} data-c={c} style={{ background: STICKY[c] }} aria-label={{ y: "Yellow", p: "Pink", b: "Blue", g: "Green" }[c]} aria-pressed={(s1.fill ?? "y") === c} onClick={() => updateShape(doc, boardId, s1.id, { fill: c }, origin)} />,
@@ -2048,8 +2347,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     if (dgm && selList.some((q) => q.type !== "arrow" && q.type !== "pen")) items.push(btn("Container", Frame, containSel));
     items.push(btn("Bring to front", BringToFront, () => zSel("front"), { keys: "Ctrl+Shift+]" }));
     items.push(btn("Send to back", SendToBack, () => zSel("back"), { keys: "Ctrl+Shift+[" }));
-    items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
-    items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
+    if (!allLocked) {
+      items.push(btn("Duplicate", Copy, dupSel, { keys: "Ctrl+D" }));
+      items.push(btn("Lock", Lock, lockSel, { keys: "Ctrl+Shift+L" }));
+      items.push(moreBtn());
+      items.push(btn("Delete", Trash2, removeSel, { keys: "Delete" }));
+    }
+    // A locked selection offers only Unlock and the menu (built first, above).
+    if (allLocked) items.splice(3);
     swatch = (
       <div ref={barRef} className="ocbd-swatch" style={{ left: sx, top: sy }} data-place={flip ? "below" : undefined} onPointerDown={(e) => e.stopPropagation()} role="toolbar" aria-label={selList.length > 1 ? `${selList.length} shapes` : "Shape options"}>
         {items}
@@ -2105,7 +2410,14 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onDoubleClick={onDoubleClick}
-        onContextMenu={(e) => drag.current && e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // A long press already opened it (some browsers send contextmenu for the same press).
+          if (drag.current || ctx || Date.now() - lpAt.current < 800) return;
+          const target = (e.target as Element).closest?.("[data-s]");
+          const sid = target?.getAttribute("data-s") ?? (lodOn(S.current.view.z, S.current.shapes.length) ? scene.hitAt(toWorld(e.clientX, e.clientY), 6 / S.current.view.z) : null);
+          openCtx(e.clientX, e.clientY, sid);
+        }}
       >
         <defs>
           {!dgm ? (
@@ -2146,6 +2458,29 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             />
           ))}
           <KindMarks shapes={visible} />
+          {visible.map((s) =>
+            s.link ? (
+              (() => {
+                const b = bbox(s);
+                return (
+                  <g
+                    key={"lk" + s.id}
+                    data-link={s.id}
+                    className="ocbd-linkbadge"
+                    transform={`translate(${b[2]} ${b[1]}) scale(${1 / z})`}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      openUrl(s.link);
+                    }}
+                  >
+                    <title>{`Open ${s.link}`}</title>
+                    <circle r={9} fill="var(--pop)" stroke="var(--line-2)" />
+                    <Link2 x={-5.5} y={-5.5} width={11} height={11} strokeWidth={2.2} color="var(--accent)" />
+                  </g>
+                );
+              })()
+            ) : null,
+          )}
           {draft ? <ShapeView resolve={env.resolveAsset} s={draft.type === "arrow" ? { ...draft, pts: resolveArrow(draft, byId) } : draft} ah={ah} /> : null}
           {dgm ? <OrphanLayer boardId={boardId} shapes={shapes} z={z} /> : null}
           {peerSel}
@@ -2293,11 +2628,38 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         onFit={fit}
         mini={mini}
         onMini={() => setMini((v) => !v)}
+        lock={lock}
+        onLock={edit ? toggleLock : undefined}
+        onToolLock={(t) => {
+          if (t === "select" || t === "hand") return;
+          setTool(t as Tool, true);
+          setLive(`${toolName(t as Tool)} tool kept active. Press Q or Escape to release.`);
+        }}
       />
       {mini && W ? <Minimap shapes={shapes} view={view} size={size} onView={setView} /> : null}
 
       {swatch}
       {editor}
+      {ctx ? (
+        <ContextMenu
+          items={selList.length ? shapeMenu() : canvasMenu(ctx.world)}
+          at={ctx.at}
+          sheet={ctx.sheet}
+          label={selList.length ? `${selList.length === 1 ? TYPE_NAME[selList[0].type] : `${selList.length} shapes`} menu` : "Board menu"}
+          title={selList.length === 1 ? describeShape(selList[0]) : selList.length ? `${selList.length} shapes` : "Board"}
+          quick={selList.length && edit ? ([
+            { label: "Copy", icon: Copy, run: copySel },
+            { label: "Duplicate", icon: CopyPlus, run: dupSel },
+            selList.every((q) => q.locked) ? { label: "Unlock", icon: LockOpen, run: lockSel } : { label: "Lock", icon: Lock, run: lockSel },
+            { label: "Delete", icon: Trash2, run: removeSel, danger: true },
+          ] as QuickAction[]) : undefined}
+          onClose={closeCtx}
+        />
+      ) : null}
+      {keysOpen ? <KeysDialog onClose={() => (setKeysOpen(false), rootRef.current?.focus({ preventScroll: true }))} /> : null}
+      {linkEdit ? (
+        <LinkPop at={linkEdit.at} value={byId.get(linkEdit.id)?.link ?? ""} check={safeLink} onSave={saveLink} onClose={() => (setLinkEdit(null), rootRef.current?.focus({ preventScroll: true }))} />
+      ) : null}
 
       {compact && !active && !full ? (
         <button

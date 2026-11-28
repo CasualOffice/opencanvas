@@ -126,11 +126,15 @@ describe("board tool bar, option A", () => {
     key(document.activeElement!, "ArrowRight");
     expect(document.activeElement!.getAttribute("aria-label")).toBe("Sticky note");
     expect(stops()).toEqual([document.activeElement]);
+    // End reaches the tool lock (BRD-19), the last button in the bar; More is just before it.
     key(document.activeElement!, "End");
+    expect(document.activeElement!.getAttribute("aria-label")).toBe("Keep tool active");
+    key(document.activeElement!, "ArrowLeft");
     expect(document.activeElement).toBe(more(el));
     key(document.activeElement!, "Home");
     expect(document.activeElement!.getAttribute("aria-label")).toBe("Select");
     key(document.activeElement!, "End");
+    key(document.activeElement!, "ArrowLeft");
     key(document.activeElement!, "Enter");
     const m = el.querySelector('[role="menu"][aria-label="More tools"]')!;
     expect(document.activeElement).toBe(m.querySelector('[role^="menuitem"]'));

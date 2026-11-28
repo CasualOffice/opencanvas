@@ -164,7 +164,7 @@ tldraw and Miro were not opened in this audit; general knowledge about them is n
 
 ### 5.2 UX changes: need a prototype first (ADR-011)
 
-Prototype for all six and the §3 gaps (draft, 2026-11-28, awaiting the owner): [prototypes/board-ux/board-ux.html](prototypes/board-ux/board-ux.html), with "Decisions for the owner" at the top.
+Prototype for all six and the §3 gaps (approved by the owner 2026-11-28, all 14 decisions): [prototypes/board-ux-approved/board-ux.html](prototypes/board-ux-approved/board-ux.html), with "Decisions for the owner" at the top.
 
 1. **BRD-17 (D11).** Diagram header at narrow widths: what collapses first.
 2. **BRD-18.** A right-click menu for the board and diagram (Excalidraw's list is the reference).
