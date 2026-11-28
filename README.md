@@ -1,7 +1,7 @@
 # OpenCanvas
 
 [![CI](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CasualOffice/opencanvas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.4.3-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.4.3)
+[![Release](https://img.shields.io/badge/release-v0.4.4-7a45f0)](https://github.com/CasualOffice/opencanvas/releases/tag/v0.4.4)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-canvas.casualoffice.org-2a5ad7)](https://canvas.casualoffice.org/docs/)
 
@@ -164,7 +164,7 @@ Linux (x86_64, aarch64) the install script, which downloads the release binary, 
 the release's SHA-256 checksums and installs it to `~/.local/bin` (`/usr/local/bin` as root):
 
 ```sh
-docker run -p 8080:8080 -e OC_DEV=1 ghcr.io/casualoffice/opencanvas:0.4.3   # http://localhost:8080
+docker run -p 8080:8080 -e OC_DEV=1 ghcr.io/casualoffice/opencanvas:0.4.4   # http://localhost:8080
 curl -fsSL https://raw.githubusercontent.com/CasualOffice/opencanvas/main/scripts/install.sh | sh
 ```
 
@@ -188,7 +188,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.4.3
+  ghcr.io/casualoffice/opencanvas:0.4.4
 ```
 
 From source, with the sample host (Rust stable, Node 24 and pnpm 9):

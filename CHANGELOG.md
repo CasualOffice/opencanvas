@@ -7,6 +7,15 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-28
+
+OpenCanvas Workspace by CasualOffice ships as an image (`ghcr.io/casualoffice/opencanvas-workspace`);
+every release now carries an install script, SHA256SUMS and the Helm chart. The whiteboard UX pass
+(context menu, tool lock, style panel and rotation, selection and smart guides, quick-connect,
+frames and Present, export and copy as image, templates, cursors and Follow, a centred tool bar),
+the knowledge graph view, and fixes: the / menu inserts where you typed, a click below the last
+block puts the caret there, empty Workload explains itself, and the link picker search limit.
+
 ### OpenCanvas Workspace
 
 - Every release tag now publishes the Workspace image `ghcr.io/casualoffice/opencanvas-workspace`
@@ -865,7 +874,8 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/CasualOffice/opencanvas/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/CasualOffice/opencanvas/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/CasualOffice/opencanvas/compare/v0.4.0...v0.4.1
