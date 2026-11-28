@@ -25,9 +25,13 @@ FROM node:24-slim AS web
 WORKDIR /src/web
 RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/tsconfig.base.json ./
+# Every package's manifest (tools/check-dockerfile.py): the install reads only these.
+COPY web/packages/block-sdk/package.json packages/block-sdk/
 COPY web/packages/board/package.json packages/board/
+COPY web/packages/client/package.json packages/client/
 COPY web/packages/database/package.json packages/database/
 COPY web/packages/editor/package.json packages/editor/
+COPY web/packages/sheet/package.json packages/sheet/
 COPY web/packages/ui/package.json packages/ui/
 COPY web/packages/workspace/package.json packages/workspace/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \

@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 CasualOffice
 #
-# Release artefacts for a tag v*: a multi-architecture container image (linux/amd64 and
-# linux/arm64, built natively on each architecture, no emulation) at
-# ghcr.io/casualoffice/opencanvas:<version>, and standalone Linux binaries (with the editor
+# Release artefacts for a tag v*: two multi-architecture container images (linux/amd64 and
+# linux/arm64, built natively on each architecture, no emulation), the engine at
+# ghcr.io/casualoffice/opencanvas:<version> and OpenCanvas Workspace (ADR-085, docs/40) at
+# ghcr.io/casualoffice/opencanvas-workspace:<version>, and standalone Linux binaries (with the editor
 # bundle, LICENSE and NOTICE) attached to the GitHub release with SHA-256 checksums. Both carry
 # build-provenance attestations. CycloneDX SBOMs for the Rust server and the web packages are
 # attached too (DEP-01, docs/38 §5). Pre-releases never get the `latest` tag.
@@ -28,6 +29,7 @@ permissions:
 
 env:
   IMAGE: ghcr.io/casualoffice/opencanvas
+  WS_IMAGE: ghcr.io/casualoffice/opencanvas-workspace
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 concurrency:
@@ -112,6 +114,86 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
+  # OpenCanvas Workspace (ADR-085): the same per-architecture build and manifest as the engine,
+  # from deploy/workspace/Dockerfile, under its own name and cache scope.
+  workspace-image:
+    strategy:
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/workspace/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/CasualOffice/opencanvas
+            org.opencontainers.image.version=${{ env.TAG }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.title=OpenCanvas Workspace
+            org.opencontainers.image.description=Self-hosted workspace for documents, spreadsheets, whiteboards and databases
+          outputs: type=image,name=${{ env.WS_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=workspace-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=workspace-${{ matrix.arch }}
+      - name: Keep the digest
+        run: |
+          mkdir -p /tmp/digests
+          d='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${d#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  workspace-manifest:
+    needs: workspace-image
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: "workspace-digest-*", path: /tmp/digests, merge-multiple: true }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create the multi-architecture tag
+        id: push
+        run: |
+          version="${TAG#v}"
+          tags=(-t "$WS_IMAGE:$version" -t "$WS_IMAGE:$TAG")
+          # Only a final release (no "-" pre-release part) moves `latest`.
+          case "$version" in *-*) ;; *) tags+=(-t "$WS_IMAGE:latest") ;; esac
+          cd /tmp/digests
+          sources=()
+          for d in *; do sources+=("$WS_IMAGE@sha256:$d"); done
+          test "${#sources[@]}" -eq 2 || { echo "expected 2 digests, got ${#sources[@]}"; exit 1; }
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "$WS_IMAGE:$version"
+          digest=$(docker buildx imagetools inspect "$WS_IMAGE:$version" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.WS_IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
   web:
     runs-on: ubuntu-24.04
     steps:
@@ -146,6 +228,9 @@ jobs:
           f=crates/oc-server/oc-server.cdx.json
           test -s "$f" || { echo "no $f; written:"; find . -name '*.cdx.json' -not -path './target/*'; exit 1; }
           cp "$f" "sbom/opencanvas-${TAG}-rust.cdx.json"
+          f=crates/oc-workspace/oc-workspace.cdx.json
+          test -s "$f" || { echo "no $f; written:"; find . -name '*.cdx.json' -not -path './target/*'; exit 1; }
+          cp "$f" "sbom/opencanvas-workspace-${TAG}-rust.cdx.json"
       - name: npm SBOM
         run: |
           npx -y @cyclonedx/cdxgen@12.9.0 -t js --required-only --no-install-deps --spec-version 1.6 \
@@ -203,7 +288,7 @@ jobs:
           retention-days: 1
 
   publish:
-    needs: [manifest, binary, sbom]
+    needs: [manifest, workspace-manifest, binary, sbom]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -214,6 +299,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DIGEST: ${{ needs.manifest.outputs.digest }}
+          WS_DIGEST: ${{ needs.workspace-manifest.outputs.digest }}
         run: |
           gh release upload "$TAG" assets/* --clobber -R "$GITHUB_REPOSITORY"
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body > body.md
@@ -229,13 +315,22 @@ jobs:
               echo "docker pull $IMAGE@$DIGEST   # pinned by digest"
               echo '```'
               echo
+              echo "## OpenCanvas Workspace image"
+              echo
+              echo "Documents, spreadsheets, whiteboards and databases in one container (linux/amd64, linux/arm64; guide: docs/42-WORKSPACE-GUIDE.md):"
+              echo
+              echo '```sh'
+              echo "docker run -p 8080:8080 -v opencanvas:/data $WS_IMAGE:${TAG#v}"
+              echo "docker pull $WS_IMAGE@$WS_DIGEST   # pinned by digest"
+              echo '```'
+              echo
               echo "## Binaries"
               echo
               echo "Standalone Linux builds (x86_64, aarch64) with the editor bundle, LICENSE and NOTICE are attached below, each with a SHA-256 checksum. Images and archives carry build-provenance attestations (\`gh attestation verify\`)."
               echo
               echo "## Software bill of materials"
               echo
-              echo "CycloneDX SBOMs for the server's crates (\`*-rust.cdx.json\`) and the web packages (\`*-web.cdx.json\`) are attached, with checksums. Update policy: docs/39-DEPENDENCY-UPDATES.md."
+              echo "CycloneDX SBOMs for the server's and the Workspace's crates (\`*-rust.cdx.json\`) and the web packages (\`*-web.cdx.json\`) are attached, with checksums. Update policy: docs/39-DEPENDENCY-UPDATES.md."
             } >> body.md
             gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file body.md
           fi
