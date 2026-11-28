@@ -276,3 +276,35 @@ no public links, no teams) is ≈ 20 weeks.
 invite (passkey, SSO), Home (sidebar, grid and list, new from template), a canvas in the Workspace chrome with version history,
 the share dialog, search, trash, members and teams, settings (branding, sign-in and SSO, storage, e-mail, backups), phone
 layouts for Home and a canvas, and the empty states. Light and dark, rem units, works at 320 px, Lucide-style icons, no emoji.
+
+## 11. Contract check (WS-02, 2026-11-28)
+
+Every call the Workspace makes or answers, checked against docs/05 and run end to end in
+`crates/oc-workspace/tests/engine.rs` (the Workspace and the engine in one process, real signatures):
+
+| Need | Contract | Result |
+|---|---|---|
+| Open a canvas | JWT launch (§3), option A form post (§4) | Works; `file.type` (§2f) is sent for typed files |
+| Load, save with `If-Match`, copies, assets | §5 callbacks | Works; saves are idempotent by key; a stale `If-Match` answers 409 |
+| Version history | §5 list and get version, §5a | Works; thinning per docs/40 §4.8 |
+| Members for @mentions | §5 `GET /files/{id}/members` and the token's `members` | Works; never e-mail |
+| Live blocks, MCP access | §5 `POST /access`, `POST /files` (now with `type`) | Works |
+| Search and "Search all canvases" | `search.json` in each save, §5 `GET /search` | Works (FTS5); the editor's search reaches our callback |
+| Revocation | §7 role API, `members/invalidate`, `DELETE …/session` | Works; every (canvas, person) whose role changed is sent |
+| Link visitors | Launch with a visitor id (`v_…`) and the link's role | Works without a contract change |
+| Bot edits, forced commits | §7 patch and commit | Works |
+| Images in exports | `asset_origins` (§7 convert) | The Workspace registers its public address as an asset origin |
+
+**Gaps found, and what we did.**
+
+1. *Hosts are read at start.* The engine reads `[[host]]` entries (and so `allowed_origins`) once. The Workspace's public
+   address can be chosen at setup, after the engine started, so a new address applies after a restart (the launcher builds
+   the host entry from the stored address on every start; `WS_PUBLIC_URL` and `WS_EXTRA_ORIGINS` avoid the restart). A
+   contract addition for every host, "reload hosts" (SIGHUP or an operator endpoint), is proposed for WS-12.
+2. *Presence on cards* (who is in a canvas now) has no host-facing call: hosts only see presence inside their own page
+   (`Presence_Changed`). Proposed addition for every host, built with WS-12: `GET /v1/files/presence?ids=…` with the host's
+   API key, answering per file the count and the people (id, name, colour), never more than the host could see in the editor.
+3. *Thumbnails* use the engine's render endpoint (RND-01) after a save; whether a PNG preview call is needed for hosts is
+   decided in WS-12.
+
+None of these is a private shortcut: the Workspace uses only what any host can use.

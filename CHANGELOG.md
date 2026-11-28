@@ -67,6 +67,33 @@ migrations or configuration changes.
 
 ### Added
 
+- OpenCanvas Workspace settings: Branding (accent colour, sign-in page message), E-mail (SMTP settings, password
+  write-only), Backups ("Back up now": a consistent database copy and every file in the data volume), and the admins' setup
+  checklist on Home. CI builds the Workspace image and records its size, start time and memory at rest
+  (`scripts/workspace/image-smoke.sh`).
+- OpenCanvas Workspace passkeys (WS-06): sign in with a passkey (also from the e-mail field's autofill), create an account
+  from an invite with a passkey only, and add or remove passkeys on your page. ES256 keys; challenges are single use and
+  expire after 5 minutes.
+- App views for typed files (FTY-03..05): a spreadsheet file opens in the sheet's full-screen view, a whiteboard in the
+  board's, a database fills the page; none offers a way back to a document view. A host that draws its own file header sets
+  `[host.editor] chrome = "host"` (no editor top bar) and opens panels with `Action_OpenPanel`. The file records its type
+  (manifest and `search.json` `type`), the session answers `app`, and the editor reports a fallback with `UI_AppMode`.
+  The Workspace uses all of it: no second header inside a file, and Comments, History and downloads in its own header.
+- Typed files (docs/05 §2f, FTY-02): a launch token's `file.type` (`spreadsheet`, `whiteboard`, `database`) opens the
+  editor in app mode (`&app=` in its fragment, no template picker), and a new typed file starts as one spreadsheet, board or
+  database block. An unknown type is refused with `400 TYPE_INVALID`; `/hosting/capabilities` lists `fileTypes`. The
+  full-page app chrome for each type follows.
+- OpenCanvas Workspace web app (`web/packages/workspace`, served at `/ws/`): first-run setup, sign-in, sign-up from an
+  invite, Home with the typed New menu (Document, Spreadsheet, Whiteboard, Database), grid and list views, the workspace and
+  folder tree, favourites, recent and shared, a file page with the Workspace header around the editor, the share dialog with
+  public-link options, ⌘K search, Trash, an inbox, members and teams, settings, and the phone layout. An image definition and
+  a production compose file are in `deploy/workspace/`.
+- OpenCanvas Workspace back end (`crates/oc-workspace`, binary `opencanvas-workspace`, ADR-085): the Workspace host and the
+  engine in one process on one port, talking only through the host contract. First-run setup with a six-word setup code
+  (skipped from the same machine), accounts with Argon2id passwords, sessions, CSRF checks and lockout, invite links,
+  admin reset links, workspaces, folders, teams, typed files, sharing with inheritance, organisation and public links
+  (admin-configurable: allowed, highest role, expiry, password), search from `search.json`, Trash with retention and
+  version history with thinning. Every access change is sent to the engine's role API, so open sessions follow at once.
 - OpenCanvas Workspace (docs/40, ADR-085): files are typed (owner decision 8). Design only for now: the host contract gains
   `file.type` and app mode (docs/05 §2f: a spreadsheet, whiteboard or database file opens full screen as its one root
   block), and the Workspace prototype adds frames 13a–13j (the New menu with types, typed icons, the spreadsheet, whiteboard

@@ -51,6 +51,9 @@ pub struct FileRef {
     pub id: String,
     pub name: String,
     pub version: Option<String>,
+    /// FTY-02 (docs/05 §2f): the launch's `file.type` when it is not a document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -297,6 +300,7 @@ mod tests {
                 id: "f".into(),
                 name: "F".into(),
                 version: None,
+                app: None,
             },
             perms: super::Perms::default(),
             callback_token: "super-secret-bearer".into(),

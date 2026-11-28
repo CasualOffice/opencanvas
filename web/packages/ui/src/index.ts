@@ -72,6 +72,11 @@ export interface BlockEnv {
    */
   automations?: (dbId: string) => number;
   automate?: (dbId: string, anchor: HTMLElement) => void;
+  /**
+   * FTY-03..05 (docs/05 §2f): this block is the root of a spreadsheet, whiteboard or database
+   * file in app mode. It fills the page from the start and offers no way back to a document view.
+   */
+  app?: boolean;
   /** The document limit from the session (`maxDocBytes`); boards budget 25 % of it (DGM-14 S9). */
   maxDocBytes?: number;
   /** EDP-01: `false` hides the board's Diagram button, menu entry and Shift+D (default on). */

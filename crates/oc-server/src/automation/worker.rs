@@ -50,6 +50,7 @@ pub fn service_grant(host: &HostConfig, file_id: &str, rule: &str) -> Grant {
             id: file_id.to_string(),
             name: file_id.to_string(),
             version: None,
+            app: None,
         },
         perms: Perms {
             comment: true,

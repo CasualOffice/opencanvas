@@ -23,6 +23,8 @@ export interface EditorProfile {
   intents?: boolean;
   chips?: string[];
   features?: Partial<Record<"comments" | "versionHistory" | "ai" | "diagramming" | "templates" | "import", boolean>>;
+  /** FTY-03 (`[host.editor] chrome`): "host" when the host draws the file header (no top bar here). */
+  chrome?: "editor" | "host";
 }
 
 /** INS-01: whose Recent this browser keeps (`host:user`), set from the session. */

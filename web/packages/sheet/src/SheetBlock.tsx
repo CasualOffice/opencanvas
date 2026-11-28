@@ -354,7 +354,9 @@ export function SheetBlock({ doc, blockId, env, awareness, chart: ChartView }: P
   const view = useMemo(() => (sheet ? readView(doc, blockId, sheet) : null), [doc, blockId, sheet, version]);
   const [sel, setSel] = useState<Sel>(at(0, 0));
   const [edit, setEdit] = useState<Edit | null>(null);
-  const [full, setFull] = useState(false);
+  // FTY-03: a spreadsheet file's root sheet is full screen from the start and stays there.
+  const app = !!env.app;
+  const [full, setFull] = useState(app);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [note, setNote] = useState<{ text: string; values?: () => void } | null>(null);
   const [fillTo, setFillTo] = useState<Rect | null>(null);
@@ -1417,6 +1419,7 @@ export function SheetBlock({ doc, blockId, env, awareness, chart: ChartView }: P
 
   /* ---- full screen ---- */
   const toggleFull = () => {
+    if (app) return;
     if (edit) commit();
     setFull((f) => {
       if (f) {
@@ -2327,7 +2330,7 @@ export function SheetBlock({ doc, blockId, env, awareness, chart: ChartView }: P
         {createPortal(
           <div className="ocsh-full" role="dialog" aria-modal="true" aria-label={`Spreadsheet, ${view.name}`} data-sheet-block={blockId}>
             <div className="ocsh-h" style={{ minHeight: "3.25rem", gap: ".625rem", padding: "0 .75rem" }}>
-              <button className="ocsh-btn" onClick={toggleFull} title="Close (Ctrl Shift E)"><X size={15} />Close</button>
+              {app ? null : <button className="ocsh-btn" onClick={toggleFull} title="Close (Ctrl Shift E)"><X size={15} />Close</button>}
               <span className="ocsh-hi"><SheetIcon size={15} /></span>
               <span className="ocsh-tt">Spreadsheet</span>
               <span className="ocsh-grow" />
@@ -2363,9 +2366,11 @@ export function SheetBlock({ doc, blockId, env, awareness, chart: ChartView }: P
             <ChartColumn size={15} />
           </button>
         ) : null}
-        <button className="ocsh-ib hot" aria-label="Open full screen" title="Open full screen (Ctrl Shift E)" onClick={toggleFull}>
-          <Maximize2 size={15} />
-        </button>
+        {app ? null : (
+          <button className="ocsh-ib hot" aria-label="Open full screen" title="Open full screen (Ctrl Shift E)" onClick={toggleFull}>
+            <Maximize2 size={15} />
+          </button>
+        )}
       </div>
       {fxBar}
       {findBar}
