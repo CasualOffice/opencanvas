@@ -7,8 +7,9 @@
 // group with arrow keys inside. "Tools on the left" (a personal setting in More) turns the tools
 // into a rail that fits by the board's height.
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Check, Ellipsis, Lock, LockOpen, Map as MapIcon, Maximize, Minus, PanelLeft, Plus, type LucideIcon } from "lucide-react";
+import { Check, Ellipsis, Frame as FrameIcon, Lock, LockOpen, Map as MapIcon, Maximize, Minus, PanelLeft, Plus, type LucideIcon } from "lucide-react";
 import { fitRail, fitTools } from "./toolbar";
+import { FrameItems } from "./frames/menu";
 
 export type DockTool = [string, LucideIcon, string, string];
 const SW = 1.75;
@@ -32,6 +33,10 @@ export interface DockProps {
   onLock?: () => void;
   /** Double-click on a tool: pick it and lock it. */
   onToolLock?: (t: string) => void;
+  /** BRD-21: the board's frames, listed in the zoom menu (Zoom to frame), and Present. */
+  frames?: { id: string; name: string }[];
+  onFrame?: (id: string) => void;
+  onPresent?: () => void;
 }
 
 const remPx = () => (typeof getComputedStyle === "function" ? parseFloat(getComputedStyle(document.documentElement).fontSize) : 0) || 16;
@@ -226,6 +231,11 @@ export function Dock(p: DockProps) {
               <button className="ocbd-ib" tabIndex={zt(4)} title="Minimap (M)" aria-label="Minimap" aria-keyshortcuts="M" aria-pressed={p.mini} onFocus={() => setZi(4)} onClick={p.onMini}>
                 <MapIcon size={14} strokeWidth={SW} />
               </button>
+              {p.frames?.length ? (
+                <button ref={zoomBtn} className="ocbd-ib" tabIndex={zt(5)} title="Frames" aria-label="Frames" aria-haspopup="menu" aria-expanded={menu === "zoom"} onFocus={() => setZi(5)} onClick={() => open("zoom")}>
+                  <FrameIcon size={14} strokeWidth={SW} />
+                </button>
+              ) : null}
             </>
           ) : (
             <button
@@ -306,6 +316,7 @@ export function Dock(p: DockProps) {
             <MapIcon size={16} strokeWidth={SW} />
             Minimap
           </button>
+          <FrameItems frames={p.frames} onFrame={p.onFrame} onPresent={p.onPresent} close={close} />
         </div>
       ) : null}
     </>

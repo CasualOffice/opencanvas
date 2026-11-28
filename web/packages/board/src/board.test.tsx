@@ -111,7 +111,7 @@ describe("BoardBlock render", { timeout: 60_000 }, () => {
     const id = createBoard(doc, p);
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env()} />);
     expect(el.querySelectorAll("[data-s]").length).toBe(shapes(doc, id).length);
-    expect(el.querySelectorAll(".ocbd-tool [data-tool]")).toHaveLength(9);
+    expect(el.querySelectorAll(".ocbd-tool [data-tool]")).toHaveLength(10);
     expect(document.head.querySelector("style[data-ocbd]")).toBeTruthy();
   });
 
@@ -131,6 +131,16 @@ describe("BoardBlock render", { timeout: 60_000 }, () => {
     const el = mount(<BoardBlock doc={doc} boardId={id} env={env("view")} />);
     const labels = [...el.querySelectorAll(".ocbd-tool [data-tool]")].map((b) => b.getAttribute("aria-label"));
     expect(labels).toEqual(["Select", "Pan"]);
+  });
+
+  it("a board file in app mode opens full screen and stays there (FTY-04)", () => {
+    const doc = new Y.Doc();
+    const id = createBoard(doc, "flow");
+    mount(<BoardBlock doc={doc} boardId={id} env={{ ...env(), app: true }} />);
+    expect(document.querySelector(".ocbd.ocbd-full")).toBeTruthy();
+    expect(document.querySelector("[aria-label='Exit full screen']")).toBeNull();
+    act(() => void document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector(".ocbd.ocbd-full")).toBeTruthy();
   });
 
   it("shows the tap-to-open cover in compact mode", () => {

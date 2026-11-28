@@ -378,6 +378,7 @@ impl Principal {
                 id: file_id.to_string(),
                 name: file_id.to_string(),
                 version: None,
+                app: None,
             },
             perms: Perms {
                 history: None,

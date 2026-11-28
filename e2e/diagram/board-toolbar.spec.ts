@@ -13,7 +13,7 @@ let srv: Awaited<ReturnType<typeof serve>>;
 test.beforeAll(async () => (srv = await serve()));
 test.afterAll(() => srv.close());
 
-const ALL = ["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Pan"];
+const ALL = ["Select", "Sticky note", "Pen", "Text", "Rectangle", "Arrow", "Ellipse", "Diamond", "Frame", "Pan"];
 type Box = { x: number; y: number; width: number; height: number };
 const overlap = (a: Box, b: Box) => a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5 && a.y < b.y + b.height - 0.5 && b.y < a.y + a.height - 0.5;
 

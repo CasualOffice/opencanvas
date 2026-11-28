@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 
 // vitest runs from the package directory.
 const src = (f: string) => readFileSync(resolve(process.cwd(), "src", f), "utf8");
-import { showsGallery, temporaryWording, wordingOf } from "./wording";
+import { appMode, showsGallery, temporaryWording, wordingOf } from "./wording";
 
 describe("temporary wording", () => {
   it("defaults to the meeting wording Jitsi shows, unchanged", () => {
@@ -60,6 +60,14 @@ describe("start screen", () => {
   it("shows the template picker for a new, empty canvas by default", () => {
     expect(showsGallery(base)).toBe(true);
   });
+  it("skips it for a typed file, which opens in app mode (FTY-02)", () => {
+    expect(showsGallery({ ...base, hash: "#t=01ABC&app=spreadsheet" })).toBe(false);
+    expect(appMode("#t=01ABC&app=whiteboard")).toBe("whiteboard");
+    expect(appMode("#t=01ABC&app=database&block=b_1")).toBe("database");
+    expect(appMode("#t=01ABC&app=slides")).toBe(null);
+    expect(appMode("#t=01ABC")).toBe(null);
+  });
+
   it("skips it when the host launched with start=page (ADR-048)", () => {
     expect(showsGallery({ ...base, hash: "#t=01ABC&start=page" })).toBe(false);
     expect(showsGallery({ ...base, hash: "#t=01ABC&start=page&block=b_1" })).toBe(false);

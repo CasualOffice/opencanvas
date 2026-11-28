@@ -35,6 +35,7 @@ COPY web/packages/database/package.json packages/database/
 COPY web/packages/editor/package.json packages/editor/
 COPY web/packages/sheet/package.json packages/sheet/
 COPY web/packages/ui/package.json packages/ui/
+COPY web/packages/workspace/package.json packages/workspace/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 COPY web/packages packages

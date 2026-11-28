@@ -38,7 +38,39 @@ export const EXPORT_PALETTE = {
     pink: ["#fce6f0", "#ad2c66"],
   } as Record<string, [string, string]>,
 };
-const P = EXPORT_PALETTE;
+export type ExportPalette = typeof EXPORT_PALETTE;
+/** The dark theme's tokens (ui `tokens.css`), for exports drawn for a dark page (BRD-20). */
+export const EXPORT_PALETTE_DARK: ExportPalette = {
+  bg: "#141417",
+  fg: "#ededf0",
+  fg2: "#a9a9b4",
+  fg3: "#787883",
+  app: "#141417",
+  panel: "#18181c",
+  line2: "#ffffff",
+  line2Opacity: "0.14",
+  accent: "#86a5ff",
+  stickyFg: "#1e1b12",
+  sticky: { y: "#e9d47c", p: "#e9a9bf", b: "#a7c8ee", g: "#a8d9b9" },
+  swatch: { accent: "#86a5ff", amber: "#f3be66", green: "#72d79d", pink: "#ff9fcb", purple: "#c0a6ff", red: "#ff9c9c", blue: "#94b2ff" },
+  tone: {
+    gray: ["#26262b", "#b7b7c0"],
+    blue: ["#1a2746", "#94b2ff"],
+    green: ["#14301f", "#72d79d"],
+    amber: ["#352710", "#f3be66"],
+    red: ["#3a1719", "#ff9c9c"],
+    purple: ["#2a2045", "#c0a6ff"],
+    pink: ["#3a172a", "#ff9fcb"],
+  },
+};
+export type ExportTheme = "light" | "dark";
+/** BRD-20: the colours drawn and whether the picture has a background (none = transparent). */
+export interface ExportLook {
+  theme?: ExportTheme;
+  background?: boolean;
+}
+/** The palette of the export being drawn (light unless `shapesToSvg` is given a look). */
+let P: ExportPalette = EXPORT_PALETTE;
 const FONT = `Geist, ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif`;
 const PAD = 32;
 /** Connector labels: 12.5 px text wrapped to 180 px, 16 px lines, in a pill. */
@@ -246,7 +278,16 @@ export function exportBounds(shapes: Shape[]): [number, number, number, number] 
 }
 
 /** Render shapes to a standalone SVG document string. */
-export function shapesToSvg(shapes: Shape[], icons: ReadonlyMap<string, string> = new Map()): string {
+export function shapesToSvg(shapes: Shape[], icons: ReadonlyMap<string, string> = new Map(), look: ExportLook = {}): string {
+  P = look.theme === "dark" ? EXPORT_PALETTE_DARK : EXPORT_PALETTE;
+  try {
+    return drawSvg(shapes, icons, look.background !== false);
+  } finally {
+    P = EXPORT_PALETTE;
+  }
+}
+
+function drawSvg(shapes: Shape[], icons: ReadonlyMap<string, string>, background: boolean): string {
   docIcons = icons;
   heads = new Map();
   const list = prepared(shapes);
@@ -256,7 +297,7 @@ export function shapesToSvg(shapes: Shape[], icons: ReadonlyMap<string, string> 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="${n(x0)} ${n(y0)} ${W} ${H}" font-family="${FONT}">` +
     `<defs><marker id="ocbd-x-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5 L9 5 L1 8.5" fill="none" stroke="${P.fg2}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>${[...heads.values()].join("")}</defs>` +
-    `<rect x="${n(x0)}" y="${n(y0)}" width="${W}" height="${H}" fill="${P.bg}"/>` +
+    (background ? `<rect x="${n(x0)}" y="${n(y0)}" width="${W}" height="${H}" fill="${P.bg}"/>` : "") +
     body +
     `</svg>`
   );
@@ -298,9 +339,9 @@ export async function exportBoardPng(doc: Y.Doc, boardId: string, scale = 2): Pr
 }
 
 /** PNG of the given shapes (a selection), fitted to them. */
-export async function exportShapesPng(list: Shape[], scale = 2): Promise<Blob> {
+export async function exportShapesPng(list: Shape[], scale = 2, look: ExportLook = {}, icons: ReadonlyMap<string, string> = new Map()): Promise<Blob> {
   const shapes = await inlineImages(list);
-  const svg = shapesToSvg(shapes);
+  const svg = shapesToSvg(shapes, icons, look);
   const [x0, y0, x1, y1] = exportBounds(shapes);
   const W = Math.ceil(x1 - x0), H = Math.ceil(y1 - y0);
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
@@ -318,8 +359,10 @@ export async function exportShapesPng(list: Shape[], scale = 2): Promise<Blob> {
     canvas.height = Math.round(H * s);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas is not available");
-    ctx.fillStyle = P.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (look.background !== false) {
+      ctx.fillStyle = (look.theme === "dark" ? EXPORT_PALETTE_DARK : EXPORT_PALETTE).bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     return await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("PNG encoding failed"))), "image/png"));
   } finally {

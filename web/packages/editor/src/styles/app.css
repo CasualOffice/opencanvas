@@ -970,3 +970,11 @@ button.cic:hover{transform:scale(1.06)}
   .oc-gal-detail,.oc-gal-empty{grid-column:auto}
 }
 
+/* FTY-03..05 (docs/05 §2f): a typed file in app mode is its one root block. Spreadsheets and
+ * boards open in their own full-screen view; a database fills the page. No document header, and
+ * no stray paragraphs to type into around the block. */
+html[data-app-root] .dhead{display:none}
+html[data-app-root] .ProseMirror>p{display:none}
+html[data-app="database"][data-app-root] .doc{max-width:none;padding:1rem 1.5rem 4rem}
+html[data-app="database"][data-app-root] .ProseMirror>.react-renderer>.wideblock{--bw:100%;margin-left:0}
+
