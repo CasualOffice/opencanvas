@@ -69,10 +69,15 @@ test.describe("BRD-18: context menu", () => {
     const at = await centre(first);
     await page.mouse.click(at.x, at.y, { button: "right" });
     await board.getByRole("menuitem", { name: /^Lock/ }).click();
+    await expect(board.locator('[role="menu"].ocbd-ctx')).toHaveCount(0);
+    // Q10: the click above may scroll the page to bring the item into view (the shape menu is
+    // taller than the inline board and scrolls), so the shape is measured again before the drag;
+    // with the old position the drag sometimes landed on a connector or the text below.
     const before = (await first.boundingBox())!;
-    await page.mouse.move(at.x, at.y);
+    const at2 = await centre(first);
+    await page.mouse.move(at2.x, at2.y);
     await page.mouse.down();
-    await page.mouse.move(at.x + 80, at.y + 60, { steps: 6 });
+    await page.mouse.move(at2.x + 80, at2.y + 60, { steps: 6 });
     await page.mouse.up();
     const after = (await first.boundingBox())!;
     expect(Math.abs(after.x - before.x)).toBeLessThan(1);
