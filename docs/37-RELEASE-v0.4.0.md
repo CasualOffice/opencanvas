@@ -37,9 +37,9 @@ documents (ADR-001). Support is best effort, with no SLA.
 ## 3. Known limitations (v0.4.1)
 
 - Partial sync does not split spreadsheets yet; open partial-sync items are PSYNC-BUG-1..4. The 50 MB first screen is above the 2 s target.
-- Spreadsheet: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
-- Charts: no browser test yet for database charts and the live database ⇄ spreadsheet view; the chart is placed after the sheet, not floating over it.
-- Timeline: Workload reassigns through a select, not by dragging; no Months grouping on phones; Timeline is not in the insert menu.
+- Spreadsheet: closed on main for v0.4.1: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
+- Charts: closed on main for v0.4.1: a browser test for database charts and the live database ⇄ spreadsheet view; the chart floats over the sheet.
+- Timeline: closed on main for v0.4.1: Workload reassigns by dragging; Months grouping on phones; Timeline and Workload are in the insert menu. On a phone, reassigning still uses the select.
 - The slow-host save drill ran on SQLite; the MySQL run is pending. DEP-01 still needs the SBOM and update policy.
 - Benchmarks marked `local` ran on a developer laptop, not the reference machine.
 

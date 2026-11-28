@@ -7,6 +7,26 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### Added
+
+- Spreadsheet (SHEET-07, frame 6): comments on cells. A corner mark shows a thread; hover,
+  Ctrl+Alt+M, the cell menu, the toolbar or the phone action bar opens it. Threads are anchored to
+  row and column ids, so they follow their cell through inserts, moves and sorts.
+- Spreadsheet: undo reverts only your own step. A cell someone changed since keeps their value, and
+  a toast says so ("Undid your fill. 1 cell kept Sam's newer value").
+- Spreadsheet (9b): Merge and Wrap text in the phone Aa sheet.
+- Charts (4h): "Chart from selection" makes a chart that floats over the sheet next to the range.
+  It follows the range live, moves by dragging its handle or with the arrow keys, and "Copy to
+  canvas" places a linked chart block.
+- Timeline (DB5-01): drag a task to another person's row in Workload to reassign it; Weeks and
+  Months grouping on phones; the frame 6b "Jump to" panel when the visible range is empty;
+  Timeline and Workload variants in the insert menu (`/timeline`, `/gantt`, `/workload`).
+
+### Fixed
+
+- Spreadsheet: a merge that crosses a frozen pane's edge is one grid cell (it was two, with the
+  same id), and the frozen pane's edge line shows through it.
+
 ## [0.4.0] - 2026-11-28
 
 Spreadsheets, advanced databases (formulas, relations, rollups, Timeline and Workload) and linked
