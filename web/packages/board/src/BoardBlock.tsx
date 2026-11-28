@@ -56,7 +56,7 @@ export interface DiagramPrefs {
 }
 const DIAGRAM_PREFS: DiagramPrefs = { grid: true, gridSize: 20, rulers: true, snapGrid: true, snapShapes: true, connector: "elbow" };
 import {
-  alignMoves, cloneShapes, containedIn, containerBox, distributeMoves, equalGapOffset, gridOffset, insertShapes, type GapMark, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
+  alignMoves, cloneShapes, containedIn, containerBox, distributeMoves, equalGapOffset, freeSpot, gridOffset, insertShapes, type GapMark, intersects, midPoint, movePatch, reorderShapes, setGroup, snapOffset, STICKY_TEXT,
   stickyHeight, unionBox, withGroups, wrapText, type AlignMode, type Box, type ZMove,
 } from "./ops";
 
@@ -158,6 +158,7 @@ type Drag =
   | { kind: "box"; x0: number; y0: number; base: string[]; add: boolean }
   | { kind: "pen" }
   | { kind: "arrow" }
+  | { kind: "create"; t: Tool; x0: number; y0: number; cx: number; cy: number; box: Box | null }
   | { kind: "end"; sid: string; which: "start" | "end"; orig: Shape; moved: boolean }
   /** Dragging waypoint `i` of a connector; `insert` when it was a segment's midpoint handle. */
   | { kind: "wp"; sid: string; i: number; insert: boolean; orig: Pt[]; moved: boolean; seg?: { pts: Pt[]; horiz: boolean } }
@@ -698,7 +699,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setLive(`${icon.name} icon added`);
   };
   /** Adds a shape of a registered kind centred on `at` (the view's centre by default): S2. */
-  const addKind = (kind: string, at: Pt = viewCenter(), icon?: string, paths?: readonly string[]) => {
+  const addKind = (kind: string, where?: Pt, icon?: string, paths?: readonly string[]) => {
+    // BRD-12: without a drop point (a click in the panel) it goes to the free spot nearest the middle.
+    const at = where ?? viewCenter();
     if (!S.current.edit) return;
     if (kind === ICON_KIND && icon?.startsWith(DOC_PREFIX)) return addDocIcon(icon.slice(DOC_PREFIX.length), at);
     if (kind === ICON_KIND) return addIcon(icon ?? "", at, paths);
@@ -707,10 +710,16 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const f = newShapeFields(kind, d);
     const w = f.w ?? 140, h = f.h ?? 70;
     let x = Math.round(at[0] - w / 2), y = Math.round(at[1] - h / 2);
-    if (S.current.dgm && S.current.dp.snapGrid) {
-      const g = S.current.dp.gridSize;
-      x = Math.round(x / g) * g;
-      y = Math.round(y / g) * g;
+    const snap = S.current.dgm && S.current.dp.snapGrid ? S.current.dp.gridSize : 0;
+    if (!where && !d.container) {
+      const others = S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
+      const [dx, dy] = freeSpot([x, y, x + w, y + h], others, 16, snap || 20);
+      x += dx;
+      y += dy;
+    }
+    if (snap) {
+      x = Math.round(x / snap) * snap;
+      y = Math.round(y / snap) * snap;
     }
     um?.stopCapturing();
     // Text shapes size themselves; everything else gets the kind's default box.
@@ -894,11 +903,19 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   };
 
   /* ---- creating shapes ---- */
-  const createAt = (t: Tool, x: number, y: number) => {
+  /** `box`: the dragged box (BRD-07); `free`: keyboard placement moves to the nearest free spot (BRD-12). */
+  const createAt = (t: Tool, x: number, y: number, o: { box?: Box; free?: boolean } = {}) => {
     let s: Omit<Shape, "id">;
     if (t === "sticky") s = { type: "sticky", x: x - 75, y: y - 55, w: 150, h: 110, fill: ["y", "b", "p", "g"][S.current.shapes.filter((q) => q.type === "sticky").length % 4], text: "" };
     else if (t === "text") s = { type: "text", x, y: y + 9, text: "", size: 18 };
     else s = { type: t as ShapeType, x: x - 70, y: y - (t === "diamond" ? 50 : 40), w: 140, h: t === "diamond" ? 100 : 80, text: "" };
+    if (o.box && t !== "text") Object.assign(s, { x: Math.round(o.box[0]), y: Math.round(o.box[1]), w: Math.round(o.box[2] - o.box[0]), h: Math.round(o.box[3] - o.box[1]) });
+    else if (o.free) {
+      const others = S.current.shapes.filter((q) => q.type !== "arrow").map((q) => bbox(q) as Box);
+      const [dx, dy] = freeSpot(bbox({ ...s, id: "" }) as Box, others);
+      s.x = (s.x ?? 0) + dx;
+      s.y = (s.y ?? 0) + dy;
+    }
     um?.stopCapturing();
     const nidv = addShape(doc, boardId, s, origin);
     setSel([nidv]);
@@ -917,7 +934,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       // Pinch / two-finger pan: cancel whatever the first finger started.
       const [a, b] = [...pointers.current.values()];
       const r = svg.getBoundingClientRect();
-      if (drag.current?.kind === "pen" || drag.current?.kind === "arrow") setDraft(null);
+      if (drag.current?.kind === "pen" || drag.current?.kind === "arrow" || drag.current?.kind === "create") setDraft(null);
       setHint(null);
       setMarquee(null);
       setGuides(null);
@@ -1042,7 +1059,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       cap();
       return;
     }
-    createAt(t, x, y);
+    // BRD-05: the shape is made on pointer-up. Without preventDefault the pointer-down's mousedown
+    // default would move focus to the board root right after a new note's editor took it, and the
+    // editor would close before the first key. BRD-07: a drag sizes the shape.
+    e.preventDefault();
+    drag.current = { kind: "create", t, x0: x, y0: y, cx: e.clientX, cy: e.clientY, box: null };
+    cap();
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -1083,6 +1105,20 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       return;
     }
     const [x, y] = toWorld(e.clientX, e.clientY);
+    if (d.kind === "create") {
+      // A drag (past 4 px on screen) sizes the new shape; Shift keeps it square. Text has no box.
+      if (d.t === "text" || (!d.box && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 4)) return;
+      let w = x - d.x0, h = y - d.y0;
+      if (e.shiftKey) {
+        const m = Math.max(Math.abs(w), Math.abs(h));
+        w = Math.sign(w || 1) * m;
+        h = Math.sign(h || 1) * m;
+      }
+      d.box = [Math.min(d.x0, d.x0 + w), Math.min(d.y0, d.y0 + h), Math.max(d.x0, d.x0 + w), Math.max(d.y0, d.y0 + h)];
+      const [bx0, by0, bx1, by1] = d.box;
+      setDraft({ id: "draft", type: d.t as ShapeType, x: bx0, y: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), text: "", ...(d.t === "sticky" ? { fill: "y" } : {}) });
+      return;
+    }
     if (d.kind === "box") {
       const b: Box = [Math.min(d.x0, x), Math.min(d.y0, y), Math.max(d.x0, x), Math.max(d.y0, y)];
       if ((b[2] - b[0]) * S.current.view.z < 3 && (b[3] - b[1]) * S.current.view.z < 3) return;
@@ -1233,6 +1269,15 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     setGaps(null);
     if (!d) return;
     setHint(null);
+    if (d.kind === "create") {
+      setDraft(null);
+      if (e.type === "pointercancel") return;
+      const b = d.box;
+      // A drag sizes the shape (at least 10 × 10); a click places one of the default size.
+      if (b && Math.max(b[2] - b[0], b[3] - b[1]) >= 8) createAt(d.t, d.x0, d.y0, { box: [b[0], b[1], Math.max(b[2], b[0] + 10), Math.max(b[3], b[1] + 10)] });
+      else createAt(d.t, d.x0, d.y0);
+      return;
+    }
     if (d.kind === "box") {
       setMarquee(null);
       announceSel(S.current.sel);
@@ -1536,7 +1581,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         // Keyboard placement: the active tool drops its shape in the middle of the view.
         e.preventDefault();
         const c = viewCenter();
-        createAt(T, c[0], c[1]);
+        createAt(T, c[0], c[1], { free: true });
         return;
       }
       if (list.length === 1) {
@@ -1895,14 +1940,39 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const edgeL = 8 + (dgm && dp.rulers ? 20 : 0), edgeR = 8;
     const half = (barW || (selList.length > 1 ? 400 : 300)) / 2;
     const lo = edgeL + half, hi = Wd - edgeR - half;
-    const sx = lo > hi ? (edgeL + Wd - edgeR) / 2 : Math.max(lo, Math.min(hi, ((u[0] + u[2]) / 2) * z + tx));
+    const sx0 = lo > hi ? (edgeL + Wd - edgeR) / 2 : Math.max(lo, Math.min(hi, ((u[0] + u[2]) / 2) * z + tx));
     // Above the selection. Without room there it would sit on the board's own buttons and over the
     // shape, so it goes under the selection; only when neither fits is it pinned under the top edge.
     const minTop = compact ? 64 : 56;
     const above = u[1] * z + ty - 14, below = u[3] * z + ty + 14;
     const Hd = svgRef.current?.clientHeight ?? 0;
-    const flip = above < minTop && below + (compact ? 56 : 44) <= Hd;
-    const sy = flip ? below : Math.max(minTop, above);
+    let flip = above < minTop && below + (compact ? 56 : 44) <= Hd;
+    let sy = flip ? below : Math.max(minTop, above);
+    let sx = sx0;
+    // BRD-10: never over the board's own controls (top actions, tool bar, zoom pill). If the usual
+    // place covers one, try above, then below, each also moved sideways clear of the control.
+    const svgR = svgRef.current?.getBoundingClientRect();
+    const blocks: Box[] = svgR
+      ? [...(rootRef.current?.querySelectorAll<HTMLElement>(".ocbd-top, .ocbd-tool, .ocbd-zoom") ?? [])]
+          .map((el) => el.getBoundingClientRect())
+          .filter((r) => r.width > 0 && r.height > 0)
+          .map((r) => [r.left - svgR.left - 6, r.top - svgR.top - 6, r.right - svgR.left + 6, r.bottom - svgR.top + 6] as Box)
+      : [];
+    if (blocks.length) {
+      const barH = barRef.current?.offsetHeight || (compact ? 44 : 36);
+      const rect = (x: number, y: number, down: boolean): Box => (down ? [x - half, y, x + half, y + barH] : [x - half, y - barH, x + half, y]);
+      const free = (b: Box) => !blocks.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+      if (!free(rect(sx, sy, flip))) {
+        const xs = [sx, ...blocks.flatMap((o) => [o[0] - half, o[2] + half])].map((x) => (lo > hi ? x : Math.max(lo, Math.min(hi, x))));
+        const ys: [number, boolean][] = [[above, false], [below, true], [sy, flip]];
+        const fits = ([y, down]: [number, boolean]) => (down ? y + barH <= Hd : y - barH >= 0);
+        let best: [number, number, boolean] | null = null;
+        for (const yy of ys.filter(fits))
+          for (const x of xs)
+            if (free(rect(x, yy[0], yy[1])) && (!best || Math.abs(x - sx0) < Math.abs(best[0] - sx0))) best = [x, yy[0], yy[1]];
+        if (best) [sx, sy, flip] = best;
+      }
+    }
     const s1 = selShape;
     const rawSel = s1 ? raw.find((q) => q.id === s1.id) : undefined;
     const btn = (label: string, I: LucideIcon, run: () => void, opts: { pressed?: boolean; disabled?: boolean; keys?: string } = {}) => (
@@ -2289,7 +2359,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             onAddShape={(kind, icon, paths) => (kind.startsWith(PRESET) ? usePreset(kind) : addKind(kind, undefined, icon, paths))}
             prefs={dp}
             onPrefs={(patch) => setDp((v) => ({ ...v, ...patch }))}
-            canvas={{ shapes, sel, select: setSel, reveal: revealShape }}
+            canvas={{ shapes, sel, select: setSel, reveal: revealShape, align, distribute }}
             view={view}
             selection={sel}
             exporting={exporting}
@@ -2740,8 +2810,9 @@ function TextEditor({ s, view, compact, value, onChange, onDone }: { s: Shape; v
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Escape") {
+          // BRD-06: Escape ends editing and keeps the text (as other whiteboards do); Undo takes it back.
           e.preventDefault();
-          onDone(true);
+          onDone();
         } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey || ((s.type === "text" || s.type === "arrow") && !e.shiftKey))) {
           e.preventDefault();
           onDone();

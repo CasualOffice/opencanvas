@@ -107,7 +107,8 @@ export const DIAGRAM_CSS = `
 .ocdg-lfoot{position:relative;padding:.375rem .5rem;border-top:1px solid var(--line)}
 .ocdg-lchoose{display:flex;align-items:center;gap:.375rem;width:100%;height:2rem;padding:0 .5rem;border:0;border-radius:.5rem;background:none;font-size:.8125rem;color:var(--fg)}
 .ocdg-lchoose:hover{background:var(--hover)}
-.ocdg-chooser{position:absolute;left:.5rem;right:.5rem;bottom:calc(100% + .25rem);padding:.75rem;border-radius:.75rem;background:var(--pop);box-shadow:var(--sh-pop);z-index:6;display:flex;flex-direction:column;gap:.125rem}
+.ocdg-chooser{position:absolute;left:.5rem;right:.5rem;bottom:calc(100% + .25rem);max-height:calc(100dvh - 8rem);overflow-y:auto;overscroll-behavior:contain;padding:.75rem;border-radius:.75rem;background:var(--pop);box-shadow:var(--sh-pop);z-index:6;display:flex;flex-direction:column;gap:.125rem}
+.ocdg-chooser>.ocdg-btn{position:sticky;bottom:0;flex:none;box-shadow:0 .75rem 0 .75rem var(--pop)}
 .ocdg-chooser .ocdg-hint{margin:0 0 .375rem}
 .ocdg-chk{display:flex;align-items:center;gap:.5rem;min-height:2rem;padding:0 .25rem;border-radius:.375rem;font-size:.8125rem;cursor:pointer}
 .ocdg-chk:hover{background:var(--hover)}

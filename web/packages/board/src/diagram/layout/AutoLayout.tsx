@@ -314,7 +314,7 @@ export const LAYOUT_CSS = `
 .ocdg-sec-b{height:2rem;padding:0 .875rem;border:1px solid var(--line-2);border-radius:.5rem;background:var(--app);font-size:.8125rem}
 .ocdg-sec-b:hover{background:var(--hover)}
 .ocdg-prev{position:fixed;pointer-events:none;z-index:2;overflow:hidden}
-.ocdg-pbar{position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:.5rem;max-width:calc(100% - 2rem);padding:.5rem .5rem .5rem .875rem;background:var(--pop);border-radius:.75rem;box-shadow:var(--sh-pop);font-size:.8125rem}
+.ocdg-pbar{position:fixed;left:50%;bottom:1rem;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:.5rem;max-width:calc(100% - 2rem);padding:.5rem .5rem .5rem .875rem;background:var(--pop);border-radius:.75rem;box-shadow:var(--sh-pop);font-size:.8125rem}
 .ocdg-pbt{display:flex;flex-direction:column;min-width:0;margin-right:.5rem}
 .ocdg-pbt span{color:var(--fg-2);font-size:.75rem}
 .ocdg-pbt .ocdg-pnote{color:var(--accent)}

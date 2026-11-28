@@ -248,6 +248,28 @@ export function midPoint(pts: Pt[]): Pt {
 /** Boxes intersect (touching counts). */
 export const intersects = (a: Box, b: Box) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 
+/**
+ * BRD-12: the smallest offset that puts `box` clear of every box in `others` (with `gap` between),
+ * searched on rings of `step` around where it is; [0, 0] when it is already clear. Gives up (and
+ * keeps the place) past `rings` rings, so a crowded board never pushes a new shape far away.
+ */
+export function freeSpot(box: Box, others: Box[], gap = 16, step = 20, rings = 30): [number, number] {
+  const clear = (dx: number, dy: number) => {
+    const b: Box = [box[0] + dx - gap, box[1] + dy - gap, box[2] + dx + gap, box[3] + dy + gap];
+    return !others.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+  };
+  if (clear(0, 0)) return [0, 0];
+  for (let r = 1; r <= rings; r++) {
+    const ring: [number, number][] = [];
+    for (let i = -r; i <= r; i++) ring.push([i * step, -r * step], [i * step, r * step]);
+    for (let j = -r + 1; j <= r - 1; j++) ring.push([-r * step, j * step], [r * step, j * step]);
+    ring.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+    const hit = ring.find(([dx, dy]) => clear(dx, dy));
+    if (hit) return hit;
+  }
+  return [0, 0];
+}
+
 /** A gap mark drawn while snapping to equal spacing: a segment and the gap's length. */
 export interface GapMark {
   x1: number;

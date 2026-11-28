@@ -7,7 +7,10 @@
 // it, so this file does not reach into the canvas code.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from "react";
 import * as Y from "yjs";
-import { Box, ChevronDown, ChevronRight, CircleHelp, Command as CmdIcon, Copy, Spline, Trash2, Maximize, Map as MapIcon, Group, Keyboard, ListTree, X, Square } from "lucide-react";
+import {
+  AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal, AlignStartVertical, AlignVerticalDistributeCenter,
+  Box, BringToFront, ChevronDown, ChevronRight, CircleHelp, Command as CmdIcon, Copy, LayoutGrid, SendToBack, Spline, Trash2, Maximize, Map as MapIcon, Group, Keyboard, ListTree, Ungroup, X, Square,
+} from "lucide-react";
 import { addShape, getBoardMap, updateShape, type Shape } from "../model";
 import { announce, connectAnnouncement, connectorFor, filterCommands, nextTarget, outlineTree, siblingOf, SHORTCUTS, SIDE_KEYS, startConnect, visibleRows, type Command, type Connecting } from "./keyboard";
 
@@ -20,6 +23,9 @@ export interface DiagramCanvas {
   select: (ids: string[]) => void;
   /** Moves the view so the shape is in the middle (zoom unchanged). */
   reveal?: (id: string) => void;
+  /** BRD-13: the selection toolbar's align and distribute, for Commands. */
+  align?: (mode: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") => void;
+  distribute?: (axis: "h" | "v") => void;
 }
 
 export const A11Y_CSS = `
@@ -274,10 +280,23 @@ function reorder(doc: Y.Doc, boardId: string, id: string, target: string, up: bo
 
 /* ------------------------------------------------------------ commands (5b) */
 
-const ACTIONS: (Command & { icon: typeof Box; run: (root: HTMLElement | null) => void })[] = [
+const many = (n: number) => (c: { edit: boolean; sel: Shape[] }) => c.edit && c.sel.filter((s) => s.type !== "arrow").length >= n;
+const ACTIONS: (Command & { icon: typeof Box; run: (root: HTMLElement | null, canvas: DiagramCanvas) => void })[] = [
   { id: "duplicate", label: "Duplicate", group: "Commands", keys: ["⌘", "D"], when: (c) => c.edit && c.sel.length > 0, icon: Copy, run: (r) => canvasKey(r, "d", { ctrlKey: true }) },
   { id: "delete", label: "Delete", group: "Commands", keys: ["Del"], when: (c) => c.edit && c.sel.length > 0, icon: Trash2, run: (r) => canvasKey(r, "Delete") },
   { id: "group", label: "Group", group: "Commands", keys: ["⌘", "G"], when: (c) => c.edit && c.sel.length > 1, icon: Group, run: (r) => canvasKey(r, "g", { ctrlKey: true }) },
+  { id: "ungroup", label: "Ungroup", group: "Commands", keys: ["⌘", "⇧", "G"], when: (c) => c.edit && c.sel.some((s) => !!s.group), icon: Ungroup, run: (r) => canvasKey(r, "g", { ctrlKey: true, shiftKey: true }) },
+  { id: "align-left", label: "Align left", group: "Commands", when: many(2), icon: AlignStartVertical, run: (_, c) => c.align?.("left") },
+  { id: "align-hcenter", label: "Align centres horizontally", group: "Commands", when: many(2), icon: AlignCenterVertical, run: (_, c) => c.align?.("hcenter") },
+  { id: "align-right", label: "Align right", group: "Commands", when: many(2), icon: AlignEndVertical, run: (_, c) => c.align?.("right") },
+  { id: "align-top", label: "Align top", group: "Commands", when: many(2), icon: AlignStartHorizontal, run: (_, c) => c.align?.("top") },
+  { id: "align-vcenter", label: "Align middles", group: "Commands", when: many(2), icon: AlignCenterHorizontal, run: (_, c) => c.align?.("vcenter") },
+  { id: "align-bottom", label: "Align bottom", group: "Commands", when: many(2), icon: AlignEndHorizontal, run: (_, c) => c.align?.("bottom") },
+  { id: "distribute-h", label: "Distribute horizontally", group: "Commands", when: many(3), icon: AlignHorizontalDistributeCenter, run: (_, c) => c.distribute?.("h") },
+  { id: "distribute-v", label: "Distribute vertically", group: "Commands", when: many(3), icon: AlignVerticalDistributeCenter, run: (_, c) => c.distribute?.("v") },
+  { id: "front", label: "Bring to front", group: "Commands", keys: ["⌘", "⇧", "]"], when: (c) => c.edit && c.sel.length > 0, icon: BringToFront, run: (r) => canvasKey(r, "]", { ctrlKey: true, shiftKey: true, code: "BracketRight" }) },
+  { id: "back", label: "Send to back", group: "Commands", keys: ["⌘", "⇧", "["], when: (c) => c.edit && c.sel.length > 0, icon: SendToBack, run: (r) => canvasKey(r, "[", { ctrlKey: true, shiftKey: true, code: "BracketLeft" }) },
+  { id: "layout", label: "Auto-layout", group: "Commands", keys: ["⇧", "L"], when: (c) => c.edit, icon: LayoutGrid, run: (r) => canvasKey(r, "L", { shiftKey: true }) },
   { id: "connect", label: "Start a connector", group: "Commands", keys: ["C"], when: (c) => c.edit && c.sel.length === 1 && c.sel[0].type !== "arrow", icon: Spline, run: (r) => canvasKey(r, "c") },
   { id: "fit", label: "Zoom to fit", group: "Commands", keys: ["⇧", "1"], icon: Maximize, run: (r) => canvasKey(r, "!", { shiftKey: true, code: "Digit1" }) },
   { id: "minimap", label: "Minimap", group: "Commands", keys: ["M"], icon: MapIcon, run: (r) => canvasKey(r, "m") },
@@ -307,7 +326,7 @@ export function Commands({ root, canvas, edit, onClose, onOutline, onShortcuts, 
     }
     if (c.id === "outline") return onOutline();
     if (c.id === "shortcuts" || c.id === "help-connect") return onShortcuts();
-    ACTIONS.find((a) => a.id === c.id)?.run(root);
+    ACTIONS.find((a) => a.id === c.id)?.run(root, canvas);
   };
   const what = sel.length === 1 ? (sel[0].type === "arrow" ? "the selected connector" : "the selected shape") : sel.length ? `${sel.length} selected shapes` : "this diagram";
   let last = "";

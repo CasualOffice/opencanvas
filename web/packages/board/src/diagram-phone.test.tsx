@@ -128,6 +128,8 @@ describe("S11 phone", { timeout: 30_000 }, () => {
     expect(items).toContainEqual(["Export as PNG", false]);
     expect(items).toContainEqual(["Auto-layoutLarger screen", true]);
     expect(sh.textContent).toContain("Big diagrams are easier on a computer");
+    // BRD-16: Mermaid import is not built, so the sheet does not promise it.
+    expect(sh.textContent).not.toContain("Mermaid");
   });
 
   it("placeNextTo steps right past shapes already there", () => {
