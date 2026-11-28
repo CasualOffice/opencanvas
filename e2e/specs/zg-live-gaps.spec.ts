@@ -227,7 +227,7 @@ test("an editor without caps=live that removes a live block is closed with 4426;
   await openFile(asha, a);
   await expect(live(asha)).toHaveAttribute("data-state", "connected", { timeout: 15_000 });
   const ashaFrame = asha.page.frame({ name: "oc" })!;
-  expect(await ashaFrame.evaluate(() => (window as unknown as { __ocCaps: string[] }).__ocCaps[0])).toBe("ext,subdoc");
+  expect(await ashaFrame.evaluate(() => (window as unknown as { __ocCaps: string[] }).__ocCaps[0])).toBe("ext,subdoc,links");
 
   await live(asha).getByRole("button", { name: "Live block options" }).click();
   await asha.oc.getByRole("button", { name: "Remove from this canvas" }).or(asha.oc.getByRole("menuitem", { name: "Remove from this canvas" })).click();
